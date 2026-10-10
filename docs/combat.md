@@ -113,8 +113,17 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   (task 131).
 - **Art:** ground from `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` (Myrror: the `c` variants)
   by the overland terrain, entries 0-3 as plain ground, 48-52 trees and 53-57 rocks on blocked
-  squares; rough squares are the ground tinted. Units are their overland icon on a diamond in the
-  owner's banner colour, with a health bar and the number of figures.
+  squares; rough squares are the ground tinted. Units are drawn as their figures (`figures1` to
+  `figure16`: fifteen unit types to a file, eight directions per type, four frames; the type number
+  is the unit's `units1` entry, or 120 plus its `units2` entry) at the original's positions for
+  the number of figures, on a diamond in the owner's banner colour, with a health bar and the
+  number of figures. `extract-art` writes a `_banner.png` mask beside every figure frame (palette
+  indexes 214-218) so the client can paint the owner's banner shades.
+- **Animation** (`battle_anim.rs`): the core finishes an order at once; the screen keeps the battle
+  from before it and plays the events one after another (walk 0.2 s a square with the walk
+  frames 0,1,2,1; a lunge and a red flash for a blow; a missile for a shot; a fade for a death),
+  then shows the real battle. Input and the opponent wait meanwhile. Facing follows the original
+  table (`facing`).
 - **Controls:** click one of your units to select it; blue squares are where it can walk; red
   outlines are enemies it can hit (adjacent: melee, otherwise a shot if it has ranged attack and
   ammunition). Click a blue square to move, an enemy to attack. Space or D is `Done`, Tab picks

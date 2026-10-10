@@ -215,6 +215,24 @@ fn extract_font_atlases(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(
     Ok(())
 }
 
+/// First palette index the original recolours to a banner's shades on combat figures
+/// (`Combat_Figure_Banner_Color`: indexes 214 to 218).
+const FIGURE_BANNER_FIRST: u8 = 214;
+
+/// For a figure frame, a picture the size of the frame that marks the banner-coloured pixels:
+/// red is the shade (1 to 5), alpha 255; every other pixel is transparent. The client paints
+/// those pixels in the owner's banner shades (`map/banners.tsv`).
+fn banner_mask(pixels: &[u8]) -> Vec<u8> {
+    let mut out = vec![0u8; pixels.len() * 4];
+    for (k, &p) in pixels.iter().enumerate() {
+        if (FIGURE_BANNER_FIRST..FIGURE_BANNER_FIRST + 5).contains(&p) {
+            out[k * 4] = p - FIGURE_BANNER_FIRST + 1;
+            out[k * 4 + 3] = 255;
+        }
+    }
+    out
+}
+
 pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
@@ -258,6 +276,15 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
                     &rgba,
                 )?;
                 frames += 1;
+                if stem.starts_with("figure") {
+                    let mask = banner_mask(&frame.pixels);
+                    write_png(
+                        &dir.join(format!("{i:03}_{f:02}_banner.png")),
+                        pic.width,
+                        pic.height,
+                        &mask,
+                    )?;
+                }
             }
             manifest.push_str(&format!(
                 "{stem}\t{i}\t{}\t{}\t{}\n",
@@ -283,6 +310,15 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_banner_mask_marks_only_the_five_banner_shades() {
+        let mask = banner_mask(&[0, 213, 214, 216, 218, 219]);
+        let alpha: Vec<u8> = mask.chunks(4).map(|c| c[3]).collect();
+        let shade: Vec<u8> = mask.chunks(4).map(|c| c[0]).collect();
+        assert_eq!(alpha, vec![0, 0, 255, 255, 255, 0]);
+        assert_eq!(shade, vec![0, 0, 1, 3, 5, 0]);
+    }
 
     #[test]
     fn type_map_matches_the_games_formula() {

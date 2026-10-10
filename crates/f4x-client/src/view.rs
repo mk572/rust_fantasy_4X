@@ -232,6 +232,13 @@ impl App {
         self.art.banner_color(banner)
     }
 
+    /// The banner number of a player (by number; 255 is the neutral player).
+    pub(crate) fn banner_index(&self, owner: u8) -> u8 {
+        self.game
+            .player(PlayerId(owner))
+            .map_or(f4x_core::player::NEUTRAL_BANNER, |p| p.banner)
+    }
+
     pub(crate) fn race_name(&self, race: usize) -> &str {
         &self.game.content.rules.races.defs()[race].name
     }

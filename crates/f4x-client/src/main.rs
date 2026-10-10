@@ -2,6 +2,7 @@
 //! world except by sending commands.
 
 mod art;
+mod battle_anim;
 mod battle_screen;
 mod city_screen;
 mod cityscape;

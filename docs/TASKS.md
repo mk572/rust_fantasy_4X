@@ -568,13 +568,15 @@ west and east edges, so the client draws a full diamond. Port the original's pla
 its deployment squares per side, the lair/structure square (6, 11) and `Combat_Grid_Screen_Coordinates`
 placement at 320 by 200, then restrict the core map and movement to them.
 
-**132. Battle screen: unit figures, animation and the original's frame.** Units are drawn as their
-overland icon with a banner base, one health bar and a figure count. The original shows each
-figure of a unit (`figures1`-`figures16`, `Combat_Figure_Compose`), walking, attack, hit and death
-animations, projectiles (`cmbmagic`, `cmbtfx`), the combat frame (`combat.lbx`) with its unit list
-and spell/info buttons, mouse pointers by action, and hit/miss feedback. Terrain autotile
-edges, dirt patches, roads, rivers and the city (task 112) are also still missing; blocked squares
-use the plain trees and rocks.
+**132. Battle screen: unit figures, animation and the original's frame.** Done: each unit is drawn
+as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
+owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
+a missile in flight, fading death). Still missing: the original's projectile and effect pictures
+(`cmbmagic`, `cmbtfx`; arrows and bolts are drawn as simple shapes), blood and gibs, enchantment
+outlines and figure effects, the combat frame with its picture buttons (`compix` 1-4, 20, 21:
+Spell, Wait, Done, Auto, Info, Flee), the unit and info windows, enchantment icons, mouse
+pointers by action and sound. Terrain autotile edges, dirt patches, roads, rivers and the city
+(task 112) are also missing.
 
 **133. Prompt before attacking, and battles between AI players.** A human move into an enemy
 stack or a city starts the battle at once; the original asks first (attack, or cancel). AI

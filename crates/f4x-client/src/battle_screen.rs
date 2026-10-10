@@ -5,6 +5,8 @@
 //! (`Combat_Grid_Screen_Coordinates`), scaled to fit the window. The original shows only a
 //! band of its 21 by 22 squares; the core plays on all of them, so all are drawn.
 
+use std::collections::{HashMap, VecDeque};
+
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Cell, Pos, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, BattleCommand, BattleEvent, BattleUnit, RangedKind, Side};
@@ -13,6 +15,7 @@ use f4x_core::map::Plane;
 use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
+use crate::battle_anim::{self, Anim, Visual};
 use crate::frame::Align;
 use crate::ui::{bar, button, GOLD, PANEL};
 use crate::view::{App, Screen, HUMAN};
@@ -39,16 +42,29 @@ pub(crate) struct BattleUi {
     /// Unit names by id, kept while the battle exists so the last events can be told after
     /// the game has dropped the battle.
     names: Vec<String>,
-    /// The square the last blow landed on and how long it still shows.
-    flash: Option<(Pos, f32)>,
+    /// The battle as it was before the orders now being played; shown while they animate.
+    shown: Option<Battle>,
+    queue: VecDeque<Anim>,
+    /// The animation under way and how many seconds it has run.
+    playing: Option<(Anim, f32)>,
+    /// Which way each unit looks (0 north, clockwise), by unit id.
+    facing: HashMap<usize, u8>,
+}
+
+impl BattleUi {
+    fn animating(&self) -> bool {
+        self.shown.is_some()
+    }
 }
 
 /// Top-left of a square's cell, relative to the grid's origin, in native pixels.
 pub(crate) fn cell_origin(pos: Pos) -> (f32, f32) {
-    (
-        (pos.0 - pos.1) as f32 * STEP_X,
-        (pos.0 + pos.1) as f32 * STEP_Y,
-    )
+    cell_origin_f((pos.0 as f32, pos.1 as f32))
+}
+
+/// The same for a position between squares.
+pub(crate) fn cell_origin_f(pos: (f32, f32)) -> (f32, f32) {
+    ((pos.0 - pos.1) * STEP_X, (pos.0 + pos.1) * STEP_Y)
 }
 
 /// The square under a native point (relative to the grid's origin), if any. Where cells of
@@ -172,6 +188,11 @@ impl App {
                 .find(|u| unfinished(u))
                 .map(|u| u.id);
             self.battle_ui.selected = first;
+            // The attackers look east across the field, the defenders west.
+            for u in &battle.units {
+                let look = if u.side == Side::Attacker { 3 } else { 7 };
+                self.battle_ui.facing.insert(u.id, look);
+            }
             self.screen = Screen::Battle;
         }
     }
@@ -206,21 +227,18 @@ impl App {
 
     /// Send one order to the battle and tell what came of it.
     fn battle_order(&mut self, order: BattleCommand) {
-        let was_attack = match &order {
-            BattleCommand::Attack { target, .. } | BattleCommand::Shoot { target, .. } => self
-                .game
-                .battle()
-                .and_then(|b| b.unit(*target))
-                .map(|u| u.cell),
-            _ => None,
-        };
+        let before = self.game.battle().cloned();
         let events = self.game.apply(Command::Battle(order));
         let names = self.battle_ui.names.clone();
+        let mut anims = Vec::new();
         for event in &events {
             match event {
                 Event::Battle(e) => {
                     if let Some(line) = describe(&names, e) {
                         self.battle_ui.log.push(line);
+                    }
+                    if let Some(b) = &before {
+                        self.animate(b, e, &mut anims);
                     }
                 }
                 Event::BattleEnded { winner, .. } => {
@@ -236,8 +254,11 @@ impl App {
                 _ => {}
             }
         }
-        if let Some(cell) = was_attack {
-            self.battle_ui.flash = Some((cell, 0.4));
+        if !anims.is_empty() {
+            if self.battle_ui.shown.is_none() {
+                self.battle_ui.shown = before;
+            }
+            self.battle_ui.queue.extend(anims);
         }
         // The overland log gets the rest (a cleared site's treasure and so on).
         let rest: Vec<Event> = events
@@ -249,6 +270,101 @@ impl App {
         if n > 30 {
             self.battle_ui.log.drain(..n - 30);
         }
+    }
+
+    /// Turn one battle event into animations and remember which way units now look.
+    /// `before` is the battle as it stood when the order was given.
+    fn animate(&mut self, before: &Battle, event: &BattleEvent, out: &mut Vec<Anim>) {
+        let cell_of = |id: usize| before.unit(id).map(|u| u.cell);
+        match event {
+            BattleEvent::Moved { unit, path } => {
+                if let (Some(start), Some(&last)) = (cell_of(*unit), path.last()) {
+                    let prev = path
+                        .len()
+                        .checked_sub(2)
+                        .and_then(|i| path.get(i).copied())
+                        .unwrap_or(start);
+                    self.battle_ui
+                        .facing
+                        .insert(*unit, battle_anim::facing(prev, last));
+                }
+                out.push(Anim::Move {
+                    unit: *unit,
+                    path: path.clone(),
+                });
+            }
+            BattleEvent::Attacked {
+                attacker, defender, ..
+            }
+            | BattleEvent::Shot {
+                attacker, defender, ..
+            } => {
+                if let (Some(a), Some(d)) = (cell_of(*attacker), cell_of(*defender)) {
+                    self.battle_ui
+                        .facing
+                        .insert(*attacker, battle_anim::facing(a, d));
+                    self.battle_ui
+                        .facing
+                        .insert(*defender, battle_anim::facing(d, a));
+                }
+                out.push(if matches!(event, BattleEvent::Shot { .. }) {
+                    Anim::Shot {
+                        attacker: *attacker,
+                        defender: *defender,
+                    }
+                } else {
+                    Anim::Attack {
+                        attacker: *attacker,
+                        defender: *defender,
+                    }
+                });
+            }
+            BattleEvent::UnitDied { unit } => out.push(Anim::Death { unit: *unit }),
+            _ => {}
+        }
+    }
+
+    /// Run the animation clock; when the last one has played, show the real battle again.
+    fn advance_animation(&mut self, dt: f32) {
+        let ui = &mut self.battle_ui;
+        if let Some((anim, t)) = ui.playing.as_mut() {
+            *t += dt;
+            if *t >= anim.duration() {
+                ui.playing = None;
+            }
+        }
+        if ui.playing.is_none() {
+            ui.playing = ui.queue.pop_front().map(|a| (a, 0.0));
+        }
+        if ui.playing.is_none() && ui.queue.is_empty() {
+            ui.shown = None;
+        }
+    }
+
+    /// How a unit of the battle being drawn looks right now.
+    fn visual_of(&self, battle: &Battle, id: usize) -> Visual {
+        let Some(u) = battle.unit(id) else {
+            return Visual::still((0, 0), 2);
+        };
+        let base = self.battle_ui.facing.get(&id).copied().unwrap_or(2);
+        if let Some((anim, t)) = &self.battle_ui.playing {
+            if let Some(v) = battle_anim::visual_in(anim, *t, id, u.cell, base) {
+                return v;
+            }
+            let other = match anim {
+                Anim::Attack { attacker, defender } | Anim::Shot { attacker, defender } => {
+                    let o = if *attacker == id { defender } else { attacker };
+                    battle.unit(*o).map(|o| o.cell)
+                }
+                _ => None,
+            };
+            if let Some(other) = other {
+                if let Some(v) = battle_anim::visual_between(anim, *t, id, u.cell, other, base) {
+                    return v;
+                }
+            }
+        }
+        Visual::still(u.cell, base)
     }
 
     /// Select the next unit of the human's side that can still act.
@@ -271,33 +387,35 @@ impl App {
     }
 
     pub(crate) fn battle_screen(&mut self) {
-        let Some(battle) = self.game.battle().cloned() else {
+        let dt = get_frame_time();
+        self.advance_animation(dt);
+        // While orders animate, the battle as it was is drawn; afterwards the real one.
+        let animating = self.battle_ui.animating();
+        let Some(battle) = self
+            .battle_ui
+            .shown
+            .clone()
+            .or_else(|| self.game.battle().cloned())
+        else {
             self.screen = Screen::Map;
             return;
         };
         if self.battle_ui.names.len() != battle.units.len() {
             self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
         }
-        let dt = get_frame_time();
         self.battle_ui.ai_timer -= dt;
-        if let Some((_, t)) = self.battle_ui.flash.as_mut() {
-            *t -= dt;
-        }
-        if self.battle_ui.flash.is_some_and(|(_, t)| t <= 0.0) {
-            self.battle_ui.flash = None;
-        }
 
         let mine = Self::human_side(&battle);
-        let my_turn = mine == Some(battle.active);
-        // The other side plays by itself.
-        if !my_turn && self.battle_ui.ai_timer <= 0.0 {
+        let my_turn = mine == Some(battle.active) && !animating;
+        // The other side plays by itself, once nothing is moving.
+        if !animating
+            && mine != Some(battle.active)
+            && self.battle_ui.ai_timer <= 0.0
+            && self.game.in_battle()
+        {
             self.battle_ui.ai_timer = AI_DELAY;
             let order = next_command(&battle);
             self.battle_order(order);
-            if !self.game.in_battle() {
-                self.screen = Screen::Map;
-                return;
-            }
             self.select_next(None);
             return self.draw_battle(&battle, my_turn, None);
         }
@@ -311,11 +429,12 @@ impl App {
         if my_turn {
             self.battle_input(&battle, hovered);
         }
-        if !self.game.in_battle() {
-            self.screen = Screen::Map;
-            return;
-        }
-        let battle = self.game.battle().cloned().unwrap_or(battle);
+        let battle = self
+            .battle_ui
+            .shown
+            .clone()
+            .or_else(|| self.game.battle().cloned())
+            .unwrap_or(battle);
         self.draw_battle(&battle, my_turn, hovered);
     }
 
@@ -472,17 +591,22 @@ impl App {
                 }
             }
         }
+        let mut looks: HashMap<usize, Visual> = HashMap::new();
         for u in battle.units.iter().filter(|u| u.is_active()) {
-            items.push((u.cell.0 + u.cell.1, true, u.cell, u.id));
+            let vis = self.visual_of(battle, u.id);
+            items.push(((vis.at.0 + vis.at.1).round() as i32, true, u.cell, u.id));
+            looks.insert(u.id, vis);
         }
         items.sort_by_key(|&(depth, is_unit, pos, _)| (depth, is_unit, pos));
         for (_, is_unit, pos, id) in items {
             if is_unit {
-                self.draw_unit(battle, id, ox, oy, scale, my_turn);
+                let idle = self.battle_ui.selected == Some(id) && my_turn;
+                self.draw_unit(battle, id, looks[&id], idle, (ox, oy, scale), my_turn);
             } else {
                 self.draw_scenery(set, class, pos, at(pos), scale);
             }
         }
+        self.draw_missile(battle, (ox, oy, scale));
 
         // Markers over everything: the selected unit and the blow just struck.
         if let Some(u) = selected {
@@ -503,17 +627,6 @@ impl App {
                 }
             }
         }
-        if let Some((cell, t)) = self.battle_ui.flash {
-            let (sx, sy) = at(cell);
-            diamond(
-                sx,
-                sy,
-                scale,
-                Color::new(1.0, 0.3, 0.1, (t / 0.4).clamp(0.0, 1.0)),
-                true,
-            );
-        }
-
         self.draw_battle_panel(battle, my_turn, hovered);
     }
 
@@ -552,24 +665,37 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_unit(
         &mut self,
         battle: &Battle,
         id: usize,
-        ox: f32,
-        oy: f32,
-        scale: f32,
+        vis: Visual,
+        idle: bool,
+        (ox, oy, scale): (f32, f32, f32),
         my_turn: bool,
     ) {
         let Some(u) = battle.unit(id) else {
             return;
         };
-        let (x, y) = cell_origin(u.cell);
+        let (x, y) = cell_origin_f(vis.at);
         let (sx, sy) = (ox + x * scale, oy + y * scale);
-        let banner = self.banner_color(battle.player_of(u.side).0);
+        let owner = battle.player_of(u.side).0;
+        let banner = self.banner_color(owner);
+        let banner_index = self.banner_index(owner);
+        let fade = vis.alpha;
         // A coloured base in the owner's banner.
-        diamond(sx, sy, scale, Color { a: 0.55, ..banner }, true);
-        diamond(sx, sy, scale, banner, false);
+        diamond(
+            sx,
+            sy,
+            scale,
+            Color {
+                a: 0.55 * fade,
+                ..banner
+            },
+            true,
+        );
+        diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
         let art = self
             .game
             .content
@@ -579,34 +705,76 @@ impl App {
             .iter()
             .find(|d| d.id == u.unit_id)
             .and_then(|d| d.art.clone());
-        let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry as usize, 0));
+        let unit_type = art
+            .as_ref()
+            .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize));
+        let frame = if idle && vis.frame == 1 {
+            (get_time() * 3.0) as u8 % 3
+        } else {
+            vis.frame
+        };
+        let spent = my_turn && u.side == battle.active && !unfinished(u);
+        let shade = if spent { 0.65 } else { 1.0 };
+        let tint = Color::new(
+            shade,
+            shade * (1.0 - 0.6 * vis.hurt),
+            shade * (1.0 - 0.6 * vis.hurt),
+            fade,
+        );
         let cx = sx + CELL_W * scale / 2.0;
-        let base = sy + CELL_H * scale * 0.7;
-        match icon {
-            Some(tex) => {
-                let size = tex.size() * scale * 1.3;
-                let tint = if my_turn && u.side == battle.active && !unfinished(u) {
-                    Color::new(0.6, 0.6, 0.6, 1.0)
-                } else {
-                    WHITE
-                };
-                draw_texture_ex(
-                    tex,
-                    cx - size.x / 2.0,
-                    base - size.y,
-                    tint,
-                    DrawTextureParams {
-                        dest_size: Some(size),
-                        ..Default::default()
-                    },
-                );
+        let mut drew = false;
+        if let Some(ty) = unit_type {
+            // Every figure the unit still has, the back ones first.
+            let count = u.figures_start as usize;
+            let mut spots: Vec<(i32, i32)> = (0..u.figures as usize)
+                .map(|i| battle_anim::figure_offset(count, i))
+                .collect();
+            spots.sort_by_key(|&(_, fy)| fy);
+            for (fx, fy) in spots {
+                if let Some(tex) = self.art.figure(ty, vis.facing, frame, banner_index) {
+                    let size = tex.size() * scale;
+                    draw_texture_ex(
+                        tex,
+                        sx + (CELL_W / 2.0 - 14.0 + fx as f32) * scale,
+                        sy + (CELL_H / 2.0 - 23.0 + fy as f32) * scale,
+                        tint,
+                        DrawTextureParams {
+                            dest_size: Some(size),
+                            ..Default::default()
+                        },
+                    );
+                    drew = true;
+                }
             }
-            None => draw_circle(cx, base - 6.0 * scale, 6.0 * scale, banner),
         }
-        // Health bar and figure count.
+        if !drew {
+            // No figures extracted: the overland picture stands in.
+            let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry as usize, 0));
+            let base = sy + CELL_H * scale * 0.7;
+            match icon {
+                Some(tex) => {
+                    let size = tex.size() * scale * 1.3;
+                    draw_texture_ex(
+                        tex,
+                        cx - size.x / 2.0,
+                        base - size.y,
+                        tint,
+                        DrawTextureParams {
+                            dest_size: Some(size),
+                            ..Default::default()
+                        },
+                    );
+                }
+                None => draw_circle(cx, base - 6.0 * scale, 6.0 * scale, banner),
+            }
+        }
+        if fade < 1.0 {
+            return;
+        }
+        // Health bar and figure count under the feet.
         let max = u.max_hit_points().max(1) as f32;
         let (bw, bh) = (CELL_W * scale * 0.6, (2.0 * scale).max(2.0));
-        let bar_rect = Rect::new(cx - bw / 2.0, base + bh, bw, bh);
+        let bar_rect = Rect::new(cx - bw / 2.0, sy + (CELL_H + 1.0) * scale, bw, bh);
         let frac = u.hit_points() as f32 / max;
         let color = if frac > 0.5 {
             Color::new(0.2, 0.8, 0.2, 1.0)
@@ -625,6 +793,48 @@ impl App {
             (bar_rect.y - 3.0 * scale) / ts,
             Align::Left,
         );
+    }
+
+    /// The arrow or bolt in flight during a shot.
+    fn draw_missile(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32)) {
+        let Some((Anim::Shot { attacker, defender }, t)) = self.battle_ui.playing.clone() else {
+            return;
+        };
+        let Some(progress) = battle_anim::missile_progress(t) else {
+            return;
+        };
+        let (Some(a), Some(d)) = (battle.unit(attacker), battle.unit(defender)) else {
+            return;
+        };
+        let centre = |cell: Pos| {
+            let (x, y) = cell_origin(cell);
+            (
+                ox + (x + CELL_W / 2.0) * scale,
+                oy + (y + CELL_H / 2.0 - 8.0) * scale,
+            )
+        };
+        let (from, to) = (centre(a.cell), centre(d.cell));
+        let arc = (progress * std::f32::consts::PI).sin() * 10.0 * scale;
+        let at = (
+            from.0 + (to.0 - from.0) * progress,
+            from.1 + (to.1 - from.1) * progress - arc,
+        );
+        if a.ranged_kind == RangedKind::Magic {
+            draw_circle(at.0, at.1, 4.0 * scale, Color::new(1.0, 0.9, 0.5, 0.35));
+            draw_circle(at.0, at.1, 2.0 * scale, Color::new(1.0, 1.0, 0.9, 1.0));
+        } else {
+            let (dx, dy) = (to.0 - from.0, to.1 - from.1 - 2.0 * arc);
+            let len = (dx * dx + dy * dy).sqrt().max(1.0);
+            let (ux, uy) = (dx / len * 4.0 * scale, dy / len * 4.0 * scale);
+            draw_line(
+                at.0 - ux,
+                at.1 - uy,
+                at.0 + ux,
+                at.1 + uy,
+                (scale * 0.8).max(1.5),
+                Color::new(0.85, 0.7, 0.4, 1.0),
+            );
+        }
     }
 
     fn draw_battle_panel(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>) {

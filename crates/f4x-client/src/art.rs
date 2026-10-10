@@ -49,6 +49,8 @@ pub struct Art {
     banners: Vec<[Color; 5]>,
     /// Tiles of rivers with everything but the water cut out, to lay over any ground.
     river_overlays: HashMap<usize, Option<Texture2D>>,
+    /// Combat figures painted in a banner, by (unit type, direction, frame, banner).
+    figures: HashMap<(usize, u8, u8, u8), Option<Texture2D>>,
 }
 
 /// Banner names in the order the game numbers them.
@@ -105,6 +107,7 @@ impl Art {
             type_anim,
             banners,
             river_overlays: HashMap::new(),
+            figures: HashMap::new(),
         }
     }
 
@@ -358,6 +361,48 @@ impl Art {
             .and_then(Option::as_ref)
     }
 
+    /// A combat figure of a unit type facing one of eight directions (0 north, clockwise) at an
+    /// animation frame, painted in a banner's shades. `None` without the extracted pictures.
+    pub fn figure(
+        &mut self,
+        unit_type: usize,
+        direction: u8,
+        frame: u8,
+        banner: u8,
+    ) -> Option<&Texture2D> {
+        let key = (unit_type, direction, frame, banner);
+        if !self.figures.contains_key(&key) {
+            let tex = self.load_figure(unit_type, direction, frame, banner);
+            self.figures.insert(key, tex);
+        }
+        self.figures.get(&key).and_then(Option::as_ref)
+    }
+
+    fn load_figure(
+        &self,
+        unit_type: usize,
+        direction: u8,
+        frame: u8,
+        banner: u8,
+    ) -> Option<Texture2D> {
+        let (lbx, entry) = figure_entry(unit_type, direction);
+        let base = format!("{lbx}/{entry:03}_{frame:02}");
+        let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
+        let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
+        if let Some(shades) = self.banners.get(usize::from(banner)) {
+            if let Ok(mask_bytes) = std::fs::read(self.dir.join(format!("{base}_banner.png"))) {
+                if let Ok(mask) = Image::from_file_with_format(&mask_bytes, Some(ImageFormat::Png))
+                {
+                    let rgb = shades.map(|c| [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8));
+                    paint_banner(&mut img.bytes, &mask.bytes, &rgb);
+                }
+            }
+        }
+        let tex = Texture2D::from_image(&img);
+        tex.set_filter(FilterMode::Nearest);
+        Some(tex)
+    }
+
     /// The ground tile for a terrain type number (see [`terrain_type`]).
     pub fn terrain(&mut self, terrain_type: usize) -> Option<&Texture2D> {
         let tile = *self.type_tiles.get(terrain_type)?;
@@ -370,6 +415,39 @@ impl Art {
     }
 }
 
+/// The picture file and entry of a unit type's figure facing `direction`: fifteen unit
+/// types to a file, eight directions each (`Combat_Figure_Load`).
+pub fn figure_entry(unit_type: usize, direction: u8) -> (String, usize) {
+    let file = unit_type / 15 + 1;
+    let name = if file < 10 {
+        format!("figures{file}")
+    } else {
+        format!("figure{file}")
+    };
+    (name, (unit_type % 15) * 8 + usize::from(direction))
+}
+
+/// The unit type number the original's tables use for a unit whose overland picture is entry
+/// `entry` of `units1` (types 0 to 119) or `units2` (120 on).
+pub fn unit_type_number(lbx: &str, entry: usize) -> Option<usize> {
+    match lbx {
+        "units1" => Some(entry),
+        "units2" => Some(120 + entry),
+        _ => None,
+    }
+}
+
+/// Paint the pixels a banner mask marks (red channel 1 to 5, alpha 255) in the banner's
+/// shades. Both slices are RGBA of the same picture.
+pub fn paint_banner(rgba: &mut [u8], mask: &[u8], shades: &[[u8; 3]; 5]) {
+    for (px, m) in rgba.chunks_exact_mut(4).zip(mask.chunks_exact(4)) {
+        if m[3] == 255 && (1..=5).contains(&m[0]) {
+            let c = shades[usize::from(m[0]) - 1];
+            px[..3].copy_from_slice(&c);
+        }
+    }
+}
+
 /// Colours to use before the original's banners are extracted.
 fn default_banner_color(banner: u8) -> Color {
     match banner {
@@ -379,5 +457,35 @@ fn default_banner_color(banner: u8) -> Color {
         3 => Color::new(0.68, 0.0, 0.0, 1.0),
         4 => Color::new(1.0, 0.8, 0.14, 1.0),
         _ => Color::new(0.75, 0.6, 0.46, 1.0),
+    }
+}
+
+#[cfg(test)]
+mod figure_tests {
+    use super::*;
+
+    #[test]
+    fn figures_are_fifteen_types_to_a_file_with_eight_directions() {
+        assert_eq!(figure_entry(0, 0), ("figures1".to_string(), 0));
+        assert_eq!(figure_entry(14, 7), ("figures1".to_string(), 119));
+        assert_eq!(figure_entry(15, 2), ("figures2".to_string(), 2));
+        assert_eq!(figure_entry(135, 0), ("figure10".to_string(), 0));
+        assert_eq!(figure_entry(197, 7), ("figure14".to_string(), 2 * 8 + 7));
+    }
+
+    #[test]
+    fn unit_types_follow_the_two_unit_picture_files() {
+        assert_eq!(unit_type_number("units1", 5), Some(5));
+        assert_eq!(unit_type_number("units2", 5), Some(125));
+        assert_eq!(unit_type_number("mainscrn", 5), None);
+    }
+
+    #[test]
+    fn banner_pixels_take_the_banners_shades() {
+        let mut px = [9u8, 9, 9, 255, 7, 7, 7, 255, 1, 2, 3, 255];
+        let mask = [0u8, 0, 0, 0, 2, 0, 0, 255, 5, 0, 0, 255];
+        let shades = [[10; 3], [20; 3], [30; 3], [40; 3], [50; 3]];
+        paint_banner(&mut px, &mask, &shades);
+        assert_eq!(px, [9, 9, 9, 255, 20, 20, 20, 255, 50, 50, 50, 255]);
     }
 }
