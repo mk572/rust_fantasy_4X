@@ -3,6 +3,7 @@
 //! All state changes go through [`Game::apply`] as [`Command`]s, which yield
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
+pub mod battle;
 pub mod cast;
 pub mod city;
 pub mod content;
@@ -60,6 +61,13 @@ pub enum Command {
     ClearOrders {
         units: Vec<hecs::Entity>,
     },
+    /// Begin a battle between two stacks of units.
+    BeginBattle {
+        attackers: Vec<hecs::Entity>,
+        defenders: Vec<hecs::Entity>,
+    },
+    /// An order in the battle being fought.
+    Battle(battle::BattleCommand),
     /// Engineers build a road along `path` (starting where they stand).
     BuildRoad {
         units: Vec<hecs::Entity>,
@@ -240,6 +248,17 @@ pub enum Event {
         player: city::PlayerId,
         spell: rules::SpellId,
     },
+    BattleStarted {
+        attacker: city::PlayerId,
+        defender: city::PlayerId,
+        site: city::Position,
+    },
+    /// Something happened in the battle being fought.
+    Battle(battle::BattleEvent),
+    BattleEnded {
+        winner: city::PlayerId,
+        loser: city::PlayerId,
+    },
     RoadBuilt {
         pos: city::Position,
     },
@@ -293,6 +312,8 @@ pub enum Rejection {
     Fortress(fortress::FortressError),
     Meld(nodes::MeldError),
     Road(roads::RoadError),
+    BattleStart(battle::game::BattleStartError),
+    Battle(battle::BattleError),
 }
 
 fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
@@ -322,6 +343,8 @@ pub struct Game {
     pub(crate) timers: Vec<timers::Timer>,
     /// The game's node setting: 0 weak, 1 normal, 2 powerful.
     pub magic_strength: u8,
+    /// The battle being fought, if any. Saves do not hold a battle in progress.
+    pub battle: Option<battle::game::ActiveBattle>,
 }
 
 impl Game {
@@ -339,6 +362,7 @@ impl Game {
             rng: Pcg64Mcg::seed_from_u64(seed),
             timers: Vec::new(),
             magic_strength: 1,
+            battle: None,
         }
     }
 
@@ -426,6 +450,15 @@ impl Game {
                 }
                 Vec::new()
             }
+            Command::BeginBattle {
+                attackers,
+                defenders,
+            } => self
+                .start_battle(&attackers, &defenders)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::BattleStart(e))]),
+            Command::Battle(command) => self
+                .battle_command(command)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Battle(e))]),
             Command::BuildRoad { units, path } => self
                 .build_road(&units, path)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Road(e))]),

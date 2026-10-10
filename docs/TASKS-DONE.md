@@ -18,6 +18,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
+| 33 | Combat | ~~Battle data model in the ECS~~ (done) |
+| 34 | Combat | ~~Attack resolution: to-hit, damage, defence, attack order~~ (done) |
+| 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
@@ -107,6 +110,18 @@ stepping ashore is an ordinary move that unloads, and land units left at sea wit
 drown at the start of the next turn. Not done: ship tiers by building (which buildings allow
 which ship is already in the unit data's requirements), and path turn estimates that mix ship
 and passenger speeds.
+
+**33. Battle data model in the ECS (done).** A battle is a separate `Battle` record, not part of the
+`hecs` world: units are copied into `BattleUnit`s with their modifiers applied, and results are
+written back when it ends (`battle/game.rs`, `Command::BeginBattle`, `Command::Battle`). See
+`combat.md` section 1. Open: saving a battle in progress, the AI-facing views of a battle.
+
+**34. Attack resolution (done).** `battle/attack.rs`: dice (30 percent, +10 per plus, a 10 always
+hits), defence blocks, damage to the front figure with overflow and fresh defence rolls,
+the melee exchange order (thrown or breath, first strike, the reply, the ordinary blows),
+ranged attacks with distance penalties and ammunition. Seeded and tested for averages,
+overflow, ordering and determinism. Immunities, special attacks and the ability rules are
+tasks 35-37.
 
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each

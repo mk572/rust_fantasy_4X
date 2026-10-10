@@ -6,7 +6,7 @@ Everything not yet implemented, collected from the whole project history and the
 (or take the next free number). Bracketed numbers like [430] point at topics in the original help
 (`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
 
-Combat (tasks 33-46) was paused and has been released to start (33, 34, 40 first).
+Combat is under way: 33, 34 and 40 are done (see [`combat.md`](combat.md)).
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
 Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md).
@@ -36,14 +36,11 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 30 | Units | Temporary effects store (instant modifiers, granted abilities) |
 | 31 | Units | Neutral player and neutral cities |
 | 32 | Units | Starting economy tuning |
-| 33 | Combat | Battle data model in the ECS |
-| 34 | Combat | Attack resolution: to-hit, damage, defence, attack order |
 | 35 | Combat | Immunities and resistance rolls |
 | 36 | Combat | Special attacks |
 | 37 | Combat | Combat ability rules |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
-| 40 | Combat | Tactical battle map, walls and turn flow |
 | 41 | Combat | City sieges, walls and capture |
 | 42 | Combat | Fleeing and after-battle results |
 | 43 | Combat | Casting in battle |
@@ -189,14 +186,6 @@ the single city earns. Tune the starting setup (units, tax, buildings) or docume
 
 ### Combat (paused)
 
-**33. Battle data model in the ECS.** Define how a battle exists: battle entity or record, the two
-sides, units' battle positions and figures, turn order, and how it hangs off `AttackRequested`.
-Decide the relation to `ecs-structure.md`. Everything below builds on it.
-
-**34. Attack resolution.** Base to-hit 30 percent, each plus +10 percent; defence blocks at 30
-percent per point; damage by figure; attack order thrown, breath, gaze, then first strike, then
-melee [430, 443-448, 543]. Implemented as pure functions with seeded RNG and thorough tests.
-
 **35. Immunities and resistance rolls.** All the immunities and their numbers: weapon immunity (10
 defence against magic), magic immunity (50), missiles, fire, cold, poison, stoning, death,
 illusion [412-420]; resistance rolls with spell penalties.
@@ -215,8 +204,11 @@ shots" that use mana [542].
 **39. Auto-resolve.** Resolve a battle without the tactical map, including the strategic-combat-only
 option [685]. First playable combat; do after 34-37.
 
-**40. Tactical battle map, walls and turn flow.** Combat grid, obstacles, wall sections, unit
-initiative and movement points, melee, ranged and spell actions, per-unit turns [593-597].
+**40. Tactical battle map, walls and turn flow (done, without walls).** `battle/map.rs` and
+`battle/mod.rs`: the 21 by 22 grid with open, rough and blocked squares generated from the
+terrain, eight-direction movement with costs and obstacles, deployment on opposite edges, side
+turns with per-unit moves and one attack each, win by elimination, flee, a 100-turn limit.
+Walls and wall sections are part of the siege task (41); the battle screen is 45.
 
 **41. City sieges, walls and capture.** Walls and gates in city battles, defenders' bonuses,
 capture or raze of the city, and the fortress rule that a wizard's capital city cannot be

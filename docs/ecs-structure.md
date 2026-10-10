@@ -18,7 +18,7 @@ original code): `MoX/src/MOM_DAT.h` and `MOM_DEF.h`. Record sizes are for the or
 | Players | A fixed array of 6 wizard records of 1224 bytes each: picks, known-spell table, global enchantments (24 flags), up to 6 heroes, mana, gold, research, tax rate. |
 | Map (see `map-layers.md`) | Two planes of 60x40 terrain-type numbers (762 of them, including the shore and river variants that make autotiling work), plus separate per-square bitfields for specials, flags and exploration. |
 | Sites | Fixed arrays: 102 lairs, 30 nodes, 6 towers, 138 magic items. |
-| Combat | A separate temporary array of battle-unit records, copied from units at the start of a fight. |
+| Combat | A separate temporary `Battle` record of battle units copied from the overland units at the start of a fight (not part of the `hecs` world); see `combat.md`. |
 | Content | Tables of records (units, buildings, spells, races), some in the executable's data segment and some in the `.lbx` files; code refers to them by index and by compiled-in constants (`bt_Barracks`, `spl_Fireball`). |
 
 Consequences of that model that matter here: hard limits (a 101st city is impossible),
