@@ -15,7 +15,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 2 | Map | Lakes |
 | 5 | Map | Land corruption and purification |
 | 7 | Map | Node auras and warped nodes |
 | 8 | Map | Encounter sites: guardians and loot |
@@ -113,10 +112,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 ## Descriptions
 
 ### Map
-
-**2. Lakes.** Same gap as rivers: lake variants are not modelled. Decide whether a lake is its own
-terrain class or a flagged ocean tile that is not coastal for ships, generate them, and check
-effects on food and city coast status.
 
 **5. Land corruption and purification.** Corruption of tiles (by units, spells and Great Wasting)
 and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on

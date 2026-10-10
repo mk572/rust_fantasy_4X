@@ -584,6 +584,26 @@ mod tests {
     }
 
     #[test]
+    fn a_lake_counts_as_a_shore_for_trade() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 10);
+        assert_eq!(g.city_economy(city).unwrap().gold, 10);
+        let ocean = g
+            .content
+            .terrains
+            .first_of_class(crate::content::TerrainClass::Ocean, Plane::Arcanus)
+            .unwrap();
+        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
+        grid.set(11, 6, ocean);
+        grid.set_lake(11, 6, true);
+        assert_eq!(
+            g.city_economy(city).unwrap().gold,
+            11,
+            "+10% beside the water"
+        );
+    }
+
+    #[test]
     fn rivers_pay_twenty_percent_and_river_mouths_thirty() {
         let mut g = world();
         let city = found(&mut g, at(10, 6), "elf", 10);

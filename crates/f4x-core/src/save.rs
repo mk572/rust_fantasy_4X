@@ -107,6 +107,9 @@ pub struct PlaneSave {
     /// Tile indexes whose road is enchanted.
     #[serde(default)]
     pub enchanted_roads: Vec<u32>,
+    /// Tile indexes that are lakes.
+    #[serde(default)]
+    pub lakes: Vec<u32>,
 }
 
 /// Explored flags, bit-packed (least significant bit first), per player and plane.
@@ -413,6 +416,13 @@ impl Game {
                         rivers,
                         volcanoes,
                         enchanted_roads,
+                        lakes: grid
+                            .lakes()
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, &l)| l)
+                            .map(|(i, _)| i as u32)
+                            .collect(),
                     }
                 })
                 .collect();
@@ -912,6 +922,12 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .ok_or_else(|| LoadError::Inconsistent("a volcano is off the map".into()))? =
                 owner.saturating_add(1);
         }
+        let mut lakes = vec![false; len];
+        for i in plane.lakes {
+            *lakes
+                .get_mut(i as usize)
+                .ok_or_else(|| LoadError::Inconsistent("a lake is off the map".into()))? = true;
+        }
         let mut enchanted = vec![false; len];
         for i in plane.enchanted_roads {
             *enchanted.get_mut(i as usize).ok_or_else(|| {
@@ -925,7 +941,8 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 })?
                 .with_rivers(rivers)
                 .with_volcanoes(volcanoes)
-                .with_enchanted_roads(enchanted),
+                .with_enchanted_roads(enchanted)
+                .with_lakes(lakes),
         );
     }
     let myrror = grids.pop().expect("two planes");
@@ -1006,6 +1023,7 @@ mod tests {
             g.set_road(13, 6, true);
             g.set_river(14, 6, true);
             g.set_volcano(15, 6, Some(0));
+            g.set_lake(16, 6, true);
             g
         };
         let mut map = Map::new(build(), build());
@@ -1109,6 +1127,7 @@ mod tests {
         assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
         assert_eq!(grid.volcano(15, 6), Some(0));
         assert_eq!(grid.volcano(14, 6), None);
+        assert!(grid.is_lake(16, 6) && !grid.is_lake(15, 6));
         assert_eq!(
             back.map.as_ref().unwrap().nodes(),
             g.map.as_ref().unwrap().nodes()

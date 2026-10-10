@@ -41,6 +41,9 @@ pub struct Grid {
     /// Enchanted roads cost walking units no movement at all.
     #[serde(default)]
     enchanted_roads: Vec<bool>,
+    /// Lake squares: ocean-class water that is not part of any sea.
+    #[serde(default)]
+    lakes: Vec<bool>,
     /// Volcano owner per tile: 0 for none, else the owner's player number plus one.
     #[serde(default)]
     volcanoes: Vec<u8>,
@@ -59,6 +62,7 @@ impl Grid {
             rivers: vec![false; len],
             volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
+            lakes: vec![false; len],
         }
     }
 
@@ -124,6 +128,7 @@ impl Grid {
             rivers: vec![false; len],
             volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
+            lakes: vec![false; len],
         })
     }
 
@@ -167,6 +172,38 @@ impl Grid {
             self.roads = vec![false; self.tiles.len()];
         }
         self.roads[i] = road;
+    }
+
+    /// The same grid with the given lake layer; ignored if its length is wrong.
+    pub fn with_lakes(mut self, lakes: Vec<bool>) -> Self {
+        if lakes.len() == self.tiles.len() {
+            self.lakes = lakes;
+        }
+        self
+    }
+
+    /// Lake flag per tile, row by row.
+    pub fn lakes(&self) -> Vec<bool> {
+        let mut v = self.lakes.clone();
+        v.resize(self.tiles.len(), false);
+        v
+    }
+
+    /// Whether `(x, y)` is a lake (x wraps, y outside the map has none).
+    pub fn is_lake(&self, x: i32, y: i32) -> bool {
+        if y < 0 || y >= self.height as i32 {
+            return false;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        self.lakes.get(i).copied().unwrap_or(false)
+    }
+
+    pub fn set_lake(&mut self, x: u32, y: u32, lake: bool) {
+        let i = self.index(x, y);
+        if self.lakes.len() != self.tiles.len() {
+            self.lakes = vec![false; self.tiles.len()];
+        }
+        self.lakes[i] = lake;
     }
 
     /// The same grid with the given enchanted-road layer; ignored if its length is wrong.

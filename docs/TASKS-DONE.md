@@ -8,6 +8,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | # | Area | Summary |
 |---|---|---|
 | 1 | Map | ~~Rivers~~ (done) |
+| 2 | Map | ~~Lakes~~ (done) |
 | 3 | Map | ~~Volcanoes~~ (done) |
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
@@ -34,6 +35,16 @@ mountains or ocean). Effect as in the original (`Square_Gold_Bonus`): a city on 
 percent trade, on a river next to the sea (river mouth) +30, shore alone +10; capped with roads
 and race at three times the citizens. The client draws blue strokes. The original also lets
 rivers change movement art only, so no movement rule. Lakes are task 2.
+
+**2. Lakes (done).** In the original a lake is one standalone water square (`_1Lake`) that is not part
+of any sea, with outlet variants where a river leaves it. Here a lake is an ocean-class square
+with a lake flag (`Grid::is_lake`, saved as `PlaneSave::lakes`), so ships can sail it, cities
+beside it get the shore trade bonus (+10 percent, tested), and nothing can be built on it.
+`mapgen` makes them two ways: a river that reaches a basin (nowhere lower to flow) ends in a
+lake, and a few standalone lakes (about one per 450 land squares) go on quiet ground away from
+rivers. Both keep clear of the sea (tested over 30 seeds). Not done: the original's drawing of
+river outlets on lake squares, and checking whether a lake feeds the farmers of a city (ocean
+food rules are the sample data's).
 
 **3. Volcanoes (done).** `terraform.rs`: a volcano is a mountain tile with an owner (`Grid`
 volcano layer, saved). Raise Volcano (hook `raise_volcano`, map square target) turns a non-hill,

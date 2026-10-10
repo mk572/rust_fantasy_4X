@@ -181,8 +181,10 @@ fn generate_plane(
         &elevation,
         &is_land,
         [hills, mountains],
+        ocean,
         plane_seed,
     );
+    place_lakes(&mut grid, ocean, [hills, mountains], plane_seed);
     Ok(grid)
 }
 
@@ -194,6 +196,7 @@ fn place_rivers(
     elevation: &[i32],
     is_land: &[bool],
     steep: [TerrainId; 2],
+    ocean: TerrainId,
     seed: u64,
 ) {
     let (w, h) = (grid.width(), grid.height());
@@ -217,6 +220,7 @@ fn place_rivers(
         let (mut x, mut y) = (sx, sy);
         let mut flagged = Vec::new();
         let mut reached_water = false;
+        let mut lake_at = None;
         for _ in 0..(w + h) {
             if !seen.insert((x, y)) {
                 break;
@@ -240,8 +244,27 @@ fn place_rivers(
                 .filter(|p| !seen.contains(p))
                 .min_by_key(|&(nx, ny)| (elevation[(ny * w + nx) as usize], ny, nx));
             match next {
+                // A basin: the water has nowhere lower to go, so it pools into a lake.
+                Some((nx, ny))
+                    if elevation[(ny * w + nx) as usize] > elevation[i]
+                        && flagged.len() >= 3
+                        && y >= 2
+                        && y + 2 < h =>
+                {
+                    lake_at = Some((x, y));
+                    reached_water = true;
+                    break;
+                }
                 Some(p) => (x, y) = p,
                 None => break,
+            }
+        }
+        if let Some((lx, ly)) = lake_at {
+            flagged.retain(|&p| p != (lx, ly));
+            let here = grid.get(lx as i32, ly as i32);
+            if here.is_some_and(|t| !steep.contains(&t) && t != ocean) {
+                grid.set(lx, ly, ocean);
+                grid.set_lake(lx, ly, true);
             }
         }
         // A river that never reaches water or another river would be a puddle: drop it.
@@ -255,6 +278,40 @@ fn place_rivers(
             {
                 grid.set_river(x, y, true);
             }
+        }
+    }
+}
+
+/// A few standalone lakes: single water squares with land on every side, away from
+/// rivers and from each other.
+fn place_lakes(grid: &mut Grid, ocean: TerrainId, steep: [TerrainId; 2], seed: u64) {
+    let (w, h) = (grid.width(), grid.height());
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x4C41_4B45_5321);
+    let land = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| grid.get(x as i32, y as i32).is_some_and(|t| t != ocean))
+        .count();
+    let want = land / 450;
+    let mut tries = want * 40 + 20;
+    let mut placed = 0;
+    while placed < want && tries > 0 {
+        tries -= 1;
+        let (x, y) = (
+            rng.gen_range(0..w),
+            rng.gen_range(2..h.saturating_sub(2).max(3)),
+        );
+        let quiet = (-2i32..=2).all(|dy| {
+            (-2i32..=2).all(|dx| {
+                let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                grid.get(nx, ny)
+                    .is_some_and(|t| t != ocean && !steep.contains(&t))
+                    && !grid.has_river(nx, ny)
+            })
+        });
+        if quiet {
+            grid.set(x, y, ocean);
+            grid.set_lake(x, y, true);
+            placed += 1;
         }
     }
 }
@@ -434,6 +491,37 @@ mod tests {
             }
         }
         assert!(count > 0, "the default map has rivers");
+    }
+
+    #[test]
+    fn lakes_are_single_water_squares_away_from_the_sea() {
+        let c = content();
+        let mut lakes = 0;
+        for seed in 1..=30 {
+            let m = generate(seed, &GenParams::default(), &c).unwrap();
+            for plane in Plane::ALL {
+                let g = m.plane(plane);
+                for y in 0..g.height() as i32 {
+                    for x in 0..g.width() as i32 {
+                        if !g.is_lake(x, y) {
+                            continue;
+                        }
+                        lakes += 1;
+                        let class = |x, y| g.get(x, y).map(|t| c.terrains.get(t).unwrap().class);
+                        assert_eq!(class(x, y), Some(TerrainClass::Ocean), "a lake is water");
+                        assert!(g.feature(x, y).is_none(), "nothing stands in a lake");
+                        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                            let n = class(x + dx, y + dy);
+                            assert!(
+                                n != Some(TerrainClass::Ocean) || g.is_lake(x + dx, y + dy),
+                                "seed {seed}: lake at ({x},{y}) touches the sea"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(lakes >= 20, "30 maps should hold lakes, found {lakes}");
     }
 
     #[test]
