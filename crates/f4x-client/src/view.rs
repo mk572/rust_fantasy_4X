@@ -850,16 +850,7 @@ impl App {
             let k = t.x / TILE_W;
             let name = city.name.clone();
             let (cx, cy) = ((at.x + t.x / 2.0) / k, (at.y + t.y) / k - 2.0);
-            self.bm_text(
-                (0.0, 0.0, k),
-                1,
-                Color::new(0.0, 0.0, 0.0, 1.0),
-                &name,
-                cx + 0.5,
-                cy + 0.5,
-                Align::Center,
-            );
-            self.bm_text((0.0, 0.0, k), 1, WHITE, &name, cx, cy, Align::Center);
+            self.bm_text_outlined((0.0, 0.0, k), 1, &name, cx, cy, Align::Center);
         }
         self.draw_units(&screen_of, &visible, width, t);
         gl.flush();

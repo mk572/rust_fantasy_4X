@@ -378,6 +378,37 @@ pub struct Node {
     pub warped: bool,
 }
 
+/// What a guarded site holds: its guards and its treasure. Towers, magic nodes and the
+/// encounter sites each have one (the original's "lair" table).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lair {
+    pub plane: Plane,
+    pub x: u32,
+    pub y: u32,
+    /// Id of the site's feature: `tower`, a node, or an encounter site.
+    pub site: String,
+    /// False once cleared.
+    pub intact: bool,
+    /// Guard unit ids with counts; empty for an unguarded site.
+    pub guards: Vec<(String, u32)>,
+    pub gold: u32,
+    pub mana: u32,
+    /// The value of each magic item inside (items themselves wait for the hero tasks).
+    pub items: Vec<u32>,
+    /// A hero is held prisoner here.
+    pub prisoner: bool,
+    /// 0 nothing, 1 to 4 a spell of that rarity (1 common), 5 a spell book or a retort,
+    /// 6 a spell book or retort worth two picks.
+    pub special: u8,
+}
+
+impl Lair {
+    /// Number of guard units.
+    pub fn guard_count(&self) -> u32 {
+        self.guards.iter().map(|g| g.1).sum()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Map {
     planes: [Grid; 2],
@@ -386,6 +417,8 @@ pub struct Map {
     /// Who last stood in each tower: `(x, y, player number)`. Towers are on both planes.
     #[serde(default)]
     tower_owners: Vec<(u32, u32, u8)>,
+    #[serde(default)]
+    lairs: Vec<Lair>,
 }
 
 impl Map {
@@ -398,7 +431,27 @@ impl Map {
             planes: [arcanus, myrror],
             nodes: Vec::new(),
             tower_owners: Vec::new(),
+            lairs: Vec::new(),
         }
+    }
+
+    pub fn lairs(&self) -> &[Lair] {
+        &self.lairs
+    }
+
+    pub fn set_lairs(&mut self, lairs: Vec<Lair>) {
+        self.lairs = lairs;
+    }
+
+    pub fn lair_mut(&mut self, index: usize) -> Option<&mut Lair> {
+        self.lairs.get_mut(index)
+    }
+
+    /// The intact lair on a square.
+    pub fn lair_at(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
+        self.lairs
+            .iter()
+            .position(|l| l.intact && l.plane == plane && l.x == x && l.y == y)
     }
 
     /// The wizard whose stack last stood in the tower at `(x, y)`.

@@ -166,20 +166,17 @@ impl App {
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let view = (lay.origin.x, lay.origin.y, s);
         let (g, m) = (spot::GOLD_BOX, spot::MANA_BOX);
-        let white = Color::new(1.0, 1.0, 1.0, 1.0);
-        self.bm_text(
+        self.bm_text_outlined(
             view,
             1,
-            white,
             &format!("{gold} GP"),
             g.0 + g.2 * 0.62,
             g.1 + g.3 * 0.72,
             Align::Center,
         );
-        self.bm_text(
+        self.bm_text_outlined(
             view,
             1,
-            white,
             &format!("{mana} MP"),
             m.0 + m.2 * 0.62,
             m.1 + m.3 * 0.72,
@@ -199,15 +196,9 @@ impl App {
         .into_iter()
         .enumerate()
         {
-            let color = if value < 0 {
-                Color::new(0.75, 0.1, 0.05, 1.0)
-            } else {
-                Color::new(0.25, 0.12, 0.05, 1.0)
-            };
-            self.bm_text(
+            self.bm_text_outlined(
                 view,
                 2,
-                color,
                 &format!("{value} {label}"),
                 px + 40.0,
                 py + 24.0 + k as f32 * 32.0,
@@ -311,6 +302,25 @@ pub enum Align {
 }
 
 impl App {
+    /// Bitmap text in white with a one-pixel black outline, as the original draws its
+    /// gold, mana and income figures.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn bm_text_outlined(
+        &mut self,
+        view: (f32, f32, f32),
+        style: usize,
+        text: &str,
+        x: f32,
+        y: f32,
+        align: Align,
+    ) {
+        let black = Color::new(0.0, 0.0, 0.0, 1.0);
+        for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (1.0, 1.0)] {
+            self.bm_text(view, style, black, text, x + dx, y + dy, align);
+        }
+        self.bm_text(view, style, WHITE, text, x, y, align);
+    }
+
     /// Text in one of the original's bitmap fonts, placed at `(x, y)` in the original's
     /// pixels (top-left, centre or right edge by `align`) under a view of `(origin x, origin y,
     /// scale)`. Falls back to the plain font when the original fonts were not extracted.
