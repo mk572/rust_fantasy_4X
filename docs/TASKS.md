@@ -117,6 +117,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 123 | Map | Call the Void, Great Wasting and Armageddon corruption |
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 125 | Client | Unit stack backgrounds in banner colours |
+| 126 | Client | Bitmap font for the remaining overland text |
 
 ## Descriptions
 
@@ -527,3 +528,5 @@ middle of a battle continues exactly like the unsaved one.
 **124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4.
 
 **125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
+
+**126. Bitmap font for the remaining overland text.** The gold, mana, income panels and city names use the original fonts; still in the plain font are the turn/plane/race line, the selection and hover info (`Lines` helper), the message log, the "F1 keys" hint and key list, and the unit-count badge on stacks. Give `Lines` a bitmap-font mode (or replace it) and move these over, using the original's sizes and colours; see task 118 for the other screens.
