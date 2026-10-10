@@ -4,6 +4,7 @@
 mod art;
 mod city_screen;
 mod create_screen;
+mod frame;
 mod magic_screen;
 mod ui;
 mod view;

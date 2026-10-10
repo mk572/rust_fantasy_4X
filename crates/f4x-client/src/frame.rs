@@ -1,0 +1,299 @@
+//! The overland screen's frame, laid out like the original's 320 by 200 main screen.
+//!
+//! Everything is placed in the original's pixel coordinates and scaled by one factor so the
+//! screen keeps its shape in any window: the map window (12 by 10 tiles at 240 by 180), the
+//! menu bar above it, and the right-hand column with the minimap, gold and mana boxes, the
+//! resource panels and the Next Turn button. The original pictures come from the local art
+//! set; without it the same layout is drawn in flat colours.
+
+use f4x_core::city::PlayerId;
+use macroquad::prelude::*;
+
+use crate::ui::{player_color, GOLD};
+use crate::view::{App, HUMAN};
+
+pub const ORIGINAL_W: f32 = 320.0;
+pub const ORIGINAL_H: f32 = 200.0;
+
+/// Where the original's elements sit, in its 320 by 200 pixels.
+pub mod spot {
+    /// The window onto the map.
+    pub const MAP: (f32, f32, f32, f32) = (0.0, 20.0, 240.0, 180.0);
+    /// The minimap's hole in the frame.
+    pub const MINIMAP: (f32, f32, f32, f32) = (251.0, 21.0, 58.0, 30.0);
+    /// The gold and mana boxes below it (the numbers go inside).
+    pub const GOLD_BOX: (f32, f32, f32, f32) = (243.0, 54.0, 36.0, 16.0);
+    pub const MANA_BOX: (f32, f32, f32, f32) = (281.0, 54.0, 36.0, 16.0);
+    /// The gold, food and mana panels (one picture, three thirds).
+    pub const PANELS: (f32, f32) = (240.0, 76.0);
+    /// The Next Turn button.
+    pub const NEXT_TURN: (f32, f32) = (240.0, 173.0);
+    /// The menu buttons: `main.lbx` entries 1 to 7 at these x positions, all at y = 4.
+    pub const MENU_Y: f32 = 4.0;
+    pub const MENU_X: [f32; 7] = [7.0, 48.0, 91.0, 143.0, 188.0, 231.0, 276.0];
+}
+
+/// Scale and offset that fit the original screen into the window.
+#[derive(Debug, Clone, Copy)]
+pub struct Layout {
+    pub scale: f32,
+    pub origin: Vec2,
+}
+
+impl Layout {
+    pub fn new() -> Self {
+        let (w, h) = (screen_width(), screen_height());
+        let scale = (w / ORIGINAL_W).min(h / ORIGINAL_H).max(0.5);
+        Self {
+            scale,
+            origin: vec2(
+                (w - ORIGINAL_W * scale) / 2.0,
+                (h - ORIGINAL_H * scale) / 2.0,
+            ),
+        }
+    }
+
+    /// A rectangle given in the original's pixels, in window pixels.
+    pub fn rect(&self, (x, y, w, h): (f32, f32, f32, f32)) -> Rect {
+        Rect::new(
+            self.origin.x + x * self.scale,
+            self.origin.y + y * self.scale,
+            w * self.scale,
+            h * self.scale,
+        )
+    }
+
+    pub fn point(&self, x: f32, y: f32) -> Vec2 {
+        vec2(
+            self.origin.x + x * self.scale,
+            self.origin.y + y * self.scale,
+        )
+    }
+}
+
+/// Text centred on `cx`, with a dark shadow so it reads on any background.
+pub fn text_centered(text: &str, cx: f32, baseline: f32, size: f32, color: Color) {
+    let w = measure_text(text, None, size as u16, 1.0).width;
+    let x = cx - w / 2.0;
+    draw_text(
+        text,
+        x + size * 0.06,
+        baseline + size * 0.06,
+        size,
+        Color::new(0.0, 0.0, 0.0, 0.8),
+    );
+    draw_text(text, x, baseline, size, color);
+}
+
+impl App {
+    fn art_picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<Texture2D> {
+        self.art.picture(lbx, entry, frame).cloned()
+    }
+
+    /// Draw a picture whose top-left is at the original's `(x, y)`.
+    fn draw_pic(
+        &mut self,
+        lay: &Layout,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        x: f32,
+        y: f32,
+    ) -> Option<Rect> {
+        let tex = self.art_picture(lbx, entry, frame)?;
+        let size = tex.size() * lay.scale;
+        let at = lay.point(x, y);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                ..Default::default()
+            },
+        );
+        Some(Rect::new(at.x, at.y, size.x, size.y))
+    }
+
+    /// The frame, menu, side column and everything drawn over the map. Returns what the
+    /// player clicked this frame.
+    pub(crate) fn draw_frame(&mut self) -> FrameClick {
+        let lay = Layout::new();
+        let mut click = FrameClick::default();
+        let s = lay.scale;
+        let mouse: Vec2 = mouse_position().into();
+        let pressed = is_mouse_button_pressed(MouseButton::Left);
+
+        // The frame itself; flat panels when the art is missing.
+        if self.draw_pic(&lay, "main", 0, 0, 0.0, 0.0).is_none() {
+            let dark = Color::new(0.1, 0.09, 0.08, 1.0);
+            draw_rectangle(0.0, 0.0, screen_width(), screen_height(), dark);
+            let r = lay.rect(spot::MAP);
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.03, 0.03, 0.05, 1.0));
+        }
+
+        // The menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane.
+        for (i, &x) in spot::MENU_X.iter().enumerate() {
+            let entry = i + 1;
+            let hover = {
+                let tex = self.art_picture("main", entry, 0);
+                tex.map(|t| {
+                    let at = lay.point(x, spot::MENU_Y);
+                    Rect::new(at.x, at.y, t.width() * s, t.height() * s).contains(mouse)
+                })
+                .unwrap_or(false)
+            };
+            let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+            if self
+                .draw_pic(&lay, "main", entry, frame, x, spot::MENU_Y)
+                .is_none()
+            {
+                let names = [
+                    "Game", "Spells", "Armies", "Cities", "Magic", "Info", "Plane",
+                ];
+                let r = lay.rect((x, spot::MENU_Y, 38.0, 12.0));
+                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
+                text_centered(names[i], r.x + r.w / 2.0, r.y + r.h * 0.75, 3.2 * s, GOLD);
+                click.menu = click.menu.or_else(|| (hover && pressed).then_some(i));
+            } else if hover && pressed {
+                click.menu = Some(i);
+            }
+        }
+
+        // Gold and mana boxes.
+        let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
+        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let (g, m) = (lay.rect(spot::GOLD_BOX), lay.rect(spot::MANA_BOX));
+        text_centered(
+            &format!("{gold} GP"),
+            g.x + g.w * 0.62,
+            g.y + g.h * 0.9,
+            5.6 * s,
+            WHITE,
+        );
+        text_centered(
+            &format!("{mana} MP"),
+            m.x + m.w * 0.62,
+            m.y + m.h * 0.9,
+            5.6 * s,
+            WHITE,
+        );
+
+        // Resource panels with this turn's income in each.
+        let t = self.game.treasury(HUMAN);
+        let net_mana = self.game.power_split(HUMAN).mana - self.game.mana_upkeep(HUMAN);
+        let (px, py) = spot::PANELS;
+        self.draw_pic(&lay, "main", 34, 0, px, py);
+        for (k, (value, label)) in [
+            (t.net_gold(), "Gold"),
+            (t.food_surplus - t.food_upkeep, "Food"),
+            (net_mana, "Mana"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let at = lay.point(px + 40.0, py + 29.0 + k as f32 * 32.0);
+            let color = if value < 0 {
+                Color::new(1.0, 0.45, 0.35, 1.0)
+            } else {
+                WHITE
+            };
+            text_centered(&format!("{value} {label}"), at.x, at.y, 5.2 * s, color);
+        }
+
+        // Next Turn.
+        let (nx, ny) = spot::NEXT_TURN;
+        if let Some(r) = self.draw_pic(&lay, "main", 35, 0, nx, ny) {
+            click.next_turn = pressed && r.contains(mouse);
+        } else {
+            let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
+            text_centered("Next Turn", r.x + r.w / 2.0, r.y + r.h * 0.7, 5.0 * s, GOLD);
+            click.next_turn = pressed && r.contains(mouse);
+        }
+
+        self.draw_minimap(&lay);
+        click
+    }
+
+    /// A small map of everything explored, with cities in their owners' colours and the
+    /// window onto the big map outlined.
+    fn draw_minimap(&mut self, lay: &Layout) {
+        let r = lay.rect(spot::MINIMAP);
+        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.05, 1.0));
+        let Some(map) = self.game.map.as_ref() else {
+            return;
+        };
+        let (w, h) = (map.width() as f32, map.height() as f32);
+        let (cw, ch) = (r.w / w, r.h / h);
+        let grid = map.plane(self.plane);
+        let content = &self.game.content;
+        for y in 0..grid.height() {
+            for x in 0..grid.width() {
+                if !self.game.fog.is_explored(HUMAN, self.plane, x, y) {
+                    continue;
+                }
+                let class = grid
+                    .get(x as i32, y as i32)
+                    .and_then(|t| content.terrains.get(t))
+                    .map(|d| d.class);
+                let c = match class {
+                    Some(f4x_core::content::TerrainClass::Ocean) => Color::new(0.1, 0.2, 0.6, 1.0),
+                    Some(f4x_core::content::TerrainClass::Mountains) => {
+                        Color::new(0.6, 0.6, 0.6, 1.0)
+                    }
+                    Some(f4x_core::content::TerrainClass::Desert) => Color::new(0.8, 0.7, 0.4, 1.0),
+                    Some(f4x_core::content::TerrainClass::Tundra) => {
+                        Color::new(0.85, 0.9, 0.95, 1.0)
+                    }
+                    Some(_) => Color::new(0.2, 0.5, 0.2, 1.0),
+                    None => continue,
+                };
+                draw_rectangle(
+                    r.x + x as f32 * cw,
+                    r.y + y as f32 * ch,
+                    cw.ceil(),
+                    ch.ceil(),
+                    c,
+                );
+            }
+        }
+        for (_, city, at) in self.game.cities() {
+            if at.plane == self.plane && self.game.fog.is_explored(HUMAN, self.plane, at.x, at.y) {
+                let PlayerId(owner) = city.owner;
+                draw_rectangle(
+                    r.x + at.x as f32 * cw - cw,
+                    r.y + at.y as f32 * ch - ch,
+                    cw * 2.5,
+                    ch * 2.5,
+                    player_color(owner),
+                );
+            }
+        }
+        // The window onto the big map.
+        let (cols, rows) = self.visible_tiles();
+        draw_rectangle_lines(
+            r.x + self.cam.x * cw,
+            r.y + self.cam.y * ch,
+            (cols * cw).min(r.w),
+            (rows * ch).min(r.h),
+            1.5,
+            WHITE,
+        );
+        // Clicking the minimap centres the map there.
+        if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse_position().into()) {
+            let (mx, my) = mouse_position();
+            let (tx, ty) = ((mx - r.x) / cw, (my - r.y) / ch);
+            self.cam = vec2(tx - cols / 2.0, ty - rows / 2.0);
+        }
+    }
+}
+
+/// What was clicked on the frame this frame.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FrameClick {
+    /// The menu button's index: Game, Spells, Armies, Cities, Magic, Info, Plane.
+    pub menu: Option<usize>,
+    pub next_turn: bool,
+}

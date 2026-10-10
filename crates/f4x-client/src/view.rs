@@ -15,10 +15,8 @@ use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
 use crate::art::{terrain_type as tt, Art, TILE_H, TILE_W};
-use crate::ui::{player_color, Lines, GOLD, PANEL};
+use crate::ui::{player_color, Lines, GOLD};
 
-pub(crate) const BAR_H: f32 = 28.0;
-pub(crate) const SIDE_W: f32 = 300.0;
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 const RIVAL: PlayerId = PlayerId(1);
 
@@ -39,9 +37,9 @@ pub struct App {
     pub(crate) art: Art,
     params: GenParams,
     pub(crate) seed: u64,
-    plane: Plane,
+    pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
-    cam: Vec2,
+    pub(crate) cam: Vec2,
     zoom: f32,
     /// Index into `content.rules.races` the human plays.
     pub(crate) race: usize,
@@ -55,6 +53,8 @@ pub struct App {
     pub(crate) magic_scroll: [usize; 2],
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::magic_screen::Targeting>,
+    /// The key list is shown (F1 shows it while held).
+    pub(crate) show_keys: bool,
     /// The wizard creation screen's state.
     pub(crate) create: crate::create_screen::CreateState,
     /// The human wizard chosen on the creation screen; new maps reuse it.
@@ -154,7 +154,7 @@ impl App {
             seed,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
-            zoom: 3.0,
+            zoom: 4.0,
             race,
             screen: Screen::Map,
             selection: Vec::new(),
@@ -163,6 +163,7 @@ impl App {
             choice_scroll: 0,
             magic_scroll: [0, 0],
             targeting: None,
+            show_keys: false,
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
         };
@@ -519,16 +520,11 @@ impl App {
         vec2(TILE_W * self.zoom, TILE_H * self.zoom)
     }
 
-    fn map_rect(&self) -> Rect {
-        Rect::new(
-            0.0,
-            BAR_H,
-            screen_width() - SIDE_W,
-            screen_height() - 2.0 * BAR_H,
-        )
+    pub(crate) fn map_rect(&self) -> Rect {
+        crate::frame::Layout::new().rect(crate::frame::spot::MAP)
     }
 
-    fn visible_tiles(&self) -> (f32, f32) {
+    pub(crate) fn visible_tiles(&self) -> (f32, f32) {
         let r = self.map_rect();
         let t = self.tile_size();
         (r.w / t.x, r.h / t.y)
@@ -1050,73 +1046,95 @@ impl App {
     }
 
     fn draw_bars(&mut self) {
-        let w = screen_width();
-        let h = screen_height();
-        let treasury = self.game.treasury(HUMAN);
-        let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
-        draw_rectangle(0.0, 0.0, w, BAR_H, PANEL);
+        let click = self.draw_frame();
+        // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
+        match click.menu {
+            Some(0) => self.save_to(Path::new(QUICKSAVE)),
+            Some(1) | Some(4) => self.open_magic(),
+            Some(3) => self.open_first_city(),
+            Some(6) => {
+                self.plane = if self.plane == Plane::Arcanus {
+                    Plane::Myrror
+                } else {
+                    Plane::Arcanus
+                };
+            }
+            Some(_) => self.log.push("Not in the game yet".into()),
+            None => {}
+        }
+        if click.next_turn {
+            self.end_turn();
+            self.save_to(Path::new(AUTOSAVE));
+        }
+
+        // Information laid over the map: turn, selection, what is under the mouse, messages.
+        let lay = crate::frame::Layout::new();
+        let m = lay.rect(crate::frame::spot::MAP);
         let plane = if self.plane == Plane::Arcanus {
             "Arcanus"
         } else {
             "Myrror"
         };
-        draw_text(
-            format!(
-                "Turn {}   {}   Gold {} ({:+})   Mana {} ({:+})   Food +{} (army {})   zoom {}x   seed {}",
-                self.game.turn,
-                plane,
-                gold,
-                treasury.net_gold(),
-                self.game.player(HUMAN).map_or(0, |p| p.mana),
-                self.game.power_split(HUMAN).mana - self.game.mana_upkeep(HUMAN),
-                treasury.food_surplus,
-                treasury.food_upkeep,
-                self.zoom,
-                self.seed
-            ),
-            10.0,
-            19.0,
-            22.0,
-            GOLD,
-        );
-        draw_rectangle(0.0, h - BAR_H, w, BAR_H, PANEL);
-        draw_text(
-            "click select  right-click go  B settle  U meld  Ctrl-Z undo  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
-            10.0,
-            h - 9.0,
-            18.0,
-            LIGHTGRAY,
-        );
-
-        // Side panel.
-        let px = w - SIDE_W;
-        draw_rectangle(px, BAR_H, SIDE_W, h - 2.0 * BAR_H, PANEL);
-        let mut lines = Lines::new(px + 12.0, BAR_H + 24.0);
-        lines.line(&format!("You: {}", self.race_name(self.race)), GOLD);
+        let size = (lay.scale * 4.2).max(14.0);
+        let mut lines = Lines::new(m.x + 10.0, m.y + size + 6.0);
+        lines.size = size;
         lines.line(
             &format!(
-                "Cities {}   Units {}",
-                self.game
-                    .cities()
-                    .iter()
-                    .filter(|(_, c, _)| c.owner == HUMAN)
-                    .count(),
-                self.game.player_units(HUMAN).len()
+                "Turn {}   {}   {}",
+                self.game.turn,
+                plane,
+                self.race_name(self.race)
             ),
-            WHITE,
+            GOLD,
         );
         if !self.art.available() {
             lines.line("(no art: run extract-art)", RED);
         }
-        lines.gap(6.0);
         self.draw_selection(&mut lines);
-        lines.gap(6.0);
         self.draw_hover(&mut lines);
-        // Message log at the bottom.
-        let mut y = h - BAR_H - 10.0;
-        for line in self.log.iter().rev().take(7) {
-            draw_text(line, px + 12.0, y, 17.0, Color::new(0.9, 0.85, 0.6, 1.0));
-            y -= 19.0;
+        // Messages along the bottom of the map.
+        let mut y = m.y + m.h - 8.0;
+        for line in self.log.iter().rev().take(5) {
+            draw_text(
+                line,
+                m.x + 10.0,
+                y,
+                size * 0.8,
+                Color::new(0.95, 0.9, 0.65, 1.0),
+            );
+            y -= size;
+        }
+        draw_text(
+            "F1 keys",
+            m.x + m.w - 8.0 * lay.scale * 2.2,
+            m.y + m.h - 8.0,
+            size * 0.7,
+            LIGHTGRAY,
+        );
+        if self.show_keys || is_key_down(KeyCode::F1) {
+            let keys = [
+                "click select      right-click go      B settle / build road      U meld spirit",
+                "C city      P plane-shift      F stop      T balance farmers      M magic",
+                "Tab other plane      +/- zoom      arrows pan      Enter end turn",
+                "Ctrl-Z undo      F5 save      F9 load      N new map      R next race      Esc quit",
+            ];
+            let box_w = m.w * 0.9;
+            draw_rectangle(
+                m.x + m.w * 0.05,
+                m.y + m.h * 0.3,
+                box_w,
+                size * 5.5,
+                Color::new(0.0, 0.0, 0.0, 0.8),
+            );
+            for (i, k) in keys.iter().enumerate() {
+                draw_text(
+                    k,
+                    m.x + m.w * 0.06,
+                    m.y + m.h * 0.3 + size * (1.3 + i as f32 * 1.1),
+                    size * 0.75,
+                    WHITE,
+                );
+            }
         }
     }
 

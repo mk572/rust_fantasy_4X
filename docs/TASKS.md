@@ -108,6 +108,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 110 | Combat | Battle map generation parity with the original |
 | 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
 | 112 | Client | Battle map art |
+| 113 | Client | Original bitmap fonts |
+| 114 | Client | Cityscape: port the original's procedural city layout |
 
 ## Descriptions
 
@@ -491,3 +493,22 @@ middle of a battle continues exactly like the unsaved one.
 **111. Special battle sites: nodes, lairs, towers, ruins and fortress cities.** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108).
 
 **112. Battle map art.** Draw the battle map with the original's combat terrain art, extracted locally (`cmbgrass*`, `cmbdesrt*`, `citywall`, `cityscap` and the other combat `.lbx` files already extracted under `assets-local/art`): terrain sets per overland terrain and plane, tree and rock scenery, roads, rivers, city buildings and walls, the isometric grid and its coordinate mapping (`Combat_Grid_Screen_Coordinates`). Part of the battle screen (45) but large enough to track separately.
+
+**113. Original bitmap fonts.** The original has no TrueType font: all its text is drawn from bitmap
+fonts stored in `FONTS.LBX` (entry 0 holds the font styles, entry 1 the border styles, and a
+palette): a blackletter-style display face for titles and button labels (the big "Capital of
+Bangaak", "Resources" and "Buildings" headings) and small pixel faces in several sizes and
+colours for panels and lists (see ReMoM `MoX/src/Fonts.c`). Add a decoder to `f4x-tools
+extract-art` that turns the glyph tables into texture atlases under `assets-local/`, and a text
+renderer in the client that draws with them (size, colour, shadow, centring) with the current
+macroquad font as the fallback. Original fonts stay local; for the public repository a free
+pixel blackletter font would have to be sourced under a licence the project can ship.
+
+**114. Cityscape: port the original's procedural city layout.** The city screen's building area is
+a shear-projected grid (`Cityscape_Make_Buildings_Array`, `Cityscape_Draw_Buildings` in ReMoM
+`CITYSCAP.c`): rows and columns of cells with roads between them, houses chosen by race,
+trees and rocks scattered by terrain, buildings placed by shape (2x2, 2x3, 3x2, 3x3) with their
+`cityscap.lbx` sprites, walls and the fortress, animation, rubble, and the click-to-sell and
+hover name behaviour. Port the layout to the client (the choice of cells should be seeded by
+the city so it is stable between visits) and use the sprites from `cityscap.lbx`; until then
+the building area shows a plain list.
