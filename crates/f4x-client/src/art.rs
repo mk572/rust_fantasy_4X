@@ -19,9 +19,6 @@ pub mod terrain_type {
     pub const DESERT: usize = 0xA5;
     pub const SWAMP: usize = 0xA6;
     pub const TUNDRA: usize = 0xA7;
-    pub const SORCERY_NODE: usize = 0xA8;
-    pub const NATURE_NODE: usize = 0xA9;
-    pub const CHAOS_NODE: usize = 0xAA;
     pub const HILLS: usize = 0xAB;
     /// Myrror's types follow Arcanus's.
     pub const MYRROR_OFFSET: usize = 762;
@@ -303,10 +300,6 @@ impl Art {
 
     /// The ocean tile type for a mask of land neighbours (NW 1, N 2, NE 4, E 8, SE 16, S 32,
     /// SW 64, W 128): plain ocean when there is no land or no table.
-    pub fn shore_type(&self, mask: usize) -> usize {
-        self.autotile_type(0, mask)
-    }
-
     /// The terrain type the original's table `table` gives for a neighbour mask.
     pub fn autotile_type(&self, table: usize, mask: usize) -> usize {
         self.autotile
@@ -321,14 +314,6 @@ impl Art {
         self.banners
             .get(usize::from(banner))
             .map_or_else(|| default_banner_color(banner), |s| s[2])
-    }
-
-    /// All five shades of a banner.
-    pub fn banner_shades(&self, banner: u8) -> [Color; 5] {
-        self.banners
-            .get(usize::from(banner))
-            .copied()
-            .unwrap_or([default_banner_color(banner); 5])
     }
 
     /// A picture recoloured for a banner by `extract-art` (`map/<name>_<banner>_<frame>.png`).
@@ -355,7 +340,7 @@ impl Art {
                 let bytes =
                     std::fs::read(self.dir.join(format!("terrain/tile_{tile:04}.png"))).ok()?;
                 let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
-                for px in img.bytes.chunks_exact_mut(4) {
+                for px in img.bytes.as_chunks_mut::<4>().0.iter_mut() {
                     let water = i32::from(px[2]) > i32::from(px[0]) + 40
                         && i32::from(px[2]) > i32::from(px[1]) + 25;
                     if !water {

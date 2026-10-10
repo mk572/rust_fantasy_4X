@@ -250,6 +250,26 @@ impl App {
         if button(Rect::new(x + width - 30.0, y, 30.0, 26.0), ">", true) {
             self.race = (self.race + 1) % n;
         }
+        // The banner: five colours to choose from.
+        y += 36.0;
+        draw_text("Banner", x, y + 18.0, 20.0, GOLD);
+        let chosen = self.create.build.banner.unwrap_or(0);
+        for banner in 0..f4x_core::player::BANNER_CHOICES {
+            let r = Rect::new(x + 70.0 + f32::from(banner) * 34.0, y, 28.0, 26.0);
+            draw_rectangle(r.x, r.y, r.w, r.h, self.art.banner_color(banner));
+            let picked = banner == chosen;
+            draw_rectangle_lines(
+                r.x,
+                r.y,
+                r.w,
+                r.h,
+                if picked { 3.0 } else { 1.0 },
+                if picked { WHITE } else { BLACK },
+            );
+            if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse_position().into()) {
+                self.create.build.banner = Some(banner);
+            }
+        }
         // Begin.
         let ok =
             self.create.build.preset || self.game.check_wizard_build(&self.create.build).is_ok();

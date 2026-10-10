@@ -5,22 +5,6 @@ use macroquad::prelude::*;
 pub const PANEL: Color = Color::new(0.08, 0.07, 0.06, 0.92);
 pub const GOLD: Color = Color::new(0.95, 0.8, 0.35, 1.0);
 
-/// One colour per player id, for borders and flags.
-pub fn player_color(id: u8) -> Color {
-    const COLORS: [Color; 6] = [
-        Color::new(0.2, 0.45, 0.95, 1.0),
-        Color::new(0.85, 0.2, 0.2, 1.0),
-        Color::new(0.2, 0.7, 0.3, 1.0),
-        Color::new(0.9, 0.8, 0.2, 1.0),
-        Color::new(0.7, 0.3, 0.8, 1.0),
-        Color::new(0.9, 0.55, 0.15, 1.0),
-    ];
-    if id == u8::MAX {
-        return Color::new(0.6, 0.6, 0.6, 1.0);
-    }
-    COLORS[id as usize % COLORS.len()]
-}
-
 /// A clickable button; returns true on the frame it is clicked.
 pub fn button(rect: Rect, label: &str, enabled: bool) -> bool {
     let hover = rect.contains(mouse_position().into());

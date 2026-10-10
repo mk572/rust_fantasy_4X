@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use f4x_core::city::{PlayerId, Position};
-use f4x_core::content::{Content, FeatureKind, TerrainClass};
+use f4x_core::content::{Content, TerrainClass};
 use f4x_core::magic::Retort;
-use f4x_core::map::{Grid, Plane};
+use f4x_core::map::Plane;
 use f4x_core::mapgen::{generate, GenParams};
 use f4x_core::player::Player;
 use f4x_core::wizard::WizardBuild;
@@ -15,7 +15,7 @@ use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
 use crate::art::{terrain_type as tt, Art, TILE_H, TILE_W};
-use crate::ui::{player_color, Lines, GOLD};
+use crate::ui::{Lines, GOLD};
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 const RIVAL: PlayerId = PlayerId(1);
@@ -61,19 +61,6 @@ pub struct App {
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
 }
 
-fn flat_color(class: TerrainClass) -> Color {
-    match class {
-        TerrainClass::Ocean => Color::new(0.1, 0.2, 0.55, 1.0),
-        TerrainClass::Grassland => Color::new(0.25, 0.55, 0.2, 1.0),
-        TerrainClass::Forest => Color::new(0.1, 0.35, 0.15, 1.0),
-        TerrainClass::Hills => Color::new(0.5, 0.45, 0.25, 1.0),
-        TerrainClass::Mountains => Color::new(0.5, 0.5, 0.5, 1.0),
-        TerrainClass::Swamp => Color::new(0.25, 0.3, 0.2, 1.0),
-        TerrainClass::Desert => Color::new(0.8, 0.7, 0.4, 1.0),
-        TerrainClass::Tundra => Color::new(0.8, 0.85, 0.9, 1.0),
-    }
-}
-
 pub(crate) fn base_type(class: TerrainClass) -> usize {
     match class {
         TerrainClass::Ocean => tt::OCEAN,
@@ -84,54 +71,6 @@ pub(crate) fn base_type(class: TerrainClass) -> usize {
         TerrainClass::Swamp => tt::SWAMP,
         TerrainClass::Desert => tt::DESERT,
         TerrainClass::Tundra => tt::TUNDRA,
-    }
-}
-
-/// Land neighbours of an ocean tile as the original's shore mask: NW 1, N 2, NE 4, E 8, SE 16,
-/// S 32, SW 64, W 128. Off the poles counts as water.
-fn shore_mask(grid: &Grid, content: &Content, x: i32, y: i32) -> usize {
-    const AROUND: [(i32, i32); 8] = [
-        (-1, -1),
-        (0, -1),
-        (1, -1),
-        (1, 0),
-        (1, 1),
-        (0, 1),
-        (-1, 1),
-        (-1, 0),
-    ];
-    AROUND
-        .iter()
-        .enumerate()
-        .filter(|&(_, &(dx, dy))| {
-            grid.get(x + dx, y + dy)
-                .and_then(|t| content.terrains.get(t))
-                .is_some_and(|d| d.class != TerrainClass::Ocean)
-        })
-        .fold(0, |mask, (bit, _)| mask | (1 << bit))
-}
-
-/// A river as blue strokes from the tile centre towards each river neighbour (and the sea).
-fn draw_river(grid: &Grid, content: &Content, x: i32, y: i32, sx: f32, sy: f32, t: Vec2) {
-    let blue = Color::new(0.2, 0.45, 0.85, 1.0);
-    let (cx, cy) = (sx + t.x * 0.5, sy + t.y * 0.5);
-    let w = (t.x * 0.14).max(2.0);
-    draw_circle(cx, cy, w * 0.9, blue);
-    for (dx, dy) in [(0, -1), (1, 0), (0, 1), (-1, 0)] {
-        let sea = grid
-            .get(x + dx, y + dy)
-            .and_then(|t| content.terrains.get(t))
-            .is_some_and(|d| d.class == TerrainClass::Ocean);
-        if sea || grid.has_river(x + dx, y + dy) {
-            draw_line(
-                cx,
-                cy,
-                cx + dx as f32 * t.x * 0.5,
-                cy + dy as f32 * t.y * 0.5,
-                w,
-                blue,
-            );
-        }
     }
 }
 
@@ -586,6 +525,30 @@ impl App {
         }
     }
 
+    /// Explore every square on both planes (for screenshots and tests).
+    pub fn reveal_all(&mut self) {
+        let Some(map) = self.game.map.as_ref() else {
+            return;
+        };
+        let (w, h) = (map.width(), map.height());
+        for plane in Plane::ALL {
+            self.game.fog.explore(
+                HUMAN,
+                Position {
+                    plane,
+                    x: w / 2,
+                    y: h / 2,
+                },
+                w.max(h),
+            );
+        }
+    }
+
+    /// Put the top-left of the map view on a tile.
+    pub fn set_camera(&mut self, x: f32, y: f32) {
+        self.cam = vec2(x, y);
+    }
+
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self) -> bool {
         self.selection
@@ -809,14 +772,8 @@ impl App {
             (self.cam.x - x0 as f32) * t.x,
             (self.cam.y - y0 as f32) * t.y,
         );
-        let plane_offset = if self.plane == Plane::Myrror {
-            tt::MYRROR_OFFSET
-        } else {
-            0
-        };
         let width = grid.width();
         let visible = self.game.visibility(HUMAN, self.plane);
-        let content = &self.game.content;
         let cities = self.game.cities();
         let anim = (get_time() * 2.5) as usize;
 
@@ -863,9 +820,6 @@ impl App {
                     t,
                     anim,
                 );
-                if !visible[(y as u32 * width + wx) as usize] {
-                    draw_rectangle(sx, sy, t.x, t.y, Color::new(0.0, 0.0, 0.0, 0.5));
-                }
             }
         }
         for (entity, city, pos) in &cities {
@@ -1150,37 +1104,4 @@ impl App {
             }
         }
     }
-}
-
-fn draw_feature_marker(kind: FeatureKind, sx: f32, sy: f32, t: Vec2) {
-    let (cx, cy) = (sx + t.x / 2.0, sy + t.y / 2.0);
-    match kind {
-        FeatureKind::Mineral => draw_circle(cx, cy, t.y * 0.18, GOLD),
-        FeatureKind::Encounter => {
-            draw_poly(cx, cy, 4, t.y * 0.3, 45.0, Color::new(0.85, 0.2, 0.2, 1.0))
-        }
-        FeatureKind::Tower => draw_rectangle(
-            cx - t.x * 0.18,
-            sy + t.y * 0.1,
-            t.x * 0.36,
-            t.y * 0.8,
-            LIGHTGRAY,
-        ),
-        FeatureKind::Node => {}
-    }
-}
-
-fn draw_city_marker(sx: f32, sy: f32, t: Vec2, flag: Color) {
-    let (w, h) = (t.x * 0.8, t.y * 0.6);
-    let (x, y) = (sx + t.x * 0.1, sy + t.y * 0.3);
-    draw_rectangle(x, y, w, h, Color::new(0.75, 0.6, 0.4, 1.0));
-    draw_triangle(
-        vec2(x - 2.0, y),
-        vec2(x + w + 2.0, y),
-        vec2(x + w / 2.0, y - t.y * 0.3),
-        Color::new(0.7, 0.2, 0.15, 1.0),
-    );
-    draw_rectangle_lines(x, y, w, h, 1.5, BLACK);
-    draw_rectangle(x + w - 3.0, y - t.y * 0.45, 3.0, t.y * 0.45, BLACK);
-    draw_rectangle(x + w, y - t.y * 0.45, t.x * 0.2, t.y * 0.2, flag);
 }

@@ -28,6 +28,10 @@ struct Options {
     city: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// With `--shot`, explore the whole map first.
+    reveal: bool,
+    /// With `--shot`, put the top-left of the map view at this tile.
+    at: Option<(f32, f32)>,
     /// Open the wizard creation screen (the default unless loading, shooting or `--quick`).
     create: bool,
     /// Skip the creation screen and play the default wizard.
@@ -55,6 +59,8 @@ fn parse_args() -> Result<Options, String> {
         city: false,
         magic: false,
         create: false,
+        reveal: false,
+        at: None,
         quick: false,
         select: false,
         turns: 0,
@@ -77,6 +83,15 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--magic" => o.magic = true,
             "--create" => o.create = true,
+            "--reveal" => o.reveal = true,
+            "--at" => {
+                let v = value("--at")?;
+                let (x, y) = v.split_once(',').ok_or("--at wants X,Y")?;
+                o.at = Some((
+                    x.parse().map_err(|_| "--at X is a number")?,
+                    y.parse().map_err(|_| "--at Y is a number")?,
+                ));
+            }
             "--quick" => o.quick = true,
             "--load" => o.load = Some(value("--load")?.into()),
             "--save" => o.save = Some(value("--save")?.into()),
@@ -142,6 +157,12 @@ async fn main() {
     }
     if options.city {
         app.open_first_city();
+    }
+    if options.reveal {
+        app.reveal_all();
+    }
+    if let Some((x, y)) = options.at {
+        app.set_camera(x, y);
     }
     if options.magic {
         app.open_magic();

@@ -11,7 +11,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 2 | Map | ~~Lakes~~ (done) |
 | 3 | Map | ~~Volcanoes~~ (done) |
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
+| 5 | Map | Land corruption and purification (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
+| 7 | Map | Node auras and warped nodes (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |

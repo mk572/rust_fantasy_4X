@@ -9,7 +9,7 @@ use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
 use crate::frame::Align;
-use crate::ui::{player_color, GOLD};
+use crate::ui::GOLD;
 use crate::view::{base_type, App, Screen};
 
 /// Virtual-to-screen mapping for the 320x200 layout.

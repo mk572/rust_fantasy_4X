@@ -9,7 +9,7 @@
 use f4x_core::city::PlayerId;
 use macroquad::prelude::*;
 
-use crate::ui::{player_color, GOLD};
+use crate::ui::GOLD;
 use crate::view::{App, HUMAN};
 
 pub const ORIGINAL_W: f32 = 320.0;

@@ -16,8 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 5 | Map | Land corruption and purification |
-| 7 | Map | Node auras and warped nodes |
 | 8 | Map | Encounter sites: guardians and loot |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) |
 | 10 | Map | Generator parity with the original and new-game settings |
@@ -114,6 +112,11 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 118 | Client | Bitmap fonts on every screen and a text layout helper |
 | 119 | Client | City screen details |
 | 120 | Client | Overland screen details |
+| 121 | Map | Unexplored-edge pictures (corner-based exploration) |
+| 122 | Map | River mouths and shore pieces with rivers |
+| 123 | Map | Call the Void, Great Wasting and Armageddon corruption |
+| 124 | Map | Mines, lumber camps and hunter's lodges on the map |
+| 125 | Client | Unit stack backgrounds in banner colours |
 
 ## Descriptions
 
@@ -514,3 +517,13 @@ middle of a battle continues exactly like the unsaved one.
 **119. City screen details.** What the original's city screen has and ours lacks: the production picture for buildings (the cityscape sprite) and a count of queued items, the unit list scrolling past nine units and clicking a unit to select or unload it, right-click help on every element (the original's help topics 295-303 are imported), the enchantment list scrolling and dispelling, the city name editing, and the worked-area view with the original's tile and mineral pictures and food and production figures for each square.
 
 **120. Overland screen details.** What the original's main screen has and ours lacks: the unit panel in the right column with the stack's pictures and the Done, Patrol, Wait and Build buttons, the minimap's other plane switch and click-drag, the surveyor and the info menus behind the Info button, the Armies and Cities lists behind their buttons (tasks 71 and 91-96 cover the screens themselves), terrain and unit animation, and unit movement as a smooth slide.
+
+**121. Unexplored-edge pictures.** The original keeps exploration per square corner and draws `mapback.lbx` 0 to 13 along the border of explored land so the edge is soft. We explore whole squares and draw black. Needs corner exploration in the fog data (with saves) and the 14 edge masks.
+
+**122. River mouths and shore pieces with rivers.** The original has terrain types (`_Shore..R..`) for a river reaching the sea; we lay the plain river piece over the shore. Pick the river-mouth shore pieces and check against the original's look.
+
+**123. Call the Void, Great Wasting and Armageddon corruption.** The corruption layer, Corruption, Purify, Land Corruption and Gaia's Blessing exist; the global spells that corrupt land each turn (and the Great Wasting and Armageddon looks) are still to wire to it.
+
+**124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4.
+
+**125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
