@@ -440,7 +440,12 @@ pub fn unit_type_number(lbx: &str, entry: usize) -> Option<usize> {
 /// Paint the pixels a banner mask marks (red channel 1 to 5, alpha 255) in the banner's
 /// shades. Both slices are RGBA of the same picture.
 pub fn paint_banner(rgba: &mut [u8], mask: &[u8], shades: &[[u8; 3]; 5]) {
-    for (px, m) in rgba.chunks_exact_mut(4).zip(mask.chunks_exact(4)) {
+    for (px, m) in rgba
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(mask.as_chunks::<4>().0)
+    {
         if m[3] == 255 && (1..=5).contains(&m[0]) {
             let c = shades[usize::from(m[0]) - 1];
             px[..3].copy_from_slice(&c);
