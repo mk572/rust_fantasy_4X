@@ -290,6 +290,60 @@ impl App {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
+}
+
+impl App {
+    /// Text in one of the original's bitmap fonts, placed at `(x, y)` in the original's
+    /// pixels (top-left, centre or right edge by `align`) under a view of `(origin x, origin y,
+    /// scale)`. Falls back to the plain font when the original fonts were not extracted.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn bm_text(
+        &mut self,
+        view: (f32, f32, f32),
+        style: usize,
+        color: Color,
+        text: &str,
+        x: f32,
+        y: f32,
+        align: Align,
+    ) -> f32 {
+        let (ox, oy, s) = view;
+        if self.art.has_fonts() {
+            let set = self.art.nearest_font_set(style, color);
+            let w = self.art.text_width(style, text);
+            let ax = match align {
+                Align::Left => x,
+                Align::Center => x - w / 2.0,
+                Align::Right => x - w,
+            };
+            self.art
+                .draw_bitmap_text(style, set, text, ox + ax * s, oy + y * s, s);
+            w
+        } else {
+            let size = (self.art.text_height(style) + 1.0) * s;
+            let w = measure_text(text, None, size as u16, 1.0).width / s;
+            let ax = match align {
+                Align::Left => x,
+                Align::Center => x - w / 2.0,
+                Align::Right => x - w,
+            };
+            draw_text(
+                text,
+                ox + ax * s,
+                oy + (y + self.art.text_height(style)) * s,
+                size,
+                color,
+            );
+            w
+        }
+    }
+}
+
 /// What was clicked on the frame this frame.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FrameClick {

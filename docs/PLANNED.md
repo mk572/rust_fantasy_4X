@@ -21,6 +21,8 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 8 | Options | Hardcore mode |
 | 9 | Client | Battle success hint |
 | 10 | Client | Font and TrueType support |
+| 11 | Client | Higher resolution modes |
+| 12 | Content | Replacement art |
 
 ## Descriptions
 
@@ -119,3 +121,25 @@ English today but modded content may not be), and a licence check: only fonts un
 the project can ship go into the repository (for example an open blackletter pixel-style face
 to stand in for the original's display font), while the original's bitmap fonts stay local.
 Modding support (item 5) should let a mod ship its own fonts and map them to the roles.
+
+**11. Higher resolution modes.** The client keeps the original's 320 by 200 layout and scales it by a
+whole factor (`frame::Layout`, the city screen's `Layout`), so a bigger window just shows a
+bigger copy. Add real higher-resolution modes: layouts designed for 1920 by 1080 and beyond
+and for wide and ultrawide windows, where the map view shows more tiles instead of larger
+ones, side panels use the extra width (lists, message log, minimap, spell and research
+panels), the city screen spreads out (a larger cityscape, more room for units and
+enchantments), and UI scale is a separate setting from the map zoom. Needs the font work (item
+10), art that holds up at the new sizes (items 6 and 12), a layout system with breakpoints
+(compact, standard, wide) shared by all screens, high-DPI handling, and a screenshot test per
+breakpoint. Keep the original layout as one of the modes.
+
+**12. Replacement art.** The placeholder art comes from the author's own copy of the original and is
+local only; the repository must stay CC0 and original-free. Before any public release, source
+art that can be shipped: commissioned, generated or CC0 pieces for terrain tiles, units,
+buildings, portraits, the interface frame, battle scenery and fonts, in the same sizes and
+file layout as the extracted set so the client loads them unchanged (`assets/` next to the
+code, `assets-local/` still taking precedence for a player who has the originals). Decide the
+style (faithful pixel art, or a new look suited to the higher resolutions of item 11), list
+every picture the client uses (the manifest of `extract-art` is the checklist), and give each
+a source and licence in a credits file. Moved here from the task list (formerly task 79)
+because it goes beyond the original game.

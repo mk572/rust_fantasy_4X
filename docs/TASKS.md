@@ -9,7 +9,7 @@ Everything not yet implemented, collected from the whole project history and the
 Combat is under way: 33, 34 and 40 are done (see [`combat.md`](combat.md)).
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
-Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md).
+Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md) (replacement art, formerly task 79, is item 12 there).
 
 ## Table
 
@@ -75,7 +75,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 76 | Client | Background music |
 | 77 | Content | Content pass and balance with AI-vs-AI soak runs |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
-| 79 | Content | Final art sourcing |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
 | 81 | Housekeeping | Packaging for Mac |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
@@ -357,10 +356,6 @@ data, then balance with AI-vs-AI soak runs (needs AI and combat).
 B12 legendary fame (decided, not built), B13 Blur, B15 swamp food, B16 nature node food, C3
 Invisibility. Decide each, apply to content and help, and add the "[Updated from game code]" note
 where the help changes.
-
-**79. Final art sourcing.** Placeholders come from the author's own copy of the original and are
-local only. The repo must stay CC0 and original-free; decide on commissioned, generated or CC0
-art before any public release.
 
 **80. Push to GitHub and tidy.** Work since the last push is committed locally only. Push when the
 user agrees. The user still needs to delete the old `~/reference` folder (the earlier ReMoM clone
