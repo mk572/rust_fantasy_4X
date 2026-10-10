@@ -175,7 +175,87 @@ fn generate_plane(
             grid.set(x, y, t);
         }
     }
+    place_rivers(
+        &mut grid,
+        &elevation,
+        &is_land,
+        [hills, mountains],
+        plane_seed,
+    );
     Ok(grid)
+}
+
+/// Rivers start on mountain and hill tiles and run downhill (4-neighbour steps, lowest
+/// neighbour first) until they reach the sea or another river. Only gentle land carries the
+/// flag: hills, mountains and ocean never do.
+fn place_rivers(
+    grid: &mut Grid,
+    elevation: &[i32],
+    is_land: &[bool],
+    steep: [TerrainId; 2],
+    seed: u64,
+) {
+    let (w, h) = (grid.width(), grid.height());
+    let land = is_land.iter().filter(|&&l| l).count();
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x5249_5645_5253);
+    let mut sources: Vec<(u32, u32)> = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| {
+            is_land[(y * w + x) as usize]
+                && y >= 2
+                && y + 2 < h
+                && elevation[(y * w + x) as usize] > 150
+        })
+        .collect();
+    for i in (1..sources.len()).rev() {
+        sources.swap(i, rng.gen_range(0..=i));
+    }
+    sources.truncate((land / 120).max(1));
+    for (sx, sy) in sources {
+        let mut seen = std::collections::HashSet::new();
+        let (mut x, mut y) = (sx, sy);
+        let mut flagged = Vec::new();
+        let mut reached_water = false;
+        for _ in 0..(w + h) {
+            if !seen.insert((x, y)) {
+                break;
+            }
+            let i = (y * w + x) as usize;
+            if !is_land[i] {
+                reached_water = true;
+                break;
+            }
+            if grid.has_river(x as i32, y as i32) {
+                reached_water = true;
+                break;
+            }
+            flagged.push((x, y));
+            let next = [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)]
+                .iter()
+                .filter_map(|&(dx, dy)| {
+                    let ny = y as i32 + dy;
+                    (ny >= 0 && ny < h as i32).then(|| (grid.wrap_x(x as i32 + dx), ny as u32))
+                })
+                .filter(|p| !seen.contains(p))
+                .min_by_key(|&(nx, ny)| (elevation[(ny * w + nx) as usize], ny, nx));
+            match next {
+                Some(p) => (x, y) = p,
+                None => break,
+            }
+        }
+        // A river that never reaches water or another river would be a puddle: drop it.
+        if !reached_water {
+            continue;
+        }
+        for (x, y) in flagged {
+            if grid
+                .get(x as i32, y as i32)
+                .is_some_and(|t| !steep.contains(&t))
+            {
+                grid.set_river(x, y, true);
+            }
+        }
+    }
 }
 
 fn pick_where(values: &[i32], mask: &[bool]) -> Vec<i32> {
@@ -325,6 +405,34 @@ mod tests {
                 kind: FeatureKind::Tower
             })
         ));
+    }
+
+    #[test]
+    fn rivers_exist_on_gentle_land_and_are_deterministic() {
+        let c = content();
+        let a = generate(7, &GenParams::default(), &c).unwrap();
+        let b = generate(7, &GenParams::default(), &c).unwrap();
+        assert_eq!(a, b);
+        let mut count = 0;
+        for plane in Plane::ALL {
+            let g = a.plane(plane);
+            for y in 0..g.height() as i32 {
+                for x in 0..g.width() as i32 {
+                    if g.has_river(x, y) {
+                        count += 1;
+                        let class = c.terrains.get(g.get(x, y).unwrap()).unwrap().class;
+                        assert!(
+                            !matches!(
+                                class,
+                                TerrainClass::Ocean | TerrainClass::Hills | TerrainClass::Mountains
+                            ),
+                            "river on {class:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(count > 0, "the default map has rivers");
     }
 
     #[test]

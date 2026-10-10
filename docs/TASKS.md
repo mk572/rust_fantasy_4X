@@ -12,10 +12,10 @@ Combat (tasks 33-46) is deliberately paused until the user says to start.
 
 | # | Area | Summary |
 |---|---|---|
-| 1 | Map | Rivers |
+| 1 | Map | ~~Rivers~~ (done) |
 | 2 | Map | Lakes |
-| 3 | Map | Volcanoes |
-| 4 | Map | Shore and coastline variants for drawing |
+| 3 | Map | ~~Volcanoes~~ (done) |
+| 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 5 | Map | Land corruption and purification |
 | 6 | Map | Magic node ownership, melding and power (incl. Myrror doubling) |
 | 7 | Map | Node auras and warped nodes |
@@ -99,24 +99,30 @@ Combat (tasks 33-46) is deliberately paused until the user says to start.
 
 ### Map
 
-**1. Rivers.** The original stores river variants as terrain types (762 types in total); we model
-none. Add a river layer to `Grid` (a flag or direction mask per tile, `#[serde(default)]` for old
-saves), generate rivers in `mapgen` (from hills or mountains to the sea or a lake), give river
-tiles their original effects (movement and city bonuses; check the help), include the layer in
-save/load, and draw them in the client. See `map-layers.md` section 3.
+**1. Rivers (done).** A river flag per tile in `Grid` (saved as `PlaneSave::rivers`), generated in
+`mapgen::place_rivers` (from high ground downhill to the sea or another river, never on hills,
+mountains or ocean). Effect as in the original (`Square_Gold_Bonus`): a city on a river gets +20
+percent trade, on a river next to the sea (river mouth) +30, shore alone +10; capped with roads
+and race at three times the citizens. The client draws blue strokes. The original also lets
+rivers change movement art only, so no movement rule. Lakes are task 2.
 
 **2. Lakes.** Same gap as rivers: lake variants are not modelled. Decide whether a lake is its own
 terrain class or a flagged ocean tile that is not coastal for ships, generate them, and check
 effects on food and city coast status.
 
-**3. Volcanoes.** Not modelled. A volcano is a terrain or feature that gives its owner +1 power to
-the player whose city is nearest or who owns it (the original adds a per-player `volcanoes` count
-to the power base). Add the feature, its ownership rule, the power term in `power_base`, generation
-and drawing.
+**3. Volcanoes (done).** `terraform.rs`: a volcano is a mountain tile with an owner (`Grid`
+volcano layer, saved). Raise Volcano (hook `raise_volcano`, map square target) turns a non-hill,
+non-mountain, non-site land tile into a volcano, destroys its minerals, gives the caster +1 power
+per volcano (`power_base`), and collapses each building of a city on it with 15 percent. Change
+Terrain (hook `change_terrain`) follows the help table: desert, forest, hills, swamp to grassland,
+grassland to forest, mountains to hills, volcano to plain mountains. Not done: Armageddon's
+volcano rain (needs timed global spells, 57) and Gaia's Blessing turning volcanoes into hills (24).
 
-**4. Shore and coastline variants.** Shores are derived from neighbouring ocean tiles and are only
-a rendering matter, but the client draws flat tiles. Add shore-aware tile selection in the client
-using the extracted art, without storing shore state in the map.
+**4. Shore and coastline variants (done).** `f4x-tools extract-art` now also writes
+`assets-local/art/terrain/autotile.tsv` from TERRTYPE.LBX (five 256-entry tables keyed by the
+8-neighbour mask); the client picks the ocean tile for each water square from the land
+neighbours. Only table 0 (ocean shores) is used; the tables for mountains, hills and tundra
+edges are extracted but not yet drawn.
 
 **5. Land corruption and purification.** Corruption of tiles (by units, spells and Great Wasting)
 and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on

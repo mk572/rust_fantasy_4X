@@ -579,6 +579,26 @@ mod tests {
     }
 
     #[test]
+    fn rivers_pay_twenty_percent_and_river_mouths_thirty() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 10);
+        assert_eq!(g.city_economy(city).unwrap().gold, 10);
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_river(10, 6, true);
+        assert_eq!(g.city_economy(city).unwrap().gold, 12, "river");
+        let mouth = found(&mut g, at(1, 6), "elf", 10);
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_river(1, 6, true);
+        assert_eq!(g.city_economy(mouth).unwrap().gold, 13, "river mouth");
+    }
+
+    #[test]
     fn mines_add_gold_mana_and_cheaper_units() {
         let mut g = world();
         let city = found(&mut g, at(10, 6), "elf", 4);

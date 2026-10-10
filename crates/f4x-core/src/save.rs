@@ -69,6 +69,12 @@ pub struct PlaneSave {
     pub features: Vec<(u32, u16)>,
     /// Tile indexes that have a road.
     pub roads: Vec<u32>,
+    /// Tile indexes that have a river.
+    #[serde(default)]
+    pub rivers: Vec<u32>,
+    /// `(tile index, owner's player number)` for every volcano.
+    #[serde(default)]
+    pub volcanoes: Vec<(u32, u8)>,
 }
 
 /// Explored flags, bit-packed (least significant bit first), per player and plane.
@@ -341,10 +347,26 @@ impl Game {
                         .filter(|(_, &r)| r)
                         .map(|(i, _)| i as u32)
                         .collect();
+                    let rivers = grid
+                        .rivers()
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &r)| r)
+                        .map(|(i, _)| i as u32)
+                        .collect();
+                    let volcanoes = grid
+                        .volcanoes()
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &v)| v > 0)
+                        .map(|(i, &v)| (i as u32, v - 1))
+                        .collect();
                     PlaneSave {
                         tiles,
                         features,
                         roads,
+                        rivers,
+                        volcanoes,
                     }
                 })
                 .collect();
@@ -775,10 +797,26 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .get_mut(i as usize)
                 .ok_or_else(|| LoadError::Inconsistent("a road is off the map".into()))? = true;
         }
+        let mut rivers = vec![false; len];
+        for i in plane.rivers {
+            *rivers
+                .get_mut(i as usize)
+                .ok_or_else(|| LoadError::Inconsistent("a river is off the map".into()))? = true;
+        }
+        let mut volcanoes = vec![0u8; len];
+        for (i, owner) in plane.volcanoes {
+            *volcanoes
+                .get_mut(i as usize)
+                .ok_or_else(|| LoadError::Inconsistent("a volcano is off the map".into()))? =
+                owner.saturating_add(1);
+        }
         grids.push(
-            Grid::from_parts(m.width, m.height, tiles, feature_layer, roads).ok_or_else(|| {
-                LoadError::Inconsistent("a plane does not match the map size".into())
-            })?,
+            Grid::from_parts(m.width, m.height, tiles, feature_layer, roads)
+                .ok_or_else(|| {
+                    LoadError::Inconsistent("a plane does not match the map size".into())
+                })?
+                .with_rivers(rivers)
+                .with_volcanoes(volcanoes),
         );
     }
     let myrror = grids.pop().expect("two planes");
@@ -846,6 +884,8 @@ mod tests {
             g.set_feature(10, 8, Some(gold));
             g.set_road(12, 6, true);
             g.set_road(13, 6, true);
+            g.set_river(14, 6, true);
+            g.set_volcano(15, 6, Some(0));
             g
         };
         let map = Map::new(build(), build());
@@ -934,6 +974,9 @@ mod tests {
         // Details that are easy to lose: roads, features, exploration, orders, the outpost.
         let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
         assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));
+        assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
+        assert_eq!(grid.volcano(15, 6), Some(0));
+        assert_eq!(grid.volcano(14, 6), None);
         assert!(grid.feature(10, 8).is_some());
         assert_eq!(
             back.fog.explored_count(P0, Plane::Arcanus),

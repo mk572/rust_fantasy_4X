@@ -379,8 +379,14 @@ impl Game {
                         .is_some_and(|d| d.class == TerrainClass::Ocean)
             })
         });
-        let site_bonus = (if coast { 10 } else { 0 }
-            + self.road_trade(city, at, race_id)
+        // Shore 10, river 20, river mouth 30 (Square_Gold_Bonus in the original).
+        let river = grid.has_river(at.x as i32, at.y as i32);
+        let site_bonus = (match (river, coast) {
+            (false, false) => 0,
+            (false, true) => 10,
+            (true, false) => 20,
+            (true, true) => 30,
+        } + self.road_trade(city, at, race_id)
             + race.map_or(0, |r| r.trade_percent))
         .min(figures as i32 * 3);
         let mut gold_mods = mods.clone();

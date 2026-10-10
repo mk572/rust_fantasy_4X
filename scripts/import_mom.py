@@ -648,6 +648,13 @@ FORTRESS_HOOKS = {
 }
 
 
+# Spells that reshape one map square; the engine runs these hooks on a tile target.
+TILE_HOOKS = {
+    "Raise Volcano": "raise_volcano",
+    "Change Terrain": "change_terrain",
+}
+
+
 def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
     """Return (effects, target, duration-kind) for a spell; `duration-kind` is
     "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
@@ -655,6 +662,9 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in FORTRESS_HOOKS:
         hook = FORTRESS_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnCity", "instant"
+    if name in TILE_HOOKS:
+        hook = TILE_HOOKS[name]
+        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
     if kind == 0:  # summoning
         unit = unit_ids.get(row.param0 | (row.param1 << 8))

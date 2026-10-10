@@ -154,7 +154,33 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
         }
     }
     write_png(&dir.join("sheet.png"), sw, sh, &sheet)?;
+    extract_autotile(game_dir, &dir)?;
     Ok(tiles.len())
+}
+
+/// `autotile.tsv` rows `table, mask, terrain type` from TERRTYPE.LBX: five tables of 256
+/// entries, indexed by a bit mask of the eight neighbours (NW 1, N 2, NE 4, E 8, SE 16, S 32,
+/// SW 64, W 128). Table 0 turns the land neighbours of an ocean tile into its shore type.
+fn extract_autotile(game_dir: &Path, dir: &Path) -> Result<(), String> {
+    let Some(path) = find(game_dir, "TERRTYPE.LBX") else {
+        return Ok(());
+    };
+    let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let lbx = Lbx::parse(&data).map_err(|e| format!("TERRTYPE.LBX: {e}"))?;
+    if lbx.len() == 0 {
+        return Ok(());
+    }
+    // A 4-byte header (record count, record size) precedes the tables.
+    let body = lbx.entry(0).get(4..).unwrap_or(&[]);
+    let rows: String = body
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .take(5 * 256)
+        .enumerate()
+        .map(|(i, b)| format!("{}\t{}\t{}\n", i / 256, i % 256, u16::from_le_bytes(*b)))
+        .collect();
+    fs::write(dir.join("autotile.tsv"), rows).map_err(|e| e.to_string())
 }
 
 pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {

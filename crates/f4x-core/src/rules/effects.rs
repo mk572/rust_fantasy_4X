@@ -18,6 +18,8 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::fortress::MOVE_FORTRESS,
     crate::fortress::MOVE_CIRCLE,
     crate::fortress::RETURN,
+    crate::terraform::RAISE_VOLCANO,
+    crate::terraform::CHANGE_TERRAIN,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

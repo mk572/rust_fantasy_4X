@@ -32,6 +32,8 @@ pub struct Art {
     /// Terrain type -> first tile, from `terrain/types.tsv`.
     type_tiles: Vec<usize>,
     textures: HashMap<PathBuf, Option<Texture2D>>,
+    /// Shore type by neighbour mask (table 0 of `terrain/autotile.tsv`); empty if absent.
+    shore_types: Vec<usize>,
 }
 
 impl Art {
@@ -43,10 +45,24 @@ impl Art {
                     .collect()
             })
             .unwrap_or_default();
+        let mut shore_types = vec![0; 256];
+        if let Ok(text) = std::fs::read_to_string(dir.join("terrain/autotile.tsv")) {
+            for line in text.lines() {
+                let mut f = line.split('\t').map(|v| v.parse::<usize>().ok());
+                if let (Some(Some(0)), Some(Some(mask)), Some(Some(t))) =
+                    (f.next(), f.next(), f.next())
+                {
+                    if mask < 256 {
+                        shore_types[mask] = t;
+                    }
+                }
+            }
+        }
         Self {
             dir,
             type_tiles,
             textures: HashMap::new(),
+            shore_types,
         }
     }
 
@@ -65,6 +81,12 @@ impl Art {
                 Some(tex)
             })
             .as_ref()
+    }
+
+    /// The ocean tile type for a mask of land neighbours (NW 1, N 2, NE 4, E 8, SE 16, S 32,
+    /// SW 64, W 128): plain ocean when there is no land or no table.
+    pub fn shore_type(&self, mask: usize) -> usize {
+        self.shore_types.get(mask).copied().unwrap_or(0)
     }
 
     /// The ground tile for a terrain type number (see [`terrain_type`]).

@@ -72,7 +72,7 @@ pub trait EffectHost {
     fn apply_enchantment(&mut self, who: Target, spell: &str, caster: PlayerId);
     /// Remove enchantments the strength beats; returns how many were removed.
     fn dispel(&mut self, who: Target, strength: u32, rng: &mut dyn RngCore) -> u32;
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context);
+    fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore);
 }
 
 /// What happened when a rule ran, for the event log and tests.
@@ -307,7 +307,7 @@ fn run_effect(
             out.push(Outcome::Dispelled { who, removed });
         }
         Effect::Custom(hook) => {
-            host.custom(hook, who, ctx);
+            host.custom(hook, who, ctx, rng);
             out.push(Outcome::Custom { hook: hook.clone() });
         }
     }
@@ -499,7 +499,7 @@ mod tests {
             u.enchants.clear();
             n
         }
-        fn custom(&mut self, hook: &str, _w: Target, _c: &Context) {
+        fn custom(&mut self, hook: &str, _w: Target, _c: &Context, _r: &mut dyn RngCore) {
             self.customs.push(hook.to_string());
         }
     }

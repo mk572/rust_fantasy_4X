@@ -317,7 +317,7 @@ impl Game {
             .filter_map(|(e, ..)| self.city_economy(e))
             .map(|eco| eco.mana)
             .sum();
-        (total + self.fortress_power(player)).max(0)
+        (total + self.fortress_power(player) + self.volcano_count(player)).max(0)
     }
 
     fn fortress_power(&self, player: PlayerId) -> i32 {

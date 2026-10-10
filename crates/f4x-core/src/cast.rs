@@ -240,7 +240,16 @@ impl EffectHost for GameHost<'_> {
         removed
     }
 
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context) {
+    fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
+        if let Target::Tile(at) = who {
+            let events = match hook {
+                crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),
+                crate::terraform::CHANGE_TERRAIN => self.game.change_terrain_spell(at),
+                _ => return,
+            };
+            self.events.extend(events);
+            return;
+        }
         let Target::City(city) = who else {
             return;
         };
@@ -334,6 +343,20 @@ impl Game {
                 _ => here != p.summon_at,
             };
             return ok.then_some(()).ok_or(MagicError::NoSuchTarget);
+        }
+        if self.spell_has_hook(spell, crate::terraform::RAISE_VOLCANO) {
+            return match target {
+                Some(Target::Tile(p)) if self.can_raise_volcano(p) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::terraform::CHANGE_TERRAIN) {
+            return match target {
+                Some(Target::Tile(p)) if self.change_terrain_result(p).is_some() => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
         }
         let ok = match (wanted, target) {
             (SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield, _) => true,

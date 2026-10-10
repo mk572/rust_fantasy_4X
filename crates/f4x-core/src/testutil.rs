@@ -580,6 +580,15 @@ pub fn content_with_magic() -> Content {
         s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
         spells.push(s);
     }
+    // The map-square spells.
+    for (id, cost, hook) in [
+        ("raise_volcano", 200, crate::terraform::RAISE_VOLCANO),
+        ("change_terrain", 50, crate::terraform::CHANGE_TERRAIN),
+    ] {
+        let mut s = base(id, "arcane", Rarity::Uncommon, cost, 100, SpellTarget::Tile);
+        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
+        spells.push(s);
+    }
     c.rules.spells = Registry::new(spells);
     c.rules.realms = Registry::new(
         ["life", "chaos", "nature"]

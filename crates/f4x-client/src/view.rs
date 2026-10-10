@@ -7,7 +7,7 @@ use std::path::Path;
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, FeatureKind, TerrainClass};
 use f4x_core::magic::Retort;
-use f4x_core::map::Plane;
+use f4x_core::map::{Grid, Plane};
 use f4x_core::mapgen::{generate, GenParams};
 use f4x_core::player::Player;
 use f4x_core::{Command, Event, Game};
@@ -77,6 +77,54 @@ pub(crate) fn base_type(class: TerrainClass) -> usize {
         TerrainClass::Swamp => tt::SWAMP,
         TerrainClass::Desert => tt::DESERT,
         TerrainClass::Tundra => tt::TUNDRA,
+    }
+}
+
+/// Land neighbours of an ocean tile as the original's shore mask: NW 1, N 2, NE 4, E 8, SE 16,
+/// S 32, SW 64, W 128. Off the poles counts as water.
+fn shore_mask(grid: &Grid, content: &Content, x: i32, y: i32) -> usize {
+    const AROUND: [(i32, i32); 8] = [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+        (0, 1),
+        (-1, 1),
+        (-1, 0),
+    ];
+    AROUND
+        .iter()
+        .enumerate()
+        .filter(|&(_, &(dx, dy))| {
+            grid.get(x + dx, y + dy)
+                .and_then(|t| content.terrains.get(t))
+                .is_some_and(|d| d.class != TerrainClass::Ocean)
+        })
+        .fold(0, |mask, (bit, _)| mask | (1 << bit))
+}
+
+/// A river as blue strokes from the tile centre towards each river neighbour (and the sea).
+fn draw_river(grid: &Grid, content: &Content, x: i32, y: i32, sx: f32, sy: f32, t: Vec2) {
+    let blue = Color::new(0.2, 0.45, 0.85, 1.0);
+    let (cx, cy) = (sx + t.x * 0.5, sy + t.y * 0.5);
+    let w = (t.x * 0.14).max(2.0);
+    draw_circle(cx, cy, w * 0.9, blue);
+    for (dx, dy) in [(0, -1), (1, 0), (0, 1), (-1, 0)] {
+        let sea = grid
+            .get(x + dx, y + dy)
+            .and_then(|t| content.terrains.get(t))
+            .is_some_and(|d| d.class == TerrainClass::Ocean);
+        if sea || grid.has_river(x + dx, y + dy) {
+            draw_line(
+                cx,
+                cy,
+                cx + dx as f32 * t.x * 0.5,
+                cy + dy as f32 * t.y * 0.5,
+                w,
+                blue,
+            );
+        }
     }
 }
 
@@ -262,6 +310,11 @@ impl App {
                     Some(format!("Wizard {} is defeated", player.0))
                 }
                 Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
+                Event::VolcanoRaised { .. } => Some("A volcano rises".to_string()),
+                Event::BuildingsCollapsed { count, .. } => {
+                    Some(format!("{count} buildings collapse"))
+                }
+                Event::TerrainChanged { .. } => Some("The land changes".to_string()),
                 Event::SummoningCircleMoved { .. } => {
                     Some("The summoning circle has moved".to_string())
                 }
@@ -694,6 +747,9 @@ impl App {
                     .feature(wx as i32, y)
                     .and_then(|f| content.features.get(f));
                 let mut type_no = base_type(def.class);
+                if def.class == TerrainClass::Ocean {
+                    type_no = self.art.shore_type(shore_mask(grid, content, wx as i32, y));
+                }
                 if let Some(f) = feature.filter(|f| f.kind == FeatureKind::Node) {
                     type_no = match f.id.as_str() {
                         "sorcery_node" => tt::SORCERY_NODE,
@@ -713,6 +769,19 @@ impl App {
                         },
                     ),
                     None => draw_rectangle(sx, sy, t.x, t.y, flat_color(def.class)),
+                }
+                if let Some(owner) = grid.volcano(wx as i32, y) {
+                    let c = player_color(owner);
+                    draw_triangle(
+                        vec2(sx + t.x * 0.5, sy + t.y * 0.15),
+                        vec2(sx + t.x * 0.2, sy + t.y * 0.8),
+                        vec2(sx + t.x * 0.8, sy + t.y * 0.8),
+                        Color::new(0.85, 0.2, 0.05, 1.0),
+                    );
+                    draw_circle(sx + t.x * 0.5, sy + t.y * 0.2, t.x * 0.1, c);
+                }
+                if grid.has_river(wx as i32, y) {
+                    draw_river(grid, content, wx as i32, y, sx, sy, t);
                 }
                 if grid.has_road(wx as i32, y) {
                     draw_rectangle(

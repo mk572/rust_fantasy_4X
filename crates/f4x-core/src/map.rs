@@ -35,6 +35,12 @@ pub struct Grid {
     /// Roads make movement between two road tiles cost half a move.
     #[serde(default)]
     roads: Vec<bool>,
+    /// A river runs through the tile: a gold bonus for a city there, nothing else.
+    #[serde(default)]
+    rivers: Vec<bool>,
+    /// Volcano owner per tile: 0 for none, else the owner's player number plus one.
+    #[serde(default)]
+    volcanoes: Vec<u8>,
 }
 
 impl Grid {
@@ -47,6 +53,8 @@ impl Grid {
             tiles: vec![fill; len],
             features: vec![None; len],
             roads: vec![false; len],
+            rivers: vec![false; len],
+            volcanoes: vec![0; len],
         }
     }
 
@@ -109,7 +117,17 @@ impl Grid {
             tiles,
             features,
             roads,
+            rivers: vec![false; len],
+            volcanoes: vec![0; len],
         })
+    }
+
+    /// The same grid with the given river layer; ignored if its length is wrong.
+    pub fn with_rivers(mut self, rivers: Vec<bool>) -> Self {
+        if rivers.len() == self.tiles.len() {
+            self.rivers = rivers;
+        }
+        self
     }
 
     /// Terrain per tile, row by row.
@@ -144,6 +162,66 @@ impl Grid {
             self.roads = vec![false; self.tiles.len()];
         }
         self.roads[i] = road;
+    }
+
+    /// The same grid with the given volcano layer (owner plus one, 0 for none); ignored if
+    /// its length is wrong.
+    pub fn with_volcanoes(mut self, volcanoes: Vec<u8>) -> Self {
+        if volcanoes.len() == self.tiles.len() {
+            self.volcanoes = volcanoes;
+        }
+        self
+    }
+
+    /// Volcano owner per tile, row by row (owner plus one, 0 for none).
+    pub fn volcanoes(&self) -> Vec<u8> {
+        let mut v = self.volcanoes.clone();
+        v.resize(self.tiles.len(), 0);
+        v
+    }
+
+    /// Player number of the wizard whose volcano stands on `(x, y)`, if there is one.
+    pub fn volcano(&self, x: i32, y: i32) -> Option<u8> {
+        if y < 0 || y >= self.height as i32 {
+            return None;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        match self.volcanoes.get(i).copied().unwrap_or(0) {
+            0 => None,
+            n => Some(n - 1),
+        }
+    }
+
+    pub fn set_volcano(&mut self, x: u32, y: u32, owner: Option<u8>) {
+        let i = self.index(x, y);
+        if self.volcanoes.len() != self.tiles.len() {
+            self.volcanoes = vec![0; self.tiles.len()];
+        }
+        self.volcanoes[i] = owner.map_or(0, |o| o + 1);
+    }
+
+    /// River flag per tile, row by row (all false if rivers were never set).
+    pub fn rivers(&self) -> Vec<bool> {
+        let mut rivers = self.rivers.clone();
+        rivers.resize(self.tiles.len(), false);
+        rivers
+    }
+
+    /// Whether a river runs through the tile at `(x, y)` (x wraps, y outside the map has none).
+    pub fn has_river(&self, x: i32, y: i32) -> bool {
+        if y < 0 || y >= self.height as i32 {
+            return false;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        self.rivers.get(i).copied().unwrap_or(false)
+    }
+
+    pub fn set_river(&mut self, x: u32, y: u32, river: bool) {
+        let i = self.index(x, y);
+        if self.rivers.len() != self.tiles.len() {
+            self.rivers = vec![false; self.tiles.len()];
+        }
+        self.rivers[i] = river;
     }
 
     fn index(&self, x: u32, y: u32) -> usize {

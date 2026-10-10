@@ -71,9 +71,16 @@ artwork and in what spawns, not in terrain behaviour, so a definition simply lis
 planes it exists on and the client chooses plane-specific art. Swamp food is a half food, as
 the original's manual says (its code gives none; see the conflicts document).
 
-**Not modelled:** the original also stores shore, river, lake and volcano variants as
-terrain types (762 of them). Here those are not state. Shores follow from neighbouring
-ocean tiles and are a rendering matter; rivers, lakes and volcanoes are not yet modelled.
+**Not modelled as terrain types:** the original stores shore, river, lake and volcano variants
+as terrain types (762 of them). Here shores follow from neighbouring ocean tiles and are a
+rendering matter (the client picks the tile from the original's neighbour-mask table). Rivers
+and volcanoes are per-tile flags on `Grid` (a river flag, and a volcano owner); lakes are not
+modelled yet.
+
+- **Rivers:** generated from high ground to the sea; a city on a river gets +20% trade, on a
+  river mouth +30%, on a shore +10%.
+- **Volcanoes:** raised by a spell on a land tile that becomes mountains; each gives its
+  owner +1 power (see `terraform.rs`).
 
 ## 4. Features
 

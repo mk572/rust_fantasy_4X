@@ -21,6 +21,7 @@ pub mod production;
 pub mod rules;
 pub mod save;
 pub mod serial;
+pub mod terraform;
 #[cfg(test)]
 mod testutil;
 pub mod turn;
@@ -188,6 +189,18 @@ pub enum Event {
         to: city::PlayerId,
     },
     CityDestroyed {
+        pos: city::Position,
+    },
+    VolcanoRaised {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    /// Buildings lost when a volcano rose under a city.
+    BuildingsCollapsed {
+        city: hecs::Entity,
+        count: u32,
+    },
+    TerrainChanged {
         pos: city::Position,
     },
     SpellLearned {
