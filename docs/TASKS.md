@@ -310,7 +310,8 @@ short" event interaction (68).
 ### Meta: diplomacy, AI, events, victory
 
 **63. Diplomacy.** Relations on an 11-step scale, pacts, alliances with help obligations, war,
-treaty proposals and wizard attitudes [271, 782-794]. Needs a diplomacy record per player pair.
+treaty proposals and wizard attitudes [271, 782-794]. Needs a diplomacy record per player pair. The plan
+and the original's rules are in `docs/diplomacy.md`.
 
 **64. Wizard personalities and AI objectives.** Maniacal to peaceful personalities and the
 pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
