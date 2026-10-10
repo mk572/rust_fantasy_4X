@@ -175,7 +175,7 @@ impl App {
             "Outpost"
         } else {
             ["Hamlet", "Village", "Town", "City", "Capital"]
-                [(((eco.figures + 3) / 4).clamp(1, 5) - 1) as usize]
+                [(eco.figures.div_ceil(4).clamp(1, 5) - 1) as usize]
         };
         let mut title = format!("{size} of {name}");
         if self.game.is_fortress_city(city) && size != "Capital" {
@@ -193,7 +193,7 @@ impl App {
         );
         let orange = Color::new(0.95, 0.7, 0.2, 1.0);
         self.bm_text(view, 3, orange, &race_name, 6.0, 19.0, Align::Left);
-        let people = pop.figures * 1000 + u32::from(pop.tens) * 10;
+        let people = pop.figures * 1000 + pop.tens * 10;
         let grow = eco.growth_tens * 10;
         self.bm_text(
             view,
@@ -239,24 +239,6 @@ impl App {
                 }
                 x += step;
             }
-        }
-        // City tags (fortress, summoning circle) under the citizens.
-        let here = self.game.world.get::<&Position>(city).map(|p| *p).ok();
-        let owner = self.game.city_owner(city);
-        let mut tags = Vec::new();
-        if self.game.is_fortress_city(city) {
-            tags.push("Fortress");
-        }
-        if owner
-            .and_then(|o| self.game.player(o))
-            .and_then(|p| p.summon_at)
-            == here
-            && here.is_some()
-        {
-            tags.push("Summoning circle");
-        }
-        if !tags.is_empty() {
-            self.bm_text(view, 1, WHITE, &tags.join("  "), 207.0, 42.0, Align::Right);
         }
     }
 
@@ -333,51 +315,269 @@ impl App {
             .get::<&Enchantments>(city)
             .map(|e| e.0.clone())
             .unwrap_or_default();
-        for (i, (spell, caster)) in list.iter().take(6).enumerate() {
-            let name = self.game.content.rules.spells.get(*spell).name.clone();
+        // The fortress and the summoning circle head the list, in gold.
+        let here = self.game.world.get::<&Position>(city).map(|p| *p).ok();
+        let owner = self.game.city_owner(city);
+        let mut tags = Vec::new();
+        if self.game.is_fortress_city(city) {
+            tags.push("Fortress");
+        }
+        if here.is_some()
+            && owner
+                .and_then(|o| self.game.player(o))
+                .and_then(|p| p.summon_at)
+                == here
+        {
+            tags.push("Summon Circle");
+        }
+        let mut line = 0usize;
+        for tag in tags {
             self.bm_text(
                 view,
                 1,
-                player_color(caster.0),
-                &name,
+                GOLD,
+                tag,
                 142.0,
-                54.0 + i as f32 * 6.5,
+                54.0 + line as f32 * 6.5,
                 Align::Left,
             );
+            line += 1;
+        }
+        for (spell, caster) in list.iter().take(6usize.saturating_sub(line)) {
+            let name = self.game.content.rules.spells.get(*spell).name.clone();
+            let color = player_color(caster.0);
+            self.bm_text(
+                view,
+                1,
+                color,
+                &name,
+                142.0,
+                54.0 + line as f32 * 6.5,
+                Align::Left,
+            );
+            line += 1;
         }
     }
 
-    /// The building area: a backdrop and the buildings as a list until the original's
-    /// cityscape is ported (task 114).
+    /// What the cityscape layout needs from a city.
+    fn cityscape_info(&self, city: hecs::Entity) -> crate::cityscape::CityInfo {
+        use crate::cityscape as cs;
+        let rules = &self.game.content.rules;
+        let at = self.city_position(city);
+        let pop = self
+            .game
+            .world
+            .get::<&Population>(city)
+            .map(|p| p.figures)
+            .unwrap_or(0);
+        let buildings = self
+            .game
+            .world
+            .get::<&Buildings>(city)
+            .map(|b| {
+                b.0.iter()
+                    .map(|&id| (3 + id.index() as i16, rules.buildings.get(id).shape))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let enchanted = |name: &str| {
+            self.game
+                .world
+                .get::<&Enchantments>(city)
+                .is_ok_and(|e| e.0.iter().any(|&(s, _)| rules.spells.get(s).id == name))
+        };
+        let mut magic = Vec::new();
+        for (name, idx) in [
+            ("earth_gate", cs::EARTH_GATE),
+            ("stream_of_life", cs::STREAM_OF_LIFE),
+            ("astral_gate", cs::ASTRAL_GATE),
+            ("dark_rituals", cs::DARK_RITUALS),
+            ("altar_of_battle", cs::ALTAR_OF_BATTLE),
+        ] {
+            if enchanted(name) {
+                magic.push(idx);
+            }
+        }
+        let owner = self.game.city_owner(city);
+        if owner
+            .and_then(|o| self.game.player(o))
+            .and_then(|p| p.summon_at)
+            == Some(at)
+        {
+            magic.push(cs::SUMMONING_CIRCLE);
+        }
+        let class = self.game.terrain_class_at(at);
+        let house_type = self
+            .game
+            .world
+            .get::<&CityRace>(city)
+            .map(|r| rules.races.get(r.0).house_type)
+            .unwrap_or(0);
+        cs::CityInfo {
+            population: pop,
+            buildings,
+            magic,
+            fortress: self.game.is_fortress_city(city),
+            many_trees: class == Some(f4x_core::content::TerrainClass::Forest) || house_type == 1,
+            many_rocks: matches!(
+                class,
+                Some(
+                    f4x_core::content::TerrainClass::Mountains
+                        | f4x_core::content::TerrainClass::Hills
+                )
+            ),
+            seed: 0x2895 + u64::from(at.x) * u64::from(at.y),
+        }
+    }
+
+    /// The city's picture: ground, water, hills, roads, then every cell from the back to the
+    /// front (houses, trees, rocks, buildings), and the walls along the bottom.
     fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout) {
+        use crate::cityscape as cs;
         let view = Self::view(lay);
-        if !self.city_pic(lay, "cityscap", 0, 0, 4.0, 100.0) {
-            let r = lay.rect(4.0, 100.0, 205.0, 90.0);
+        let (x0, y0) = (4.0f32, 100.0f32);
+        let at = self.city_position(city);
+        let myrror = at.plane == f4x_core::map::Plane::Myrror;
+        let enchanted = |name: &str| {
+            self.game.world.get::<&Enchantments>(city).is_ok_and(|e| {
+                e.0.iter()
+                    .any(|&(s, _)| self.game.content.rules.spells.get(s).id == name)
+            })
+        };
+        let frame = if enchanted("flying_fortress") {
+            1
+        } else if enchanted("cursed_lands") {
+            0
+        } else if enchanted("famine") {
+            2
+        } else if enchanted("gaias_blessing") {
+            3
+        } else {
+            4
+        };
+        // Clip to the window.
+        let r = lay.rect(x0, y0, 205.0, 96.0);
+        let mut gl = unsafe { get_internal_gl() };
+        gl.flush();
+        let dpi = screen_dpi_scale();
+        let _ = dpi;
+        if !self.city_pic(lay, "cityscap", if myrror { 8 } else { 0 }, frame, x0, y0) {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.35, 0.5, 0.3, 1.0));
         }
-        let Ok(buildings) = self.game.world.get::<&Buildings>(city) else {
-            return;
-        };
-        let names: Vec<String> = buildings
-            .0
-            .iter()
-            .map(|&b| self.game.content.rules.buildings.get(b).name.clone())
-            .collect();
-        drop(buildings);
-        if names.is_empty() {
-            self.bm_text(view, 1, WHITE, "No buildings yet", 12.0, 106.0, Align::Left);
+        // Water and high ground around the city.
+        let (mut river, mut ocean, mut mountain, mut hills) = (false, false, false, false);
+        if let Some(map) = self.game.map.as_ref() {
+            let grid = map.plane(at.plane);
+            for dy in -1i32..=1 {
+                for dx in -1i32..=1 {
+                    let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
+                    river |= grid.has_river(x, y);
+                    let class = grid
+                        .get(x, y)
+                        .and_then(|t| self.game.content.terrains.get(t))
+                        .map(|d| d.class);
+                    ocean |= class == Some(f4x_core::content::TerrainClass::Ocean);
+                    if dy <= 0 && !(dy == 0 && dx != 0) {
+                        mountain |= class == Some(f4x_core::content::TerrainClass::Mountains);
+                        hills |= class == Some(f4x_core::content::TerrainClass::Hills);
+                    }
+                }
+            }
         }
-        for (i, name) in names.iter().enumerate() {
-            let (col, row) = ((i % 3) as f32, (i / 3) as f32);
-            self.bm_text(
-                view,
-                1,
-                WHITE,
-                name,
-                8.0 + col * 68.0,
-                104.0 + row * 8.0,
-                Align::Left,
-            );
+        if river {
+            self.city_pic(lay, "cityscap", if myrror { 115 } else { 3 }, 0, x0, y0);
+        } else if ocean {
+            self.city_pic(lay, "cityscap", if myrror { 116 } else { 4 }, 0, x0, y0);
+        }
+        if mountain {
+            self.city_pic(lay, "cityscap", if myrror { 9 } else { 2 }, 0, x0, y0);
+        } else if hills {
+            self.city_pic(lay, "cityscap", if myrror { 10 } else { 1 }, 0, x0, y0);
+        }
+        self.city_pic(lay, "cityscap", 5, 0, x0 + 2.0, y0 + 16.0);
+
+        let info = self.cityscape_info(city);
+        let grid = cs::make_layout(&info);
+        let house_type = self
+            .game
+            .world
+            .get::<&CityRace>(city)
+            .map(|r| self.game.content.rules.races.get(r.0).house_type as usize)
+            .unwrap_or(0);
+        // Variants of houses, trees and rocks are drawn from the layout's own seed so they
+        // stay put from frame to frame.
+        let mut mouse_over: Option<i16> = None;
+        let mouse: Vec2 = mouse_position().into();
+        for (row, cells) in grid.iter().enumerate().skip(1) {
+            for (col, &cell) in cells.iter().enumerate() {
+                let (cx, cy) = cs::cell_position(row, col);
+                let (sx, sy) = (x0 + cx, y0 + cy);
+                let pick = |n: usize, salt: usize| (row * 31 + col * 17 + salt) % n;
+                match cell {
+                    cs::HOUSE if sx < x0 + 195.0 => {
+                        self.city_pic(
+                            lay,
+                            "cityscap",
+                            25 + house_type * 5 + pick(5, 1),
+                            0,
+                            sx,
+                            sy - 19.0,
+                        );
+                    }
+                    cs::TREE => {
+                        let shift = pick(3, 2) as f32 - 1.0;
+                        self.city_pic(
+                            lay,
+                            "cityscap",
+                            19 + pick(3, 3),
+                            0,
+                            sx + shift,
+                            sy - 6.0 - shift,
+                        );
+                    }
+                    cs::ROCK => {
+                        let shift = pick(3, 4) as f32 - 1.0;
+                        self.city_pic(lay, "cityscap", 22 + pick(3, 5), 0, sx + shift, sy - 6.0);
+                    }
+                    idx if cs::sprite_of(idx).is_some() => {
+                        let (entry, up) = cs::sprite_of(idx).expect("checked");
+                        self.city_pic(lay, "cityscap", entry, 0, sx, sy - up);
+                        let rect = lay.rect(sx, sy - up, 40.0, up + 1.0);
+                        if rect.contains(mouse) {
+                            mouse_over = Some(idx);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        // Walls along the front.
+        let has_walls = self.game.world.get::<&Buildings>(city).is_ok_and(|b| {
+            b.0.iter()
+                .any(|&id| self.game.content.rules.buildings.get(id).id == "city_walls")
+        });
+        if has_walls {
+            self.city_pic(lay, "cityscap", 76, 0, x0, y0 + 82.0);
+        }
+        gl.flush();
+        gl.quad_gl.scissor(None);
+
+        // The name of the building under the mouse.
+        let name = match mouse_over {
+            Some(cs::FORTRESS) => Some("Fortress".to_string()),
+            Some(cs::SUMMONING_CIRCLE) => Some("Summoning Circle".to_string()),
+            Some(i) if (3..=35).contains(&i) => self
+                .game
+                .content
+                .rules
+                .buildings
+                .defs()
+                .get((i - 3) as usize)
+                .map(|b| b.name.clone()),
+            _ => None,
+        };
+        if let Some(n) = name {
+            self.bm_text(view, 3, WHITE, &n, x0 + 102.0, y0 + 84.0, Align::Center);
         }
     }
 
@@ -510,7 +710,7 @@ impl App {
         match prod.item {
             Some(item) => {
                 let name = self.item_name(item);
-                self.bm_text(view, 3, white, &name, 264.0, 178.0, Align::Center);
+                self.bm_text(view, 3, white, &name, 246.0, 177.0, Align::Center);
                 let cost = self.game.item_cost(city, item);
                 if cost > 0 {
                     let remaining = cost.saturating_sub(prod.progress);
@@ -568,13 +768,14 @@ impl App {
                         view,
                         1,
                         white,
-                        &format!("{} gold a turn", eco.production / 2),
+                        &format!("{} gold", eco.production / 2),
                         262.0,
                         152.0,
                         Align::Left,
                     );
                 } else {
-                    self.bm_text(view, 1, white, "speeds growth", 262.0, 152.0, Align::Left);
+                    self.bm_text(view, 1, white, "speeds", 262.0, 152.0, Align::Left);
+                    self.bm_text(view, 1, white, "growth", 262.0, 159.0, Align::Left);
                 }
                 // What is being made: the unit's picture.
                 if let ProductionItem::Unit(id) = item {
@@ -585,7 +786,7 @@ impl App {
                 }
             }
             None => {
-                self.bm_text(view, 3, GRAY, "Nothing", 264.0, 178.0, Align::Center);
+                self.bm_text(view, 3, GRAY, "Nothing", 246.0, 177.0, Align::Center);
             }
         }
         let gold = self.game.player(crate::view::HUMAN).map_or(0, |p| p.gold);
@@ -750,7 +951,7 @@ fn thousands(n: u32) -> String {
     let s = n.to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
-        if i > 0 && (s.len() - i) % 3 == 0 {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);

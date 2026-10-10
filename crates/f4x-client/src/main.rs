@@ -3,6 +3,7 @@
 
 mod art;
 mod city_screen;
+mod cityscape;
 mod create_screen;
 mod frame;
 mod magic_screen;

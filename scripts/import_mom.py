@@ -330,6 +330,7 @@ class Building:
     upkeep: int
     replaces: int | None = None  # building index made redundant by this one
     starting_xp: int = 0  # experience units built here start with
+    shape: int = 0  # footprint in the city picture: 2x2, 2x3, 3x2, 3x3
 
 
 def import_buildings(game: Path, report: Report) -> list[Building]:
@@ -348,14 +349,17 @@ def import_buildings(game: Path, report: Report) -> list[Building]:
             elif req > 0:
                 reqs.append(req)
         xp = 60 if grants_60 else 20 if grants_20 else 0
+        shape = struct.unpack_from("<h", r, 0x30)[0]
         out.append(Building(i, name, slug(name), reqs, cost, max(upkeep, 0),
-                            replace if replace > 0 else None, xp))
+                            replace if replace > 0 else None, xp, shape if 0 <= shape <= 3 else 0))
     return out
 
 
 def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list[str]) -> str:
     requires = [by_index[r].id for r in b.requires if r in by_index]
     parts = [f"id: {ron_str(b.id)}", f"name: {ron_str(b.name)}", f"cost: {b.cost}"]
+    if b.shape:
+        parts.append(f"shape: {b.shape}")
     if b.upkeep:
         parts.append(f"upkeep_gold: {b.upkeep}")
     if requires:
@@ -385,6 +389,7 @@ class Race:
     cant_build: list[int]
     growth_people: int  # people per turn (the table counts in tens)
     outpost_growth: int = 10  # base chance (percent) an outpost grows each turn
+    house_type: int = 0  # 0 standard, 1 tree houses, 2 mounds
 
 
 def import_races(remom: Path) -> list[Race]:
@@ -400,7 +405,7 @@ def import_races(remom: Path) -> list[Race]:
         count, cant = words[1], words[2 : 2 + 7]
         growth_mod = words[10]
         name = names[f"{i:03d}"]
-        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10, words[9]))
+        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10, words[9], words[11]))
     return races
 
 
@@ -1104,7 +1109,7 @@ def run(game: Path, remom: Path, out: Path) -> Report:
             f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
             f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
             f"city_names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}], "
-            f"outpost_growth: {race.outpost_growth}{extra}),"
+            f"outpost_growth: {race.outpost_growth}, house_type: {race.house_type}{extra}),"
         )
     # buildings, with per-race exclusions turned into allowed-race lists
     building_lines = []

@@ -54,13 +54,16 @@ pub fn decode_glyph(data: &[u8], start: usize, width: usize, height: usize) -> V
     px
 }
 
+/// Writes a PNG: path, width, height, RGBA bytes.
+pub type PngWriter<'a> = &'a dyn Fn(&Path, usize, usize, &[u8]) -> Result<(), String>;
+
 /// Write `fonts/style{N}.png` and `fonts/metrics.tsv` under `out_dir`.
 pub fn extract_fonts(
     fonts: &[u8],
     palette_entry: &[u8],
     pal: &[u8],
     out_dir: &Path,
-    write_png: &dyn Fn(&Path, usize, usize, &[u8]) -> Result<(), String>,
+    write_png: PngWriter,
 ) -> Result<usize, String> {
     if fonts.len() < OFS_DATA + STYLES * GLYPHS * 2 {
         return Ok(0);

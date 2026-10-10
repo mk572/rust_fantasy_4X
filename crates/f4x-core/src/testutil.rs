@@ -240,6 +240,7 @@ pub fn content_with_economy() -> Content {
         double_mining: false,
         trade_percent: 0,
         outpost_growth: 10,
+        house_type: 0,
     };
     let mut dwarf = race(
         "dwarf",
@@ -262,6 +263,7 @@ pub fn content_with_economy() -> Content {
                 replaces: None,
                 races: vec![],
                 effects,
+                shape: 0,
             }
         };
     let mut hall = building("builders_hall", 60, 1, &[], vec![]);

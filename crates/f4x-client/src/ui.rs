@@ -4,7 +4,6 @@ use macroquad::prelude::*;
 
 pub const PANEL: Color = Color::new(0.08, 0.07, 0.06, 0.92);
 pub const GOLD: Color = Color::new(0.95, 0.8, 0.35, 1.0);
-pub const INK: Color = Color::new(0.1, 0.07, 0.04, 1.0);
 
 /// One colour per player id, for borders and flags.
 pub fn player_color(id: u8) -> Color {

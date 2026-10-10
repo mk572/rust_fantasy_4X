@@ -31,7 +31,6 @@ pub mod terrain_type {
 struct FontStyle {
     height: u32,
     hspacing: i32,
-    vspacing: i32,
     /// `(x in the strip, width)` for ASCII 32..=127.
     glyphs: Vec<(u32, u32)>,
     /// Average colour of each of the 16 colour sets, to pick the nearest one to a request.
@@ -91,13 +90,11 @@ impl Art {
             let num = |i: usize| f.get(i).and_then(|v| v.parse::<i64>().ok());
             match f.first().copied() {
                 Some("S") => {
-                    if let (Some(s), Some(h), Some(hs), Some(vs)) = (num(1), num(2), num(3), num(4))
-                    {
+                    if let (Some(s), Some(h), Some(hs)) = (num(1), num(2), num(3)) {
                         if let Some(slot) = styles.get_mut(s as usize) {
                             *slot = Some(FontStyle {
                                 height: h as u32,
                                 hspacing: hs as i32,
-                                vspacing: vs as i32,
                                 glyphs: vec![(0, 0); 96],
                                 set_colors: Vec::new(),
                             });
@@ -132,11 +129,8 @@ impl Art {
             return text.len() as f32 * 4.0;
         };
         text.chars()
-            .filter_map(|c| {
-                (32..128)
-                    .contains(&(c as u32))
-                    .then(|| st.glyphs[(c as u32 - 32) as usize].1 as i32 + st.hspacing)
-            })
+            .filter(|c| (32..128).contains(&(*c as u32)))
+            .map(|c| st.glyphs[(c as u32 - 32) as usize].1 as i32 + st.hspacing)
             .sum::<i32>() as f32
     }
 

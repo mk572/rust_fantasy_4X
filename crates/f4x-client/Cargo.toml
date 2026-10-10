@@ -9,3 +9,5 @@ f4x-core.workspace = true
 f4x-data.workspace = true
 macroquad.workspace = true
 hecs.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true

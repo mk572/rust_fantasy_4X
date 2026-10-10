@@ -49,6 +49,9 @@ pub struct RaceDef {
     /// Base chance (percent) per turn that an outpost of the race grows.
     #[serde(default = "ten")]
     pub outpost_growth: u8,
+    /// Houses in the city picture: 0 standard, 1 tree houses, 2 mounds.
+    #[serde(default)]
+    pub house_type: u8,
 }
 
 fn two() -> u8 {
@@ -165,6 +168,9 @@ pub struct BuildingDef {
     pub races: Vec<String>,
     #[serde(default)]
     pub effects: Vec<EffectRule>,
+    /// Footprint in the city picture: 0 is 2x2, 1 is 2x3, 2 is 3x2, 3 is 3x3.
+    #[serde(default)]
+    pub shape: u8,
 }
 
 /// A school of magic. Data, so the set of realms is not hard-coded.

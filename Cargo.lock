@@ -116,6 +116,8 @@ dependencies = [
  "f4x-data",
  "hecs",
  "macroquad",
+ "rand",
+ "rand_pcg",
 ]
 
 [[package]]

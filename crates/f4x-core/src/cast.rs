@@ -276,7 +276,7 @@ impl EffectHost for GameHost<'_> {
 }
 
 impl Game {
-    pub(crate) fn terrain_class_at(&self, at: Position) -> Option<TerrainClass> {
+    pub fn terrain_class_at(&self, at: Position) -> Option<TerrainClass> {
         let map = self.map.as_ref()?;
         let id = map.plane(at.plane).get(at.x as i32, at.y as i32)?;
         self.content.terrains.get(id).map(|d| d.class)
