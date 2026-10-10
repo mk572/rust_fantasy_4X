@@ -55,6 +55,8 @@ pub enum Stat {
     CityUnrest,
     /// Percent change to the cost of units built in the city.
     UnitCostPercent,
+    /// How far a city sees (base 2); Oracle, City Walls and Nature's Eye raise the minimum.
+    CitySight,
 }
 
 impl Stat {

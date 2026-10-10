@@ -139,6 +139,12 @@ impl Game {
             }
             self.reveal_for_globals(player);
         }
+        // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
+        let cities: Vec<_> = self.cities().into_iter().collect();
+        for (entity, city, at) in cities {
+            let sight = self.city_sight(entity).max(0) as u32;
+            self.fog.explore(city.owner, at, sight);
+        }
     }
 }
 

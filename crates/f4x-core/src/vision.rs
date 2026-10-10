@@ -2,13 +2,19 @@
 
 use crate::city::{PlayerId, Position};
 use crate::map::Plane;
+use crate::rules::stats::compute;
 use crate::rules::Stat;
 use crate::Game;
 
-/// Sight radius of a city; walls and an oracle would extend it.
+/// Sight radius of a city before walls, an Oracle or Nature's Eye raise it.
 const CITY_SIGHT: i32 = 2;
 
 impl Game {
+    /// How far a city sees: 2, or more with an Oracle (4), City Walls (3) or Nature's Eye (4).
+    pub fn city_sight(&self, city: hecs::Entity) -> i32 {
+        compute(Stat::CitySight, CITY_SIGHT, &self.city_modifiers(city))
+    }
+
     /// Visible tiles on one plane as a row-major grid of `width * height` flags: the
     /// squares around each of the player's units and cities.
     pub fn visibility(&self, player: PlayerId, plane: Plane) -> Vec<bool> {
@@ -40,9 +46,9 @@ impl Game {
                 reveal(at, self.unit_stat(unit, Stat::Sight).max(1));
             }
         }
-        for (_, city, at) in self.cities() {
+        for (entity, city, at) in self.cities() {
             if city.owner == player {
-                reveal(at, CITY_SIGHT);
+                reveal(at, self.city_sight(entity));
             }
         }
         seen
@@ -82,5 +88,71 @@ mod tests {
             .visibility(PlayerId(1), Plane::Arcanus)
             .iter()
             .all(|&s| !s));
+    }
+
+    #[test]
+    fn oracle_walls_and_natures_eye_widen_a_citys_sight() {
+        use crate::rules::{ModOp, Modifier, Source};
+        let c = crate::testutil::content_with_economy();
+        let grass = c.terrains.id_of("grassland").unwrap();
+        let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
+        let mut g = Game::new(1);
+        g.content = c;
+        g.map = Some(map);
+        let at = Position {
+            plane: Plane::Arcanus,
+            x: 10,
+            y: 10,
+        };
+        g.apply(crate::Command::FoundCity {
+            owner: PlayerId(0),
+            pos: at,
+            name: "A".into(),
+            race: None,
+            population: 3,
+        });
+        let city = g.city_at(at).unwrap();
+        assert_eq!(g.city_sight(city), 2);
+        let seen = |g: &Game| {
+            g.visibility(PlayerId(0), Plane::Arcanus)
+                .iter()
+                .filter(|&&v| v)
+                .count()
+        };
+        assert_eq!(seen(&g), 25);
+        // The sources are Min modifiers, so the best one counts and they do not add up.
+        let mods = [
+            Modifier::new(Stat::CitySight, ModOp::Min, 3, Source::Other),
+            Modifier::new(Stat::CitySight, ModOp::Min, 4, Source::Other),
+        ];
+        assert_eq!(compute(Stat::CitySight, 2, &mods), 4);
+        assert_eq!(compute(Stat::CitySight, 2, &mods[..1]), 3);
+        // A real building with the modifier widens what the city sees and explores.
+        let mut oracle = g.content.rules.buildings.defs()[0].clone();
+        oracle.id = "oracle".into();
+        oracle.effects = vec![crate::rules::effects::EffectRule {
+            when: crate::rules::effects::Trigger::Passive,
+            condition: crate::rules::effects::Condition::Always,
+            target: crate::rules::effects::TargetSel::This,
+            effect: crate::rules::effects::Effect::Modify {
+                stat: Stat::CitySight,
+                op: ModOp::Min,
+                value: 4,
+            },
+        }];
+        let mut defs = g.content.rules.buildings.defs().to_vec();
+        defs.push(oracle);
+        let id = crate::rules::BuildingId::new((defs.len() - 1) as u16);
+        g.content.rules.buildings = crate::rules::Registry::new(defs);
+        g.world
+            .get::<&mut crate::economy::Buildings>(city)
+            .unwrap()
+            .0
+            .push(id);
+        assert_eq!(g.city_sight(city), 4);
+        assert_eq!(seen(&g), 81);
+        g.process_globals();
+        assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));
+        assert!(!g.fog.is_explored(PlayerId(0), Plane::Arcanus, 15, 10));
     }
 }

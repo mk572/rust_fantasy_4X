@@ -12,6 +12,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
+| 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
@@ -62,6 +63,11 @@ Endurance adds one per unit), then the stack steps to the next square of the pat
 roads on Myrror cost walking units no movement. The client's B key builds a road under
 engineers (one square; path drawing is not done) and draws enchanted roads in gold. The trade
 bonus now has roads to work with.
+
+**14. Sight radius sources (done).** `Stat::CitySight` (base 2) with `Min` modifiers: an Oracle
+makes a city see 4 squares, City Walls 3, Nature's Eye 4; the best one counts, they do not add
+up. `Game::city_sight` feeds `visibility`, and each turn cities explore what they see. Units keep
+their `Sight` stat (the importer reads it; scouting levels are not separate).
 
 **15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
 section 12. What is left is split off as task 82.

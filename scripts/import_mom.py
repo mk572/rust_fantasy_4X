@@ -281,7 +281,8 @@ BUILDING_EFFECTS = {
     "Sages Guild": [_mod("CityResearch", "Add", 3)],
     "University": [_mod("CityResearch", "Add", 5)],
     "Wizards Guild": [_mod("CityResearch", "Add", 8), _mod("CityMana", "Add", 3)],
-    "Oracle": [_mod("CityUnrest", "Add", -2)],
+    "Oracle": [_mod("CityUnrest", "Add", -2), _mod("CitySight", "Min", 4)],
+    "City Walls": [_mod("CitySight", "Min", 3)],
     "Shrine": [_mod("CityMana", "Add", 1), _mod("CityUnrest", "Add", -1)],
     "Temple": [_mod("CityMana", "Add", 2), _mod("CityUnrest", "Add", -1)],
     "Parthenon": [_mod("CityMana", "Add", 3), _mod("CityUnrest", "Add", -1)],
@@ -672,6 +673,8 @@ CITY_ENCHANT_MODS = {
     # Gaia's Blessing is handled by the engine itself (more food from the land, doubled
     # forest production), so it keeps the placeholder effect.
     "Consecration": [("CityUnrest", "Add", -2)],
+    "Natures Eye": [("CitySight", "Min", 4)],
+    "Nature's Eye": [("CitySight", "Min", 4)],
     "Inspirations": [("CityProduction", "Percent", 100)],
     "Heavenly Light": [("CityUnrest", "Add", -1)],
     "Altar of Battle": [("StartingXp", "Min", 120)],

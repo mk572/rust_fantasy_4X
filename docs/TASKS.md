@@ -23,7 +23,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 10 | Map | Generator parity with the original and new-game settings |
 | 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
-| 14 | Map | Sight radius sources (Oracle, walls, Nature's Eye) |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -139,9 +138,6 @@ movement rules.
 
 **13. Teleporting and merging movement.** Teleport and merge movement types [253-261] are listed
 but have no rules. Add them to `movement.rs`, including their stack and plane rules.
-
-**14. Sight radius sources.** Oracle sees 4 squares, walls 3, Nature's Eye 4, scouting units more
-[546, 731, 748]. Today a city sees radius 2 and units by their `Sight` stat only.
 
 ### City and economy
 
