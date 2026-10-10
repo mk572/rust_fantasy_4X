@@ -213,9 +213,8 @@ BUILDING_EFFECTS = {
     "Library": [_mod("CityResearch", "Add", 2)],
     "Sages Guild": [_mod("CityResearch", "Add", 3)],
     "University": [_mod("CityResearch", "Add", 5)],
-    "Wizards Guild": [_mod("CityResearch", "Add", 8), _mod("CityMana", "Add", -3)],
+    "Wizards Guild": [_mod("CityResearch", "Add", 8), _mod("CityMana", "Add", 3)],
     "Oracle": [_mod("CityUnrest", "Add", -2)],
-    "Alchemists Guild": [_mod("CityMana", "Add", 3)],
     "Shrine": [_mod("CityMana", "Add", 1), _mod("CityUnrest", "Add", -1)],
     "Temple": [_mod("CityMana", "Add", 2), _mod("CityUnrest", "Add", -1)],
     "Parthenon": [_mod("CityMana", "Add", 3), _mod("CityUnrest", "Add", -1)],
@@ -223,7 +222,7 @@ BUILDING_EFFECTS = {
     "Granary": [_mod("CityFood", "Add", 2), _mod("CityGrowth", "Add", 20)],
     "Farmers Market": [_mod("CityFood", "Add", 3), _mod("CityGrowth", "Add", 30)],
     # The original adds the food per farmer; the city economy is not modelled yet, so flat.
-    "Animists Guild": [_mod("CityFood", "Add", 1), _mod("CityUnrest", "Add", -1)],
+    "Animists Guild": [_mod("CityFood", "Add", 1), _mod("CityUnrest", "Add", -1), _mod("CityMana", "Add", 3)],
     "Sawmill": [_mod("CityProduction", "Percent", 25)],
     "Foresters Guild": [_mod("CityFood", "Add", 2), _mod("CityProduction", "Percent", 25)],
     "Miners Guild": [_mod("CityProduction", "Percent", 50)],
@@ -509,13 +508,6 @@ def build_units(
 # Spells
 # --------------------------------------------------------------------------- #
 
-HELP_PATTERN = re.compile(
-    rb"([A-Z][A-Z' \-]+)\x00[^\x14]{0,80}?Effects: ([^\x14\x00]*)\x14Target: ([^\x14\x00]*)"
-    rb"\x14Casting Cost: ([^\x14\x00]*)\x14Upkeep: ([^\x14\x00]*)\x14([^\x00]*)\x00",
-    re.S,
-)
-
-
 @dataclass
 class SpellHelp:
     effects: str
@@ -528,17 +520,19 @@ def norm_name(name: str) -> str:
     return re.sub(r"[^a-z]", "", name.lower())
 
 
-def import_spell_help(game: Path) -> dict[str, SpellHelp]:
-    entry = read_lbx(game / "HELP.LBX")[2]
+def spell_help_from_topics(topics: list["HelpTopic"]) -> dict[str, SpellHelp]:
+    """Spell details from the (corrected) help topics: effect class, target, upkeep, text."""
     out = {}
-    for m in HELP_PATTERN.finditer(entry):
-        upkeep_text = m.group(5).decode("latin1")
-        digits = re.search(r"\d+", upkeep_text)
-        out[norm_name(m.group(1).decode("latin1"))] = SpellHelp(
-            m.group(2).decode("latin1").strip(),
-            m.group(3).decode("latin1").strip(),
-            int(digits.group()) if digits else 0,
-            m.group(6).decode("latin1"),
+    for topic in topics:
+        lines = topic.text.split("\n")
+        if not lines[0].startswith("Effects:") or len(lines) < 5:
+            continue
+        upkeep_digits = re.search(r"\d+", lines[3])
+        out[norm_name(topic.title)] = SpellHelp(
+            lines[0][len("Effects:"):].strip(),
+            lines[1][len("Target:"):].strip(),
+            int(upkeep_digits.group()) if upkeep_digits else 0,
+            "\n".join(lines[4:]),
         )
     return out
 
@@ -799,6 +793,69 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
     return lines
 
 
+# Help text corrected to match the game's code and data. Where the original help and the
+# game disagree, the game wins (decision recorded in docs/help-vs-implementation-conflicts.md).
+# Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
+# exactly once, so a changed source file fails loudly instead of being skipped.
+HELP_CORRECTIONS = [
+    (733, "Maintenance: 2 gold/turn", "Maintenance: 3 gold/turn",
+     "the building data file charges 3 gold"),
+    (44, "Upkeep: 1 mana/turn", "Upkeep: 2 mana/turn",
+     "the unit-enchantment upkeep table charges 2 mana"),
+    (44, "making the unit almost totally immune to arrow and sling attacks",
+     "making the unit immune to missile attacks",
+     "the code grants full missile immunity"),
+    (574, "making the unit almost totally immune to arrow and sling attacks",
+     "making the unit immune to missile attacks",
+     "the code grants full missile immunity"),
+    (732, "+1 to hit and +3 mana is generated.", "+1 to hit.",
+     "the code gives the +3 mana to the Animist's Guild, not the Alchemists Guild"),
+    (723, "doubles the healing rate of units inside the city.",
+     "doubles the healing rate of units inside the city. It also adds +3 mana.",
+     "the code gives the Animist's Guild +3 mana"),
+    (734, "at an upkeep cost of 3 mana points a turn.", "and +3 mana.",
+     "the code adds 3 mana for a Wizard's Guild instead of charging it"),
+    (667, "which doubles the power and pacifying effects received from shrines, temples, and parthenons.",
+     "which increases the power and pacifying effects received from shrines, temples, and parthenons by 50%.",
+     "the code applies 150% for Infernal and Divine Power alike"),
+    (399, "Healers will heal 25% of the damage that all units stacked with the healer have sustained after a combat.",
+     "Healers heal an extra 20% of the total hit points of every unit stacked with the healer each turn.",
+     "the code heals 20% of total hit points per turn, not 25% after combat"),
+    (728, "It increases the production of forest squares by 25%.",
+     "It increases the production of the whole city by 25%.",
+     "the code adds 25% to the city's total production"),
+    (398, "destroy a section of a stone wall 50% of the time.",
+     "destroy a section of a stone wall 50% of the time in melee, 25% of the time with a ranged attack.",
+     "the code uses 25% for ranged attacks"),
+    (281, "Maritime Guilds.", "Maritime Guilds. Dark elf cities receive 1 power per citizen.",
+     "the code adds one mana per citizen for dark elf cities"),
+    (478, "defense is increased by +3.", "defense is increased by +2.",
+     "the code adds 2 defence (the spell text already says 2)"),
+    (453, "+3 melee attack strength", "+2 melee attack strength",
+     "the code adds 2 melee (the spell text already says 2)"),
+    (464, "enemy units by -2.", "enemy units by -1.",
+     "the code applies -1 to hit against invisible units"),
+    (564, "enemy units by -2.", "enemy units by -1.",
+     "the code applies -1 to hit against invisible units"),
+]
+
+
+def apply_help_corrections(topics: list["HelpTopic"], report: "Report") -> int:
+    """Rewrite topics to match the game's code and append a note saying so.
+
+    Raises:
+        ValueError: if a topic is missing or the text to replace is not found exactly once.
+    """
+    by_index = {t.index: t for t in topics}
+    for index, old, new, why in HELP_CORRECTIONS:
+        topic = by_index.get(index)
+        if topic is None or topic.text.count(old) != 1:
+            raise ValueError(f"help correction for topic {index} does not apply: {old!r}")
+        topic.text = topic.text.replace(old, new) + f"\n[Updated from game code: {why}.]"
+        report.note("help", f"topic {index} {topic.title}: updated from game code ({why})")
+    return len(HELP_CORRECTIONS)
+
+
 def cross_check_help(topics: list[HelpTopic], buildings: list[Building], races: list[Race],
                      spell_rows: list[SpellRow], report: Report) -> int:
     """Compare imported numbers with what the original help text states.
@@ -877,7 +934,9 @@ def run(game: Path, remom: Path, out: Path) -> Report:
 
     # Spell summons need unit ids; units need summon costs. Build ids first.
     spell_rows = import_spell_rows(game)
-    help_texts = import_spell_help(game)
+    help_topics = import_help(game, report)
+    apply_help_corrections(help_topics, report)
+    help_texts = spell_help_from_topics(help_topics)
     spell_cost_by_unit = {r.param0 | (r.param1 << 8): r.cost for r in spell_rows if r.kind == 0}
 
     used_abilities: dict[str, tuple[str, str]] = {}
@@ -923,7 +982,6 @@ def run(game: Path, remom: Path, out: Path) -> Report:
     write_list(out / "items.ron", header, items)
     write_list(out / "level_paths.ron", header,
                [level_path_ron("standard_xp", LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
-    help_topics = import_help(game, report)
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", header, [help_ron(t) for t in help_topics])

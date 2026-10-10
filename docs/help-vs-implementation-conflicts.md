@@ -48,14 +48,33 @@ Written in our own words; nothing here is copied from either source.
   `min_city_distance` is now 4 in `content/rules.ron` and the default, with the city test
   updated. Not yet done: block only on towers, nodes and *intact* encounter sites.
 
-### Still open: not covered by the rule
-ReMoM states these were verified one-to-one against the original assembly, so the code
-and data are the original game; the help is the odd one out. **Suggested default: keep the
-original code/data** unless you say otherwise.
-A1 (University upkeep), A2 (Guardian Wind upkeep), B1 (Alchemists/Animist's mana),
-B2 (Wizard's Guild mana), B3 (Infernal/Divine Power), B4 (Healer), B5 (Sawmill),
-B6 (Wall Crusher ranged), B7 (Dark Elf power), B8 (Stream of Life/Gaia's index use,
-unconfirmed), and the help-internal contradictions C1-C5.
+### Decided: go with the game files (rows the rule did not cover)
+ReMoM states these were verified one-to-one against the original assembly, so the code and
+data are the original game and the help text is the odd one out. Decision: the game wins.
+The imported help (`content-local/help.ron`) is rewritten to match, and each changed topic
+ends with a note `[Updated from game code: ...]`. 16 topic edits, applied by
+`HELP_CORRECTIONS` in `scripts/import_mom.py` (it fails loudly if a text no longer matches).
+
+| # | Game behaviour now in help and content |
+|---|---|
+| A1 University | upkeep 3 gold |
+| A2 Guardian Wind | upkeep 2 mana; full missile immunity (also fixes C4) |
+| B1 Mana from guilds | Animist's Guild +3 mana; Alchemists Guild none (still +1 to hit weapons) |
+| B2 Wizard's Guild | +8 research and +3 mana (not a cost) |
+| B3 Infernal/Divine Power | +50% power and pacifying effect (Rjak's blurb corrected) |
+| B4 Healer | extra 20% of total hit points per turn for the stack |
+| B5 Sawmill | +25% of the whole city's production |
+| B6 Wall Crusher | 50% melee, 25% ranged |
+| B7 Dark Elf | +1 power per citizen |
+| C1 Holy Armor | +2 defence |
+| C2 Black Channels | +2 melee (the other bonuses were already right) |
+| C3 Invisibility | -1 to hit against the unit (the two enchantment-list copies said -2) |
+
+Not changed:
+- **B8 Stream of Life / Gaia's Blessing** stays open: the code reads the wrong table, which
+  looks like a port error rather than the original's behaviour. Needs the Dasm listing.
+- **C5 naming** (Cloud of Shadow/Darkness, Holy Light/Heavenly Light): both names occur in
+  the game's own text, so both are left as is.
 
 ## A. Help disagrees with a data table
 
