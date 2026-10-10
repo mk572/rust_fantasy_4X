@@ -145,6 +145,9 @@ The real host over `hecs` is part of the wizards and spells step.
 
 ## 7. Systems
 
+The full command list, the order of a turn and the movement and treasury rules are in
+[`game-flow.md`](game-flow.md); this section is only about how they relate to the ECS.
+
 There is no scheduler. A "system" is a method on `Game` called from a fixed place:
 
 - `apply(Command)` validates and changes state, returning events.

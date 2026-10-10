@@ -1,7 +1,7 @@
 # High-level design: a Master of Magic-style 4X in Rust with ECS
 
 Status: living document. Scope: gameplay-faithful reimagining, not a port of the original code, data or art.
-Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`mechanics-gaps.md`](mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data).
+Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`mechanics-gaps.md`](mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data).
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
@@ -58,28 +58,17 @@ least four squares apart. Layers, rules, generation and differences from the ori
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems
-**Command layer.** All player and AI actions are `Command` values (`MoveStack`, `GoTo`, `ShiftPlane`, `FoundCity`, `SettleOutpost`, `SetProduction`, `BuyProduction`, `SetFarmers`, `SellBuilding`, `SetTaxRate`, `CreateUnit`, `EndTurn`, ...). The core validates and applies them, and emits `Event`s for the client. Rejections are events, not panics. The command log is the save, replay and network format.
+All player and AI actions are `Command` values applied with `Game::apply`, which validates
+them and returns `Event`s (refusals are events, not panics). Read-only queries take `&self`
+and are used freely by the client. A turn is `EndTurn`: refill moves, process cities (outposts
+grow, production completes, population changes), settle each player's treasury (income, spare
+food sold, upkeep, disbanding the unpaid), heal the wounded, then continue standing orders.
+Movement is counted in half-moves, stacks hold nine, and moving onto hostile units emits
+`AttackRequested` for the not-yet-built combat layer. Production, buying and selling, the
+treasury and healing rules are all written out in [`game-flow.md`](game-flow.md).
 
-**Turn pipeline** (implemented in `Game::end_turn`, `turn.rs`):
-1. Turn counter advances; every unit's moves are refilled.
-2. City processing, in entity-id order: outposts roll to grow; farmers are raised to the minimum that feeds the city; production is applied (a finished building or unit appears); population grows or shrinks.
-3. Treasury per player: city income minus building upkeep, plus spare food sold at two for one, minus unit gold upkeep; units that cannot be fed or paid are disbanded, newest first.
-4. Healing: 5% of hit points a turn in the field, 10% in a city, about 17% in a city with an animist's guild, plus a fifth with a healer in the stack.
-5. Standing go-to orders continue.
-
-Planned for the same pipeline: enchantment upkeep and expiry, research and mana income, random events, combat triggers, victory checks.
-
-**Movement** (`movement.rs`, `pathing.rs`):
-- Movement points are counted in half-moves. A step always costs at least something, and a unit with any moves left may take a step it cannot fully afford (it ends with none).
-- Terrain cost comes from the terrain definition; abilities override it (forester, mountaineer, pathfinding, non-corporeal); flying costs one move everywhere; sailing is for ocean and own cities; roads cost half a move between road tiles; wind walking lets one unit carry its whole stack.
-- A stack is up to nine units on one tile. Moving onto hostile units or a hostile city starts a fight: the core emits `AttackRequested` and nothing moves.
-- Shifting planes needs a tower or planar travel and costs one move.
-- Pathfinding is A\* using the slowest unit's cost; hostile tiles other than the target are avoided.
-- Visibility is derived each time from units and cities; exploration is remembered per player.
-
-**City economy** (`economy.rs`, `production.rs`): see `rules-framework.md` and the code. Base amounts follow the original's formulas (farmers and workers, farmland cap, taxes, mines, trade, unrest); content supplies everything else as stat modifiers. Buying costs four times what is left from scratch, three times with under half of the remainder done, twice otherwise. Surplus production is lost on completion.
-
-**Subsystems still to build:** research, diplomacy, victory and score, random events.
+Still to build in the pipeline: enchantment upkeep, research and mana income, random events,
+combat, diplomacy, and victory and score.
 
 ## 7. Tactical battle module
 Not started. Intended design:
