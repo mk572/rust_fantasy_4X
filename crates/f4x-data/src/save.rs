@@ -77,6 +77,14 @@ mod tests {
         g.map = Some(generate(21, &GenParams::default(), &content).unwrap());
         g.content = content;
         g.players.push(Player::new(PlayerId(0), "Merlin"));
+        g.init_wizard(
+            PlayerId(0),
+            &[("life", 2), ("chaos", 1)],
+            &[f4x_core::magic::Retort::Alchemy],
+        )
+        .unwrap();
+        let first = g.research_choices(PlayerId(0))[0];
+        g.set_research(PlayerId(0), first).unwrap();
         let pos = (0..40u32)
             .flat_map(|y| {
                 (0..60u32).map(move |x| Position {
@@ -119,6 +127,8 @@ mod tests {
         let back = load_game(&path, content()).unwrap();
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
+        assert_eq!(back.magic(PlayerId(0)), g.magic(PlayerId(0)));
+        assert!(back.magic(PlayerId(0)).unwrap().researching.is_some());
     }
 
     #[test]

@@ -14,6 +14,10 @@ pub struct Unit(pub UnitId);
 pub struct Owner(pub PlayerId);
 
 /// Hit points lost, summed over all figures of the unit.
+/// Lasting spells on a unit, with who cast each.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UnitEnchantments(pub Vec<(crate::rules::SpellId, PlayerId)>);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Hurt(pub u32);
 
@@ -95,6 +99,14 @@ impl Game {
             let level = self.unit_level(unit);
             for (i, lvl) in path.levels.iter().enumerate().take(level + 1) {
                 mods.extend(passive_modifiers(&lvl.effects, Source::Level(i as u8)));
+            }
+        }
+        if let Ok(list) = self.world.get::<&UnitEnchantments>(unit) {
+            for &(spell, _) in &list.0 {
+                mods.extend(passive_modifiers(
+                    &rules.spells.get(spell).effects,
+                    Source::Spell(spell),
+                ));
             }
         }
         mods

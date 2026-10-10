@@ -14,6 +14,7 @@ pub struct Player {
     /// Race of the first city; some races dislike or like each other's cities.
     pub capital_race: Option<RaceId>,
     pub fame: i32,
+    pub magic: crate::magic::Magic,
 }
 
 impl Player {
@@ -26,6 +27,7 @@ impl Player {
             tax_rate: 1,
             capital_race: None,
             fame: 0,
+            magic: crate::magic::Magic::default(),
         }
     }
 }

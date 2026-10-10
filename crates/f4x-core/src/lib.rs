@@ -3,12 +3,14 @@
 //! All state changes go through [`Game::apply`] as [`Command`]s, which yield
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
+pub mod cast;
 pub mod city;
 pub mod content;
 pub mod economy;
 pub mod featuregen;
 pub mod fog;
 pub mod help;
+pub mod magic;
 pub mod map;
 pub mod mapgen;
 pub mod movement;
@@ -87,6 +89,37 @@ pub enum Command {
         player: city::PlayerId,
         rate: u8,
     },
+    /// Split the power base between mana, research and casting skill (percent, sum 100).
+    SetPowerSplit {
+        player: city::PlayerId,
+        mana: u8,
+        research: u8,
+        skill: u8,
+    },
+    SetResearch {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// Start casting a spell overland; the target is needed only if it is paid in full now.
+    CastSpell {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+        target: Option<rules::exec::Target>,
+    },
+    /// Aim a spell that has been paid for over several turns.
+    ResolveCast {
+        player: city::PlayerId,
+        target: rules::exec::Target,
+    },
+    CancelCast {
+        player: city::PlayerId,
+    },
+    /// Trade gold and mana (two for one, one for one with the alchemy retort).
+    Alchemy {
+        player: city::PlayerId,
+        amount: i32,
+        gold_to_mana: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +148,28 @@ pub enum Event {
         player: city::PlayerId,
         units: u32,
     },
+    SpellLearned {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    SpellCast {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// A spell has been paid for and waits for a target.
+    SpellReady {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// The spell was cast but part of what it does is not implemented.
+    SpellHasNoEffectYet {
+        spell: rules::SpellId,
+    },
+    /// A lasting spell ended because its upkeep could not be paid.
+    EnchantmentLapsed {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
     UnitCreated {
         unit: hecs::Entity,
         pos: city::Position,
@@ -139,6 +194,18 @@ pub enum Rejection {
     FoundCity(city::FoundCityError),
     Move(movement::MoveError),
     Production(production::ProductionError),
+    Magic(magic::MagicError),
+}
+
+fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
+    match r {
+        Ok(()) => Vec::new(),
+        Err(e) => vec![Event::Rejected(Rejection::Magic(e))],
+    }
+}
+
+fn events_or_reject(r: Result<Vec<Event>, magic::MagicError>) -> Vec<Event> {
+    r.unwrap_or_else(|e| vec![Event::Rejected(Rejection::Magic(e))])
 }
 
 pub struct Game {
@@ -311,6 +378,27 @@ impl Game {
                     p.tax_rate = rate.min(max);
                 }
                 Vec::new()
+            }
+            Command::SetPowerSplit {
+                player,
+                mana,
+                research,
+                skill,
+            } => reject(self.set_power_split(player, mana, research, skill)),
+            Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
+            Command::CancelCast { player } => reject(self.cancel_cast(player)),
+            Command::Alchemy {
+                player,
+                amount,
+                gold_to_mana,
+            } => reject(self.alchemy(player, amount, gold_to_mana)),
+            Command::CastSpell {
+                player,
+                spell,
+                target,
+            } => events_or_reject(self.start_cast(player, spell, target)),
+            Command::ResolveCast { player, target } => {
+                events_or_reject(self.finish_cast_with_target(player, target))
             }
         }
     }

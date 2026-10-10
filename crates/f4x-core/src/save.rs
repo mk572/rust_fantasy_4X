@@ -23,11 +23,13 @@ use crate::city::{City, PlayerId, Position};
 use crate::content::Content;
 use crate::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
 use crate::fog::Fog;
+use crate::magic::{Casting, Magic, Retort};
 use crate::map::{FeatureId, Grid, Map, TerrainId};
 use crate::player::Player;
 use crate::production::{Production, ProductionItem};
+use crate::rules::SpellId;
 use crate::serial::Serial;
-use crate::units::{Experience, Hurt, MovesLeft, Order, Owner, Unit};
+use crate::units::{Experience, Hurt, MovesLeft, Order, Owner, Unit, UnitEnchantments};
 use crate::Game;
 
 /// Bumped when the snapshot layout changes in a way old files cannot be read.
@@ -86,6 +88,111 @@ pub struct PlayerSave {
     pub tax_rate: u8,
     pub capital_race: Option<String>,
     pub fame: i32,
+    /// Absent in saves from before wizards existed.
+    #[serde(default)]
+    pub magic: MagicSave,
+}
+
+/// A wizard's books, retorts, spells and casting; spells are saved by id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MagicSave {
+    pub books: Vec<(String, u8)>,
+    pub retorts: Vec<Retort>,
+    pub skill_points: i32,
+    pub mana_pct: u8,
+    pub research_pct: u8,
+    pub skill_pct: u8,
+    pub known: Vec<String>,
+    pub researchable: Vec<String>,
+    pub researching: Option<String>,
+    pub research_remaining: i32,
+    /// `(spell, mana still to pay)`.
+    pub casting: Option<(String, i32)>,
+    pub global: Vec<String>,
+    pub skill_left: i32,
+}
+
+impl Default for MagicSave {
+    fn default() -> Self {
+        let m = Magic::default();
+        Self {
+            books: Vec::new(),
+            retorts: Vec::new(),
+            skill_points: 0,
+            mana_pct: m.mana_pct,
+            research_pct: m.research_pct,
+            skill_pct: m.skill_pct,
+            known: Vec::new(),
+            researchable: Vec::new(),
+            researching: None,
+            research_remaining: 0,
+            casting: None,
+            global: Vec::new(),
+            skill_left: 0,
+        }
+    }
+}
+
+impl Magic {
+    fn to_save(&self, rules: &crate::rules::Rules) -> MagicSave {
+        let name = |s: &SpellId| rules.spells.get(*s).id.clone();
+        MagicSave {
+            books: self.books.iter().map(|(r, &n)| (r.clone(), n)).collect(),
+            retorts: self.retorts.iter().copied().collect(),
+            skill_points: self.skill_points,
+            mana_pct: self.mana_pct,
+            research_pct: self.research_pct,
+            skill_pct: self.skill_pct,
+            known: self.known.iter().map(name).collect(),
+            researchable: self.researchable.iter().map(name).collect(),
+            researching: self.researching.as_ref().map(name),
+            research_remaining: self.research_remaining,
+            casting: self.casting.map(|c| (name(&c.spell), c.remaining)),
+            global: self.global.iter().map(name).collect(),
+            skill_left: self.skill_left,
+        }
+    }
+
+    fn from_save(m: MagicSave, rules: &crate::rules::Rules) -> Result<Self, LoadError> {
+        let id = |s: &String| {
+            rules
+                .spells
+                .id_of(s)
+                .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))
+        };
+        let ids = |v: &[String]| v.iter().map(id).collect::<Result<Vec<_>, _>>();
+        if u32::from(m.mana_pct) + u32::from(m.research_pct) + u32::from(m.skill_pct) != 100 {
+            return Err(LoadError::Inconsistent(
+                "power split does not add up to 100".into(),
+            ));
+        }
+        let known: std::collections::BTreeSet<SpellId> = ids(&m.known)?.into_iter().collect();
+        let researchable: std::collections::BTreeSet<SpellId> =
+            ids(&m.researchable)?.into_iter().collect();
+        if known.intersection(&researchable).next().is_some() {
+            return Err(LoadError::Inconsistent(
+                "a spell is both known and researchable".into(),
+            ));
+        }
+        Ok(Magic {
+            books: m.books.into_iter().collect(),
+            retorts: m.retorts.into_iter().collect(),
+            skill_points: m.skill_points,
+            mana_pct: m.mana_pct,
+            research_pct: m.research_pct,
+            skill_pct: m.skill_pct,
+            known,
+            researchable,
+            researching: m.researching.as_ref().map(id).transpose()?,
+            research_remaining: m.research_remaining,
+            casting: m
+                .casting
+                .map(|(s, remaining)| id(&s).map(|spell| Casting { spell, remaining }))
+                .transpose()?,
+            global: ids(&m.global)?,
+            skill_left: m.skill_left,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,6 +205,9 @@ pub struct UnitSave {
     pub xp: u32,
     pub moves: u32,
     pub order: Option<Vec<Position>>,
+    /// `(spell, caster)`; absent in older saves.
+    #[serde(default)]
+    pub enchantments: Vec<(String, u8)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,6 +368,7 @@ impl Game {
                 tax_rate: p.tax_rate,
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
+                magic: p.magic.to_save(rules),
             })
             .collect();
         let units = self
@@ -276,6 +387,15 @@ impl Game {
                         let Order::GoTo(path) = &*o;
                         path.clone()
                     }),
+                    enchantments: self
+                        .world
+                        .get::<&UnitEnchantments>(u)
+                        .map(|en| {
+                            en.0.iter()
+                                .map(|(s, p)| (rules.spells.get(*s).id.clone(), p.0))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 })
             })
             .collect();
@@ -421,6 +541,7 @@ impl Snapshot {
                 tax_rate: p.tax_rate,
                 capital_race,
                 fame: p.fame,
+                magic: Magic::from_save(p.magic, &game.content.rules)?,
             });
         }
 
@@ -465,6 +586,21 @@ impl Snapshot {
             ));
             if let Some(path) = u.order {
                 let _ = game.world.insert_one(entity, Order::GoTo(path));
+            }
+            if !u.enchantments.is_empty() {
+                let list = u
+                    .enchantments
+                    .iter()
+                    .map(|(s, p)| {
+                        game.content
+                            .rules
+                            .spells
+                            .id_of(s)
+                            .map(|id| (id, PlayerId(*p)))
+                            .ok_or(LoadError::UnknownId("spell", s.clone()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let _ = game.world.insert_one(entity, UnitEnchantments(list));
             }
         }
         let mut cities = self.cities;

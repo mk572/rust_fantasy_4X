@@ -428,3 +428,151 @@ pub fn content_with_economy() -> Content {
     c.rules.config.racial_unrest = vec![vec![0, 2], vec![1, 0]];
     c
 }
+
+/// Economy content plus a spell library: ten spells of each rarity in life and chaos,
+/// two arcane spells, and a few with real effects (a unit enchantment, a heal, a summon).
+pub fn content_with_magic() -> Content {
+    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+    use crate::rules::{CastContext, Duration, ModOp, Rarity, RealmDef, SpellDef, SpellTarget};
+    let mut c = content_with_economy();
+    let rule = |when, effect| EffectRule {
+        when,
+        condition: Condition::Always,
+        target: TargetSel::Chosen,
+        effect,
+    };
+    let mut spells: Vec<SpellDef> = c.rules.spells.defs().to_vec();
+    let base = |id: &str, realm: &str, rarity, cost, research, target| SpellDef {
+        id: id.into(),
+        name: id.into(),
+        realm: realm.into(),
+        rarity,
+        cost,
+        research_cost: research,
+        contexts: vec![CastContext::Overland],
+        target,
+        duration: Duration::Instant,
+        upkeep: 0,
+        dispel_difficulty: 0,
+        effects: vec![],
+    };
+    for realm in ["life", "chaos"] {
+        for (rarity, tag) in [
+            (Rarity::Common, "c"),
+            (Rarity::Uncommon, "u"),
+            (Rarity::Rare, "r"),
+            (Rarity::VeryRare, "v"),
+        ] {
+            for i in 0..10 {
+                let mut s = base(
+                    &format!("{realm}_{tag}{i}"),
+                    realm,
+                    rarity,
+                    10 + i,
+                    20 + 10 * i,
+                    SpellTarget::None,
+                );
+                s.effects = vec![rule(
+                    Trigger::OnCast,
+                    Effect::Custom("unimplemented".into()),
+                )];
+                spells.push(s);
+            }
+        }
+    }
+    spells.push(base(
+        "magic_spirit",
+        "arcane",
+        Rarity::Common,
+        30,
+        20,
+        SpellTarget::None,
+    ));
+    spells.push(base(
+        "dispel_magic",
+        "arcane",
+        Rarity::Common,
+        10,
+        100,
+        SpellTarget::None,
+    ));
+    spells.push(base(
+        "spell_of_mastery",
+        "arcane",
+        Rarity::Uncommon,
+        5000,
+        1,
+        SpellTarget::None,
+    ));
+    let mut strength = base(
+        "giant_strength",
+        "nature",
+        Rarity::Common,
+        8,
+        80,
+        SpellTarget::OwnUnit,
+    );
+    strength.duration = Duration::Permanent;
+    strength.upkeep = 2;
+    strength.dispel_difficulty = 8;
+    strength.contexts = vec![CastContext::Battle, CastContext::Overland];
+    strength.effects = vec![EffectRule {
+        when: Trigger::Passive,
+        condition: Condition::Always,
+        target: TargetSel::This,
+        effect: Effect::Modify {
+            stat: crate::rules::Stat::Melee,
+            op: ModOp::Add,
+            value: 1,
+        },
+    }];
+    spells.push(strength);
+    let mut heal = base("mend", "life", Rarity::Common, 10, 40, SpellTarget::OwnUnit);
+    heal.effects = vec![rule(Trigger::OnCast, Effect::Heal(5))];
+    spells.push(heal);
+    let mut bolt = base(
+        "zap",
+        "chaos",
+        Rarity::Common,
+        10,
+        40,
+        SpellTarget::EnemyUnit,
+    );
+    bolt.effects = vec![rule(
+        Trigger::OnCast,
+        Effect::Damage {
+            amount: 3,
+            kind: crate::rules::effects::DamageKind::Fire,
+            resistible: false,
+        },
+    )];
+    spells.push(bolt);
+    let mut summon = base(
+        "call_spears",
+        "life",
+        Rarity::Common,
+        40,
+        40,
+        SpellTarget::Tile,
+    );
+    summon.effects = vec![rule(
+        Trigger::OnCast,
+        Effect::Summon {
+            unit: "spear".into(),
+            count: 2,
+        },
+    )];
+    spells.push(summon);
+    c.rules.spells = Registry::new(spells);
+    c.rules.realms = Registry::new(
+        ["life", "chaos", "nature"]
+            .iter()
+            .map(|r| RealmDef {
+                id: (*r).into(),
+                name: (*r).into(),
+                color: (255, 255, 255),
+            })
+            .collect(),
+    );
+    c
+}

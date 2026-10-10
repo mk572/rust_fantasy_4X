@@ -205,6 +205,7 @@ impl Game {
         for player in players {
             events.extend(self.settle_treasury(player));
         }
+        events.extend(self.process_magic());
         self.heal_units();
         events
     }
