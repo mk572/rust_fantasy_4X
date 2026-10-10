@@ -65,7 +65,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 53 | Magic | Remaining retort effects |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
 | 56 | Magic | Implement the 37 "special" spells |
-| 87 | Magic | Remaining global enchantments |
 | 58 | Magic | Unit enchantments needing non-stat effects |
 | 59 | Magic | Dispel mathematics and the counter-magic family |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories |
@@ -79,7 +78,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 68 | Meta | Random events |
 | 69 | Meta | Difficulty levels |
 | 70 | Meta | Victory conditions and score |
-| 71 | Meta | Advisors, hall of fame, settings, undo |
+| 71 | Meta | Advisors |
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
@@ -95,6 +94,10 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
 | 86 | Client | Start menu: new game, load game, settings, quit |
+| 87 | Magic | Remaining global enchantments |
+| 88 | Meta | Hall of fame |
+| 89 | Meta | Game settings |
+| 90 | Meta | Undoing orders |
 
 ## Descriptions
 
@@ -349,8 +352,11 @@ starting spells for the AI [difficulty tables in the original]; apply to AI play
 **70. Victory conditions and score.** Win by Spell of Mastery or conquest, game-over screen, and
 the score with its multipliers [642-647, 799-805].
 
-**71. Advisors, hall of fame, settings, undo.** Advisor messages, the hall of fame, game settings
-screens and undoing orders [216, 221, 628-641, 675-692, 798].
+**71. Advisors.** The original's advisors (surveyor, cartographer, historian, astrologer, chancellor,
+tax collector, grand vizier, war and mage advisors) give information screens and messages about
+the player's progress and surroundings [764, 216, 221]. Add an advisor menu and screens fed by
+`Game` queries, plus the end-of-turn advice messages (a city starving, a spell learned, a hero
+available).
 
 **72. Fame effects.** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
 and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12).
@@ -434,3 +440,18 @@ Majesty: 63; Just Cause: 72); *movement* (Wind Mastery: doubles own ship and sky
 halves everyone else's, which needs a condition on movement type); *experience* (Crusade: one
 level more for normal units, 27); *abilities* (Holy Arms' magic weapons, Doom Mastery's
 mutation of new units: temporary effects store 30); and Time Stop's turn flow.
+
+**88. Hall of fame.** The list of best finished games with wizard, race, score, turns and
+difficulty [628-641, 798], stored outside the saves (for example `saves/hall_of_fame.ron`),
+shown from the start menu (86) and after a game ends (victory and score, 70). Needs 70 first.
+
+**89. Game settings.** The options screens of the original [675-692]: automatic saving, event
+switches, strategic-only combat, animation and message speeds, and so on. Store them as a
+settings record, `serde(default)` and saved with the game where they change rules (events,
+Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
+change presentation. Reachable from the start menu (86) and in game.
+
+**90. Undoing orders.** The original lets the player undo some orders [216, 221]. Decide the
+scope (the last unit move, the last city change, none after end of turn) and implement it with
+a command history in the client or a `Game` snapshot per order, keeping the stable command
+references of task 74 in mind.
