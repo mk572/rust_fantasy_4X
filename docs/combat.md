@@ -72,5 +72,65 @@ piercing and illusion, large shield, the spell shots using mana, haste, blur.
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins.
-- Not yet (task 41, 43, 44): walls and gates, casting in battle, battlefield spells, the
-  battle screen, the battle AI, auto-resolve.
+- Not yet (task 41, 43, 44): walls and gates, casting in battle, battlefield spells,
+  auto-resolve.
+
+## 4. Orders and events
+
+| Order (`BattleCommand`) | Rule | Refused when |
+|---|---|---|
+| `Move { unit, to }` | Walk to a square in `Battle::reachable`; costs its path. | no moves left, unreachable |
+| `Attack { unit, target }` | Melee exchange with an adjacent enemy (thrown/breath first); ends the unit's moves. | not adjacent, already attacked |
+| `Shoot { unit, target }` | Ranged attack at any distance (`Missile` or `Magic` kind), uses one ammunition. | no ranged attack, out of ammunition, already attacked |
+| `Done { unit }` | Gives up the rest of the unit's turn. | not the active side's unit |
+| `EndTurn` | Hands play to the other side; the turn number rises when the attacker is up again. | |
+| `Flee` | All the side's active units leave; the other side wins. | |
+
+Events: `Moved` (with the path), `Attacked` (damage and kills both ways), `Shot`, `UnitDied`,
+`TurnStarted`, `Fled`, `Ended`. `Game::battle_command` wraps them as `Event::Battle(..)` and,
+when the battle ends, adds `Event::BattleEnded` and the results of `finish_battle`. A unit's
+ranged kind comes from its abilities (`ranged_kind_of`): bows, slings and rock throwing are
+`Missile`; thrown weapons and breaths are `Short` (used inside melee, no ammunition); the bolt
+attacks are `Magic`.
+
+## 5. Battles against sites (task 8)
+
+`Command::EnterSite` copies a lair's guards into neutral units (`NEUTRAL`) on the site's square
+and starts a battle against them (`ActiveBattle::site`). When it ends, `finish_site_battle`
+removes the neutral survivors, and if the attacker won, clears the lair, gives the treasure
+and moves the survivors in (see `docs/lairs.md`). A lost fight leaves the lair as it was.
+
+## 6. The battle screen (task 45)
+
+Code: `crates/f4x-client/src/battle_screen.rs`.
+
+- **Start:** the client turns `AttackRequested` and `SiteEncounter` events of the human player
+  into `BeginBattle` / `EnterSite` at once (a confirm box is task 133 and 128). Any time
+  `Game::in_battle()` is true the screen shows.
+- **Projection:** the original's: a cell is 32 by 16 pixels, a step in x moves (+16, +8) and a
+  step in y moves (-16, +8) (`Combat_Grid_Screen_Coordinates`). The grid is scaled to fit the
+  window. The original shows only a band of the 21 by 22 squares; this screen draws them all
+  (task 131).
+- **Art:** ground from `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` (Myrror: the `c` variants)
+  by the overland terrain, entries 0-3 as plain ground, 48-52 trees and 53-57 rocks on blocked
+  squares; rough squares are the ground tinted. Units are their overland icon on a diamond in the
+  owner's banner colour, with a health bar and the number of figures.
+- **Controls:** click one of your units to select it; blue squares are where it can walk; red
+  outlines are enemies it can hit (adjacent: melee, otherwise a shot if it has ranged attack and
+  ammunition). Click a blue square to move, an enemy to attack. Space or D is `Done`, Tab picks
+  the next unit that can still act, Enter or E ends the turn, Flee asks twice. The panel shows the
+  hovered (else selected) unit's melee, ranged, defence, resistance, figures, hit points, moves,
+  ammunition and abilities, and the last combat lines.
+- **The other side** is played by `battle/ai.rs` after a short delay per order: each unit attacks
+  an adjacent enemy, else shoots, else walks to the reachable square nearest the closest enemy,
+  else is done. This is a placeholder for the real battle AI (task 46).
+- `--battle` together with `--shot FILE` opens a test fight for screenshots.
+
+## 7. Differences from the original and open work
+
+- Grid band and deployment squares: the original plays on part of the grid (task 131).
+- No unit figures, animation, projectiles or combat frame (task 132); the map art lacks
+  autotiled edges, roads, rivers and cities (task 112).
+- No casting (43), battlefield spells (44), walls (41), experience/fame/loot write-back (42).
+- The attacking stack does not move onto the defenders' square after a win; no attack prompt and
+  no AI-versus-AI resolution (task 133).
