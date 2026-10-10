@@ -7,16 +7,15 @@ Everything not yet implemented, collected from the whole project history and the
 (`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
 
 Combat (tasks 33-46) was paused and has been released to start (33, 34, 40 first).
+Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
+`python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
 Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md).
 
 ## Table
 
 | # | Area | Summary |
 |---|---|---|
-| 1 | Map | ~~Rivers~~ (done) |
 | 2 | Map | Lakes |
-| 3 | Map | ~~Volcanoes~~ (done) |
-| 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 5 | Map | Land corruption and purification |
 | 6 | Map | Magic node ownership, melding and power (incl. Myrror doubling) |
 | 7 | Map | Node auras and warped nodes |
@@ -27,7 +26,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
 | 14 | Map | Sight radius sources (Oracle, walls, Nature's Eye) |
-| 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -64,7 +62,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 49 | Heroes | Item slots, powers and data schema |
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil |
 | 51 | Heroes | Heroes' casting contribution and sage heroes |
-| 52 | Magic | ~~Timed spell durations~~ (done) |
 | 53 | Magic | Remaining retort effects |
 | 54 | Magic | Wizard creation screen and named wizards |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
@@ -100,30 +97,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 ### Map
 
-**1. Rivers (done).** A river flag per tile in `Grid` (saved as `PlaneSave::rivers`), generated in
-`mapgen::place_rivers` (from high ground downhill to the sea or another river, never on hills,
-mountains or ocean). Effect as in the original (`Square_Gold_Bonus`): a city on a river gets +20
-percent trade, on a river next to the sea (river mouth) +30, shore alone +10; capped with roads
-and race at three times the citizens. The client draws blue strokes. The original also lets
-rivers change movement art only, so no movement rule. Lakes are task 2.
-
 **2. Lakes.** Same gap as rivers: lake variants are not modelled. Decide whether a lake is its own
 terrain class or a flagged ocean tile that is not coastal for ships, generate them, and check
 effects on food and city coast status.
-
-**3. Volcanoes (done).** `terraform.rs`: a volcano is a mountain tile with an owner (`Grid`
-volcano layer, saved). Raise Volcano (hook `raise_volcano`, map square target) turns a non-hill,
-non-mountain, non-site land tile into a volcano, destroys its minerals, gives the caster +1 power
-per volcano (`power_base`), and collapses each building of a city on it with 15 percent. Change
-Terrain (hook `change_terrain`) follows the help table: desert, forest, hills, swamp to grassland,
-grassland to forest, mountains to hills, volcano to plain mountains. Not done: Armageddon's
-volcano rain (needs timed global spells, 57) and Gaia's Blessing turning volcanoes into hills (24).
-
-**4. Shore and coastline variants (done).** `f4x-tools extract-art` now also writes
-`assets-local/art/terrain/autotile.tsv` from TERRTYPE.LBX (five 256-entry tables keyed by the
-8-neighbour mask); the client picks the ocean tile for each water square from the land
-neighbours. Only table 0 (ocean shores) is used; the tables for mountains, hills and tundra
-edges are extracted but not yet drawn.
 
 **5. Land corruption and purification.** Corruption of tiles (by units, spells and Great Wasting)
 and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on
@@ -166,9 +142,6 @@ but have no rules. Add them to `movement.rs`, including their stack and plane ru
 [546, 731, 748]. Today a city sees radius 2 and units by their `Sight` stat only.
 
 ### City and economy
-
-**15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
-section 12. What is left is split off as task 82.
 
 **16. Autobuild.** The production queue has no automatic mode. Add an autobuild order that picks
 the next sensible building, as the original's city screen does.
@@ -307,12 +280,6 @@ add research (level times 3, or 9 for the greater ability). The hooks (`Skill_Le
 research income) exist; heroes do not feed them yet.
 
 ### Magic (first pass done; see `magic.md`)
-
-**52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
-(`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
-turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.
-Timers whose enchantment was dispelled or whose bearer died are dropped silently. No imported
-spell uses `Turns` (the original has none), so this is for mods and the community patch.
 
 **53. Remaining retort effects.** Retorts stored but without effect: Warlord, Channeler, Myrran
 (Myrror start), Divine and Infernal Power (+50 percent religious power, B3), Famous, Charismatic,
