@@ -23,6 +23,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 10 | Client | Font and TrueType support |
 | 11 | Client | Higher resolution modes |
 | 12 | Content | Replacement art |
+| 13 | Client | Different settlement icons by race |
 
 ## Descriptions
 
@@ -143,3 +144,14 @@ style (faithful pixel art, or a new look suited to the higher resolutions of ite
 every picture the client uses (the manifest of `extract-art` is the checklist), and give each
 a source and licence in a credits file. Moved here from the task list (formerly task 79)
 because it goes beyond the original game.
+
+**13. Different settlement icons by race.** The original draws every city on the overland map with the
+same walled or open picture in five sizes, recoloured by banner; only the city screen's
+houses differ by race (standard, tree or mound houses). Give each race its own settlement
+look on the map and wherever a settlement is shown: its own pictures for outposts, hamlets,
+villages, towns and cities, with and without walls, in the owner's banner colour, so that an
+orc town, a dark elf grove and a lizardman mound village can be told apart at a glance.
+Needs art for fourteen races (item 12 for anything not drawn from the original), a settlement
+sprite table in the content data (race, size, walls) with the original's pictures as the
+default, a client lookup that falls back to the default, and the same set in the minimap's
+city markers and the city screen's header.

@@ -146,6 +146,9 @@ pub struct PlayerSave {
     pub banished: bool,
     #[serde(default)]
     pub defeated: bool,
+    /// Absent in older saves: the player's number picks a colour.
+    #[serde(default)]
+    pub banner: Option<u8>,
 }
 
 /// A wizard's books, retorts, spells and casting; spells are saved by id.
@@ -474,6 +477,7 @@ impl Game {
                 summon_at: p.summon_at,
                 banished: p.banished,
                 defeated: p.defeated,
+                banner: Some(p.banner),
             })
             .collect();
         let units = self
@@ -677,6 +681,14 @@ impl Snapshot {
                 summon_at: p.summon_at,
                 banished: p.banished,
                 defeated: p.defeated,
+                banner: p
+                    .banner
+                    .unwrap_or(if p.id == u8::MAX {
+                        crate::player::NEUTRAL_BANNER
+                    } else {
+                        p.id % crate::player::BANNER_CHOICES
+                    })
+                    .min(crate::player::NEUTRAL_BANNER),
             });
         }
 

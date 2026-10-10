@@ -24,7 +24,16 @@ pub struct Player {
     pub banished: bool,
     /// The wizard has lost everything.
     pub defeated: bool,
+    /// The banner colour: 0 blue, 1 green, 2 purple, 3 red, 4 yellow (5, brown, is the
+    /// neutral player's). Flags, cities and units are drawn in it.
+    pub banner: u8,
 }
+
+/// The banner of the neutral player and of monsters.
+pub const NEUTRAL_BANNER: u8 = 5;
+
+/// How many banners wizards can choose from.
+pub const BANNER_CHOICES: u8 = 5;
 
 impl Player {
     pub fn new(id: PlayerId, name: impl Into<String>) -> Self {
@@ -41,6 +50,11 @@ impl Player {
             summon_at: None,
             banished: false,
             defeated: false,
+            banner: if id.0 == u8::MAX {
+                NEUTRAL_BANNER
+            } else {
+                id.0 % BANNER_CHOICES
+            },
         }
     }
 }

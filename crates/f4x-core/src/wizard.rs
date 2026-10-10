@@ -29,6 +29,8 @@ pub struct WizardBuild {
     /// Chosen starting spells; realms with fewer than `books - 1` choices are filled from
     /// the realm's defaults.
     pub spells: Vec<SpellId>,
+    /// The banner colour chosen (0 to 4); `None` keeps the player's default.
+    pub banner: Option<u8>,
     /// A ready-made wizard: exempt from the pick budget and retort prerequisites (the
     /// original's own Lo Pan spends twelve picks).
     pub preset: bool,
@@ -285,6 +287,9 @@ impl Game {
             if !build.name.is_empty() {
                 p.name = build.name.clone();
             }
+            if let Some(b) = build.banner {
+                p.banner = b.min(crate::player::BANNER_CHOICES - 1);
+            }
         }
         Ok(())
     }
@@ -303,6 +308,7 @@ impl Game {
             books: def.books.iter().cloned().collect(),
             retorts: def.retorts.iter().copied().collect(),
             spells: Vec::new(),
+            banner: None,
             preset: true,
         })
     }
@@ -475,6 +481,30 @@ mod tests {
         );
         b.spells = vec![other, common];
         assert!(g.create_wizard(P0, &b).is_ok());
+    }
+
+    #[test]
+    fn a_wizard_chooses_a_banner_and_it_is_saved() {
+        let mut g = game();
+        let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::Alchemy]);
+        assert_eq!(g.player(P0).unwrap().banner, 0, "player 0 starts blue");
+        b.banner = Some(3);
+        g.create_wizard(P0, &b).unwrap();
+        assert_eq!(g.player(P0).unwrap().banner, 3);
+        b.banner = Some(9);
+        g.create_wizard(P0, &b).unwrap();
+        assert_eq!(
+            g.player(P0).unwrap().banner,
+            4,
+            "kept within the five choices"
+        );
+        let content = g.content.clone();
+        let back = g.snapshot().restore(content).unwrap();
+        assert_eq!(back.player(P0).unwrap().banner, 4);
+        assert_eq!(
+            Player::new(PlayerId(u8::MAX), "n").banner,
+            crate::player::NEUTRAL_BANNER
+        );
     }
 
     #[test]
