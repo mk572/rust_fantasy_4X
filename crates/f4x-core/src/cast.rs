@@ -251,6 +251,8 @@ impl EffectHost for GameHost<'_> {
                 crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),
                 crate::terraform::CHANGE_TERRAIN => self.game.change_terrain_spell(at),
                 crate::roads::ENCHANT_ROAD => self.game.enchant_roads(at),
+                crate::corruption::CORRUPT_LAND => self.game.corrupt(at),
+                crate::corruption::WARP_NODE => self.game.warp_node(at),
                 _ => return,
             };
             self.events.extend(events);
@@ -353,6 +355,20 @@ impl Game {
         if self.spell_has_hook(spell, crate::terraform::RAISE_VOLCANO) {
             return match target {
                 Some(Target::Tile(p)) if self.can_raise_volcano(p) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::corruption::CORRUPT_LAND) {
+            return match target {
+                Some(Target::Tile(p)) if self.can_corrupt(p) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::corruption::WARP_NODE) {
+            return match target {
+                Some(Target::Tile(p)) if self.can_warp_node(p, player) => Ok(()),
                 Some(_) => Err(MagicError::NoSuchTarget),
                 None => Err(MagicError::NeedsTarget),
             };

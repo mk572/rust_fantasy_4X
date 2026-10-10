@@ -63,6 +63,29 @@ pub struct StackTraits {
 }
 
 impl Game {
+    /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
+    /// square on both planes (the original's `Units_In_Tower`).
+    pub(crate) fn claim_tower(&mut self, units: &[hecs::Entity], at: Position) {
+        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+            return;
+        };
+        let on_tower = self.map.as_ref().is_some_and(|m| {
+            m.plane(at.plane)
+                .feature(at.x as i32, at.y as i32)
+                .and_then(|f| self.content.features.get(f))
+                .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower)
+        });
+        if !on_tower || self.planar_seal_active() {
+            return;
+        }
+        if let Some(m) = self.map.as_mut() {
+            m.set_tower_owner(at.x, at.y, owner.0);
+        }
+        for plane in Plane::ALL {
+            self.fog.explore(owner, Position { plane, ..at }, 1);
+        }
+    }
+
     /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
     pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
         let any = |a: &str| units.iter().any(|&u| self.unit_has_ability(u, a));
@@ -280,6 +303,7 @@ impl Game {
             let sight = self.unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
             self.explore(owner, to, sight);
         }
+        self.claim_tower(units, to);
         // Passengers follow a ship that sails on without them being selected.
         let mut carried: Vec<hecs::Entity> = Vec::new();
         for &ship in units.iter().filter(|&&u| self.is_ship(u)) {

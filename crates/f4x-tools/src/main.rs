@@ -4,6 +4,7 @@ mod art;
 mod fonts;
 mod image;
 mod lbx;
+mod map_art;
 
 use std::path::PathBuf;
 use std::process::ExitCode;

@@ -244,8 +244,10 @@ impl Game {
             else {
                 continue;
             };
-            let mut food = i32::from(def.food) * 2;
-            let mut prod = def.production_percent;
+            // Corrupted land gives nothing at all.
+            let spoiled = grid.is_corrupted(p.x as i32, p.y as i32);
+            let mut food = if spoiled { 0 } else { i32::from(def.food) * 2 };
+            let mut prod = if spoiled { 0 } else { def.production_percent };
             if shared {
                 food /= 2;
                 prod /= 2;
@@ -254,6 +256,7 @@ impl Game {
             production_percent += prod;
             if let Some(f) = grid
                 .feature(p.x as i32, p.y as i32)
+                .filter(|_| !spoiled)
                 .and_then(|f| self.content.features.get(f))
             {
                 let b = f.city;

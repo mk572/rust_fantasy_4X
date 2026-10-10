@@ -183,6 +183,18 @@ fn extract_autotile(game_dir: &Path, dir: &Path) -> Result<(), String> {
     fs::write(dir.join("autotile.tsv"), rows).map_err(|e| e.to_string())
 }
 
+fn extract_map_sprites(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(), String> {
+    let Some(path) = find(game_dir, "MAPBACK.LBX") else {
+        return Ok(());
+    };
+    let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let n = crate::map_art::extract_map_art(&data, pal, out_dir, &|p, w, h, rgba| {
+        write_png(p, w, h, rgba)
+    })?;
+    println!("catalogued {n} map sprites");
+    Ok(())
+}
+
 fn extract_font_atlases(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(), String> {
     let Some(path) = find(game_dir, "FONTS.LBX") else {
         return Ok(());
@@ -259,6 +271,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
     let tiles = extract_terrain(game_dir, out_dir, &base)?;
     println!("extracted {tiles} terrain tiles");
     extract_font_atlases(game_dir, out_dir, &base)?;
+    extract_map_sprites(game_dir, out_dir, &base)?;
     fs::write(out_dir.join("manifest.tsv"), manifest).map_err(|e| e.to_string())?;
     println!(
         "extracted {pictures} pictures ({frames} frames) from {} lbx files",

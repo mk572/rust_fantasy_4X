@@ -88,6 +88,9 @@ pub struct MapSave {
     /// Magic nodes with their power, aura and owner.
     #[serde(default)]
     pub nodes: Vec<crate::map::Node>,
+    /// Tower owners `(x, y, player)`.
+    #[serde(default)]
+    pub tower_owners: Vec<(u32, u32, u8)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +113,9 @@ pub struct PlaneSave {
     /// Tile indexes that are lakes.
     #[serde(default)]
     pub lakes: Vec<u32>,
+    /// Tile indexes that are corrupted.
+    #[serde(default)]
+    pub corrupted: Vec<u32>,
 }
 
 /// Explored flags, bit-packed (least significant bit first), per player and plane.
@@ -416,6 +422,13 @@ impl Game {
                         rivers,
                         volcanoes,
                         enchanted_roads,
+                        corrupted: grid
+                            .corrupted()
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, &c)| c)
+                            .map(|(i, _)| i as u32)
+                            .collect(),
                         lakes: grid
                             .lakes()
                             .iter()
@@ -433,6 +446,7 @@ impl Game {
                 features,
                 planes,
                 nodes: map.nodes().to_vec(),
+                tower_owners: map.tower_owners().to_vec(),
             }
         });
         let (width, height, fog_players) = self.fog.to_parts();
@@ -922,6 +936,12 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .ok_or_else(|| LoadError::Inconsistent("a volcano is off the map".into()))? =
                 owner.saturating_add(1);
         }
+        let mut corrupted = vec![false; len];
+        for i in plane.corrupted {
+            *corrupted
+                .get_mut(i as usize)
+                .ok_or_else(|| LoadError::Inconsistent("corruption is off the map".into()))? = true;
+        }
         let mut lakes = vec![false; len];
         for i in plane.lakes {
             *lakes
@@ -942,7 +962,8 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .with_rivers(rivers)
                 .with_volcanoes(volcanoes)
                 .with_enchanted_roads(enchanted)
-                .with_lakes(lakes),
+                .with_lakes(lakes)
+                .with_corruption(corrupted),
         );
     }
     let myrror = grids.pop().expect("two planes");
@@ -958,6 +979,7 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
         }
     }
     map.set_nodes(m.nodes);
+    map.set_tower_owners(m.tower_owners);
     Ok(map)
 }
 
@@ -1024,6 +1046,7 @@ mod tests {
             g.set_river(14, 6, true);
             g.set_volcano(15, 6, Some(0));
             g.set_lake(16, 6, true);
+            g.set_corrupted(17, 6, true);
             g
         };
         let mut map = Map::new(build(), build());
@@ -1128,6 +1151,7 @@ mod tests {
         assert_eq!(grid.volcano(15, 6), Some(0));
         assert_eq!(grid.volcano(14, 6), None);
         assert!(grid.is_lake(16, 6) && !grid.is_lake(15, 6));
+        assert!(grid.is_corrupted(17, 6) && !grid.is_corrupted(16, 6));
         assert_eq!(
             back.map.as_ref().unwrap().nodes(),
             g.map.as_ref().unwrap().nodes()

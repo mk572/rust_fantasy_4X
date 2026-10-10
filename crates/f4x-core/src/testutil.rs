@@ -634,6 +634,8 @@ pub fn content_with_magic() -> Content {
     for (id, cost, hook) in [
         ("raise_volcano", 200, crate::terraform::RAISE_VOLCANO),
         ("change_terrain", 50, crate::terraform::CHANGE_TERRAIN),
+        ("corruption", 40, crate::corruption::CORRUPT_LAND),
+        ("warp_node", 75, crate::corruption::WARP_NODE),
     ] {
         let mut s = base(id, "arcane", Rarity::Uncommon, cost, 100, SpellTarget::Tile);
         s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];

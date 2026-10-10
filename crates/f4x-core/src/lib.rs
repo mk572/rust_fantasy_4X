@@ -7,6 +7,7 @@ pub mod battle;
 pub mod cast;
 pub mod city;
 pub mod content;
+pub mod corruption;
 pub mod economy;
 pub mod featuregen;
 pub mod fog;
@@ -69,6 +70,10 @@ pub enum Command {
     },
     /// An order in the battle being fought.
     Battle(battle::BattleCommand),
+    /// A stack with a purifying unit cleanses the corrupted square it stands on.
+    Purify {
+        units: Vec<hecs::Entity>,
+    },
     /// Engineers build a road along `path` (starting where they stand).
     BuildRoad {
         units: Vec<hecs::Entity>,
@@ -260,6 +265,15 @@ pub enum Event {
         winner: city::PlayerId,
         loser: city::PlayerId,
     },
+    LandCorrupted {
+        pos: city::Position,
+    },
+    LandPurified {
+        pos: city::Position,
+    },
+    NodeWarped {
+        pos: city::Position,
+    },
     RoadBuilt {
         pos: city::Position,
     },
@@ -313,6 +327,7 @@ pub enum Rejection {
     Fortress(fortress::FortressError),
     Meld(nodes::MeldError),
     Road(roads::RoadError),
+    Purify(corruption::PurifyError),
     BattleStart(battle::game::BattleStartError),
     Battle(battle::BattleError),
 }
@@ -464,6 +479,9 @@ impl Game {
             Command::Battle(command) => self
                 .battle_command(command)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Battle(e))]),
+            Command::Purify { units } => self
+                .purify(&units)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Purify(e))]),
             Command::BuildRoad { units, path } => self
                 .build_road(&units, path)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Road(e))]),
@@ -678,13 +696,16 @@ impl Game {
     }
 
     fn end_turn(&mut self) -> Vec<Event> {
+        let mut corruption = self.process_land_corruption();
         self.turn += 1;
         for unit in self.all_units() {
             let moves = self.unit_max_moves(unit);
             let _ = self.world.insert_one(unit, units::MovesLeft(moves));
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
+        events.append(&mut corruption);
         events.extend(self.process_turn());
+        events.extend(self.process_purify());
         events.extend(self.drown_stranded());
         events.extend(self.process_road_work());
         let with_orders: Vec<_> = self

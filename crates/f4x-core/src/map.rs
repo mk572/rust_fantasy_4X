@@ -41,6 +41,9 @@ pub struct Grid {
     /// Enchanted roads cost walking units no movement at all.
     #[serde(default)]
     enchanted_roads: Vec<bool>,
+    /// Corrupted land: no food, production or minerals for a city working it.
+    #[serde(default)]
+    corrupted: Vec<bool>,
     /// Lake squares: ocean-class water that is not part of any sea.
     #[serde(default)]
     lakes: Vec<bool>,
@@ -63,6 +66,7 @@ impl Grid {
             volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
             lakes: vec![false; len],
+            corrupted: vec![false; len],
         }
     }
 
@@ -129,6 +133,7 @@ impl Grid {
             volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
             lakes: vec![false; len],
+            corrupted: vec![false; len],
         })
     }
 
@@ -172,6 +177,38 @@ impl Grid {
             self.roads = vec![false; self.tiles.len()];
         }
         self.roads[i] = road;
+    }
+
+    /// The same grid with the given corruption layer; ignored if its length is wrong.
+    pub fn with_corruption(mut self, corrupted: Vec<bool>) -> Self {
+        if corrupted.len() == self.tiles.len() {
+            self.corrupted = corrupted;
+        }
+        self
+    }
+
+    /// Corruption flag per tile, row by row.
+    pub fn corrupted(&self) -> Vec<bool> {
+        let mut v = self.corrupted.clone();
+        v.resize(self.tiles.len(), false);
+        v
+    }
+
+    /// Whether `(x, y)` is corrupted (x wraps, y outside the map is clean).
+    pub fn is_corrupted(&self, x: i32, y: i32) -> bool {
+        if y < 0 || y >= self.height as i32 {
+            return false;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        self.corrupted.get(i).copied().unwrap_or(false)
+    }
+
+    pub fn set_corrupted(&mut self, x: u32, y: u32, on: bool) {
+        let i = self.index(x, y);
+        if self.corrupted.len() != self.tiles.len() {
+            self.corrupted = vec![false; self.tiles.len()];
+        }
+        self.corrupted[i] = on;
     }
 
     /// The same grid with the given lake layer; ignored if its length is wrong.
@@ -346,6 +383,9 @@ pub struct Map {
     planes: [Grid; 2],
     #[serde(default)]
     nodes: Vec<Node>,
+    /// Who last stood in each tower: `(x, y, player number)`. Towers are on both planes.
+    #[serde(default)]
+    tower_owners: Vec<(u32, u32, u8)>,
 }
 
 impl Map {
@@ -357,7 +397,31 @@ impl Map {
         Self {
             planes: [arcanus, myrror],
             nodes: Vec::new(),
+            tower_owners: Vec::new(),
         }
+    }
+
+    /// The wizard whose stack last stood in the tower at `(x, y)`.
+    pub fn tower_owner(&self, x: u32, y: u32) -> Option<u8> {
+        self.tower_owners
+            .iter()
+            .find(|&&(tx, ty, _)| tx == x && ty == y)
+            .map(|&(_, _, o)| o)
+    }
+
+    pub fn set_tower_owner(&mut self, x: u32, y: u32, owner: u8) {
+        match self.tower_owners.iter_mut().find(|t| t.0 == x && t.1 == y) {
+            Some(t) => t.2 = owner,
+            None => self.tower_owners.push((x, y, owner)),
+        }
+    }
+
+    pub fn tower_owners(&self) -> &[(u32, u32, u8)] {
+        &self.tower_owners
+    }
+
+    pub fn set_tower_owners(&mut self, owners: Vec<(u32, u32, u8)>) {
+        self.tower_owners = owners;
     }
 
     pub fn nodes(&self) -> &[Node] {

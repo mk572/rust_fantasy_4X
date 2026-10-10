@@ -206,6 +206,7 @@ impl Game {
             events.extend(self.settle_treasury(player));
         }
         events.extend(self.process_magic());
+        events.extend(self.process_gaias_blessing());
         self.heal_units();
         events
     }

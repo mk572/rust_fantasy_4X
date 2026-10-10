@@ -720,6 +720,8 @@ TILE_HOOKS = {
     "Raise Volcano": "raise_volcano",
     "Change Terrain": "change_terrain",
     "Enchant Road": "enchant_road",
+    "Corruption": "corrupt_land",
+    "Warp Node": "warp_node",
 }
 
 
