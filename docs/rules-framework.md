@@ -1,6 +1,6 @@
 # Game rules framework
 
-Status: proposal for review. Nothing here is implemented yet. It builds on [`design.md`](design.md) (overall architecture) and replaces its loose notes on spells, abilities and units with a concrete framework.
+Status: build steps 1-3 are implemented (registries, stats, conditions/targets/effects executor in `rules::exec`); steps 4-8 are not. It builds on [`design.md`](design.md) (overall architecture) and replaces its loose notes on spells, abilities and units with a concrete framework.
 
 The aim is a rules layer that is:
 - **Data-driven**: races, units, buildings, spells and abilities are content files, not code.

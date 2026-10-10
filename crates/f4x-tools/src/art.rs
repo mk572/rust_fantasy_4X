@@ -54,6 +54,33 @@ const TILE_STRIDE: usize = 384;
 /// TERRAIN.LBX entry 0 starts with 192 bytes before the first tile.
 const TILE_START: usize = 192;
 
+/// `types.tsv` rows from TERRAIN.LBX entry 1: for each terrain type (Arcanus types
+/// first, then Myrror), the index of its first tile in entry 0 and whether it
+/// animates (the following three tiles are the other frames).
+///
+/// Entry 1 holds a (page, index) byte pair per type. The tile sits at
+/// `page * 16384 + index * 384 - 0x240` bytes into entry 0 (the game addressed the
+/// whole file in 16 KiB expanded-memory pages), or `0xC0 + (index - 2) * 384` on page 0.
+fn terrain_type_map(entry1: &[u8]) -> Vec<(usize, bool)> {
+    entry1
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| {
+            let (page, index) = ((pair[0] & 0x7F) as usize, pair[1] as usize);
+            let offset = if page == 0 {
+                TILE_START + index.saturating_sub(2) * TILE_STRIDE
+            } else {
+                (page * 16384 + index * TILE_STRIDE).saturating_sub(TILE_START + TILE_STRIDE)
+            };
+            (
+                (offset.saturating_sub(TILE_START)) / TILE_STRIDE,
+                pair[0] & 0x80 != 0,
+            )
+        })
+        .collect()
+}
+
 /// Terrain tiles from TERRAIN.LBX entry 0, as column-major palette indices.
 fn terrain_tiles(entry: &[u8]) -> Vec<Vec<u8>> {
     let mut out = Vec::new();
@@ -93,6 +120,15 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
     let dir = out_dir.join("terrain");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let tiles = terrain_tiles(lbx.entry(0));
+    if lbx.len() > 1 {
+        let map = terrain_type_map(lbx.entry(1));
+        let rows: String = map
+            .iter()
+            .enumerate()
+            .map(|(t, (tile, anim))| format!("{t}\t{tile}\t{}\n", u8::from(*anim)))
+            .collect();
+        fs::write(dir.join("types.tsv"), rows).map_err(|e| e.to_string())?;
+    }
     for (i, px) in tiles.iter().enumerate() {
         // Terrain tiles are opaque: colour 0 is a real colour here.
         let mut rgba = to_rgba(px, pal);
@@ -182,4 +218,19 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
         lbx_files.len()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn type_map_matches_the_games_formula() {
+        // type 0: page 0, index 2 -> first tile; type 1: page 6, index 19 -> (6*16384 + 19*384 - 576 - 192) / 384
+        let entry = [0u8, 2, 6, 19, 0x80 | 6, 19];
+        let map = terrain_type_map(&entry);
+        assert_eq!(map[0], (0, false));
+        assert_eq!(map[1], (273, false));
+        assert_eq!(map[2], (273, true));
+    }
 }
