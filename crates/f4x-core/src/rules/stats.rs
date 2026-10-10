@@ -28,6 +28,8 @@ pub enum Stat {
     /// Road-building strength: engineers have 1 (some 2); the stack's total divides the
     /// turns a road square takes.
     Construction,
+    /// Land units a ship carries.
+    Transport,
     // Wizards
     ManaIncome,
     ResearchIncome,

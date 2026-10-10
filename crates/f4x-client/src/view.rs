@@ -343,6 +343,9 @@ impl App {
                     Some(format!("Wizard {} is defeated", player.0))
                 }
                 Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
+                Event::UnitsDrowned { units, .. } => {
+                    Some(format!("{units} units drown without a ship"))
+                }
                 Event::RoadBuilt { .. } => Some("A road square is finished".to_string()),
                 Event::RoadsEnchanted { .. } => Some("The roads are enchanted".to_string()),
                 Event::VolcanoRaised { .. } => Some("A volcano rises".to_string()),

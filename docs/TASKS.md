@@ -32,7 +32,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 24 | City | Stream of Life and Gaia's Blessing (B8) |
 | 25 | City | City enchantments with non-stat effects |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) |
-| 28 | Units | Transport: ships carrying units |
 | 29 | Units | Undead and fantastic-creature rules (B10) |
 | 30 | Units | Temporary effects store (instant modifiers, granted abilities) |
 | 31 | Units | Neutral player and neutral cities |
@@ -172,9 +171,6 @@ movement, vision, combat and dispel code.
 **27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9).** Elite levels beyond 120 xp need
 Warlord or Crusade; Armsmaster doubles hero xp use; Heroism should make a unit elite (decide the
 combat-level exception from B9). Warlord retort needs task 53.
-
-**28. Transport.** Ships carry units by building tier [725-727]. Needs a carried-by relation,
-loading and unloading rules, and sea movement for carried stacks.
 
 **29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison

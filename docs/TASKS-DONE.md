@@ -17,6 +17,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
+| 28 | Units | ~~Transport: ships carrying units~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
@@ -96,6 +97,16 @@ large shield, long range, lucky, holy bonus, illusion, cause fear, wall crusher,
 teleport, merging, gazes and bolts, poison, stoning and life steal touches, immolation,
 spellcasters and the casting units. *Waiting for another system:* create undead and summon
 demon (after-battle results, 42), purify and land corruption (5), undead rules (29).
+
+**28. Transport (done).** `transport.rs`: ships have a `Transport` stat (Trireme 2, Galley 5,
+Warship 3, Floating Island 8; imported). Land units cannot enter the sea alone: they board by
+stepping onto a sea square where a friendly ship has room, or by sailing out with a ship they
+share a square or port with (the `sea_lift` stack trait); passengers (`Aboard` component, saved
+by creation number) ride free and follow their ship, ship capacity is enforced (`NoRoom`),
+stepping ashore is an ordinary move that unloads, and land units left at sea without a ship
+drown at the start of the next turn. Not done: ship tiers by building (which buildings allow
+which ship is already in the unit data's requirements), and path turn estimates that mix ship
+and passenger speeds.
 
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each

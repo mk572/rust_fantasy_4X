@@ -490,6 +490,8 @@ def unit_stats(row: UnitRow) -> dict[str, int]:
     if v["ranged"] > 0:
         stats["Ranged"] = v["ranged"]
         stats["Ammo"] = max(v["ammo"], 1)
+    if v["transport"] > 0:
+        stats["Transport"] = v["transport"]
     if v["construction"] > 0:
         stats["Construction"] = v["construction"]
     if v["to_hit"] > 0:

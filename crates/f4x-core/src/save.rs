@@ -257,6 +257,9 @@ pub struct UnitSave {
     /// Road work in progress: `(square, turns left, squares still to do)`.
     #[serde(default)]
     pub road_work: Option<(Position, u8, Vec<Position>)>,
+    /// Creation number of the ship the unit is aboard.
+    #[serde(default)]
+    pub aboard: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -474,6 +477,11 @@ impl Game {
                                 .collect()
                         })
                         .unwrap_or_default(),
+                    aboard: self
+                        .world
+                        .get::<&crate::transport::Aboard>(u)
+                        .ok()
+                        .map(|a| a.0 .0),
                     road_work: self
                         .world
                         .get::<&crate::roads::RoadWork>(u)
@@ -687,6 +695,11 @@ impl Snapshot {
                 MovesLeft(u.moves),
                 serial,
             ));
+            if let Some(ship) = u.aboard {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::transport::Aboard(Serial(ship)));
+            }
             if let Some((at, left, rest)) = u.road_work {
                 let _ = game
                     .world

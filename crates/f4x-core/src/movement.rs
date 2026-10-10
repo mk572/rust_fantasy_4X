@@ -23,6 +23,8 @@ pub enum MoveError {
     Impassable,
     NoMovesLeft,
     StackFull,
+    /// The ships have no free places for the land units that would board.
+    NoRoom,
     /// No tower here, or a unit lacks planar travel.
     CannotShiftPlane,
 }
@@ -56,6 +58,8 @@ pub struct StackTraits {
     pub forester: bool,
     /// Every unit crosses hills and mountains for one move.
     pub mountaineer: bool,
+    /// The stack has a ship, which carries its land units over the sea.
+    pub sea_lift: bool,
 }
 
 impl Game {
@@ -67,6 +71,7 @@ impl Game {
             pathfinding: any("pathfinding"),
             forester: any("forester"),
             mountaineer: any("mountaineer"),
+            sea_lift: units.iter().any(|&u| self.is_ship(u)),
         }
     }
 
@@ -115,7 +120,19 @@ impl Game {
             MovementType::Swimming if is_water => return Ok(FULL_MOVE),
             _ => {}
         }
-        if is_water || !terrain.walkable {
+        if is_water {
+            // Land units ride a ship in their stack for nothing, or board one at the target.
+            if traits.sea_lift {
+                return Ok(0);
+            }
+            let owner = self.unit_owner(unit);
+            return if owner.is_some_and(|o| self.ship_room_at(to, o)) {
+                Ok(FULL_MOVE)
+            } else {
+                Err(MoveError::Impassable)
+            };
+        }
+        if !terrain.walkable {
             return Err(MoveError::Impassable);
         }
         let mut cost = u32::from(terrain.move_cost).max(1) * FULL_MOVE;
@@ -191,12 +208,50 @@ impl Game {
             return Err(MoveError::NotAdjacent);
         }
         let flies = self.stack_traits(units);
+        let to_sea = self.is_sea(to);
         let mut costs = Vec::with_capacity(units.len());
+        let mut boarding = 0u32;
         for &u in units {
+            // Passengers ride for nothing: those already aboard a ship that moves with them,
+            // and land units that board a ship of the stack as it sails out.
+            let rides = self.carrier_of(u).is_some_and(|c| units.contains(&c));
+            let boards = to_sea && flies.sea_lift && self.needs_ship(u, flies.flies) && !rides;
+            if rides || boards {
+                if boards {
+                    boarding += 1;
+                }
+                costs.push(0);
+                continue;
+            }
             if self.unit_moves_left(u) == 0 {
                 return Err(MoveError::NoMovesLeft);
             }
             costs.push(self.step_cost(u, from, to, flies)?);
+        }
+        if boarding > 0 {
+            let room: u32 = units
+                .iter()
+                .filter(|&&u| self.is_ship(u))
+                .map(|&s| self.ship_room(s))
+                .sum();
+            if boarding > room {
+                return Err(MoveError::NoRoom);
+            }
+        }
+        // A land unit stepping onto a ship waiting at sea needs a place there.
+        if to_sea && !flies.sea_lift {
+            let walkers = units
+                .iter()
+                .filter(|&&u| self.needs_ship(u, flies.flies))
+                .count() as u32;
+            let room: u32 = self
+                .ships_at(to, owner)
+                .iter()
+                .map(|&s| self.ship_room(s))
+                .sum();
+            if walkers > room {
+                return Err(MoveError::NoRoom);
+            }
         }
         if let Some(defenders) = self.hostile_at(to, owner) {
             return Ok((costs, Entry::Hostile(defenders)));
@@ -215,12 +270,52 @@ impl Game {
             return Ok(entry);
         }
         let owner = self.unit_owner(units[0]).expect("checked");
+        let from = self.unit_position(units[0]).expect("checked");
+        let flies = self.stack_traits(units);
+        let to_sea = self.is_sea(to);
         for (&u, cost) in units.iter().zip(costs) {
             let left = self.unit_moves_left(u).saturating_sub(cost);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
             let sight = self.unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
             self.explore(owner, to, sight);
+        }
+        // Passengers follow a ship that sails on without them being selected.
+        let mut carried: Vec<hecs::Entity> = Vec::new();
+        for &ship in units.iter().filter(|&&u| self.is_ship(u)) {
+            for p in self.passengers_of(ship) {
+                if !units.contains(&p) && self.unit_position(p) == Some(from) {
+                    carried.push(p);
+                }
+            }
+        }
+        for &p in &carried {
+            let _ = self.world.insert_one(p, to);
+        }
+        // Who is aboard what now.
+        for &u in units {
+            if !self.needs_ship(u, flies.flies) {
+                continue;
+            }
+            if !to_sea {
+                let _ = self.world.remove_one::<crate::transport::Aboard>(u);
+                continue;
+            }
+            if self.carrier_of(u).is_some_and(|c| units.contains(&c)) {
+                continue;
+            }
+            // Board a ship of the stack, else one waiting here.
+            let mut ships: Vec<hecs::Entity> =
+                units.iter().copied().filter(|&s| self.is_ship(s)).collect();
+            ships.extend(
+                self.ships_at(to, owner)
+                    .into_iter()
+                    .filter(|s| !units.contains(s)),
+            );
+            if let Some(ship) = ships.into_iter().find(|&s| self.ship_room(s) > 0) {
+                let serial = self.serial_of(ship);
+                let _ = self.world.insert_one(u, crate::transport::Aboard(serial));
+            }
         }
         Ok(Entry::Free)
     }

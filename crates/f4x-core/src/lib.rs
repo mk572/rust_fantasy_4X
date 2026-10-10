@@ -28,6 +28,7 @@ pub mod terraform;
 #[cfg(test)]
 mod testutil;
 pub mod timers;
+pub mod transport;
 pub mod turn;
 pub mod units;
 pub mod vision;
@@ -244,6 +245,11 @@ pub enum Event {
     },
     RoadsEnchanted {
         pos: city::Position,
+    },
+    /// Land units lost at sea without a ship.
+    UnitsDrowned {
+        player: city::PlayerId,
+        units: u32,
     },
     NodeMelded {
         player: city::PlayerId,
@@ -641,6 +647,7 @@ impl Game {
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.extend(self.process_turn());
+        events.extend(self.drown_stranded());
         events.extend(self.process_road_work());
         let with_orders: Vec<_> = self
             .world
