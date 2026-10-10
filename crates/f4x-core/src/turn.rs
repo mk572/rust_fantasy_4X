@@ -377,6 +377,10 @@ impl Game {
             if hurt == 0 || self.unit_has_ability(unit, "undead") {
                 continue;
             }
+            if self.unit_has_ability(unit, "regeneration") {
+                let _ = self.world.insert_one(unit, Hurt(0));
+                continue;
+            }
             let at = self.unit_position(unit);
             let owner = self.world.get::<&Owner>(unit).ok().map(|o| o.0);
             let city = at
@@ -1054,6 +1058,24 @@ mod tests {
             hurt(field)
         );
         assert!(hurt(field) < 4, "even in the field something mends");
+    }
+
+    #[test]
+    fn regenerating_units_mend_completely_each_turn() {
+        let mut g = world();
+        found(&mut g, at(10, 6), "elf", 4);
+        let mut units = g.content.rules.units.defs().to_vec();
+        for u in units.iter_mut() {
+            if u.id == "spear" {
+                u.abilities.push("regeneration".into());
+            }
+        }
+        g.content.rules.units = crate::rules::Registry::new(units);
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        let troll = g.spawn_unit(P0, at(14, 3), spear);
+        g.world.insert_one(troll, Hurt(5)).unwrap();
+        g.apply(Command::EndTurn);
+        assert_eq!(g.world.get::<&Hurt>(troll).unwrap().0, 0);
     }
 
     #[test]

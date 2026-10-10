@@ -49,7 +49,7 @@ impl Game {
         if start.plane != to.plane || start == to {
             return None;
         }
-        let flies = self.stack_flies(units);
+        let flies = self.stack_traits(units);
         let step_cost = |from: Position, next: Position| -> Option<u32> {
             let mut worst = 0;
             for &u in units {
@@ -121,7 +121,7 @@ impl Game {
         let Some(mut at) = self.unit_position(first) else {
             return 0;
         };
-        let flies = self.stack_flies(units);
+        let flies = self.stack_traits(units);
         let allowance = units
             .iter()
             .map(|&u| self.unit_max_moves(u))

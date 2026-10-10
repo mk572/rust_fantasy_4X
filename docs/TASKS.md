@@ -31,7 +31,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 22 | City | Nightshade dispel strength |
 | 24 | City | Stream of Life and Gaia's Blessing (B8) |
 | 25 | City | City enchantments with non-stat effects |
-| 26 | Units | Unit abilities that need code |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) |
 | 28 | Units | Transport: ships carrying units |
 | 29 | Units | Undead and fantastic-creature rules (B10) |
@@ -169,12 +168,6 @@ and so on) need effects that stat modifiers cannot express. Add city-state flags
 movement, vision, combat and dispel code.
 
 ### Units
-
-**26. Unit abilities that need code.** Many imported abilities are data only: movement and combat
-abilities such as invisibility, regeneration, healer (B4: 20% of total hit points per turn for the
-stack), long range, create and summon undead and demons, planar travel, non-corporeal, and so on
-[396-427, 552-553]. Go through `content-local/abilities.ron`, list which are still no-ops, and
-implement each where its system exists.
 
 **27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9).** Elite levels beyond 120 xp need
 Warlord or Crusade; Armsmaster doubles hero xp use; Heroism should make a unit elite (decide the

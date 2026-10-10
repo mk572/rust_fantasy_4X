@@ -16,6 +16,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
+| 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
@@ -82,6 +83,19 @@ guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on 
 the economy adds to each farmer's harvest (not a flat bonus per city); the test
 `the_animists_guild_adds_food_for_every_farmer` pins it. The stale note in
 `help-vs-implementation-conflicts.md` section D was removed.
+
+**26. Unit abilities that need code (done).** All 66 imported abilities were sorted by where
+they act. *Overland, now implemented:* flying, wind walking, planar travel, non-corporeal,
+pathfinding, forester and mountaineer (these three now share across the whole stack through
+`StackTraits`, as the help says), healer (20 percent of total hit points a turn for the
+stack), regeneration (full healing every turn), invisibility (`unit_visible_to`: hidden from
+other wizards unless one of their illusion-immune units is within its sight; the client hides
+such enemy units), meld, create outpost, and construction (roads, task 11). *In combat, so
+listed under 35-37:* the immunities, armour piercing, first strike and negate first strike,
+large shield, long range, lucky, holy bonus, illusion, cause fear, wall crusher, cavalry,
+teleport, merging, gazes and bolts, poison, stoning and life steal touches, immolation,
+spellcasters and the casting units. *Waiting for another system:* create undead and summon
+demon (after-battle results, 42), purify and land corruption (5), undead rules (29).
 
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each

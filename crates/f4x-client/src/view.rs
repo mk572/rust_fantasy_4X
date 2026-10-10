@@ -948,7 +948,10 @@ impl App {
                 continue;
             }
             let mine = self.game.unit_owner(unit) == Some(HUMAN);
-            if !mine && !visible[(at.y * width + at.x) as usize] {
+            if !mine
+                && (!visible[(at.y * width + at.x) as usize]
+                    || !self.game.unit_visible_to(unit, HUMAN))
+            {
                 continue;
             }
             stacks.entry((at.x, at.y)).or_default().push(unit);

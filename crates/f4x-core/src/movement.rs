@@ -45,16 +45,41 @@ pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
     dx.min(width - dx) <= 1 && a.y.abs_diff(b.y) <= 1
 }
 
+/// Abilities that one unit shares with everyone stacked with it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StackTraits {
+    /// A wind-walking unit carries the whole stack through the air.
+    pub flies: bool,
+    /// Every unit crosses any land at road speed.
+    pub pathfinding: bool,
+    /// Every unit crosses forests for one move.
+    pub forester: bool,
+    /// Every unit crosses hills and mountains for one move.
+    pub mountaineer: bool,
+}
+
 impl Game {
-    /// Cost in half-moves for `unit` to step from `from` to the adjacent `to`.
-    /// `stack_flies` is true when a wind-walking unit carries the whole stack.
+    /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
+    pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
+        let any = |a: &str| units.iter().any(|&u| self.unit_has_ability(u, a));
+        StackTraits {
+            flies: any("wind_walking"),
+            pathfinding: any("pathfinding"),
+            forester: any("forester"),
+            mountaineer: any("mountaineer"),
+        }
+    }
+
+    /// Cost in half-moves for `unit` to step from `from` to the adjacent `to`, with the
+    /// abilities its stack shares.
     pub fn step_cost(
         &self,
         unit: hecs::Entity,
         from: Position,
         to: Position,
-        stack_flies: bool,
+        traits: StackTraits,
     ) -> Result<u32, MoveError> {
+        let stack_flies = traits.flies;
         let map = self.map.as_ref().ok_or(MoveError::NoMap)?;
         let grid = map.plane(to.plane);
         if to.y >= grid.height() || to.x >= grid.width() {
@@ -105,13 +130,13 @@ impl Game {
             };
             cost = if magic(from) && magic(to) { 0 } else { 1 };
         }
-        if has("pathfinding") {
+        if has("pathfinding") || traits.pathfinding {
             cost = cost.min(1);
         }
-        if has("forester") && terrain.class == TerrainClass::Forest {
+        if (has("forester") || traits.forester) && terrain.class == TerrainClass::Forest {
             cost = cost.min(FULL_MOVE);
         }
-        if has("mountaineer")
+        if (has("mountaineer") || traits.mountaineer)
             && matches!(terrain.class, TerrainClass::Hills | TerrainClass::Mountains)
         {
             cost = cost.min(FULL_MOVE);
@@ -165,7 +190,7 @@ impl Game {
         if !adjacent(map.width(), from, to) {
             return Err(MoveError::NotAdjacent);
         }
-        let flies = self.stack_flies(units);
+        let flies = self.stack_traits(units);
         let mut costs = Vec::with_capacity(units.len());
         for &u in units {
             if self.unit_moves_left(u) == 0 {
@@ -228,7 +253,7 @@ impl Game {
             ..from
         };
         // Every unit must be able to stand on the other plane's tile.
-        let flies = self.stack_flies(units);
+        let flies = self.stack_traits(units);
         for &u in units {
             if self.unit_moves_left(u) == 0 {
                 return Err(MoveError::NoMovesLeft);
@@ -313,7 +338,7 @@ mod tests {
     }
 
     fn cost(game: &Game, u: hecs::Entity, from: Position, to: Position) -> Result<u32, MoveError> {
-        game.step_cost(u, from, to, false)
+        game.step_cost(u, from, to, StackTraits::default())
     }
 
     #[test]
@@ -652,5 +677,27 @@ mod tests {
         g.world.insert_one(plain, crate::units::Hurt(2)).unwrap();
         assert_eq!(g.unit_hits(plain), (4, 6));
         let _ = TerrainId(0);
+    }
+
+    #[test]
+    fn a_pathfinder_gives_the_whole_stack_road_speed() {
+        let mut g = world();
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let pathfinder = g.content.rules.units.id_of("pathfinder").unwrap();
+        let player = PlayerId(0);
+        let alone = g.spawn_unit(player, at(1, 2), walker);
+        let plain = g
+            .step_cost(alone, at(1, 2), at(2, 2), StackTraits::default())
+            .unwrap();
+        assert_eq!(plain, 4, "forest costs two moves");
+        let guide = g.spawn_unit(player, at(1, 2), pathfinder);
+        let traits = g.stack_traits(&[alone, guide]);
+        assert!(traits.pathfinding);
+        assert_eq!(g.step_cost(alone, at(1, 2), at(2, 2), traits), Ok(1));
+        // The ability only counts for the stack it is in.
+        assert_eq!(
+            g.step_cost(alone, at(1, 2), at(2, 2), g.stack_traits(&[alone])),
+            Ok(4)
+        );
     }
 }

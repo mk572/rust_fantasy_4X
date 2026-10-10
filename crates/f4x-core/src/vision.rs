@@ -10,6 +10,29 @@ use crate::Game;
 const CITY_SIGHT: i32 = 2;
 
 impl Game {
+    /// Can `viewer` make out `unit`? One's own units always, others unless invisible; an
+    /// invisible unit shows to a viewer who has a unit immune to illusions in sight of it.
+    pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
+        if self.unit_owner(unit) == Some(viewer) || !self.unit_has_ability(unit, "invisibility") {
+            return true;
+        }
+        let Some(at) = self.unit_position(unit) else {
+            return true;
+        };
+        let Some(map) = self.map.as_ref() else {
+            return true;
+        };
+        let grid = map.plane(at.plane);
+        self.player_units(viewer).into_iter().any(|u| {
+            self.unit_has_ability(u, "illusion_immunity")
+                && self.unit_position(u).is_some_and(|p| {
+                    p.plane == at.plane
+                        && grid.chebyshev((p.x, p.y), (at.x, at.y))
+                            <= self.unit_stat(u, Stat::Sight).max(1) as u32
+                })
+        })
+    }
+
     /// How far a city sees: 2, or more with an Oracle (4), City Walls (3) or Nature's Eye (4).
     pub fn city_sight(&self, city: hecs::Entity) -> i32 {
         compute(Stat::CitySight, CITY_SIGHT, &self.city_modifiers(city))
@@ -154,5 +177,40 @@ mod tests {
         g.process_globals();
         assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));
         assert!(!g.fog.is_explored(PlayerId(0), Plane::Arcanus, 15, 10));
+    }
+
+    #[test]
+    fn invisible_units_hide_from_everyone_but_those_who_see_through_illusions() {
+        let mut c = content_with_units();
+        let mut units = c.rules.units.defs().to_vec();
+        for u in units.iter_mut() {
+            match u.id.as_str() {
+                "spirit" => u.abilities.push("invisibility".into()),
+                "mage" => u.abilities.push("illusion_immunity".into()),
+                _ => {}
+            }
+        }
+        c.rules.units = crate::rules::Registry::new(units);
+        let grass = c.terrains.id_of("grassland").unwrap();
+        let mut g = Game::new(1);
+        g.content = c;
+        g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
+        let at = |x| Position {
+            plane: Plane::Arcanus,
+            x,
+            y: 5,
+        };
+        let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).unwrap();
+        let (spirit, mage) = (id(&g, "spirit"), id(&g, "mage"));
+        let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
+        assert!(g.unit_visible_to(ghost, PlayerId(0)), "its owner sees it");
+        assert!(!g.unit_visible_to(ghost, PlayerId(1)));
+        let _far = g.spawn_unit(PlayerId(1), at(15), mage);
+        assert!(!g.unit_visible_to(ghost, PlayerId(1)), "too far away");
+        let _near = g.spawn_unit(PlayerId(1), at(6), mage);
+        assert!(
+            g.unit_visible_to(ghost, PlayerId(1)),
+            "an illusion-immune unit is close"
+        );
     }
 }
