@@ -526,7 +526,12 @@ pub fn content_with_magic() -> Content {
             value: 1,
         },
     }];
+    let mut brief = strength.clone();
+    brief.id = "brief_strength".into();
+    brief.duration = Duration::Turns(2);
+    brief.upkeep = 0;
     spells.push(strength);
+    spells.push(brief);
     let mut heal = base("mend", "life", Rarity::Common, 10, 40, SpellTarget::OwnUnit);
     heal.effects = vec![rule(Trigger::OnCast, Effect::Heal(5))];
     spells.push(heal);

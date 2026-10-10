@@ -382,6 +382,9 @@ impl Game {
     /// Put a lasting spell on its target: a unit or city carries it with its caster, a
     /// wizard-wide one is kept on the wizard.
     pub(crate) fn attach_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
+        if let Duration::Turns(n) = self.content.rules.spells.get(spell).duration {
+            self.start_timer(who, spell, caster, n);
+        }
         match who {
             Target::City(c) => {
                 let mut list = self

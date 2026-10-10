@@ -185,7 +185,7 @@ impl Game {
         self.magic_mut(player).unwrap()
     }
 
-    fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
+    pub(crate) fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
         self.player_mut(player).map(|p| &mut p.magic)
     }
 
@@ -548,7 +548,7 @@ impl Game {
 
     /// All wizards' magic at the turn change: income, research, upkeep, casting.
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
+        let mut events = self.tick_timers();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {
             self.apply_magic_power(player);

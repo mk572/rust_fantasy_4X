@@ -6,7 +6,8 @@ Everything not yet implemented, collected from the whole project history and the
 (or take the next free number). Bracketed numbers like [430] point at topics in the original help
 (`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
 
-Combat (tasks 33-46) is deliberately paused until the user says to start.
+Combat (tasks 33-46) was paused and has been released to start (33, 34, 40 first).
+Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md).
 
 ## Table
 
@@ -63,7 +64,7 @@ Combat (tasks 33-46) is deliberately paused until the user says to start.
 | 49 | Heroes | Item slots, powers and data schema |
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil |
 | 51 | Heroes | Heroes' casting contribution and sage heroes |
-| 52 | Magic | Timed spell durations |
+| 52 | Magic | ~~Timed spell durations~~ (done) |
 | 53 | Magic | Remaining retort effects |
 | 54 | Magic | Wizard creation screen and named wizards |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
@@ -307,8 +308,11 @@ research income) exist; heroes do not feed them yet.
 
 ### Magic (first pass done; see `magic.md`)
 
-**52. Timed spell durations.** `Duration::Turns(n)` spells are attached but never expire. Add a
-remaining-turns counter on attached enchantments and expire them in the magic step of the turn.
+**52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
+(`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
+turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.
+Timers whose enchantment was dispelled or whose bearer died are dropped silently. No imported
+spell uses `Turns` (the original has none), so this is for mods and the community patch.
 
 **53. Remaining retort effects.** Retorts stored but without effect: Warlord, Channeler, Myrran
 (Myrror start), Divine and Infernal Power (+50 percent religious power, B3), Famous, Charismatic,

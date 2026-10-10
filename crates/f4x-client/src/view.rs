@@ -334,6 +334,10 @@ impl App {
                     "{} has no effect yet (not implemented)",
                     self.game.content.rules.spells.get(spell).name
                 )),
+                Event::EnchantmentExpired { spell, .. } => Some(format!(
+                    "{} has run out",
+                    self.game.content.rules.spells.get(spell).name
+                )),
                 Event::EnchantmentLapsed { spell, .. } => Some(format!(
                     "{} ended: not enough mana for its upkeep",
                     self.game.content.rules.spells.get(spell).name

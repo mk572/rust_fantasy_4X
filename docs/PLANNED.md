@@ -1,0 +1,83 @@
+# Planned modifications
+
+Changes and extensions to do **after the basic game is playable** (the core loop of
+`docs/TASKS.md` working: map, cities, magic, combat, AI, victory). Unlike the task list, these
+are not gaps against the original: they are improvements and options on top of it. Keep the
+table in ascending order by number; new items take the next free number.
+
+Related tasks in `TASKS.md` are given as `T<number>`.
+
+## Table
+
+| # | Area | Summary |
+|---|---|---|
+| 1 | Movement | Faster movement along rivers |
+| 2 | Options | Spell of Return setting: off, player only, all wizards |
+| 3 | Options | More NPC wizards (the base game has up to four opponents) |
+| 4 | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
+| 5 | Platform | Modding support |
+| 6 | Client | Upscaled graphics |
+| 7 | City | Smarter city autobuilder |
+
+## Descriptions
+
+**1. Faster movement along rivers.** Rivers exist as a tile flag (T1, done) but do not affect
+movement. Add a rule that a step between two river tiles (or from a river tile to the shore at
+its mouth) costs less, like roads do (half a move; decide whether it stacks with roads, which
+should not give a quarter move), for land units and perhaps cheaper still for boats-on-rivers if
+ships ever sail them. Make it a rule in data (a movement cost modifier per river step) so it can
+be switched off, and show river-assisted paths in the path preview. Needs a decision on
+direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
+direction.
+
+**2. Spell of Return options.** Today every banished wizard can cast the Spell of Return
+(`fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is task 82. Add a
+new-game setting with three values: **off** (banishment is final: the wizard is defeated),
+**player only** (the human may return, AI wizards are defeated on banishment) and **all
+wizards** (as in the original). Store it in the game settings saved with the game (new field,
+`serde(default)` = all wizards), check it in `capture_city` where banishment is decided, and
+mention it in the new-game screen (T10, T75).
+
+**3. More NPC wizards.** The base game allows one to four opponents (T10). Make the count a
+setting beyond four: more wizard names, portraits and banner colours (the client's
+`player_color` palette), larger default maps and more starting positions so wizards do not crowd
+each other (spread by minimum distance rather than a fixed table), a check that `PlayerId` (a
+`u8`) and the fog and save layouts cope, and a diplomacy screen that scales (T63, T75). Balance
+note: AI cost grows with wizard count, so measure turn time first (T65).
+
+**4. Community patch and Caster of Magic content.** Collect the rule changes of the community
+patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the
+Caster of Magic expansion: list every changed number, ability, building, unit, spell and item;
+decide per change whether it becomes the default, a rule-set option or a mod (see 5); and add
+the new items, units and spells to `content-local/` through `scripts/import_mom.py` where they
+come from original files, or hand-write CC0 equivalents for the repository. Details of the
+expansion are not yet gathered here, so the first step is a survey document in `docs/` listing
+what exists, before any code. The importer's conflict rules (`help-vs-implementation-conflicts.md`)
+apply: patch behaviour that fixes a marked bug wins; anything else is an option.
+
+**5. Modding support.** The rules are already data (`content/*.ron`, validated by
+`f4x-tools validate`). Make this a supported feature: load a stack of content directories
+(base, then mods in order, later ones override or extend by id); a mod manifest with name,
+version and dependencies; validation that reports conflicts by id; a list of the engine hooks
+(`CUSTOM_HOOKS`, effect primitives) as the documented extension surface, and a decision on
+scripting (none, or a small embedded language) for effects the data cannot express; mod-aware
+saves that record the active mods and refuse to load without them; a mod picker in the client.
+Document the data formats in `docs/` for modders. Keep original-derived data out of the
+repository, as for all content.
+
+**6. Upscaled graphics.** The client draws the original's 20x18 tiles and small unit pictures,
+scaled with nearest-neighbour. Add an optional higher-resolution art path: an upscaling step in
+`f4x-tools` (a documented, local-only pipeline, for example a pixel-art upscaler or a
+diffusion-based one run on the user's own machine) writing to `assets-local/art-hd/`, and a
+client setting that prefers it when present, with the same file naming so the existing loader
+works. The output of upscaling original art is still original-derived and stays out of the
+repository; the repository can only ship tools. Also check tile seams and shore blending
+(the autotile table, T4) at the new size, and let the UI scale independently.
+
+**7. Smarter city autobuilder.** The basic autobuild (T16) picks the next sensible building.
+Improve it: weigh the city's needs (food deficit, unrest, gold, production, defence), the
+buildings' upkeep against the city's income, the race's strengths, what the neighbours already
+provide, the wizard's strategy (retorts, books) and the game stage; avoid buildings that are
+about to be obsolete; let the player set priorities or a build profile (growth, production,
+research, defence); and share the evaluation with the AI's city production (T65) so both use
+one scoring function, tested on fixed city situations.

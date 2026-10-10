@@ -24,6 +24,7 @@ pub mod serial;
 pub mod terraform;
 #[cfg(test)]
 mod testutil;
+pub mod timers;
 pub mod turn;
 pub mod units;
 pub mod vision;
@@ -225,6 +226,11 @@ pub enum Event {
         player: city::PlayerId,
         spell: rules::SpellId,
     },
+    /// A timed spell ran out.
+    EnchantmentExpired {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
     UnitCreated {
         unit: hecs::Entity,
         pos: city::Position,
@@ -276,6 +282,8 @@ pub struct Game {
     draws: u64,
     pub(crate) next_serial: u64,
     rng: Pcg64Mcg,
+    /// Countdowns for timed spells.
+    pub(crate) timers: Vec<timers::Timer>,
 }
 
 impl Game {
@@ -291,6 +299,7 @@ impl Game {
             draws: 0,
             next_serial: 1,
             rng: Pcg64Mcg::seed_from_u64(seed),
+            timers: Vec::new(),
         }
     }
 
