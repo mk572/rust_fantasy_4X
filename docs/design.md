@@ -157,3 +157,42 @@ Each stage should end with something runnable and tested.
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
 - How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema).
 - Replays: a command log cannot cross a load because entity ids change; if replays or networked play are wanted, commands need stable references (creation numbers instead of entities).
+
+## 14. Later considerations
+
+### A self-learning AI
+Not planned for v1. Assessment from the time of writing, for when it is revisited.
+
+**What already helps:** the engine is deterministic and headless (`Command` in, `Event` out,
+seeded RNG), so a bot can play thousands of games without the client; saves allow branching a
+game from any state; the engine rejects illegal commands, so a bot cannot cheat or crash it.
+
+**What makes it hard:**
+1. Combat does not exist yet (tasks 33-42), and an AI that cannot fight cannot learn to play.
+2. The action space is large (hundreds of commands per turn: moves, production, research, spells
+   with targets, tax) and games run for hundreds of turns, so the reward comes very late. Plain
+   reinforcement learning from scratch struggles with this.
+3. Fog of war and several opponents make the problem noisy.
+4. Learning needs millions of games; a full game on a 60x40 two-plane map is much slower than a
+   board game. Measure the engine's turns per second before committing.
+5. Every rule or content change makes a trained bot partly obsolete, so the content pass should
+   settle first.
+
+**Options, easiest first:**
+
+| Approach | Effort | Result |
+|---|---|---|
+| Scripted AI with weights (expand, build, research, attack) | weeks | acceptable, predictable play, like the original |
+| The same, weights tuned by self-play (evolutionary search over a few dozen parameters) | plus weeks | cheap, robust "self-learning"; most of the benefit |
+| Monte Carlo tree search for tactical battles, on top of the scripted AI | plus weeks | strong battle play; battles are small and self-contained |
+| Neural-network policy trained by self-play (AlphaZero style) | months plus GPU time | possible in principle, a research project for a 4X game |
+
+**Suggested path:**
+1. Finish combat and a scripted AI first (tasks 33-46 and 65-67); it is the baseline and the
+   training opponent.
+2. Build an AI-vs-AI soak runner (also wanted for balancing, task 77); it is the harness any
+   learning would use.
+3. Tune the scripted AI's weights by self-play.
+4. Consider learning only for the battle AI (task 46), where search or a small model can work.
+
+A fully learned end-to-end bot is realistic only as its own long-term project.
