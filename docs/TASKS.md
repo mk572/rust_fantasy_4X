@@ -97,6 +97,16 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 97 | Client | Sound effects |
 | 98 | Housekeeping | Packaging for Linux |
 | 99 | Combat | Saving during a battle |
+| 100 | Map | Draw the original's edge variants for mountains, hills and tundra |
+| 101 | Magic | Eleven-book realms and the full starting-spell rule |
+| 102 | Map | Road-building path selection in the client |
+| 103 | Units | Scouting levels and unit sight |
+| 104 | Units | Ship tiers by building and ship movement estimates |
+| 105 | Combat | Wire overland attacks to battles |
+| 106 | Combat | Battle views for the AI and for tools |
+| 107 | Content | Check assumptions made while implementing |
+| 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
+| 109 | Housekeeping | Importer clean-up |
 
 ## Descriptions
 
@@ -463,3 +473,23 @@ generator state (seed plus draw count, as for the game), plus the list of overla
 fighters were copied from (by creation number). Restore it on load, check it for consistency
 (units on the map, sources still alive), keep old saves loading, and test that a save in the
 middle of a battle continues exactly like the unsaved one.
+
+**100. Draw the original's edge variants for mountains, hills and tundra.** The extractor already writes all five tables of `autotile.tsv` (neighbour mask to terrain type), but the client only uses table 0 (ocean shores). Use the other tables so mountain, hill and tundra squares blend with their neighbours as in the original, and check the result against the screenshots (84).
+
+**101. Eleven-book realms and the full starting-spell rule.** The original lets one realm hold 11 books (with 10 common choices, 2 uncommon and 1 rare starting spell, `m_select_count_*`); the creation screen and `init_wizard` stop at 10 books and only choose common spells. Raise the limit, add the uncommon and rare starting picks, and extend the creation screen's spell lists.
+
+**102. Road-building path selection in the client.** The B key builds a road only on the square under the engineers. Add the original's road-building mode (topics 510-512): click a path, show valid squares in blue and invalid in red with the turns it will take, OK and Cancel buttons, using `find_path`-style planning and `Command::BuildRoad` with the whole path.
+
+**103. Scouting levels and unit sight.** Units see by their `Sight` stat only; the original's scouting ability adds a level to sight [546] and Wind Walking gives its stack speed 3. Import scouting as its own ability or stat modifier, apply it in `visibility`, and give wind-walking stacks their speed.
+
+**104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's.
+
+**105. Wire overland attacks to battles.** Moving into a hostile square only emits `AttackRequested`. Connect it: the client opens a battle (`Command::BeginBattle`) for the human, the AI does so for itself, and the winner takes the square (attackers advance when the defenders are gone), with the defenders' city handled by the siege task (41). Needs the after-battle results of 42 for experience and loot.
+
+**106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
+
+**107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: Evil Omens spares the wizard who holds it; the original's own Lo Pan spends 12 picks (presets skip the budget); the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision.
+
+**108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warped nodes exist as a flag but nothing sets it (Warp Node, task 7); unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
+
+**109. Importer clean-up.** `scripts/import_mom.py` has duplicate entries (`Natures Eye` and `Nature's Eye` in the city-enchantment table), several maps keyed by display names that differ between sources, and spell-effect tables that grew by hand (global, tile, fortress hooks). Tidy them into one table per kind with a check that every key matches a real spell, building or unit, reported in `IMPORT_REPORT.txt`.
