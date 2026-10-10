@@ -118,6 +118,10 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 125 | Client | Unit stack backgrounds in banner colours |
 | 126 | Client | Bitmap font for the remaining overland text |
+| 127 | Map | Lair rewards: original spell, book and retort selection |
+| 128 | Client | Site encounter dialogs and treasure popup |
+| 129 | Map | Lair generation parity |
+| 130 | Client | Warped node and cleared site pictures |
 
 ## Descriptions
 
@@ -130,18 +134,21 @@ the worked-area food and production of cities, and spells that set it.
 **7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
 aura [653-656], and warping by spells. Depends on 6.
 
-**8. Encounter sites: guardians and loot.** Lairs, caves, temples, ruins, keeps and dungeons are
-only markers. Add guard generation (strength by plane and site type), loot (gold, mana, items,
-spells, heroes), and what clearing a site does (it stops blocking cities). Depends on combat for
-the fights themselves (task 33 onward).
+**8. Encounter sites: guardians and loot.** Core done (`lairs.rs`, `docs/lairs.md`): guards and hoards
+for towers, nodes and encounter sites, assault by `Command::EnterSite`, treasure and clearing. Open
+parts are split into tasks 127 to 130; the client side needs the battle screen (task 45).
 
-**9. City founding blocked only by intact encounter sites.** Today any encounter feature blocks
-founding. The original blocks only towers, nodes and *intact* lairs (B17). Needs a "cleared"
-state for sites (see 8).
+**9. City founding blocked only by intact encounter sites.** A cleared encounter site now removes
+its feature, so it no longer blocks; but any *intact* site still blocks, as it should. What is left:
+check the rule against the original's `Square_Has_Lair` (towers and nodes block always, lairs only
+while intact, B17) and update the founding check and its tests to read the lair record rather than
+the feature kind.
 
 **10. Generator parity and new-game settings.** Our generator is our own design. Optionally port
 the original's landmass growth and shore fix-up, and add the new-game settings: land size 15/20/25
-percent, 1-4 opponents, node strength, difficulty [648-652]. Mark as a parity task, low priority.
+percent, 1-4 opponents, node strength, difficulty [648-652] (difficulty and node strength are now
+inputs to `GenParams`, used for lairs and node power). Lair placement parity is task 129. Mark as a
+parity task, low priority.
 
 **12. Gates and the Planar Seal.** Earth Gate links two own cities for a one-move trip; Astral Gate
 and towers link planes; Planar Seal closes planar travel [750, 752]. Needs gate state on cities and
@@ -530,3 +537,26 @@ middle of a battle continues exactly like the unsaved one.
 **125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
 
 **126. Bitmap font for the remaining overland text.** The gold, mana, income panels and city names use the original fonts; still in the plain font are the turn/plane/race line, the selection and hover info (`Lines` helper), the message log, the "F1 keys" hint and key list, and the unit-count badge on stacks. Give `Lines` a bitmap-font mode (or replace it) and move these over, using the original's sizes and colours; see task 118 for the other screens.
+
+**127. Lair rewards: original spell, book and retort selection.** We follow the intent of
+`WIZ_RollSpellReward` and `EZ_SpecialTreasure` (ReMoM marks both as muddled): spell of the tier
+from a realm without books, then a book (75%) or retort. Compare against the original's results over
+many rolls and adopt its exact odds where they differ. Also: Famous gives +10 fame; Alchemy or
+Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroes and magic items need
+tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits.
+
+**128. Site encounter dialogs and treasure popup.** The client should answer `SiteEncounter` with the
+original's confirm box ("You have found a ruins.  Scouts have spotted 4 Skeletons within the ruins.
+Do you wish to enter?", node pictures per realm, Y/N), send `EnterSite`, and after a win show
+"Inside you find ..." with the gold, mana, items, prisoner and spell lines. Unguarded sites pay out
+on arrival without a prompt. Depends on the battle screen (task 45) for the fight itself.
+
+**129. Lair generation parity.** The original places 6 towers, 30 nodes, 25 strong and 32 weak random
+sites (102 slots, three left switched off), each at least two squares from any other lair, on land,
+2 squares from the map edge, with a seven-way random site type (cave, dungeon, temple, keep, lair, ruins,
+fallen temple). We give every generated feature a lair and split strong/weak 25:32 at random. Port the
+exact placement, counts and type roll once the generator parity task (10) is taken.
+
+**130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
+use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
+cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared.
