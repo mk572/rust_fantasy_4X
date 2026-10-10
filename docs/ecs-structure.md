@@ -16,7 +16,7 @@ original code): `MoX/src/MOM_DAT.h` and `MOM_DEF.h`. Record sizes are for the or
 | Units | One array, 1009 slots of 32-byte records. A unit stores its type index, position, owner, level, experience, damage, remaining moves, and its enchantments and mutations as bit flags in 16/32-bit words. In the code a stack is not a stored object: it is whatever units share a square. |
 | Cities | One array, 100 slots of 114-byte records. Buildings are a status byte per building (36 of them: unbuilt, replaced, built...), city enchantments are 26 bytes holding "0, or the casting player's index + 1", and the current product is one integer (below 100 a building, 100 and above a unit type). Computed yields (gold, food, mana, research, production, upkeep) are cached in the record and recalculated when something changes. |
 | Players | A fixed array of 6 wizard records of 1224 bytes each: picks, known-spell table, global enchantments (24 flags), up to 6 heroes, mana, gold, research, tax rate. |
-| Map | Two planes of 60x40 terrain-type numbers (762 of them, including the shore and river variants that make autotiling work), plus separate per-square bitfields for specials, flags and exploration. |
+| Map (see `map-layers.md`) | Two planes of 60x40 terrain-type numbers (762 of them, including the shore and river variants that make autotiling work), plus separate per-square bitfields for specials, flags and exploration. |
 | Sites | Fixed arrays: 102 lairs, 30 nodes, 6 towers, 138 magic items. |
 | Combat | A separate temporary array of battle-unit records, copied from units at the start of a fight. |
 | Content | Tables of records (units, buildings, spells, races), some in the executable's data segment and some in the `.lbx` files; code refers to them by index and by compiled-in constants (`bt_Barracks`, `spl_Fireball`). |
@@ -108,7 +108,7 @@ people, race, buildings and enchantments. Nothing is cached, so nothing can go s
 | `enchantments[26]`, player + 1 | `Enchantments` list of `(spell, caster)` | Any number of enchantments; the spell is an id into the same table as spells cast any other way. |
 | `construction` integer, < 100 building, ≥ 100 unit | `ProductionItem` enum | Meaning is in the type, not in a numeric range. |
 | `_players[6]` big record | `Player` struct (gold, mana, tax, capital race, fame) now; wizard data later | Only what exists is stored; more players are possible. |
-| `_world_maps`: 762 terrain-type numbers incl. shores | Two grids: base terrain class + feature overlay + road flag | Shore and river variants are a rendering decision, not game state. Minerals, nodes, lairs and towers are features instead of separate arrays and flag bits. |
+| `_world_maps`: 762 terrain-type numbers incl. shores | Two grids: base terrain class + feature overlay + road flag (see `map-layers.md`) | Shore and river variants are a rendering decision, not game state. Minerals, nodes, lairs and towers are features instead of separate arrays and flag bits. |
 | `_LAIRS`, `_NODES`, `_TOWERS` arrays | Features on tiles (kind: encounter, node, tower) | One mechanism; lairs' guards and loot will become components of the site entity when encounters are built. |
 | Compiled-in constants (`bt_Barracks`) | String ids in data files, resolved to typed ids at load | New content needs no code; every reference is validated once at load. |
 | Per-unit and per-city fixed record order | Entities visited in entity-id order | Deterministic and independent of slot reuse. |

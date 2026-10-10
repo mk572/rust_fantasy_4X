@@ -1,7 +1,7 @@
 # High-level design: a Master of Magic-style 4X in Rust with ECS
 
 Status: living document. Scope: gameplay-faithful reimagining, not a port of the original code, data or art.
-Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`mechanics-gaps.md`](mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data).
+Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`mechanics-gaps.md`](mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data).
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
@@ -42,15 +42,12 @@ Decided: `hecs` inside `f4x-core`, not a full engine. Only state with identity a
 
 Derived values are never stored: unit stats, city yields, rebels and growth are computed on demand from the definition plus modifiers.
 
-### Map layers, features and cities
-- **Base terrain** is one grid per plane (ocean, grassland, forest, hills, mountains, swamp, desert, tundra). Arcanus and Myrror share the same terrain classes; in the original the planes differ in art and in what spawns, not in terrain rules, so a terrain definition lists the planes it exists on and the client picks per-plane art. Shores and other transition tiles of the original are a rendering concern, not state.
-- **Features** are a second, sparse layer on top of terrain, at most one per tile: minerals and specials, encounter sites (lairs, caves, temples, ruins, keeps, dungeons), towers and magic nodes. Nodes are overlays here (a node's underlying terrain is kept).
-- **Roads** are a per-tile flag on the grid.
-- **Myrror-specific content** lives in data, not code: adamantium and crysx exist only there, its gold/mithril/quork weights are higher, minerals are denser by default.
-- **Towers** are placed at identical coordinates on every plane; water under a tower becomes grass. Nodes keep a distance from towers and from each other.
-- **Cities are ECS entities**, not map tiles. Founding is a command checked against terrain (`can_found_city`), blocking features (towers, nodes and encounter sites block; minerals do not) and a minimum spacing of **four squares** to other cities on the same plane (settled from the original's code and help text).
-- A city works a 5x5 area without its corners (21 tiles). A tile worked by two cities gives each half its food, production bonus and mine yield.
-- Not yet modelled: node aura zones, rivers, lakes, volcanoes, corruption.
+### The map
+The world is two wrapping planes of tiles with a base terrain, an optional feature (mineral,
+encounter site, tower, node) and a road flag per tile; cities and units are entities on top,
+and exploration is remembered per player. Cities are entities, not tiles, and must be at
+least four squares apart. Layers, rules, generation and differences from the original are in
+[`map-layers.md`](map-layers.md).
 
 ## 5. Data-driven content
 - Races, units, buildings, spells, abilities, items, terrain and features are defined in RON files and validated at load time (`f4x-tools validate <dir>`): every reference must resolve, ids are `[a-z0-9_]`, spells must have effects, units need their required stats, and so on.
