@@ -19,6 +19,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 6 | Client | Upscaled graphics |
 | 7 | City | Smarter city autobuilder |
 | 8 | Options | Hardcore mode |
+| 9 | Client | Battle success hint |
 
 ## Descriptions
 
@@ -93,3 +94,14 @@ rolls back). Store the flag in the saved game settings, show it in the new-game 
 and on the hall of fame entry (88) so hardcore wins can be told apart, and make the client
 refuse the quick-load key and the file picker while it is on. Closely related to the settings
 work of tasks 89 and 90.
+
+**9. Battle success hint.** Before the player commits to a fight (moving into an enemy stack,
+a lair or a city), show an estimate of how it will go: a win chance, the expected losses on
+each side and a plain verdict ("easy", "even", "risky", "hopeless"). Compute it by
+simulating the battle many times with the real resolution code (`battle/attack.rs`, seeded
+and thrown away, using the strategic auto-resolve of task 39 for speed) on copies of the
+units as they stand, including walls, spells and heroes as they get implemented. Show it in a
+tooltip over the target square and in the confirmation before an attack, and make its
+accuracy and visibility an option (off in hardcore mode, item 8; "fog of war" versions that
+estimate from only what the player has seen are an extension). Depends on the battle views
+of task 106 and on auto-resolve (39).
