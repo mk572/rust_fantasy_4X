@@ -345,7 +345,7 @@ impl App {
         }
         for (spell, caster) in list.iter().take(6usize.saturating_sub(line)) {
             let name = self.game.content.rules.spells.get(*spell).name.clone();
-            let color = player_color(caster.0);
+            let color = self.banner_color(caster.0);
             self.bm_text(
                 view,
                 1,
@@ -666,7 +666,7 @@ impl App {
             let (x, y) = (216.0 + col * 19.0, 105.0 + row * 17.0);
             let frame = lay.rect(x - 1.0, y - 1.0, 18.0, 16.0);
             draw_rectangle(frame.x, frame.y, frame.w, frame.h, {
-                let c = player_color(owner);
+                let c = self.banner_color(owner);
                 Color::new(c.r * 0.5, c.g * 0.3, c.b * 0.3, 1.0)
             });
             let art = self.game.unit_def(u).and_then(|d| d.art.clone());

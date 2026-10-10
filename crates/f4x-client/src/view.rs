@@ -189,6 +189,7 @@ impl App {
             books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
             retorts: [retort].into_iter().collect(),
             spells: Vec::new(),
+            banner: None,
             preset: true,
         };
         let human_build = human
@@ -210,6 +211,13 @@ impl App {
         for (player, build) in [(HUMAN, human_build), (RIVAL, rival_build)] {
             game.create_wizard(player, &build)
                 .map_err(|e| format!("{e:?}"))?;
+        }
+        // Rivals never share the human's banner.
+        let human_banner = game.player(HUMAN).map_or(0, |p| p.banner);
+        if let Some(p) = game.player_mut(RIVAL) {
+            if p.banner == human_banner {
+                p.banner = (human_banner + 1) % f4x_core::player::BANNER_CHOICES;
+            }
         }
         game.set_undo(true);
         Ok(game)
@@ -267,6 +275,15 @@ impl App {
             pos.x as f32 - cols / 2.0,
             (pos.y as f32 - rows / 2.0).max(0.0),
         );
+    }
+
+    /// The banner colour of a player (by number; 255 is the neutral player).
+    pub(crate) fn banner_color(&self, owner: u8) -> Color {
+        let banner = self
+            .game
+            .player(PlayerId(owner))
+            .map_or(f4x_core::player::NEUTRAL_BANNER, |p| p.banner);
+        self.art.banner_color(banner)
     }
 
     pub(crate) fn race_name(&self, race: usize) -> &str {
@@ -801,6 +818,7 @@ impl App {
         let visible = self.game.visibility(HUMAN, self.plane);
         let content = &self.game.content;
         let cities = self.game.cities();
+        let anim = (get_time() * 2.5) as usize;
 
         // Clip the map to its viewport.
         let mut gl = unsafe { get_internal_gl() };
@@ -834,107 +852,30 @@ impl App {
                     draw_rectangle(sx, sy, t.x, t.y, BLACK);
                     continue;
                 }
-                let Some(def) = grid
-                    .get(wx as i32, y)
-                    .and_then(|id| content.terrains.get(id))
-                else {
-                    continue;
-                };
-                let feature = grid
-                    .feature(wx as i32, y)
-                    .and_then(|f| content.features.get(f));
-                let mut type_no = base_type(def.class);
-                if def.class == TerrainClass::Ocean {
-                    type_no = self.art.shore_type(shore_mask(grid, content, wx as i32, y));
-                }
-                if let Some(f) = feature.filter(|f| f.kind == FeatureKind::Node) {
-                    type_no = match f.id.as_str() {
-                        "sorcery_node" => tt::SORCERY_NODE,
-                        "nature_node" => tt::NATURE_NODE,
-                        _ => tt::CHAOS_NODE,
-                    };
-                }
-                match self.art.terrain(type_no + plane_offset) {
-                    Some(tex) => draw_texture_ex(
-                        tex,
-                        sx,
-                        sy,
-                        WHITE,
-                        DrawTextureParams {
-                            dest_size: Some(t),
-                            ..Default::default()
-                        },
-                    ),
-                    None => draw_rectangle(sx, sy, t.x, t.y, flat_color(def.class)),
-                }
-                if let Some(i) = self
-                    .game
-                    .map
-                    .as_ref()
-                    .and_then(|m| m.node_covering(self.plane, wx, y as u32))
-                {
-                    let node = &self.game.map.as_ref().expect("map").nodes()[i];
-                    let c = match node.realm.as_str() {
-                        "sorcery" => Color::new(0.3, 0.45, 1.0, 0.22),
-                        "nature" => Color::new(0.3, 0.9, 0.35, 0.22),
-                        _ => Color::new(1.0, 0.35, 0.25, 0.22),
-                    };
-                    draw_rectangle(sx, sy, t.x, t.y, c);
-                    if let (Some(owner), true) = (node.owner, node.x == wx && node.y == y as u32) {
-                        draw_rectangle_lines(
-                            sx + 2.0,
-                            sy + 2.0,
-                            t.x - 4.0,
-                            t.y - 4.0,
-                            3.0,
-                            player_color(owner),
-                        );
-                    }
-                }
-                if let Some(owner) = grid.volcano(wx as i32, y) {
-                    let c = player_color(owner);
-                    draw_triangle(
-                        vec2(sx + t.x * 0.5, sy + t.y * 0.15),
-                        vec2(sx + t.x * 0.2, sy + t.y * 0.8),
-                        vec2(sx + t.x * 0.8, sy + t.y * 0.8),
-                        Color::new(0.85, 0.2, 0.05, 1.0),
-                    );
-                    draw_circle(sx + t.x * 0.5, sy + t.y * 0.2, t.x * 0.1, c);
-                }
-                if grid.has_river(wx as i32, y) {
-                    draw_river(grid, content, wx as i32, y, sx, sy, t);
-                }
-                if grid.has_road(wx as i32, y) {
-                    let magic =
-                        self.plane == Plane::Myrror || grid.has_enchanted_road(wx as i32, y);
-                    draw_rectangle(
-                        sx + t.x * 0.4,
-                        sy + t.y * 0.4,
-                        t.x * 0.2,
-                        t.y * 0.2,
-                        if magic {
-                            Color::new(0.85, 0.7, 0.3, 1.0)
-                        } else {
-                            Color::new(0.45, 0.3, 0.15, 1.0)
-                        },
-                    );
-                }
-                if let Some(f) = feature {
-                    draw_feature_marker(f.kind, sx, sy, t);
-                }
+                crate::map_draw::draw_square(
+                    &self.game,
+                    &mut self.art,
+                    self.plane,
+                    wx,
+                    y as u32,
+                    sx,
+                    sy,
+                    t,
+                    anim,
+                );
                 if !visible[(y as u32 * width + wx) as usize] {
                     draw_rectangle(sx, sy, t.x, t.y, Color::new(0.0, 0.0, 0.0, 0.5));
                 }
             }
         }
-        for (_, city, pos) in &cities {
+        for (entity, city, pos) in &cities {
             if pos.plane != self.plane
                 || !self.game.fog.is_explored(HUMAN, self.plane, pos.x, pos.y)
             {
                 continue;
             }
             let at = screen_of(pos.x, pos.y);
-            draw_city_marker(at.x, at.y, t, player_color(city.owner.0));
+            crate::map_draw::draw_city(&self.game, &mut self.art, *entity, at.x, at.y, t);
             let owner = city.owner;
             if self.game.player(owner).and_then(|p| p.fortress) == Some(*pos) {
                 // A gold star: the wizard's fortress.
@@ -1019,7 +960,7 @@ impl App {
                     at.y + t.y * 0.25,
                     t.x * 0.5,
                     t.y * 0.5,
-                    player_color(owner),
+                    self.banner_color(owner),
                 ),
             }
             draw_rectangle_lines(
@@ -1028,7 +969,7 @@ impl App {
                 t.x - 2.0,
                 t.y - 2.0,
                 2.0,
-                player_color(owner),
+                self.banner_color(owner),
             );
             if units.iter().any(|u| self.selection.contains(u)) && blink {
                 draw_rectangle_lines(at.x, at.y, t.x, t.y, 3.0, GOLD);

@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::image::{decode, to_rgba};
+use crate::image::{decode, to_rgba, vga_to_rgb8};
 use crate::lbx::Lbx;
 
 /// Banner colours in the order the game numbers them: blue, green, purple, red, yellow, and
@@ -25,6 +25,16 @@ const CITY_BANNER: [[u8; 5]; 6] = [
     [0xC9, 0xA5, 0xCB, 0xA6, 0x2D],
     [0xD1, 0xD2, 0xD3, 0xD4, 0xD5],
     [0x1D, 0x1D, 0x1C, 0x1C, 0x1B],
+];
+
+/// `COL_Banners`: the five shades each banner paints units with, as palette indexes.
+const UNIT_BANNER: [[u8; 5]; 6] = [
+    [0x69, 0x6A, 0x6B, 0x6C, 0x6D],
+    [0x49, 0x4A, 0x4B, 0x4C, 0x4D],
+    [0x79, 0x7A, 0x7B, 0x7C, 0x7D],
+    [0xC9, 0xA5, 0xCB, 0xA6, 0x2D],
+    [0xA0, 0xA1, 0xA2, 0xB2, 0xB4],
+    [0x30, 0x31, 0x32, 0x33, 0x34],
 ];
 
 /// Names of the `MAPBACK.LBX` entries the overland map uses.
@@ -149,6 +159,24 @@ pub fn extract_map_art(
         }
     }
     fs::write(dir.join("catalog.tsv"), catalog).map_err(|e| e.to_string())?;
+    // The banners as colours: one line each, `index  name  five shades as r,g,b ...`.
+    let mut banners = String::from("# index\tname\tshade 1..5 as r,g,b\n");
+    for (b, name) in BANNER_NAMES.iter().enumerate() {
+        let shades: Vec<String> = UNIT_BANNER[b]
+            .iter()
+            .map(|&i| {
+                let c = usize::from(i) * 3;
+                format!(
+                    "{},{},{}",
+                    vga_to_rgb8(pal[c]),
+                    vga_to_rgb8(pal[c + 1]),
+                    vga_to_rgb8(pal[c + 2])
+                )
+            })
+            .collect();
+        banners.push_str(&format!("{b}\t{name}\t{}\n", shades.join("\t")));
+    }
+    fs::write(dir.join("banners.tsv"), banners).map_err(|e| e.to_string())?;
     Ok(count)
 }
 

@@ -24,6 +24,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 11 | Client | Higher resolution modes |
 | 12 | Content | Replacement art |
 | 13 | Client | Different settlement icons by race |
+| 14 | Client | Fortress art by magic type |
 
 ## Descriptions
 
@@ -155,3 +156,16 @@ Needs art for fourteen races (item 12 for anything not drawn from the original),
 sprite table in the content data (race, size, walls) with the original's pictures as the
 default, a client lookup that falls back to the default, and the same set in the minimap's
 city markers and the city screen's header.
+
+**14. Fortress art by magic type.** The original draws every wizard's fortress as the same grey tower
+(the city picture's fortress sprite and the tower on the overland map). Give the fortress a
+look that follows its wizard's strongest realm: a white spire for life, an overgrown living
+tree for nature, a bone tower for death, a tower of fire and cooling lava for chaos, a sparkling
+glass tower for sorcery, and a plain tower for wizards with no clear lead or for arcane. Choose
+the look from the wizard's books when the fortress is placed (and keep it if the books change,
+or follow them: decide), store it with the player, and draw it in all three places that show a
+fortress: the cityscape, the overland city marker (a small flag or badge on the city) and the
+city list. Needs art (item 12 for anything not from the original), a fortress sprite table in
+the content data keyed by realm with the original's tower as the default, and a modding hook
+so a mod can add looks for its own realms (item 5). Closely related to the banners and
+settlement icons by race (item 13).

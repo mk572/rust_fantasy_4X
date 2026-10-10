@@ -267,7 +267,7 @@ impl App {
                     r.y + at.y as f32 * ch - ch,
                     cw * 2.5,
                     ch * 2.5,
-                    player_color(owner),
+                    self.banner_color(owner),
                 );
             }
         }

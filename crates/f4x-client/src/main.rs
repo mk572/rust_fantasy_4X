@@ -7,6 +7,8 @@ mod cityscape;
 mod create_screen;
 mod frame;
 mod magic_screen;
+mod map_draw;
+mod terrain_pick;
 mod ui;
 mod view;
 
