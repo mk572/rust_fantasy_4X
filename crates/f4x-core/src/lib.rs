@@ -6,6 +6,7 @@
 pub mod city;
 pub mod content;
 pub mod featuregen;
+pub mod help;
 pub mod map;
 pub mod mapgen;
 pub mod rules;

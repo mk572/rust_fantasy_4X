@@ -50,6 +50,15 @@ fn content(dir: Option<&String>) -> Result<Content, String> {
 
 fn validate(dir: Option<&String>) -> Result<(), String> {
     let c = content(dir)?;
+    let help_dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
+    let help = f4x_data::load_help(&help_dir).map_err(|e| e.to_string())?;
+    if !help.topics.is_empty() {
+        println!(
+            "help: ok ({} topics, {} screens)",
+            help.topics.len(),
+            help.screens.len()
+        );
+    }
     println!("terrain.ron: ok ({} definitions)", c.terrains.defs().len());
     println!("features.ron: ok ({} definitions)", c.features.defs().len());
     let r = &c.rules;

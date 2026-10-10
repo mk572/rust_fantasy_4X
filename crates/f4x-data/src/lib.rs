@@ -169,6 +169,33 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     problems
 }
 
+/// Load the optional help files (`help.ron`, `help_screens.ron`) from a content
+/// directory. A directory without them yields an empty [`Help`].
+pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
+    fn optional<T: serde::de::DeserializeOwned>(
+        dir: &Path,
+        name: &str,
+    ) -> Result<Vec<T>, ContentError> {
+        let path = dir.join(name);
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+        ron::from_str(&text).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
+    }
+    let help = f4x_core::help::Help {
+        topics: optional(dir, "help.ron")?,
+        screens: optional(dir, "help_screens.ron")?,
+    };
+    let problems = help.problems();
+    if problems.is_empty() {
+        Ok(help)
+    } else {
+        Err(ContentError::Invalid(problems))
+    }
+}
+
 /// Load and validate all content files from a content directory.
 pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
     let read = |name: &str| {

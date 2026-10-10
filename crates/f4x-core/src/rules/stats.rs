@@ -38,6 +38,8 @@ pub enum Stat {
     CityMana,
     CityResearch,
     CityGrowthPercent,
+    /// People gained per turn (a city "figure" is 1000 people); may be negative.
+    CityGrowth,
     /// Unrest points; negative values make the city happier.
     CityUnrest,
     /// Percent change to the cost of units built in the city.
@@ -48,7 +50,11 @@ impl Stat {
     /// Lowest value the stat can take, or `None` if it may go negative.
     pub fn floor(self) -> Option<i32> {
         match self {
-            Stat::ToHit | Stat::CityUnrest | Stat::SpellCostPercent | Stat::UnitCostPercent => None,
+            Stat::ToHit
+            | Stat::CityUnrest
+            | Stat::CityGrowth
+            | Stat::SpellCostPercent
+            | Stat::UnitCostPercent => None,
             _ => Some(0),
         }
     }

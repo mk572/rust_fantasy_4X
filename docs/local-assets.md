@@ -22,11 +22,16 @@ python3 -I scripts/import_mom.py [--game DIR] [--remom DIR]
 cargo run -p f4x-tools -- validate content-local
 ```
 
-Builds races (with city names), units, buildings, abilities, spells, items, realms and
-level paths from the original `.lbx` files and the unit/race tables of a local
+Builds races (with city names), units, buildings, abilities, spells, items, realms,
+level paths and the original help (`help.ron`: 807 topics; `help_screens.ron`: which
+screen areas open which topic) from the original `.lbx` files and the unit/race tables of a local
 ReMoM clone. Everything it cannot map goes to `content-local/IMPORT_REPORT.txt`.
 Spells without a matching effect primitive use the `unimplemented` custom hook; the
 count of those is the to-do list for new primitives. Spell rarity is inferred from
 table order and some upkeep values are estimated (see the report).
 
 The client prefers `content-local/` when it exists, else `content/`.
+
+The importer also cross-checks costs, upkeep and race build bans against the help text
+(`[check]` lines in the report). What the help describes that is not implemented yet is in
+`docs/mechanics-gaps.md`.

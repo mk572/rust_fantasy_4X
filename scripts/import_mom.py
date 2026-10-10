@@ -192,33 +192,42 @@ UNIT_COLUMNS = (
     "move_flags attr1 attr2 abilities attack_flags sound"
 ).split()
 
-LEVELS_NORMAL = [("Recruit", 0), ("Regular", 20), ("Veteran", 60), ("Elite", 120), ("Ultra-Elite", 200)]
+# Normal units stop at Elite by experience; Ultra-Elite and Champion need the Warlord
+# ability / Crusade spell (help topics 530-532), which a level path cannot express.
+LEVELS_NORMAL = [("Recruit", 0), ("Regular", 20), ("Veteran", 60), ("Elite", 120)]
 LEVELS_HERO = [
     ("Hero", 0), ("Myrmidon", 20), ("Captain", 60), ("Commander", 120), ("Champion", 200),
-    ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 800),
+    ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 1000),
 ]
 
 # Building effects, by building name. Values follow the clone's building notes.
+def _mod(stat: str, op: str, value: int) -> str:
+    return f"(effect: Modify(stat: {stat}, op: {op}, value: {value}))"
+
+
+# Building effects, by building name, from the original help text (topics 716-748).
 BUILDING_EFFECTS = {
-    "Marketplace": "(effect: Modify(stat: CityGold, op: Percent, value: 50))",
-    "Bank": "(effect: Modify(stat: CityGold, op: Percent, value: 50))",
-    "Merchants Guild": "(effect: Modify(stat: CityGold, op: Percent, value: 100))",
-    "Library": "(effect: Modify(stat: CityResearch, op: Add, value: 2))",
-    "Sages Guild": "(effect: Modify(stat: CityResearch, op: Add, value: 3))",
-    "University": "(effect: Modify(stat: CityResearch, op: Add, value: 5))",
-    "Wizards Guild": "(effect: Modify(stat: CityResearch, op: Add, value: 8))",
-    "Oracle": "(effect: Modify(stat: CityUnrest, op: Add, value: -2))",
-    "Alchemists Guild": "(effect: Modify(stat: CityMana, op: Add, value: 3))",
-    "Shrine": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
-    "Temple": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
-    "Parthenon": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
-    "Cathedral": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
-    "Granary": "(effect: Modify(stat: CityFood, op: Add, value: 2))",
-    "Farmers Market": "(effect: Modify(stat: CityFood, op: Add, value: 3))",
-    "Animists Guild": "(effect: Modify(stat: CityFood, op: Add, value: 1))",
-    "Sawmill": "(effect: Modify(stat: CityProduction, op: Percent, value: 25))",
-    "Foresters Guild": "(effect: Modify(stat: CityFood, op: Add, value: 2))",
-    "Miners Guild": "(effect: Modify(stat: CityProduction, op: Percent, value: 50))",
+    "Marketplace": [_mod("CityGold", "Percent", 50)],
+    "Bank": [_mod("CityGold", "Percent", 50)],
+    "Merchants Guild": [_mod("CityGold", "Percent", 100)],
+    "Library": [_mod("CityResearch", "Add", 2)],
+    "Sages Guild": [_mod("CityResearch", "Add", 3)],
+    "University": [_mod("CityResearch", "Add", 5)],
+    "Wizards Guild": [_mod("CityResearch", "Add", 8), _mod("CityMana", "Add", -3)],
+    "Oracle": [_mod("CityUnrest", "Add", -2)],
+    "Alchemists Guild": [_mod("CityMana", "Add", 3)],
+    "Shrine": [_mod("CityMana", "Add", 1), _mod("CityUnrest", "Add", -1)],
+    "Temple": [_mod("CityMana", "Add", 2), _mod("CityUnrest", "Add", -1)],
+    "Parthenon": [_mod("CityMana", "Add", 3), _mod("CityUnrest", "Add", -1)],
+    "Cathedral": [_mod("CityMana", "Add", 4), _mod("CityUnrest", "Add", -1)],
+    "Granary": [_mod("CityFood", "Add", 2), _mod("CityGrowth", "Add", 20)],
+    "Farmers Market": [_mod("CityFood", "Add", 3), _mod("CityGrowth", "Add", 30)],
+    # The original adds the food per farmer; the city economy is not modelled yet, so flat.
+    "Animists Guild": [_mod("CityFood", "Add", 1), _mod("CityUnrest", "Add", -1)],
+    "Sawmill": [_mod("CityProduction", "Percent", 25)],
+    "Foresters Guild": [_mod("CityFood", "Add", 2), _mod("CityProduction", "Percent", 25)],
+    "Miners Guild": [_mod("CityProduction", "Percent", 50)],
+    "Mechanicians Guild": [_mod("CityProduction", "Percent", 50)],
 }
 # Placeholder "buildings" that are production choices, not structures.
 SKIP_BUILDINGS = {"None", "Trade Goods", "Housing"}
@@ -280,9 +289,9 @@ def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list
         parts.append("requires: [" + ", ".join(ron_str(r) for r in requires) + "]")
     if races_allowed:
         parts.append("races: [" + ", ".join(ron_str(r) for r in races_allowed) + "]")
-    effect = BUILDING_EFFECTS.get(b.name)
-    if effect:
-        parts.append(f"effects: [{effect}]")
+    effects = BUILDING_EFFECTS.get(b.name)
+    if effects:
+        parts.append(f"effects: [{', '.join(effects)}]")
     return "    (" + ", ".join(parts) + "),"
 
 
@@ -297,7 +306,7 @@ class Race:
     id: str
     name: str
     cant_build: list[int]
-    growth_percent: int
+    growth_people: int  # people per turn (the table counts in hundreds)
 
 
 def import_races(remom: Path) -> list[Race]:
@@ -565,17 +574,20 @@ UNIT_ENCHANT_MODS = {
     "Stone Skin": [("Defense", "Add", 1)],
     "Iron Skin": [("Defense", "Add", 5)],
     "Resist Elements": [("Resistance", "Add", 3)],
-    "Resist Magic": [("Resistance", "Add", 5)],
+    "Resist Magic": [("Resistance", "Add", 3)],
     "Lionheart": [("Melee", "Add", 3), ("Ranged", "Add", 3), ("Resistance", "Add", 3), ("MaxHp", "Add", 3)],
-    "Heroism": [("Melee", "Add", 1), ("Defense", "Add", 1), ("Resistance", "Add", 1)],
-    "Bless": [("Defense", "Add", 3), ("Resistance", "Add", 3)],
-    "True Sight": [("Resistance", "Add", 0)],
-    "Haste": [("Moves", "Add", 1)],
+    "Holy Armor": [("Defense", "Add", 2)],
+    "Holy Weapon": [("ToHit", "Add", 10)],
+    "Endurance": [("Moves", "Add", 1)],
+    "Flame Blade": [("Melee", "Add", 2), ("Ranged", "Add", 2)],
+    "Haste": [("Moves", "Percent", 100)],
     "Flight": [("Moves", "Set", 3)],
-    "Weakness": [("Melee", "Add", -2)],
+    "Weakness": [("Melee", "Add", -2), ("Ranged", "Add", -2)],
+    "Vertigo": [("ToHit", "Add", -20), ("Defense", "Add", -1)],
     "Black Prayer": [("Melee", "Add", -1), ("Defense", "Add", -1), ("Resistance", "Add", -2)],
-    "Mind Storm": [("Melee", "Add", -5), ("Defense", "Add", -5)],
-    "Warp Creature": [("Melee", "Percent", -50)],
+    "Mind Storm": [("Melee", "Add", -5), ("Ranged", "Add", -5), ("Defense", "Add", -5), ("Resistance", "Add", -5)],
+    "Black Channels": [("Melee", "Add", 2), ("Ranged", "Add", 1), ("MaxHp", "Add", 1),
+                       ("Resistance", "Add", 1), ("Defense", "Add", 1)],
 }
 NEGATIVE_UNIT_SPELLS = {"Weakness", "Black Prayer", "Mind Storm", "Warp Creature", "Web", "Vertigo",
                         "Confusion", "Possession", "Black Sleep", "Slow", "Creature Binding", "Petrify"}
@@ -726,6 +738,111 @@ def import_items(game: Path, report: Report) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Help
+# --------------------------------------------------------------------------- #
+
+HELP_RECORD_SIZE = 1048  # title[30], lbx_name[14], lbx_entry i16, include_entry i16, text[1000]
+# HELP.LBX entry 2 declares 1614 records but only the first 807 are real; the rest is
+# stale buffer contents the original build tool padded the file with.
+HELP_REAL_RECORDS = 807
+
+
+@dataclass
+class HelpTopic:
+    index: int
+    title: str
+    text: str
+    picture: tuple[str, int] | None
+    include: int | None
+
+
+def import_help(game: Path, report: Report) -> list[HelpTopic]:
+    topics = []
+    for i, rec in enumerate(read_records(read_lbx(game / "HELP.LBX")[2])[:HELP_REAL_RECORDS]):
+        title = cstr(rec[:30])
+        picture = None
+        if rec[30] != 0:  # an empty name means no picture; later bytes are stale
+            lbx_entry, include = struct.unpack_from("<hh", rec, 44)
+            picture = (cstr(rec[30:44]).lower(), lbx_entry)
+        else:
+            include = struct.unpack_from("<h", rec, 46)[0]
+        text = cstr(rec[48:]).replace("\x14", "\n")
+        if not title:
+            report.note("help", f"entry {i} has no title; kept with an empty title")
+        topics.append(HelpTopic(i, title, text, picture, include if include > 0 else None))
+    return topics
+
+
+def help_ron(topic: HelpTopic) -> str:
+    parts = [f"index: {topic.index}", f"title: {ron_str(topic.title)}", f"text: {ron_str(topic.text)}"]
+    if topic.picture:
+        parts.append(f"picture: Some(({ron_str(topic.picture[0])}, {topic.picture[1]}))")
+    if topic.include is not None:
+        parts.append(f"include: Some({topic.include})")
+    return "    (" + ", ".join(parts) + "),"
+
+
+def import_help_screens(game: Path, remom: Path) -> list[str]:
+    """Which screen areas open which help topic (HLPENTRY.LBX)."""
+    doc = (remom / "doc/___LBX/HLPENTRY_LBX.md").read_text(encoding="utf-8", errors="replace")
+    names = {int(n): label for n, label in re.findall(r'HLPENTRY\.LBX, (\d+)\s+""\s+"([^"]*)"', doc)}
+    lines = []
+    for i, entry in enumerate(read_lbx(game / "HLPENTRY.LBX")):
+        if len(entry) < 4:
+            continue
+        fields = []
+        for rec in read_records(entry):
+            help_idx, x1, y1, x2, y2 = struct.unpack("<5h", rec)
+            fields.append(f"(help: {help_idx}, rect: ({x1}, {y1}, {x2}, {y2}))")
+        name = names.get(i, f"screen {i}")
+        lines.append(f"    (id: {i}, name: {ron_str(name)}, fields: [{', '.join(fields)}]),")
+    return lines
+
+
+def cross_check_help(topics: list[HelpTopic], buildings: list[Building], races: list[Race],
+                     spell_rows: list[SpellRow], report: Report) -> int:
+    """Compare imported numbers with what the original help text states.
+
+    Returns the number of mismatches; each is also written to the report."""
+    by_title = {norm_name(t.title): t for t in topics}
+    found = 0
+
+    def mismatch(text: str) -> None:
+        nonlocal found
+        found += 1
+        report.note("check", text)
+
+    for b in buildings:
+        topic = by_title.get(norm_name(b.name))
+        match = topic and re.match(r"Maintenance: (\d+) gold/turn", topic.text)
+        if match and int(match.group(1)) != b.upkeep:
+            mismatch(f"building {b.name}: upkeep {b.upkeep}, help says {match.group(1)}")
+    building_names = {norm_name(b.name): b.index for b in buildings}
+    for race in races:
+        topic = by_title.get(norm_name(race.name.replace("Dwarven", "Dwarf")) + "townsfolk")
+        if not topic:
+            continue
+        banned = set()
+        sentence = re.search(r"(?:may not|cannot|can not) build (.*?)\.", topic.text)
+        if sentence:
+            for part in re.split(r",| or ", sentence.group(1)):
+                key = norm_name(part)
+                singular = re.sub(r"ies$", "y", key) if key.endswith("ies") else key.rstrip("s")
+                # "Maritime or Wizard's Guilds": a bare word shares the last item's noun.
+                for candidate in (key, singular, singular + "guild"):
+                    if candidate in building_names:
+                        banned.add(building_names[candidate])
+        if banned != set(race.cant_build):
+            mismatch(f"race {race.name}: cannot-build {sorted(race.cant_build)}, help text implies {sorted(banned)}")
+    for row in spell_rows[1:]:
+        topic = by_title.get(norm_name(row.name))
+        match = topic and re.search(r"Casting Cost: (\d+)", topic.text)
+        if match and int(match.group(1)) != row.cost:
+            mismatch(f"spell {row.name}: cost {row.cost}, help says {match.group(1)}")
+    return found
+
+
+# --------------------------------------------------------------------------- #
 # Output
 # --------------------------------------------------------------------------- #
 
@@ -773,8 +890,8 @@ def run(game: Path, remom: Path, out: Path) -> Report:
     for race in races:
         mine = [u.id for u in units if u.race == race.index]
         effects = ""
-        if race.growth_percent:
-            effects = f", effects: [(effect: Modify(stat: CityGrowthPercent, op: Add, value: {race.growth_percent}))]"
+        if race.growth_people:
+            effects = f", effects: [{_mod('CityGrowth', 'Add', race.growth_people)}]"
         race_lines.append(
             f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
             f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
@@ -806,13 +923,19 @@ def run(game: Path, remom: Path, out: Path) -> Report:
     write_list(out / "items.ron", header, items)
     write_list(out / "level_paths.ron", header,
                [level_path_ron("standard_xp", LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
+    help_topics = import_help(game, report)
+    mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
+    LOG.info("help cross-check: %d mismatches", mismatches)
+    write_list(out / "help.ron", header, [help_ron(t) for t in help_topics])
+    write_list(out / "help_screens.ron", header, import_help_screens(game, remom))
     shutil.copy(REPO / "content/rules.ron", out / "rules.ron")
     for generic in ("terrain.ron", "features.ron"):  # terrain and features are not game-specific data
         shutil.copy(REPO / "content" / generic, out / generic)
 
     summary = (
         f"races {len(races)}, buildings {len(buildings)}, units {len(units)}, "
-        f"abilities {len(used_abilities)}, spells {len(spells)}, items {len(items)}"
+        f"abilities {len(used_abilities)}, spells {len(spells)}, items {len(items)}, "
+        f"help topics {len(help_topics)}"
     )
     (out / "IMPORT_REPORT.txt").write_text(summary + "\n\n" + "\n".join(report.lines) + "\n", encoding="utf-8")
     LOG.info("imported: %s (%d notes in IMPORT_REPORT.txt)", summary, len(report.lines))
