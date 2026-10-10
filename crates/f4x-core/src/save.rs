@@ -46,6 +46,11 @@ pub struct Snapshot {
     /// The node setting: 0 weak, 1 normal, 2 powerful.
     #[serde(default = "normal_magic")]
     pub magic_strength: u8,
+    /// Set once the game has ended.
+    #[serde(default)]
+    pub game_over: Option<crate::endgame::GameOver>,
+    #[serde(default)]
+    pub human: Option<u8>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
     pub players: Vec<PlayerSave>,
@@ -149,6 +154,8 @@ pub struct PlayerSave {
     pub banished: bool,
     #[serde(default)]
     pub defeated: bool,
+    #[serde(default)]
+    pub defeated_by: Option<u8>,
     /// Absent in older saves: the player's number picks a colour.
     #[serde(default)]
     pub banner: Option<u8>,
@@ -481,6 +488,7 @@ impl Game {
                 summon_at: p.summon_at,
                 banished: p.banished,
                 defeated: p.defeated,
+                defeated_by: p.defeated_by.map(|d| d.0),
                 banner: Some(p.banner),
             })
             .collect();
@@ -585,6 +593,8 @@ impl Game {
             turn: self.turn,
             next_serial: self.next_serial,
             magic_strength: self.magic_strength,
+            game_over: self.game_over,
+            human: self.human.map(|h| h.0),
             map,
             fog,
             players,
@@ -641,6 +651,8 @@ impl Snapshot {
         game.content = content;
         game.turn = self.turn;
         game.magic_strength = self.magic_strength.min(2);
+        game.game_over = self.game_over;
+        game.human = self.human.map(PlayerId);
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
@@ -685,6 +697,7 @@ impl Snapshot {
                 summon_at: p.summon_at,
                 banished: p.banished,
                 defeated: p.defeated,
+                defeated_by: p.defeated_by.map(PlayerId),
                 banner: p
                     .banner
                     .unwrap_or(if p.id == u8::MAX {

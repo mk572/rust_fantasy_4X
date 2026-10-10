@@ -68,6 +68,9 @@ impl Game {
 
     /// Run a command, recording how to take it back when that is allowed.
     pub fn apply(&mut self, command: Command) -> Vec<Event> {
+        if self.game_over.is_some() {
+            return vec![Event::Rejected(crate::Rejection::GameOver)];
+        }
         if !self.undo_on || self.battle.is_some() {
             return self.execute(command);
         }

@@ -34,6 +34,8 @@ pub enum Screen {
     Battle,
     /// Creating the human wizard before the game begins.
     Create,
+    /// The game has ended: result and score.
+    GameOver,
 }
 
 pub struct App {
@@ -65,6 +67,8 @@ pub struct App {
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
+    /// The player has seen the game-over screen and chose to look at the map.
+    pub(crate) game_over_seen: bool,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -112,6 +116,7 @@ impl App {
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
             battle_ui: Default::default(),
+            game_over_seen: false,
         };
         app.start_game();
         Ok(app)
@@ -165,6 +170,7 @@ impl App {
                 p.banner = (human_banner + 1) % f4x_core::player::BANNER_CHOICES;
             }
         }
+        game.human = Some(HUMAN);
         game.set_undo(true);
         Ok(game)
     }
@@ -443,7 +449,9 @@ impl App {
             self.race = r.index();
         }
         self.game = game;
+        self.game.human.get_or_insert(HUMAN);
         self.game.set_undo(true);
+        self.game_over_seen = false;
         self.screen = Screen::Map;
         self.choosing = false;
         self.selection.clear();
@@ -558,6 +566,7 @@ impl App {
             Ok(game) => {
                 self.game = game;
                 self.seed = seed;
+                self.game_over_seen = false;
                 self.screen = Screen::Map;
                 self.selection.clear();
                 self.log.clear();
@@ -599,7 +608,15 @@ impl App {
         if self.game.in_battle() && self.screen != Screen::Battle {
             self.screen = Screen::Battle;
         }
+        if self.game.game_over.is_some()
+            && !self.game_over_seen
+            && !self.game.in_battle()
+            && self.screen != Screen::GameOver
+        {
+            self.screen = Screen::GameOver;
+        }
         match self.screen {
+            Screen::GameOver => return self.game_over_screen(),
             Screen::City(city) => {
                 self.city_screen(city);
             }

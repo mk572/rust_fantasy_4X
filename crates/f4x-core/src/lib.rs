@@ -11,6 +11,7 @@ pub mod corruption;
 pub mod economy;
 pub mod featuregen;
 pub mod fog;
+pub mod endgame;
 pub mod fortress;
 pub mod globals;
 pub mod help;
@@ -218,6 +219,12 @@ pub enum Event {
     WizardDefeated {
         player: city::PlayerId,
     },
+    /// The game is over: `winner` won, by conquest or by the Spell of Mastery.
+    GameOver {
+        winner: city::PlayerId,
+        kind: endgame::EndKind,
+        turn: u32,
+    },
     CityCaptured {
         city: hecs::Entity,
         from: city::PlayerId,
@@ -350,6 +357,8 @@ pub enum Rejection {
     Purify(corruption::PurifyError),
     BattleStart(battle::game::BattleStartError),
     Battle(battle::BattleError),
+    /// The game has ended; nothing more can be done.
+    GameOver,
 }
 
 fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
@@ -381,6 +390,10 @@ pub struct Game {
     pub magic_strength: u8,
     /// The battle being fought, if any. Saves do not hold a battle in progress.
     pub battle: Option<battle::game::ActiveBattle>,
+    /// Set once the game has ended; every later command is refused.
+    pub game_over: Option<endgame::GameOver>,
+    /// The human wizard, whose defeat ends the game at once.
+    pub human: Option<city::PlayerId>,
     undo_on: bool,
     undo_stack: Vec<undo::UndoEntry>,
 }
@@ -401,6 +414,8 @@ impl Game {
             timers: Vec::new(),
             magic_strength: 1,
             battle: None,
+            game_over: None,
+            human: None,
             undo_on: false,
             undo_stack: Vec::new(),
         }

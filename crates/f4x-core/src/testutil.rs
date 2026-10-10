@@ -499,14 +499,19 @@ pub fn content_with_magic() -> Content {
         100,
         SpellTarget::None,
     ));
-    spells.push(base(
+    let mut mastery = base(
         "spell_of_mastery",
         "arcane",
         Rarity::Uncommon,
         5000,
         1,
         SpellTarget::None,
-    ));
+    );
+    mastery.effects = vec![rule(
+        Trigger::OnCast,
+        Effect::Custom(crate::endgame::SPELL_OF_MASTERY.into()),
+    )];
+    spells.push(mastery);
     let mut strength = base(
         "giant_strength",
         "nature",

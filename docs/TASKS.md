@@ -55,7 +55,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 58 | Magic | Unit enchantments needing non-stat effects |
 | 59 | Magic | Dispel mathematics and the counter-magic family |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories |
-| 61 | Magic | Spell of Mastery, Spell of Return and the Spell of Mastery research cost |
+| 61 | Magic | The Spell of Mastery's research cost and the AI casting it |
 | 62 | Magic | Player-chosen losses when mana runs short |
 | 63 | Meta | Diplomacy |
 | 64 | Meta | Wizard personalities and AI objectives |
@@ -64,7 +64,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 67 | Meta | AI attack |
 | 68 | Meta | Random events |
 | 69 | Meta | Difficulty levels |
-| 70 | Meta | Victory conditions and score |
 | 71 | Meta | Advisors |
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
@@ -124,6 +123,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 131 | Combat | Battle grid shape and deployment as in the original |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 133 | Client | Prompt before attacking, and battles between AI players |
+| 134 | Client | Game-end cut-scenes and the original's score screen |
 
 ## Descriptions
 
@@ -298,10 +298,11 @@ Magic and Spell Binding [610]. The current host dispel is a simple strength-over
 wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
 skill, fame, diplomacy) and spell ownership transfer.
 
-**61. Spell of Mastery, Spell of Return and the Spell of Mastery research cost.** Victory by
-casting the Spell of Mastery, Spell of Return after banishment (zero power while casting),
-and the Spell of Mastery's special research cost (the data holds a placeholder of 1 because the
-original computes it).
+**61. The Spell of Mastery's research cost and the AI casting it.** Finishing the spell wins
+the game and the Spell of Return works after banishment (tasks 70 and 15; `docs/game_end.md`).
+Still open: the Spell of Mastery's special research cost (the data holds a placeholder of 1
+because the original computes it), the announcement when a wizard starts casting it, and the AI
+choosing to cast it.
 
 **62. Player-chosen losses when mana runs short.** The engine drops the newest upkeep items
 deterministically; the original asks the player. Add a prompt or a priority list, and the "mana
@@ -331,10 +332,9 @@ ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow 
 (count from the real turn, not from game start or load).
 
 **69. Difficulty levels.** AI power, gold and mana modifiers by difficulty and the Hard-level
-starting spells for the AI [difficulty tables in the original]; apply to AI players only.
-
-**70. Victory conditions and score.** Win by Spell of Mastery or conquest, game-over screen, and
-the score with its multipliers [642-647, 799-805].
+starting spells for the AI [difficulty tables in the original]; apply to AI players only. The
+final score is also scaled by difficulty (`endgame::scale_for_difficulty` exists; the score is
+not yet scaled because the game has no difficulty setting). See `docs/game_end.md`.
 
 **71. Advisors.** The original's advisors (surveyor, cartographer, historian, astrologer, chancellor,
 tax collector, grand vizier, war and mage advisors) give information screens and messages about
@@ -384,12 +384,13 @@ zip, and the local-assets workflow documented for players who supply their own o
 (`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
 to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
 
-**82. Wizard defeat aftermath and fortress display.** When a wizard is defeated (task 15's
-`WizardDefeated`), the original turns their garrisoned normal units neutral, dismisses their heroes
-and fantastic units, removes their city enchantments everywhere, and (for AI) turns their remaining
-cities neutral. An AI wizard resigns instead of casting the Spell of Return if its skill is below 40
+**82. Wizard defeat aftermath and fortress display.** Done when a wizard is defeated
+(`endgame::aftermath`): all their units are dismissed, their enchantments come off every city and
+unit, their nodes are freed and the conqueror takes half their gold. Not done: when a *banished*
+wizard with other cities resigns, the original turns their garrisoned normal units neutral and (for
+AI) their remaining cities neutral. An AI wizard resigns instead of casting the Spell of Return if its skill is below 40
 or it has no mana. Also draw the fortress and circle as buildings in the city screen's building
-area. Needed before victory conditions (70) work properly.
+area.
 
 **83. Wizard portraits and banner colours.** The original lets the player choose a portrait for a
 custom wizard and a banner colour (help topics 658 and 674); here colours come from the player
@@ -583,3 +584,11 @@ stack or a city starts the battle at once; the original asks first (attack, or c
 attacks (`AttackRequested` for a non-human attacker) are ignored by the client, and nothing
 resolves a fight between two AI players; the AI crate has no battle code (task 46). Auto-resolve
 for battles a player does not want to fight by hand also belongs here.
+
+**134. Game-end cut-scenes and the original's score screen.** The game-over screen is plain text
+and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
+a conquest, a conquest animation; announces when a wizard *starts* casting the Spell of Mastery
+(full-screen, with a two-line caption) and, when it completes, parades each surviving wizard's
+portrait; and draws the score as icon rows (book, townsfolk, defeated wizards' portraits, fame,
+time, Spell of Mastery) with a running bar of `min(score / 40, 200)`. Needs the local art and
+music (task 93). See `docs/game_end.md`.

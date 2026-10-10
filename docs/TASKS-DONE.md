@@ -27,6 +27,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
+| 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
@@ -145,6 +146,18 @@ terrain, eight-direction movement with costs and obstacles, deployment on opposi
 turns with per-unit moves and one attack each, win by elimination, flee, a 100-turn limit.
 Walls and wall sections are not built yet: they belong to the siege task (41); the battle screen is 45.
 
+**45. Battle screen in the client (done).** `battle_screen.rs`: the combat grid in the original's
+isometric projection (32 by 16 cells, step 16 by 8) scaled to the window, ground from the
+original's `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` sets (and the Myrror `c` variants) chosen by the
+overland terrain, trees and rocks on blocked squares, units as their overland icon on a banner
+base with health bar and figure count, reach and target markers, a side panel with the
+selected or hovered unit's statistics, and orders by click (select, move, melee, shoot) and keys
+(Space done, Tab next, Enter end turn) or buttons (Flee asks twice). A move into an enemy stack
+or a guarded site starts the battle; the other side is played by a plain placeholder AI
+(`battle/ai.rs`, walk at the nearest enemy and hit it) until task 46. Results go back through the core
+(wounds, deaths, site loot logged). `--battle` with `--shot` opens a test fight. Remaining
+work is split into tasks 131-133 and 112 (map art), 43/44 (casting).
+
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
 turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.
@@ -175,6 +188,10 @@ and Charm of Life (a quarter of the hit points, at least one). Unit rules can no
 conditions on a unit's kind (`Condition::KindIs`). The data marks these spells with the
 `global_effect` hook so that casting does not report "no effect yet".
 
+**70. Victory conditions and score (done).** The game ends by conquest, by the human wizard's
+defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
+the cut-scenes and the hall of fame are tasks 134 and 88.
+
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
 command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness
 rules: a command that explored new squares, drew random numbers or started a battle cannot be
@@ -203,16 +220,3 @@ cell positions: ground by plane and enchantment, river or ocean overlay, hills o
 the road grid, every cell back to front, the walls; hovering shows a building's name. Not done:
 the original's road masking (the whole grid is drawn), animation of buildings and water,
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
-
-**45. Battle screen in the client (done).** `battle_screen.rs`: the combat grid in the original's
-isometric projection (32 by 16 cells, step 16 by 8) scaled to the window, ground from the
-original's `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` sets (and the Myrror `c` variants) chosen by the
-overland terrain, trees and rocks on blocked squares, units as their overland icon on a banner
-base with health bar and figure count, reach and target markers, a side panel with the
-selected or hovered unit's statistics, and orders by click (select, move, melee, shoot) and keys
-(Space done, Tab next, Enter end turn) or buttons (Flee asks twice). A move into an enemy stack
-or a guarded site starts the battle; the other side is played by a plain placeholder AI
-(`battle/ai.rs`, walk at the nearest enemy and hit it) until task 46. Results go back through the core
-(wounds, deaths, site loot logged). `--battle` with `--shot` opens a test fight. Remaining
-work is split into tasks 131-133 and 112 (map art), 43/44 (casting).
-

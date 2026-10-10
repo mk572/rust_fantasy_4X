@@ -4,6 +4,7 @@
 mod art;
 mod battle_anim;
 mod battle_screen;
+mod game_over_screen;
 mod city_screen;
 mod cityscape;
 mod create_screen;

@@ -217,7 +217,7 @@ impl Game {
         }]
     }
 
-    fn defeat(&mut self, loser: PlayerId, _winner: PlayerId) -> Vec<Event> {
+    fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         if let Some(p) = self.player_mut(loser) {
             p.defeated = true;
             p.banished = false;
@@ -225,7 +225,10 @@ impl Game {
             p.summon_at = None;
             p.magic.casting = None;
         }
-        vec![Event::WizardDefeated { player: loser }]
+        self.aftermath(loser, winner);
+        let mut events = vec![Event::WizardDefeated { player: loser }];
+        events.extend(self.check_conquest(winner));
+        events
     }
 
     /// Raze a city. A fortress city cannot be destroyed: it survives with at least one
@@ -573,5 +576,119 @@ mod tests {
         bad.players[1].fortress = Some(at(9, 9));
         let err = bad.restore(content_with_magic()).err().unwrap();
         assert!(matches!(err, LoadError::Inconsistent(_)), "{err:?}");
+    }
+
+    #[test]
+    fn taking_the_last_rivals_last_city_wins_by_conquest() {
+        let mut g = world();
+        let capital = place(&mut g, P0, at(5, 5));
+        g.player_mut(P0).unwrap().gold = 90;
+        let events = g.capture_city(capital, P1);
+        assert!(events.contains(&Event::GameOver {
+            winner: P1,
+            kind: crate::endgame::EndKind::Conquest,
+            turn: 1
+        }));
+        assert_eq!(g.player(P0).unwrap().defeated_by, Some(P1));
+        // Half the loser's gold goes to the winner.
+        assert_eq!(g.player(P0).unwrap().gold, 45);
+        assert_eq!(g.player(P1).unwrap().gold, 145);
+        assert_eq!(
+            g.apply(Command::EndTurn),
+            vec![Event::Rejected(crate::Rejection::GameOver)]
+        );
+        // The winner scores 50 for the conquest.
+        assert_eq!(g.score(P1).conquests, 50);
+        assert_eq!(g.score(P0).conquests, 0);
+    }
+
+    #[test]
+    fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
+        let mut g = world();
+        g.players.push(Player::new(PlayerId(2), "Third"));
+        let capital = place(&mut g, P1, at(5, 5));
+        let events = g.capture_city(capital, P0);
+        assert!(events.contains(&Event::WizardDefeated { player: P1 }));
+        assert!(g.game_over.is_none(), "wizards 0 and 2 still stand");
+
+        let mut g = world();
+        g.players.push(Player::new(PlayerId(2), "Third"));
+        g.human = Some(P0);
+        let capital = place(&mut g, P0, at(5, 5));
+        let events = g.capture_city(capital, P1);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::GameOver { winner, .. } if *winner == P1)));
+    }
+
+    #[test]
+    fn finishing_the_spell_of_mastery_wins_and_scores() {
+        let mut g = world();
+        let capital = place(&mut g, P0, at(5, 5));
+        g.player_mut(P0).unwrap().fame = 10;
+        let s = spell(&g, "spell_of_mastery");
+        g.magic_mut_for_tests(P0).known.insert(s);
+        g.magic_mut_for_tests(P0).skill_left = 9000;
+        g.player_mut(P0).unwrap().mana = 9000;
+        let _ = capital;
+        let events = g.apply(Command::CastSpell {
+            player: P0,
+            spell: s,
+            target: None,
+        });
+        assert!(
+            events.contains(&Event::GameOver {
+                winner: P0,
+                kind: crate::endgame::EndKind::SpellOfMastery,
+                turn: 1
+            }),
+            "{events:?}"
+        );
+        let score = g.score(P0);
+        assert_eq!(score.mastery, 250);
+        assert_eq!(score.fame, 20);
+        // The rival still stood, so it counts as beaten.
+        assert_eq!(score.conquests, 50);
+        assert_eq!(score.time, 2000 - 2);
+        assert_eq!(score.townsfolk, 2);
+        assert_eq!(score.spells, 2);
+        assert_eq!(score.total(), 2 + 2 + 50 + 20 + 1998 + 250);
+        // The rival gets no time bonus: the mastery winner is someone else.
+        assert_eq!(g.score(P1).time, 0);
+    }
+
+    #[test]
+    fn a_defeat_clears_the_losers_enchantments_and_nodes() {
+        let mut g = world();
+        let capital = place(&mut g, P0, at(5, 5));
+        let town = city(&mut g, P1, at(15, 5));
+        let ward = spell(&g, "move_fortress");
+        g.world
+            .insert_one(town, crate::economy::Enchantments(vec![(ward, P0)]))
+            .unwrap();
+        g.player_mut(P0).unwrap().magic.global.push(ward);
+        g.capture_city(capital, P1);
+        assert!(g
+            .world
+            .get::<&crate::economy::Enchantments>(town)
+            .unwrap()
+            .0
+            .is_empty());
+        assert!(g.player(P0).unwrap().magic.global.is_empty());
+    }
+
+    #[test]
+    fn the_end_of_the_game_is_saved() {
+        let mut g = world();
+        g.human = Some(P0);
+        let capital = place(&mut g, P0, at(5, 5));
+        g.capture_city(capital, P1);
+        let loaded = Snapshot::from_text(&g.snapshot().to_text().unwrap())
+            .unwrap()
+            .restore(content_with_magic())
+            .unwrap();
+        assert_eq!(loaded.game_over, g.game_over);
+        assert_eq!(loaded.human, Some(P0));
+        assert_eq!(loaded.player(P0).unwrap().defeated_by, Some(P1));
     }
 }

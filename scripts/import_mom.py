@@ -745,6 +745,8 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in FORTRESS_HOOKS:
         hook = FORTRESS_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnCity", "instant"
+    if name == "Spell of Mastery":  # finishing it wins the game (engine hook)
+        return ['(when: OnCast, target: Chosen, effect: Custom("spell_of_mastery"))'], "None", "instant"
     if name in TILE_HOOKS:
         hook = TILE_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"

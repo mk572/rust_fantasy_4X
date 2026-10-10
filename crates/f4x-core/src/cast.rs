@@ -246,6 +246,11 @@ impl EffectHost for GameHost<'_> {
             // Carried out by the engine wherever the wizard's global spells are consulted.
             return;
         }
+        if hook == crate::endgame::SPELL_OF_MASTERY {
+            let events = self.game.win_by_mastery(ctx.owner);
+            self.events.extend(events);
+            return;
+        }
         if let Target::Tile(at) = who {
             let events = match hook {
                 crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),

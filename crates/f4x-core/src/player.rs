@@ -24,6 +24,8 @@ pub struct Player {
     pub banished: bool,
     /// The wizard has lost everything.
     pub defeated: bool,
+    /// Who took the wizard's last city.
+    pub defeated_by: Option<PlayerId>,
     /// The banner colour: 0 blue, 1 green, 2 purple, 3 red, 4 yellow (5, brown, is the
     /// neutral player's). Flags, cities and units are drawn in it.
     pub banner: u8,
@@ -50,6 +52,7 @@ impl Player {
             summon_at: None,
             banished: false,
             defeated: false,
+            defeated_by: None,
             banner: if id.0 == u8::MAX {
                 NEUTRAL_BANNER
             } else {
