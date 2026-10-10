@@ -12,5 +12,5 @@ cargo test --workspace
 cargo run -p f4x-client            # uses content-local/ and assets-local/ if present
 ```
 
-Client keys: arrows/WASD scroll, Tab switch plane, +/- zoom, B found a city at the cursor, click a city for its screen, Enter end turn, N new map, R change race, F5 quick-save, F9 quick-load (also autosaved each turn to `saves/`), Esc quit.
+Client keys: arrows/WASD scroll, Tab switch plane, +/- zoom, B found a city at the cursor, click a city for its screen, Enter end turn, M magic screen, N new map, R change race, F5 quick-save, F9 quick-load (also autosaved each turn to `saves/`), Esc quit.
 `--shot FILE [--city]` saves a screenshot and exits (for automated checks).
