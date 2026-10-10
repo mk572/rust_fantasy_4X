@@ -289,6 +289,14 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
                 p.push(format!("building {:?} lists unknown race {race:?}", b.id));
             }
         }
+        if let Some(old) = &b.replaces {
+            if r.buildings.by_name(old).is_none() {
+                p.push(format!(
+                    "building {:?} replaces unknown building {old:?}",
+                    b.id
+                ));
+            }
+        }
     }
     // Requirement cycles: depth-first search with white/grey/black colouring.
     let graph: BTreeMap<&str, Vec<&str>> = r
@@ -547,6 +555,16 @@ mod tests {
         assert!(has(&p, "Summoned and needs a realm"), "{p:?}");
         assert!(has(&p, "ranged attack but no ammo"), "{p:?}");
         assert!(has(&p, "Figures must be at least 1"), "{p:?}");
+    }
+
+    #[test]
+    fn catches_a_building_replacing_nothing() {
+        let p = problems(&[(
+            "buildings.ron",
+            "id: \"armoury\",  name: \"Armoury\",  cost: 80, upkeep_gold: 1,",
+            "id: \"armoury\",  name: \"Armoury\",  cost: 80, upkeep_gold: 1, replaces: Some(\"ghost\"),",
+        )]);
+        assert!(has(&p, "replaces unknown building \"ghost\""), "{p:?}");
     }
 
     #[test]

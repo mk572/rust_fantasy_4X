@@ -4,58 +4,59 @@
 // relative weight. Weights are relative among all features of the same kind that
 // match one (terrain class, plane). Mineral numbers are modelled on the original
 // game's mineral tables as documented by community clones; they are starting
-// values to tune, not rules. Myrror differs from Arcanus in mineral mix
+// values to tune, not rules. `city` is what a city working the tile gains (gold, mana,
+// whole food, percent off unit costs, outpost growth chance). Myrror differs from Arcanus in mineral mix
 // (adamantium, crysx, more gold/mithril/quork) and, see GenParams, in density.
 [
     // ---- Minerals and specials ------------------------------------------------
-    (id: "wild_game", name: "Wild Game", kind: Mineral, spawn: [
+    (id: "wild_game", name: "Wild Game", kind: Mineral, city: (food: 2, outpost_growth: 10), spawn: [
         (terrain: [Forest], planes: [Arcanus, Myrror], weight: 100),
     ]),
-    (id: "nightshade", name: "Nightshade", kind: Mineral, spawn: [
+    (id: "nightshade", name: "Nightshade", kind: Mineral, city: (outpost_growth: 10), spawn: [
         (terrain: [Swamp], planes: [Arcanus, Myrror], weight: 100),
     ]),
-    (id: "iron_ore", name: "Iron Ore", kind: Mineral, spawn: [
+    (id: "iron_ore", name: "Iron Ore", kind: Mineral, city: (unit_cost_percent: 5, outpost_growth: 5), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 200),
         (terrain: [Mountains], planes: [Arcanus], weight: 133),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "coal", name: "Coal", kind: Mineral, spawn: [
+    (id: "coal", name: "Coal", kind: Mineral, city: (unit_cost_percent: 10, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 100),
         (terrain: [Mountains], planes: [Arcanus], weight: 167),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "silver_ore", name: "Silver Ore", kind: Mineral, spawn: [
+    (id: "silver_ore", name: "Silver Ore", kind: Mineral, city: (gold: 2, outpost_growth: 5), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 133),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "gold_ore", name: "Gold Ore", kind: Mineral, spawn: [
+    (id: "gold_ore", name: "Gold Ore", kind: Mineral, city: (gold: 3, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 133),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills],     planes: [Myrror],  weight: 40),
         (terrain: [Mountains], planes: [Myrror],  weight: 20),
     ]),
-    (id: "mithril_ore", name: "Mithril Ore", kind: Mineral, spawn: [
+    (id: "mithril_ore", name: "Mithril Ore", kind: Mineral, city: (mana: 1, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 33),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills],     planes: [Myrror],  weight: 20),
         (terrain: [Mountains], planes: [Myrror],  weight: 30),
     ]),
     // Myrror only.
-    (id: "adamantium_ore", name: "Adamantium Ore", kind: Mineral, spawn: [
+    (id: "adamantium_ore", name: "Adamantium Ore", kind: Mineral, city: (mana: 2, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Myrror], weight: 10),
         (terrain: [Mountains], planes: [Myrror], weight: 20),
     ]),
-    (id: "gem", name: "Gems", kind: Mineral, spawn: [
+    (id: "gem", name: "Gems", kind: Mineral, city: (gold: 5, outpost_growth: 10), spawn: [
         (terrain: [Desert], planes: [Arcanus], weight: 67),
         (terrain: [Desert], planes: [Myrror],  weight: 20),
     ]),
-    (id: "quork_crystal", name: "Quork Crystal", kind: Mineral, spawn: [
+    (id: "quork_crystal", name: "Quork Crystal", kind: Mineral, city: (mana: 3, outpost_growth: 10), spawn: [
         (terrain: [Desert], planes: [Arcanus], weight: 33),
         (terrain: [Desert], planes: [Myrror],  weight: 60),
     ]),
     // Myrror only.
-    (id: "crysx_crystal", name: "Crysx Crystal", kind: Mineral, spawn: [
+    (id: "crysx_crystal", name: "Crysx Crystal", kind: Mineral, city: (mana: 5, outpost_growth: 10), spawn: [
         (terrain: [Desert], planes: [Myrror], weight: 20),
     ]),
 

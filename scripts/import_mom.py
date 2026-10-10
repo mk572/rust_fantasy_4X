@@ -185,6 +185,18 @@ MOVE_FLAG_ABILITIES = [
     (0x0080, "merging", "Merging", "Merges with other units of its kind."),
 ]
 
+# Race traits from the original code (CITYCALC.c) and help text, by race id.
+RACE_TRAITS = {
+    "halfling": "farmer_food: 3",
+    "dwarven": "worker_production_x2: 6, double_mining: true",
+    "klackon": "worker_production_x2: 6",
+    "dark_elf": "mana_per_citizen_x2: 2",
+    "high_elf": "mana_per_citizen_x2: 1",
+    "beastmen": "mana_per_citizen_x2: 1",
+    "draconian": "mana_per_citizen_x2: 1",
+    "nomad": "trade_percent: 50",
+}
+
 # Unit-table columns, in file order.
 UNIT_COLUMNS = (
     "name melee ranged ranged_type ammo to_hit defense resist moves cost upkeep race "
@@ -219,10 +231,11 @@ BUILDING_EFFECTS = {
     "Temple": [_mod("CityMana", "Add", 2), _mod("CityUnrest", "Add", -1)],
     "Parthenon": [_mod("CityMana", "Add", 3), _mod("CityUnrest", "Add", -1)],
     "Cathedral": [_mod("CityMana", "Add", 4), _mod("CityUnrest", "Add", -1)],
-    "Granary": [_mod("CityFood", "Add", 2), _mod("CityGrowth", "Add", 20)],
-    "Farmers Market": [_mod("CityFood", "Add", 3), _mod("CityGrowth", "Add", 30)],
-    # The original adds the food per farmer; the city economy is not modelled yet, so flat.
-    "Animists Guild": [_mod("CityFood", "Add", 1), _mod("CityUnrest", "Add", -1), _mod("CityMana", "Add", 3)],
+    # Granary and market food arrives after the farmland limit is applied.
+    "Granary": [_mod("CityFoodFlat", "Add", 2), _mod("CityGrowth", "Add", 20)],
+    "Farmers Market": [_mod("CityFoodFlat", "Add", 3), _mod("CityGrowth", "Add", 30)],
+    # +1 food for every farmer; +3 mana is what the original game's code gives this guild.
+    "Animists Guild": [_mod("FarmerFood", "Add", 1), _mod("CityUnrest", "Add", -1), _mod("CityMana", "Add", 3)],
     "Sawmill": [_mod("CityProduction", "Percent", 25)],
     "Foresters Guild": [_mod("CityFood", "Add", 2), _mod("CityProduction", "Percent", 25)],
     "Miners Guild": [_mod("CityProduction", "Percent", 50)],
@@ -259,6 +272,8 @@ class Building:
     requires: list[int]
     cost: int
     upkeep: int
+    replaces: int | None = None  # building index made redundant by this one
+    starting_xp: int = 0  # experience units built here start with
 
 
 def import_buildings(game: Path, report: Report) -> list[Building]:
@@ -266,7 +281,8 @@ def import_buildings(game: Path, report: Report) -> list[Building]:
     out = []
     for i, r in enumerate(records):
         name = cstr(r[:20])
-        req1, req2, _replace = struct.unpack_from("<hhh", r, 20)
+        req1, req2, replace = struct.unpack_from("<hhh", r, 20)
+        grants_20, grants_60 = struct.unpack_from("<hh", r, 26)
         upkeep = -struct.unpack_from("<h", r, 32)[0]
         cost = struct.unpack_from("<h", r, 44)[0]
         reqs = []
@@ -275,7 +291,9 @@ def import_buildings(game: Path, report: Report) -> list[Building]:
                 report.note("buildings", f"{name}: requires terrain type {req - 100}; not modelled")
             elif req > 0:
                 reqs.append(req)
-        out.append(Building(i, name, slug(name), reqs, cost, max(upkeep, 0)))
+        xp = 60 if grants_60 else 20 if grants_20 else 0
+        out.append(Building(i, name, slug(name), reqs, cost, max(upkeep, 0),
+                            replace if replace > 0 else None, xp))
     return out
 
 
@@ -288,7 +306,11 @@ def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list
         parts.append("requires: [" + ", ".join(ron_str(r) for r in requires) + "]")
     if races_allowed:
         parts.append("races: [" + ", ".join(ron_str(r) for r in races_allowed) + "]")
-    effects = BUILDING_EFFECTS.get(b.name)
+    if b.replaces is not None and b.replaces in by_index:
+        parts.append(f"replaces: Some({ron_str(by_index[b.replaces].id)})")
+    effects = list(BUILDING_EFFECTS.get(b.name, []))
+    if b.starting_xp:
+        effects.append(_mod("StartingXp", "Min", b.starting_xp))
     if effects:
         parts.append(f"effects: [{', '.join(effects)}]")
     return "    (" + ", ".join(parts) + "),"
@@ -305,7 +327,8 @@ class Race:
     id: str
     name: str
     cant_build: list[int]
-    growth_people: int  # people per turn (the table counts in hundreds)
+    growth_people: int  # people per turn (the table counts in tens)
+    outpost_growth: int = 10  # base chance (percent) an outpost grows each turn
 
 
 def import_races(remom: Path) -> list[Race]:
@@ -321,7 +344,7 @@ def import_races(remom: Path) -> list[Race]:
         count, cant = words[1], words[2 : 2 + 7]
         growth_mod = words[10]
         name = names[f"{i:03d}"]
-        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10))
+        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10, words[9]))
     return races
 
 
@@ -587,18 +610,18 @@ NEGATIVE_UNIT_SPELLS = {"Weakness", "Black Prayer", "Mind Storm", "Warp Creature
                         "Confusion", "Possession", "Black Sleep", "Slow", "Creature Binding", "Petrify"}
 
 CITY_ENCHANT_MODS = {
-    "Gaia's Blessing": [("CityFood", "Percent", 25)],
+    # Gaia's Blessing is handled by the engine itself (more food from the land, doubled
+    # forest production), so it keeps the placeholder effect.
     "Consecration": [("CityUnrest", "Add", -2)],
-    "Inspirations": [("CityProduction", "Percent", 25)],
+    "Inspirations": [("CityProduction", "Percent", 100)],
     "Heavenly Light": [("CityUnrest", "Add", -1)],
-    "Altar of Battle": [("CityUnrest", "Add", -1)],
-    "Stream of Life": [("CityGrowthPercent", "Add", 25)],
-    "Prosperity": [("CityGold", "Percent", 50)],
-    "Famine": [("CityFood", "Percent", -50)],
-    "Pestilence": [("CityGrowthPercent", "Add", -50)],
-    "Chaos Rift": [("CityProduction", "Percent", -25)],
-    "Evil Presence": [("CityUnrest", "Add", 2)],
-    "Cursed Lands": [("CityFood", "Add", -2)],
+    "Altar of Battle": [("StartingXp", "Min", 120)],
+    "Stream of Life": [("CityGrowthPercent", "Add", 100)],
+    "Prosperity": [("CityGold", "Percent", 100)],
+    "Famine": [("CityFood", "Percent", -50), ("CityUnrestPercent", "Add", 25)],
+    "Pestilence": [("CityUnrest", "Add", 2)],
+    "Cursed Lands": [("CityProduction", "Percent", -50), ("CityUnrest", "Add", 1)],
+    "Dark Rituals": [("CityGrowthPercent", "Add", -25), ("CityUnrest", "Add", 1)],
 }
 
 DAMAGE_KIND_BY_NAME = {
@@ -920,6 +943,26 @@ def level_path_ron(ident: str, levels: list[tuple[str, int]]) -> str:
     return f"    (id: {ron_str(ident)}, levels: [\n" + "\n".join(rows) + "\n    ]),"
 
 
+# Percent unrest caused by each tax rate (the rate is also half the gold per citizen).
+TAX_UNREST_PERCENT = [0, 10, 20, 30, 45, 60, 75]
+
+
+def import_racial_unrest(game: Path) -> list[list[int]]:
+    """Unrest in tens of percent: `[capital race][city race]` (TERRSTAT.LBX entry 1)."""
+    values = struct.unpack("<196b", read_lbx(game / "TERRSTAT.LBX")[1][4:])
+    return [list(values[i * RACE_COUNT : (i + 1) * RACE_COUNT]) for i in range(RACE_COUNT)]
+
+
+def write_rules(path: Path, game: Path) -> None:
+    matrix = ", ".join("[" + ", ".join(str(v) for v in row) + "]" for row in import_racial_unrest(game))
+    path.write_text(
+        "// Generated by scripts/import_mom.py from the original game data. Do not commit.\n(\n"
+        "    to_hit_percent: 30,\n    block_percent: 30,\n    min_city_distance: 4,\n    max_city_size: 25,\n"
+        f"    tax_unrest_percent: {TAX_UNREST_PERCENT},\n    racial_unrest: [{matrix}],\n)\n",
+        encoding="utf-8",
+    )
+
+
 def run(game: Path, remom: Path, out: Path) -> Report:
     report = Report()
     out.mkdir(parents=True, exist_ok=True)
@@ -951,10 +994,13 @@ def run(game: Path, remom: Path, out: Path) -> Report:
         effects = ""
         if race.growth_people:
             effects = f", effects: [{_mod('CityGrowth', 'Add', race.growth_people)}]"
+        traits = RACE_TRAITS.get(race.id)
+        extra = f", {traits}" if traits else ""
         race_lines.append(
             f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
             f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
-            f"city_names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
+            f"city_names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}], "
+            f"outpost_growth: {race.outpost_growth}{extra}),"
         )
     # buildings, with per-race exclusions turned into allowed-race lists
     building_lines = []
@@ -986,7 +1032,7 @@ def run(game: Path, remom: Path, out: Path) -> Report:
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", header, [help_ron(t) for t in help_topics])
     write_list(out / "help_screens.ron", header, import_help_screens(game, remom))
-    shutil.copy(REPO / "content/rules.ron", out / "rules.ron")
+    write_rules(out / "rules.ron", game)
     for generic in ("terrain.ron", "features.ron"):  # terrain and features are not game-specific data
         shutil.copy(REPO / "content" / generic, out / generic)
 
