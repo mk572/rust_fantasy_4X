@@ -1,0 +1,834 @@
+"""Import Master of Magic data into local content files for rust_fantasy_4X.
+
+Reads the author's own copy of the original game (buildings, spells, items and
+spell help text from the `.LBX` files) and the unit and race tables from a local
+clone of the ReMoM reverse-engineering project (those tables live in the game
+executable, which is not parsed directly). Writes RON files into
+`content-local/`, which is gitignored: the output is derived from copyrighted
+data and must never be committed or distributed.
+
+Usage:
+    python3 -I scripts/import_mom.py [--game DIR] [--remom DIR] [--out DIR]
+
+Everything the importer cannot map is listed in `<out>/IMPORT_REPORT.txt`
+rather than dropped silently.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import re
+import shutil
+import struct
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+LOG = logging.getLogger("import_mom")
+
+DEFAULT_GAME = Path.home() / "reference/mom-classic/Master of Magic Official Release"
+DEFAULT_REMOM = Path.home() / "reference/ReMoM"
+REPO = Path(__file__).resolve().parent.parent
+
+
+# --------------------------------------------------------------------------- #
+# Reading the original files
+# --------------------------------------------------------------------------- #
+
+
+def read_lbx(path: Path) -> list[bytes]:
+    """Return the entries of an LBX archive.
+
+    Raises:
+        ValueError: if the file does not have the LBX magic number.
+    """
+    data = path.read_bytes()
+    count, magic = struct.unpack_from("<HH", data, 0)
+    if magic != 0xFEAD:
+        raise ValueError(f"not an LBX file (magic {magic:#06x}): {path}")
+    offsets = struct.unpack_from(f"<{count + 1}I", data, 8)
+    return [data[offsets[i] : offsets[i + 1]] for i in range(count)]
+
+
+def read_records(entry: bytes) -> list[bytes]:
+    """Split a data-table entry (`u16 count, u16 size, records...`) into records."""
+    count, size = struct.unpack_from("<HH", entry, 0)
+    return [entry[4 + i * size : 4 + (i + 1) * size] for i in range(count)]
+
+
+def cstr(raw: bytes) -> str:
+    return raw.split(b"\0")[0].decode("latin1")
+
+
+def slug(name: str) -> str:
+    """Lowercase `[a-z0-9_]` id as the content validator requires."""
+    s = re.sub(r"[^a-z0-9]+", "_", name.lower().replace("'", ""))
+    return s.strip("_")
+
+
+def ron_str(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+# --------------------------------------------------------------------------- #
+# Constants taken from the clone's headers and docs
+# --------------------------------------------------------------------------- #
+
+REALMS = [  # index = realm byte in the spell table
+    ("nature", "Nature", (60, 160, 60)),
+    ("sorcery", "Sorcery", (60, 110, 220)),
+    ("chaos", "Chaos", (210, 70, 50)),
+    ("life", "Life", (235, 235, 225)),
+    ("death", "Death", (130, 60, 170)),
+    ("arcane", "Arcane", (190, 190, 190)),
+]
+
+# Unit table: first and last index of each block.
+HERO_RANGE = range(0, 35)
+BOAT_RANGE = range(35, 39)  # boats and the catapult: race-neutral
+NORMAL_RANGE = range(39, 154)
+SUMMONED_RANGE = range(154, 198)
+
+RACE_COUNT = 14
+# Units 154..197 take their "race" byte from this block of the race enum.
+REALM_BY_RACE_BYTE = {15: "arcane", 16: "nature", 17: "sorcery", 18: "chaos", 19: "life", 20: "death"}
+
+RANGED_TYPES = {
+    10: ("rock_throwing", "Rock Throwing"),
+    11: ("cannon", "Cannon"),
+    20: ("bow", "Bow"),
+    21: ("sling", "Sling"),
+    30: ("lightning_bolt", "Lightning Bolt"),
+    31: ("fireball_attack", "Fireball"),
+    32: ("sorcery_bolt", "Sorcery Bolt"),
+    33: ("death_bolt", "Death Bolt"),
+    34: ("ice_bolt", "Ice Bolt"),
+    35: ("shaman_bolt", "Shaman Bolt"),
+    36: ("drow_bolt", "Drow Bolt"),
+    37: ("sprite_bolt", "Sprite Bolt"),
+    38: ("nature_bolt", "Nature Bolt"),
+    100: ("thrown", "Thrown"),
+    101: ("fire_breath", "Fire Breath"),
+    102: ("lightning_breath", "Lightning Breath"),
+    103: ("stoning_gaze", "Stoning Gaze"),
+    104: ("multi_gaze", "Multiple Gaze"),
+    105: ("death_gaze", "Death Gaze"),
+}
+
+# (mask, id, name, description) per flag word of the unit table.
+ATTRIB_1_FLAGS = [
+    (0x0001, "fire_immunity", "Fire Immunity", "Takes no damage from fire attacks."),
+    (0x0002, "stoning_immunity", "Stoning Immunity", "Cannot be turned to stone."),
+    (0x0004, "missile_immunity", "Missile Immunity", "Takes no damage from normal missiles."),
+    (0x0008, "illusion_immunity", "Illusion Immunity", "Sees through illusions."),
+    (0x0010, "cold_immunity", "Cold Immunity", "Takes no damage from cold attacks."),
+    (0x0020, "magic_immunity", "Magic Immunity", "Cannot be affected by spells."),
+    (0x0040, "death_immunity", "Death Immunity", "Immune to death magic."),
+    (0x0080, "poison_immunity", "Poison Immunity", "Immune to poison."),
+    (0x0100, "weapon_immunity", "Weapon Immunity", "Only magical attacks hurt it."),
+    (0x0200, "flying", "Flying", "Moves over any terrain."),
+    (0x0400, "lucky", "Lucky", "Fortune favours this unit."),
+    (0x0800, "summon_demon", "Creature Summoning", "Can summon demons to fight beside it."),
+    (0x2000, "spellcaster", "Spell Caster", "Casts spells in battle."),
+    (0x4000, "spellcaster_major", "Major Spell Caster", "Casts spells in battle, with more mana."),
+]
+ATTRIB_2_FLAGS = [
+    (0x0001, "casts_healing", "Healing Spell", "Casts Healing in battle."),
+    (0x0002, "casts_fireball", "Fireball Spell", "Casts Fireball in battle."),
+    (0x0004, "casts_doom_bolt", "Doom Bolt Spell", "Casts Doom Bolt in battle."),
+    (0x0008, "immolation", "Immolation", "Burns attackers in melee."),
+    (0x0010, "casts_web", "Web Spell", "Casts Web in battle."),
+    (0x0020, "cause_fear", "Cause Fear", "Enemy figures may flee in fear."),
+    (0x0040, "resist_all", "Resist All", "Resists every kind of elemental magic."),
+    (0x0080, "holy_bonus", "Holy Bonus", "Strengthened by holy magic."),
+]
+ABILITY_FLAGS = [
+    (0x0002, "large_shield", "Large Shield", "Extra defence against missiles."),
+    (0x0004, "planar_travel", "Planar Travel", "Can shift between Arcanus and Myrror."),
+    (0x0008, "wall_crusher", "Wall Crusher", "Can breach city walls."),
+    (0x0010, "healer", "Healer", "Heals friendly units each turn."),
+    (0x0020, "create_outpost", "Create Outpost", "Can found cities."),
+    (0x0040, "invisibility", "Invisibility", "Cannot be seen by ordinary units."),
+    (0x0080, "create_undead", "Create Undead", "Raises the dead as undead."),
+    (0x0100, "long_range", "Long Range", "Ranged attacks reach farther."),
+    (0x0200, "land_corruption", "Land Corruption", "Corrupts the land around it."),
+    (0x0400, "meld", "Meld", "Can merge with a node."),
+    (0x0800, "non_corporeal", "Non-Corporeal", "Passes through walls; resists physical harm."),
+    (0x1000, "wind_walking", "Wind Walking", "Carries a stack through the air."),
+    (0x2000, "regeneration", "Regeneration", "Heals fully each turn."),
+    (0x4000, "purify", "Purify", "Cleanses corrupted land."),
+    (0x8000, "negate_first_strike", "Negate First Strike", "Cancels enemy first strike."),
+]
+ATTACK_FLAGS = [
+    (0x0001, "armor_piercing", "Armour Piercing", "Halves the target's defence."),
+    (0x0002, "first_strike", "First Strike", "Strikes before the defender can answer."),
+    (0x0004, "poison_touch", "Poison Touch", "Poisons what it hits."),
+    (0x0008, "life_steal", "Life Steal", "Drains life from its victims."),
+    (0x0010, "doom_damage", "Doom Damage", "Ignores defence entirely."),
+    (0x0020, "destruction", "Destruction", "Destroys what it hits outright."),
+    (0x0040, "illusion_attack", "Illusion", "Cannot be blocked by those who cannot see it."),
+    (0x0080, "stoning_touch", "Stoning Touch", "Turns figures to stone."),
+    (0x0200, "death_touch", "Death Touch", "Kills figures outright."),
+    (0x0400, "power_drain", "Power Drain", "Drains the target's mana."),
+    (0x0800, "dispel_evil", "Dispel Evil", "Banishes evil creatures."),
+    (0x1000, "area_attack", "Area Attack", "Hits every figure of the target."),
+    (0x2000, "damage_limit", "Damage Limit", "Damage is capped by the attacker's hits."),
+    (0x4000, "eldritch_weapon", "Eldritch Weapon", "Reduces the defender's chance to block."),
+    (0x8000, "warp_lightning", "Warp Lightning", "A chain of lightning bolts."),
+]
+MOVE_FLAG_ABILITIES = [
+    (0x0001, "cavalry", "Cavalry", "Mounted: fast on open ground."),
+    (0x0020, "forester", "Forester", "Crosses forests at no extra cost."),
+    (0x0040, "mountaineer", "Mountaineer", "Crosses mountains and hills at no extra cost."),
+    (0x0010, "teleport", "Teleport", "Moves instantly within a battle."),
+    (0x0080, "merging", "Merging", "Merges with other units of its kind."),
+]
+
+# Unit-table columns, in file order.
+UNIT_COLUMNS = (
+    "name melee ranged ranged_type ammo to_hit defense resist moves cost upkeep race "
+    "bld1 bld2 pict hits sight transport figures construction special "
+    "move_flags attr1 attr2 abilities attack_flags sound"
+).split()
+
+LEVELS_NORMAL = [("Recruit", 0), ("Regular", 20), ("Veteran", 60), ("Elite", 120), ("Ultra-Elite", 200)]
+LEVELS_HERO = [
+    ("Hero", 0), ("Myrmidon", 20), ("Captain", 60), ("Commander", 120), ("Champion", 200),
+    ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 800),
+]
+
+# Building effects, by building name. Values follow the clone's building notes.
+BUILDING_EFFECTS = {
+    "Marketplace": "(effect: Modify(stat: CityGold, op: Percent, value: 50))",
+    "Bank": "(effect: Modify(stat: CityGold, op: Percent, value: 50))",
+    "Merchants Guild": "(effect: Modify(stat: CityGold, op: Percent, value: 100))",
+    "Library": "(effect: Modify(stat: CityResearch, op: Add, value: 2))",
+    "Sages Guild": "(effect: Modify(stat: CityResearch, op: Add, value: 3))",
+    "University": "(effect: Modify(stat: CityResearch, op: Add, value: 5))",
+    "Wizards Guild": "(effect: Modify(stat: CityResearch, op: Add, value: 8))",
+    "Oracle": "(effect: Modify(stat: CityUnrest, op: Add, value: -2))",
+    "Alchemists Guild": "(effect: Modify(stat: CityMana, op: Add, value: 3))",
+    "Shrine": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
+    "Temple": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
+    "Parthenon": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
+    "Cathedral": "(effect: Modify(stat: CityUnrest, op: Add, value: -1))",
+    "Granary": "(effect: Modify(stat: CityFood, op: Add, value: 2))",
+    "Farmers Market": "(effect: Modify(stat: CityFood, op: Add, value: 3))",
+    "Animists Guild": "(effect: Modify(stat: CityFood, op: Add, value: 1))",
+    "Sawmill": "(effect: Modify(stat: CityProduction, op: Percent, value: 25))",
+    "Foresters Guild": "(effect: Modify(stat: CityFood, op: Add, value: 2))",
+    "Miners Guild": "(effect: Modify(stat: CityProduction, op: Percent, value: 50))",
+}
+# Placeholder "buildings" that are production choices, not structures.
+SKIP_BUILDINGS = {"None", "Trade Goods", "Housing"}
+
+
+# --------------------------------------------------------------------------- #
+# Report
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Report:
+    lines: list[str] = field(default_factory=list)
+
+    def note(self, section: str, text: str) -> None:
+        self.lines.append(f"[{section}] {text}")
+        LOG.debug("%s: %s", section, text)
+
+
+# --------------------------------------------------------------------------- #
+# Buildings
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Building:
+    index: int
+    name: str
+    id: str
+    requires: list[int]
+    cost: int
+    upkeep: int
+
+
+def import_buildings(game: Path, report: Report) -> list[Building]:
+    records = read_records(read_lbx(game / "BUILDDAT.LBX")[0])
+    out = []
+    for i, r in enumerate(records):
+        name = cstr(r[:20])
+        req1, req2, _replace = struct.unpack_from("<hhh", r, 20)
+        upkeep = -struct.unpack_from("<h", r, 32)[0]
+        cost = struct.unpack_from("<h", r, 44)[0]
+        reqs = []
+        for req in (req1, req2):
+            if req >= 100:  # terrain requirement, not a building
+                report.note("buildings", f"{name}: requires terrain type {req - 100}; not modelled")
+            elif req > 0:
+                reqs.append(req)
+        out.append(Building(i, name, slug(name), reqs, cost, max(upkeep, 0)))
+    return out
+
+
+def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list[str]) -> str:
+    requires = [by_index[r].id for r in b.requires if r in by_index]
+    parts = [f"id: {ron_str(b.id)}", f"name: {ron_str(b.name)}", f"cost: {b.cost}"]
+    if b.upkeep:
+        parts.append(f"upkeep_gold: {b.upkeep}")
+    if requires:
+        parts.append("requires: [" + ", ".join(ron_str(r) for r in requires) + "]")
+    if races_allowed:
+        parts.append("races: [" + ", ".join(ron_str(r) for r in races_allowed) + "]")
+    effect = BUILDING_EFFECTS.get(b.name)
+    if effect:
+        parts.append(f"effects: [{effect}]")
+    return "    (" + ", ".join(parts) + "),"
+
+
+# --------------------------------------------------------------------------- #
+# Races and units (tables from the clone)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Race:
+    index: int
+    id: str
+    name: str
+    cant_build: list[int]
+    growth_percent: int
+
+
+def import_races(remom: Path) -> list[Race]:
+    src = (remom / "MoM/src/RACETYPE.c").read_text(encoding="utf-8", errors="replace")
+    names = dict(re.findall(r'race_type_name_(\d+)\[\] = "([^"]*)"', src))
+    # Each table row is preceded by its raw bytes in a comment: 12 little-endian words.
+    comments = re.findall(r"/\*\s+((?:[0-9A-F]{2}\s+){23}[0-9A-F]{2})\s+\*/", src)
+    if len(comments) != RACE_COUNT:
+        raise ValueError(f"expected {RACE_COUNT} race rows in RACETYPE.c, found {len(comments)}")
+    races = []
+    for i, text in enumerate(comments):
+        words = struct.unpack("<12h", bytes.fromhex("".join(text.split())))
+        count, cant = words[1], words[2 : 2 + 7]
+        growth_mod = words[10]
+        name = names[f"{i:03d}"]
+        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10))
+    return races
+
+
+@dataclass
+class UnitRow:
+    index: int
+    v: dict[str, int]
+    name: str
+
+
+def import_city_names(game: Path) -> list[list[str]]:
+    """City names per race, in race-table order (20 names of 14 bytes each)."""
+    records = read_records(read_lbx(game / "CITYNAME.LBX")[0])
+    return [[cstr(rec[i : i + 14]) for i in range(0, len(rec), 14)] for rec in records]
+
+
+def import_unit_rows(remom: Path) -> list[UnitRow]:
+    src = (remom / "MoM/src/UNITTYPE.c").read_text(encoding="utf-8", errors="replace")
+    names = {int(i): n for i, n in re.findall(r'char unit_type_name_(\d+)\[\] = "([^"]*)"', src)}
+    body = src.split("_unit_type_table[NUM_UNIT_TYPES] =", 1)[1]
+    rows = re.findall(r"\{&_unit_type_names\[(\d+)\],([^}]*)\}", body)
+    out = []
+    for idx, (name_idx, rest) in enumerate(rows):
+        nums = [int(x, 0) for x in rest.replace("\n", " ").split(",") if x.strip()]
+        if len(nums) != len(UNIT_COLUMNS) - 1:
+            raise ValueError(f"unit row {idx}: expected {len(UNIT_COLUMNS) - 1} numbers, got {len(nums)}")
+        values = dict(zip(UNIT_COLUMNS[1:], nums))
+        out.append(UnitRow(idx, values, names[int(name_idx)]))
+    return out
+
+
+def flag_ids(word: int, table: list[tuple[int, str, str, str]], used: dict[str, tuple[str, str]]) -> list[str]:
+    ids = []
+    for mask, ident, name, desc in table:
+        if word & mask:
+            used[ident] = (name, desc)
+            ids.append(ident)
+    return ids
+
+
+def unit_abilities(row: UnitRow, used: dict[str, tuple[str, str]]) -> list[str]:
+    v = row.v
+    ids = []
+    ids += flag_ids(v["attr1"], ATTRIB_1_FLAGS, used)
+    ids += flag_ids(v["attr2"], ATTRIB_2_FLAGS, used)
+    ids += flag_ids(v["abilities"], ABILITY_FLAGS, used)
+    ids += flag_ids(v["attack_flags"], ATTACK_FLAGS, used)
+    ids += flag_ids(v["move_flags"], MOVE_FLAG_ABILITIES, used)
+    rt = v["ranged_type"]
+    if rt in RANGED_TYPES:
+        ident, name = RANGED_TYPES[rt]
+        used[ident] = (name, f"Ranged attack type: {name}.")
+        ids.append(ident)
+    # the same id can come from two flag words (flying): keep first
+    return list(dict.fromkeys(ids))
+
+
+def upkeep_ron(kind: str, amount: int) -> str:
+    if kind == "Summoned":
+        return f"(mana: {amount})"
+    food = ", food: 1" if kind == "Normal" else ""
+    return f"(gold: {amount}{food})"
+
+
+def movement_of(row: UnitRow) -> str:
+    flags = row.v["move_flags"]
+    if flags & 0x08 or row.v["attr1"] & 0x0200:
+        return "Flying"
+    if flags & 0x02:
+        return "Sailing"
+    if flags & 0x04:
+        return "Swimming"
+    return "Walking"
+
+
+def unit_stats(row: UnitRow) -> dict[str, int]:
+    v = row.v
+    stats = {
+        "Melee": v["melee"],
+        "Defense": v["defense"],
+        "Resistance": v["resist"],
+        "MaxHp": max(v["hits"], 1),
+        "Figures": max(v["figures"], 1),
+        "Moves": max((v["moves"] + 1) // 2, 1),  # the original counts half-moves
+        "Sight": max(v["sight"], 1),
+    }
+    if v["ranged"] > 0:
+        stats["Ranged"] = v["ranged"]
+        stats["Ammo"] = max(v["ammo"], 1)
+    if v["to_hit"] > 0:
+        stats["ToHit"] = v["to_hit"] * 10  # the table counts in steps of 10%
+    return stats
+
+
+def stats_ron(stats: dict[str, int]) -> str:
+    return "{" + ", ".join(f"{k}: {x}" for k, x in stats.items()) + "}"
+
+
+@dataclass
+class Unit:
+    index: int
+    id: str
+    ron: str
+    race: int | None = None  # race index for Normal units
+
+
+def build_units(
+    rows: list[UnitRow],
+    races: list[Race],
+    buildings: dict[int, Building],
+    used_abilities: dict[str, tuple[str, str]],
+    spell_cost_by_unit: dict[int, int],
+    report: Report,
+) -> list[Unit]:
+    ids: dict[int, str] = {}
+    taken: set[str] = set()
+    for row in rows:
+        v = row.v
+        if row.index in NORMAL_RANGE and v["race"] < RACE_COUNT:
+            base = f"{races[v['race']].id}_{slug(row.name)}"
+        else:
+            base = slug(row.name)
+        ident, n = base, 2
+        while ident in taken:
+            ident, n = f"{base}_{n}", n + 1
+        taken.add(ident)
+        ids[row.index] = ident
+
+    units = []
+    for row in rows:
+        v = row.v
+        parts = [f"id: {ron_str(ids[row.index])}", f"name: {ron_str(row.name)}"]
+        race_index = None
+        if row.index in HERO_RANGE:
+            kind, cost = "Hero", v["cost"]
+        elif row.index in BOAT_RANGE:
+            kind, cost = "Fantastic", v["cost"]
+        elif row.index in NORMAL_RANGE:
+            kind, cost, race_index = "Normal", v["cost"], v["race"]
+        else:
+            kind = "Summoned"
+            cost = v["cost"] or spell_cost_by_unit.get(row.index, 0) or 1
+        parts.append(f"kind: {kind}")
+        if kind == "Normal":
+            parts.append(f"race: Some({ron_str(races[race_index].id)})")
+        if kind == "Summoned":
+            realm = REALM_BY_RACE_BYTE.get(v["race"])
+            if realm is None:
+                report.note("units", f"{row.name}: unknown realm byte {v['race']}; using arcane")
+                realm = "arcane"
+            parts.append(f"realm: Some({ron_str(realm)})")
+        parts.append(f"cost: {max(cost, 1) if kind != 'Hero' else cost}")
+        if v["upkeep"]:
+            parts.append(f"upkeep: {upkeep_ron(kind, v['upkeep'])}")
+        parts.append(f"stats: {stats_ron(unit_stats(row))}")
+        parts.append(f"movement: {movement_of(row)}")
+        abilities = unit_abilities(row, used_abilities)
+        if abilities:
+            parts.append("abilities: [" + ", ".join(ron_str(a) for a in abilities) + "]")
+        if kind in ("Normal", "Fantastic") and row.index not in HERO_RANGE:
+            reqs = []
+            for b in (v["bld1"], v["bld2"]):
+                if b not in buildings or b <= 0:
+                    continue
+                if race_index is not None and b in races[race_index].cant_build:
+                    # The original lists a building the unit's own race cannot build, so the
+                    # unit can never be produced there. Keep it buildable and say so.
+                    report.note("units", f"{row.name} ({races[race_index].name}): requires "
+                                f"{buildings[b].name}, which that race cannot build; requirement dropped")
+                    continue
+                reqs.append(buildings[b].id)
+            if reqs:
+                parts.append("requires: [" + ", ".join(ron_str(r) for r in reqs) + "]")
+        if kind == "Hero":
+            parts.append('level_path: Some("hero_xp")')
+            parts.append(f"hero: Some((slots: [Weapon, Armor, Misc], hire_cost: {v['cost']}))")
+        elif kind == "Normal":
+            parts.append('level_path: Some("standard_xp")')
+        units.append(Unit(row.index, ids[row.index], "    (" + ", ".join(parts) + "),", race_index))
+    return units
+
+
+# --------------------------------------------------------------------------- #
+# Spells
+# --------------------------------------------------------------------------- #
+
+HELP_PATTERN = re.compile(
+    rb"([A-Z][A-Z' \-]+)\x00[^\x14]{0,80}?Effects: ([^\x14\x00]*)\x14Target: ([^\x14\x00]*)"
+    rb"\x14Casting Cost: ([^\x14\x00]*)\x14Upkeep: ([^\x14\x00]*)\x14([^\x00]*)\x00",
+    re.S,
+)
+
+
+@dataclass
+class SpellHelp:
+    effects: str
+    target: str
+    upkeep: int
+    text: str
+
+
+def norm_name(name: str) -> str:
+    return re.sub(r"[^a-z]", "", name.lower())
+
+
+def import_spell_help(game: Path) -> dict[str, SpellHelp]:
+    entry = read_lbx(game / "HELP.LBX")[2]
+    out = {}
+    for m in HELP_PATTERN.finditer(entry):
+        upkeep_text = m.group(5).decode("latin1")
+        digits = re.search(r"\d+", upkeep_text)
+        out[norm_name(m.group(1).decode("latin1"))] = SpellHelp(
+            m.group(2).decode("latin1").strip(),
+            m.group(3).decode("latin1").strip(),
+            int(digits.group()) if digits else 0,
+            m.group(6).decode("latin1"),
+        )
+    return out
+
+
+@dataclass
+class SpellRow:
+    index: int
+    name: str
+    kind: int  # spell data type
+    category: int
+    realm: int
+    eligibility: int
+    cost: int
+    research: int
+    param0: int
+    param1: int
+
+
+def import_spell_rows(game: Path) -> list[SpellRow]:
+    rows = []
+    for i, r in enumerate(read_records(read_lbx(game / "SPELLDAT.LBX")[0])):
+        kind, category, realm, elig = struct.unpack_from("<bbbb", r, 21)
+        cost, research = struct.unpack_from("<hh", r, 26)
+        p0, p1 = struct.unpack_from("<BB", r, 32)
+        rows.append(SpellRow(i, cstr(r[:19]), kind, category, realm, elig, cost, research, p0, p1))
+    return rows
+
+
+# Unit-enchantment style spells that map directly onto stat modifiers.
+# name -> list of (stat, op, value). Sourced from the original manual text.
+UNIT_ENCHANT_MODS = {
+    "Giant Strength": [("Melee", "Add", 1)],
+    "Stone Skin": [("Defense", "Add", 1)],
+    "Iron Skin": [("Defense", "Add", 5)],
+    "Resist Elements": [("Resistance", "Add", 3)],
+    "Resist Magic": [("Resistance", "Add", 5)],
+    "Lionheart": [("Melee", "Add", 3), ("Ranged", "Add", 3), ("Resistance", "Add", 3), ("MaxHp", "Add", 3)],
+    "Heroism": [("Melee", "Add", 1), ("Defense", "Add", 1), ("Resistance", "Add", 1)],
+    "Bless": [("Defense", "Add", 3), ("Resistance", "Add", 3)],
+    "True Sight": [("Resistance", "Add", 0)],
+    "Haste": [("Moves", "Add", 1)],
+    "Flight": [("Moves", "Set", 3)],
+    "Weakness": [("Melee", "Add", -2)],
+    "Black Prayer": [("Melee", "Add", -1), ("Defense", "Add", -1), ("Resistance", "Add", -2)],
+    "Mind Storm": [("Melee", "Add", -5), ("Defense", "Add", -5)],
+    "Warp Creature": [("Melee", "Percent", -50)],
+}
+NEGATIVE_UNIT_SPELLS = {"Weakness", "Black Prayer", "Mind Storm", "Warp Creature", "Web", "Vertigo",
+                        "Confusion", "Possession", "Black Sleep", "Slow", "Creature Binding", "Petrify"}
+
+CITY_ENCHANT_MODS = {
+    "Gaia's Blessing": [("CityFood", "Percent", 25)],
+    "Consecration": [("CityUnrest", "Add", -2)],
+    "Inspirations": [("CityProduction", "Percent", 25)],
+    "Heavenly Light": [("CityUnrest", "Add", -1)],
+    "Altar of Battle": [("CityUnrest", "Add", -1)],
+    "Stream of Life": [("CityGrowthPercent", "Add", 25)],
+    "Prosperity": [("CityGold", "Percent", 50)],
+    "Famine": [("CityFood", "Percent", -50)],
+    "Pestilence": [("CityGrowthPercent", "Add", -50)],
+    "Chaos Rift": [("CityProduction", "Percent", -25)],
+    "Evil Presence": [("CityUnrest", "Add", 2)],
+    "Cursed Lands": [("CityFood", "Add", -2)],
+}
+
+DAMAGE_KIND_BY_NAME = {
+    "Ice Bolt": "Cold", "Ice Storm": "Cold", "Lightning Bolt": "Lightning", "Call Lightning": "Lightning",
+    "Warp Lightning": "Lightning", "Fire Bolt": "Fire", "Fireball": "Fire", "Flame Strike": "Fire",
+    "Fire Storm": "Fire", "Doom Bolt": "Physical", "Life Drain": "Death", "Death Spell": "Death",
+    "Psionic Blast": "Physical", "Holy Word": "Holy", "Disintegrate": "Physical",
+}
+DAMAGE_KIND_BY_REALM = {"nature": "Cold", "sorcery": "Lightning", "chaos": "Fire", "life": "Holy",
+                        "death": "Death", "arcane": "Physical"}
+
+
+def mods_effects(mods: list[tuple[str, str, int]]) -> list[str]:
+    return [f"(effect: Modify(stat: {s}, op: {op}, value: {v}))" for s, op, v in mods]
+
+
+def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
+    """Return (effects, target, duration-kind) for a spell; `duration-kind` is
+    "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
+    name, kind = row.name, row.kind
+    unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
+    if kind == 0:  # summoning
+        unit = unit_ids.get(row.param0 | (row.param1 << 8))
+        if unit:
+            return [f'(when: OnCast, target: Chosen, effect: Summon(unit: {ron_str(unit)}, count: 1))'], "Tile", "instant"
+        report.note("spells", f"{name}: summons unit index {row.param0} which is not a summonable unit")
+        return unimplemented, "Tile", "instant"
+    if kind in (1, 15):
+        mods = UNIT_ENCHANT_MODS.get(name)
+        target = "EnemyUnit" if name in NEGATIVE_UNIT_SPELLS else "OwnUnit"
+        if mods:
+            return mods_effects(mods), target, "lasting"
+        report.note("spells", f"{name}: unit enchantment without a stat mapping; custom hook")
+        return unimplemented, target, "lasting"
+    if kind in (2, 3):
+        mods = CITY_ENCHANT_MODS.get(name)
+        target = "OwnCity" if kind == 2 else "EnemyCity"
+        if mods:
+            return mods_effects(mods), target, "lasting"
+        report.note("spells", f"{name}: city enchantment without a stat mapping; custom hook")
+        return unimplemented, target, "lasting"
+    if kind in (4, 22):
+        dk = DAMAGE_KIND_BY_NAME.get(name, DAMAGE_KIND_BY_REALM[realm_id])
+        amount = max(row.param0, 1)
+        return [f"(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true))"], "EnemyUnit", "instant"
+    if kind == 18:
+        return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1)}))"], "AnyUnit", "instant"
+    if name == "Healing":
+        return ["(when: OnCast, target: Chosen, effect: Heal(5))"], "OwnUnit", "instant"
+    target = {6: "Wizard", 17: "Wizard", 9: "None", 10: "Battlefield", 11: "None"}.get(kind)
+    if target is None:
+        target = "AnyUnit" if row.eligibility <= 0 else "None"
+    report.note("spells", f"{name}: spell type {kind} not mapped; custom hook")
+    lasting = "lasting" if kind in (9, 10) else "instant"
+    return unimplemented, target, lasting
+
+
+def spell_contexts(row: SpellRow) -> str:
+    if row.eligibility < 0:
+        return "[Battle]"
+    if row.eligibility == 0:
+        return "[Battle, Overland]"
+    return "[Overland]"
+
+
+def build_spells(rows: list[SpellRow], help_: dict[str, SpellHelp], unit_ids: dict[int, str],
+                 report: Report) -> list[str]:
+    out = []
+    per_realm: dict[int, int] = {}
+    for row in rows[1:]:  # row 0 is the "None" placeholder
+        realm_id = REALMS[row.realm][0]
+        n = per_realm.get(row.realm, 0)
+        per_realm[row.realm] = n + 1
+        # The table lists each realm's spells common -> very rare in blocks of ten.
+        rarity = ["Common", "Uncommon", "Rare", "VeryRare"][min(n // 10, 3)]
+        info = help_.get(norm_name(row.name))
+        if info is None:
+            report.note("spells", f"{row.name}: no help text found; upkeep estimated")
+        effects, target, lasting = spell_effects(row, unit_ids, realm_id, report)
+        if lasting == "lasting":
+            duration = "Permanent"
+            upkeep = info.upkeep if info else max(row.cost // 10, 1)
+        else:
+            duration, upkeep = "Instant", 0
+        parts = [
+            f"id: {ron_str(slug(row.name))}", f"name: {ron_str(row.name)}",
+            f"realm: {ron_str(realm_id)}", f"rarity: {rarity}",
+            f"cost: {max(row.cost, 1)}", f"research_cost: {max(row.research, 1)}",
+            f"contexts: {spell_contexts(row)}", f"target: {target}", f"duration: {duration}",
+        ]
+        if upkeep:
+            parts.append(f"upkeep: {upkeep}")
+        if lasting == "lasting":
+            parts.append(f"dispel_difficulty: {max(row.cost, 1)}")
+        parts.append("effects: [" + ", ".join(effects) + "]")
+        out.append("    (" + ", ".join(parts) + "),")
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Items
+# --------------------------------------------------------------------------- #
+
+ITEM_SLOT_BY_TYPE = {0: "Weapon", 1: "Weapon", 2: "Weapon", 3: "Weapon", 4: "Weapon", 5: "Weapon",
+                     6: "Misc", 7: "Armor", 8: "Armor", 9: "Armor"}
+
+
+def import_items(game: Path, report: Report) -> list[str]:
+    out, taken = [], set()
+    for r in read_records(read_lbx(game / "ITEMDATA.LBX")[0]):
+        name = cstr(r[:30])
+        item_type = r[0x21]
+        cost = struct.unpack_from("<h", r, 0x22)[0]
+        attack, to_hit, defense, moves2, resist = struct.unpack_from("<bbbbb", r, 0x24)
+        mods = []
+        for stat, value in (("Melee", attack), ("ToHit", to_hit * 10), ("Defense", defense),
+                            ("Moves", moves2 // 2), ("Resistance", resist)):
+            if value:
+                mods.append((stat, "Add", value))
+        if not mods or cost <= 0:
+            report.note("items", f"{name}: no stat bonus (specials not imported); skipped")
+            continue
+        ident = slug(name)
+        if ident in taken:
+            ident = f"{ident}_{len(taken)}"
+        taken.add(ident)
+        slot = ITEM_SLOT_BY_TYPE.get(item_type, "Misc")
+        out.append(f"    (id: {ron_str(ident)}, name: {ron_str(name)}, slot: {slot}, cost: {cost}, "
+                   f"effects: [{', '.join(mods_effects(mods))}]),")
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Output
+# --------------------------------------------------------------------------- #
+
+
+def write_list(path: Path, header: str, lines: list[str]) -> None:
+    path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
+
+
+def level_path_ron(ident: str, levels: list[tuple[str, int]]) -> str:
+    rows = []
+    for i, (name, xp) in enumerate(levels):
+        effects = []
+        if i >= 1:
+            effects.append("(effect: Modify(stat: Resistance, op: Add, value: 1))")
+        if i >= 2:
+            effects.append("(effect: Modify(stat: ToHit, op: Add, value: 10))")
+        rows.append(f"        (name: {ron_str(name)}, xp: {xp}, effects: [{', '.join(effects)}]),")
+    return f"    (id: {ron_str(ident)}, levels: [\n" + "\n".join(rows) + "\n    ]),"
+
+
+def run(game: Path, remom: Path, out: Path) -> Report:
+    report = Report()
+    out.mkdir(parents=True, exist_ok=True)
+
+    races = import_races(remom)
+    city_names = import_city_names(game)
+    if len(city_names) < len(races):
+        raise ValueError(f"CITYNAME.LBX has {len(city_names)} races, expected {len(races)}")
+    buildings = [b for b in import_buildings(game, report) if b.name not in SKIP_BUILDINGS]
+    by_index = {b.index: b for b in buildings}
+    rows = import_unit_rows(remom)
+
+    # Spell summons need unit ids; units need summon costs. Build ids first.
+    spell_rows = import_spell_rows(game)
+    help_texts = import_spell_help(game)
+    spell_cost_by_unit = {r.param0 | (r.param1 << 8): r.cost for r in spell_rows if r.kind == 0}
+
+    used_abilities: dict[str, tuple[str, str]] = {}
+    units = build_units(rows, races, by_index, used_abilities, spell_cost_by_unit, report)
+    summoned_ids = {u.index: u.id for u in units if u.index in SUMMONED_RANGE}
+    spells = build_spells(spell_rows, help_texts, summoned_ids, report)
+
+    # races
+    race_lines = []
+    for race in races:
+        mine = [u.id for u in units if u.race == race.index]
+        effects = ""
+        if race.growth_percent:
+            effects = f", effects: [(effect: Modify(stat: CityGrowthPercent, op: Add, value: {race.growth_percent}))]"
+        race_lines.append(
+            f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
+            f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
+            f"city_names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
+        )
+    # buildings, with per-race exclusions turned into allowed-race lists
+    building_lines = []
+    for b in buildings:
+        excluded = {r.id for r in races if b.index in r.cant_build}
+        allowed = [r.id for r in races if r.id not in excluded] if excluded else []
+        building_lines.append(building_ron(b, by_index, allowed))
+
+    abilities_lines = [
+        f"    (id: {ron_str(i)}, name: {ron_str(n)}, description: {ron_str(d)}, effects: []),"
+        for i, (n, d) in sorted(used_abilities.items())
+    ]
+    realm_lines = [
+        f"    (id: {ron_str(i)}, name: {ron_str(n)}, color: ({c[0]}, {c[1]}, {c[2]}))," for i, n, c in REALMS
+    ]
+    items = import_items(game, report)
+
+    header = "Generated by scripts/import_mom.py from the original game data. Do not commit."
+    write_list(out / "races.ron", header, race_lines)
+    write_list(out / "units.ron", header, [u.ron for u in units])
+    write_list(out / "buildings.ron", header, building_lines)
+    write_list(out / "abilities.ron", header, abilities_lines)
+    write_list(out / "realms.ron", header, realm_lines)
+    write_list(out / "spells.ron", header, spells)
+    write_list(out / "items.ron", header, items)
+    write_list(out / "level_paths.ron", header,
+               [level_path_ron("standard_xp", LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
+    shutil.copy(REPO / "content/rules.ron", out / "rules.ron")
+    for generic in ("terrain.ron", "features.ron"):  # terrain and features are not game-specific data
+        shutil.copy(REPO / "content" / generic, out / generic)
+
+    summary = (
+        f"races {len(races)}, buildings {len(buildings)}, units {len(units)}, "
+        f"abilities {len(used_abilities)}, spells {len(spells)}, items {len(items)}"
+    )
+    (out / "IMPORT_REPORT.txt").write_text(summary + "\n\n" + "\n".join(report.lines) + "\n", encoding="utf-8")
+    LOG.info("imported: %s (%d notes in IMPORT_REPORT.txt)", summary, len(report.lines))
+    return report
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--game", type=Path, default=DEFAULT_GAME)
+    parser.add_argument("--remom", type=Path, default=DEFAULT_REMOM)
+    parser.add_argument("--out", type=Path, default=REPO / "content-local")
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    run(args.game, args.remom, args.out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -28,6 +28,9 @@ pub struct RaceDef {
     /// Applied to every city of the race.
     #[serde(default)]
     pub effects: Vec<EffectRule>,
+    /// Names handed to new cities, in order.
+    #[serde(default)]
+    pub city_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

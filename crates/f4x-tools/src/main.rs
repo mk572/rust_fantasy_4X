@@ -1,5 +1,9 @@
 //! Developer tooling: content validation and map preview.
 
+mod art;
+mod image;
+mod lbx;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -10,13 +14,24 @@ use f4x_core::mapgen::{generate, GenParams};
 const USAGE: &str = "usage:
   f4x-tools validate [content-dir]            check content files (default: content)
   f4x-tools mapgen <seed> [width height] [land%] [content-dir]
-                                              print both planes as ASCII";
+                                              print both planes as ASCII
+  f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
+                                              (default out: assets-local/art)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("validate") => validate(args.get(1)),
         Some("mapgen") => mapgen(&args[1..]),
+        Some("extract-art") => match args.get(1) {
+            Some(game) => art::extract(
+                &PathBuf::from(game),
+                &args
+                    .get(2)
+                    .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from),
+            ),
+            None => Err(USAGE.to_string()),
+        },
         _ => Err(USAGE.to_string()),
     };
     match result {

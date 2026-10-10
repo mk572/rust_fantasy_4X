@@ -9,8 +9,11 @@ use crate::content::TerrainClass;
 use crate::map::Plane;
 
 /// Names of `Effect::Custom` hooks implemented in Rust. A `Custom` effect naming
-/// anything else fails content validation. Empty until a hook is needed.
-pub const CUSTOM_HOOKS: &[&str] = &[];
+/// anything else fails content validation.
+///
+/// `unimplemented` marks an imported rule the engine has no primitive for yet; the
+/// number of uses is the to-do list for new effect primitives.
+pub const CUSTOM_HOOKS: &[&str] = &["unimplemented"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {
