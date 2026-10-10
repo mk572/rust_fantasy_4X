@@ -2,6 +2,7 @@
 
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane};
+use crate::rules::RaceId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PlayerId(pub u8);
@@ -18,6 +19,7 @@ pub struct Position {
 pub struct City {
     pub name: String,
     pub owner: PlayerId,
+    pub race: RaceId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,38 +75,14 @@ pub fn check_site(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::Grid;
-    use crate::testutil::content;
-    use crate::{Command, Event, Game, Rejection};
+    use crate::testutil::{at, found, game, P0};
+    use crate::{Command, Event, Rejection};
 
-    /// 20x12 grassland world with ocean at x=0, a mountain at (5,5), a lair at (8,5)
-    /// and a mineral at (12,5) (a city may sit on a mineral).
-    fn game() -> Game {
-        let c = content();
-        let id = |n: &str| c.terrains.id_of(n).unwrap();
-        let build = || {
-            let mut g = Grid::new(20, 12, id("grassland"));
-            for y in 0..12 {
-                g.set(0, y, id("ocean"));
-            }
-            g.set(5, 5, id("mountains"));
-            g.set_feature(8, 5, c.features.id_of("lair"));
-            g.set_feature(12, 5, c.features.id_of("iron"));
-            g
-        };
-        let mut game = Game::new(1);
-        game.map = Some(crate::map::Map::new(build(), build()));
-        game.content = c;
-        game
-    }
-
-    fn at(plane: Plane, x: u32, y: u32) -> Position {
-        Position { plane, x, y }
-    }
-
-    fn found(game: &mut Game, pos: Position) -> Vec<Event> {
-        game.apply(Command::FoundCity {
-            owner: PlayerId(0),
+    fn try_found(g: &mut crate::Game, pos: Position) -> Vec<Event> {
+        let race = g.content.rules.races.id_of("sunfolk").unwrap();
+        g.apply(Command::FoundCity {
+            owner: P0,
+            race,
             pos,
             name: "Test".into(),
         })
@@ -114,9 +92,8 @@ mod tests {
     fn founding_creates_a_city_entity() {
         let mut g = game();
         let pos = at(Plane::Arcanus, 3, 3);
-        let events = found(&mut g, pos);
-        assert!(matches!(events[..], [Event::CityFounded { pos: p, .. }] if p == pos));
-        assert!(g.city_at(pos).is_some());
+        let city = found(&mut g, P0, "sunfolk", pos);
+        assert_eq!(g.city_at(pos), Some(city));
         assert_eq!(g.cities().len(), 1);
     }
 
@@ -129,19 +106,19 @@ mod tests {
         };
         let a = Plane::Arcanus;
         assert_eq!(
-            rejected(found(&mut g, at(a, 0, 3))),
+            rejected(try_found(&mut g, at(a, 0, 3))),
             FoundCityError::BadTerrain
         );
         assert_eq!(
-            rejected(found(&mut g, at(a, 5, 5))),
+            rejected(try_found(&mut g, at(a, 5, 5))),
             FoundCityError::BadTerrain
         );
         assert_eq!(
-            rejected(found(&mut g, at(a, 8, 5))),
+            rejected(try_found(&mut g, at(a, 8, 5))),
             FoundCityError::BlockedByFeature
         );
         assert_eq!(
-            rejected(found(&mut g, at(a, 99, 3))),
+            rejected(try_found(&mut g, at(a, 99, 3))),
             FoundCityError::OutOfBounds
         );
         assert_eq!(g.cities().len(), 0);
@@ -156,7 +133,7 @@ mod tests {
     #[test]
     fn spacing_applies_per_plane_and_wraps() {
         let mut g = game();
-        found(&mut g, at(Plane::Arcanus, 10, 6));
+        found(&mut g, P0, "sunfolk", at(Plane::Arcanus, 10, 6));
         assert_eq!(
             g.can_found_city(at(Plane::Arcanus, 10, 6)),
             Err(FoundCityError::CityAlreadyHere)
@@ -166,10 +143,8 @@ mod tests {
             Err(FoundCityError::TooCloseToCity)
         );
         assert_eq!(g.can_found_city(at(Plane::Arcanus, 13, 6)), Ok(()));
-        // Same coordinates on the other plane are independent.
         assert_eq!(g.can_found_city(at(Plane::Myrror, 10, 6)), Ok(()));
-        // x wraps: (19,6) and (1,6) are 2 apart across the seam.
-        found(&mut g, at(Plane::Arcanus, 19, 6));
+        found(&mut g, P0, "sunfolk", at(Plane::Arcanus, 19, 6));
         assert_eq!(
             g.can_found_city(at(Plane::Arcanus, 1, 6)),
             Err(FoundCityError::TooCloseToCity)
@@ -178,7 +153,7 @@ mod tests {
 
     #[test]
     fn needs_a_map() {
-        let g = Game::new(1);
+        let g = crate::Game::new(1);
         assert_eq!(
             g.can_found_city(at(Plane::Arcanus, 1, 1)),
             Err(FoundCityError::NoMap)

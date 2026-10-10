@@ -1,6 +1,9 @@
-// Tunable numbers that are not content.
+// Tunable numbers that are not content. Any field left out uses its default, but
+// note that a pack providing this file replaces the whole block.
 (
-    to_hit_percent: 30,
-    block_percent: 30,
-    min_city_distance: 3,
+    to_hit_percent: 30,        // base chance for each figure's attack to hit
+    block_percent: 30,         // chance per point of defense to block a hit
+    min_city_distance: 3,      // closest two cities may be (king-move distance)
+    base_city_production: 2,   // production before buildings and race bonuses
+    max_stack: 9,              // most units on one tile
 )

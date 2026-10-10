@@ -9,9 +9,11 @@ pub mod content;
 pub mod featuregen;
 pub mod map;
 pub mod mapgen;
+pub mod production;
 pub mod rules;
 #[cfg(test)]
 mod testutil;
+pub mod units;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -21,8 +23,40 @@ pub enum Command {
     EndTurn,
     FoundCity {
         owner: city::PlayerId,
+        race: rules::RaceId,
         pos: city::Position,
         name: String,
+    },
+    MoveUnit {
+        by: city::PlayerId,
+        unit: hecs::Entity,
+        to: city::Position,
+    },
+    DisbandUnit {
+        by: city::PlayerId,
+        unit: hecs::Entity,
+    },
+    /// Equip a hero. Items are not yet drawn from a player inventory (that arrives
+    /// with treasuries and loot); any defined item can be equipped.
+    EquipItem {
+        by: city::PlayerId,
+        unit: hecs::Entity,
+        item: rules::ItemId,
+    },
+    UnequipItem {
+        by: city::PlayerId,
+        unit: hecs::Entity,
+        item: rules::ItemId,
+    },
+    QueueProduction {
+        by: city::PlayerId,
+        city: hecs::Entity,
+        item: production::ProductionItem,
+    },
+    DequeueProduction {
+        by: city::PlayerId,
+        city: hecs::Entity,
+        index: usize,
     },
 }
 
@@ -35,12 +69,50 @@ pub enum Event {
         city: hecs::Entity,
         pos: city::Position,
     },
+    UnitMoved {
+        unit: hecs::Entity,
+        from: city::Position,
+        to: city::Position,
+    },
+    UnitDisbanded {
+        unit: hecs::Entity,
+    },
+    UnitTrained {
+        city: hecs::Entity,
+        unit: hecs::Entity,
+        pos: city::Position,
+    },
+    BuildingCompleted {
+        city: hecs::Entity,
+        building: rules::BuildingId,
+    },
+    ItemEquipped {
+        unit: hecs::Entity,
+        item: rules::ItemId,
+    },
+    ItemUnequipped {
+        unit: hecs::Entity,
+        item: rules::ItemId,
+    },
+    ProductionQueued {
+        city: hecs::Entity,
+        item: production::ProductionItem,
+    },
+    ProductionDequeued {
+        city: hecs::Entity,
+        index: usize,
+    },
     Rejected(Rejection),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rejection {
     FoundCity(city::FoundCityError),
+    Move(units::MoveError),
+    Equip(units::EquipError),
+    Production(production::ProductionError),
+    NoSuchUnit,
+    NotYours,
 }
 
 pub struct Game {
@@ -102,16 +174,63 @@ impl Game {
     pub fn apply(&mut self, cmd: Command) -> Vec<Event> {
         match cmd {
             Command::EndTurn => {
+                self.refresh_moves();
+                let mut events = self.process_production();
                 self.turn += 1;
-                vec![Event::TurnStarted { turn: self.turn }]
+                events.push(Event::TurnStarted { turn: self.turn });
+                events
             }
-            Command::FoundCity { owner, pos, name } => match self.can_found_city(pos) {
+            Command::FoundCity {
+                owner,
+                race,
+                pos,
+                name,
+            } => match self.can_found_city(pos) {
                 Ok(()) => {
-                    let city = self.world.spawn((city::City { name, owner }, pos));
+                    let city = self.world.spawn((
+                        city::City { name, owner, race },
+                        pos,
+                        production::CityBuildings::default(),
+                        production::ProductionQueue::default(),
+                    ));
                     vec![Event::CityFounded { city, pos }]
                 }
                 Err(e) => vec![Event::Rejected(Rejection::FoundCity(e))],
             },
+            Command::MoveUnit { by, unit, to } => match self.move_unit(by, unit, to) {
+                Ok(from) => vec![Event::UnitMoved { unit, from, to }],
+                Err(e) => vec![Event::Rejected(Rejection::Move(e))],
+            },
+            Command::DisbandUnit { by, unit } => {
+                if self.unit_def(unit).is_none() {
+                    return vec![Event::Rejected(Rejection::NoSuchUnit)];
+                }
+                if self.unit_owner(unit) != Some(by) {
+                    return vec![Event::Rejected(Rejection::NotYours)];
+                }
+                let _ = self.world.despawn(unit);
+                vec![Event::UnitDisbanded { unit }]
+            }
+            Command::EquipItem { by, unit, item } => match self.equip_item(by, unit, item) {
+                Ok(()) => vec![Event::ItemEquipped { unit, item }],
+                Err(e) => vec![Event::Rejected(Rejection::Equip(e))],
+            },
+            Command::UnequipItem { by, unit, item } => match self.unequip_item(by, unit, item) {
+                Ok(()) => vec![Event::ItemUnequipped { unit, item }],
+                Err(e) => vec![Event::Rejected(Rejection::Equip(e))],
+            },
+            Command::QueueProduction { by, city, item } => {
+                match self.queue_production(by, city, item) {
+                    Ok(()) => vec![Event::ProductionQueued { city, item }],
+                    Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+                }
+            }
+            Command::DequeueProduction { by, city, index } => {
+                match self.dequeue_production(by, city, index) {
+                    Ok(()) => vec![Event::ProductionDequeued { city, index }],
+                    Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+                }
+            }
         }
     }
 

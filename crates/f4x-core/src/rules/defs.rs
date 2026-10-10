@@ -225,6 +225,10 @@ pub struct RulesConfig {
     pub block_percent: u8,
     /// Minimum Chebyshev distance between cities on one plane.
     pub min_city_distance: u32,
+    /// Production a city makes before buildings and race modifiers.
+    pub base_city_production: i32,
+    /// Most units that may share one tile.
+    pub max_stack: u32,
 }
 
 impl Default for RulesConfig {
@@ -233,6 +237,8 @@ impl Default for RulesConfig {
             to_hit_percent: 30,
             block_percent: 30,
             min_city_distance: 3,
+            base_city_production: 2,
+            max_stack: 9,
         }
     }
 }

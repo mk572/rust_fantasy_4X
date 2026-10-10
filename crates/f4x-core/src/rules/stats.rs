@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::defs::{AbilityDef, BuildingDef, ItemDef, RaceDef, SpellDef};
-use super::effects::{Condition, Effect, EffectRule, Trigger};
+use super::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
 use super::ids::Id;
 
 /// Every numeric attribute the rules know about. Fixed in code: content files
@@ -40,15 +40,16 @@ pub enum Stat {
     CityGrowthPercent,
     /// Unrest points; negative values make the city happier.
     CityUnrest,
-    /// Percent change to the cost of units built in the city.
-    UnitCostPercent,
+    /// Cost of units built in the city; the unit's base cost goes in, buildings
+    /// modify it (typically with `Percent`).
+    UnitCost,
 }
 
 impl Stat {
     /// Lowest value the stat can take, or `None` if it may go negative.
     pub fn floor(self) -> Option<i32> {
         match self {
-            Stat::ToHit | Stat::CityUnrest | Stat::SpellCostPercent | Stat::UnitCostPercent => None,
+            Stat::ToHit | Stat::CityUnrest | Stat::SpellCostPercent => None,
             _ => Some(0),
         }
     }
@@ -147,6 +148,22 @@ pub fn passive_modifiers(effects: &[EffectRule], source: Source) -> Vec<Modifier
             _ => None,
         })
         .collect()
+}
+
+/// Like [`passive_modifiers`], but only for rules aimed at one of `targets`. A
+/// building's rule aimed at `City` becomes a city modifier; one aimed at `Owner`
+/// does not.
+pub fn passive_modifiers_for(
+    effects: &[EffectRule],
+    source: Source,
+    targets: &[TargetSel],
+) -> Vec<Modifier> {
+    let aimed: Vec<EffectRule> = effects
+        .iter()
+        .filter(|r| targets.contains(&r.target))
+        .cloned()
+        .collect();
+    passive_modifiers(&aimed, source)
 }
 
 /// The modifiers contributing to `stat`, in the given order (for tooltips).

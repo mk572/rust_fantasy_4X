@@ -9,3 +9,6 @@ hecs.workspace = true
 rand.workspace = true
 rand_pcg.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+ron.workspace = true

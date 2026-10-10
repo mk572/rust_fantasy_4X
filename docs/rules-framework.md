@@ -125,13 +125,29 @@ Tunable numbers that are not content live in one file, `content/rules.ron`: to-h
 f4x-core/src/rules/      defs.rs      definition types + typed ids
                          registry.rs  loaded definition tables
                          stats.rs     Stat enum, Modifier, compute()
-                         effects.rs   Condition, Target, Effect, execute()
-f4x-core/src/systems/    economy.rs, spells.rs, combat.rs, production.rs
-f4x-data/                RON loading, cross-reference validation
-content/                 races.ron, units.ron, buildings.ron, abilities.ron,
-                         realms.ron, spells.ron, items.ron, rules.ron
+                         effects.rs   Condition, Target, Effect vocabulary
+f4x-core/src/            units.rs     unit components, derived stats, movement, equipment
+                         production.rs  city buildings, production queue, upkeep
+                         city.rs      city founding rules
+                         art.rs       presentation data types (sprites, colours)
+f4x-data/                pack.rs      content packs: load order, overrides, removals, art checks
+                         rules.rs     cross-reference validation
+content/base/            the built-in pack (see docs/modding.md)
 ```
-`f4x-tools validate` checks the whole set: unknown ids, requirement cycles, spells with no effects, units unavailable to every race, and similar.
+`f4x-tools validate` checks the whole set: unknown ids, requirement cycles, spells with no effects, units unavailable to every race, dangling art keys, and similar.
+
+### Runtime units and buildings
+
+- **Units** are entities with `Unit { def }`, `Owner`, `Position`, `Damage`, `Experience`, `MovesLeft` and, for heroes, `Equipment`. Stats are never stored: `Game::unit_stat` computes them from the definition plus modifiers from abilities, experience levels and equipped items (lasting spells join later). Health is a single pool across figures, so figures die from the back as damage accumulates.
+- **Movement** is one tile per `MoveUnit` command. Cost comes from the terrain and the unit's movement type; a unit with any movement left may enter an adjacent tile, which uses up whatever the tile costs. Enemy units or cities block (that is combat's job), stacks are capped by `max_stack`, and plane changes are not ordinary moves.
+- **Cities** carry their race, the set of completed buildings and a production queue. City modifiers come from the race and the buildings whose effects are aimed at the city. A building effect aimed at `Owner` (for example mana income) does not change the city.
+- **Production** is per turn: the city's production points go to the head of the queue, completing items and carrying surplus forward; a unit waits while its city tile is full. Unit cost passes through the `UnitCost` stat so buildings can discount it. A race may build a unit when `unit.race` matches, and a building when its `races` list is empty or includes the race.
+- **Upkeep** is computed per player from units and buildings; treasuries and wizards, which spend it, come with the spell and economy work.
+- Not yet implemented: hiring heroes, an item inventory (equipping currently takes any defined item), enchantments on units, combat, and the economy beyond production.
+
+### Content as data
+
+Rules definitions, terrain, features and presentation are all data files grouped into packs, documented for modders in [`modding.md`](modding.md). Presentation (`art.ron`) is kept apart from rules so the simulation never depends on graphics.
 
 ## 7. Build order for the framework
 
@@ -145,6 +161,8 @@ content/                 races.ron, units.ron, buildings.ron, abilities.ron,
 8. **Content pass**: grow the sample content into a playable set, and balance with AI-vs-AI runs.
 
 Each step ships with tests and validator checks before the next starts.
+
+**Progress:** steps 1 and 2 are done. Step 4 (races, units, abilities) and the unit/building half of step 5 are done as described in section 6; the effect executor (step 3), the rest of the city economy (growth, food, unrest), spells, and combat are still to do.
 
 ## 8. Decisions (confirmed)
 

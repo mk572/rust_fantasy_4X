@@ -454,8 +454,8 @@ mod tests {
         let p = problems_of(&[
             (
                 "buildings.ron",
-                "requires: [\"barracks\"], effects: [\n        (target: City, effect: Modify(stat: UnitCostPercent",
-                "requires: [\"forge\"], effects: [\n        (target: City, effect: Modify(stat: UnitCostPercent",
+                "requires: [\"barracks\"], effects: [\n        (target: City, effect: Modify(stat: UnitCost",
+                "requires: [\"forge\"], effects: [\n        (target: City, effect: Modify(stat: UnitCost",
             ),
             ("buildings.ron", "requires: [\"barracks\"], races: [\"ironclans\"]", "requires: [\"armoury\"], races: [\"ironclans\"]"),
         ]);
