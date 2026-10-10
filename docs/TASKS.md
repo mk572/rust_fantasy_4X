@@ -96,6 +96,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 96 | Client | City screen: enchantments list |
 | 97 | Client | Sound effects |
 | 98 | Housekeeping | Packaging for Linux |
+| 99 | Combat | Saving during a battle |
 
 ## Descriptions
 
@@ -454,3 +455,11 @@ same audio layer as the music (76) with its own volume, from locally extracted f
 macroquad dependencies: X11 or Wayland, OpenGL, ALSA once audio exists), an AppImage or tarball,
 a `.desktop` file and icon, testing on a current Debian/Ubuntu and Fedora, and the same
 local-assets workflow as the Mac build (81). A release workflow on GitHub Actions.
+
+**99. Saving during a battle.** A battle in progress is not part of a save today (`Game::battle`
+is skipped, so saving mid-fight would lose it, and the client should block saving). Make
+`Battle` serialisable: units with their statistics, cells, turn, active side, and the random
+generator state (seed plus draw count, as for the game), plus the list of overland units the
+fighters were copied from (by creation number). Restore it on load, check it for consistency
+(units on the map, sources still alive), keep old saves loading, and test that a save in the
+middle of a battle continues exactly like the unsaved one.
