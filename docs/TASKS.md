@@ -107,6 +107,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
 | 109 | Housekeeping | Importer clean-up |
+| 110 | Combat | Battle map generation parity with the original |
+| 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
+| 112 | Client | Battle map art |
 
 ## Descriptions
 
@@ -493,3 +496,9 @@ middle of a battle continues exactly like the unsaved one.
 **108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warped nodes exist as a flag but nothing sets it (Warp Node, task 7); unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
 
 **109. Importer clean-up.** `scripts/import_mom.py` has duplicate entries (`Natures Eye` and `Nature's Eye` in the city-enchantment table), several maps keyed by display names that differ between sources, and spell-effect tables that grew by hand (global, tile, fortress hooks). Tidy them into one table per kind with a check that every key matches a real spell, building or unit, reported in `IMPORT_REPORT.txt`.
+
+**110. Battle map generation parity with the original.** Our battle map only sprinkles rough and blocked squares by terrain class. The original (`Generate_Combat_Map` in ReMoM `Combat.c`) builds the map from the overland square and its surroundings: terrain sets and patches, scattered trees and rocks by terrain, roads crossing the battlefield where overland roads run, rivers carved through, rough ground removed around cities, and per-square movement-cost maps. Port it, keep it seeded and deterministic, and test the shapes (connectivity of the deployment edges, roads and rivers on the right sides).
+
+**111. Special battle sites: nodes, lairs, towers, ruins and fortress cities.** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108).
+
+**112. Battle map art.** Draw the battle map with the original's combat terrain art, extracted locally (`cmbgrass*`, `cmbdesrt*`, `citywall`, `cityscap` and the other combat `.lbx` files already extracted under `assets-local/art`): terrain sets per overland terrain and plane, tree and rock scenery, roads, rivers, city buildings and walls, the isometric grid and its coordinate mapping (`Combat_Grid_Screen_Coordinates`). Part of the battle screen (45) but large enough to track separately.
