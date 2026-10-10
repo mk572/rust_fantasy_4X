@@ -9,6 +9,7 @@
 //! Sides alternate: the attacker plays all its units, then the defender, and a new turn
 //! starts when the defender is done. A side loses when it has no active unit left.
 
+pub mod ai;
 pub mod attack;
 pub mod game;
 pub mod map;

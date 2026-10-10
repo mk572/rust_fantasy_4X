@@ -72,5 +72,5 @@ piercing and illusion, large shield, the spell shots using mana, haste, blur.
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins.
-- Not yet (task 41, 43-45): walls and gates, casting in battle, battlefield spells, the
+- Not yet (task 41, 43, 44): walls and gates, casting in battle, battlefield spells, the
   battle screen, the battle AI, auto-resolve.

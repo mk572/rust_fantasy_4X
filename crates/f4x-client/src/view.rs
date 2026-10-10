@@ -25,10 +25,13 @@ const RIVAL: PlayerId = PlayerId(1);
 pub const QUICKSAVE: &str = "saves/quick.ron";
 pub const AUTOSAVE: &str = "saves/autosave.ron";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
+    /// A tactical battle is being fought.
+    Battle,
     /// Creating the human wizard before the game begins.
     Create,
 }
@@ -60,6 +63,8 @@ pub struct App {
     pub(crate) create: crate::create_screen::CreateState,
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
+    /// The battle screen's state.
+    pub(crate) battle_ui: crate::battle_screen::BattleUi,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -106,6 +111,7 @@ impl App {
             show_keys: false,
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
+            battle_ui: Default::default(),
         };
         app.start_game();
         Ok(app)
@@ -268,6 +274,7 @@ impl App {
     /// Turn events into log lines; returns whether a city was founded.
     pub(crate) fn note(&mut self, events: Vec<Event>) -> bool {
         let mut founded = false;
+        let mut follow = Vec::new();
         for event in events {
             let line = match event {
                 Event::CityFounded { city, .. } => {
@@ -289,7 +296,32 @@ impl App {
                 Event::UnitsDisbanded { units, .. } => {
                     Some(format!("{units} unit(s) disbanded: unpaid or unfed"))
                 }
-                Event::AttackRequested { .. } => Some("Combat is not implemented yet".to_string()),
+                Event::AttackRequested {
+                    attackers,
+                    defenders,
+                    ..
+                } => {
+                    if attackers
+                        .first()
+                        .is_some_and(|&u| self.game.unit_owner(u) == Some(HUMAN))
+                    {
+                        follow.push(Command::BeginBattle {
+                            attackers,
+                            defenders,
+                        });
+                    }
+                    None
+                }
+                Event::SiteEncounter { units, to, .. } => {
+                    if units
+                        .first()
+                        .is_some_and(|&u| self.game.unit_owner(u) == Some(HUMAN))
+                    {
+                        follow.push(Command::EnterSite { units, to });
+                    }
+                    None
+                }
+                Event::SiteCleared { loot, .. } => Some(loot_line(&loot)),
                 Event::WizardBanished { player, .. } if player == HUMAN => Some(
                     "Your fortress has fallen! You are banished and cast the Spell of Return"
                         .to_string(),
@@ -351,6 +383,9 @@ impl App {
         }
         if self.log.len() > 40 {
             self.log.drain(..self.log.len() - 40);
+        }
+        for command in follow {
+            self.begin_battle(command);
         }
         founded
     }
@@ -554,11 +589,15 @@ impl App {
     pub fn frame(&mut self) -> bool {
         self.selection
             .retain(|&u| self.game.unit_position(u).is_some());
+        if self.game.in_battle() && self.screen != Screen::Battle {
+            self.screen = Screen::Battle;
+        }
         match self.screen {
             Screen::City(city) => {
                 self.city_screen(city);
             }
             Screen::Magic => self.magic_screen(),
+            Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {
@@ -1106,5 +1145,36 @@ impl App {
                 lines.line(&format!("Foreign {}", def.name), RED);
             }
         }
+    }
+}
+
+/// One log line for the treasure a cleared site gave.
+fn loot_line(loot: &f4x_core::lairs::Loot) -> String {
+    let mut parts = Vec::new();
+    if loot.gold > 0 {
+        parts.push(format!("{} gold", loot.gold));
+    }
+    if loot.mana > 0 {
+        parts.push(format!("{} mana", loot.mana));
+    }
+    if !loot.items.is_empty() {
+        parts.push(format!("{} magic item(s)", loot.items.len()));
+    }
+    if loot.prisoner {
+        parts.push("a prisoner".to_string());
+    }
+    if loot.spell.is_some() {
+        parts.push("a spell".to_string());
+    }
+    for book in &loot.books {
+        parts.push(format!("a {book} book"));
+    }
+    for _ in &loot.retorts {
+        parts.push("a retort".to_string());
+    }
+    if parts.is_empty() {
+        "The site is cleared".to_string()
+    } else {
+        format!("The site is cleared: {}", parts.join(", "))
     }
 }

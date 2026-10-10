@@ -203,3 +203,16 @@ cell positions: ground by plane and enchantment, river or ocean overlay, hills o
 the road grid, every cell back to front, the walls; hovering shows a building's name. Not done:
 the original's road masking (the whole grid is drawn), animation of buildings and water,
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
+
+**45. Battle screen in the client (done).** `battle_screen.rs`: the combat grid in the original's
+isometric projection (32 by 16 cells, step 16 by 8) scaled to the window, ground from the
+original's `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` sets (and the Myrror `c` variants) chosen by the
+overland terrain, trees and rocks on blocked squares, units as their overland icon on a banner
+base with health bar and figure count, reach and target markers, a side panel with the
+selected or hovered unit's statistics, and orders by click (select, move, melee, shoot) and keys
+(Space done, Tab next, Enter end turn) or buttons (Flee asks twice). A move into an enemy stack
+or a guarded site starts the battle; the other side is played by a plain placeholder AI
+(`battle/ai.rs`, walk at the nearest enemy and hit it) until task 46. Results go back through the core
+(wounds, deaths, site loot logged). `--battle` with `--shot` opens a test fight. Remaining
+work is split into tasks 131-133 and 112 (map art), 43/44 (casting).
+

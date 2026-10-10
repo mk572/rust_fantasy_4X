@@ -2,6 +2,7 @@
 //! world except by sending commands.
 
 mod art;
+mod battle_screen;
 mod city_screen;
 mod cityscape;
 mod create_screen;
@@ -36,6 +37,8 @@ struct Options {
     create: bool,
     /// Skip the creation screen and play the default wizard.
     quick: bool,
+    /// With `--shot`, fight a test battle first.
+    battle: bool,
     /// With `--shot`, select the starting stack first.
     select: bool,
     /// With `--shot`, end this many turns first.
@@ -63,6 +66,7 @@ fn parse_args() -> Result<Options, String> {
         at: None,
         quick: false,
         select: false,
+        battle: false,
         turns: 0,
         load: None,
         save: None,
@@ -81,6 +85,7 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--select" => o.select = true,
+            "--battle" => o.battle = true,
             "--magic" => o.magic = true,
             "--create" => o.create = true,
             "--reveal" => o.reveal = true,
@@ -166,6 +171,9 @@ async fn main() {
     }
     if options.magic {
         app.open_magic();
+    }
+    if options.battle {
+        app.open_test_battle();
     }
     if options.create || (options.shot.is_none() && options.load.is_none() && !options.quick) {
         app.open_creation();

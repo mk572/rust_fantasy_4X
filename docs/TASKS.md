@@ -43,7 +43,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 42 | Combat | Fleeing and after-battle results |
 | 43 | Combat | Casting in battle |
 | 44 | Combat | Battlefield-effect spells |
-| 45 | Combat | Battle screen in the client |
 | 46 | Combat | Battle AI |
 | 47 | Heroes | Hero abilities |
 | 48 | Heroes | Hiring, summoning, recall, resurrection and fame |
@@ -122,6 +121,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 128 | Client | Site encounter dialogs and treasure popup |
 | 129 | Map | Lair generation parity |
 | 130 | Client | Warped node and cleared site pictures |
+| 131 | Combat | Battle grid shape and deployment as in the original |
+| 132 | Client | Battle screen: unit figures, animation and the original's frame |
+| 133 | Client | Prompt before attacking, and battles between AI players |
 
 ## Descriptions
 
@@ -136,7 +138,7 @@ aura [653-656], and warping by spells. Depends on 6.
 
 **8. Encounter sites: guardians and loot.** Core done (`lairs.rs`, `docs/lairs.md`): guards and hoards
 for towers, nodes and encounter sites, assault by `Command::EnterSite`, treasure and clearing. Open
-parts are split into tasks 127 to 130; the client side needs the battle screen (task 45).
+parts are split into tasks 127 to 130; the client has no confirm box yet and assaults a site at once (task 128).
 
 **9. City founding blocked only by intact encounter sites.** A cleared encounter site now removes
 its feature, so it no longer blocks; but any *intact* site still blocks, as it should. What is left:
@@ -242,9 +244,6 @@ range multiplier by distance from the wizard's fortress, and Counter Magic [610]
 
 **44. Battlefield-effect spells.** 19 spells with combat-wide modifiers by realm, per-turn bolts,
 mud, entangle and counter magic; implement on top of 30 and 43.
-
-**45. Battle screen in the client.** Draw the combat map, units, selection, moves, attacks and
-spell casting, with the original battle art from `assets-local`.
 
 **46. Battle AI.** Decision making for AI-controlled units in tactical battles and for the AI
 wizard's combat spells. After 40 and 43.
@@ -549,7 +548,7 @@ tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-ret
 original's confirm box ("You have found a ruins.  Scouts have spotted 4 Skeletons within the ruins.
 Do you wish to enter?", node pictures per realm, Y/N), send `EnterSite`, and after a win show
 "Inside you find ..." with the gold, mana, items, prisoner and spell lines. Unguarded sites pay out
-on arrival without a prompt. Depends on the battle screen (task 45) for the fight itself.
+on arrival without a prompt. The fight itself uses the battle screen (done); the prompt is what is missing.
 
 **129. Lair generation parity.** The original places 6 towers, 30 nodes, 25 strong and 32 weak random
 sites (102 slots, three left switched off), each at least two squares from any other lair, on land,
@@ -560,3 +559,24 @@ exact placement, counts and type roll once the generator parity task (10) is tak
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
 cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared.
+
+**131. Battle grid shape and deployment as in the original.** The original draws 22 staggered rows
+of 11 cells, which covers only the band of the 21 by 22 grid with about -9 <= x - y <= 11
+(`Combat_Screen_Map_Draw`); the core lets units stand on all squares and deploys in columns at the
+west and east edges, so the client draws a full diamond. Port the original's playable squares,
+its deployment squares per side, the lair/structure square (6, 11) and `Combat_Grid_Screen_Coordinates`
+placement at 320 by 200, then restrict the core map and movement to them.
+
+**132. Battle screen: unit figures, animation and the original's frame.** Units are drawn as their
+overland icon with a banner base, one health bar and a figure count. The original shows each
+figure of a unit (`figures1`-`figures16`, `Combat_Figure_Compose`), walking, attack, hit and death
+animations, projectiles (`cmbmagic`, `cmbtfx`), the combat frame (`combat.lbx`) with its unit list
+and spell/info buttons, mouse pointers by action, and hit/miss feedback. Terrain autotile
+edges, dirt patches, roads, rivers and the city (task 112) are also still missing; blocked squares
+use the plain trees and rocks.
+
+**133. Prompt before attacking, and battles between AI players.** A human move into an enemy
+stack or a city starts the battle at once; the original asks first (attack, or cancel). AI
+attacks (`AttackRequested` for a non-human attacker) are ignored by the client, and nothing
+resolves a fight between two AI players; the AI crate has no battle code (task 46). Auto-resolve
+for battles a player does not want to fight by hand also belongs here.

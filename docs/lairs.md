@@ -11,4 +11,4 @@ Differences from the original (gap tasks in TASKS.md):
 - The lair-race switch fall-through (ReMoM-marked bug) is fixed: death 2, chaos 2, nature 1 in five.
 - Spell rewards and book/retort rewards follow the intent, not the original's muddled index arithmetic.
 - Items and prisoner heroes are recorded in `Loot` only (need heroes/items tasks 48-49).
-- No client prompt or battle screen yet (task 45).
+- No client prompt yet (task 128); the battle screen exists.
