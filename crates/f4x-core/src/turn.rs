@@ -450,6 +450,7 @@ mod tests {
     use crate::map::{Grid, Map, Plane};
     use crate::player::Player;
     use crate::production::{ProductionError, ProductionItem};
+    use crate::rules::{ModOp, Stat};
     use crate::testutil::content_with_economy;
     use crate::units::Hurt;
     use crate::Command;
@@ -596,6 +597,83 @@ mod tests {
             .plane_mut(Plane::Arcanus)
             .set_river(1, 6, true);
         assert_eq!(g.city_economy(mouth).unwrap().gold, 13, "river mouth");
+    }
+
+    /// Add a building with the given stat modifiers to the rules and to a city.
+    fn add_custom_building(
+        g: &mut Game,
+        city: hecs::Entity,
+        id: &str,
+        mods: &[(Stat, ModOp, i32)],
+    ) {
+        use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+        let mut def = g.content.rules.buildings.defs()[0].clone();
+        def.id = id.into();
+        def.requires.clear();
+        def.effects = mods
+            .iter()
+            .map(|&(stat, op, value)| EffectRule {
+                when: Trigger::Passive,
+                condition: Condition::Always,
+                target: TargetSel::This,
+                effect: Effect::Modify { stat, op, value },
+            })
+            .collect();
+        let mut defs = g.content.rules.buildings.defs().to_vec();
+        defs.push(def);
+        let new = crate::rules::BuildingId::new((defs.len() - 1) as u16);
+        g.content.rules.buildings = crate::rules::Registry::new(defs);
+        g.world.get::<&mut Buildings>(city).unwrap().0.push(new);
+    }
+
+    #[test]
+    fn the_animists_guild_adds_food_for_every_farmer() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 6);
+        let food = |g: &Game, farmers| g.city_economy_with(city, farmers).unwrap().food;
+        let (two, four) = (food(&g, 2), food(&g, 4));
+        add_custom_building(
+            &mut g,
+            city,
+            "animists",
+            &[(Stat::FarmerFood, ModOp::Add, 1)],
+        );
+        assert_eq!(food(&g, 2), two + 2, "one more for each of two farmers");
+        assert_eq!(
+            food(&g, 4),
+            four + 4,
+            "and for each of four, not a flat bonus"
+        );
+    }
+
+    #[test]
+    fn the_foresters_guilds_food_raises_the_size_limit_too() {
+        let mut g = world();
+        // Barren land: nothing to feed anyone but the guild.
+        let desert = g
+            .content
+            .terrains
+            .first_of_class(crate::content::TerrainClass::Desert, Plane::Arcanus)
+            .unwrap();
+        for x in 0..24 {
+            for y in 0..14 {
+                g.map
+                    .as_mut()
+                    .unwrap()
+                    .plane_mut(Plane::Arcanus)
+                    .set(x, y, desert);
+            }
+        }
+        let city = found(&mut g, at(10, 6), "elf", 1);
+        let size = |g: &Game| g.city_economy(city).unwrap().max_size;
+        assert_eq!(size(&g), 0);
+        add_custom_building(
+            &mut g,
+            city,
+            "foresters",
+            &[(Stat::CityFood, ModOp::Add, 2)],
+        );
+        assert_eq!(size(&g), 2, "+2 food feeds two more people (B14)");
     }
 
     #[test]

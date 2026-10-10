@@ -129,8 +129,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 - `rules.ron` `min_city_distance` was 3; fixed to 4 (see B17).
 - The imported Dwarven/Klackon/Halfling production and food per citizen and Dwarf double
   tax are not modelled at all yet (see `docs/mechanics-gaps.md` §1).
-- Imported "Animist's Guild +1 food" is flat per city; the original adds 1 food **per
-  farmer** (the code multiplies farmers by 3 instead of 2).
+- (Fixed) The Animist's Guild's +1 food is per farmer, as in the original; tested.
 
 ## Resolving
 For each row, choose the code, the help, or a third behaviour, then record the decision in

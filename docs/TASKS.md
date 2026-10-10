@@ -26,11 +26,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
-| 19 | City | Forester's Guild raises the growth cap (B14) |
 | 20 | City | Population growth edge rules (B19) |
 | 21 | City | Outpost growth: wild game and difficulty (B20) |
 | 22 | City | Nightshade dispel strength |
-| 23 | City | Animist's Guild food per farmer |
 | 24 | City | Stream of Life and Gaia's Blessing (B8) |
 | 25 | City | City enchantments with non-stat effects |
 | 26 | Units | Unit abilities that need code |
@@ -151,9 +149,6 @@ direct prerequisites. Block selling where later buildings depend on it through a
 adamantium access get better weapons (+1 or +2 attack and to-hit bonuses in the original). Needs a
 per-unit quality attribute set at creation and saved.
 
-**19. Forester's Guild raises the growth cap (B14).** The original forgot to include the +2 food in
-the maximum size; decision is to include it. Change the farmland-cap calculation in `economy.rs`.
-
 **20. Population growth edge rules (B19).** Excess above the next whole figure is discarded when a
 figure is gained, growth is clamped so it cannot go negative at maximum size, and neutral cities
 grow at half rate. Verify against `apply_growth` and add tests.
@@ -164,9 +159,6 @@ the human too).
 
 **22. Nightshade dispel strength.** Each nightshade plant in a city's area adds 100 dispel strength
 against bad city enchantments [766]. Hook into the dispel code (task 59).
-
-**23. Animist's Guild food per farmer.** The guild adds food per farmer, not per city [723];
-verify and fix the effect in the building data and the economy formula.
 
 **24. Stream of Life and Gaia's Blessing (B8).** The original reads the wrong table, which looks
 like a port error. Needs the original's disassembly; until then, implement the described behaviour

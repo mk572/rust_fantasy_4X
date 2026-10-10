@@ -14,6 +14,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
+| 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
+| 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
@@ -71,6 +73,15 @@ their `Sight` stat (the importer reads it; scouting levels are not separate).
 
 **15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
 section 12. What is left is split off as task 82.
+
+**19. Forester's Guild raises the growth cap (done).** The city's maximum size already counts the
+guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on barren land
+(`the_foresters_guilds_food_raises_the_size_limit_too`) now pins it.
+
+**23. Animist's Guild food per farmer (done).** The importer gives the guild `FarmerFood +1`, which
+the economy adds to each farmer's harvest (not a flat bonus per city); the test
+`the_animists_guild_adds_food_for_every_farmer` pins it. The stale note in
+`help-vs-implementation-conflicts.md` section D was removed.
 
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
