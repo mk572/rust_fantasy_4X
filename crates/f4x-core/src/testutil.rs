@@ -69,5 +69,9 @@ pub fn content() -> Content {
         feature("tower", FeatureKind::Tower, vec![], vec![]),
         feature("node", FeatureKind::Node, land, Plane::ALL.to_vec()),
     ]);
-    Content { terrains, features }
+    Content {
+        terrains,
+        features,
+        ..Default::default()
+    }
 }

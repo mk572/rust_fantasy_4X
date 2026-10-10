@@ -37,6 +37,18 @@ fn validate(dir: Option<&String>) -> Result<(), String> {
     let c = content(dir)?;
     println!("terrain.ron: ok ({} definitions)", c.terrains.defs().len());
     println!("features.ron: ok ({} definitions)", c.features.defs().len());
+    let r = &c.rules;
+    println!(
+        "rules: ok ({} races, {} units, {} abilities, {} buildings, {} realms, {} spells, {} items, {} level paths)",
+        r.races.len(),
+        r.units.len(),
+        r.abilities.len(),
+        r.buildings.len(),
+        r.realms.len(),
+        r.spells.len(),
+        r.items.len(),
+        r.level_paths.len()
+    );
     Ok(())
 }
 

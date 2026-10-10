@@ -1,5 +1,7 @@
 //! Loading and validation of game content files.
 
+pub mod rules;
+
 use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
@@ -95,7 +97,7 @@ pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
     problems
 }
 
-fn id_problem(kind: &str, id: &str) -> Option<String> {
+pub(crate) fn id_problem(kind: &str, id: &str) -> Option<String> {
     let ok = !id.is_empty()
         && id
             .chars()
@@ -167,16 +169,20 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     problems
 }
 
-/// Load `terrain.ron` and `features.ron` from a content directory.
+/// Load and validate all content files from a content directory.
 pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
     let read = |name: &str| {
         let path = dir.join(name);
         std::fs::read_to_string(&path)
             .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
     };
+    let terrains = parse_terrains(&read("terrain.ron")?)?;
+    let features = parse_features(&read("features.ron")?)?;
+    let rules = rules::load_rules(dir, &features)?;
     Ok(Content {
-        terrains: parse_terrains(&read("terrain.ron")?)?,
-        features: parse_features(&read("features.ron")?)?,
+        terrains,
+        features,
+        rules,
     })
 }
 
@@ -210,6 +216,7 @@ mod tests {
         let c = Content {
             terrains: t,
             features: shipped_features(),
+            ..Default::default()
         };
         let g = f4x_core::Game::with_generated_map(1, &Default::default(), &c).unwrap();
         assert!(g.map.is_some());

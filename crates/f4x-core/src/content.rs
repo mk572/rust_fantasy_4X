@@ -179,4 +179,5 @@ impl Features {
 pub struct Content {
     pub terrains: Terrains,
     pub features: Features,
+    pub rules: crate::rules::Rules,
 }

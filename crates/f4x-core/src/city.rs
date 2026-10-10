@@ -3,10 +3,6 @@
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane};
 
-/// Minimum Chebyshev distance between two cities on the same plane
-/// (so two tiles must lie between them). A tunable rule, not a verified constant.
-pub const MIN_CITY_DISTANCE: u32 = 3;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PlayerId(pub u8);
 
@@ -65,7 +61,9 @@ pub fn check_site(
     for other in existing.into_iter().filter(|o| o.plane == pos.plane) {
         match grid.chebyshev((other.x, other.y), (pos.x, pos.y)) {
             0 => return Err(FoundCityError::CityAlreadyHere),
-            d if d < MIN_CITY_DISTANCE => return Err(FoundCityError::TooCloseToCity),
+            d if d < content.rules.config.min_city_distance => {
+                return Err(FoundCityError::TooCloseToCity)
+            }
             _ => {}
         }
     }

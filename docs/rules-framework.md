@@ -146,12 +146,12 @@ content/                 races.ron, units.ron, buildings.ron, abilities.ron,
 
 Each step ships with tests and validator checks before the next starts.
 
-## 8. Decisions to confirm
+## 8. Decisions (confirmed)
 
-These shape the rest, so they are worth settling before step 1.
+1. **Number scale: as in Master of Magic.** Small numbers, units of roughly 1 to 10 per stat with a figure count per unit.
+2. **Magic structure: as in Master of Magic.** Five realms, spell books built from picks, per-realm research. Realms stay data so this is easy to change later.
+3. **Stats: fixed in code.** A closed `Stat` enum; content cannot invent stats.
+4. **Heroes and items: from day one.** Hero units, item slots and item effects are part of the base schema and of steps 4 to 7 below, not a later layer.
+5. **Deviation from MoM: only after parity.** The first target is every system in `design.md` working as in MoM. Departures are planned once that is reached; until then, when in doubt, follow MoM.
 
-1. **Stat model and scale.** Small MoM-style numbers (units of 1 to 10 with a figure count per unit) or larger numbers with finer balance control? The framework supports both; the choice changes content and the combat formulas.
-2. **Magic structure.** Keep five realms with spell books and picks, or something different (open schools, fewer realms, no pick-based wizard)? The framework treats realms as data either way.
-3. **Closed `Stat` enum vs. open stats.** Proposed closed enum for safety. Open, content-defined stats would give more modding freedom but make validation and the UI harder.
-4. **Heroes and items**: a fixed set of unit kinds from day one, or a later layer on top of normal units?
-5. **How far do we deviate from MoM in the first playable?** Faithful clone of the systems first (races, five realms, city catchment) and diverge later, or diverge from the start in specific places (list them)?
+Consequence of 4 and 5: the sample content and the schema are shaped around MoM's mechanics, but with original names and values for the placeholder data.
