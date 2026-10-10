@@ -680,7 +680,7 @@ impl App {
             }
             if units.len() > 1 {
                 draw_text(
-                    &units.len().to_string(),
+                    units.len().to_string(),
                     at.x + t.x - 14.0,
                     at.y + t.y - 4.0,
                     18.0,
@@ -702,7 +702,7 @@ impl App {
             "Myrror"
         };
         draw_text(
-            &format!(
+            format!(
                 "Turn {}   {}   Gold {} ({:+})   Food +{} (army {})   zoom {}x   seed {}",
                 self.game.turn,
                 plane,
