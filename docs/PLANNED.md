@@ -20,6 +20,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 7 | City | Smarter city autobuilder |
 | 8 | Options | Hardcore mode |
 | 9 | Client | Battle success hint |
+| 10 | Client | Font and TrueType support |
 
 ## Descriptions
 
@@ -105,3 +106,16 @@ tooltip over the target square and in the confirmation before an attack, and mak
 accuracy and visibility an option (off in hardcore mode, item 8; "fog of war" versions that
 estimate from only what the player has seen are an extension). Depends on the battle views
 of task 106 and on auto-resolve (39).
+
+**10. Font and TrueType support.** Today the client draws text with macroquad's built-in font and,
+once task 113 is done, with the original's bitmap fonts. Add real font support: load TrueType
+and OpenType files (and bitmap fonts in a simple data format) through a font setting, so a
+player or a mod can choose the UI font, with a **font set** per role (title, heading, body,
+small, numbers) and fallbacks when a glyph is missing. Needs: a text layout layer shared by
+all screens (measure, wrap, centre, shadow and outline, colours, scaling that follows the
+window), crisp rendering at any scale (rasterise at the target size, cache glyph atlases), full
+Unicode and right-to-left and CJK coverage as an extension (the game's names and help are
+English today but modded content may not be), and a licence check: only fonts under licences
+the project can ship go into the repository (for example an open blackletter pixel-style face
+to stand in for the original's display font), while the original's bitmap fonts stay local.
+Modding support (item 5) should let a mod ship its own fonts and map them to the roles.

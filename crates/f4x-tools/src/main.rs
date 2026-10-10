@@ -1,6 +1,7 @@
 //! Developer tooling: content validation and map preview.
 
 mod art;
+mod fonts;
 mod image;
 mod lbx;
 
