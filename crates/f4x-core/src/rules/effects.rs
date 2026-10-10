@@ -21,6 +21,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::terraform::RAISE_VOLCANO,
     crate::terraform::CHANGE_TERRAIN,
     crate::globals::GLOBAL_EFFECT,
+    crate::roads::ENCHANT_ROAD,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

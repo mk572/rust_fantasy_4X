@@ -250,6 +250,7 @@ impl EffectHost for GameHost<'_> {
             let events = match hook {
                 crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),
                 crate::terraform::CHANGE_TERRAIN => self.game.change_terrain_spell(at),
+                crate::roads::ENCHANT_ROAD => self.game.enchant_roads(at),
                 _ => return,
             };
             self.events.extend(events);
@@ -352,6 +353,13 @@ impl Game {
         if self.spell_has_hook(spell, crate::terraform::RAISE_VOLCANO) {
             return match target {
                 Some(Target::Tile(p)) if self.can_raise_volcano(p) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::roads::ENCHANT_ROAD) {
+            return match target {
+                Some(Target::Tile(p)) if self.can_enchant_road(p) => Ok(()),
                 Some(_) => Err(MagicError::NoSuchTarget),
                 None => Err(MagicError::NeedsTarget),
             };

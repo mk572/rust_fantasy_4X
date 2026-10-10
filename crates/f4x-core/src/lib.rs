@@ -20,6 +20,7 @@ pub mod nodes;
 pub mod pathing;
 pub mod player;
 pub mod production;
+pub mod roads;
 pub mod rules;
 pub mod save;
 pub mod serial;
@@ -57,6 +58,11 @@ pub enum Command {
     /// Cancel standing orders.
     ClearOrders {
         units: Vec<hecs::Entity>,
+    },
+    /// Engineers build a road along `path` (starting where they stand).
+    BuildRoad {
+        units: Vec<hecs::Entity>,
+        path: Vec<city::Position>,
     },
     /// Meld a spirit of the stack into the magic node it stands on.
     Meld {
@@ -233,6 +239,12 @@ pub enum Event {
         player: city::PlayerId,
         spell: rules::SpellId,
     },
+    RoadBuilt {
+        pos: city::Position,
+    },
+    RoadsEnchanted {
+        pos: city::Position,
+    },
     NodeMelded {
         player: city::PlayerId,
         pos: city::Position,
@@ -274,6 +286,7 @@ pub enum Rejection {
     Magic(magic::MagicError),
     Fortress(fortress::FortressError),
     Meld(nodes::MeldError),
+    Road(roads::RoadError),
 }
 
 fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
@@ -403,9 +416,13 @@ impl Game {
             Command::ClearOrders { units } => {
                 for u in units {
                     let _ = self.world.remove_one::<units::Order>(u);
+                    let _ = self.world.remove_one::<roads::RoadWork>(u);
                 }
                 Vec::new()
             }
+            Command::BuildRoad { units, path } => self
+                .build_road(&units, path)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Road(e))]),
             Command::Meld { units } => self
                 .meld(&units)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Meld(e))]),
@@ -624,6 +641,7 @@ impl Game {
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.extend(self.process_turn());
+        events.extend(self.process_road_work());
         let with_orders: Vec<_> = self
             .world
             .query::<&units::Order>()

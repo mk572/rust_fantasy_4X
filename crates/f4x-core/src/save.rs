@@ -104,6 +104,9 @@ pub struct PlaneSave {
     /// `(tile index, owner's player number)` for every volcano.
     #[serde(default)]
     pub volcanoes: Vec<(u32, u8)>,
+    /// Tile indexes whose road is enchanted.
+    #[serde(default)]
+    pub enchanted_roads: Vec<u32>,
 }
 
 /// Explored flags, bit-packed (least significant bit first), per player and plane.
@@ -251,6 +254,9 @@ pub struct UnitSave {
     /// `(spell, caster)`; absent in older saves.
     #[serde(default)]
     pub enchantments: Vec<(String, u8)>,
+    /// Road work in progress: `(square, turns left, squares still to do)`.
+    #[serde(default)]
+    pub road_work: Option<(Position, u8, Vec<Position>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -390,12 +396,20 @@ impl Game {
                         .filter(|(_, &v)| v > 0)
                         .map(|(i, &v)| (i as u32, v - 1))
                         .collect();
+                    let enchanted_roads = grid
+                        .enchanted_roads()
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &r)| r)
+                        .map(|(i, _)| i as u32)
+                        .collect();
                     PlaneSave {
                         tiles,
                         features,
                         roads,
                         rivers,
                         volcanoes,
+                        enchanted_roads,
                     }
                 })
                 .collect();
@@ -460,6 +474,11 @@ impl Game {
                                 .collect()
                         })
                         .unwrap_or_default(),
+                    road_work: self
+                        .world
+                        .get::<&crate::roads::RoadWork>(u)
+                        .ok()
+                        .map(|w| (w.at, w.left, w.rest.clone())),
                 })
             })
             .collect();
@@ -668,6 +687,11 @@ impl Snapshot {
                 MovesLeft(u.moves),
                 serial,
             ));
+            if let Some((at, left, rest)) = u.road_work {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::roads::RoadWork { at, left, rest });
+            }
             if let Some(path) = u.order {
                 let _ = game.world.insert_one(entity, Order::GoTo(path));
             }
@@ -875,13 +899,20 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .ok_or_else(|| LoadError::Inconsistent("a volcano is off the map".into()))? =
                 owner.saturating_add(1);
         }
+        let mut enchanted = vec![false; len];
+        for i in plane.enchanted_roads {
+            *enchanted.get_mut(i as usize).ok_or_else(|| {
+                LoadError::Inconsistent("an enchanted road is off the map".into())
+            })? = true;
+        }
         grids.push(
             Grid::from_parts(m.width, m.height, tiles, feature_layer, roads)
                 .ok_or_else(|| {
                     LoadError::Inconsistent("a plane does not match the map size".into())
                 })?
                 .with_rivers(rivers)
-                .with_volcanoes(volcanoes),
+                .with_volcanoes(volcanoes)
+                .with_enchanted_roads(enchanted),
         );
     }
     let myrror = grids.pop().expect("two planes");

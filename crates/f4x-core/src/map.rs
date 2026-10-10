@@ -38,6 +38,9 @@ pub struct Grid {
     /// A river runs through the tile: a gold bonus for a city there, nothing else.
     #[serde(default)]
     rivers: Vec<bool>,
+    /// Enchanted roads cost walking units no movement at all.
+    #[serde(default)]
+    enchanted_roads: Vec<bool>,
     /// Volcano owner per tile: 0 for none, else the owner's player number plus one.
     #[serde(default)]
     volcanoes: Vec<u8>,
@@ -55,6 +58,7 @@ impl Grid {
             roads: vec![false; len],
             rivers: vec![false; len],
             volcanoes: vec![0; len],
+            enchanted_roads: vec![false; len],
         }
     }
 
@@ -119,6 +123,7 @@ impl Grid {
             roads,
             rivers: vec![false; len],
             volcanoes: vec![0; len],
+            enchanted_roads: vec![false; len],
         })
     }
 
@@ -162,6 +167,38 @@ impl Grid {
             self.roads = vec![false; self.tiles.len()];
         }
         self.roads[i] = road;
+    }
+
+    /// The same grid with the given enchanted-road layer; ignored if its length is wrong.
+    pub fn with_enchanted_roads(mut self, enchanted: Vec<bool>) -> Self {
+        if enchanted.len() == self.tiles.len() {
+            self.enchanted_roads = enchanted;
+        }
+        self
+    }
+
+    /// Enchanted-road flag per tile, row by row.
+    pub fn enchanted_roads(&self) -> Vec<bool> {
+        let mut v = self.enchanted_roads.clone();
+        v.resize(self.tiles.len(), false);
+        v
+    }
+
+    /// Whether the road on `(x, y)` is enchanted (false without a road).
+    pub fn has_enchanted_road(&self, x: i32, y: i32) -> bool {
+        if y < 0 || y >= self.height as i32 {
+            return false;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        self.enchanted_roads.get(i).copied().unwrap_or(false) && self.has_road(x, y)
+    }
+
+    pub fn set_enchanted_road(&mut self, x: u32, y: u32, on: bool) {
+        let i = self.index(x, y);
+        if self.enchanted_roads.len() != self.tiles.len() {
+            self.enchanted_roads = vec![false; self.tiles.len()];
+        }
+        self.enchanted_roads[i] = on;
     }
 
     /// The same grid with the given volcano layer (owner plus one, 0 for none); ignored if

@@ -21,7 +21,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 8 | Map | Encounter sites: guardians and loot |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) |
 | 10 | Map | Generator parity with the original and new-game settings |
-| 11 | Map | Roads built by engineers, and road enchantment |
 | 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
 | 14 | Map | Sight radius sources (Oracle, walls, Nature's Eye) |
@@ -133,10 +132,6 @@ state for sites (see 8).
 **10. Generator parity and new-game settings.** Our generator is our own design. Optionally port
 the original's landmass growth and shore fix-up, and add the new-game settings: land size 15/20/25
 percent, 1-4 opponents, node strength, difficulty [648-652]. Mark as a parity task, low priority.
-
-**11. Roads and engineers.** Roads exist as a flag but nothing builds them. Add the engineer units'
-build-road order (several turns per tile by terrain), road enchantment spells, and road display for
-newly built roads. Also unlocks the trade bonus effect in play.
 
 **12. Gates and the Planar Seal.** Earth Gate links two own cities for a one-move trip; Astral Gate
 and towers link planes; Planar Seal closes planar travel [750, 752]. Needs gate state on cities and

@@ -37,7 +37,7 @@ pub enum Entry {
 
 const FULL_MOVE: u32 = 2;
 
-fn adjacent(width: u32, a: Position, b: Position) -> bool {
+pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
     if a.plane != b.plane || a == b {
         return false;
     }
@@ -96,7 +96,14 @@ impl Game {
         let mut cost = u32::from(terrain.move_cost).max(1) * FULL_MOVE;
         let from_road = map.plane(from.plane).has_road(from.x as i32, from.y as i32);
         if from_road && grid.has_road(to.x as i32, to.y as i32) {
-            cost = 1;
+            // Roads halve the cost; enchanted roads (all roads on Myrror) make it nothing.
+            let magic = |p: Position| {
+                p.plane == Plane::Myrror
+                    || map
+                        .plane(p.plane)
+                        .has_enchanted_road(p.x as i32, p.y as i32)
+            };
+            cost = if magic(from) && magic(to) { 0 } else { 1 };
         }
         if has("pathfinding") {
             cost = cost.min(1);

@@ -11,6 +11,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 3 | Map | ~~Volcanoes~~ (done) |
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
+| 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
@@ -50,6 +51,17 @@ by Node Mastery; a warped node costs five. The client tints aura squares by real
 owned nodes in the owner's colour and melds with U. Not done: node guardians (monsters) to
 beat before melding (8), conjunction events (68), the warp spell (7), a setting screen for the
 strength (10, 89).
+
+**11. Roads and engineers (done).** `roads.rs`: units with the `Construction` stat (engineers: 1,
+2 for the dwarven ones; the importer now reads it) take `Command::BuildRoad` with a path; a
+square takes 3 turns on grassland, 4 desert, 6 forest, hills and tundra, 8 mountains and swamp,
+4 or 5 on a node, divided by the stack's total construction strength (a minimum of one turn;
+Endurance adds one per unit), then the stack steps to the next square of the path. The work is a
+`RoadWork` component, saved, and cancelled when the stack is moved by hand. Enchant Road (hook
+`enchant_road`, a map square) enchants every road within two squares; enchanted roads and all
+roads on Myrror cost walking units no movement. The client's B key builds a road under
+engineers (one square; path drawing is not done) and draws enchanted roads in gold. The trade
+bonus now has roads to work with.
 
 **15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
 section 12. What is left is split off as task 82.

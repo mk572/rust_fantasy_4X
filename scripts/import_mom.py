@@ -489,6 +489,8 @@ def unit_stats(row: UnitRow) -> dict[str, int]:
     if v["ranged"] > 0:
         stats["Ranged"] = v["ranged"]
         stats["Ammo"] = max(v["ammo"], 1)
+    if v["construction"] > 0:
+        stats["Construction"] = v["construction"]
     if v["to_hit"] > 0:
         stats["ToHit"] = v["to_hit"] * 10  # the table counts in steps of 10%
     return stats
@@ -707,6 +709,7 @@ FORTRESS_HOOKS = {
 TILE_HOOKS = {
     "Raise Volcano": "raise_volcano",
     "Change Terrain": "change_terrain",
+    "Enchant Road": "enchant_road",
 }
 
 

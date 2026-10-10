@@ -130,8 +130,9 @@ A road is a flag on a tile. Effects today:
   count in full if its race differs, half if it is the same race. The bonus, together with
   the coast bonus and any race trade bonus, is capped at three times the city's citizens.
 
-Roads are drawn by the client as a dot. Building them (engineers) and enchanting them are
-not yet implemented.
+Roads are drawn by the client as a dot (gold when enchanted). Engineers build them (`roads.rs`)
+and Enchant Road makes every road within two squares free to travel; all roads on Myrror are
+enchanted already.
 
 ## 6. Cities and outposts on the map
 

@@ -343,6 +343,8 @@ impl App {
                     Some(format!("Wizard {} is defeated", player.0))
                 }
                 Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
+                Event::RoadBuilt { .. } => Some("A road square is finished".to_string()),
+                Event::RoadsEnchanted { .. } => Some("The roads are enchanted".to_string()),
                 Event::VolcanoRaised { .. } => Some("A volcano rises".to_string()),
                 Event::NodeMelded { .. } => Some("The spirit melds with the node".to_string()),
                 Event::MeldFailed { .. } => {
@@ -716,6 +718,25 @@ impl App {
     }
 
     fn settle(&mut self) {
+        // Engineers build a road where they stand; settlers found an outpost.
+        let builders: Vec<_> = self
+            .selection
+            .iter()
+            .copied()
+            .filter(|&u| self.game.unit_stat(u, f4x_core::rules::Stat::Construction) > 0)
+            .collect();
+        let has_settlers = self
+            .selection
+            .iter()
+            .any(|&u| self.game.unit_has_ability(u, "create_outpost"));
+        if !builders.is_empty() && !has_settlers {
+            let events = self.game.apply(Command::BuildRoad {
+                units: self.selection.clone(),
+                path: Vec::new(),
+            });
+            self.note(events);
+            return;
+        }
         let settler = self
             .selection
             .iter()
@@ -856,12 +877,18 @@ impl App {
                     draw_river(grid, content, wx as i32, y, sx, sy, t);
                 }
                 if grid.has_road(wx as i32, y) {
+                    let magic =
+                        self.plane == Plane::Myrror || grid.has_enchanted_road(wx as i32, y);
                     draw_rectangle(
                         sx + t.x * 0.4,
                         sy + t.y * 0.4,
                         t.x * 0.2,
                         t.y * 0.2,
-                        Color::new(0.45, 0.3, 0.15, 1.0),
+                        if magic {
+                            Color::new(0.85, 0.7, 0.3, 1.0)
+                        } else {
+                            Color::new(0.45, 0.3, 0.15, 1.0)
+                        },
                     );
                 }
                 if let Some(f) = feature {

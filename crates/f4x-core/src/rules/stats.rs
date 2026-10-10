@@ -25,6 +25,9 @@ pub enum Stat {
     /// Percentage points added to the base to-hit chance (may be negative).
     ToHit,
     Ammo,
+    /// Road-building strength: engineers have 1 (some 2); the stack's total divides the
+    /// turns a road square takes.
+    Construction,
     // Wizards
     ManaIncome,
     ResearchIncome,
