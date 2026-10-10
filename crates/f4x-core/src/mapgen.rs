@@ -6,8 +6,20 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::content::{TerrainClass, Terrains, REQUIRED_CLASSES};
+use crate::content::{Content, FeatureKind, TerrainClass, Terrains, REQUIRED_CLASSES};
+use crate::featuregen;
 use crate::map::{Grid, Map, Plane, TerrainId};
+
+/// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaneParams {
+    /// Share of mineral-capable land tiles that get a mineral, 0..=100.
+    pub mineral_percent: u8,
+    /// Number of magic nodes to place.
+    pub node_count: u8,
+    /// One encounter site per this many land tiles; 0 disables encounters.
+    pub encounter_ratio: u32,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenParams {
@@ -15,6 +27,10 @@ pub struct GenParams {
     pub height: u32,
     /// Share of tiles that are land, 1..=99.
     pub land_percent: u8,
+    /// Towers placed at identical coordinates on both planes.
+    pub tower_count: u8,
+    /// Indexed by [`Plane::index`].
+    pub planes: [PlaneParams; 2],
 }
 
 impl Default for GenParams {
@@ -23,6 +39,19 @@ impl Default for GenParams {
             width: 60,
             height: 40,
             land_percent: 30,
+            tower_count: 6,
+            planes: [
+                PlaneParams {
+                    mineral_percent: 6,
+                    node_count: 16,
+                    encounter_ratio: 10,
+                },
+                PlaneParams {
+                    mineral_percent: 10,
+                    node_count: 14,
+                    encounter_ratio: 10,
+                },
+            ],
         }
     }
 }
@@ -31,6 +60,7 @@ impl Default for GenParams {
 pub enum GenError {
     BadParams(String),
     MissingTerrain { class: TerrainClass, plane: Plane },
+    MissingFeature { kind: FeatureKind },
 }
 
 impl std::fmt::Display for GenError {
@@ -40,13 +70,15 @@ impl std::fmt::Display for GenError {
             GenError::MissingTerrain { class, plane } => {
                 write!(f, "no terrain of class {class:?} defined for {plane:?}")
             }
+            GenError::MissingFeature { kind } => write!(f, "no feature of kind {kind:?} defined"),
         }
     }
 }
 
 impl std::error::Error for GenError {}
 
-pub fn generate(seed: u64, params: &GenParams, terrains: &Terrains) -> Result<Map, GenError> {
+pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map, GenError> {
+    let terrains = &content.terrains;
     if params.width < 8 || params.height < 8 {
         return Err(GenError::BadParams(
             "width and height must be at least 8".into(),
@@ -60,8 +92,15 @@ pub fn generate(seed: u64, params: &GenParams, terrains: &Terrains) -> Result<Ma
     if !(1..=99).contains(&params.land_percent) {
         return Err(GenError::BadParams("land_percent must be in 1..=99".into()));
     }
+    if params.planes.iter().any(|p| p.mineral_percent > 100) {
+        return Err(GenError::BadParams(
+            "mineral_percent must be at most 100".into(),
+        ));
+    }
     let [arcanus, myrror] = Plane::ALL.map(|p| generate_plane(seed, p, params, terrains));
-    Ok(Map::new(arcanus?, myrror?))
+    let mut map = Map::new(arcanus?, myrror?);
+    featuregen::place_features(seed, params, content, &mut map)?;
+    Ok(map)
 }
 
 fn generate_plane(
@@ -217,90 +256,88 @@ pub fn land_percent(grid: &Grid, terrains: &Terrains) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::TerrainDef;
-
-    fn terrains() -> Terrains {
-        let classes = [
-            ("ocean", TerrainClass::Ocean, false),
-            ("grassland", TerrainClass::Grassland, true),
-            ("forest", TerrainClass::Forest, true),
-            ("hills", TerrainClass::Hills, true),
-            ("mountains", TerrainClass::Mountains, true),
-            ("swamp", TerrainClass::Swamp, true),
-            ("desert", TerrainClass::Desert, true),
-            ("tundra", TerrainClass::Tundra, true),
-        ];
-        Terrains::new(
-            classes
-                .into_iter()
-                .map(|(id, class, walkable)| TerrainDef {
-                    id: id.into(),
-                    name: id.into(),
-                    class,
-                    walkable,
-                    move_cost: 1,
-                    food: 1,
-                    planes: Plane::ALL.to_vec(),
-                })
-                .collect(),
-        )
-    }
+    use crate::testutil::content;
 
     #[test]
     fn same_seed_same_map_different_seed_differs() {
-        let (t, p) = (terrains(), GenParams::default());
-        assert_eq!(generate(7, &p, &t).unwrap(), generate(7, &p, &t).unwrap());
-        assert_ne!(generate(7, &p, &t).unwrap(), generate(8, &p, &t).unwrap());
+        let (c, p) = (content(), GenParams::default());
+        assert_eq!(generate(7, &p, &c).unwrap(), generate(7, &p, &c).unwrap());
+        assert_ne!(generate(7, &p, &c).unwrap(), generate(8, &p, &c).unwrap());
     }
 
     #[test]
     fn land_share_matches_request_and_planes_differ() {
-        let (t, p) = (terrains(), GenParams::default());
-        let map = generate(1, &p, &t).unwrap();
+        let (c, p) = (content(), GenParams::default());
+        let map = generate(1, &p, &c).unwrap();
         for plane in Plane::ALL {
-            let pct = land_percent(map.plane(plane), &t);
+            let pct = land_percent(map.plane(plane), &c.terrains);
             assert!((p.land_percent as u32).abs_diff(pct) <= 2, "land {pct}%");
         }
         assert_ne!(map.plane(Plane::Arcanus), map.plane(Plane::Myrror));
     }
 
     #[test]
-    fn rejects_bad_params_and_missing_terrain() {
-        let t = terrains();
+    fn rejects_bad_params_and_missing_content() {
+        let c = content();
         let bad = GenParams {
             land_percent: 0,
             ..GenParams::default()
         };
-        assert!(matches!(generate(1, &bad, &t), Err(GenError::BadParams(_))));
+        assert!(matches!(generate(1, &bad, &c), Err(GenError::BadParams(_))));
         let tiny = GenParams {
             width: 2,
             ..GenParams::default()
         };
         assert!(matches!(
-            generate(1, &tiny, &t),
+            generate(1, &tiny, &c),
             Err(GenError::BadParams(_))
         ));
-        let mut defs = t.defs().to_vec();
-        defs.retain(|d| d.class != TerrainClass::Swamp);
+
+        let mut no_swamp = c.clone();
+        no_swamp.terrains = Terrains::new(
+            c.terrains
+                .defs()
+                .iter()
+                .filter(|d| d.class != TerrainClass::Swamp)
+                .cloned()
+                .collect(),
+        );
         assert!(matches!(
-            generate(1, &GenParams::default(), &Terrains::new(defs)),
+            generate(1, &GenParams::default(), &no_swamp),
             Err(GenError::MissingTerrain {
                 class: TerrainClass::Swamp,
                 ..
+            })
+        ));
+
+        let mut no_tower = c.clone();
+        no_tower.features = crate::content::Features::new(
+            c.features
+                .defs()
+                .iter()
+                .filter(|d| d.kind != FeatureKind::Tower)
+                .cloned()
+                .collect(),
+        );
+        assert!(matches!(
+            generate(1, &GenParams::default(), &no_tower),
+            Err(GenError::MissingFeature {
+                kind: FeatureKind::Tower
             })
         ));
     }
 
     #[test]
     fn handles_non_square_and_odd_sizes() {
-        let t = terrains();
+        let c = content();
         for (w, h) in [(8, 8), (61, 37), (120, 20), (20, 120)] {
             let p = GenParams {
                 width: w,
                 height: h,
                 land_percent: 40,
+                ..GenParams::default()
             };
-            let map = generate(3, &p, &t).unwrap();
+            let map = generate(3, &p, &c).unwrap();
             assert_eq!((map.width(), map.height()), (w, h));
         }
     }

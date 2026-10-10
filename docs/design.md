@@ -39,6 +39,14 @@ Note: MoM has a few hundred entities with well-defined types, and is turn-based.
 
 Map tiles live in a dense grid because they are numerous and accessed by coordinates. Everything with identity and varied attributes is an entity.
 
+### Map layers, features and cities
+- **Base terrain** is one grid per plane (ocean, grassland, forest, hills, mountains, swamp, desert, tundra). Arcanus and Myrror share the same terrain classes; in the original the planes differ in art and in what spawns, not in terrain rules, so a terrain definition lists the planes it exists on and the client picks per-plane art.
+- **Features** are a second, sparse layer on top of terrain, at most one per tile: minerals and specials, encounter sites (lairs, caves, temples, ruins, keeps, dungeons), towers and magic nodes. In the original, minerals and encounter sites and towers are overlays on ordinary terrain; nodes and volcanoes are dedicated terrain tile types there, but here nodes are also overlays so a node's underlying terrain is kept. (Based on how community clones model the original; not verified against the original's file format.)
+- **Myrror-specific content** lives in data, not code: adamantium and crysx exist only there, its gold/mithril/quork weights are higher, minerals are denser by default, and in the original its nodes are stronger and encounters tougher (those last two are not implemented yet).
+- **Towers** are placed at identical coordinates on every plane; water under a tower becomes grass. Nodes keep a distance from towers and from each other. Both distances are tunable constants.
+- **Cities are ECS entities** (`City` + `Position`), not map tiles. Founding is a command checked against terrain (`can_found_city`), blocking features (towers, nodes and encounter sites block; minerals do not), and a minimum distance to other cities on the same plane (a tunable constant).
+- Not yet modelled: node aura zones, rivers, lakes, shores, roads, volcanoes.
+
 ## 5. Data-driven content
 - Races, units, buildings, spells, abilities, items and terrain are defined in RON files and validated at load time by `mom-tools`.
 - Abilities and spell effects are composed from a small set of effect primitives (modify stat, grant ability, deal damage, summon, change terrain, ...). This avoids hardcoding hundreds of one-off spells.

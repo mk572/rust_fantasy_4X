@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use f4x_core::content::{TerrainClass, Terrains};
+use f4x_core::content::{Content, FeatureKind, TerrainClass};
 use f4x_core::map::Plane;
 use f4x_core::mapgen::{generate, GenParams};
 
@@ -28,14 +28,15 @@ fn main() -> ExitCode {
     }
 }
 
-fn terrains(dir: Option<&String>) -> Result<Terrains, String> {
+fn content(dir: Option<&String>) -> Result<Content, String> {
     let dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
-    f4x_data::load_terrains(&dir.join("terrain.ron")).map_err(|e| e.to_string())
+    f4x_data::load_content(&dir).map_err(|e| e.to_string())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {
-    let t = terrains(dir)?;
-    println!("terrain.ron: ok ({} definitions)", t.defs().len());
+    let c = content(dir)?;
+    println!("terrain.ron: ok ({} definitions)", c.terrains.defs().len());
+    println!("features.ron: ok ({} definitions)", c.features.defs().len());
     Ok(())
 }
 
@@ -54,21 +55,38 @@ fn mapgen(args: &[String]) -> Result<(), String> {
         width: num(1, "width")?.map_or(d.width, |v| v as u32),
         height: num(2, "height")?.map_or(d.height, |v| v as u32),
         land_percent: num(3, "land%")?.map_or(d.land_percent, |v| v.min(255) as u8),
+        ..d
     };
-    let t = terrains(args.get(4))?;
-    let map = generate(seed, &params, &t).map_err(|e| e.to_string())?;
+    let c = content(args.get(4))?;
+    let map = generate(seed, &params, &c).map_err(|e| e.to_string())?;
     for plane in Plane::ALL {
         println!("{plane:?}");
         let grid = map.plane(plane);
         for y in 0..grid.height() as i32 {
             let row: String = (0..grid.width() as i32)
-                .map(|x| glyph(t.get(grid.get(x, y).expect("in bounds")).map(|d| d.class)))
+                .map(|x| tile_glyph(&c, grid, x, y))
                 .collect();
             println!("{row}");
         }
         println!();
     }
     Ok(())
+}
+
+/// Features win over terrain: `T` tower, `N` node, `!` encounter site, `*` mineral.
+fn tile_glyph(c: &Content, grid: &f4x_core::map::Grid, x: i32, y: i32) -> char {
+    let feature = grid.feature(x, y).and_then(|f| c.features.get(f));
+    match feature.map(|f| f.kind) {
+        Some(FeatureKind::Tower) => 'T',
+        Some(FeatureKind::Node) => 'N',
+        Some(FeatureKind::Encounter) => '!',
+        Some(FeatureKind::Mineral) => '*',
+        None => glyph(
+            grid.get(x, y)
+                .and_then(|t| c.terrains.get(t))
+                .map(|d| d.class),
+        ),
+    }
 }
 
 fn glyph(class: Option<TerrainClass>) -> char {

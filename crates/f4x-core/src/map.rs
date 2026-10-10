@@ -20,20 +20,29 @@ impl Plane {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TerrainId(pub u16);
 
+/// Index into the loaded [`crate::content::Features`] table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FeatureId(pub u16);
+
+/// One plane: a base terrain layer plus an optional feature overlay per tile
+/// (minerals, encounter sites, towers, nodes). Cities are entities, not tiles.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Grid {
     width: u32,
     height: u32,
     tiles: Vec<TerrainId>,
+    features: Vec<Option<FeatureId>>,
 }
 
 impl Grid {
     pub fn new(width: u32, height: u32, fill: TerrainId) -> Self {
         assert!(width > 0 && height > 0, "grid must be non-empty");
+        let len = (width * height) as usize;
         Self {
             width,
             height,
-            tiles: vec![fill; (width * height) as usize],
+            tiles: vec![fill; len],
+            features: vec![None; len],
         }
     }
 
@@ -59,8 +68,40 @@ impl Grid {
     }
 
     pub fn set(&mut self, x: u32, y: u32, terrain: TerrainId) {
+        let i = self.index(x, y);
+        self.tiles[i] = terrain;
+    }
+
+    /// Feature on the tile at `(x, y)` (x wraps, y outside the map yields `None`).
+    pub fn feature(&self, x: i32, y: i32) -> Option<FeatureId> {
+        if y < 0 || y >= self.height as i32 {
+            return None;
+        }
+        self.features[(y as u32 * self.width + self.wrap_x(x)) as usize]
+    }
+
+    pub fn set_feature(&mut self, x: u32, y: u32, feature: Option<FeatureId>) {
+        let i = self.index(x, y);
+        self.features[i] = feature;
+    }
+
+    fn index(&self, x: u32, y: u32) -> usize {
         assert!(x < self.width && y < self.height, "tile out of bounds");
-        self.tiles[(y * self.width + x) as usize] = terrain;
+        (y * self.width + x) as usize
+    }
+
+    /// Squared distance between two tiles, taking the horizontal wrap into account.
+    pub fn distance_sq(&self, a: (u32, u32), b: (u32, u32)) -> u32 {
+        let dx = a.0.abs_diff(b.0);
+        let dx = dx.min(self.width - dx);
+        let dy = a.1.abs_diff(b.1);
+        dx * dx + dy * dy
+    }
+
+    /// Chebyshev distance (king moves) between two tiles, with horizontal wrap.
+    pub fn chebyshev(&self, a: (u32, u32), b: (u32, u32)) -> u32 {
+        let dx = a.0.abs_diff(b.0);
+        dx.min(self.width - dx).max(a.1.abs_diff(b.1))
     }
 }
 
@@ -109,5 +150,16 @@ mod tests {
         assert_eq!(g.get(7, 1), Some(TerrainId(7)));
         assert_eq!(g.get(0, -1), None);
         assert_eq!(g.get(0, 3), None);
+    }
+
+    #[test]
+    fn features_overlay_terrain_and_distance_wraps() {
+        let mut g = Grid::new(10, 10, TerrainId(0));
+        g.set_feature(9, 2, Some(FeatureId(3)));
+        assert_eq!(g.feature(-1, 2), Some(FeatureId(3)));
+        assert_eq!(g.feature(0, 2), None);
+        assert_eq!(g.get(9, 2), Some(TerrainId(0)));
+        assert_eq!(g.distance_sq((9, 2), (0, 2)), 1);
+        assert_eq!(g.chebyshev((9, 2), (1, 5)), 3);
     }
 }
