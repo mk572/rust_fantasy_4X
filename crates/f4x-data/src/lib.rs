@@ -1,14 +1,20 @@
 //! Loading and validation of game content files.
 
+pub mod pack;
 pub mod rules;
+#[cfg(test)]
+mod testutil;
+
+pub use pack::{
+    defs_without_art, load_content, load_packs, missing_art_files, validate_art, Manifest,
+};
 
 use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
 
 use f4x_core::content::{
-    Content, FeatureDef, FeatureKind, Features, TerrainClass, TerrainDef, Terrains,
-    REQUIRED_CLASSES,
+    FeatureDef, FeatureKind, Features, TerrainClass, TerrainDef, Terrains, REQUIRED_CLASSES,
 };
 use f4x_core::map::Plane;
 
@@ -169,39 +175,23 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     problems
 }
 
-/// Load and validate all content files from a content directory.
-pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
-    let read = |name: &str| {
-        let path = dir.join(name);
-        std::fs::read_to_string(&path)
-            .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
-    };
-    let terrains = parse_terrains(&read("terrain.ron")?)?;
-    let features = parse_features(&read("features.ron")?)?;
-    let rules = rules::load_rules(dir, &features)?;
-    Ok(Content {
-        terrains,
-        features,
-        rules,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::content::Content;
 
     fn shipped() -> String {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/terrain.ron");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/base/terrain.ron");
         std::fs::read_to_string(path).expect("content/terrain.ron exists")
     }
 
     fn shipped_features() -> Features {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/features.ron");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/base/features.ron");
         parse_features(&std::fs::read_to_string(path).unwrap()).unwrap()
     }
 
     fn shipped_content() -> Content {
-        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/base")).unwrap()
     }
 
     #[test]
@@ -257,7 +247,7 @@ mod tests {
     #[test]
     fn features_validation_reports_problems() {
         let src = std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/features.ron"),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/base/features.ron"),
         )
         .unwrap();
         let broken = src

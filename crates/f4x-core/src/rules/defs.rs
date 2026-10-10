@@ -15,13 +15,12 @@ macro_rules! impl_def {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Races own no unit or building lists: a unit belongs to a race through its `race`
+/// field, and a building is open to a race unless its `races` list excludes it.
+/// This keeps a mod's new unit or building to a single entry in a single file.
 pub struct RaceDef {
     pub id: String,
     pub name: String,
-    /// Units cities of this race can build.
-    pub units: Vec<String>,
-    /// Buildings cities of this race can build (besides race-neutral ones).
-    pub buildings: Vec<String>,
     /// Terrain the race's cities prefer; used by AI and map placement.
     #[serde(default)]
     pub home_terrain: Vec<TerrainClass>,

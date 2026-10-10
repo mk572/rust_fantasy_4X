@@ -1,0 +1,11 @@
+// Pack manifest. Packs load in order (base first); later packs override earlier
+// definitions with the same id, add new ones, and may remove earlier ones.
+(
+    id: "base",
+    name: "Base Game",
+    version: "0.1.0",
+    author: "rust_fantasy_4X",
+    description: "The built-in races, units, buildings, spells and map content.",
+    depends: [],
+    remove: [],
+)

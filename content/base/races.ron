@@ -1,12 +1,10 @@
+// Races. A race's units are the units whose `race` field names it, and its
+// buildings are those whose `races` list is empty or includes it.
 [
     (id: "sunfolk", name: "Sunfolk",
-     units: ["spearman", "archer"],
-     buildings: ["barracks", "armoury", "granary", "shrine"],
      home_terrain: [Grassland, Forest],
      effects: [(target: City, effect: Modify(stat: CityGrowthPercent, op: Add, value: 10))]),
     (id: "ironclans", name: "Ironclans",
-     units: ["axeman", "marksman"],
-     buildings: ["barracks", "armoury", "forge", "shrine"],
      home_terrain: [Hills, Mountains],
      effects: [(target: City, effect: Modify(stat: CityProduction, op: Add, value: 1))]),
 ]

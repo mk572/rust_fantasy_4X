@@ -3,6 +3,7 @@
 //! All state changes go through [`Game::apply`] as [`Command`]s, which yield
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
+pub mod art;
 pub mod city;
 pub mod content;
 pub mod featuregen;

@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::map::{FeatureId, Plane, TerrainId};
+use crate::rules::Def;
 
 /// Coarse terrain category. Map generation works on classes; concrete
 /// definitions (and modded variants) are picked from the data files.
@@ -180,4 +181,18 @@ pub struct Content {
     pub terrains: Terrains,
     pub features: Features,
     pub rules: crate::rules::Rules,
+    pub art: crate::art::Art,
+    pub packs: Vec<crate::art::PackInfo>,
+}
+
+impl Def for TerrainDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl Def for FeatureDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
 }
