@@ -315,7 +315,7 @@ and the original's rules are in `docs/diplomacy.md`.
 
 **64. Wizard personalities and AI objectives.** Maniacal to peaceful personalities and the
 pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
-[271, 782-794].
+[271, 782-794]. See `docs/diplomacy.md`.
 
 **65. AI v1.** Expansion, city production and defence for the rival player; currently the rival
 has no behaviour at all. Uses commands only, like the human.
@@ -450,7 +450,7 @@ Spell of Return option from `PLANNED.md`), and in a client configuration file wh
 change presentation. Reachable from the start menu (86) and in game.
 
 **91. Diplomacy screen.** Talk to a rival wizard: attitude, treaties on offer, proposals and
-answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63.
+answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63. See `docs/diplomacy.md`.
 
 **92. Spell-research dialogs.** The dialogs of the original's research flow: the choice of the
 next spell to research when one is learned (a list of the researchable spells with costs and
