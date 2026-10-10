@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+
+[workspace.dependencies]
+hecs = "0.10"
+rand = { version = "0.8", default-features = false }
+rand_pcg = "0.3"
+f4x-core = { path = "crates/f4x-core" }
+f4x-data = { path = "crates/f4x-data" }
+f4x-ai = { path = "crates/f4x-ai" }

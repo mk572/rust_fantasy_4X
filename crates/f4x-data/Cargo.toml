@@ -1,0 +1,8 @@
+[package]
+name = "f4x-data"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+f4x-core.workspace = true
