@@ -127,7 +127,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - **Controls:** click one of your units to select it; blue squares are where it can walk; red
   outlines are enemies it can hit (adjacent: melee, otherwise a shot if it has ranged attack and
   ammunition). Click a blue square to move, an enemy to attack. Space or D is `Done`, Tab picks
-  the next unit that can still act, Enter or E ends the turn, Flee asks twice. The panel shows the
+  the next unit that can still act, Enter or E ends the turn, Flee asks twice. The buttons are the original's `compix.lbx` pictures (Spell, Wait, Done, Auto, Info, Flee; Wait picks the next unit); Spell, Auto and Info are drawn greyed until casting (43), auto-play (133) and the info window exist. End turn is a plain button, as the original ends a turn when every unit is done. The panel shows the
   hovered (else selected) unit's melee, ranged, defence, resistance, figures, hit points, moves,
   ammunition and abilities, and the last combat lines.
 - **The other side** is played by `battle/ai.rs` after a short delay per order: each unit attacks

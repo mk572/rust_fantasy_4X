@@ -573,8 +573,8 @@ as its figures (`figures1`-`figure16`, positions and facing as in the original, 
 owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
 a missile in flight, fading death). Still missing: the original's projectile and effect pictures
 (`cmbmagic`, `cmbtfx`; arrows and bolts are drawn as simple shapes), blood and gibs, enchantment
-outlines and figure effects, the combat frame with its picture buttons (`compix` 1-4, 20, 21:
-Spell, Wait, Done, Auto, Info, Flee), the unit and info windows, enchantment icons, mouse
+outlines and figure effects, the Spell, Auto and Info buttons' functions (the pictures are drawn,
+greyed, and Wait, Done and Flee work), the unit and info windows, enchantment icons, mouse
 pointers by action and sound. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
 

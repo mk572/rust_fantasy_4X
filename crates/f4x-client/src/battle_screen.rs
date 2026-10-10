@@ -795,6 +795,44 @@ impl App {
         );
     }
 
+    /// A button drawn with one of the original's `compix.lbx` pictures (frame 1 is pressed),
+    /// or a plain one without the art. Returns true on the frame it is clicked.
+    fn compix_button(
+        &mut self,
+        entry: usize,
+        label: &str,
+        (x, y): (f32, f32),
+        enabled: bool,
+    ) -> bool {
+        const SCALE: f32 = 3.0;
+        let Some(first) = self.art.picture("compix", entry, 0).cloned() else {
+            return button(Rect::new(x, y, 78.0, 30.0), label, enabled);
+        };
+        let rect = Rect::new(x, y, first.width() * SCALE, first.height() * SCALE);
+        let hover = rect.contains(mouse_position().into());
+        let down = enabled && hover && is_mouse_button_down(MouseButton::Left);
+        let tex = self
+            .art
+            .picture("compix", entry, usize::from(down))
+            .cloned()
+            .unwrap_or(first);
+        draw_texture_ex(
+            &tex,
+            rect.x,
+            rect.y,
+            if enabled {
+                WHITE
+            } else {
+                Color::new(1.0, 1.0, 1.0, 0.4)
+            },
+            DrawTextureParams {
+                dest_size: Some(rect.size()),
+                ..Default::default()
+            },
+        );
+        enabled && hover && is_mouse_button_pressed(MouseButton::Left)
+    }
+
     /// The arrow or bolt in flight during a shot.
     fn draw_missile(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32)) {
         let Some((Anim::Shot { attacker, defender }, t)) = self.battle_ui.playing.clone() else {
@@ -912,49 +950,41 @@ impl App {
             }
         }
 
-        // Buttons.
+        // The original's picture buttons (`compix.lbx`): Spell, Wait, Done / Auto, Info, Flee.
         let by = h - 190.0;
-        let bw = (PANEL_W - 36.0) / 2.0;
         let sel = self.battle_ui.selected;
         let mut order = None;
-        if button(
-            Rect::new(x + 12.0, by, bw, 32.0),
-            "Done (Space)",
-            my_turn && sel.is_some(),
-        ) {
-            order = sel.map(|u| BattleCommand::Done { unit: u });
-        }
-        if button(
-            Rect::new(x + 24.0 + bw, by, bw, 32.0),
-            "Next (Tab)",
-            my_turn,
-        ) {
+        let col = |i: f32| x + 12.0 + i * 92.0;
+        // Spells, auto-play and the information window are not built yet (tasks 43, 133, 132).
+        self.compix_button(1, "Spell", (col(0.0), by), false);
+        if self.compix_button(2, "Wait", (col(1.0), by), my_turn) {
             self.select_next(sel);
         }
-        if button(
-            Rect::new(x + 12.0, by + 40.0, bw, 32.0),
-            "End turn",
-            my_turn,
-        ) {
-            order = Some(BattleCommand::EndTurn);
+        if self.compix_button(3, "Done", (col(2.0), by), my_turn && sel.is_some()) {
+            order = sel.map(|u| BattleCommand::Done { unit: u });
         }
-        let flee_label = if self.battle_ui.confirm_flee {
-            "Sure?"
-        } else {
-            "Flee"
-        };
-        if button(
-            Rect::new(x + 24.0 + bw, by + 40.0, bw, 32.0),
-            flee_label,
-            my_turn,
-        ) {
-            if self.battle_ui.confirm_flee {
+        self.compix_button(4, "Auto", (col(0.0), by + 40.0), false);
+        self.compix_button(20, "Info", (col(1.0), by + 40.0), false);
+        let sure = self.battle_ui.confirm_flee;
+        if self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn) {
+            if sure {
                 order = Some(BattleCommand::Flee);
             } else {
                 self.battle_ui.confirm_flee = true;
             }
         } else if is_mouse_button_pressed(MouseButton::Left) {
             self.battle_ui.confirm_flee = false;
+        }
+        if sure {
+            draw_text("Flee? Click again", col(2.0) - 40.0, by + 84.0, 16.0, GOLD);
+        }
+        // The original has no end-of-turn button (it ends when every unit is done).
+        if button(
+            Rect::new(x + 12.0, by + 92.0, PANEL_W - 24.0, 26.0),
+            "End turn (Enter)",
+            my_turn,
+        ) {
+            order = Some(BattleCommand::EndTurn);
         }
         if let Some(order) = order {
             let done = match order {
@@ -970,7 +1000,7 @@ impl App {
         }
 
         // The last lines of the fight.
-        let mut ly = by + 92.0;
+        let mut ly = by + 138.0;
         for line in self.battle_ui.log.iter().rev().take(4).rev() {
             for l in crate::ui::wrap(line, 15.0, PANEL_W - 24.0).iter().take(1) {
                 draw_text(l, x + 12.0, ly, 15.0, LIGHTGRAY);
