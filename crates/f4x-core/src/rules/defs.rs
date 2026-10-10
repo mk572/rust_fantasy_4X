@@ -236,7 +236,7 @@ impl Default for RulesConfig {
         Self {
             to_hit_percent: 30,
             block_percent: 30,
-            min_city_distance: 3,
+            min_city_distance: 4,
         }
     }
 }

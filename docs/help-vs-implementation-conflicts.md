@@ -11,14 +11,51 @@ Written in our own words; nothing here is copied from either source.
   **Check** items rest on a ReMoM comment or on the help text alone and need a second look.
 - **Content now** says what `content-local/` currently does, so a decision can be applied
   by changing the importer (`scripts/import_mom.py`) rather than by hand.
-- **Suggested** is a default so the list can be cleared quickly. The proposed policy: follow
-  the original *code* where help and code are both plausible player-facing rules (parity
-  with the original is the project's first target, `docs/rules-framework.md` §8), but follow
-  the *documented intent* where ReMoM itself flags the code as a bug (`OGBUG`).
+- **Suggested** is a default for rows the resolution rule does not cover (see below).
 - The full list of 633 `OGBUG` markers is not repeated here. Regenerate a local index with
   `python3 -I scripts/list_ogbugs.py` (writes `content-local/OGBUG_INDEX.md`, gitignored).
   By area: combat 214, AI 189, map/terrain 86, spells 70, cities/turns 34, other 28,
   presentation 12. Only the AI and presentation groups (about a third) are irrelevant to rules.
+
+## Resolution rule (decided by the project owner)
+1. Anything ReMoM marks as a **bug in the original game** (`OGBUG`): use ReMoM's fix, i.e.
+   the behaviour its note says the code should have.
+2. Anything ReMoM marks as **to-do / not implemented**: use the original game's behaviour.
+3. Everything else (ReMoM reproduces the original code or data exactly, no marker, and the
+   help disagrees) is not covered by the rule and stays open below.
+
+### Decided by rule 1 (ReMoM-marked bugs)
+| # | Decision |
+|---|---|
+| B9 Heroism | Combat uses the same level calculation as overland: Heroism sets the Elite floor, Warlord and Crusade add on top. (ReMoM's note offers two fixes and does not pick; this one matches the help.) |
+| B10 Undead | Undead also get cold, poison and illusion immunity. |
+| B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
+| B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction. |
+| B14 Forester's Guild | Its food counts toward a city's maximum size. |
+| B15 Swamp | Half a food. Needs terrain food in half-units (the sample `terrain.ron` uses whole numbers). |
+| B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). |
+| B18 Events | Use the real turn number, so events run from turn one and after loading a save. |
+| B19 Growth | Growth may be negative at maximum size; surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug and stays.) |
+| B20 Outposts | Outpost growth includes wild game; the AI difficulty modifier applies to AI outposts only. |
+
+### Decided by rule 2 (ReMoM to-do)
+| # | Decision |
+|---|---|
+| B12 Legendary fame | The original formula ReMoM has commented out: +3 fame per hero level, +4.5 for "super" legendary. This also matches the help. |
+
+### Applied now
+- B17: help and code agree (cities at least four squares apart); our setting was wrong.
+  `min_city_distance` is now 4 in `content/rules.ron` and the default, with the city test
+  updated. Not yet done: block only on towers, nodes and *intact* encounter sites.
+
+### Still open: not covered by the rule
+ReMoM states these were verified one-to-one against the original assembly, so the code
+and data are the original game; the help is the odd one out. **Suggested default: keep the
+original code/data** unless you say otherwise.
+A1 (University upkeep), A2 (Guardian Wind upkeep), B1 (Alchemists/Animist's mana),
+B2 (Wizard's Guild mana), B3 (Infernal/Divine Power), B4 (Healer), B5 (Sawmill),
+B6 (Wall Crusher ranged), B7 (Dark Elf power), B8 (Stream of Life/Gaia's index use,
+unconfirmed), and the help-internal contradictions C1-C5.
 
 ## A. Help disagrees with a data table
 
@@ -70,7 +107,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | C5 | Naming | Cloud of Shadow (spell) vs Cloud of Darkness (effect); Holy Light vs Heavenly Light; Prime vs Arcanus plane | Pick one name each in our content; cosmetic. |
 
 ## D. Our own content that disagrees with both sources (already known)
-- `rules.ron` `min_city_distance: 3` (see B17).
+- `rules.ron` `min_city_distance` was 3; fixed to 4 (see B17).
 - The imported Dwarven/Klackon/Halfling production and food per citizen and Dwarf double
   tax are not modelled at all yet (see `docs/mechanics-gaps.md` §1).
 - Imported "Animist's Guild +1 food" is flat per city; the original adds 1 food **per

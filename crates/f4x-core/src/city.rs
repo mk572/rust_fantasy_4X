@@ -165,7 +165,12 @@ mod tests {
             g.can_found_city(at(Plane::Arcanus, 12, 8)),
             Err(FoundCityError::TooCloseToCity)
         );
-        assert_eq!(g.can_found_city(at(Plane::Arcanus, 13, 6)), Ok(()));
+        // The original needs at least four squares between cities.
+        assert_eq!(
+            g.can_found_city(at(Plane::Arcanus, 13, 6)),
+            Err(FoundCityError::TooCloseToCity)
+        );
+        assert_eq!(g.can_found_city(at(Plane::Arcanus, 14, 6)), Ok(()));
         // Same coordinates on the other plane are independent.
         assert_eq!(g.can_found_city(at(Plane::Myrror, 10, 6)), Ok(()));
         // x wraps: (19,6) and (1,6) are 2 apart across the seam.

@@ -37,7 +37,7 @@ therefore missing unless marked otherwise.
   mines [381]; the Animist's Guild adds food per farmer, not per city [723].
 - Nightshade: each plant adds 100 dispel strength against bad city enchantments [766].
 - Cities share contested map squares, each getting half [302]. Outposts: need distance
-  from other cities (the help says four squares; our `min_city_distance` is 3, check),
+  from other cities (four squares apart; `min_city_distance` is now 4),
   grow by tenths of a citizen into hamlets [400, 504].
 
 ## 2. Map, movement and exploration (step 4 and after)
