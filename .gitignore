@@ -3,3 +3,4 @@
 *.lbx
 *.LBX
 /content-local
+__pycache__/
