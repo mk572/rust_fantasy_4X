@@ -128,11 +128,13 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
      in the same economy (`CityGrew`/`CityShrank`). Because the economy was computed before
      the changes, a building finished this turn first affects the next one.
 4. **Treasury**, per player in the order players were added (section 5).
-5. **Healing** of wounded units (section 6).
-6. **Standing orders** continue for units that have them, in creation order (section 3.2).
+5. **Magic**, for all wizards (see [`magic.md`](magic.md) section 9): power applied, research
+   checked, mana upkeep paid, casting progress, finished spells resolve.
+6. **Healing** of wounded units (section 6).
+7. **Standing orders** continue for units that have them, in creation order (section 3.2).
 
-Planned additions and where they go: enchantment upkeep and expiry and wizard mana and
-research income belong with the treasury step; random events before the cities;
+Planned additions and where they go: timed enchantment expiry with the magic step; random
+events before the cities;
 combat resolution wherever an `AttackRequested` is acted on; victory checks last.
 
 ## 5. The treasury

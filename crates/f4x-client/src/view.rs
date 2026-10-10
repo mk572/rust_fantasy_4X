@@ -6,6 +6,7 @@ use std::path::Path;
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, FeatureKind, TerrainClass};
+use f4x_core::magic::Retort;
 use f4x_core::map::Plane;
 use f4x_core::mapgen::{generate, GenParams};
 use f4x_core::player::Player;
@@ -27,6 +28,7 @@ pub const AUTOSAVE: &str = "saves/autosave.ron";
 pub enum Screen {
     Map,
     City(hecs::Entity),
+    Magic,
 }
 
 pub struct App {
@@ -46,6 +48,10 @@ pub struct App {
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
     pub(crate) choice_scroll: usize,
+    /// Scroll position of the research and spell lists on the magic screen.
+    pub(crate) magic_scroll: [usize; 2],
+    /// A spell waiting for a target to be clicked on the map.
+    pub(crate) targeting: Option<crate::magic_screen::Targeting>,
 }
 
 fn flat_color(class: TerrainClass) -> Color {
@@ -100,6 +106,8 @@ impl App {
             log: Vec::new(),
             choosing: false,
             choice_scroll: 0,
+            magic_scroll: [0, 0],
+            targeting: None,
         };
         app.start_game();
         Ok(app)
@@ -112,6 +120,15 @@ impl App {
         game.content = content.clone();
         game.players.push(Player::new(HUMAN, "You"));
         game.players.push(Player::new(RIVAL, "Rival"));
+        // Until there is a wizard-creation screen, fixed picks: five books each.
+        let picks = [
+            (HUMAN, [("sorcery", 3), ("nature", 2)], [Retort::Conjurer]),
+            (RIVAL, [("chaos", 3), ("death", 2)], [Retort::Warlord]),
+        ];
+        for (player, books, retorts) in picks {
+            game.init_wizard(player, &books, &retorts)
+                .map_err(|e| format!("{e:?}"))?;
+        }
         Ok(game)
     }
 
@@ -221,6 +238,26 @@ impl App {
                     Some(format!("{units} unit(s) disbanded: unpaid or unfed"))
                 }
                 Event::AttackRequested { .. } => Some("Combat is not implemented yet".to_string()),
+                Event::SpellLearned { spell, .. } => Some(format!(
+                    "Learned {}: choose new research (M)",
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::SpellCast { spell, .. } => Some(format!(
+                    "Cast {}",
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::SpellReady { spell, .. } => Some(format!(
+                    "{} is ready: choose its target (M)",
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::SpellHasNoEffectYet { spell } => Some(format!(
+                    "{} has no effect yet (not implemented)",
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::EnchantmentLapsed { spell, .. } => Some(format!(
+                    "{} ended: not enough mana for its upkeep",
+                    self.game.content.rules.spells.get(spell).name
+                )),
                 _ => None,
             };
             if let Some(line) = line {
@@ -393,9 +430,14 @@ impl App {
             Screen::City(city) => {
                 self.city_screen(city);
             }
+            Screen::Magic => self.magic_screen(),
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {
-                    return false;
+                    if self.targeting.take().is_some() {
+                        self.log.push("Cast cancelled".into());
+                    } else {
+                        return false;
+                    }
                 }
                 self.overworld_input();
                 clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
@@ -465,6 +507,9 @@ impl App {
                 self.log.push(format!("Load failed: {e}"));
             }
         }
+        if is_key_pressed(KeyCode::M) {
+            self.screen = Screen::Magic;
+        }
         if is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
         }
@@ -521,6 +566,10 @@ impl App {
     }
 
     fn click(&mut self, pos: Position) {
+        if let Some(t) = self.targeting.take() {
+            self.aim_at(t, pos);
+            return;
+        }
         let has_mine = self
             .game
             .units_at(pos)
@@ -768,11 +817,13 @@ impl App {
         };
         draw_text(
             format!(
-                "Turn {}   {}   Gold {} ({:+})   Food +{} (army {})   zoom {}x   seed {}",
+                "Turn {}   {}   Gold {} ({:+})   Mana {} ({:+})   Food +{} (army {})   zoom {}x   seed {}",
                 self.game.turn,
                 plane,
                 gold,
                 treasury.net_gold(),
+                self.game.player(HUMAN).map_or(0, |p| p.mana),
+                self.game.power_split(HUMAN).mana - self.game.mana_upkeep(HUMAN),
                 treasury.food_surplus,
                 treasury.food_upkeep,
                 self.zoom,
@@ -785,7 +836,7 @@ impl App {
         );
         draw_rectangle(0.0, h - BAR_H, w, BAR_H, PANEL);
         draw_text(
-            "click select  right-click go  B settle  C city  P plane-shift  F stop  T farmers  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
+            "click select  right-click go  B settle  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
             10.0,
             h - 9.0,
             18.0,

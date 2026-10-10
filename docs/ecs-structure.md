@@ -32,7 +32,7 @@ Game
 ├── world: hecs::World            entities: units, cities (later wizards' enchantments, heroes, battles)
 ├── map: Option<Map>              two dense grids (terrain, feature, road); not entities
 ├── fog: Fog                      what each player has explored
-├── players: Vec<Player>          gold, mana, tax rate, capital race, fame
+├── players: Vec<Player>          gold, mana, tax rate, capital race, fame, Magic (wizard)
 ├── content: Content              definitions loaded from data: terrains, features, rules
 │   └── rules: Rules              registries: races, units, abilities, buildings, realms, spells, items, level paths
 ├── turn: u32

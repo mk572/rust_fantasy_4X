@@ -3,6 +3,7 @@
 
 mod art;
 mod city_screen;
+mod magic_screen;
 mod ui;
 mod view;
 
@@ -20,6 +21,8 @@ struct Options {
     shot: Option<PathBuf>,
     /// With `--shot`, open the city screen first.
     city: bool,
+    /// With `--shot`, open the magic screen first.
+    magic: bool,
     /// With `--shot`, select the starting stack first.
     select: bool,
     /// With `--shot`, end this many turns first.
@@ -41,6 +44,7 @@ fn parse_args() -> Result<Options, String> {
         seed: 1,
         shot: None,
         city: false,
+        magic: false,
         select: false,
         turns: 0,
         load: None,
@@ -60,6 +64,7 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--select" => o.select = true,
+            "--magic" => o.magic = true,
             "--load" => o.load = Some(value("--load")?.into()),
             "--save" => o.save = Some(value("--save")?.into()),
             "--turns" => {
@@ -88,7 +93,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -124,6 +129,9 @@ async fn main() {
     }
     if options.city {
         app.open_first_city();
+    }
+    if options.magic {
+        app.open_magic();
     }
     let mut frames = 0;
     loop {

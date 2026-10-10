@@ -99,6 +99,11 @@ diplomacy, AI, random events, victory and score.
 - Transport: ships by building tier [725-727].
 
 ## 4. Magic and wizards (step 6)
+
+**Done in the first pass** (see [`magic.md`](magic.md)): books, retorts (some effects), power split,
+research, casting cost and skill, overland casting, mana upkeep, alchemy. The list below is what is
+still open.
+
 - Wizard entity: picks per realm, special abilities (Alchemy, Warlord, Channeler, Archmage,
   Artificer, Conjurer, Sage Master, Myrran, Divine/Infernal Power, Famous, Runemaster,
   Charismatic, realm masteries, Mana Focusing, Node Mastery) [693-710], the ten named

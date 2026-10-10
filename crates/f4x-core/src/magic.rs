@@ -302,7 +302,32 @@ impl Game {
             .filter_map(|(e, ..)| self.city_economy(e))
             .map(|eco| eco.mana)
             .sum();
-        total.max(0)
+        (total + self.fortress_power(player)).max(0)
+    }
+
+    /// The wizard's first city stands in for the fortress (not modelled yet): it adds one
+    /// mana per spell book, and five more on Myrror, as the original's fortress city does.
+    pub fn fortress_city(&self, player: PlayerId) -> Option<hecs::Entity> {
+        let mut mine: Vec<hecs::Entity> = self
+            .cities()
+            .into_iter()
+            .filter(|(_, c, _)| c.owner == player)
+            .map(|(e, ..)| e)
+            .collect();
+        self.sort_by_serial(&mut mine);
+        mine.first().copied()
+    }
+
+    fn fortress_power(&self, player: PlayerId) -> i32 {
+        let Some(city) = self.fortress_city(player) else {
+            return 0;
+        };
+        let books = self.magic(player).map_or(0, |m| m.total_books());
+        let myrror = self
+            .world
+            .get::<&crate::city::Position>(city)
+            .is_ok_and(|p| p.plane == crate::map::Plane::Myrror);
+        books + if myrror { 5 } else { 0 }
     }
 
     /// Research points the wizard's cities produce.
@@ -824,13 +849,14 @@ mod tests {
         add_building(&mut g, city, "temple");
         add_building(&mut g, city, "library");
         // Four elves make two mana, the temple two; the library makes two research.
-        assert_eq!(g.power_base(P0), 4);
+        // Plus two books' worth from the fortress city.
+        assert_eq!(g.power_base(P0), 4 + 2);
         assert_eq!(g.city_research(P0), 2);
         assert_eq!(
             g.power_split(P0),
             PowerSplit {
-                mana: 1,
-                skill: 1,
+                mana: 2,
+                skill: 2,
                 research: 2 + 2
             }
         );
@@ -838,7 +864,7 @@ mod tests {
         assert_eq!(
             g.power_split(P0),
             PowerSplit {
-                mana: 4,
+                mana: 6,
                 skill: 0,
                 research: 2
             }
@@ -848,7 +874,7 @@ mod tests {
             .unwrap()
             .retorts
             .insert(Retort::ManaFocusing);
-        assert_eq!(g.power_split(P0).mana, 5, "a quarter more mana");
+        assert_eq!(g.power_split(P0).mana, 7, "a quarter more mana");
     }
 
     #[test]
@@ -887,7 +913,7 @@ mod tests {
             g.set_research(P0, other),
             Err(MagicError::AlreadyResearching)
         );
-        // A 4-citizen city with no buildings makes 2 mana (elves): all of it research.
+        // A 4-citizen city makes 2 mana (elves) and the fortress 2: all of it research.
         let mut learned = None;
         for turn in 1..=30 {
             let events = g.apply(Command::EndTurn);
@@ -900,7 +926,10 @@ mod tests {
             }
         }
         let turns = learned.expect("the spell is learned");
-        assert!(turns >= 10, "20 points at about 2 a turn: {turns}");
+        assert!(
+            (3..=8).contains(&turns),
+            "20 points at about 6 a turn: {turns}"
+        );
         let m = g.magic(P0).unwrap();
         assert!(m.known.contains(&target));
         assert!(!m.researchable.contains(&target));
@@ -916,7 +945,7 @@ mod tests {
         g.set_power_split(P0, 100, 0, 0).unwrap();
         let before = g.player(P0).unwrap().mana;
         g.apply(Command::EndTurn);
-        assert_eq!(g.player(P0).unwrap().mana, before + 4);
+        assert_eq!(g.player(P0).unwrap().mana, before + 6);
     }
 
     #[test]
