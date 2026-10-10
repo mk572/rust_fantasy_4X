@@ -20,6 +20,7 @@ pub mod rules;
 mod testutil;
 pub mod turn;
 pub mod units;
+pub mod vision;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;

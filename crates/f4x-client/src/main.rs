@@ -2,6 +2,8 @@
 //! world except by sending commands.
 
 mod art;
+mod city_screen;
+mod ui;
 mod view;
 
 use std::path::{Path, PathBuf};
@@ -18,6 +20,10 @@ struct Options {
     shot: Option<PathBuf>,
     /// With `--shot`, open the city screen first.
     city: bool,
+    /// With `--shot`, select the starting stack first.
+    select: bool,
+    /// With `--shot`, end this many turns first.
+    turns: u32,
 }
 
 fn parse_args() -> Result<Options, String> {
@@ -31,6 +37,8 @@ fn parse_args() -> Result<Options, String> {
         seed: 1,
         shot: None,
         city: false,
+        select: false,
+        turns: 0,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -45,6 +53,12 @@ fn parse_args() -> Result<Options, String> {
             }
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
+            "--select" => o.select = true,
+            "--turns" => {
+                o.turns = value("--turns")?
+                    .parse()
+                    .map_err(|_| "--turns must be a number")?
+            }
             other => return Err(format!("unknown argument {other:?}")),
         }
     }
@@ -66,7 +80,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--shot FILE [--city]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--shot FILE [--city] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -87,6 +101,10 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    app.end_turns(options.turns);
+    if options.select {
+        app.select_first_stack();
+    }
     if options.city {
         app.open_first_city();
     }

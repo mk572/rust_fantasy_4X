@@ -7,6 +7,28 @@ use crate::rules::UnitKind;
 use crate::units::{Hurt, Owner};
 use crate::{Event, Game};
 
+/// A player's projected gold and food for the coming turn change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Treasury {
+    /// Taxes, trade and mines from all cities.
+    pub city_gold: i32,
+    pub building_upkeep: i32,
+    pub noble_gold: i32,
+    /// Gold from selling food the cities grow beyond what citizens and troops eat.
+    pub food_gold: i32,
+    /// Gold paid for troops, after fame.
+    pub unit_upkeep: i32,
+    pub food_surplus: i32,
+    pub food_upkeep: i32,
+}
+
+impl Treasury {
+    /// Net change in gold.
+    pub fn net_gold(&self) -> i32 {
+        self.city_gold - self.building_upkeep + self.noble_gold + self.food_gold - self.unit_upkeep
+    }
+}
+
 impl Game {
     /// Uniform random integer in `1..=n`.
     pub fn roll(&mut self, n: u32) -> u32 {
@@ -187,42 +209,101 @@ impl Game {
         events
     }
 
-    /// Income, food and gold upkeep for one player; units go when they cannot be paid for.
-    fn settle_treasury(&mut self, player: PlayerId) -> Vec<Event> {
-        let mut events = Vec::new();
-        let mine: Vec<hecs::Entity> = self
+    /// Put just enough citizens on farms that the player's cities feed their citizens
+    /// and their army, preferring the cities that farm best. Does nothing where there
+    /// is not enough land: those cities farm with everyone.
+    pub fn balance_farmers(&mut self, player: PlayerId) {
+        let mut mine: Vec<hecs::Entity> = self
             .cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
             .map(|(e, ..)| e)
             .collect();
-        let (mut gold_income, mut surplus_gold_from_food, mut excess_food) = (0, 0, 0);
+        mine.sort_by_key(|e| e.id());
         for &city in &mine {
+            let min = self.city_min_farmers(city);
+            let _ = self.world.insert_one(city, Farmers(min));
+        }
+        let upkeep: i32 = self
+            .player_units(player)
+            .iter()
+            .map(|&u| self.unit_food_upkeep(u))
+            .sum();
+        // Each extra farmer yields food beyond what he eats; add them where it pays most.
+        loop {
+            let surplus = self.treasury(player).food_surplus;
+            if surplus >= upkeep {
+                break;
+            }
+            let best = mine
+                .iter()
+                .copied()
+                .filter_map(|c| {
+                    let farmers = self.world.get::<&Farmers>(c).map_or(0, |f| f.0);
+                    let figures = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
+                    if farmers >= figures {
+                        return None;
+                    }
+                    let now = self.city_economy_with(c, farmers)?;
+                    let more = self.city_economy_with(c, farmers + 1)?;
+                    Some((more.food - now.food, c, farmers))
+                })
+                .filter(|(gain, ..)| *gain > 0)
+                .max_by_key(|(gain, c, _)| (*gain, std::cmp::Reverse(c.id())));
+            let Some((_, city, farmers)) = best else {
+                break;
+            };
+            let _ = self.world.insert_one(city, Farmers(farmers + 1));
+        }
+    }
+
+    /// What a player will take in and pay out at the next turn change.
+    pub fn treasury(&self, player: PlayerId) -> Treasury {
+        let mut t = Treasury::default();
+        let mut sold_food_gold = 0;
+        for (city, c, _) in self.cities() {
+            if c.owner != player {
+                continue;
+            }
             let Some(eco) = self.city_economy(city) else {
                 continue;
             };
-            gold_income += eco.gold - eco.gold_upkeep;
+            t.city_gold += eco.gold;
+            t.building_upkeep += eco.gold_upkeep;
             let excess = (eco.food - eco.figures as i32).max(0);
-            surplus_gold_from_food += excess / 2;
-            excess_food += excess;
+            sold_food_gold += excess / 2;
+            t.food_surplus += excess;
         }
-        for unit in self.player_units(player) {
+        let units = self.player_units(player);
+        for &unit in &units {
             if self.unit_has_ability(unit, "noble")
                 && self
                     .unit_def(unit)
                     .is_some_and(|d| d.kind == UnitKind::Hero)
             {
-                gold_income += 10;
+                t.noble_gold += 10;
             }
         }
-        let units = self.player_units(player);
-        let mut food_upkeep: i32 = units.iter().map(|&u| self.unit_food_upkeep(u)).sum();
+        t.food_upkeep = units.iter().map(|&u| self.unit_food_upkeep(u)).sum();
         // Spare food is sold at two for one gold once the army has eaten.
-        let food_gold = (surplus_gold_from_food - food_upkeep / 2).max(0);
+        t.food_gold = (sold_food_gold - t.food_upkeep / 2).max(0);
+        let fame = self.player(player).map_or(0, |p| p.fame);
+        t.unit_upkeep =
+            (units.iter().map(|&u| self.unit_gold_upkeep(u)).sum::<i32>() - fame).max(0);
+        t
+    }
+
+    /// Income, food and gold upkeep for one player; units go when they cannot be paid for.
+    fn settle_treasury(&mut self, player: PlayerId) -> Vec<Event> {
+        let mut events = Vec::new();
+        let t = self.treasury(player);
+        let excess_food = t.food_surplus;
+        let mut food_upkeep = t.food_upkeep;
+        let units = self.player_units(player);
         let Some(p) = self.player_mut(player) else {
             return events;
         };
-        p.gold = (p.gold + gold_income + food_gold).max(0);
+        p.gold = (p.gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0);
 
         // An army that eats more than the cities grow is disbanded, newest first.
         let mut disbanded = Vec::new();
@@ -910,6 +991,32 @@ mod tests {
             4,
             "never more than the citizens"
         );
+    }
+
+    #[test]
+    fn balancing_farmers_feeds_the_army() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 6);
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        for _ in 0..3 {
+            g.spawn_unit(P0, at(10, 6), spear);
+        }
+        g.balance_farmers(P0);
+        let t = g.treasury(P0);
+        assert!(t.food_surplus >= t.food_upkeep, "{t:?}");
+        assert_eq!(t.food_upkeep, 3);
+        // Elves farm 3 food each: 2 farmers feed 6 citizens' food-wise only if 6 food; plus 3 for troops.
+        let farmers = g.world.get::<&Farmers>(city).unwrap().0;
+        assert_eq!(
+            farmers, 3,
+            "three farmers: 9 food for 6 citizens and 3 soldiers"
+        );
+        // Not enough land or people: everyone farms and the rest cannot be helped.
+        for _ in 0..20 {
+            g.spawn_unit(P0, at(11, 6), spear);
+        }
+        g.balance_farmers(P0);
+        assert_eq!(g.world.get::<&Farmers>(city).unwrap().0, 6);
     }
 
     #[test]
