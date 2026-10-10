@@ -16,6 +16,7 @@ pub mod magic;
 pub mod map;
 pub mod mapgen;
 pub mod movement;
+pub mod nodes;
 pub mod pathing;
 pub mod player;
 pub mod production;
@@ -55,6 +56,10 @@ pub enum Command {
     },
     /// Cancel standing orders.
     ClearOrders {
+        units: Vec<hecs::Entity>,
+    },
+    /// Meld a spirit of the stack into the magic node it stands on.
+    Meld {
         units: Vec<hecs::Entity>,
     },
     /// Move a stack to the same tile on the other plane.
@@ -228,6 +233,15 @@ pub enum Event {
         player: city::PlayerId,
         spell: rules::SpellId,
     },
+    NodeMelded {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    /// A spirit died against a guardian: the node stays as it was.
+    MeldFailed {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
     /// A timed spell ran out.
     EnchantmentExpired {
         player: city::PlayerId,
@@ -259,6 +273,7 @@ pub enum Rejection {
     Production(production::ProductionError),
     Magic(magic::MagicError),
     Fortress(fortress::FortressError),
+    Meld(nodes::MeldError),
 }
 
 fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
@@ -286,6 +301,8 @@ pub struct Game {
     rng: Pcg64Mcg,
     /// Countdowns for timed spells.
     pub(crate) timers: Vec<timers::Timer>,
+    /// The game's node setting: 0 weak, 1 normal, 2 powerful.
+    pub magic_strength: u8,
 }
 
 impl Game {
@@ -302,6 +319,7 @@ impl Game {
             next_serial: 1,
             rng: Pcg64Mcg::seed_from_u64(seed),
             timers: Vec::new(),
+            magic_strength: 1,
         }
     }
 
@@ -388,6 +406,9 @@ impl Game {
                 }
                 Vec::new()
             }
+            Command::Meld { units } => self
+                .meld(&units)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Meld(e))]),
             Command::ShiftPlane { units } => {
                 let from = units.first().and_then(|&u| self.unit_position(u));
                 match (self.shift_plane(&units), from) {

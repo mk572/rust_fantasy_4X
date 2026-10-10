@@ -324,7 +324,7 @@ impl Game {
     }
 
     /// Magic power before the split: mana from the wizard's cities (minerals, citizens,
-    /// religious buildings) and the fortress. Nodes will add to this once they can be owned.
+    /// religious buildings) and the fortress. Owned nodes and volcanoes add to it.
     pub fn power_base(&self, player: PlayerId) -> i32 {
         if self.casting_return(player) {
             return 0;
@@ -336,7 +336,11 @@ impl Game {
             .filter_map(|(e, ..)| self.city_economy(e))
             .map(|eco| eco.mana)
             .sum();
-        (total + self.fortress_power(player) + self.volcano_count(player)).max(0)
+        (total
+            + self.fortress_power(player)
+            + self.volcano_count(player)
+            + self.node_income(player))
+        .max(0)
     }
 
     fn fortress_power(&self, player: PlayerId) -> i32 {

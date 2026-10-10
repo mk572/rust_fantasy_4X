@@ -344,6 +344,10 @@ impl App {
                 }
                 Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
                 Event::VolcanoRaised { .. } => Some("A volcano rises".to_string()),
+                Event::NodeMelded { .. } => Some("The spirit melds with the node".to_string()),
+                Event::MeldFailed { .. } => {
+                    Some("The Guardian Spirit in this node kills your spirit".to_string())
+                }
                 Event::BuildingsCollapsed { count, .. } => {
                     Some(format!("{count} buildings collapse"))
                 }
@@ -640,6 +644,12 @@ impl App {
         if is_key_pressed(KeyCode::B) {
             self.settle();
         }
+        if is_key_pressed(KeyCode::U) && !self.selection.is_empty() {
+            let events = self.game.apply(Command::Meld {
+                units: self.selection.clone(),
+            });
+            self.note(events);
+        }
         if is_key_pressed(KeyCode::P) && !self.selection.is_empty() {
             let events = self.game.apply(Command::ShiftPlane {
                 units: self.selection.clone(),
@@ -807,6 +817,30 @@ impl App {
                         },
                     ),
                     None => draw_rectangle(sx, sy, t.x, t.y, flat_color(def.class)),
+                }
+                if let Some(i) = self
+                    .game
+                    .map
+                    .as_ref()
+                    .and_then(|m| m.node_covering(self.plane, wx, y as u32))
+                {
+                    let node = &self.game.map.as_ref().expect("map").nodes()[i];
+                    let c = match node.realm.as_str() {
+                        "sorcery" => Color::new(0.3, 0.45, 1.0, 0.22),
+                        "nature" => Color::new(0.3, 0.9, 0.35, 0.22),
+                        _ => Color::new(1.0, 0.35, 0.25, 0.22),
+                    };
+                    draw_rectangle(sx, sy, t.x, t.y, c);
+                    if let (Some(owner), true) = (node.owner, node.x == wx && node.y == y as u32) {
+                        draw_rectangle_lines(
+                            sx + 2.0,
+                            sy + 2.0,
+                            t.x - 4.0,
+                            t.y - 4.0,
+                            3.0,
+                            player_color(owner),
+                        );
+                    }
                 }
                 if let Some(owner) = grid.volcano(wx as i32, y) {
                     let c = player_color(owner);
@@ -985,7 +1019,7 @@ impl App {
         );
         draw_rectangle(0.0, h - BAR_H, w, BAR_H, PANEL);
         draw_text(
-            "click select  right-click go  B settle  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
+            "click select  right-click go  B settle  U meld  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
             10.0,
             h - 9.0,
             18.0,

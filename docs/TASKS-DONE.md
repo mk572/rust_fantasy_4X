@@ -10,6 +10,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 1 | Map | ~~Rivers~~ (done) |
 | 3 | Map | ~~Volcanoes~~ (done) |
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
+| 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
@@ -37,6 +38,18 @@ volcano rain (needs timed global spells, 57) and Gaia's Blessing turning volcano
 8-neighbour mask); the client picks the ocean tile for each water square from the land
 neighbours. Only table 0 (ocean shores) is used; the tables for mountains, hills and tundra
 edges are extracted but not yet drawn.
+
+**6. Magic node ownership, melding and power (done).** `nodes.rs`: every node feature gets a `Node`
+(on `Map`, saved in `MapSave::nodes`) with power (5-10 on Arcanus, 10-20 on Myrror: the number
+of aura squares), an aura of squares around it, an owner, a guardian flag and a warped flag.
+`Command::Meld` spends a unit with the `meld` ability on the node it stands on (a Guardian
+Spirit preferred, leaving the node guarded); rivals' guarded nodes fall one time in four;
+warped nodes cannot be melded. Owned nodes add `power * (strength + 1) / 2` to `power_base`
+(strength 0 / 1 / 2 is `Game::magic_strength`, saved), doubled by the realm's mastery and again
+by Node Mastery; a warped node costs five. The client tints aura squares by realm, outlines
+owned nodes in the owner's colour and melds with U. Not done: node guardians (monsters) to
+beat before melding (8), conjunction events (68), the warp spell (7), a setting screen for the
+strength (10, 89).
 
 **15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
 section 12. What is left is split off as task 82.

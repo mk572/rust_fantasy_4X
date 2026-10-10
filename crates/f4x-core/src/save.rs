@@ -43,6 +43,9 @@ pub struct Snapshot {
     pub draws: u64,
     pub turn: u32,
     pub next_serial: u64,
+    /// The node setting: 0 weak, 1 normal, 2 powerful.
+    #[serde(default = "normal_magic")]
+    pub magic_strength: u8,
     pub map: Option<MapSave>,
     pub fog: FogSave,
     pub players: Vec<PlayerSave>,
@@ -69,6 +72,10 @@ pub struct TimerSave {
     pub left: u16,
 }
 
+fn normal_magic() -> u8 {
+    1
+}
+
 /// The map with terrain and features saved as indexes into name lists.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapSave {
@@ -78,6 +85,9 @@ pub struct MapSave {
     pub features: Vec<String>,
     /// Arcanus, then Myrror.
     pub planes: Vec<PlaneSave>,
+    /// Magic nodes with their power, aura and owner.
+    #[serde(default)]
+    pub nodes: Vec<crate::map::Node>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -395,6 +405,7 @@ impl Game {
                 terrains,
                 features,
                 planes,
+                nodes: map.nodes().to_vec(),
             }
         });
         let (width, height, fog_players) = self.fog.to_parts();
@@ -514,6 +525,7 @@ impl Game {
             draws: self.draws,
             turn: self.turn,
             next_serial: self.next_serial,
+            magic_strength: self.magic_strength,
             map,
             fog,
             players,
@@ -569,6 +581,7 @@ impl Snapshot {
         let mut game = Game::new(self.seed);
         game.content = content;
         game.turn = self.turn;
+        game.magic_strength = self.magic_strength.min(2);
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
@@ -873,7 +886,18 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
     }
     let myrror = grids.pop().expect("two planes");
     let arcanus = grids.pop().expect("two planes");
-    Ok(Map::new(arcanus, myrror))
+    let mut map = Map::new(arcanus, myrror);
+    for n in &m.nodes {
+        let on_map = n.x < m.width && n.y < m.height;
+        if !on_map || n.aura.iter().any(|&(x, y)| x >= m.width || y >= m.height) {
+            return Err(LoadError::Inconsistent("a node is off the map".into()));
+        }
+        if n.owner.is_some_and(|o| o > 250) {
+            return Err(LoadError::Inconsistent("a node has a bad owner".into()));
+        }
+    }
+    map.set_nodes(m.nodes);
+    Ok(map)
 }
 
 fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
@@ -940,9 +964,21 @@ mod tests {
             g.set_volcano(15, 6, Some(0));
             g
         };
-        let map = Map::new(build(), build());
+        let mut map = Map::new(build(), build());
+        map.set_nodes(vec![crate::map::Node {
+            plane: Plane::Myrror,
+            x: 3,
+            y: 3,
+            realm: "chaos".into(),
+            power: 12,
+            aura: vec![(3, 3), (4, 3), (3, 4)],
+            owner: Some(0),
+            guardian: true,
+            warped: false,
+        }]);
         let mut g = Game::new(99);
         g.content = c;
+        g.magic_strength = 2;
         g.map = Some(map);
         let mut p = Player::new(P0, "Merlin");
         p.gold = 300;
@@ -1029,6 +1065,11 @@ mod tests {
         assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
         assert_eq!(grid.volcano(15, 6), Some(0));
         assert_eq!(grid.volcano(14, 6), None);
+        assert_eq!(
+            back.map.as_ref().unwrap().nodes(),
+            g.map.as_ref().unwrap().nodes()
+        );
+        assert_eq!(back.magic_strength, 2);
         assert!(grid.feature(10, 8).is_some());
         assert_eq!(
             back.fog.explored_count(P0, Plane::Arcanus),

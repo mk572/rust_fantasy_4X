@@ -100,6 +100,7 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map,
     let [arcanus, myrror] = Plane::ALL.map(|p| generate_plane(seed, p, params, terrains));
     let mut map = Map::new(arcanus?, myrror?);
     featuregen::place_features(seed, params, content, &mut map)?;
+    crate::nodes::generate_nodes(seed, &mut map, content);
     Ok(map)
 }
 

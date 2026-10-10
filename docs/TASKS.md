@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 |---|---|---|
 | 2 | Map | Lakes |
 | 5 | Map | Land corruption and purification |
-| 6 | Map | Magic node ownership, melding and power (incl. Myrror doubling) |
 | 7 | Map | Node auras and warped nodes |
 | 8 | Map | Encounter sites: guardians and loot |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) |
@@ -82,8 +81,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
-| 75 | Client | Remaining screens: wizard, diplomacy, spell-research dialogs, settings, tutorial |
-| 76 | Client | Audio |
+| 75 | Client | Wizard overview screen |
+| 76 | Client | Background music |
 | 77 | Content | Content pass and balance with AI-vs-AI soak runs |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
 | 79 | Content | Final art sourcing |
@@ -98,6 +97,13 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
 | 90 | Meta | Undoing orders |
+| 91 | Client | Diplomacy screen |
+| 92 | Client | Spell-research dialogs |
+| 93 | Client | Spell-book view of the magic screen |
+| 94 | Client | Settings screen |
+| 95 | Client | Tutorial |
+| 96 | Client | City screen: enchantments list |
+| 97 | Client | Sound effects |
 
 ## Descriptions
 
@@ -110,12 +116,6 @@ effects on food and city coast status.
 **5. Land corruption and purification.** Corruption of tiles (by units, spells and Great Wasting)
 and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on
 the worked-area food and production of cities, and spells that set it.
-
-**6. Magic node ownership, melding and power.** Nodes exist as features but have no power or owner.
-Add a power value per node at generation (the original uses 4+d6 on Arcanus and 9+d11 on Myrror,
-doubled effect on Myrror), node settings 0.5 / 1 / 1.5, melding a spirit (Magic Spirit and
-Guardian Spirit units) to take ownership, and feed owned nodes into `power_base` using the
-original formula `power × (strength + 1) / 2` with mastery doubling. Warped nodes subtract 5.
 
 **7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
 aura [653-656], and warping by spells. Depends on 6.
@@ -370,10 +370,15 @@ Decide the multiplayer scope first (`design.md` section 13).
 
 ### Client, content, housekeeping
 
-**75. Remaining screens.** Wizard overview, diplomacy, per-spell research dialogs, a spell-book
-style view of the magic screen, settings, tutorial, and a city-screen Enchantments list.
+**75. Wizard overview screen.** A screen about one wizard (the player's own and, once met, the
+rivals): portrait (83), name, books, retorts, fame, gold and mana, cities, heroes, and the spells
+they are known to cast. The data exists (`Magic`, `Player`); the screen and its entry points
+(menu key, clicking a wizard in lists) do not.
 
-**76. Audio.** Music and sound effects; none exist.
+**76. Background music.** Play music in the client: a track per situation (title, map, city, battle,
+victory and defeat), looping and crossfading, with a volume setting (94). The original's music
+can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
+repo ships none); decide the audio crate, and keep the game silent and working without files.
 
 **77. Content pass and balance.** Fill out races, units, buildings and spells from the imported
 data, then balance with AI-vs-AI soak runs (needs AI and combat).
@@ -421,8 +426,8 @@ copy of the game (its animation frames and palette from the intro `.lbx` files, 
 and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
 which order and with which timing) into `assets-local/` with a new `f4x-tools` step, and play it
 in the client at start-up, skippable with any key and switchable off in the settings. The
-movie is original-derived: it stays local, and the game runs without it. Depends on audio
-(76) for the sound.
+movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
+for the sound.
 
 **86. Start menu.** A title screen shown before anything else (after the opening movie, 85):
 New game (opens the wizard creation screen, with map seed, land size and opponents once the
@@ -455,3 +460,29 @@ change presentation. Reachable from the start menu (86) and in game.
 scope (the last unit move, the last city change, none after end of turn) and implement it with
 a command history in the client or a `Game` snapshot per order, keeping the stable command
 references of task 74 in mind.
+
+**91. Diplomacy screen.** Talk to a rival wizard: attitude, treaties on offer, proposals and
+answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63.
+
+**92. Spell-research dialogs.** The dialogs of the original's research flow: the choice of the
+next spell to research when one is learned (a list of the researchable spells with costs and
+turns left), and the "spell learned" announcement. Today the magic screen holds the list and
+learned spells only show in the message log.
+
+**93. Spell-book view of the magic screen.** A page-turning spell book, as in the original,
+beside or instead of the list: spells by realm and rarity with their costs, casting buttons
+and the research queue, using the original's book art locally.
+
+**94. Settings screen.** The client screen for the options of task 89: gameplay options and
+presentation options (volume, speeds, zoom), reachable from the start menu (86).
+
+**95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
+researching and casting, with a way to skip or switch it off.
+
+**96. City screen: enchantments list.** List the spells on a city (own and enemy, with the caster's
+colour and upkeep) as the original's city screen does [301], and allow dispel attempts from it.
+
+**97. Sound effects.** Short sounds for UI clicks, turn end, city growth, spell casting, combat
+hits and deaths, and the wizard's spoken lines where the original has them, played through the
+same audio layer as the music (76) with its own volume, from locally extracted files. Events
+(`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.

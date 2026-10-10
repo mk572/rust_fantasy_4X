@@ -244,9 +244,34 @@ impl Grid {
     }
 }
 
+/// A magic node: a feature tile with an aura of squares around it. A wizard who melds a
+/// spirit into it owns it and draws power from it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Node {
+    pub plane: Plane,
+    pub x: u32,
+    pub y: u32,
+    /// The realm of the node's magic: "sorcery", "nature" or "chaos".
+    pub realm: String,
+    /// Strength: how many squares the aura covers, and so the power the node yields.
+    pub power: u8,
+    /// The squares of the aura, the node's own tile first.
+    pub aura: Vec<(u32, u32)>,
+    /// Player number of the wizard who owns it.
+    pub owner: Option<u8>,
+    /// A Guardian Spirit holds the node: rivals who meld there only succeed one time in four.
+    #[serde(default)]
+    pub guardian: bool,
+    /// A warped node drains its owner of five power instead of giving any.
+    #[serde(default)]
+    pub warped: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Map {
     planes: [Grid; 2],
+    #[serde(default)]
+    nodes: Vec<Node>,
 }
 
 impl Map {
@@ -257,7 +282,34 @@ impl Map {
         );
         Self {
             planes: [arcanus, myrror],
+            nodes: Vec::new(),
         }
+    }
+
+    pub fn nodes(&self) -> &[Node] {
+        &self.nodes
+    }
+
+    pub fn set_nodes(&mut self, nodes: Vec<Node>) {
+        self.nodes = nodes;
+    }
+
+    pub fn node_mut(&mut self, index: usize) -> Option<&mut Node> {
+        self.nodes.get_mut(index)
+    }
+
+    /// Index of the node standing on this tile.
+    pub fn node_at(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
+        self.nodes
+            .iter()
+            .position(|n| n.plane == plane && n.x == x && n.y == y)
+    }
+
+    /// Index of the node whose aura covers this tile (the node's own tile included).
+    pub fn node_covering(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
+        self.nodes
+            .iter()
+            .position(|n| n.plane == plane && n.aura.contains(&(x, y)))
     }
 
     pub fn plane(&self, plane: Plane) -> &Grid {
