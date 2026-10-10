@@ -635,7 +635,7 @@ impl App {
         let attacker = self.player_label(battle.attacker);
         let defender = self.player_label(battle.defender);
         draw_text(
-            &format!("{attacker}  vs  {defender}"),
+            format!("{attacker}  vs  {defender}"),
             x + 12.0,
             y,
             22.0,
@@ -651,7 +651,7 @@ impl App {
             )
         };
         draw_text(
-            &format!("Turn {}   {who}", battle.turn),
+            format!("Turn {}   {who}", battle.turn),
             x + 12.0,
             y,
             20.0,
