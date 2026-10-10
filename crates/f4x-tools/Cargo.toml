@@ -6,3 +6,4 @@ license.workspace = true
 
 [dependencies]
 f4x-core.workspace = true
+f4x-data.workspace = true

@@ -85,6 +85,12 @@ Map tiles live in a dense grid because they are numerous and accessed by coordin
 - A small retained-mode UI layer for panels, lists and tooltips, since the game is menu-heavy.
 - Audio via `rodio` or SDL_mixer.
 
+### Placeholder art (local only)
+- The original game's art is copyrighted and has never been released under a free licence, so it must never be committed or distributed with this project.
+- For development, placeholder sprites are extracted locally from the author's own purchased copy (Steam or GOG) of the original game's `.lbx` files, using a small extractor in `f4x-tools` (reference implementations exist in other open source projects; study their file-format handling, don't copy art).
+- Extracted files go in `assets-local/`, which is gitignored. The client loads from it if present and falls back to flat-colour rectangles otherwise, so the game runs and CI passes without it.
+- Before any public release, all placeholders must be replaced with original art or art under a free licence (e.g. CC0 packs, commissioned work). Treat anything in `assets-local/` as temporary.
+
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`), no `HashMap` iteration in logic (use `IndexMap`/sorted), no floats in rules.
 - **Save/load:** serialize the command log plus periodic snapshots (`serde`).
@@ -114,4 +120,4 @@ Each stage should end with something runnable and tested.
 - Standalone ECS vs. plain ID-based arenas (see section 3).
 - Rendering stack: SDL2/3 vs. macroquad vs. Bevy for the client.
 - Multiplayer: in scope for v1, or only keep the command log compatible?
-- Asset sourcing: original pixel art, commissioned, or generated?
+- Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original, see section 9.)

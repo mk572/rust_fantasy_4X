@@ -3,6 +3,10 @@
 //! All state changes go through [`Game::apply`] as [`Command`]s, which yield
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
+pub mod content;
+pub mod map;
+pub mod mapgen;
+
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
@@ -19,6 +23,7 @@ pub enum Event {
 pub struct Game {
     pub world: hecs::World,
     pub turn: u32,
+    pub map: Option<map::Map>,
     rng: Pcg64Mcg,
 }
 
@@ -27,8 +32,20 @@ impl Game {
         Self {
             world: hecs::World::new(),
             turn: 1,
+            map: None,
             rng: Pcg64Mcg::seed_from_u64(seed),
         }
+    }
+
+    /// Start a game on a freshly generated map.
+    pub fn with_generated_map(
+        seed: u64,
+        params: &mapgen::GenParams,
+        terrains: &content::Terrains,
+    ) -> Result<Self, mapgen::GenError> {
+        let mut game = Self::new(seed);
+        game.map = Some(mapgen::generate(seed, params, terrains)?);
+        Ok(game)
     }
 
     pub fn apply(&mut self, cmd: Command) -> Vec<Event> {

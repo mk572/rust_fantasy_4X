@@ -11,6 +11,8 @@ license = "CC0-1.0"
 hecs = "0.10"
 rand = { version = "0.8", default-features = false }
 rand_pcg = "0.3"
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
 f4x-core = { path = "crates/f4x-core" }
 f4x-data = { path = "crates/f4x-data" }
 f4x-ai = { path = "crates/f4x-ai" }
