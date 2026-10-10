@@ -107,6 +107,8 @@ mod tests {
             owner: PlayerId(0),
             pos,
             name: "Test".into(),
+            race: None,
+            population: 1,
         })
     }
 

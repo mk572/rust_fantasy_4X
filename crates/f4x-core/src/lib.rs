@@ -5,6 +5,7 @@
 
 pub mod city;
 pub mod content;
+pub mod economy;
 pub mod featuregen;
 pub mod fog;
 pub mod help;
@@ -13,9 +14,11 @@ pub mod mapgen;
 pub mod movement;
 pub mod pathing;
 pub mod player;
+pub mod production;
 pub mod rules;
 #[cfg(test)]
 mod testutil;
+pub mod turn;
 pub mod units;
 
 use rand::{RngCore, SeedableRng};
@@ -48,10 +51,33 @@ pub enum Command {
     ShiftPlane {
         units: Vec<hecs::Entity>,
     },
+    /// Found a city. No population makes an outpost; race decides what it can build.
     FoundCity {
         owner: city::PlayerId,
         pos: city::Position,
         name: String,
+        race: Option<rules::RaceId>,
+        population: u32,
+    },
+    SetProduction {
+        city: hecs::Entity,
+        item: production::ProductionItem,
+    },
+    /// Pay gold to finish the current item at the next turn change.
+    BuyProduction {
+        city: hecs::Entity,
+    },
+    SetFarmers {
+        city: hecs::Entity,
+        farmers: u32,
+    },
+    SellBuilding {
+        city: hecs::Entity,
+        building: rules::BuildingId,
+    },
+    SetTaxRate {
+        player: city::PlayerId,
+        rate: u8,
     },
 }
 
@@ -63,6 +89,23 @@ pub enum Event {
     CityFounded {
         city: hecs::Entity,
         pos: city::Position,
+    },
+    ProductionCompleted {
+        city: hecs::Entity,
+        item: production::ProductionItem,
+    },
+    CityGrew {
+        city: hecs::Entity,
+        figures: u32,
+    },
+    CityShrank {
+        city: hecs::Entity,
+        figures: u32,
+    },
+    /// Units dismissed because their owner could not feed or pay them.
+    UnitsDisbanded {
+        player: city::PlayerId,
+        units: u32,
     },
     UnitCreated {
         unit: hecs::Entity,
@@ -87,6 +130,7 @@ pub enum Event {
 pub enum Rejection {
     FoundCity(city::FoundCityError),
     Move(movement::MoveError),
+    Production(production::ProductionError),
 }
 
 pub struct Game {
@@ -198,13 +242,55 @@ impl Game {
                     (Ok(_), None) => Vec::new(),
                 }
             }
-            Command::FoundCity { owner, pos, name } => match self.can_found_city(pos) {
+            Command::FoundCity {
+                owner,
+                pos,
+                name,
+                race,
+                population,
+            } => match self.can_found_city(pos) {
                 Ok(()) => {
-                    let city = self.world.spawn((city::City { name, owner }, pos));
+                    let city = self.spawn_city(owner, pos, name, race, population);
                     vec![Event::CityFounded { city, pos }]
                 }
                 Err(e) => vec![Event::Rejected(Rejection::FoundCity(e))],
             },
+            Command::SetProduction { city, item } => match self.set_production(city, item) {
+                Ok(()) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+            },
+            Command::BuyProduction { city } => match self.buy_production(city) {
+                Ok(_) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+            },
+            Command::SellBuilding { city, building } => match self.sell_building(city, building) {
+                Ok(_) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+            },
+            Command::SetFarmers { city, farmers } => {
+                let figures = self
+                    .world
+                    .get::<&economy::Population>(city)
+                    .map_or(0, |p| p.figures);
+                let min = self.city_min_farmers(city);
+                let _ = self
+                    .world
+                    .insert_one(city, economy::Farmers(farmers.clamp(min, figures)));
+                Vec::new()
+            }
+            Command::SetTaxRate { player, rate } => {
+                let max = self
+                    .content
+                    .rules
+                    .config
+                    .tax_unrest_percent
+                    .len()
+                    .saturating_sub(1) as u8;
+                if let Some(p) = self.player_mut(player) {
+                    p.tax_rate = rate.min(max);
+                }
+                Vec::new()
+            }
         }
     }
 
@@ -308,6 +394,7 @@ impl Game {
             let _ = self.world.insert_one(unit, units::MovesLeft(moves));
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
+        events.extend(self.process_turn());
         let with_orders: Vec<_> = self
             .world
             .query::<&units::Order>()

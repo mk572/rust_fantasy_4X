@@ -31,6 +31,34 @@ pub struct RaceDef {
     /// Names handed to new cities, in order.
     #[serde(default)]
     pub city_names: Vec<String>,
+    /// Food each farmer grows.
+    #[serde(default = "two")]
+    pub farmer_food: u8,
+    /// Production per worker, in half-units (4 = two).
+    #[serde(default = "four")]
+    pub worker_production_x2: u8,
+    /// Mana per citizen, in half-units (2 = one per citizen).
+    #[serde(default)]
+    pub mana_per_citizen_x2: u8,
+    /// Doubles taxes and the yield of mines.
+    #[serde(default)]
+    pub double_mining: bool,
+    /// Extra percent of gold from trade.
+    #[serde(default)]
+    pub trade_percent: i32,
+    /// Base chance (percent) per turn that an outpost of the race grows.
+    #[serde(default = "ten")]
+    pub outpost_growth: u8,
+}
+
+fn two() -> u8 {
+    2
+}
+fn four() -> u8 {
+    4
+}
+fn ten() -> u8 {
+    10
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +153,10 @@ pub struct BuildingDef {
     pub upkeep_gold: u32,
     #[serde(default)]
     pub requires: Vec<String>,
+    /// Building made redundant by this one. It still counts as built (for requirements
+    /// and effects) but costs no upkeep.
+    #[serde(default)]
+    pub replaces: Option<String>,
     /// Races that can build it; empty means every race.
     #[serde(default)]
     pub races: Vec<String>,
@@ -220,7 +252,7 @@ pub struct LevelPathDef {
 }
 
 /// Tunable numbers that are not content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RulesConfig {
     /// Base chance (percent) for each figure's attack to hit.
@@ -229,6 +261,13 @@ pub struct RulesConfig {
     pub block_percent: u8,
     /// Minimum Chebyshev distance between cities on one plane.
     pub min_city_distance: u32,
+    /// Largest city, in citizens (thousands of people).
+    pub max_city_size: u32,
+    /// Unrest percent caused by each tax rate; the rate is also half the gold per citizen.
+    pub tax_unrest_percent: Vec<u8>,
+    /// Unrest (in tens of percent) in a city of one race under a capital of another:
+    /// `racial_unrest[capital race][city race]`, indexed in race file order. Empty means none.
+    pub racial_unrest: Vec<Vec<i8>>,
 }
 
 impl Default for RulesConfig {
@@ -237,6 +276,9 @@ impl Default for RulesConfig {
             to_hit_percent: 30,
             block_percent: 30,
             min_city_distance: 4,
+            max_city_size: 25,
+            tax_unrest_percent: vec![0, 10, 20, 30, 45, 60, 75],
+            racial_unrest: Vec::new(),
         }
     }
 }

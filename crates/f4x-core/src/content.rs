@@ -39,7 +39,11 @@ pub struct TerrainDef {
     pub walkable: bool,
     pub can_found_city: bool,
     pub move_cost: u8,
+    /// Food a city gets from the tile, in half-food units (3 = one and a half food).
     pub food: u8,
+    /// Percent added to a city's production per worked tile of this terrain.
+    #[serde(default)]
+    pub production_percent: i32,
     pub planes: Vec<Plane>,
 }
 
@@ -107,11 +111,29 @@ pub struct SpawnRule {
     pub weight: u32,
 }
 
+/// What a feature adds to a city that works its tile. Gold, mana and cost reduction are
+/// doubled for races that mine well and increased by half with a miners' guild; every
+/// value is halved when two cities share the tile.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CityBonus {
+    pub gold: i32,
+    pub mana: i32,
+    /// Whole food (wild game); not affected by mining.
+    pub food: i32,
+    /// Percent off the cost of military units built in the city (stacks up to a limit).
+    pub unit_cost_percent: i32,
+    /// Added to the chance an outpost grows each turn.
+    pub outpost_growth: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeatureDef {
     pub id: String,
     pub name: String,
     pub kind: FeatureKind,
+    #[serde(default)]
+    pub city: CityBonus,
     /// Empty for towers, which are placed by dedicated rules.
     #[serde(default)]
     pub spawn: Vec<SpawnRule>,

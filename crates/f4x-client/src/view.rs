@@ -138,10 +138,19 @@ impl App {
             .get(used % race.city_names.len().max(1))
             .cloned()
             .unwrap_or_else(|| format!("City {}", used + 1));
+        let race_id = self
+            .game
+            .content
+            .rules
+            .races
+            .id_of(&self.game.content.rules.races.defs()[self.race].id);
+        let population = if used == 0 { 3 } else { 0 };
         let events = self.game.apply(Command::FoundCity {
             owner: HUMAN,
             pos,
             name: name.clone(),
+            race: race_id,
+            population,
         });
         for event in events {
             match event {

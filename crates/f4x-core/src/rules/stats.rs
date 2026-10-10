@@ -33,6 +33,14 @@ pub enum Stat {
     SpellCostPercent,
     // Cities
     CityFood,
+    /// Food added after the farmland cap is applied (granaries, markets).
+    CityFoodFlat,
+    /// Extra food each farmer grows.
+    FarmerFood,
+    /// Percent added to unrest from all sources (famine).
+    CityUnrestPercent,
+    /// Experience points new units are built with.
+    StartingXp,
     CityProduction,
     CityGold,
     CityMana,
@@ -53,6 +61,7 @@ impl Stat {
             Stat::ToHit
             | Stat::CityUnrest
             | Stat::CityGrowth
+            | Stat::CityUnrestPercent
             | Stat::SpellCostPercent
             | Stat::UnitCostPercent => None,
             _ => Some(0),

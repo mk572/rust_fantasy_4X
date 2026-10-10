@@ -20,7 +20,16 @@ pub fn content() -> Content {
             TerrainClass::Mountains => 3,
             _ => 1,
         },
-        food: 1,
+        food: match class {
+            TerrainClass::Grassland => 3,
+            TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Swamp => 1,
+            _ => 0,
+        },
+        production_percent: match class {
+            TerrainClass::Forest | TerrainClass::Hills => 3,
+            TerrainClass::Mountains => 5,
+            _ => 0,
+        },
         planes: Plane::ALL.to_vec(),
     };
     let terrains = Terrains::new(vec![
@@ -46,6 +55,7 @@ pub fn content() -> Content {
         id: id.into(),
         name: id.into(),
         kind,
+        city: Default::default(),
         spawn: if terrain.is_empty() {
             vec![]
         } else {
@@ -199,5 +209,217 @@ pub fn content_with_units() -> Content {
         level_paths: Registry::new(vec![level_path]),
         ..Default::default()
     };
+    c
+}
+
+/// Test content with a few races, buildings, mines and city enchantments, for economy tests.
+pub fn content_with_economy() -> Content {
+    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+    use crate::rules::{
+        BuildingDef, CastContext, Duration, ModOp, RaceDef, Rarity, RealmDef, SpellDef, SpellTarget,
+    };
+    let mut c = content_with_units();
+    let modify = |stat, op, value| EffectRule {
+        when: Trigger::Passive,
+        condition: Condition::Always,
+        target: TargetSel::This,
+        effect: Effect::Modify { stat, op, value },
+    };
+    let race = |id: &str, units: &[&str], effects: Vec<EffectRule>| RaceDef {
+        id: id.into(),
+        name: id.into(),
+        units: units.iter().map(|u| u.to_string()).collect(),
+        buildings: vec![],
+        home_terrain: vec![],
+        effects,
+        city_names: vec![],
+        farmer_food: 2,
+        worker_production_x2: 4,
+        mana_per_citizen_x2: 0,
+        double_mining: false,
+        trade_percent: 0,
+        outpost_growth: 10,
+    };
+    let mut dwarf = race(
+        "dwarf",
+        &["spear"],
+        vec![modify(Stat::CityGrowth, ModOp::Add, -20)],
+    );
+    dwarf.double_mining = true;
+    dwarf.worker_production_x2 = 6;
+    let mut elf = race("elf", &["spear"], vec![]);
+    elf.mana_per_citizen_x2 = 1;
+    elf.farmer_food = 3;
+    let building =
+        |id: &str, cost: u32, upkeep: u32, requires: &[&str], effects: Vec<EffectRule>| {
+            BuildingDef {
+                id: id.into(),
+                name: id.into(),
+                cost,
+                upkeep_gold: upkeep,
+                requires: requires.iter().map(|r| r.to_string()).collect(),
+                replaces: None,
+                races: vec![],
+                effects,
+            }
+        };
+    let mut hall = building("builders_hall", 60, 1, &[], vec![]);
+    hall.replaces = None;
+    let mut smithy = building("smithy", 40, 1, &[], vec![]);
+    smithy.replaces = None;
+    let mut armory = building("armory", 80, 2, &["barracks", "smithy"], vec![]);
+    armory.replaces = Some("barracks".into());
+    let mut dwarf_only = building("forge", 100, 2, &[], vec![]);
+    dwarf_only.races = vec!["dwarf".into()];
+    let buildings = vec![
+        building("barracks", 30, 0, &[], vec![]),
+        building(
+            "fighters_guild",
+            200,
+            3,
+            &["barracks"],
+            vec![modify(Stat::StartingXp, ModOp::Min, 20)],
+        ),
+        building(
+            "marketplace",
+            100,
+            1,
+            &[],
+            vec![modify(Stat::CityGold, ModOp::Percent, 50)],
+        ),
+        building(
+            "temple",
+            200,
+            2,
+            &[],
+            vec![
+                modify(Stat::CityUnrest, ModOp::Add, -1),
+                modify(Stat::CityMana, ModOp::Add, 2),
+            ],
+        ),
+        building(
+            "granary",
+            40,
+            1,
+            &[],
+            vec![
+                modify(Stat::CityFoodFlat, ModOp::Add, 2),
+                modify(Stat::CityGrowth, ModOp::Add, 20),
+            ],
+        ),
+        building(
+            "library",
+            60,
+            1,
+            &[],
+            vec![modify(Stat::CityResearch, ModOp::Add, 2)],
+        ),
+        building(
+            "miners_guild",
+            300,
+            3,
+            &[],
+            vec![modify(Stat::CityProduction, ModOp::Percent, 50)],
+        ),
+        building("shipyard", 200, 2, &[], vec![]),
+        building(
+            "sawmill",
+            100,
+            2,
+            &[],
+            vec![modify(Stat::CityProduction, ModOp::Percent, 25)],
+        ),
+        hall,
+        smithy,
+        armory,
+        dwarf_only,
+    ];
+    let mut spear = unit("spear", MovementType::Walking, 1, &[]);
+    spear.kind = UnitKind::Normal;
+    spear.race = Some("elf".into());
+    spear.cost = 20;
+    spear.upkeep.gold = 1;
+    spear.requires = vec!["barracks".into()];
+    let mut galley = unit("galley", MovementType::Sailing, 4, &[]);
+    galley.requires = vec!["shipyard".into()];
+    galley.cost = 50;
+    let mut units: Vec<UnitDef> = c.rules.units.defs().to_vec();
+    units.push(spear);
+    units.push(galley);
+    elf.units = vec!["spear".into()];
+    dwarf.units = vec!["spear".into()];
+    // The spear is the elves' unit; dwarves list it too for the test, so give the check a race.
+    let spell = |id: &str, effects| SpellDef {
+        id: id.into(),
+        name: id.into(),
+        realm: "life".into(),
+        rarity: Rarity::Common,
+        cost: 10,
+        research_cost: 10,
+        contexts: vec![CastContext::Overland],
+        target: SpellTarget::OwnCity,
+        duration: Duration::Permanent,
+        upkeep: 1,
+        dispel_difficulty: 10,
+        effects,
+    };
+    let spells = vec![
+        spell("famine", vec![modify(Stat::CityFood, ModOp::Percent, -50)]),
+        spell("gaias_blessing", vec![]),
+    ];
+    c.rules.races = Registry::new(vec![elf, dwarf]);
+    c.rules.units = Registry::new(units);
+    c.rules.buildings = Registry::new(buildings);
+    c.rules.spells = Registry::new(spells);
+    c.rules.realms = Registry::new(vec![RealmDef {
+        id: "life".into(),
+        name: "Life".into(),
+        color: (255, 255, 255),
+    }]);
+    // Features with city bonuses.
+    let mut defs: Vec<FeatureDef> = c.features.defs().to_vec();
+    for d in defs.iter_mut() {
+        match d.id.as_str() {
+            "iron" => {
+                d.city = CityBonus {
+                    unit_cost_percent: 5,
+                    outpost_growth: 5,
+                    ..Default::default()
+                }
+            }
+            "adamantium" => {
+                d.city = CityBonus {
+                    mana: 2,
+                    outpost_growth: 10,
+                    ..Default::default()
+                }
+            }
+            _ => {}
+        }
+    }
+    defs.push(FeatureDef {
+        id: "gold".into(),
+        name: "gold".into(),
+        kind: FeatureKind::Mineral,
+        city: CityBonus {
+            gold: 3,
+            outpost_growth: 10,
+            ..Default::default()
+        },
+        spawn: vec![],
+    });
+    defs.push(FeatureDef {
+        id: "game".into(),
+        name: "game".into(),
+        kind: FeatureKind::Mineral,
+        city: CityBonus {
+            food: 2,
+            outpost_growth: 10,
+            ..Default::default()
+        },
+        spawn: vec![],
+    });
+    c.features = Features::new(defs);
+    c.rules.config.racial_unrest = vec![vec![0, 2], vec![1, 0]];
     c
 }
