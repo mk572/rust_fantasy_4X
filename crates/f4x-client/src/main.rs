@@ -24,6 +24,10 @@ struct Options {
     select: bool,
     /// With `--shot`, end this many turns first.
     turns: u32,
+    /// Start from a saved game.
+    load: Option<PathBuf>,
+    /// Save the game (after any `--turns`) before carrying on.
+    save: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Options, String> {
@@ -39,6 +43,8 @@ fn parse_args() -> Result<Options, String> {
         city: false,
         select: false,
         turns: 0,
+        load: None,
+        save: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -54,6 +60,8 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--select" => o.select = true,
+            "--load" => o.load = Some(value("--load")?.into()),
+            "--save" => o.save = Some(value("--save")?.into()),
             "--turns" => {
                 o.turns = value("--turns")?
                     .parse()
@@ -80,7 +88,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--shot FILE [--city] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -101,7 +109,16 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    if let Some(path) = &options.load {
+        if let Err(e) = app.load_from(path) {
+            eprintln!("could not load {}: {e}", path.display());
+            std::process::exit(1);
+        }
+    }
     app.end_turns(options.turns);
+    if let Some(path) = &options.save {
+        app.save_to(path);
+    }
     if options.select {
         app.select_first_stack();
     }

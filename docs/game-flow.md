@@ -26,10 +26,11 @@ draw, log, animate from events and queries
   client calls them every frame to explain and to enable or disable controls.
 - **Determinism:** the same starting `Game`, the same seed and the same commands in the same
   order give the same result. All randomness goes through `Game::roll`; anything that
-  visits entities does so in entity-id order.
-- **The command log is the save format** (planned): replay the log from a seed to rebuild a
-  game. Commands carry entity ids, so replays depend on entities being allocated in the same
-  order, which the core guarantees as long as it runs the same commands.
+  visits entities does so in creation order (each unit and city carries a creation number,
+  `Serial`; `hecs` entity ids are reused and are not used for ordering).
+- **Saves are snapshots** (section 8): the whole game is written out and read back. Within one
+  run the command log still reproduces a game from its seed; commands carry entity ids, so a
+  log cannot be replayed across a load (the loaded entities have new ids).
 
 There are no per-player turns inside the core: all players issue commands as they like, and
 `EndTurn` then processes everyone at once. A hot-seat or AI layer decides who acts when.
@@ -113,7 +114,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 1. **Turn counter** goes up; every unit's moves are refilled to its allowance.
 2. **`TurnStarted`** is emitted.
-3. **Cities**, one by one in entity-id order:
+3. **Cities**, one by one in creation order:
    - *Outposts* (no citizens) roll to grow: a chance each turn made of the race's base
      chance, the land's food capacity, bonuses from worked features (mines, game), and
      enchantments; if the roll succeeds the outpost gains a few tens of people, and a small
@@ -128,7 +129,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
      the changes, a building finished this turn first affects the next one.
 4. **Treasury**, per player in the order players were added (section 5).
 5. **Healing** of wounded units (section 6).
-6. **Standing orders** continue for units that have them, in entity-id order (section 3.2).
+6. **Standing orders** continue for units that have them, in creation order (section 3.2).
 
 Planned additions and where they go: enchantment upkeep and expiry and wizard mana and
 research income belong with the treasury step; random events before the cities;
@@ -183,14 +184,59 @@ one point.
   old one stays built and keeps its effects and its value as a requirement, but costs no
   upkeep.
 
-## 8. What the client does with this
+## 8. Saving and loading
+
+`Game::snapshot()` captures a whole game as a `Snapshot`; `Snapshot::restore(content)` builds
+the game again. `f4x_data::save::{save_game, load_game}` do the file work. Code:
+`f4x-core/src/save.rs`, `f4x-data/src/save.rs`.
+
+**What a save holds:** the seed and how many random numbers have been drawn (so the random
+stream resumes exactly), the turn, the creation counter, the map (terrain, features, roads),
+each player's explored area (bit-packed), the players, every unit (with moves, damage,
+experience and any standing order) and every city (population, farmers, buildings,
+enchantments, race, current item and progress).
+
+**What it does not hold:** content definitions, events, or the command log. A save is a game
+state, not a content pack.
+
+**References by name.** Everything that points at content (a unit's definition, a building,
+a terrain, a feature, a race) is saved as its string id and looked up again on load. Adding
+content, or reordering the data files, does not break old saves (a test restores a save into
+content with reordered tables and gets the identical game). A save that needs content that
+is no longer loaded is refused with a message naming it (`LoadError::UnknownId`), never
+loaded wrongly.
+
+**Same game after loading.** Units and cities are written in creation order with their
+creation numbers, so a loaded game orders everything as the original did. A test saves a game
+in which entity ids had been reused, loads it, plays twelve turns on both copies and compares
+the snapshots after every turn: they never differ.
+
+**Checks on load:** the format version (an unknown version is refused); every id resolves;
+positions are on the map; creation numbers are unique and below the counter; farmers do not
+exceed citizens; the explored area matches the map; a player appears once. Failures are
+`LoadError::{Parse, Version, UnknownId, Inconsistent}` and leave the running game untouched.
+
+**Files.** The text format is RON, about 130 KB for a full 60x40 map, readable and
+diff-able. `save_game` writes to `<file>.tmp` and renames it, so an interrupted save never
+damages an existing one. Saves live in `saves/` (gitignored).
+
+**Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional
+fields does not need a bump. Migrating older versions would be added as a conversion step
+before `restore`.
+
+## 9. What the client does with this
 
 The macroquad client (`f4x-client`) runs this loop each frame: read input, turn it into a
 `Command`, `apply` it, add any events to its message log, then draw from queries. It never
 touches the `hecs::World` directly except to read. The `--shot` mode runs a few commands
 (`--turns N`) and renders a single frame, which is how the flow is checked without a person.
 
-## 9. Adding to the flow
+Keys: F5 saves to `saves/quick.ron`, F9 loads it, and the game autosaves to
+`saves/autosave.ron` at every turn end. `--save FILE` and `--load FILE` do the same from the
+command line. Before each turn end the client puts more citizens on farms if the army would
+otherwise go hungry, so the starting troops do not starve unnoticed.
+
+## 10. Adding to the flow
 
 - **A player action:** a `Command` variant, handled in `Game::apply`, with its check as a
   `&self` method the client can also call, and `Event`s for what it changes. Add a test

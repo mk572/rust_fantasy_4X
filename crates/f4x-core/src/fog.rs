@@ -22,6 +22,33 @@ impl Fog {
         }
     }
 
+    /// Dimensions and each player's explored flags, for saving.
+    #[allow(clippy::type_complexity)]
+    pub fn to_parts(&self) -> (u32, u32, Vec<(PlayerId, [Vec<bool>; 2])>) {
+        let players = self.explored.iter().map(|(p, l)| (*p, l.clone())).collect();
+        (self.width, self.height, players)
+    }
+
+    /// Rebuild from saved parts. Returns `None` if a layer has the wrong length.
+    pub fn from_parts(
+        width: u32,
+        height: u32,
+        players: Vec<(PlayerId, [Vec<bool>; 2])>,
+    ) -> Option<Self> {
+        let len = (width as usize).checked_mul(height as usize)?;
+        if players
+            .iter()
+            .any(|(_, l)| l[0].len() != len || l[1].len() != len)
+        {
+            return None;
+        }
+        Some(Self {
+            width,
+            height,
+            explored: players.into_iter().collect(),
+        })
+    }
+
     pub fn is_empty(&self) -> bool {
         self.width == 0
     }

@@ -162,7 +162,7 @@ impl Game {
     pub(crate) fn process_turn(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         let mut cities: Vec<_> = self.cities().into_iter().map(|(e, ..)| e).collect();
-        cities.sort_by_key(|e| e.id());
+        self.sort_by_serial(&mut cities);
 
         for city in &cities {
             let city = *city;
@@ -219,7 +219,7 @@ impl Game {
             .filter(|(_, c, _)| c.owner == player)
             .map(|(e, ..)| e)
             .collect();
-        mine.sort_by_key(|e| e.id());
+        self.sort_by_serial(&mut mine);
         for &city in &mine {
             let min = self.city_min_farmers(city);
             let _ = self.world.insert_one(city, Farmers(min));
@@ -249,7 +249,7 @@ impl Game {
                     Some((more.food - now.food, c, farmers))
                 })
                 .filter(|(gain, ..)| *gain > 0)
-                .max_by_key(|(gain, c, _)| (*gain, std::cmp::Reverse(c.id())));
+                .max_by_key(|(gain, c, _)| (*gain, std::cmp::Reverse(self.serial_of(*c))));
             let Some((_, city, farmers)) = best else {
                 break;
             };
@@ -414,7 +414,9 @@ impl Game {
         race: Option<crate::rules::RaceId>,
         figures: u32,
     ) -> hecs::Entity {
+        let serial = self.take_serial();
         let city = self.world.spawn((
+            serial,
             City { name, owner },
             pos,
             Population { figures, tens: 0 },

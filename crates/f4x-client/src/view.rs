@@ -2,6 +2,7 @@
 //! `city_screen.rs`.
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, FeatureKind, TerrainClass};
@@ -18,6 +19,10 @@ pub(crate) const BAR_H: f32 = 28.0;
 pub(crate) const SIDE_W: f32 = 300.0;
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 const RIVAL: PlayerId = PlayerId(1);
+
+/// Where F5 / F9 save and load, and where each turn is saved automatically.
+pub const QUICKSAVE: &str = "saves/quick.ron";
+pub const AUTOSAVE: &str = "saves/autosave.ron";
 
 pub enum Screen {
     Map,
@@ -252,11 +257,65 @@ impl App {
         }
     }
 
+    /// Write the game to `path`, reporting the outcome in the message log.
+    pub fn save_to(&mut self, path: &Path) {
+        match f4x_data::save::save_game(path, &self.game) {
+            Ok(()) => self.log.push(format!(
+                "Saved turn {} to {}",
+                self.game.turn,
+                path.display()
+            )),
+            Err(e) => self.log.push(format!("Save failed: {e}")),
+        }
+    }
+
+    /// Replace the game with the one saved at `path`. On failure the current game is kept.
+    pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
+        let content = self.game.content.clone();
+        let game = f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
+        self.seed = game.seed();
+        // Keep playing the same race: the human player's capital race.
+        if let Some(r) = game.player(HUMAN).and_then(|p| p.capital_race) {
+            self.race = r.index();
+        }
+        self.game = game;
+        self.screen = Screen::Map;
+        self.choosing = false;
+        self.selection.clear();
+        let home = self
+            .game
+            .cities()
+            .into_iter()
+            .find(|(_, c, _)| c.owner == HUMAN)
+            .map(|(_, _, p)| p);
+        if let Some(pos) = home {
+            self.center_on(pos);
+        }
+        self.log.push(format!(
+            "Loaded turn {} from {}",
+            self.game.turn,
+            path.display()
+        ));
+        Ok(())
+    }
+
+    /// End the turn. First put more citizens on farms if the army would otherwise go hungry
+    /// (the city screen lets you set farmers by hand; this just protects the troops).
+    fn end_turn(&mut self) {
+        let t = self.game.treasury(HUMAN);
+        if t.food_surplus < t.food_upkeep {
+            self.game.balance_farmers(HUMAN);
+        }
+        let events = self.game.apply(Command::EndTurn);
+        let turn = self.game.turn;
+        self.note(events);
+        self.log.push(format!("Turn {turn}"));
+    }
+
     /// Pass turns without playing them (for screenshots and smoke tests).
     pub fn end_turns(&mut self, turns: u32) {
         for _ in 0..turns {
-            let events = self.game.apply(Command::EndTurn);
-            self.note(events);
+            self.end_turn();
         }
     }
 
@@ -395,10 +454,16 @@ impl App {
             self.zoom = (self.zoom - 1.0).max(1.0);
         }
         if is_key_pressed(KeyCode::Enter) {
-            let events = self.game.apply(Command::EndTurn);
-            let turn = self.game.turn;
-            self.note(events);
-            self.log.push(format!("Turn {turn}"));
+            self.end_turn();
+            self.save_to(Path::new(AUTOSAVE));
+        }
+        if is_key_pressed(KeyCode::F5) {
+            self.save_to(Path::new(QUICKSAVE));
+        }
+        if is_key_pressed(KeyCode::F9) {
+            if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
+                self.log.push(format!("Load failed: {e}"));
+            }
         }
         if is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
@@ -720,7 +785,7 @@ impl App {
         );
         draw_rectangle(0.0, h - BAR_H, w, BAR_H, PANEL);
         draw_text(
-            "click select  right-click go  B settle  C city  P plane-shift  F stop  T farmers  Tab view  Enter end turn  N map  R race  Esc",
+            "click select  right-click go  B settle  C city  P plane-shift  F stop  T farmers  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
             10.0,
             h - 9.0,
             18.0,

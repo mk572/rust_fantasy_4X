@@ -89,6 +89,46 @@ impl Grid {
         self.features[i] = feature;
     }
 
+    /// Rebuild a grid from saved parts. Returns `None` if the lengths do not match.
+    pub fn from_parts(
+        width: u32,
+        height: u32,
+        tiles: Vec<TerrainId>,
+        features: Vec<Option<FeatureId>>,
+        roads: Vec<bool>,
+    ) -> Option<Self> {
+        let len = (width as usize).checked_mul(height as usize)?;
+        let ok = width > 0
+            && height > 0
+            && tiles.len() == len
+            && features.len() == len
+            && roads.len() == len;
+        ok.then_some(Self {
+            width,
+            height,
+            tiles,
+            features,
+            roads,
+        })
+    }
+
+    /// Terrain per tile, row by row.
+    pub fn tiles(&self) -> &[TerrainId] {
+        &self.tiles
+    }
+
+    /// Feature per tile, row by row.
+    pub fn features(&self) -> &[Option<FeatureId>] {
+        &self.features
+    }
+
+    /// Road flag per tile, row by row (all false if roads were never set).
+    pub fn roads(&self) -> Vec<bool> {
+        let mut roads = self.roads.clone();
+        roads.resize(self.tiles.len(), false);
+        roads
+    }
+
     /// Whether the tile at `(x, y)` has a road (x wraps, y outside the map is road-free).
     pub fn has_road(&self, x: i32, y: i32) -> bool {
         if y < 0 || y >= self.height as i32 {

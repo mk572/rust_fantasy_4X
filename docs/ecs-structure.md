@@ -61,6 +61,7 @@ a field of `Game`.
 ### Unit entity
 | Component | Meaning |
 |---|---|
+| `Serial(u64)` | Creation number from a counter in `Game`; never reused. The stable order of units and cities, and what a save records instead of the entity id. |
 | `Unit(UnitId)` | Marker and definition: which `UnitDef` this is. Also what makes the entity a unit. |
 | `Owner(PlayerId)` | Who controls it. `NEUTRAL` is the owner of monsters. |
 | `Position` | Plane, x, y. Shared with cities. |
@@ -76,6 +77,7 @@ plus modifiers from its abilities and its level.
 ### City entity
 | Component | Meaning |
 |---|---|
+| `Serial(u64)` | Creation number, as for units. |
 | `City { name, owner }` | Marker, name and owner. |
 | `Position` | Where it stands. Cities are entities, not map tiles. |
 | `Population { figures, tens }` | Citizens (1000 people each) and tens of people toward the next. Zero figures is an outpost. |
@@ -111,7 +113,7 @@ people, race, buildings and enchantments. Nothing is cached, so nothing can go s
 | `_world_maps`: 762 terrain-type numbers incl. shores | Two grids: base terrain class + feature overlay + road flag (see `map-layers.md`) | Shore and river variants are a rendering decision, not game state. Minerals, nodes, lairs and towers are features instead of separate arrays and flag bits. |
 | `_LAIRS`, `_NODES`, `_TOWERS` arrays | Features on tiles (kind: encounter, node, tower) | One mechanism; lairs' guards and loot will become components of the site entity when encounters are built. |
 | Compiled-in constants (`bt_Barracks`) | String ids in data files, resolved to typed ids at load | New content needs no code; every reference is validated once at load. |
-| Per-unit and per-city fixed record order | Entities visited in entity-id order | Deterministic and independent of slot reuse. |
+| Per-unit and per-city fixed record order | Entities visited in creation order (`Serial`) | Deterministic, independent of slot reuse, and the same after a save and load. |
 
 ## 5. Identity, references and ordering
 
@@ -122,9 +124,13 @@ people, race, buildings and enchantments. Nothing is cached, so nothing can go s
 - **Definitions** are referenced by typed ids (`Id<T>`). In data files they are strings;
   `f4x-data` checks that every string resolves before the game starts.
 - **Order**: ECS iteration order is not a game rule. Anything in game logic that iterates
-  entities sorts by entity id first (`all_units`, `cities`, `units_at`). Hash maps are never
+  entities sorts by creation number first (`all_units`, `cities`, `units_at`, `sort_by_serial`). Hash maps are never
   iterated in logic. This is what keeps a seed plus a command log reproducible.
-- **Randomness** comes only from `Game::roll` / `next_u64`, so replays agree.
+- **Creation numbers.** `hecs` reuses the id of a despawned entity, so ids do not give creation
+  order and differ after a load. Every unit and city gets a `Serial` at spawn; sorting,
+  "newest first" rules and saves use it. Spawning code must call `take_serial`.
+- **Randomness** comes only from `Game::roll` / `next_u64`; the seed plus a count of draws is
+  enough to resume the stream after a load.
 
 ## 6. Derived values and the modifier engine
 
@@ -168,6 +174,13 @@ explicit call order is easier to read, test and keep deterministic than a schedu
 - `world.get::<&T>(entity)` returns a guard; drop it before mutating the same entity.
 - Spawn with a tuple of components; add optional ones with `insert_one`.
 
+### Saving
+A save is a snapshot written by name (see `game-flow.md` section 8): it records units and
+cities with their components, not `hecs` entities, and refers to content by string id. The
+component tables above are therefore also the list of what a save must carry: **a new
+component on units or cities needs a field in the snapshot and a test that it survives a
+round trip.**
+
 ## 9. What this buys and costs
 
 Gains: no hard limits except the game's own (nine per stack, 25 citizens per city);
@@ -175,8 +188,8 @@ modifiers instead of flags; no cache invalidation; typed ids; tests that build a
 hand-made world in a few lines (`testutil.rs`) without any shipped data.
 
 Costs: more indirection than a flat array; a recomputed economy per query (cheap here);
-the command log depends on deterministic entity allocation, which `hecs` provides but
-which any change to spawn order can alter.
+a loaded game gets new `hecs` entity ids, so entity ids never appear in saves and logic never
+relies on them (see the creation number below).
 
 ## 10. Adding to the model
 

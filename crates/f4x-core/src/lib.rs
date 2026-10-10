@@ -16,6 +16,8 @@ pub mod pathing;
 pub mod player;
 pub mod production;
 pub mod rules;
+pub mod save;
+pub mod serial;
 #[cfg(test)]
 mod testutil;
 pub mod turn;
@@ -146,6 +148,10 @@ pub struct Game {
     pub content: content::Content,
     pub players: Vec<player::Player>,
     pub fog: fog::Fog,
+    seed: u64,
+    /// Values drawn from the RNG so far; a save replays this many to resume the stream.
+    draws: u64,
+    pub(crate) next_serial: u64,
     rng: Pcg64Mcg,
 }
 
@@ -158,6 +164,9 @@ impl Game {
             content: content::Content::default(),
             players: Vec::new(),
             fog: fog::Fog::default(),
+            seed,
+            draws: 0,
+            next_serial: 1,
             rng: Pcg64Mcg::seed_from_u64(seed),
         }
     }
@@ -182,7 +191,7 @@ impl Game {
             .iter()
             .map(|(e, (c, p))| (e, c.clone(), *p))
             .collect();
-        out.sort_by_key(|(e, ..)| e.id());
+        out.sort_by_key(|(e, ..)| (self.serial_of(*e), e.id()));
         out
     }
 
@@ -205,6 +214,11 @@ impl Game {
             self.fog = fog::Fog::new(map.width(), map.height());
         }
         self.fog.explore(player, at, radius);
+    }
+
+    /// The seed this game started from.
+    pub fn seed(&self) -> u64 {
+        self.seed
     }
 
     pub fn player(&self, id: city::PlayerId) -> Option<&player::Player> {
@@ -432,13 +446,14 @@ impl Game {
             .map(|(e, _)| e)
             .collect();
         let mut with_orders = with_orders;
-        with_orders.sort_by_key(|e| e.id());
+        self.sort_by_serial(&mut with_orders);
         events.extend(self.follow_orders(&with_orders));
         events
     }
 
     /// Next value from the game's seeded RNG (all randomness must come from here).
     pub fn next_u64(&mut self) -> u64 {
+        self.draws += 1;
         self.rng.next_u64()
     }
 }

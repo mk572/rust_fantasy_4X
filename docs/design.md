@@ -98,8 +98,8 @@ Not started. Intended design:
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary.
 
 ## 10. Cross-cutting
-- **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by entity id; no floats in rules; integer maths with a fixed order in the stats engine.
-- **Save/load:** planned: serialize the command log plus periodic snapshots (`serde`). Not implemented.
+- **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
+- **Save/load:** done. A save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
 - **Testing:** unit tests build synthetic content (`testutil`), so rules tests never depend on shipped data. Shipped data is validated in `f4x-data`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
 - **Performance:** not a concern except pathfinding and AI, which can be budgeted per turn.
 - **Lint and format:** `cargo fmt`, `cargo clippy -D warnings` in CI.
@@ -126,6 +126,9 @@ Economy and movement
 - Buildings a newer building replaces keep their effects and requirement value but cost no upkeep.
 - A unit with any movement left may always take a step.
 
+Saving
+- Snapshots, not command logs: a save restores the state directly. Content is referenced by string id, so saves survive content being added or reordered and fail clearly when content is missing. Units and cities carry a permanent creation number used for ordering and saved, so a loaded game continues exactly like the original.
+
 Client and tooling
 - macroquad for the client; art and data stay local; screenshots go in `assets-local/shots`.
 
@@ -133,7 +136,7 @@ Client and tooling
 
 Each stage should end with something runnable and tested.
 
-1. **Foundation.** Done: workspace, CI, ECS setup, deterministic RNG, command/event framework. Not done: save/load.
+1. **Foundation.** Done: workspace, CI, ECS setup, deterministic RNG, command/event framework, save/load.
 2. **Map and data pipeline.** Done: two-plane grid, RON data, procedural map generator, validation tool.
 3. **Minimal client.** Done: macroquad renderer, scrolling, input, placeholder art from the local extractor.
 4. **Units and movement.** Done: unit entities, movement rules, A\*, fog of war, plane switching.
@@ -153,4 +156,4 @@ Each stage should end with something runnable and tested.
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
 - How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema).
-- Save format: pure command log, or snapshots plus log. Entity ids appear in commands, so replays depend on deterministic entity allocation.
+- Replays: a command log cannot cross a load because entity ids change; if replays or networked play are wanted, commands need stable references (creation numbers instead of entities).

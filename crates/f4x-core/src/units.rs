@@ -134,22 +134,28 @@ impl Game {
             .filter(|(_, (_, p))| **p == pos)
             .map(|(e, _)| e)
             .collect();
-        out.sort_by_key(|e| e.id());
+        self.sort_by_serial(&mut out);
         out
     }
 
     /// All units, in a stable order.
     pub fn all_units(&self) -> Vec<hecs::Entity> {
         let mut out: Vec<_> = self.world.query::<&Unit>().iter().map(|(e, _)| e).collect();
-        out.sort_by_key(|e| e.id());
+        self.sort_by_serial(&mut out);
         out
     }
 
     /// Create a unit with full moves and health, and let its owner see around it.
     pub fn spawn_unit(&mut self, owner: PlayerId, pos: Position, unit: UnitId) -> hecs::Entity {
-        let e = self
-            .world
-            .spawn((Unit(unit), Owner(owner), pos, Hurt(0), Experience(0)));
+        let serial = self.take_serial();
+        let e = self.world.spawn((
+            serial,
+            Unit(unit),
+            Owner(owner),
+            pos,
+            Hurt(0),
+            Experience(0),
+        ));
         let moves = self.unit_max_moves(e);
         let _ = self.world.insert_one(e, MovesLeft(moves));
         let sight = self.unit_stat(e, Stat::Sight).max(1) as u32;

@@ -1,13 +1,15 @@
 //! Cities: ECS entities placed on the map, with founding rules.
 
+use serde::{Deserialize, Serialize};
+
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct PlayerId(pub u8);
 
 /// Where an entity stands. Components on map objects such as cities and units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Position {
     pub plane: Plane,
     pub x: u32,
