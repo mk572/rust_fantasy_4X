@@ -32,6 +32,9 @@ pub struct Grid {
     height: u32,
     tiles: Vec<TerrainId>,
     features: Vec<Option<FeatureId>>,
+    /// Roads make movement between two road tiles cost half a move.
+    #[serde(default)]
+    roads: Vec<bool>,
 }
 
 impl Grid {
@@ -43,6 +46,7 @@ impl Grid {
             height,
             tiles: vec![fill; len],
             features: vec![None; len],
+            roads: vec![false; len],
         }
     }
 
@@ -83,6 +87,23 @@ impl Grid {
     pub fn set_feature(&mut self, x: u32, y: u32, feature: Option<FeatureId>) {
         let i = self.index(x, y);
         self.features[i] = feature;
+    }
+
+    /// Whether the tile at `(x, y)` has a road (x wraps, y outside the map is road-free).
+    pub fn has_road(&self, x: i32, y: i32) -> bool {
+        if y < 0 || y >= self.height as i32 {
+            return false;
+        }
+        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
+        self.roads.get(i).copied().unwrap_or(false)
+    }
+
+    pub fn set_road(&mut self, x: u32, y: u32, road: bool) {
+        let i = self.index(x, y);
+        if self.roads.len() != self.tiles.len() {
+            self.roads = vec![false; self.tiles.len()];
+        }
+        self.roads[i] = road;
     }
 
     fn index(&self, x: u32, y: u32) -> usize {

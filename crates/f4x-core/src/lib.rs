@@ -6,12 +6,17 @@
 pub mod city;
 pub mod content;
 pub mod featuregen;
+pub mod fog;
 pub mod help;
 pub mod map;
 pub mod mapgen;
+pub mod movement;
+pub mod pathing;
+pub mod player;
 pub mod rules;
 #[cfg(test)]
 mod testutil;
+pub mod units;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -19,6 +24,30 @@ use rand_pcg::Pcg64Mcg;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     EndTurn,
+    /// Create a unit (summoning, production and scenario setup go through this).
+    CreateUnit {
+        owner: city::PlayerId,
+        pos: city::Position,
+        unit: rules::UnitId,
+    },
+    /// Move a stack one tile.
+    MoveStack {
+        units: Vec<hecs::Entity>,
+        to: city::Position,
+    },
+    /// Give a stack a standing order to walk to a tile.
+    GoTo {
+        units: Vec<hecs::Entity>,
+        to: city::Position,
+    },
+    /// Cancel standing orders.
+    ClearOrders {
+        units: Vec<hecs::Entity>,
+    },
+    /// Move a stack to the same tile on the other plane.
+    ShiftPlane {
+        units: Vec<hecs::Entity>,
+    },
     FoundCity {
         owner: city::PlayerId,
         pos: city::Position,
@@ -35,12 +64,29 @@ pub enum Event {
         city: hecs::Entity,
         pos: city::Position,
     },
+    UnitCreated {
+        unit: hecs::Entity,
+        pos: city::Position,
+    },
+    UnitsMoved {
+        units: Vec<hecs::Entity>,
+        from: city::Position,
+        to: city::Position,
+    },
+    /// Moving into hostile units or a hostile city: the attack is for the combat layer.
+    AttackRequested {
+        attackers: Vec<hecs::Entity>,
+        from: city::Position,
+        to: city::Position,
+        defenders: Vec<hecs::Entity>,
+    },
     Rejected(Rejection),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rejection {
     FoundCity(city::FoundCityError),
+    Move(movement::MoveError),
 }
 
 pub struct Game {
@@ -48,6 +94,8 @@ pub struct Game {
     pub turn: u32,
     pub map: Option<map::Map>,
     pub content: content::Content,
+    pub players: Vec<player::Player>,
+    pub fog: fog::Fog,
     rng: Pcg64Mcg,
 }
 
@@ -58,6 +106,8 @@ impl Game {
             turn: 1,
             map: None,
             content: content::Content::default(),
+            players: Vec::new(),
+            fog: fog::Fog::default(),
             rng: Pcg64Mcg::seed_from_u64(seed),
         }
     }
@@ -99,11 +149,54 @@ impl Game {
         city::check_site(self.map.as_ref(), &self.content, pos, existing)
     }
 
+    /// Let `player` see the tiles within `radius` of `at`.
+    pub fn explore(&mut self, player: city::PlayerId, at: city::Position, radius: u32) {
+        if let (Some(map), true) = (self.map.as_ref(), self.fog.is_empty()) {
+            self.fog = fog::Fog::new(map.width(), map.height());
+        }
+        self.fog.explore(player, at, radius);
+    }
+
+    pub fn player(&self, id: city::PlayerId) -> Option<&player::Player> {
+        self.players.iter().find(|p| p.id == id)
+    }
+
+    pub fn player_mut(&mut self, id: city::PlayerId) -> Option<&mut player::Player> {
+        self.players.iter_mut().find(|p| p.id == id)
+    }
+
     pub fn apply(&mut self, cmd: Command) -> Vec<Event> {
         match cmd {
-            Command::EndTurn => {
-                self.turn += 1;
-                vec![Event::TurnStarted { turn: self.turn }]
+            Command::EndTurn => self.end_turn(),
+            Command::CreateUnit { owner, pos, unit } => {
+                let unit = self.spawn_unit(owner, pos, unit);
+                vec![Event::UnitCreated { unit, pos }]
+            }
+            Command::MoveStack { units, to } => self.do_move(&units, to),
+            Command::GoTo { units, to } => match self.find_path(&units, to) {
+                Some(path) => {
+                    for &u in &units {
+                        let _ = self.world.insert_one(u, units::Order::GoTo(path.clone()));
+                    }
+                    self.follow_orders(&units)
+                }
+                None => vec![Event::Rejected(Rejection::Move(
+                    movement::MoveError::Impassable,
+                ))],
+            },
+            Command::ClearOrders { units } => {
+                for u in units {
+                    let _ = self.world.remove_one::<units::Order>(u);
+                }
+                Vec::new()
+            }
+            Command::ShiftPlane { units } => {
+                let from = units.first().and_then(|&u| self.unit_position(u));
+                match (self.shift_plane(&units), from) {
+                    (Ok(to), Some(from)) => vec![Event::UnitsMoved { units, from, to }],
+                    (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
+                    (Ok(_), None) => Vec::new(),
+                }
             }
             Command::FoundCity { owner, pos, name } => match self.can_found_city(pos) {
                 Ok(()) => {
@@ -113,6 +206,118 @@ impl Game {
                 Err(e) => vec![Event::Rejected(Rejection::FoundCity(e))],
             },
         }
+    }
+
+    fn do_move(&mut self, units: &[hecs::Entity], to: city::Position) -> Vec<Event> {
+        let from = units.first().and_then(|&u| self.unit_position(u));
+        match (self.move_stack(units, to), from) {
+            (Ok(movement::Entry::Free), Some(from)) => {
+                vec![Event::UnitsMoved {
+                    units: units.to_vec(),
+                    from,
+                    to,
+                }]
+            }
+            (Ok(movement::Entry::Hostile(defenders)), Some(from)) => vec![Event::AttackRequested {
+                attackers: units.to_vec(),
+                from,
+                to,
+                defenders,
+            }],
+            (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
+            (Ok(_), None) => Vec::new(),
+        }
+    }
+
+    /// Advance each listed unit along its standing order as far as its moves allow.
+    fn follow_orders(&mut self, units: &[hecs::Entity]) -> Vec<Event> {
+        let mut events = Vec::new();
+        // Units sharing a tile and an order walk together.
+        let mut groups: Vec<Vec<hecs::Entity>> = Vec::new();
+        for &u in units {
+            let Some(pos) = self.unit_position(u) else {
+                continue;
+            };
+            let order = self
+                .world
+                .get::<&units::Order>(u)
+                .ok()
+                .map(|o| (*o).clone());
+            let Some(order) = order else { continue };
+            match groups.iter_mut().find(|g| {
+                let f = g[0];
+                self.unit_position(f) == Some(pos)
+                    && self
+                        .world
+                        .get::<&units::Order>(f)
+                        .ok()
+                        .map(|o| (*o).clone())
+                        == Some(order.clone())
+            }) {
+                Some(g) => g.push(u),
+                None => groups.push(vec![u]),
+            }
+        }
+        for group in groups {
+            let units::Order::GoTo(mut path) = self
+                .world
+                .get::<&units::Order>(group[0])
+                .map(|o| (*o).clone())
+                .expect("grouped by order");
+            while let Some(&next) = path.first() {
+                let from = self.unit_position(group[0]).expect("on map");
+                match self.move_stack(&group, next) {
+                    Ok(movement::Entry::Free) => {
+                        path.remove(0);
+                        events.push(Event::UnitsMoved {
+                            units: group.clone(),
+                            from,
+                            to: next,
+                        });
+                    }
+                    Ok(movement::Entry::Hostile(defenders)) => {
+                        events.push(Event::AttackRequested {
+                            attackers: group.clone(),
+                            from,
+                            to: next,
+                            defenders,
+                        });
+                        path.clear();
+                    }
+                    Err(movement::MoveError::NoMovesLeft) => break,
+                    Err(_) => {
+                        path.clear();
+                    }
+                }
+            }
+            for &u in &group {
+                if path.is_empty() {
+                    let _ = self.world.remove_one::<units::Order>(u);
+                } else {
+                    let _ = self.world.insert_one(u, units::Order::GoTo(path.clone()));
+                }
+            }
+        }
+        events
+    }
+
+    fn end_turn(&mut self) -> Vec<Event> {
+        self.turn += 1;
+        for unit in self.all_units() {
+            let moves = self.unit_max_moves(unit);
+            let _ = self.world.insert_one(unit, units::MovesLeft(moves));
+        }
+        let mut events = vec![Event::TurnStarted { turn: self.turn }];
+        let with_orders: Vec<_> = self
+            .world
+            .query::<&units::Order>()
+            .iter()
+            .map(|(e, _)| e)
+            .collect();
+        let mut with_orders = with_orders;
+        with_orders.sort_by_key(|e| e.id());
+        events.extend(self.follow_orders(&with_orders));
+        events
     }
 
     /// Next value from the game's seeded RNG (all randomness must come from here).
