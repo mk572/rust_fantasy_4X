@@ -3,6 +3,7 @@
 
 pub mod defs;
 pub mod effects;
+pub mod exec;
 pub mod ids;
 pub mod registry;
 pub mod stats;

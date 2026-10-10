@@ -96,6 +96,7 @@ Map tiles live in a dense grid because they are numerous and accessed by coordin
 ### Placeholder art (local only)
 - The original game's art is copyrighted and has never been released under a free licence, so it must never be committed or distributed with this project.
 - For development, placeholder sprites are extracted locally from the author's own purchased copy (Steam or GOG) of the original game's `.lbx` files, using a small extractor in `f4x-tools` (reference implementations exist in other open source projects; study their file-format handling, don't copy art).
+- The author's downloaded copy of the original (Steam "Master of Magic Classic", app 1146370) lives outside the repo at `~/reference/mom-classic/Master of Magic Official Release/`; the `.lbx` files there are the extractor's input. `*.lbx` is gitignored as a safeguard.
 - Extracted files go in `assets-local/`, which is gitignored. The client loads from it if present and falls back to flat-colour rectangles otherwise, so the game runs and CI passes without it.
 - Before any public release, all placeholders must be replaced with original art or art under a free licence (e.g. CC0 packs, commissioned work). Treat anything in `assets-local/` as temporary.
 
