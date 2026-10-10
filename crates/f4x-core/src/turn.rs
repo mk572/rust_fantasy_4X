@@ -913,6 +913,57 @@ mod tests {
     }
 
     #[test]
+    fn settlers_found_outposts_and_are_used_up() {
+        let mut g = world();
+        let settler = g.content.rules.units.id_of("settler").unwrap();
+        let unit = g.spawn_unit(P0, at(10, 6), settler);
+        let events = g.apply(Command::SettleOutpost {
+            unit,
+            name: "Newtown".into(),
+        });
+        assert!(
+            matches!(events[..], [Event::CityFounded { .. }]),
+            "{events:?}"
+        );
+        let city = g.city_at(at(10, 6)).unwrap();
+        assert_eq!(
+            g.world.get::<&Population>(city).unwrap().figures,
+            0,
+            "an outpost"
+        );
+        assert!(
+            g.world.get::<&crate::economy::CityRace>(city).is_ok(),
+            "of the settlers' race"
+        );
+        assert!(g.unit_position(unit).is_none(), "the settlers are gone");
+        // Too close to the new outpost.
+        let again = g.spawn_unit(P0, at(12, 6), settler);
+        assert_eq!(
+            g.apply(Command::SettleOutpost {
+                unit: again,
+                name: "Nope".into()
+            }),
+            vec![Event::Rejected(crate::Rejection::FoundCity(
+                crate::city::FoundCityError::TooCloseToCity
+            ))]
+        );
+        assert!(
+            g.unit_position(again).is_some(),
+            "refused settlers stay alive"
+        );
+        // Soldiers cannot found cities.
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        let soldier = g.spawn_unit(P0, at(18, 6), spear);
+        assert!(matches!(
+            g.apply(Command::SettleOutpost {
+                unit: soldier,
+                name: "x".into()
+            })[..],
+            [Event::Rejected(_)]
+        ));
+    }
+
+    #[test]
     fn tax_rate_is_clamped_to_the_table() {
         let mut g = world();
         g.apply(Command::SetTaxRate {

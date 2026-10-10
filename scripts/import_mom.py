@@ -523,6 +523,8 @@ def build_units(
             parts.append(f"hero: Some((slots: [Weapon, Armor, Misc], hire_cost: {v['cost']}))")
         elif kind == "Normal":
             parts.append('level_path: Some("standard_xp")')
+        lbx, entry = ("units1", row.index) if row.index < 120 else ("units2", row.index - 120)
+        parts.append(f"art: Some(({ron_str(lbx)}, {entry}))")
         units.append(Unit(row.index, ids[row.index], "    (" + ", ".join(parts) + "),", race_index))
     return units
 

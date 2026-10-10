@@ -133,6 +133,9 @@ pub struct UnitDef {
     pub level_path: Option<String>,
     #[serde(default)]
     pub hero: Option<HeroDef>,
+    /// Picture for the client: `(file, entry)` in the local art set.
+    #[serde(default)]
+    pub art: Option<(String, u16)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

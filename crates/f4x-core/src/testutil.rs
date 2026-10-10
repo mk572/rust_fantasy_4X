@@ -123,6 +123,7 @@ pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) ->
         requires: vec![],
         level_path: Some("xp".into()),
         hero: None,
+        art: None,
     }
 }
 
@@ -340,13 +341,17 @@ pub fn content_with_economy() -> Content {
     spear.cost = 20;
     spear.upkeep.gold = 1;
     spear.requires = vec!["barracks".into()];
+    let mut settler = unit("settler", MovementType::Walking, 1, &["create_outpost"]);
+    settler.kind = UnitKind::Normal;
+    settler.race = Some("elf".into());
     let mut galley = unit("galley", MovementType::Sailing, 4, &[]);
     galley.requires = vec!["shipyard".into()];
     galley.cost = 50;
     let mut units: Vec<UnitDef> = c.rules.units.defs().to_vec();
     units.push(spear);
     units.push(galley);
-    elf.units = vec!["spear".into()];
+    units.push(settler);
+    elf.units = vec!["spear".into(), "settler".into()];
     dwarf.units = vec!["spear".into()];
     // The spear is the elves' unit; dwarves list it too for the test, so give the check a race.
     let spell = |id: &str, effects| SpellDef {

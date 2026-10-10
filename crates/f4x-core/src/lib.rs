@@ -59,6 +59,11 @@ pub enum Command {
         race: Option<rules::RaceId>,
         population: u32,
     },
+    /// A settler founds an outpost where it stands and is used up.
+    SettleOutpost {
+        unit: hecs::Entity,
+        name: String,
+    },
     SetProduction {
         city: hecs::Entity,
         item: production::ProductionItem,
@@ -255,6 +260,7 @@ impl Game {
                 }
                 Err(e) => vec![Event::Rejected(Rejection::FoundCity(e))],
             },
+            Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
@@ -292,6 +298,29 @@ impl Game {
                 Vec::new()
             }
         }
+    }
+
+    fn settle_outpost(&mut self, unit: hecs::Entity, name: String) -> Vec<Event> {
+        let (Some(pos), Some(owner)) = (self.unit_position(unit), self.unit_owner(unit)) else {
+            return vec![Event::Rejected(Rejection::Move(
+                movement::MoveError::BadSelection,
+            ))];
+        };
+        if !self.unit_has_ability(unit, "create_outpost") {
+            return vec![Event::Rejected(Rejection::Production(
+                production::ProductionError::WrongRace,
+            ))];
+        }
+        if let Err(e) = self.can_found_city(pos) {
+            return vec![Event::Rejected(Rejection::FoundCity(e))];
+        }
+        let race = self
+            .unit_def(unit)
+            .and_then(|d| d.race.as_deref())
+            .and_then(|r| self.content.rules.races.id_of(r));
+        let _ = self.world.despawn(unit);
+        let city = self.spawn_city(owner, pos, name, race, 0);
+        vec![Event::CityFounded { city, pos }]
     }
 
     fn do_move(&mut self, units: &[hecs::Entity], to: city::Position) -> Vec<Event> {
