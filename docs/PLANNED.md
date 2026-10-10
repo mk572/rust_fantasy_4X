@@ -18,6 +18,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 5 | Platform | Modding support |
 | 6 | Client | Upscaled graphics |
 | 7 | City | Smarter city autobuilder |
+| 8 | Options | Hardcore mode |
 
 ## Descriptions
 
@@ -81,3 +82,14 @@ provide, the wizard's strategy (retorts, books) and the game stage; avoid buildi
 about to be obsolete; let the player set priorities or a build profile (growth, production,
 research, defence); and share the evaluation with the AI's city production (T65) so both use
 one scoring function, tested on fixed city situations.
+
+**8. Hardcore mode.** A new-game option for one-life play, bundling three rules: **no undo** (the
+undo of orders, task 90, is off for the whole game); **permanent death** (a banished wizard is
+defeated at once, whatever the Spell of Return setting of item 2 says, and the spell is not
+available); and **one save file, constantly updated**: the game saves automatically after every
+command that matters and at every turn end into a single file, cannot be saved elsewhere, and
+cannot load an older state (loading the file continues the game, and a crash or quit never
+rolls back). Store the flag in the saved game settings, show it in the new-game screen (86)
+and on the hall of fame entry (88) so hardcore wins can be told apart, and make the client
+refuse the quick-load key and the file picker while it is on. Closely related to the settings
+work of tasks 89 and 90.

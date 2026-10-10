@@ -215,7 +215,7 @@ impl Game {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::map::Grid;
     use crate::player::Player;
@@ -239,7 +239,7 @@ mod tests {
         world_seeded(9)
     }
 
-    fn world_seeded(seed: u64) -> Game {
+    pub(crate) fn world_seeded(seed: u64) -> Game {
         let mut c = content_with_magic();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
@@ -271,7 +271,7 @@ mod tests {
         g
     }
 
-    fn spirit(g: &mut Game, player: PlayerId, pos: Position, id: &str) -> hecs::Entity {
+    pub(crate) fn spirit(g: &mut Game, player: PlayerId, pos: Position, id: &str) -> hecs::Entity {
         let u = g.content.rules.units.id_of(id).unwrap();
         g.spawn_unit(player, pos, u)
     }

@@ -87,7 +87,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 87 | Magic | Remaining global enchantments |
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
-| 90 | Meta | Undoing orders |
 | 91 | Client | Diplomacy screen |
 | 92 | Client | Spell-research dialogs |
 | 93 | Client | Spell-book view of the magic screen |
@@ -432,11 +431,6 @@ switches, strategic-only combat, animation and message speeds, and so on. Store 
 settings record, `serde(default)` and saved with the game where they change rules (events,
 Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
 change presentation. Reachable from the start menu (86) and in game.
-
-**90. Undoing orders.** The original lets the player undo some orders [216, 221]. Decide the
-scope (the last unit move, the last city change, none after end of turn) and implement it with
-a command history in the client or a `Game` snapshot per order, keeping the stable command
-references of task 74 in mind.
 
 **91. Diplomacy screen.** Talk to a rival wizard: attitude, treaties on offer, proposals and
 answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63.

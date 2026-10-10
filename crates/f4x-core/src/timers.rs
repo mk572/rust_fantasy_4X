@@ -56,7 +56,7 @@ impl Game {
     }
 
     /// The entity with this creation number, if it is still alive.
-    pub(crate) fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
+    pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
         self.world
             .query::<&Serial>()
             .iter()

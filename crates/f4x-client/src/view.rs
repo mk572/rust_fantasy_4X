@@ -210,6 +210,7 @@ impl App {
             game.create_wizard(player, &build)
                 .map_err(|e| format!("{e:?}"))?;
         }
+        game.set_undo(true);
         Ok(game)
     }
 
@@ -442,6 +443,7 @@ impl App {
             self.race = r.index();
         }
         self.game = game;
+        self.game.set_undo(true);
         self.screen = Screen::Map;
         self.choosing = false;
         self.selection.clear();
@@ -460,6 +462,29 @@ impl App {
             path.display()
         ));
         Ok(())
+    }
+
+    /// Take back the last order (Ctrl or Cmd with Z). Units are rebuilt by an undo, so the
+    /// selection is found again by creation number.
+    fn undo_last(&mut self) {
+        let serials: Vec<_> = self
+            .selection
+            .iter()
+            .map(|&u| self.game.serial_of(u))
+            .collect();
+        match self.game.undo() {
+            Ok(label) => {
+                self.selection = serials
+                    .into_iter()
+                    .filter_map(|s| self.game.entity_of_serial(s))
+                    .collect();
+                self.targeting = None;
+                self.log.push(format!("Undid {label}"));
+            }
+            Err(_) => self.log.push(
+                "Nothing to undo (ending a turn, discoveries and dice cannot be undone)".into(),
+            ),
+        }
     }
 
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
@@ -625,6 +650,10 @@ impl App {
         if is_key_pressed(KeyCode::Enter) {
             self.end_turn();
             self.save_to(Path::new(AUTOSAVE));
+        }
+        let command_key = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::LeftSuper);
+        if command_key && is_key_pressed(KeyCode::Z) {
+            self.undo_last();
         }
         if is_key_pressed(KeyCode::F5) {
             self.save_to(Path::new(QUICKSAVE));
@@ -1052,7 +1081,7 @@ impl App {
         );
         draw_rectangle(0.0, h - BAR_H, w, BAR_H, PANEL);
         draw_text(
-            "click select  right-click go  B settle  U meld  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
+            "click select  right-click go  B settle  U meld  Ctrl-Z undo  C city  P plane-shift  F stop  T farmers  M magic  Tab view  Enter end turn  F5 save  F9 load  N map  R race  Esc",
             10.0,
             h - 9.0,
             18.0,

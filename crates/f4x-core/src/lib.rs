@@ -31,6 +31,7 @@ mod testutil;
 pub mod timers;
 pub mod transport;
 pub mod turn;
+pub mod undo;
 pub mod units;
 pub mod vision;
 pub mod wizard;
@@ -345,6 +346,8 @@ pub struct Game {
     pub magic_strength: u8,
     /// The battle being fought, if any. Saves do not hold a battle in progress.
     pub battle: Option<battle::game::ActiveBattle>,
+    undo_on: bool,
+    undo_stack: Vec<undo::UndoEntry>,
 }
 
 impl Game {
@@ -363,6 +366,8 @@ impl Game {
             timers: Vec::new(),
             magic_strength: 1,
             battle: None,
+            undo_on: false,
+            undo_stack: Vec::new(),
         }
     }
 
@@ -424,7 +429,7 @@ impl Game {
         self.players.iter_mut().find(|p| p.id == id)
     }
 
-    pub fn apply(&mut self, cmd: Command) -> Vec<Event> {
+    fn execute(&mut self, cmd: Command) -> Vec<Event> {
         match cmd {
             Command::EndTurn => self.end_turn(),
             Command::CreateUnit { owner, pos, unit } => {

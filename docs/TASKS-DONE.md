@@ -24,6 +24,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
+| 90 | Meta | ~~Undoing orders~~ (done) |
 
 ## Descriptions
 
@@ -158,3 +159,11 @@ bonuses Holy Arms (+1 melee and ranged for normal units), Chaos Surge (+2 for ch
 and Charm of Life (a quarter of the hit points, at least one). Unit rules can now carry
 conditions on a unit's kind (`Condition::KindIs`). The data marks these spells with the
 `global_effect` hook so that casting does not report "no effect yet".
+
+**90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
+command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness
+rules: a command that explored new squares, drew random numbers or started a battle cannot be
+undone, and clears the history before it; ending the turn clears it too, and refused commands
+leave no entry. An undo rebuilds the units, so `hecs` entities change: find them again by
+creation number (`entity_of_serial`, now public); the client does this for its selection and
+binds undo to Ctrl or Cmd with Z. Hardcore mode (`PLANNED.md` item 8) will switch undo off.
