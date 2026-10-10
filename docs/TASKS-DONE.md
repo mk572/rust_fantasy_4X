@@ -26,6 +26,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
+| 113 | Client | ~~Original bitmap fonts~~ (done) |
+| 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 
 ## Descriptions
 
@@ -178,3 +180,24 @@ undone, and clears the history before it; ending the turn clears it too, and ref
 leave no entry. An undo rebuilds the units, so `hecs` entities change: find them again by
 creation number (`entity_of_serial`, now public); the client does this for its selection and
 binds undo to Ctrl or Cmd with Z. Hardcore mode (`PLANNED.md` item 8) will switch undo off.
+
+**113. Original bitmap fonts (done).** `f4x-tools extract-art` now decodes `FONTS.LBX` (`fonts.rs`):
+eight styles of 96 glyphs, stored by columns with skip and run bytes, drawn through 16 colour
+sets; it writes `assets-local/art/fonts/style{N}.png` (the glyph strip once per colour set) and
+`metrics.tsv`. The client (`art.rs`: `text_width`, `draw_bitmap_text`, `nearest_font_set`;
+`frame.rs`: `App::bm_text`) draws text with them and falls back to the plain font without
+them. Style 5 is the blackletter display face (titles), 3 the chunky label face, 1 and 2 the
+small text, 4 a medium face, 7 a runic one. Used by the city screen and the map frame.
+Still to do elsewhere: the other screens (magic, creation) and a text-wrapping helper for the
+bitmap fonts.
+
+**114. Cityscape: the original's procedural city layout (done).** `cityscape.rs` ports
+`Cityscape_Make_Buildings_Array`: a 15 by 23 grid with reserved roads and corners, buildings
+placed by footprint (shapes now imported into `BuildingDef::shape`, house types into
+`RaceDef::house_type`), the fortress, port and magic buildings in fixed cells, houses, trees and
+rocks by terrain, seeded like the original (`0x2895 + x * y`) so a city looks the same every
+visit. `city_screen.rs` draws it with the `cityscap.lbx` sprites in the original's sheared
+cell positions: ground by plane and enchantment, river or ocean overlay, hills or mountains,
+the road grid, every cell back to front, the walls; hovering shows a building's name. Not done:
+the original's road masking (the whole grid is drawn), animation of buildings and water,
+the ward and enchantment icons along the bottom, rubble, and selling by clicking.
