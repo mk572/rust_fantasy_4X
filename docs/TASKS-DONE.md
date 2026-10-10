@@ -123,6 +123,12 @@ ranged attacks with distance penalties and ammunition. Seeded and tested for ave
 overflow, ordering and determinism. Immunities, special attacks and the ability rules are
 tasks 35-37.
 
+**40. Tactical battle map, walls and turn flow (done).** `battle/map.rs` and
+`battle/mod.rs`: the 21 by 22 grid with open, rough and blocked squares generated from the
+terrain, eight-direction movement with costs and obstacles, deployment on opposite edges, side
+turns with per-unit moves and one attack each, win by elimination, flee, a 100-turn limit.
+Walls and wall sections are not built yet: they belong to the siege task (41); the battle screen is 45.
+
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
 turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.

@@ -204,12 +204,6 @@ shots" that use mana [542].
 **39. Auto-resolve.** Resolve a battle without the tactical map, including the strategic-combat-only
 option [685]. First playable combat; do after 34-37.
 
-**40. Tactical battle map, walls and turn flow (done, without walls).** `battle/map.rs` and
-`battle/mod.rs`: the 21 by 22 grid with open, rough and blocked squares generated from the
-terrain, eight-direction movement with costs and obstacles, deployment on opposite edges, side
-turns with per-unit moves and one attack each, win by elimination, flee, a 100-turn limit.
-Walls and wall sections are part of the siege task (41); the battle screen is 45.
-
 **41. City sieges, walls and capture.** Walls and gates in city battles, defenders' bonuses,
 capture or raze of the city, and the fortress rule that a wizard's capital city cannot be
 destroyed [CITYCALC notes in ReMoM].
