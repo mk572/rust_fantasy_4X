@@ -710,6 +710,19 @@ TILE_HOOKS = {
 }
 
 
+# Global enchantments the engine reads from the wizard's list (`globals.rs`); casting them
+# runs no effect of its own.
+GLOBAL_ENGINE = {
+    "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature's Awareness",
+    "Detect Magic", "Charm of Life",
+}
+# Global enchantments that change unit stats: (condition, stat, op, value) per rule.
+GLOBAL_MODS = {
+    "Holy Arms": [("KindIs(Normal)", "Melee", "Add", 1), ("KindIs(Normal)", "Ranged", "Add", 1)],
+    "Chaos Surge": [('RealmIs("chaos")', "Melee", "Add", 2), ('RealmIs("chaos")', "Ranged", "Add", 2)],
+}
+
+
 def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
     """Return (effects, target, duration-kind) for a spell; `duration-kind` is
     "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
@@ -720,6 +733,11 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in TILE_HOOKS:
         hook = TILE_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"
+    if name in GLOBAL_ENGINE or name in GLOBAL_MODS:
+        rules = ['(when: OnCast, target: Chosen, effect: Custom("global_effect"))']
+        for cond, stat, op, value in GLOBAL_MODS.get(name, []):
+            rules.append(f"(condition: {cond}, effect: Modify(stat: {stat}, op: {op}, value: {value}))")
+        return rules, "None", "lasting"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
     if kind == 0:  # summoning
         unit = unit_ids.get(row.param0 | (row.param1 << 8))

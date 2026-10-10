@@ -13,6 +13,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
+| 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 
 ## Descriptions
 
@@ -58,3 +59,14 @@ The client's creation screen (`create_screen.rs`, shown at start unless `--quick
 `--shot`; `--create` forces it) offers the presets, a custom build, a name, starting spells and
 a race. The rival gets another preset by seed. Not done: portraits and banner colours (83), the
 Myrran start on Myrror and the race it controls (53), and eleven-book realms.
+
+**57. Global enchantments and wizard-level state (done).** `globals.rs` reads the wizard's
+global spells where they matter: Evil Omens (life and nature spells cost half as much again for
+every wizard but the holder; one cost function, B11 decided as "follow the help"), Herb Mastery
+(heals every unit each turn), Planar Seal (blocks every plane shift, towers and planar travel
+included), Awareness (explores all city squares), Nature's Awareness (explores and shows the
+whole map), Detect Magic (`detect_magic_view`, shown on the magic screen), and the stat
+bonuses Holy Arms (+1 melee and ranged for normal units), Chaos Surge (+2 for chaos creatures)
+and Charm of Life (a quarter of the hit points, at least one). Unit rules can now carry
+conditions on a unit's kind (`Condition::KindIs`). The data marks these spells with the
+`global_effect` hook so that casting does not report "no effect yet".

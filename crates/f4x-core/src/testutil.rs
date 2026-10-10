@@ -586,6 +586,48 @@ pub fn content_with_magic() -> Content {
         s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
         spells.push(s);
     }
+    // Global enchantments the engine reads from the wizard's list.
+    for id in [
+        "evil_omens",
+        "herb_mastery",
+        "planar_seal",
+        "awareness",
+        "nature_awareness",
+        "detect_magic",
+        "charm_of_life",
+        "holy_arms",
+        "chaos_surge",
+    ] {
+        let mut s = base(id, "arcane", Rarity::VeryRare, 100, 100, SpellTarget::None);
+        s.duration = Duration::Permanent;
+        s.effects = vec![rule(
+            Trigger::OnCast,
+            Effect::Custom(crate::globals::GLOBAL_EFFECT.into()),
+        )];
+        let modify = |cond, stat, value| EffectRule {
+            when: Trigger::Passive,
+            condition: cond,
+            target: TargetSel::This,
+            effect: Effect::Modify {
+                stat,
+                op: ModOp::Add,
+                value,
+            },
+        };
+        match id {
+            "holy_arms" => s.effects.push(modify(
+                Condition::KindIs(crate::rules::UnitKind::Normal),
+                Stat::Melee,
+                1,
+            )),
+            "chaos_surge" => {
+                s.effects
+                    .push(modify(Condition::RealmIs("chaos".into()), Stat::Melee, 2))
+            }
+            _ => {}
+        }
+        spells.push(s);
+    }
     // The map-square spells.
     for (id, cost, hook) in [
         ("raise_volcano", 200, crate::terraform::RAISE_VOLCANO),

@@ -10,6 +10,7 @@ pub mod economy;
 pub mod featuregen;
 pub mod fog;
 pub mod fortress;
+pub mod globals;
 pub mod help;
 pub mod magic;
 pub mod map;

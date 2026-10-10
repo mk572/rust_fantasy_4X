@@ -20,6 +20,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::fortress::RETURN,
     crate::terraform::RAISE_VOLCANO,
     crate::terraform::CHANGE_TERRAIN,
+    crate::globals::GLOBAL_EFFECT,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +31,8 @@ pub enum Condition {
     OnPlane(Plane),
     RaceIs(String),
     RealmIs(String),
+    /// The subject is a unit of this kind (normal units, heroes, creatures).
+    KindIs(crate::rules::UnitKind),
     InBattle,
     InCity,
     All(Vec<Condition>),

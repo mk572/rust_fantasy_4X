@@ -74,6 +74,7 @@ impl EffectHost for GameHost<'_> {
                 facts.abilities = def.abilities.clone();
                 facts.race = def.race.clone();
                 facts.realm = def.realm.clone();
+                facts.kind = Some(def.kind);
             }
         }
         facts
@@ -241,6 +242,10 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
+        if hook == crate::globals::GLOBAL_EFFECT {
+            // Carried out by the engine wherever the wizard's global spells are consulted.
+            return;
+        }
         if let Target::Tile(at) = who {
             let events = match hook {
                 crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),
@@ -414,6 +419,7 @@ impl Game {
                         m.global.push(spell);
                     }
                 }
+                self.reveal_for_globals(p);
             }
             Target::Tile(_) => {}
         }

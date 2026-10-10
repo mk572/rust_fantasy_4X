@@ -16,6 +16,9 @@ impl Game {
             return Vec::new();
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
+        if self.has_global(player, "nature_awareness") {
+            return vec![true; (w * h) as usize];
+        }
         let mut seen = vec![false; (w * h) as usize];
         let mut reveal = |at: Position, radius: i32| {
             if at.plane != plane {

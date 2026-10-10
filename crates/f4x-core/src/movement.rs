@@ -197,6 +197,9 @@ impl Game {
     /// or every unit can travel between planes at will.
     pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
         let (from, _) = self.check_stack(units)?;
+        if self.planar_seal_active() {
+            return Err(MoveError::CannotShiftPlane);
+        }
         let map = self.map.as_ref().ok_or(MoveError::NoMap)?;
         let on_tower = map
             .plane(from.plane)

@@ -167,3 +167,13 @@ Myrran), at most six retorts, with the prerequisites in `retort_available`. A re
 books lets the wizard choose `n - 1` common spells at the start (more are filled from
 `RealmDef::default_spells`). Ready-made wizards skip the budget check (the original's Lo Pan
 spends twelve). The client's creation screen is `create_screen.rs`.
+
+## 14. Global enchantments
+
+A global spell sits in `Magic::global` and costs upkeep like any lasting spell. Its effect is
+read where it matters (`globals.rs`), by spell id for engine rules, and through the spell's own
+passive rules for unit stats (a rule may carry a condition such as `KindIs(Normal)` or
+`RealmIs("chaos")`, checked against each of the owner's units). Spells with an engine rule carry
+the `global_effect` hook so that casting them does not report "no effect yet". Implemented:
+Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature's Awareness, Detect Magic, Holy Arms,
+Chaos Surge, Charm of Life. The rest is task 87.

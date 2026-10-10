@@ -109,6 +109,7 @@ impl Game {
                 ));
             }
         }
+        mods.extend(self.global_unit_modifiers(unit));
         mods
     }
 

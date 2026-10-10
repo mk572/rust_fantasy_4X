@@ -445,7 +445,13 @@ impl Game {
         if !in_battle && def.contexts.contains(&CastContext::Battle) {
             cost *= 5;
         }
-        cost - cost * self.casting_cost_reduction(player, spell) / 100
+        cost -= cost * self.casting_cost_reduction(player, spell) / 100;
+        // Evil Omens: life and nature spells cost half as much again for every wizard who does
+        // not hold the spell (the help does not say; the caster is assumed to be spared).
+        if matches!(def.realm.as_str(), "life" | "nature") && self.evil_omens_against(player) {
+            cost += cost / 2;
+        }
+        cost
     }
 
     fn casting_cost_reduction(&self, player: PlayerId, spell: SpellId) -> i32 {
@@ -453,6 +459,7 @@ impl Game {
             return 0;
         };
         let mut cut = 0;
+
         if def.realm == "arcane" {
             if m.has(Retort::Runemaster) {
                 cut += 25;
@@ -568,6 +575,7 @@ impl Game {
     /// All wizards' magic at the turn change: income, research, upkeep, casting.
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
         let mut events = self.tick_timers();
+        self.process_globals();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {
             self.apply_magic_power(player);

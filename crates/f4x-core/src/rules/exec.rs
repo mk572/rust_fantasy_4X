@@ -31,6 +31,7 @@ pub struct Facts {
     pub plane: Option<Plane>,
     pub race: Option<String>,
     pub realm: Option<String>,
+    pub kind: Option<crate::rules::UnitKind>,
     pub in_battle: bool,
     pub in_city: bool,
 }
@@ -140,6 +141,7 @@ pub fn eval(cond: &Condition, facts: &Facts) -> bool {
         Condition::OnPlane(p) => facts.plane == Some(*p),
         Condition::RaceIs(r) => facts.race.as_deref() == Some(r.as_str()),
         Condition::RealmIs(r) => facts.realm.as_deref() == Some(r.as_str()),
+        Condition::KindIs(k) => facts.kind == Some(*k),
         Condition::InBattle => facts.in_battle,
         Condition::InCity => facts.in_city,
         Condition::All(cs) => cs.iter().all(|c| eval(c, facts)),

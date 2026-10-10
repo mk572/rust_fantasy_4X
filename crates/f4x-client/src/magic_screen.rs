@@ -116,6 +116,17 @@ impl App {
             None => String::new(),
         };
         lines.line(&fortress, WHITE);
+        // Detect Magic shows what the other wizards are casting.
+        for (other, spell) in self.game.detect_magic_view(HUMAN) {
+            let name = self.game.player(other).map_or("?", |p| p.name.as_str());
+            lines.line(
+                &format!(
+                    "{name} is casting {}",
+                    self.game.content.rules.spells.get(spell).name
+                ),
+                Color::new(0.8, 0.6, 0.9, 1.0),
+            );
+        }
         lines.gap(8.0);
         lines.line(
             &format!(

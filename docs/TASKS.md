@@ -65,7 +65,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 53 | Magic | Remaining retort effects |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
 | 56 | Magic | Implement the 37 "special" spells |
-| 57 | Magic | Global enchantments and wizard-level state |
+| 87 | Magic | Remaining global enchantments |
 | 58 | Magic | Unit enchantments needing non-stat effects |
 | 59 | Magic | Dispel mathematics and the counter-magic family |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories |
@@ -300,11 +300,6 @@ recalls, moving the fortress, resurrect and similar [mechanics-gaps section 4]. 
 effect primitives (map reveal, teleport, grant movement type, building destruction, random-effect
 tables) and implement them in groups.
 
-**57. Global enchantments and wizard-level state.** 24 spells that need wizard-wide state: cost
-multipliers (Evil Omens, B11, which several original cost paths ignored; decision pending in 78),
-dispel shields, node power changes, diplomacy modifiers. Add a global-effects consumer to the cost,
-upkeep, node and diplomacy code.
-
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
 conditional bonuses and regeneration. Needs conditional modifiers (by attacker realm, ranged versus
 melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks.
@@ -429,3 +424,13 @@ settings exist, T10), Load game (list the saves in `saves/` with date, turn and 
 the chosen one), Settings, and Quit. The in-game Esc menu should offer the same entries plus
 Save and Return to the game. Today the client starts straight in the creation screen
 (`--quick` skips it, `--load` loads a file); both options stay for scripting.
+
+**87. Remaining global enchantments.** The global spells still without effect, grouped by what
+they need: *combat* (Eternal Night, Zombie Mastery, Life Force and Tranquility's battle part,
+Nature's Wrath, Time Stop's combat part: 33-46); *corruption and map change* (Great Wasting,
+Armageddon, Meteor Storm: land corruption 5, terraform volcano rain, timed damage); *dispel
+mathematics* (Suppress Magic, Life Force, Tranquility: 59); *diplomacy and fame* (Aura of
+Majesty: 63; Just Cause: 72); *movement* (Wind Mastery: doubles own ship and sky speeds and
+halves everyone else's, which needs a condition on movement type); *experience* (Crusade: one
+level more for normal units, 27); *abilities* (Holy Arms' magic weapons, Doom Mastery's
+mutation of new units: temporary effects store 30); and Time Stop's turn flow.
