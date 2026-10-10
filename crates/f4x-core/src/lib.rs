@@ -14,6 +14,7 @@ pub mod fog;
 pub mod fortress;
 pub mod globals;
 pub mod help;
+pub mod lairs;
 pub mod magic;
 pub mod map;
 pub mod mapgen;
@@ -70,6 +71,11 @@ pub enum Command {
     },
     /// An order in the battle being fought.
     Battle(battle::BattleCommand),
+    /// A stack next to a guarded site (tower, node or encounter site) assaults its guards.
+    EnterSite {
+        units: Vec<hecs::Entity>,
+        to: city::Position,
+    },
     /// A stack with a purifying unit cleanses the corrupted square it stands on.
     Purify {
         units: Vec<hecs::Entity>,
@@ -315,11 +321,25 @@ pub enum Event {
         to: city::Position,
         defenders: Vec<hecs::Entity>,
     },
+    /// Moving onto a guarded site: its guards must be fought first (`Command::EnterSite`).
+    SiteEncounter {
+        units: Vec<hecs::Entity>,
+        from: city::Position,
+        to: city::Position,
+        lair: usize,
+    },
+    /// A site was cleared and its treasure taken.
+    SiteCleared {
+        player: city::PlayerId,
+        pos: city::Position,
+        loot: lairs::Loot,
+    },
     Rejected(Rejection),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rejection {
+    Site(lairs::SiteError),
     FoundCity(city::FoundCityError),
     Move(movement::MoveError),
     Production(production::ProductionError),
@@ -393,6 +413,7 @@ impl Game {
         content: &content::Content,
     ) -> Result<Self, mapgen::GenError> {
         let mut game = Self::new(seed);
+        game.magic_strength = params.magic_strength.min(2);
         game.map = Some(mapgen::generate(seed, params, content)?);
         game.content = content.clone();
         Ok(game)
@@ -476,6 +497,9 @@ impl Game {
             } => self
                 .start_battle(&attackers, &defenders)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::BattleStart(e))]),
+            Command::EnterSite { units, to } => self
+                .enter_site(&units, to)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),
             Command::Battle(command) => self
                 .battle_command(command)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Battle(e))]),
@@ -606,12 +630,20 @@ impl Game {
         let from = units.first().and_then(|&u| self.unit_position(u));
         match (self.move_stack(units, to), from) {
             (Ok(movement::Entry::Free), Some(from)) => {
-                vec![Event::UnitsMoved {
+                let mut events = vec![Event::UnitsMoved {
                     units: units.to_vec(),
                     from,
                     to,
-                }]
+                }];
+                events.extend(self.collect_site(units, to));
+                events
             }
+            (Ok(movement::Entry::Site(lair)), Some(from)) => vec![Event::SiteEncounter {
+                units: units.to_vec(),
+                from,
+                to,
+                lair,
+            }],
             (Ok(movement::Entry::Hostile(defenders)), Some(from)) => vec![Event::AttackRequested {
                 attackers: units.to_vec(),
                 from,
@@ -668,6 +700,16 @@ impl Game {
                             from,
                             to: next,
                         });
+                        events.extend(self.collect_site(&group, next));
+                    }
+                    Ok(movement::Entry::Site(lair)) => {
+                        events.push(Event::SiteEncounter {
+                            units: group.clone(),
+                            from,
+                            to: next,
+                            lair,
+                        });
+                        path.clear();
                     }
                     Ok(movement::Entry::Hostile(defenders)) => {
                         events.push(Event::AttackRequested {

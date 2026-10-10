@@ -229,7 +229,7 @@ impl Game {
     }
 
     /// Spells of one realm and rarity in file order (the order the data lists them in).
-    fn spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
+    pub(crate) fn spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
         self.content
             .rules
             .spells

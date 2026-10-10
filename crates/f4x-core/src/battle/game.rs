@@ -16,6 +16,8 @@ pub struct ActiveBattle {
     pub battle: Battle,
     /// `BattleUnit::source` indexes this list.
     pub sources: Vec<hecs::Entity>,
+    /// The lair being assaulted, if this is a fight against a site's guards.
+    pub site: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,7 +152,11 @@ impl Game {
         let map = BattleMap::generate(self.terrain_class_at(site), &mut map_rng);
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
-        self.battle = Some(ActiveBattle { battle, sources });
+        self.battle = Some(ActiveBattle {
+            battle,
+            sources,
+            site: None,
+        });
         Ok(vec![Event::BattleStarted {
             attacker: a_owner,
             defender: d_owner,
@@ -177,7 +183,11 @@ impl Game {
         let Some(active) = self.battle.take() else {
             return Vec::new();
         };
-        let ActiveBattle { battle, sources } = active;
+        let ActiveBattle {
+            battle,
+            sources,
+            site,
+        } = active;
         let mut events = Vec::new();
         for u in &battle.units {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
@@ -195,6 +205,19 @@ impl Game {
                 winner: battle.player_of(side),
                 loser: battle.player_of(side.other()),
             });
+        }
+        if let Some(index) = site {
+            let attackers: Vec<hecs::Entity> = battle
+                .units
+                .iter()
+                .filter(|u| u.side == Side::Attacker)
+                .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
+                .collect();
+            let winner = battle
+                .winner
+                .filter(|&s| s == Side::Attacker)
+                .map(|s| battle.player_of(s));
+            events.extend(self.finish_site_battle(index, winner, &attackers));
         }
         events
     }

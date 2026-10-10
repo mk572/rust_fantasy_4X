@@ -71,7 +71,10 @@ impl Game {
         if !self.undo_on || self.battle.is_some() {
             return self.execute(command);
         }
-        let ends_history = matches!(command, Command::EndTurn | Command::Battle(_));
+        let ends_history = matches!(
+            command,
+            Command::EndTurn | Command::Battle(_) | Command::EnterSite { .. }
+        );
         let label = label_of(&command);
         let before = (!ends_history).then(|| self.snapshot());
         let (draws, explored) = (self.draws, self.explored_total());

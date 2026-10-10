@@ -91,6 +91,9 @@ pub struct MapSave {
     /// Tower owners `(x, y, player)`.
     #[serde(default)]
     pub tower_owners: Vec<(u32, u32, u8)>,
+    /// Guards and treasure of towers, nodes and encounter sites.
+    #[serde(default)]
+    pub lairs: Vec<crate::map::Lair>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -450,6 +453,7 @@ impl Game {
                 planes,
                 nodes: map.nodes().to_vec(),
                 tower_owners: map.tower_owners().to_vec(),
+                lairs: map.lairs().to_vec(),
             }
         });
         let (width, height, fog_players) = self.fog.to_parts();
@@ -992,6 +996,7 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
     }
     map.set_nodes(m.nodes);
     map.set_tower_owners(m.tower_owners);
+    map.set_lairs(m.lairs);
     Ok(map)
 }
 

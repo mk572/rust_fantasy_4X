@@ -16,7 +16,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 8 | Map | Encounter sites: guardians and loot |
+| 8 | Map | Encounter sites: guardians and loot (core done; client prompt, items and prisoners open) |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) |
 | 10 | Map | Generator parity with the original and new-game settings |
 | 12 | Map | Gates and the Planar Seal |

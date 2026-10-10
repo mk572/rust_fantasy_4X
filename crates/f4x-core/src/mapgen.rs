@@ -29,6 +29,10 @@ pub struct GenParams {
     pub land_percent: u8,
     /// Towers placed at identical coordinates on both planes.
     pub tower_count: u8,
+    /// The game's difficulty, 0 (intro) to 4 (impossible): guards and treasure scale with it.
+    pub difficulty: u8,
+    /// The game's node setting, 0 weak to 2 powerful.
+    pub magic_strength: u8,
     /// Indexed by [`Plane::index`].
     pub planes: [PlaneParams; 2],
 }
@@ -40,6 +44,8 @@ impl Default for GenParams {
             height: 40,
             land_percent: 30,
             tower_count: 6,
+            difficulty: 2,
+            magic_strength: 1,
             planes: [
                 PlaneParams {
                     mineral_percent: 6,
@@ -101,6 +107,7 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map,
     let mut map = Map::new(arcanus?, myrror?);
     featuregen::place_features(seed, params, content, &mut map)?;
     crate::nodes::generate_nodes(seed, &mut map, content);
+    crate::lairs::generate_lairs(seed, params, &mut map, content);
     Ok(map)
 }
 

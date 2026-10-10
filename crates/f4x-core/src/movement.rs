@@ -35,6 +35,9 @@ pub enum Entry {
     Free,
     /// Hostile units or a hostile city: moving there starts a fight.
     Hostile(Vec<hecs::Entity>),
+    /// A guarded site (tower, node or encounter site): nothing moved; its guards must be
+    /// fought first. Holds the lair's index.
+    Site(usize),
 }
 
 const FULL_MOVE: u32 = 2;
@@ -279,6 +282,13 @@ impl Game {
         if let Some(defenders) = self.hostile_at(to, owner) {
             return Ok((costs, Entry::Hostile(defenders)));
         }
+        if owner != crate::units::NEUTRAL {
+            if let Some((index, lair)) = self.lair_at(to) {
+                if !lair.guards.is_empty() {
+                    return Ok((costs, Entry::Site(index)));
+                }
+            }
+        }
         let present = self.units_at(to).len();
         if present + units.len() > MAX_STACK {
             return Err(MoveError::StackFull);
@@ -289,7 +299,7 @@ impl Game {
     /// Move a stack one tile. Returns the entry result; on `Entry::Hostile` nothing moved.
     pub fn move_stack(&mut self, units: &[hecs::Entity], to: Position) -> Result<Entry, MoveError> {
         let (costs, entry) = self.plan_step(units, to)?;
-        if matches!(entry, Entry::Hostile(_)) {
+        if matches!(entry, Entry::Hostile(_) | Entry::Site(_)) {
             return Ok(entry);
         }
         let owner = self.unit_owner(units[0]).expect("checked");
