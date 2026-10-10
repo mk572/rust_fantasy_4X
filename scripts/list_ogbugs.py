@@ -20,7 +20,7 @@ from pathlib import Path
 
 LOG = logging.getLogger("list_ogbugs")
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_REMOM = Path.home() / "reference/ReMoM"
+DEFAULT_REMOM = REPO / "reference/ReMoM"
 SOURCE_DIRS = ("MoM/src", "MoX/src")
 AI_FILES = ("AIMOVE", "AISPELL", "AIDUDES", "AIDATA", "AIBUILD", "CMBTAI")
 # Files that are about presentation, not rules.

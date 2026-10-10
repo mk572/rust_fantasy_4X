@@ -4,10 +4,23 @@ Nothing derived from the original game may be committed or shared (the repo is C
 Both outputs below are gitignored and the game runs without them (flat colours, the
 sample `content/` set).
 
+## Where the originals live
+
+`reference/` in the project directory (gitignored) holds the inputs:
+- `reference/mom-classic/` the author's own copy of the original game (Steam "Master of Magic
+  Classic", app 1146370, downloaded with steamcmd); the files are in
+  `reference/mom-classic/Master of Magic Official Release/`;
+- `reference/ReMoM/` a single-commit clone of jbalcomb/ReMoM (a reverse-engineering of the
+  original code), used for the unit and race tables and as a behaviour reference. A private
+  full-history mirror is on GitHub as `ReMoM-reference`.
+
+The scripts default to these paths. Nothing in `reference/`, `assets-local/` or
+`content-local/` is committed.
+
 ## Art: `assets-local/art/`
 
 ```
-cargo run --release -p f4x-tools -- extract-art "<game dir with the .LBX files>"
+cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of Magic Official Release"
 ```
 
 Decodes every picture in the original `.lbx` files to PNG (`<lbx>/<entry>_<frame>.png`,

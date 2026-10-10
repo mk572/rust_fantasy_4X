@@ -27,9 +27,9 @@ from pathlib import Path
 
 LOG = logging.getLogger("import_mom")
 
-DEFAULT_GAME = Path.home() / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_REMOM = Path.home() / "reference/ReMoM"
 REPO = Path(__file__).resolve().parent.parent
+DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
+DEFAULT_REMOM = REPO / "reference/ReMoM"
 
 
 # --------------------------------------------------------------------------- #
