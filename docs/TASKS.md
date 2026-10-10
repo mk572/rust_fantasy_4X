@@ -94,6 +94,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 83 | Client | Wizard portraits and banner colours |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
+| 86 | Client | Start menu: new game, load game, settings, quit |
 
 ## Descriptions
 
@@ -421,3 +422,10 @@ which order and with which timing) into `assets-local/` with a new `f4x-tools` s
 in the client at start-up, skippable with any key and switchable off in the settings. The
 movie is original-derived: it stays local, and the game runs without it. Depends on audio
 (76) for the sound.
+
+**86. Start menu.** A title screen shown before anything else (after the opening movie, 85):
+New game (opens the wizard creation screen, with map seed, land size and opponents once the
+settings exist, T10), Load game (list the saves in `saves/` with date, turn and wizard; open
+the chosen one), Settings, and Quit. The in-game Esc menu should offer the same entries plus
+Save and Return to the game. Today the client starts straight in the creation screen
+(`--quick` skips it, `--load` loads a file); both options stay for scripting.
