@@ -7,6 +7,25 @@ numbers in brackets are topic indices there). Written in our own words. "Engine"
 and validation, map generation, city founding and a turn counter. Everything below is
 therefore missing unless marked otherwise.
 
+## Status
+Done since this list was written (each with tests; see `crates/f4x-core`):
+- **Units and the map (step 4):** unit instances and stats through the modifier engine,
+  movement types and costs (walking, flying, swimming, sailing, forester, mountaineer,
+  pathfinding, non-corporeal, wind walking), roads, stacks of nine, plane shifting by tower
+  or planar travel, A* routes, standing go-to orders, fog of war and sight.
+  Not done: gates, merging/teleport, corruption, node melding, mineral transmutation.
+- **City economy (step 5):** population with farmers, workers and rebels; food with the
+  farmland cap and starvation; production, gold (taxes, trade, coast, mines, markets),
+  mana, research; unrest from tax rate, racial table and troops; growth; the worked area
+  with shared tiles; production queue, buying, selling, replaced buildings; units trained
+  at guild experience; the treasury (food sold for gold, upkeep, disbanding the unpaid);
+  healing; outposts and settlers. Not done: roads built by engineers, sold-building
+  prerequisites beyond one level, weapon quality (mithril/adamantium), autobuild.
+- **Client:** units, selection, orders, fog, treasury, city screen with production menu.
+
+Still open: wizards and the spell system (step 6), combat (step 7, deliberately paused),
+diplomacy, AI, random events, victory and score.
+
 ## Corrections already made to imported data
 - Unit levels: normal units reach Elite at 120 xp; Ultra-Elite and Champion need the
   Warlord ability or the Crusade spell, not xp [527-532]. Heroes top out at Demi-god at
