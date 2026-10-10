@@ -9,6 +9,7 @@ pub mod content;
 pub mod economy;
 pub mod featuregen;
 pub mod fog;
+pub mod fortress;
 pub mod help;
 pub mod magic;
 pub mod map;
@@ -81,6 +82,14 @@ pub enum Command {
         city: hecs::Entity,
         farmers: u32,
     },
+    /// Found the wizard's first city with the fortress and summoning circle in it.
+    PlaceFortress {
+        player: city::PlayerId,
+        pos: city::Position,
+        name: String,
+        race: Option<rules::RaceId>,
+        population: u32,
+    },
     SellBuilding {
         city: hecs::Entity,
         building: rules::BuildingId,
@@ -148,6 +157,39 @@ pub enum Event {
         player: city::PlayerId,
         units: u32,
     },
+    FortressPlaced {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    FortressMoved {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    SummoningCircleMoved {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    /// The fortress city fell; the wizard now casts the Spell of Return.
+    WizardBanished {
+        player: city::PlayerId,
+        by: city::PlayerId,
+    },
+    WizardReturned {
+        player: city::PlayerId,
+        pos: city::Position,
+    },
+    /// The wizard lost their last city.
+    WizardDefeated {
+        player: city::PlayerId,
+    },
+    CityCaptured {
+        city: hecs::Entity,
+        from: city::PlayerId,
+        to: city::PlayerId,
+    },
+    CityDestroyed {
+        pos: city::Position,
+    },
     SpellLearned {
         player: city::PlayerId,
         spell: rules::SpellId,
@@ -195,6 +237,7 @@ pub enum Rejection {
     Move(movement::MoveError),
     Production(production::ProductionError),
     Magic(magic::MagicError),
+    Fortress(fortress::FortressError),
 }
 
 fn reject(r: Result<(), magic::MagicError>) -> Vec<Event> {
@@ -342,6 +385,15 @@ impl Game {
                 }
                 Err(e) => vec![Event::Rejected(Rejection::FoundCity(e))],
             },
+            Command::PlaceFortress {
+                player,
+                pos,
+                name,
+                race,
+                population,
+            } => self
+                .place_fortress(player, pos, name, race, population)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),

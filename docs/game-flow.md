@@ -54,6 +54,7 @@ trusted. (Needed before any networked play.)
 | `SellBuilding { city, building }` | Sell for its construction cost | none | `Production(NotBuilt, MissingBuilding)` |
 | `SetFarmers { city, farmers }` | Citizens on farms, clamped to the minimum that feeds the city and the population | none | none |
 | `SetTaxRate { player, rate }` | Tax rate, clamped to the table | none | none |
+| `PlaceFortress { player, pos, name, race, population }` | Found the wizard's first city with the fortress and summoning circle in it (once per wizard) | `CityFounded`, `FortressPlaced` | `Rejected(Fortress(..))` |
 
 Events: `TurnStarted`, `CityFounded`, `ProductionCompleted`, `CityGrew`, `CityShrank`,
 `UnitsDisbanded`, `UnitCreated`, `UnitsMoved`, `AttackRequested`, `Rejected`. Not every

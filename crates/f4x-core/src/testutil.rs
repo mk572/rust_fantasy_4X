@@ -563,6 +563,23 @@ pub fn content_with_magic() -> Content {
         },
     )];
     spells.push(summon);
+    // The fortress spells, which run hooks instead of effects.
+    for (id, cost, hook) in [
+        ("move_fortress", 100, crate::fortress::MOVE_FORTRESS),
+        ("summoning_circle", 50, crate::fortress::MOVE_CIRCLE),
+        ("spell_of_return", 10, crate::fortress::RETURN),
+    ] {
+        let mut s = base(
+            id,
+            "arcane",
+            Rarity::Uncommon,
+            cost,
+            100,
+            SpellTarget::OwnCity,
+        );
+        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
+        spells.push(s);
+    }
     c.rules.spells = Registry::new(spells);
     c.rules.realms = Registry::new(
         ["life", "chaos", "nature"]

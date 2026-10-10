@@ -55,6 +55,8 @@ impl RngCore for CountingRng {
 /// The real world, as the effect executor sees it.
 struct GameHost<'a> {
     game: &'a mut Game,
+    /// What hooks and other changes report back to the event log.
+    events: Vec<Event>,
 }
 
 impl EffectHost for GameHost<'_> {
@@ -82,7 +84,8 @@ impl EffectHost for GameHost<'_> {
             Target::Unit(u) => self.game.unit_position(u),
             Target::City(c) => self.game.world.get::<&Position>(c).ok().map(|p| *p),
             Target::Tile(p) => Some(p),
-            Target::Player(_) => None,
+            // A wizard is "at" their summoning circle.
+            Target::Player(p) => self.game.summon_point(p),
         }
     }
 
@@ -164,6 +167,8 @@ impl EffectHost for GameHost<'_> {
         let Some(id) = self.game.content.rules.units.id_of(unit) else {
             return;
         };
+        // Summoned creatures appear at the summoning circle; without one, where aimed.
+        let at = self.game.summon_point(owner).unwrap_or(at);
         for _ in 0..count {
             self.game.spawn_unit(owner, at, id);
         }
@@ -235,7 +240,24 @@ impl EffectHost for GameHost<'_> {
         removed
     }
 
-    fn custom(&mut self, _hook: &str, _who: Target, _ctx: &Context) {}
+    fn custom(&mut self, hook: &str, who: Target, ctx: &Context) {
+        let Target::City(city) = who else {
+            return;
+        };
+        use crate::fortress::{MOVE_CIRCLE, MOVE_FORTRESS, RETURN};
+        let result = match hook {
+            MOVE_FORTRESS => self.game.move_fortress(ctx.owner, city),
+            MOVE_CIRCLE => self.game.move_summoning_circle(ctx.owner, city),
+            RETURN => self.game.return_to_fortress(ctx.owner, city),
+            _ => return,
+        };
+        match result {
+            Ok(events) => self.events.extend(events),
+            Err(e) => self
+                .events
+                .push(Event::Rejected(crate::Rejection::Fortress(e))),
+        }
+    }
 }
 
 impl Game {
@@ -245,8 +267,33 @@ impl Game {
         self.content.terrains.get(id).map(|d| d.class)
     }
 
-    /// Does casting `spell` ask the wizard for a target?
-    pub fn spell_needs_target(&self, spell: SpellId) -> bool {
+    /// Does the spell run the named hook?
+    pub fn spell_has_hook(&self, spell: SpellId, hook: &str) -> bool {
+        self.content
+            .rules
+            .spells
+            .get(spell)
+            .effects
+            .iter()
+            .any(|r| matches!(&r.effect, crate::rules::effects::Effect::Custom(h) if h == hook))
+    }
+
+    fn summons(&self, spell: SpellId) -> bool {
+        self.content
+            .rules
+            .spells
+            .get(spell)
+            .effects
+            .iter()
+            .any(|r| matches!(r.effect, crate::rules::effects::Effect::Summon { .. }))
+    }
+
+    /// Does casting `spell` ask the wizard for a target? Summoning spells do not when the
+    /// wizard has a summoning circle: the creatures appear there.
+    pub fn spell_needs_target(&self, player: PlayerId, spell: SpellId) -> bool {
+        if self.summons(spell) && self.summon_point(player).is_some() {
+            return false;
+        }
         !matches!(
             self.content.rules.spells.get(spell).target,
             SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield
@@ -262,6 +309,32 @@ impl Game {
     ) -> Result<(), MagicError> {
         let wanted = self.content.rules.spells.get(spell).target;
         let mine = |o: Option<PlayerId>| o == Some(player);
+        if !self.spell_needs_target(player, spell) {
+            return Ok(());
+        }
+        let fortress_hook = [
+            crate::fortress::MOVE_FORTRESS,
+            crate::fortress::MOVE_CIRCLE,
+            crate::fortress::RETURN,
+        ]
+        .into_iter()
+        .find(|h| self.spell_has_hook(spell, h));
+        if let Some(hook) = fortress_hook {
+            let p = self.player(player).ok_or(MagicError::UnknownPlayer)?;
+            let Some(Target::City(c)) = target else {
+                return Err(MagicError::NeedsTarget);
+            };
+            if self.city_owner(c) != Some(player) {
+                return Err(MagicError::NoSuchTarget);
+            }
+            let here = self.world.get::<&Position>(c).ok().map(|x| *x);
+            let ok = match hook {
+                crate::fortress::RETURN => p.banished,
+                crate::fortress::MOVE_FORTRESS => p.fortress.is_some() && here != p.fortress,
+                _ => here != p.summon_at,
+            };
+            return ok.then_some(()).ok_or(MagicError::NoSuchTarget);
+        }
         let ok = match (wanted, target) {
             (SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield, _) => true,
             (_, None) => return Err(MagicError::NeedsTarget),
@@ -336,24 +409,25 @@ impl Game {
         let ctx = Context {
             this,
             owner: player,
-            chosen: target,
+            // A spell with no target acts on the wizard.
+            chosen: target.or(Some(this)),
             source: Source::Spell(spell),
         };
         let mut rng = CountingRng {
             inner: self.rng.clone(),
             draws: 0,
         };
-        let outcomes = run_rules(
-            &def.effects,
-            Trigger::OnCast,
-            &ctx,
-            &mut GameHost { game: self },
-            &mut rng,
-        );
+        let mut host = GameHost {
+            game: self,
+            events: Vec::new(),
+        };
+        let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host, &mut rng);
+        let hook_events = std::mem::take(&mut host.events);
         self.rng = rng.inner;
         self.draws += rng.draws;
 
         let mut events = vec![Event::SpellCast { player, spell }];
+        events.extend(hook_events);
         if def.duration != Duration::Instant {
             self.attach_enchantment(this, spell, player);
         }
@@ -454,6 +528,9 @@ pub(crate) mod tests_support {
     use super::*;
 
     pub(crate) fn host(game: &mut Game) -> impl EffectHost + '_ {
-        GameHost { game }
+        GameHost {
+            game,
+            events: Vec::new(),
+        }
     }
 }

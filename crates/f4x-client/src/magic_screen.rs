@@ -100,6 +100,22 @@ impl App {
         if !retorts.is_empty() {
             lines.line(&format!("Retorts: {}", retorts.join(", ")), WHITE);
         }
+        let fortress = match self.game.player(HUMAN) {
+            Some(p) if p.defeated => "Defeated".to_string(),
+            Some(p) if p.banished => "BANISHED: casting the Spell of Return".to_string(),
+            Some(p) => match self.game.fortress_city(HUMAN) {
+                Some(c) => format!(
+                    "Fortress: {}   circle: {}",
+                    self.city_name(c),
+                    p.summon_at
+                        .and_then(|pos| self.game.city_at(pos))
+                        .map_or("-".to_string(), |c| self.city_name(c))
+                ),
+                None => "No fortress".to_string(),
+            },
+            None => String::new(),
+        };
+        lines.line(&fortress, WHITE);
         lines.gap(8.0);
         lines.line(
             &format!(
@@ -220,7 +236,7 @@ impl App {
                 }
                 let y = lines.y;
                 if c.remaining <= 0
-                    && self.game.spell_needs_target(c.spell)
+                    && self.game.spell_needs_target(HUMAN, c.spell)
                     && button(Rect::new(x, y, 130.0, 28.0), "Choose target", true)
                 {
                     self.targeting = Some(Targeting {
@@ -380,11 +396,7 @@ impl App {
     /// Start casting: a spell without a target goes straight to the game, one with a target
     /// asks for it on the map.
     fn begin_cast(&mut self, spell: SpellId) {
-        let def = self.game.content.rules.spells.get(spell);
-        let needs = !matches!(
-            def.target,
-            SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield
-        );
+        let needs = self.game.spell_needs_target(HUMAN, spell);
         let cost = self.game.casting_cost(HUMAN, spell, false);
         let instant = self.game.magic(HUMAN).map_or(0, |m| m.skill_left);
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);

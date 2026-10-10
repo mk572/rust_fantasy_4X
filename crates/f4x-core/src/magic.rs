@@ -180,6 +180,11 @@ impl Game {
         self.player(player).map(|p| &p.magic)
     }
 
+    #[cfg(test)]
+    pub(crate) fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut Magic {
+        self.magic_mut(player).unwrap()
+    }
+
     fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
         self.player_mut(player).map(|p| &mut p.magic)
     }
@@ -292,9 +297,19 @@ impl Game {
 
     // ---- power -------------------------------------------------------------------
 
+    /// Is the wizard casting the Spell of Return? Then they get no income of any kind.
+    pub fn casting_return(&self, player: PlayerId) -> bool {
+        self.magic(player)
+            .and_then(|m| m.casting)
+            .is_some_and(|c| self.spell_has_hook(c.spell, crate::fortress::RETURN))
+    }
+
     /// Magic power before the split: mana from the wizard's cities (minerals, citizens,
-    /// religious buildings). Nodes will add to this once they can be owned.
+    /// religious buildings) and the fortress. Nodes will add to this once they can be owned.
     pub fn power_base(&self, player: PlayerId) -> i32 {
+        if self.casting_return(player) {
+            return 0;
+        }
         let total: i32 = self
             .cities()
             .into_iter()
@@ -303,19 +318,6 @@ impl Game {
             .map(|eco| eco.mana)
             .sum();
         (total + self.fortress_power(player)).max(0)
-    }
-
-    /// The wizard's first city stands in for the fortress (not modelled yet): it adds one
-    /// mana per spell book, and five more on Myrror, as the original's fortress city does.
-    pub fn fortress_city(&self, player: PlayerId) -> Option<hecs::Entity> {
-        let mut mine: Vec<hecs::Entity> = self
-            .cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .map(|(e, ..)| e)
-            .collect();
-        self.sort_by_serial(&mut mine);
-        mine.first().copied()
     }
 
     fn fortress_power(&self, player: PlayerId) -> i32 {
@@ -344,6 +346,9 @@ impl Game {
     /// research share is switched off, what it would have been goes to skill (or to mana
     /// when skill is off too). Mana Focusing adds a quarter to mana.
     pub fn power_split(&self, player: PlayerId) -> PowerSplit {
+        if self.casting_return(player) {
+            return PowerSplit::default();
+        }
         let Some(m) = self.magic(player) else {
             return PowerSplit::default();
         };
@@ -660,7 +665,7 @@ impl Game {
         if c.remaining > 0 {
             return Vec::new();
         }
-        if self.spell_needs_target(c.spell) {
+        if self.spell_needs_target(player, c.spell) {
             return vec![Event::SpellReady {
                 player,
                 spell: c.spell,
@@ -683,7 +688,11 @@ impl Game {
         if !def.contexts.contains(&CastContext::Overland) {
             return Err(MagicError::NotOverland);
         }
-        let needs_target = self.spell_needs_target(spell);
+        let needs_target = self.spell_needs_target(player, spell);
+        if self.spell_has_hook(spell, crate::fortress::RETURN) {
+            // Cast only through banishment, never chosen.
+            return Err(MagicError::NotAvailable);
+        }
         let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
         if !m.known.contains(&spell) {
             return Err(MagicError::NotAvailable);
@@ -696,6 +705,8 @@ impl Game {
             if needs_target && target.is_none() {
                 return Err(MagicError::NeedsTarget);
             }
+            self.check_target(player, spell, target)?;
+            let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
             m.skill_left -= cost;
             if let Some(p) = self.player_mut(player) {
                 p.mana -= cost;
@@ -711,6 +722,9 @@ impl Game {
 
     /// Give up the spell being cast; the mana already paid is lost.
     pub fn cancel_cast(&mut self, player: PlayerId) -> Result<(), MagicError> {
+        if self.casting_return(player) {
+            return Err(MagicError::NotAvailable);
+        }
         let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
         m.casting = None;
         Ok(())
@@ -727,6 +741,7 @@ impl Game {
             .and_then(|m| m.casting)
             .filter(|c| c.remaining <= 0)
             .ok_or(MagicError::NothingToResolve)?;
+        self.check_target(player, c.spell, Some(target))?;
         Ok(self.resolve_cast(player, c.spell, Some(target)))
     }
 }
@@ -774,15 +789,27 @@ mod tests {
         game
     }
 
+    /// The first city is the wizard's fortress, later ones are ordinary cities.
     fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
         let race = g.content.rules.races.id_of("elf");
-        g.apply(Command::FoundCity {
-            owner: P0,
-            pos,
-            name: "Town".into(),
-            race,
-            population: pop,
-        });
+        let name = "Town".into();
+        if g.player(P0).unwrap().fortress.is_none() {
+            g.apply(Command::PlaceFortress {
+                player: P0,
+                pos,
+                name,
+                race,
+                population: pop,
+            });
+        } else {
+            g.apply(Command::FoundCity {
+                owner: P0,
+                pos,
+                name,
+                race,
+                population: pop,
+            });
+        }
         g.city_at(pos).unwrap()
     }
 

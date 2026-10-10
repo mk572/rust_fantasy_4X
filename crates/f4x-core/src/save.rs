@@ -91,6 +91,14 @@ pub struct PlayerSave {
     /// Absent in saves from before wizards existed.
     #[serde(default)]
     pub magic: MagicSave,
+    #[serde(default)]
+    pub fortress: Option<Position>,
+    #[serde(default)]
+    pub summon_at: Option<Position>,
+    #[serde(default)]
+    pub banished: bool,
+    #[serde(default)]
+    pub defeated: bool,
 }
 
 /// A wizard's books, retorts, spells and casting; spells are saved by id.
@@ -369,6 +377,10 @@ impl Game {
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
+                fortress: p.fortress,
+                summon_at: p.summon_at,
+                banished: p.banished,
+                defeated: p.defeated,
             })
             .collect();
         let units = self
@@ -542,6 +554,10 @@ impl Snapshot {
                 capital_race,
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
+                fortress: p.fortress,
+                summon_at: p.summon_at,
+                banished: p.banished,
+                defeated: p.defeated,
             });
         }
 
@@ -683,6 +699,24 @@ impl Snapshot {
             ));
             if let Some(r) = race {
                 let _ = game.world.insert_one(entity, CityRace(r));
+            }
+        }
+        for p in &game.players {
+            for pos in [p.fortress, p.summon_at].into_iter().flatten() {
+                let ok = game
+                    .city_at(pos)
+                    .is_some_and(|c| game.city_owner(c) == Some(p.id));
+                if !ok {
+                    return Err(LoadError::Inconsistent(format!(
+                        "player {} has a fortress or summoning circle where they have no city",
+                        p.id.0
+                    )));
+                }
+            }
+            if p.banished && p.fortress.is_some() {
+                return Err(LoadError::Inconsistent(
+                    "a banished wizard has a fortress".into(),
+                ));
             }
         }
         Ok(game)

@@ -145,7 +145,7 @@ impl App {
                 x,
                 y,
             };
-            if self.game.can_found_city(pos).is_ok() && self.found_city(pos, 3) {
+            if self.game.can_found_city(pos).is_ok() && self.found_city(pos, 3, true) {
                 self.give_starting_units(pos);
                 self.center_on(pos);
                 return;
@@ -199,17 +199,29 @@ impl App {
             .unwrap_or_else(|| format!("City {}", used + 1))
     }
 
-    fn found_city(&mut self, pos: Position, population: u32) -> bool {
+    /// Found a city; the first one holds the wizard's fortress.
+    fn found_city(&mut self, pos: Position, population: u32, fortress: bool) -> bool {
         let name = self.next_city_name();
         let rules = &self.game.content.rules;
         let race = rules.races.id_of(&rules.races.defs()[self.race].id);
-        let events = self.game.apply(Command::FoundCity {
-            owner: HUMAN,
-            pos,
-            name,
-            race,
-            population,
-        });
+        let cmd = if fortress {
+            Command::PlaceFortress {
+                player: HUMAN,
+                pos,
+                name,
+                race,
+                population,
+            }
+        } else {
+            Command::FoundCity {
+                owner: HUMAN,
+                pos,
+                name,
+                race,
+                population,
+            }
+        };
+        let events = self.game.apply(cmd);
         self.note(events)
     }
 
@@ -238,6 +250,21 @@ impl App {
                     Some(format!("{units} unit(s) disbanded: unpaid or unfed"))
                 }
                 Event::AttackRequested { .. } => Some("Combat is not implemented yet".to_string()),
+                Event::WizardBanished { player, .. } if player == HUMAN => Some(
+                    "Your fortress has fallen! You are banished and cast the Spell of Return"
+                        .to_string(),
+                ),
+                Event::WizardBanished { .. } => Some("A rival wizard is banished".to_string()),
+                Event::WizardReturned { player, .. } if player == HUMAN => {
+                    Some("You have returned to your fortress".to_string())
+                }
+                Event::WizardDefeated { player } => {
+                    Some(format!("Wizard {} is defeated", player.0))
+                }
+                Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
+                Event::SummoningCircleMoved { .. } => {
+                    Some("The summoning circle has moved".to_string())
+                }
                 Event::SpellLearned { spell, .. } => Some(format!(
                     "Learned {}: choose new research (M)",
                     self.game.content.rules.spells.get(spell).name
@@ -712,6 +739,21 @@ impl App {
             }
             let at = screen_of(pos.x, pos.y);
             draw_city_marker(at.x, at.y, t, player_color(city.owner.0));
+            let owner = city.owner;
+            if self.game.player(owner).and_then(|p| p.fortress) == Some(*pos) {
+                // A gold star: the wizard's fortress.
+                draw_poly(
+                    at.x + t.x * 0.15,
+                    at.y + t.y * 0.25,
+                    5,
+                    t.x * 0.14,
+                    0.0,
+                    GOLD,
+                );
+            }
+            if self.game.player(owner).and_then(|p| p.summon_at) == Some(*pos) {
+                draw_circle_lines(at.x + t.x * 0.85, at.y + t.y * 0.85, t.x * 0.12, 2.0, GOLD);
+            }
             let size = 14.0 + self.zoom * 2.0;
             draw_text(&city.name, at.x - 2.0, at.y - 3.0, size, BLACK);
             draw_text(&city.name, at.x - 3.0, at.y - 4.0, size, WHITE);

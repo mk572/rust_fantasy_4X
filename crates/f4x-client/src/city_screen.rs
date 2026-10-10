@@ -133,7 +133,21 @@ impl App {
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
-        lay.text(&format!("{name} - {race}"), 10.0, 14.0, 9.0, GOLD);
+        let owner = self.game.city_owner(city);
+        let mut tags = String::new();
+        if self.game.is_fortress_city(city) {
+            tags.push_str("  [Fortress]");
+        }
+        let here = self.game.world.get::<&Position>(city).map(|p| *p).ok();
+        if owner
+            .and_then(|o| self.game.player(o))
+            .and_then(|p| p.summon_at)
+            == here
+            && here.is_some()
+        {
+            tags.push_str("  [Summoning circle]");
+        }
+        lay.text(&format!("{name} - {race}{tags}"), 10.0, 14.0, 9.0, GOLD);
         let outpost = if eco.figures == 0 { "  (outpost)" } else { "" };
         lay.text(
             &format!(

@@ -39,7 +39,7 @@ per turn, and the amount available for instant casting.
 
 - **Power base** = mana from all the wizard's cities (citizens of some races, religious
   buildings, mineral ores) plus the **fortress city's** bonus: one per book, five more on Myrror.
-  *Simplification:* there is no fortress yet, so the wizard's first city is used. Magic nodes will
+  Magic nodes will
   add power once they can be owned.
 - **Split:** mana share and skill share are `power × pct` rounded to nearest; research gets the
   rest, plus all research from city buildings. If research is set to 0%, its share goes to skill
@@ -118,7 +118,9 @@ Conjurer) and the rival 3 chaos, 2 death, Warlord.
 
 ## 11. Differences from the original
 
-- The first city stands in for the fortress; no summoning circle or banishment.
+- The fortress is a location on the player, not a building; the original also has the fortress
+  city act as a building in the city screen. Banishment, the circle and the Spell of Return work
+  (section 12); the aftermath of a wizard's defeat (neutral units and cities) does not.
 - No heroes' casting contribution or sage heroes, no node power, no Evil Omens or other global
   modifiers on cost, no Spell of Return handling, no spell research cost for the Spell of Mastery
   (placeholder data), no battle casting.
@@ -127,3 +129,31 @@ Conjurer) and the rival 3 chaos, 2 death, Warlord.
   the importer.
 - Starting known spells are random; the original takes them from a fixed table per named wizard,
   or lets a custom wizard pick.
+
+## 12. Fortress, summoning circle, banishment
+
+Code: `crates/f4x-core/src/fortress.rs`. Each `Player` has `fortress` and `summon_at` (positions of
+cities), `banished` and `defeated`.
+
+- **Placing:** `Command::PlaceFortress` founds the wizard's first city and puts both the fortress
+  and the summoning circle in it; the city's race becomes the capital race. Only once per wizard.
+- **Power:** the fortress city adds one mana per book to the power base (five more on Myrror).
+- **Summoning:** summoned creatures appear at the circle, and a summoning spell then needs no
+  target. Without a circle (tests, odd setups) they appear where aimed.
+- **Move Fortress** moves the fortress and the circle to another own city; **Summoning Circle**
+  moves only the circle. Both are instant city-targeted spells that run engine hooks
+  (`move_fortress`, `move_summoning_circle`); the importer maps the original spells to them.
+- **Capture:** `Game::capture_city(city, winner)` (for the combat layer to call) changes the
+  owner. Taking the fortress city **banishes** the wizard: fortress and circle are gone, the
+  winner gets 5 fame and half the loser's mana, and the loser starts casting the **Spell of
+  Return** (cost from the spell data). While casting it the wizard gets no power, mana, research
+  or skill, and cannot cancel. Taking the last city **defeats** the wizard.
+- **Return:** when the spell is paid it asks for one of the wizard's cities; that city becomes the
+  fortress and circle and its race the capital race (`return_to_fortress`). It cannot be cast any
+  other way.
+- **Destroying:** `Game::destroy_city` refuses a fortress city and leaves it with at least one
+  citizen, as in the original.
+- Spell targets are now checked before mana is paid.
+
+Not done: neutralising a defeated wizard's units and cities, removing their enchantments, the AI
+resigning, and drawing the fortress as a building. See tasks 70 and 82.

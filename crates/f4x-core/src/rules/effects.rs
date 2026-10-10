@@ -13,7 +13,12 @@ use crate::map::Plane;
 ///
 /// `unimplemented` marks an imported rule the engine has no primitive for yet; the
 /// number of uses is the to-do list for new effect primitives.
-pub const CUSTOM_HOOKS: &[&str] = &["unimplemented"];
+pub const CUSTOM_HOOKS: &[&str] = &[
+    "unimplemented",
+    crate::fortress::MOVE_FORTRESS,
+    crate::fortress::MOVE_CIRCLE,
+    crate::fortress::RETURN,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {

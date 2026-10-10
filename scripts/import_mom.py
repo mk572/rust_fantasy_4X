@@ -640,10 +640,21 @@ def mods_effects(mods: list[tuple[str, str, int]]) -> list[str]:
     return [f"(effect: Modify(stat: {s}, op: {op}, value: {v}))" for s, op, v in mods]
 
 
+# Spells that move the wizard's fortress or summoning circle; the engine runs these hooks.
+FORTRESS_HOOKS = {
+    "Move Fortress": "move_fortress",
+    "Summoning Circle": "move_summoning_circle",
+    "Spell of Return": "return_to_fortress",
+}
+
+
 def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
     """Return (effects, target, duration-kind) for a spell; `duration-kind` is
     "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
     name, kind = row.name, row.kind
+    if name in FORTRESS_HOOKS:
+        hook = FORTRESS_HOOKS[name]
+        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnCity", "instant"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
     if kind == 0:  # summoning
         unit = unit_ids.get(row.param0 | (row.param1 << 8))

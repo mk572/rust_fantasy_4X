@@ -15,6 +15,15 @@ pub struct Player {
     pub capital_race: Option<RaceId>,
     pub fame: i32,
     pub magic: crate::magic::Magic,
+    /// Where the wizard's fortress stands (a city); `None` before it is placed or while
+    /// banished.
+    pub fortress: Option<crate::city::Position>,
+    /// Where summoned creatures appear; defaults to the fortress.
+    pub summon_at: Option<crate::city::Position>,
+    /// The fortress fell: the wizard is casting the Spell of Return.
+    pub banished: bool,
+    /// The wizard has lost everything.
+    pub defeated: bool,
 }
 
 impl Player {
@@ -28,6 +37,10 @@ impl Player {
             capital_race: None,
             fame: 0,
             magic: crate::magic::Magic::default(),
+            fortress: None,
+            summon_at: None,
+            banished: false,
+            defeated: false,
         }
     }
 }

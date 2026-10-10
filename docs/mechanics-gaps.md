@@ -115,7 +115,8 @@ still open.
   mana spent, research, learning, spell books ordered by rarity [759, 217].
 - Dispel mathematics (strength vs mana spent, node protection, Archmage/mastery doubling),
   Disenchant, Disjunction, Spell Blast, Counter Magic, Spell Binding [610].
-- Fortress, summoning circle, banishment when the fortress falls, Spell of Return,
+- (Done: fortress, summoning circle, banishment, Spell of Return; see `magic.md` section 12.)
+  Spell of Mastery as a victory condition remains open,
   Spell of Mastery as a victory condition [749, 753, 804].
 - Item creation (Enchant Item, Create Artifact) [713 and spell text].
 

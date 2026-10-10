@@ -26,7 +26,7 @@ Combat (tasks 33-46) is deliberately paused until the user says to start.
 | 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
 | 14 | Map | Sight radius sources (Oracle, walls, Nature's Eye) |
-| 15 | City | Fortress and summoning circle, banishment |
+| 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -93,6 +93,7 @@ Combat (tasks 33-46) is deliberately paused until the user says to start.
 | 79 | Content | Final art sourcing |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
 | 81 | Housekeeping | Packaging for Mac and Linux |
+| 82 | Meta | Wizard defeat aftermath and fortress display |
 
 ## Descriptions
 
@@ -159,11 +160,8 @@ but have no rules. Add them to `movement.rs`, including their stack and plane ru
 
 ### City and economy
 
-**15. Fortress and summoning circle.** The wizard's first city stands in for the fortress. Model
-the fortress as its own structure placed at wizard creation, the summoning circle (Summoning Circle
-spell) as the place summoned creatures appear, the Myrror bonus, the fortress giving mana per book,
-and banishment when the fortress city falls [749, 753, 804]. Replaces the stand-in in
-`Game::fortress_city`.
+**15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
+section 12. What is left is split off as task 82.
 
 **16. Autobuild.** The production queue has no automatic mode. Add an autobuild order that picks
 the next sensible building, as the original's city screen does.
@@ -420,3 +418,10 @@ and steamcmd home) themselves; the safety hook blocks it for Claude.
 
 **81. Packaging.** Mac and Linux builds, with the local-assets workflow documented for players who
 supply their own original files.
+
+**82. Wizard defeat aftermath and fortress display.** When a wizard is defeated (task 15's
+`WizardDefeated`), the original turns their garrisoned normal units neutral, dismisses their heroes
+and fantastic units, removes their city enchantments everywhere, and (for AI) turns their remaining
+cities neutral. An AI wizard resigns instead of casting the Spell of Return if its skill is below 40
+or it has no mana. Also draw the fortress and circle as buildings in the city screen's building
+area. Needed before victory conditions (70) work properly.
