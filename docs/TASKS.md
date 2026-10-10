@@ -87,7 +87,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
 | 79 | Content | Final art sourcing |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
-| 81 | Housekeeping | Packaging for Mac and Linux |
+| 81 | Housekeeping | Packaging for Mac |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
 | 83 | Client | Wizard portraits and banner colours |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
@@ -104,6 +104,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 95 | Client | Tutorial |
 | 96 | Client | City screen: enchantments list |
 | 97 | Client | Sound effects |
+| 98 | Housekeeping | Packaging for Linux |
 
 ## Descriptions
 
@@ -397,8 +398,12 @@ art before any public release.
 user agrees. The user still needs to delete the old `~/reference` folder (the earlier ReMoM clone
 and steamcmd home) themselves; the safety hook blocks it for Claude.
 
-**81. Packaging.** Mac and Linux builds, with the local-assets workflow documented for players who
-supply their own original files.
+**81. Packaging for Mac.** A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
+per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the
+author has a developer account (otherwise documented right-click-open steps), a disk image or
+zip, and the local-assets workflow documented for players who supply their own original files
+(`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
+to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
 
 **82. Wizard defeat aftermath and fortress display.** When a wizard is defeated (task 15's
 `WizardDefeated`), the original turns their garrisoned normal units neutral, dismisses their heroes
@@ -486,3 +491,8 @@ colour and upkeep) as the original's city screen does [301], and allow dispel at
 hits and deaths, and the wizard's spoken lines where the original has them, played through the
 same audio layer as the music (76) with its own volume, from locally extracted files. Events
 (`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
+
+**98. Packaging for Linux.** A Linux build: static or well-documented dynamic binaries (the
+macroquad dependencies: X11 or Wayland, OpenGL, ALSA once audio exists), an AppImage or tarball,
+a `.desktop` file and icon, testing on a current Debian/Ubuntu and Fedora, and the same
+local-assets workflow as the Mac build (81). A release workflow on GitHub Actions.
