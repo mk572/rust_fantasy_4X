@@ -3,6 +3,7 @@
 
 mod art;
 mod city_screen;
+mod create_screen;
 mod magic_screen;
 mod ui;
 mod view;
@@ -23,6 +24,10 @@ struct Options {
     city: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// Open the wizard creation screen (the default unless loading, shooting or `--quick`).
+    create: bool,
+    /// Skip the creation screen and play the default wizard.
+    quick: bool,
     /// With `--shot`, select the starting stack first.
     select: bool,
     /// With `--shot`, end this many turns first.
@@ -45,6 +50,8 @@ fn parse_args() -> Result<Options, String> {
         shot: None,
         city: false,
         magic: false,
+        create: false,
+        quick: false,
         select: false,
         turns: 0,
         load: None,
@@ -65,6 +72,8 @@ fn parse_args() -> Result<Options, String> {
             "--city" => o.city = true,
             "--select" => o.select = true,
             "--magic" => o.magic = true,
+            "--create" => o.create = true,
+            "--quick" => o.quick = true,
             "--load" => o.load = Some(value("--load")?.into()),
             "--save" => o.save = Some(value("--save")?.into()),
             "--turns" => {
@@ -93,7 +102,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -132,6 +141,9 @@ async fn main() {
     }
     if options.magic {
         app.open_magic();
+    }
+    if options.create || (options.shot.is_none() && options.load.is_none() && !options.quick) {
+        app.open_creation();
     }
     let mut frames = 0;
     loop {

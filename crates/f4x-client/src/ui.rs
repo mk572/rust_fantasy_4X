@@ -103,3 +103,26 @@ pub fn bar(rect: Rect, fraction: f32, fill: Color) {
         Color::new(0.8, 0.65, 0.3, 1.0),
     );
 }
+
+/// Break `text` into lines no wider than `width` pixels at font size `size`.
+pub fn wrap(text: &str, size: f32, width: f32) -> Vec<String> {
+    let mut lines = Vec::new();
+    for paragraph in text.split('\n') {
+        let mut line = String::new();
+        for word in paragraph.split_whitespace() {
+            let candidate = if line.is_empty() {
+                word.to_string()
+            } else {
+                format!("{line} {word}")
+            };
+            if !line.is_empty() && measure_text(&candidate, None, size as u16, 1.0).width > width {
+                lines.push(std::mem::take(&mut line));
+                line = word.to_string();
+            } else {
+                line = candidate;
+            }
+        }
+        lines.push(line);
+    }
+    lines
+}

@@ -12,6 +12,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 4 | Map | ~~Shore and coastline variants for drawing~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
+| 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 
 ## Descriptions
 
@@ -44,3 +45,16 @@ section 12. What is left is split off as task 82.
 turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.
 Timers whose enchantment was dispelled or whose bearer died are dropped silently. No imported
 spell uses `Turns` (the original has none), so this is for mods and the community patch.
+
+**54. Wizard creation screen and named wizards (done).** `wizard.rs` holds the pick rules of the
+original's custom-wizard screen (eleven picks; books one each; retorts one, two for Warlord,
+Channeler, Divine Power, Famous and Infernal Power, three for Myrran; at most six retorts;
+prerequisites such as four books for a mastery, Archmage or Mana Focusing, two realms for Sage
+Master, two books in three realms for Runemaster) and `Game::create_wizard`, which also takes
+the starting spells: a realm with `n` books lets the wizard choose `n - 1` common spells, filled
+from the realm's default list (`RealmDef::default_spells`). The 14 named wizards are data
+(`wizards.ron`, written by the importer; Lo Pan is over budget in the original and is exempt).
+The client's creation screen (`create_screen.rs`, shown at start unless `--quick`, `--load` or
+`--shot`; `--create` forces it) offers the presets, a custom build, a name, starting spells and
+a race. The rival gets another preset by seed. Not done: portraits and banner colours (83), the
+Myrran start on Myrror and the race it controls (53), and eleven-book realms.

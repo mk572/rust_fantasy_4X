@@ -84,6 +84,61 @@ REALMS = [  # index = realm byte in the spell table
     ("arcane", "Arcane", (190, 190, 190)),
 ]
 
+# Spells a wizard starts with when none are chosen: per realm the ten common spells in
+# the original's default order (a realm with n books takes the first n - 1).
+DEFAULT_START_SPELLS = {
+    "nature": ["War Bears", "Stone Skin", "Sprites", "Water Walking", "Giant Strength", "Web",
+               "Earth to Mud", "Wall of Stone", "Resist Elements", "Earth Lore"],
+    "sorcery": ["Nagas", "Psionic Blast", "Phantom Warriors", "Floating Island", "Confusion",
+                "Counter Magic", "Word of Recall", "Dispel Magic True", "Resist Magic",
+                "Guardian Wind"],
+    "chaos": ["Fire Bolt", "Fire Elemental", "Eldritch Weapon", "Hell Hounds", "Corruption",
+              "Warp Creature", "Shatter", "Wall of Fire", "Disrupt", "Warp Wood"],
+    "life": ["Heroism", "Guardian Spirit", "Holy Armor", "Just Cause", "Healing", "Holy Weapon",
+             "Star Fires", "Endurance", "True Light", "Bless"],
+    "death": ["Life Drain", "Ghouls", "Weakness", "Dark Rituals", "Black Sleep", "Darkness",
+              "Terror", "Skeletons", "Mana Leak", "Cloak of Fear"],
+}
+
+# The ready-made wizards (NewGame.c `_wizard_presets_table`): books in the order life,
+# sorcery, nature, death, chaos, and the retort; help topic 659 + position describes them.
+WIZARD_PRESETS = [
+    ("Merlin", (5, 0, 5, 0, 0), "SageMaster"),
+    ("Raven", (0, 6, 5, 0, 0), None),
+    ("Sharee", (0, 0, 0, 5, 5), "Conjurer"),
+    ("Lo Pan", (0, 5, 0, 0, 5), "Channeler"),
+    ("Jafar", (0, 10, 0, 0, 0), "Alchemy"),
+    ("Oberic", (0, 0, 5, 0, 5), "ManaFocusing"),
+    ("Rjak", (0, 0, 0, 9, 0), "InfernalPower"),
+    ("Sss'ra", (4, 0, 0, 0, 4), "Myrran"),
+    ("Tauron", (0, 0, 0, 0, 10), "ChaosMastery"),
+    ("Freya", (0, 0, 10, 0, 0), "NatureMastery"),
+    ("Horus", (5, 5, 0, 0, 0), "Archmage"),
+    ("Ariel", (10, 0, 0, 0, 0), "Charismatic"),
+    ("Tlaloc", (0, 0, 4, 5, 0), "Warlord"),
+    ("Kali", (0, 5, 0, 5, 0), "Artificer"),
+]
+WIZARD_REALM_ORDER = ["life", "sorcery", "nature", "death", "chaos"]
+WIZARD_HELP_FIRST = 659
+
+
+def wizard_lines(help_topics) -> list[str]:
+    by_index = {t.index: t for t in help_topics}
+    lines = []
+    for i, (name, books, retort) in enumerate(WIZARD_PRESETS):
+        book_list = ", ".join(
+            f"({ron_str(r)}, {n})" for r, n in zip(WIZARD_REALM_ORDER, books) if n
+        )
+        topic = by_index.get(WIZARD_HELP_FIRST + i)
+        text = topic.text if topic and topic.title.lower() == name.lower() else ""
+        retorts = f"[{retort}]" if retort else "[]"
+        lines.append(
+            f"    (id: {ron_str(slug(name))}, name: {ron_str(name)}, description: {ron_str(text)}, "
+            f"books: [{book_list}], retorts: {retorts}),"
+        )
+    return lines
+
+
 # Unit table: first and last index of each block.
 HERO_RANGE = range(0, 35)
 BOAT_RANGE = range(35, 39)  # boats and the catapult: race-neutral
@@ -1037,7 +1092,8 @@ def run(game: Path, remom: Path, out: Path) -> Report:
         for i, (n, d) in sorted(used_abilities.items())
     ]
     realm_lines = [
-        f"    (id: {ron_str(i)}, name: {ron_str(n)}, color: ({c[0]}, {c[1]}, {c[2]}))," for i, n, c in REALMS
+        f"    (id: {ron_str(i)}, name: {ron_str(n)}, color: ({c[0]}, {c[1]}, {c[2]}), "
+        f"default_spells: [{', '.join(ron_str(slug(x)) for x in DEFAULT_START_SPELLS.get(i, []))}])," for i, n, c in REALMS
     ]
     items = import_items(game, report)
 
@@ -1049,6 +1105,7 @@ def run(game: Path, remom: Path, out: Path) -> Report:
     write_list(out / "realms.ron", header, realm_lines)
     write_list(out / "spells.ron", header, spells)
     write_list(out / "items.ron", header, items)
+    write_list(out / "wizards.ron", header, wizard_lines(help_topics))
     write_list(out / "level_paths.ron", header,
                [level_path_ron("standard_xp", LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)

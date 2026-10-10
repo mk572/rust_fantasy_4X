@@ -7,7 +7,7 @@ use f4x_core::content::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
 use f4x_core::rules::{
     AbilityDef, BuildingDef, Def, Duration, ItemDef, LevelPathDef, RaceDef, RealmDef, Registry,
-    Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind,
+    Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
 };
 
 use crate::{id_problem, ContentError};
@@ -33,6 +33,12 @@ pub fn load_rules(dir: &Path, features: &Features) -> Result<Rules, ContentError
         spells: Registry::new(parse::<Vec<SpellDef>>(dir, "spells.ron")?),
         items: Registry::new(parse::<Vec<ItemDef>>(dir, "items.ron")?),
         level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
+        // Ready-made wizards are optional: a rule set without them just has no presets.
+        wizards: Registry::new(if dir.join("wizards.ron").exists() {
+            parse::<Vec<WizardDef>>(dir, "wizards.ron")?
+        } else {
+            Vec::new()
+        }),
     };
     let problems = validate_rules(&rules, features);
     if problems.is_empty() {
@@ -63,12 +69,14 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     check_ids("spell", &r.spells, &mut p);
     check_ids("item", &r.items, &mut p);
     check_ids("level path", &r.level_paths, &mut p);
+    check_ids("wizard", &r.wizards, &mut p);
 
     check_races(r, &mut p);
     check_units(r, &mut p);
     check_buildings(r, &mut p);
     check_spells(r, &mut p);
     check_level_paths(r, &mut p);
+    check_wizards(r, &mut p);
     for item in r.items.defs() {
         if item.effects.is_empty() {
             p.push(format!("item {:?} has no effects", item.id));
@@ -369,6 +377,44 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
     }
 }
 
+fn check_wizards(r: &Rules, p: &mut Vec<String>) {
+    for realm in r.realms.defs() {
+        for s in &realm.default_spells {
+            if r.spells.id_of(s).is_none() {
+                p.push(format!(
+                    "realm {:?} defaults to unknown spell {s:?}",
+                    realm.id
+                ));
+            }
+        }
+    }
+    for w in r.wizards.defs() {
+        let mut picks: u32 = 0;
+        for (realm, n) in &w.books {
+            if r.realms.id_of(realm).is_none() {
+                p.push(format!(
+                    "wizard {:?} has books in unknown realm {realm:?}",
+                    w.id
+                ));
+            }
+            picks += u32::from(*n);
+        }
+        picks += w
+            .retorts
+            .iter()
+            .map(|&x| u32::from(f4x_core::wizard::retort_cost(x)))
+            .sum::<u32>();
+        // The original's own presets spend eleven picks, or twelve in Lo Pan's case.
+        let budget = u32::from(f4x_core::wizard::PICKS);
+        if picks != budget && picks != budget + 1 {
+            p.push(format!(
+                "wizard {:?} spends {picks} picks, not {budget}",
+                w.id
+            ));
+        }
+    }
+}
+
 fn check_level_paths(r: &Rules, p: &mut Vec<String>) {
     for path in r.level_paths.defs() {
         let who = format!("level path {:?}", path.id);
@@ -486,6 +532,7 @@ mod tests {
             spells: Registry::new(ron::from_str(&list("spells.ron")).unwrap()),
             items: Registry::new(ron::from_str(&list("items.ron")).unwrap()),
             level_paths: Registry::new(ron::from_str(&list("level_paths.ron")).unwrap()),
+            wizards: Registry::new(Vec::new()),
         }
     }
 

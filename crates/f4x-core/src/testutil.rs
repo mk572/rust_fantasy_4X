@@ -380,6 +380,7 @@ pub fn content_with_economy() -> Content {
         id: "life".into(),
         name: "Life".into(),
         color: (255, 255, 255),
+        default_spells: Vec::new(),
     }]);
     // Features with city bonuses.
     let mut defs: Vec<FeatureDef> = c.features.defs().to_vec();
@@ -602,6 +603,7 @@ pub fn content_with_magic() -> Content {
                 id: (*r).into(),
                 name: (*r).into(),
                 color: (255, 255, 255),
+                default_spells: Vec::new(),
             })
             .collect(),
     );

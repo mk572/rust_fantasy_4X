@@ -197,6 +197,17 @@ impl Game {
         books: &[(&str, u8)],
         retorts: &[Retort],
     ) -> Result<(), MagicError> {
+        self.init_wizard_with(player, books, retorts, None)
+    }
+
+    /// Like [`Game::init_wizard`], with the starting spells given instead of drawn at random.
+    pub fn init_wizard_with(
+        &mut self,
+        player: PlayerId,
+        books: &[(&str, u8)],
+        retorts: &[Retort],
+        start_spells: Option<&[SpellId]>,
+    ) -> Result<(), MagicError> {
         let mut magic = Magic::default();
         for &(realm, n) in books {
             if n > 0 {
@@ -213,7 +224,7 @@ impl Game {
         self.player_mut(player)
             .ok_or(MagicError::UnknownPlayer)?
             .magic = magic;
-        self.init_spell_library(player);
+        self.init_spell_library(player, start_spells);
         Ok(())
     }
 
@@ -247,7 +258,7 @@ impl Game {
     /// Known and researchable spells from books: with `n` books in a realm the wizard
     /// starts knowing `n - 1` common spells and may research a growing share of every
     /// rarity (all uncommon from 8 books, all rare and very rare from 10).
-    fn init_spell_library(&mut self, player: PlayerId) {
+    fn init_spell_library(&mut self, player: PlayerId, start_spells: Option<&[SpellId]>) {
         let books: Vec<(String, u8)> = self
             .magic(player)
             .map(|m| m.books.iter().map(|(r, &n)| (r.clone(), n)).collect())
@@ -257,7 +268,15 @@ impl Game {
         for (realm, n) in books {
             let n = usize::from(n).clamp(1, 10);
             let common = self.spells_of(&realm, Rarity::Common);
-            let start = self.pick_spells(&common, &known, n - 1);
+            let start = match start_spells {
+                Some(chosen) => chosen
+                    .iter()
+                    .copied()
+                    .filter(|s| common.contains(s))
+                    .take(n - 1)
+                    .collect(),
+                None => self.pick_spells(&common, &known, n - 1),
+            };
             known.extend(start.iter().copied());
             available.extend(start);
             let limit = COMMON_LIMIT[n - 1].min(common.len());

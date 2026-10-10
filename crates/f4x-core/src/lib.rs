@@ -28,6 +28,7 @@ pub mod timers;
 pub mod turn;
 pub mod units;
 pub mod vision;
+pub mod wizard;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;

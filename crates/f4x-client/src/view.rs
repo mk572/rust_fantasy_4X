@@ -10,6 +10,7 @@ use f4x_core::magic::Retort;
 use f4x_core::map::{Grid, Plane};
 use f4x_core::mapgen::{generate, GenParams};
 use f4x_core::player::Player;
+use f4x_core::wizard::WizardBuild;
 use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
@@ -29,19 +30,21 @@ pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
+    /// Creating the human wizard before the game begins.
+    Create,
 }
 
 pub struct App {
     pub(crate) game: Game,
     pub(crate) art: Art,
     params: GenParams,
-    seed: u64,
+    pub(crate) seed: u64,
     plane: Plane,
     /// Top-left visible tile (fractional while panning).
     cam: Vec2,
     zoom: f32,
     /// Index into `content.rules.races` the human plays.
-    race: usize,
+    pub(crate) race: usize,
     pub(crate) screen: Screen,
     selection: Vec<hecs::Entity>,
     pub(crate) log: Vec<String>,
@@ -52,6 +55,10 @@ pub struct App {
     pub(crate) magic_scroll: [usize; 2],
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::magic_screen::Targeting>,
+    /// The wizard creation screen's state.
+    pub(crate) create: crate::create_screen::CreateState,
+    /// The human wizard chosen on the creation screen; new maps reuse it.
+    pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
 }
 
 fn flat_color(class: TerrainClass) -> Color {
@@ -131,7 +138,7 @@ fn draw_river(grid: &Grid, content: &Content, x: i32, y: i32, sx: f32, sy: f32, 
 impl App {
     pub fn new(content: Content, art: Art, seed: u64) -> Result<Self, String> {
         let params = GenParams::default();
-        let game = Self::new_game(seed, &params, &content)?;
+        let game = Self::new_game(seed, &params, &content, None)?;
         // Start as the first race that has city names, else the first race.
         let race = content
             .rules
@@ -156,25 +163,51 @@ impl App {
             choice_scroll: 0,
             magic_scroll: [0, 0],
             targeting: None,
+            create: crate::create_screen::CreateState::empty(),
+            human_build: None,
         };
         app.start_game();
         Ok(app)
     }
 
-    fn new_game(seed: u64, params: &GenParams, content: &Content) -> Result<Game, String> {
+    fn new_game(
+        seed: u64,
+        params: &GenParams,
+        content: &Content,
+        human: Option<&WizardBuild>,
+    ) -> Result<Game, String> {
         let map = generate(seed, params, content).map_err(|e| e.to_string())?;
         let mut game = Game::new(seed);
         game.map = Some(map);
         game.content = content.clone();
         game.players.push(Player::new(HUMAN, "You"));
         game.players.push(Player::new(RIVAL, "Rival"));
-        // Until there is a wizard-creation screen, fixed picks: five books each.
-        let picks = [
-            (HUMAN, [("sorcery", 3), ("nature", 2)], [Retort::Conjurer]),
-            (RIVAL, [("chaos", 3), ("death", 2)], [Retort::Warlord]),
-        ];
-        for (player, books, retorts) in picks {
-            game.init_wizard(player, &books, &retorts)
+        // Without a creation screen's choice, fixed picks: five books each.
+        let fixed = |books: &[(&str, u8)], retort| WizardBuild {
+            name: String::new(),
+            books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+            retorts: [retort].into_iter().collect(),
+            spells: Vec::new(),
+            preset: true,
+        };
+        let human_build = human
+            .cloned()
+            .unwrap_or_else(|| fixed(&[("sorcery", 3), ("nature", 2)], Retort::Conjurer));
+        // The rival is one of the ready-made wizards other than the human's, by seed.
+        let rival_build = {
+            let defs = content.rules.wizards.defs();
+            let others: Vec<&str> = defs
+                .iter()
+                .filter(|w| w.name != human_build.name)
+                .map(|w| w.id.as_str())
+                .collect();
+            others
+                .get(seed as usize % others.len().max(1))
+                .and_then(|id| game.preset_build(id))
+                .unwrap_or_else(|| fixed(&[("chaos", 3), ("death", 2)], Retort::Warlord))
+        };
+        for (player, build) in [(HUMAN, human_build), (RIVAL, rival_build)] {
+            game.create_wizard(player, &build)
                 .map_err(|e| format!("{e:?}"))?;
         }
         Ok(game)
@@ -490,9 +523,9 @@ impl App {
         self.cam.x = self.cam.x.rem_euclid(self.params.width as f32);
     }
 
-    fn new_map(&mut self, seed: u64) {
+    pub(crate) fn new_map(&mut self, seed: u64) {
         let content = self.game.content.clone();
-        match Self::new_game(seed, &self.params, &content) {
+        match Self::new_game(seed, &self.params, &content, self.human_build.as_ref()) {
             Ok(game) => {
                 self.game = game;
                 self.seed = seed;
@@ -515,6 +548,7 @@ impl App {
                 self.city_screen(city);
             }
             Screen::Magic => self.magic_screen(),
+            Screen::Create => self.create_screen(),
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {

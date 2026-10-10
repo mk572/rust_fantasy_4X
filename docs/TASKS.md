@@ -63,7 +63,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil |
 | 51 | Heroes | Heroes' casting contribution and sage heroes |
 | 53 | Magic | Remaining retort effects |
-| 54 | Magic | Wizard creation screen and named wizards |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
 | 56 | Magic | Implement the 37 "special" spells |
 | 57 | Magic | Global enchantments and wizard-level state |
@@ -92,6 +91,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
 | 81 | Housekeeping | Packaging for Mac and Linux |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
+| 83 | Client | Wizard portraits and banner colours |
+| 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
+| 85 | Client | Import and play the original's opening movie |
 
 ## Descriptions
 
@@ -287,11 +289,6 @@ Node Mastery and the realm masteries' power doubling for nodes. Alchemy, Archmag
 Conjurer, Sage Master, Runemaster, Mana Focusing and the masteries' cost and research bonuses
 already work.
 
-**54. Wizard creation screen and named wizards.** The human currently gets fixed picks. Add the
-creation flow (name, portrait, book picks within the pick budget, retorts, starting spell choices),
-the ten named wizards' fixed loadouts [659-672], and replace the random starting spells with the
-original's fixed or chosen ones.
-
 **55. Importer: spell eligibility 2 and 3.** `scripts/import_mom.py` collapses eligibility 2 and 3
 to overland-only, losing the overland ×5 cost for them; spells such as those cost less than in the
 original. Preserve eligibility in `SpellDef` (or derive contexts exactly) and test spell costs
@@ -402,3 +399,25 @@ and fantastic units, removes their city enchantments everywhere, and (for AI) tu
 cities neutral. An AI wizard resigns instead of casting the Spell of Return if its skill is below 40
 or it has no mana. Also draw the fortress and circle as buildings in the city screen's building
 area. Needed before victory conditions (70) work properly.
+
+**83. Wizard portraits and banner colours.** The original lets the player choose a portrait for a
+custom wizard and a banner colour (help topics 658 and 674); here colours come from the player
+number and there are no portraits. Add both to the creation screen and the build, using the
+extracted wizard pictures locally (`assets-local`).
+
+**84. Analyse the original's screenshots and adjust the graphics.** Study the screenshots of the
+original game in `reference/screenshots/` (local only) and bring the client's look closer to
+them: screen layouts and proportions (map view, side panel, city screen, magic screen, creation
+screen), the use of the original's frames, buttons, fonts and palette, unit and city
+presentation on the map, terrain and shore drawing, and the information shown in the bars.
+First write a short comparison list (what differs, per screen), then change the client in
+steps, checking each with `--shot` screenshots. Original-derived art stays under
+`assets-local/`.
+
+**85. Import and play the original's opening movie.** Extract the intro from the author's own
+copy of the game (its animation frames and palette from the intro `.lbx` files, and the sound
+and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
+which order and with which timing) into `assets-local/` with a new `f4x-tools` step, and play it
+in the client at start-up, skippable with any key and switchable off in the settings. The
+movie is original-derived: it stays local, and the game runs without it. Depends on audio
+(76) for the sound.

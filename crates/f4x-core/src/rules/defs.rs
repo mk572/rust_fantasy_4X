@@ -173,6 +173,22 @@ pub struct RealmDef {
     pub id: String,
     pub name: String,
     pub color: (u8, u8, u8),
+    /// Spells (ids) a wizard with books in this realm starts with when they choose none, in
+    /// the order they are taken: common ones first.
+    #[serde(default)]
+    pub default_spells: Vec<String>,
+}
+
+/// A ready-made wizard for the creation screen: a name, a book and retort loadout.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WizardDef {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Spell books as `(realm id, count)`.
+    pub books: Vec<(String, u8)>,
+    pub retorts: Vec<crate::magic::Retort>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -294,7 +310,8 @@ impl_def!(
     RealmDef,
     SpellDef,
     ItemDef,
-    LevelPathDef
+    LevelPathDef,
+    WizardDef
 );
 
 /// All rules definitions.
@@ -309,4 +326,5 @@ pub struct Rules {
     pub spells: Registry<SpellDef>,
     pub items: Registry<ItemDef>,
     pub level_paths: Registry<LevelPathDef>,
+    pub wizards: Registry<WizardDef>,
 }
