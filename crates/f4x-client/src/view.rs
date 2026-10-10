@@ -15,6 +15,7 @@ use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
 use crate::art::{terrain_type as tt, Art, TILE_H, TILE_W};
+use crate::frame::Align;
 use crate::ui::{Lines, GOLD};
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
@@ -845,9 +846,20 @@ impl App {
             if self.game.player(owner).and_then(|p| p.summon_at) == Some(*pos) {
                 draw_circle_lines(at.x + t.x * 0.85, at.y + t.y * 0.85, t.x * 0.12, 2.0, GOLD);
             }
-            let size = 14.0 + self.zoom * 2.0;
-            draw_text(&city.name, at.x - 2.0, at.y - 3.0, size, BLACK);
-            draw_text(&city.name, at.x - 3.0, at.y - 4.0, size, WHITE);
+            // The name under the city, in the original's small font.
+            let k = t.x / TILE_W;
+            let name = city.name.clone();
+            let (cx, cy) = ((at.x + t.x / 2.0) / k, (at.y + t.y) / k - 2.0);
+            self.bm_text(
+                (0.0, 0.0, k),
+                1,
+                Color::new(0.0, 0.0, 0.0, 1.0),
+                &name,
+                cx + 0.5,
+                cy + 0.5,
+                Align::Center,
+            );
+            self.bm_text((0.0, 0.0, k), 1, WHITE, &name, cx, cy, Align::Center);
         }
         self.draw_units(&screen_of, &visible, width, t);
         gl.flush();

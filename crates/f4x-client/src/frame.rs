@@ -164,20 +164,26 @@ impl App {
         // Gold and mana boxes.
         let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        let (g, m) = (lay.rect(spot::GOLD_BOX), lay.rect(spot::MANA_BOX));
-        text_centered(
+        let view = (lay.origin.x, lay.origin.y, s);
+        let (g, m) = (spot::GOLD_BOX, spot::MANA_BOX);
+        let white = Color::new(1.0, 1.0, 1.0, 1.0);
+        self.bm_text(
+            view,
+            1,
+            white,
             &format!("{gold} GP"),
-            g.x + g.w * 0.62,
-            g.y + g.h * 0.9,
-            5.6 * s,
-            WHITE,
+            g.0 + g.2 * 0.62,
+            g.1 + g.3 * 0.72,
+            Align::Center,
         );
-        text_centered(
+        self.bm_text(
+            view,
+            1,
+            white,
             &format!("{mana} MP"),
-            m.x + m.w * 0.62,
-            m.y + m.h * 0.9,
-            5.6 * s,
-            WHITE,
+            m.0 + m.2 * 0.62,
+            m.1 + m.3 * 0.72,
+            Align::Center,
         );
 
         // Resource panels with this turn's income in each.
@@ -193,13 +199,20 @@ impl App {
         .into_iter()
         .enumerate()
         {
-            let at = lay.point(px + 40.0, py + 29.0 + k as f32 * 32.0);
             let color = if value < 0 {
-                Color::new(1.0, 0.45, 0.35, 1.0)
+                Color::new(0.75, 0.1, 0.05, 1.0)
             } else {
-                WHITE
+                Color::new(0.25, 0.12, 0.05, 1.0)
             };
-            text_centered(&format!("{value} {label}"), at.x, at.y, 5.2 * s, color);
+            self.bm_text(
+                view,
+                2,
+                color,
+                &format!("{value} {label}"),
+                px + 40.0,
+                py + 24.0 + k as f32 * 32.0,
+                Align::Center,
+            );
         }
 
         // Next Turn.
