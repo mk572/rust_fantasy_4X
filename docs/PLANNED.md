@@ -25,6 +25,12 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 12 | Content | Replacement art |
 | 13 | Client | Different settlement icons by race |
 | 14 | Client | Fortress art by magic type |
+| 15 | Tools | Console for game commands |
+| 16 | Tools | Map editor |
+| 17 | Meta | MCP server for remote control |
+| 18 | Meta | Hot seat multiplayer |
+| 19 | Meta | Asynchronous multiplayer |
+| 20 | Rules | Early-game speed-up options |
 
 ## Descriptions
 
@@ -169,3 +175,36 @@ city list. Needs art (item 12 for anything not from the original), a fortress sp
 the content data keyed by realm with the original's tower as the default, and a modding hook
 so a mod can add looks for its own realms (item 5). Closely related to the banners and
 settlement icons by race (item 13).
+
+**15. Console for game commands.** A text console in the client (and the headless tools) that runs
+cheat and debugging commands through the same `Command` path as play where possible: change a
+square's terrain or feature, add units, buildings and cities, set gold, mana or research, reveal the
+map, clear a lair, trigger events. Commands that bypass the rules go through one `debug` command
+family that is logged (and disabled in hardcore mode, item 8) so saves and replays stay honest.
+
+**16. Map editor.** Edit terrain, rivers, roads, features, nodes, towers, lair guards and treasure,
+start positions and fortress sites, and save a map file that a new game can load instead of
+generating one. Built on the layers in `docs/map-layers.md`; needs a map-file format with the
+`Lair` and `Node` records and validation (the generator's rules as warnings, not errors).
+
+**17. MCP server for remote control.** An MCP server that exposes the game: read state (map, cities,
+units, players), issue `Command`s and receive `Event`s, save and load. Lets a Claude session or
+other agent play, test or script the game; should run headless on the core crate with a seed, and
+share the console's command set (item 15). Authentication and a read-only mode matter if it is
+reachable from outside the machine.
+
+**18. Hot seat multiplayer.** Several human wizards on one machine, taking turns, with a hand-over
+screen between players so nobody sees another's fog of war or research. Needs per-player views
+(already derived from the fog), no shared selection state between turns, and an AI/human flag per
+wizard in new-game settings.
+
+**19. Asynchronous multiplayer.** Play by message: each player takes a turn when it is theirs and
+the game state moves on, perhaps through a Discord bot that posts turn notices and takes the turn
+files. Needs a deterministic turn file (seed plus command log, which the core already supports), a
+server or shared store to hold the game and enforce whose turn it is, and rules for timeouts and
+skipped turns. Builds on hot seat (item 18).
+
+**20. Early-game speed-up options.** New-game settings that skip the slow start: more of the map
+explored at the start, extra starting units, extra mana and gold, a few starting buildings in the
+capital, and a faster research start. Each as an independent option with sensible presets
+(e.g. "quick start"); recorded in the saved settings so a game remembers how it began.

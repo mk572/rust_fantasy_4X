@@ -4,7 +4,7 @@ How the world map is stored and generated. For where the map sits among the rest
 game state, see [`ecs-structure.md`](ecs-structure.md); for what a city does with the land
 it works, see the city economy in [`design.md`](design.md) §6.
 
-Code: `crates/f4x-core/src/{map,content,mapgen,featuregen,fog,vision,city}.rs`.
+Code: `crates/f4x-core/src/{map,content,mapgen,featuregen,nodes,lairs,roads,terraform,corruption,fog,vision,city}.rs`; client drawing in `crates/f4x-client/src/{terrain_pick,map_draw}.rs`. Sprites: [`map-sprites.md`](map-sprites.md); guards and treasure: [`lairs.md`](lairs.md).
 Data: `content/terrain.ron`, `content/features.ron`.
 
 ## 1. Space
@@ -24,15 +24,23 @@ Data: `content/terrain.ron`, `content/features.ron`.
 
 | Layer | Stored as | Holds | Who changes it |
 |---|---|---|---|
-| **Base terrain** | `Grid` tile array of `TerrainId` | one terrain per tile | map generation; terrain-changing spells (planned) |
-| **Feature** | `Grid` array of `Option<FeatureId>` | at most one feature per tile | map generation; spells and encounters (planned) |
-| **Road** | `Grid` array of `bool` | whether a road runs through the tile | nothing yet (engineers are planned) |
+| **Base terrain** | `Grid` tile array of `TerrainId` | one terrain per tile | map generation; terraforming spells (`terraform.rs`) |
+| **Feature** | `Grid` array of `Option<FeatureId>` | at most one feature per tile | map generation; clearing an encounter site removes it |
+| **Road** | `Grid` array of `bool` | whether a road runs through the tile | engineers (`roads.rs`) |
+| **Enchanted road** | `Grid` array of `bool` | roads that cost nothing to travel | Enchant Road; all Myrror roads count |
+| **River** | `Grid` array of `bool` | a river runs through the tile | map generation (rivers end in the sea or a basin lake) |
+| **Lake** | `Grid` array of `bool` | water tile inside land, drawn as a shore with land all round | map generation |
+| **Volcano** | `Grid` array of `Option<owner>` | a volcano and who raised it | the Raise Volcano spell |
+| **Corruption** | `Grid` array of `bool` | corrupted land: no food or production, no mineral bonus | Corruption, Land Corruption; purified by engineers or Gaia's Blessing |
+| **Nodes** | `Map::nodes` | power, aura squares, owner, guardian and warped flags | generation (`nodes.rs`), melding, Warp Node |
+| **Tower owners** | `Map::tower_owners` | who last stood in each tower | movement |
+| **Lairs** | `Map::lairs` | guards and hoard of every tower, node and encounter site | generation (`lairs.rs`), clearing |
 | **Cities** | entities with a `Position` | founded cities and outposts | `FoundCity`, `SettleOutpost` |
 | **Units** | entities with a `Position` | everything that moves | movement commands |
 | **Exploration** | `Fog`, one flag per tile per plane per player | what a player has seen | moving, founding, creating units |
 | **Visibility** | computed on demand (`Game::visibility`) | what a player sees right now | derived from units and cities |
 
-Terrain, features and roads are the **static map** (changes rarely); cities and units are
+Terrain, features, roads and the other grid layers are the **static map** (changes rarely); cities and units are
 entities and appear on top of it; exploration is remembered; visibility is never stored.
 
 ## 3. Base terrain
@@ -90,9 +98,9 @@ A **feature** is a sparse overlay: at most one per tile, on top of any base terr
 | Kind | Examples | Effect |
 |---|---|---|
 | `Mineral` | iron, coal, silver, gold, mithril, adamantium, gems, quork, crysx, wild game, nightshade | bonuses to cities that work the tile; a city may be founded on it |
-| `Encounter` | lair, cave, temples, ruins, keep, dungeon | a guarded site (guards and loot are not built yet); **blocks** founding a city |
-| `Tower` | tower | links the planes (shift plane on it); **blocks** founding |
-| `Node` | nature, sorcery, chaos | magic node (power and ownership not built yet); **blocks** founding |
+| `Encounter` | lair, cave, temples, ruins, keep, dungeon | a guarded site with a `Lair` record (see [`lairs.md`](lairs.md)); **blocks** founding a city while it stands, and disappears when cleared |
+| `Tower` | tower | links the planes (shift plane on it); has guards on both planes, claimed by the stack that stands in it; **blocks** founding |
+| `Node` | nature, sorcery, chaos | magic node with power, aura and an owner (melded by a spirit once its guards are beaten); **blocks** founding |
 
 Each `FeatureDef` can carry a `city` bonus, applied to every city whose worked area includes
 the tile:
@@ -130,7 +138,7 @@ A road is a flag on a tile. Effects today:
   count in full if its race differs, half if it is the same race. The bonus, together with
   the coast bonus and any race trade bonus, is capped at three times the city's citizens.
 
-Roads are drawn by the client as a dot (gold when enchanted). Engineers build them (`roads.rs`)
+Roads are drawn from the original's road sprites by direction (see [`map-sprites.md`](map-sprites.md)). Engineers build them (`roads.rs`)
 and Enchant Road makes every road within two squares free to travel; all roads on Myrror are
 enchanted already.
 
@@ -219,8 +227,11 @@ from the original's. Reproducing the original's generator is a possible later pa
 | One number per tile encodes terrain, shore variant and river variant (762 types) | A terrain per tile; transitions are derived for drawing |
 | Specials (minerals), flags and exploration are separate bitfields | Features, roads and fog are separate, typed layers |
 | Lairs, nodes and towers are separate fixed arrays (102, 30, 6) | One feature per tile with a `kind`; counts are generation parameters |
-| Corrupted tiles, node auras, rivers, volcanoes | Not yet modelled |
-| Myrror nodes produce double power | Not yet modelled (nodes have no power yet) |
+| Rivers, lakes, volcanoes, corrupted tiles, enchanted roads | Separate layers on the grid; the client works the terrain type number out for drawing (`terrain_pick.rs`) |
+| Node auras and power | `Map::nodes`, Myrror nodes have double the power at generation |
+| Lair records with up to two guard kinds, hoard and a "treasure" bit field | `Lair` with guard list, gold, mana, item values, prisoner and a spell/book/retort tier |
+| Tower lairs copied to Myrror at generation | Both planes hold a record; clearing one clears both |
+| Encounter sites keep a lair slot after clearing | The feature is removed from the grid once cleared |
 
 ## 10. Extending the map
 
@@ -228,7 +239,7 @@ from the original's. Reproducing the original's generator is a possible later pa
   definition per class and plane is the one generation uses.
 - **A new feature:** add a `FeatureDef` with a kind, a `city` bonus if it has one, and
   spawn rules; `f4x-tools validate` checks it. No code is needed unless it needs a new kind.
-- **A new layer** (say corruption): add the array to `Grid` with `#[serde(default)]` so
+- **A new layer** (see corruption or rivers for examples): add the array to `Grid` with `#[serde(default)]` so
   existing saves still load, a getter and setter, and decide whether it affects the worked
   area; keep derived information (like a shore) out of the grid.
 - **Previewing a map:** `f4x-tools mapgen <seed> [width height] [land%] [content-dir]` prints
