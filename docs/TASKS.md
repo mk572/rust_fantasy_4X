@@ -7,6 +7,7 @@ Everything not yet implemented, collected from the whole project history and the
 (`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
 
 Combat is under way: 33, 34 and 40 are done (see [`combat.md`](combat.md)).
+Gaps found while working on the base game are added here as new tasks, not left in notes.
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
 Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md) (replacement art, formerly task 79, is item 12 there).
@@ -107,6 +108,12 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 110 | Combat | Battle map generation parity with the original |
 | 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
 | 112 | Client | Battle map art |
+| 115 | Client | Cityscape: road masking |
+| 116 | Client | Cityscape: animation, wards and rubble |
+| 117 | City | Selling buildings from the city picture |
+| 118 | Client | Bitmap fonts on every screen and a text layout helper |
+| 119 | Client | City screen details |
+| 120 | Client | Overland screen details |
 
 ## Descriptions
 
@@ -495,3 +502,15 @@ middle of a battle continues exactly like the unsaved one.
 **111. Special battle sites: nodes, lairs, towers, ruins and fortress cities.** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108).
 
 **112. Battle map art.** Draw the battle map with the original's combat terrain art, extracted locally (`cmbgrass*`, `cmbdesrt*`, `citywall`, `cityscap` and the other combat `.lbx` files already extracted under `assets-local/art`): terrain sets per overland terrain and plane, tree and rock scenery, roads, rivers, city buildings and walls, the isometric grid and its coordinate mapping (`Combat_Grid_Screen_Coordinates`). Part of the battle screen (45) but large enough to track separately.
+
+**115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
+
+**116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
+
+**117. Selling buildings from the city picture.** Clicking a building in the city picture offers to sell it (help topic 303): a confirmation with the gold it brings, then `Command::SellBuilding`. The command exists; the screen has no way to use it, and the prerequisite chain check is task 17.
+
+**118. Bitmap fonts on every screen and a text layout helper.** Only the map frame and the city screen use the original's fonts. Move the magic, wizard creation, production menu, message log and unit panels to them, and add a bitmap-font word wrap, justify and column helper (`Print_Paragraph` style) so long help text and descriptions can be shown.
+
+**119. City screen details.** What the original's city screen has and ours lacks: the production picture for buildings (the cityscape sprite) and a count of queued items, the unit list scrolling past nine units and clicking a unit to select or unload it, right-click help on every element (the original's help topics 295-303 are imported), the enchantment list scrolling and dispelling, the city name editing, and the worked-area view with the original's tile and mineral pictures and food and production figures for each square.
+
+**120. Overland screen details.** What the original's main screen has and ours lacks: the unit panel in the right column with the stack's pictures and the Done, Patrol, Wait and Build buttons, the minimap's other plane switch and click-drag, the surveyor and the info menus behind the Info button, the Armies and Cities lists behind their buttons (tasks 71 and 91-96 cover the screens themselves), terrain and unit animation, and unit movement as a smooth slide.
