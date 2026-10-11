@@ -302,14 +302,57 @@ lost:  reward = -1 + (enemy units destroyed + own units saved by fleeing)
 - Sampling `stakes` and `mana_budget` at random during training is what makes the policy obey
   the strategic AI later.
 
-### 7.5 Training data
+### 7.5 Scenarios: what varies, and how spells are handled
 
-A **battle generator** builds random fights from the rules: random armies from the unit list
-(both sides, different budgets and mixes, heroes, items), terrain, with and without a city,
-walls, towers, node and lair guards, and spells in the casting wizard's book. This stands in
-for the long tail of situations the strategic AI will create, and is the "discovery" for the
-battle agent: it learns the rock-paper-scissors of abilities (flying, first strike, immunities,
-ranged) from outcomes.
+Battles differ in their armies, ground, wizards, mana and spells. The battle AI has to cope
+with all of it, so the training data is a **scenario generator** and every scenario is a plain
+`BattleScenario` value (written as RON, reproducible from one seed, replayable and loadable
+for tests and for the evaluation suite). What a scenario holds:
+
+| Part | What varies |
+|---|---|
+| **Armies** | Each side's units from the whole unit list: counts, mix (melee, ranged, fliers, walkers, summoned, fantastic), experience levels, heroes and their items, enchantments already on units, units that start damaged. Army size from 1 v 1 up to full stacks. |
+| **Odds** | The strength ratio is sampled on purpose, not left to chance: even fights, **overwhelming** (the agent should win with little loss), **overwhelmed** (it should sell its units dearly or flee), and lopsided in kind (all fliers against no ranged). Without the second and third kind the reward terms of 7.4 never get exercised. |
+| **Ground** | The overland terrain under the fight (the battlefield it makes), the plane, an open field, a city (walls, gate, towers, buildings, Wall of Fire or Darkness, a Spell Ward), a node, a lair or tower with guards. Which side attacks. |
+| **Wizards** | Each side has a wizard or none (independent cities and monsters have none). If present: the **books and retorts** (these set the cost reductions and the realms of the spells), the **casting skill**, the **mana in the reserve**, the **distance to the fortress and plane** (the range multiplier of `combat.md` section 8, so the same mana buys less far away), and the spells known. |
+| **Spells known** | A random subset of the spells the game can cast in battle, drawn **from `Game::battle_spells`**, the same list the console's `bspells` shows (bolts and damage, healing, summons, dispels, Counter Magic, the lasting spells on a unit, as `combat.md` section 8 lists), with the realm mix of the books. From none (a wizard who cannot cast) to the whole list. |
+| **Mana** | The reserve and the **budget** (`mana_budget` of the brief): below the cost of any spell, only enough for one cheap spell, plenty. Budget 0 is a normal case: the agent must fight without the wizard. |
+| **Battlefield enchantments** | Present at the start on either side, where the rules allow. |
+| **Brief** | `stakes` and `may_flee` (section 2). |
+
+**How the agent handles spells** (`combat.md` section 8 is the rule; this is what the network
+sees and does):
+
+- **Spells as tokens.** Each spell the wizard can cast is one token in the observation: its
+  cost, whether extra mana adds strength (`takes_extra_mana`), its target kind (own unit,
+  enemy unit, any unit, a square, none), its realm, and the rule stats that matter (damage
+  dice, mana per point, what it dispels or summons), and whether it is `castable` now. Like
+  units, spells are read from their stats rather than named, so a spell added to the game later
+  is understood from its numbers.
+- **One spell a turn, three limits.** The wizard casts at most one spell per turn. A cast costs
+  casting skill (the skill left in the battle), and the mana reserve pays that times the range
+  multiplier. The brief's `mana_budget` is a third, lower limit. The mask admits a cast only
+  inside **all three** (`BattleCaster::affordable`, `battle_spell_most_mana`, the budget), so
+  the agent cannot choose an illegal or over-budget spell.
+- **The cast action** is three choices, as for other commands: the spell (a pointer into the
+  spell tokens), its aim (a unit pointer or a square, from the target kind), and the mana put
+  in (a few steps from the least to the most the limits allow; it only matters for spells with
+  extra mana, such as bolts, dispels and Counter Magic). The wizard has no square on the field
+  and no unit token; "skip casting" is simply not casting that turn.
+- **Spells not in the game yet are not offered** and so not trained on. More arrive with task
+  159 and its neighbours. A checkpoint records which spells and unit abilities the rules
+  supported when it was trained (a version of the rules); when the set grows, training resumes
+  from that checkpoint on the new set rather than starting over, and spells the network has
+  never seen as tokens are the reason spells are encoded from stats.
+- **What the agent knows of the enemy wizard** is what the battle view shows a player (the
+  `battle` query lists each wizard's skill, mana and range cost, and the field enchantments are
+  public); not their spell list. Task 169 checks this against the view.
+- **Evaluation** keeps a fixed set of scenarios for each row of the table (a siege with a
+  wizard, a fight with budget 0, an overwhelmed fight with a bolt-only wizard, no wizard at all,
+  a far-away wizard) so a change that breaks one kind of fight is seen.
+
+The generator is the "discovery" for the battle agent: it learns the rock-paper-scissors of
+abilities (flying, first strike, immunities, ranged) and of spells from outcomes.
 
 Algorithm: PPO with self-play (the same network plays both sides), with a league of past
 selves, as in section 6.4. Two things to tune: a curriculum of army size (1 v 1, then small
