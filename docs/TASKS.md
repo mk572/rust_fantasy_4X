@@ -318,8 +318,12 @@ and the original's rules are in `docs/diplomacy.md`.
 pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
 [271, 782-794]. See `docs/diplomacy.md`.
 
-**65. AI v1.** Expansion, city production and defence for the rival player; currently the rival
-has no behaviour at all. Uses commands only, like the human.
+**65. AI v1.** First version in `crates/f4x-ai` (taxes, research, summoning spells, production
+and buying, settlers, garrisons, attacks on weaker stacks, marching on explored enemy cities); it
+uses commands only, like the human, and `f4x-tools soak` plays whole AI-against-AI games. It is
+not hooked into the client yet (the rival still does nothing there). Known limits from the soak
+runs: armies stay small (food upkeep disbands units), it rarely finds the rival to attack, and
+outposts take very long to grow (`PLANNED.md` item 21), so no soak game has ended with a winner.
 
 **66. AI research and spell use.** Research picking by personality, casting overland spells
 (summoning, enchantments) and the spell weights from the original's AI tables.

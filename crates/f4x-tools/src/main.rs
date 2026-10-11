@@ -6,6 +6,7 @@ mod fonts;
 mod image;
 mod lbx;
 mod map_art;
+mod soak;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -21,7 +22,9 @@ const USAGE: &str = "usage:
   f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
                                               (default out: assets-local/art)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
-                                              run the game from text commands (stdin, or the script)";
+                                              run the game from text commands (stdin, or the script)
+  f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N]
+                                              AI wizards play whole games and report";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -29,6 +32,7 @@ fn main() -> ExitCode {
         Some("validate") => validate(args.get(1)),
         Some("mapgen") => mapgen(&args[1..]),
         Some("console") => console_cmd::run(&args[1..]),
+        Some("soak") => soak::run(&args[1..]),
         Some("extract-art") => match args.get(1) {
             Some(game) => art::extract(
                 &PathBuf::from(game),

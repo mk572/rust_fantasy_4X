@@ -94,6 +94,13 @@ impl Game {
                 if next != to && self.hostile_at(next, owner).is_some() {
                     continue;
                 }
+                // A guarded site stops the stack: go round unless it is the destination.
+                if next != to
+                    && owner != crate::units::NEUTRAL
+                    && self.lair_at(next).is_some_and(|(_, l)| !l.guards.is_empty())
+                {
+                    continue;
+                }
                 let Some(step) = step_cost(here, next) else {
                     continue;
                 };

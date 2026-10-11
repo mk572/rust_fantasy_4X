@@ -52,7 +52,7 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "new",
         kind: Kind::Legal,
-        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>]",
+        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5]",
         help: "Start a new game on a generated map, replacing this one. Without wizard or books, a fixed wizard is used.",
         run: new,
     },
@@ -202,6 +202,11 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             "wizard" => spec.preset = Some(v.to_string()),
             "name" => spec.name = Some(v.to_string()),
             "race" => spec.race = Some(v.to_string()),
+            "players" => {
+                spec.wizards = v
+                    .parse()
+                    .map_err(|_| ConsoleError::Parse(format!("{v:?} is not a number of wizards")))?
+            }
             "books" => {
                 for part in v.split(',') {
                     let (realm, n) = part.split_once(':').ok_or_else(|| {
