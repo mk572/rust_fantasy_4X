@@ -290,9 +290,28 @@ defined tables (personality mod, message tables) in `rules.ron` where the number
 kind}`, `Threaten{to}`, `BreakTreaty{with}`, `OfferGold{to,amount}`, `OfferSpell{to,spell}`,
 `ExchangeSpells{to,give,get}`, each answered by `Event::DiplomacyAnswer { from, kind, result }`
 (accepted/refused/counter), `Event::TreatyChanged`, `Event::WarDeclared`, `Event::RelationChanged`
-(for the log and the AI's memory). The talk itself is a **state machine in the core** (the AI
-answer is computed by the core so it can be replayed, saved and tested without a client), but the
-menus and dialogue text belong to the client.
+(for the log and the AI's memory). The talk itself is a **state machine in the core** (so it can
+be replayed, saved and tested without a client), but the menus and dialogue text belong to the
+client.
+
+**AI decisions are not hard-wired in the game.** The core holds the state (relations, treaties,
+patience), checks that a proposal is legal, and applies the result. It never decides whether an AI
+wizard *accepts* a proposal, and it never makes an AI wizard open a talk, threaten, declare war or
+offer peace. A proposal made to an AI wizard becomes a pending proposal (`Event::ProposalMade`
+addressed to the receiver). The receiving AI evaluates it with its own logic in `f4x-ai` and
+answers with a command (`Accept`, `Refuse` or `Counter`) like any other player. The same goes for
+the AI's own initiatives (§8): the per-turn greeting, demand, war or peace decisions are commands
+the AI issues from its turn, not code in `next_turn`. This way a different AI (a scripted one, an
+MCP client, a language model, a remote player) can answer the same proposals through the same
+hooks, a human receiver is asked instead of evaluated, and the AI can be changed or tuned without
+touching the rules. What the core does offer is data and helpers the AI may use: the visible
+relation, what a wizard may know about the other (never the hidden terms of another player), and
+the original's rating of a proposal (`Diplomacy_Test`, §4) as an optional function. The default AI
+uses that function and the §8 rules as its starting logic, kept as AI code with its numbers in
+data, not as rules of the game. The core's own automatic parts remain rules: relation changes from
+events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).
+Pending proposals are saved with the game; if the receiver does not answer in the same turn the
+proposal lapses as refused.
 
 **9.3 Hooks into existing code:**
 - contact: in exploration and the per-turn unit sweep (the fog and visibility code);
@@ -310,11 +329,13 @@ menus and dialogue text belong to the client.
 3. Treaties: `Start_Treaty`, `Declare_War`, `Break_Treaties`, `Declare_Peace`, and the oath-breaker
    rules (tests for both signs of the original bug, see §10).
 4. Contact and the first-meeting greeting.
-5. The talk: `Diplomacy_Test` and each proposal of §4 with a fixed seed (golden values).
+5. The talk: pending proposals, `Accept`/`Refuse`/`Counter` commands and the effects of each
+   proposal of §4; `Diplomacy_Test` as an AI helper with a fixed seed (golden values).
 6. Per-turn processing of §7, in the original's order, still without AI decisions.
 7. Personalities and objectives (task 64): assignment at game start, the personality modifier,
    greeting tables.
-8. AI decisions towards the human and among themselves (§8) together with the overland AI (65).
+8. AI decisions towards the human and among themselves (§8), written in `f4x-ai` together with
+   the overland AI (65), not in the core.
 9. Client (task 91): magic screen portrait click, the diplomacy screen with the original art
    (`diplomac.lbx` backgrounds, portraits `moodwiz`/`lilwiz`, gargoyle eyes, mirror
    `backgrnd` 18, treaty icons `magic.lbx` 60-74), message lists, the human-side menu with greyed
