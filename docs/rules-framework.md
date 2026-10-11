@@ -152,6 +152,6 @@ Each step ships with tests and validator checks before the next starts.
 2. **Magic structure: as in Master of Magic.** Five realms, spell books built from picks, per-realm research. Realms stay data so this is easy to change later.
 3. **Stats: fixed in code.** A closed `Stat` enum; content cannot invent stats.
 4. **Heroes and items: from day one.** Hero units, item slots and item effects are part of the base schema and of steps 4 to 7 below, not a later layer.
-5. **Deviation from MoM: only after parity.** The first target is every system in `design.md` working as in MoM. Departures are planned once that is reached; until then, when in doubt, follow MoM.
+5. **Deviation from MoM: only after parity.** The first target is every system in `design.md` working as in MoM. Departures are planned once that is reached; until then, when in doubt, follow MoM. Each departure is recorded in `divergences.md`.
 
 Consequence of 4 and 5: the sample content and the schema are shaped around MoM's mechanics, but with original names and values for the placeholder data.

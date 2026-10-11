@@ -113,6 +113,8 @@ So we **skip every piece of the original's code that exists only for AI parity**
 
 ## 11. Decisions made so far
 
+Deliberate departures from the original are listed in [`divergences.md`](divergences.md); add new ones there.
+
 Rules and data
 - Number scale, magic structure (five realms plus arcane, spell books from picks, per-realm research), heroes and items from day one, and "deviation only after parity" are as in `rules-framework.md` section 8.
 - Stats are a closed enum in code; modifiers are `Add`, `Percent`, `Min`, `Max`, `Set`, applied in a fixed order.
