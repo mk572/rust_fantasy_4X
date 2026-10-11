@@ -329,6 +329,7 @@ mod tests {
             },
             upkeep: 0,
             dispel_difficulty: if lasting { cost } else { 0 },
+            save: None,
             effects: effect
                 .map(|e| {
                     vec![EffectRule {

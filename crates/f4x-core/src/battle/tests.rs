@@ -1559,3 +1559,342 @@ mod casting {
             .is_some_and(|c| c.0 == 0));
     }
 }
+
+// ---- battlefield enchantments (task 44) -----------------------------------------------
+
+mod fields {
+    use super::*;
+    use crate::battle::field::{Field, MANA_LEAK_DRAIN};
+    use crate::battle::immunity::Realm;
+    use crate::rules::SpellId;
+
+    fn spell() -> SpellId {
+        SpellId::new(0)
+    }
+
+    fn of(side: Side, realm: Option<Realm>, cell: Pos) -> BattleUnit {
+        let mut u = BattleUnit::simple(side, "u", 2, 4, 3, 2).at(cell);
+        u.ranged = 2;
+        u.resistance = 5;
+        u.realm = realm;
+        u
+    }
+
+    fn pair(a: BattleUnit, d: BattleUnit) -> Battle {
+        duel(a, d, 3)
+    }
+
+    #[test]
+    fn light_helps_life_and_hurts_death_and_darkness_does_the_opposite() {
+        let mut b = pair(
+            of(Side::Attacker, Some(Realm::Life), (3, 5)),
+            of(Side::Defender, Some(Realm::Death), (17, 5)),
+        );
+        let (life, death) = (b.units[0].clone(), b.units[1].clone());
+        b.raise_field(Side::Attacker, Field::TrueLight, spell());
+        let (l, d) = (&b.units[0], &b.units[1]);
+        assert_eq!(
+            (l.melee, l.ranged, l.defense, l.resistance),
+            (
+                life.melee + 1,
+                life.ranged + 1,
+                life.defense + 1,
+                life.resistance + 1
+            )
+        );
+        assert_eq!(
+            (d.melee, d.ranged, d.defense, d.resistance),
+            (
+                death.melee - 1,
+                death.ranged - 1,
+                death.defense - 1,
+                death.resistance - 1
+            )
+        );
+        // Darkness by the other side cancels it, whoever cast either.
+        b.raise_field(Side::Defender, Field::Darkness, spell());
+        assert_eq!(b.units[0].melee, life.melee);
+        assert_eq!(b.units[1].resistance, death.resistance);
+        // Darkness alone is the reverse.
+        let mut b = pair(
+            of(Side::Attacker, Some(Realm::Life), (3, 5)),
+            of(Side::Defender, Some(Realm::Death), (17, 5)),
+        );
+        b.raise_field(Side::Attacker, Field::Darkness, spell());
+        assert_eq!(b.units[0].defense, life.defense - 1);
+        assert_eq!(b.units[1].defense, death.defense + 1);
+    }
+
+    #[test]
+    fn refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        let before = b.units[0].clone();
+        b.raise_field(Side::Attacker, Field::HighPrayer, spell());
+        for _ in 0..3 {
+            b.refresh_fields();
+        }
+        let u = &b.units[0];
+        assert_eq!(
+            (u.melee, u.defense, u.resistance, u.to_hit, u.to_block),
+            (
+                before.melee + 2,
+                before.defense + 2,
+                before.resistance + 3,
+                1,
+                1
+            )
+        );
+        assert_eq!(b.units[1].melee, before.melee, "the enemy gets nothing");
+        // Prayer is the lesser one and High Prayer wins when both are up.
+        b.raise_field(Side::Attacker, Field::Prayer, spell());
+        assert_eq!(b.units[0].resistance, before.resistance + 3);
+        b.fields[Side::Attacker.index()].clear();
+        b.refresh_fields();
+        let u = &b.units[0];
+        assert_eq!(
+            (u.melee, u.defense, u.resistance, u.to_hit, u.to_block),
+            (before.melee, before.defense, before.resistance, 0, 0)
+        );
+    }
+
+    #[test]
+    fn black_prayer_curses_the_enemy_and_warp_reality_every_unit_but_chaos() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, Some(Realm::Chaos), (17, 5)),
+        );
+        let enemy = b.units[1].clone();
+        b.raise_field(Side::Attacker, Field::BlackPrayer, spell());
+        let e = &b.units[1];
+        assert_eq!(
+            (e.melee, e.ranged, e.defense, e.resistance),
+            (
+                enemy.melee - 1,
+                enemy.ranged - 1,
+                enemy.defense - 1,
+                enemy.resistance - 2
+            )
+        );
+        assert_eq!(b.units[0].melee, 3, "its own side is untouched");
+        b.raise_field(Side::Defender, Field::WarpReality, spell());
+        assert_eq!(b.units[0].to_hit, -2);
+        assert_eq!(b.units[1].to_hit, 0, "chaos creatures are not warped");
+    }
+
+    #[test]
+    fn a_loss_never_takes_a_stat_below_nothing_and_comes_back_whole() {
+        let mut weak = of(Side::Defender, None, (17, 5));
+        weak.melee = 0;
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), weak);
+        b.raise_field(Side::Attacker, Field::BlackPrayer, spell());
+        assert_eq!(b.units[1].melee, 0);
+        b.fields[0].clear();
+        b.refresh_fields();
+        assert_eq!(b.units[1].melee, 0, "not -1 + 1");
+    }
+
+    #[test]
+    fn metal_fires_arms_ordinary_units_only() {
+        let mut ordinary = of(Side::Attacker, None, (3, 5));
+        ordinary.ranged_kind = RangedKind::Missile;
+        let mut fantastic = of(Side::Attacker, Some(Realm::Nature), (4, 5));
+        fantastic.ranged_kind = RangedKind::Missile;
+        let mut blade = of(Side::Attacker, None, (5, 5));
+        blade.enchantments.push("flame_blade".into());
+        let mut b = Battle::new(
+            A,
+            D,
+            BattleMap::open(),
+            vec![
+                ordinary,
+                fantastic,
+                blade,
+                of(Side::Defender, None, (17, 5)),
+            ],
+            1,
+        );
+        b.raise_field(Side::Attacker, Field::MetalFires, spell());
+        assert_eq!((b.units[0].melee, b.units[0].ranged), (4, 3));
+        assert!(b.units[0].magical_weapon);
+        assert_eq!(b.units[1].melee, 3, "fantastic creatures already burn");
+        assert_eq!(b.units[2].melee, 3, "no double with a flame blade");
+    }
+
+    fn end_turns(b: &mut Battle, n: usize) -> Vec<BattleEvent> {
+        let mut all = Vec::new();
+        for _ in 0..n {
+            all.extend(b.apply(BattleCommand::EndTurn).unwrap());
+        }
+        all
+    }
+
+    #[test]
+    fn entangle_costs_a_move_and_terror_can_freeze_the_enemy() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.raise_field(Side::Attacker, Field::Entangle, spell());
+        let moves = b.units[1].moves;
+        end_turns(&mut b, 1);
+        assert_eq!(b.active, Side::Defender);
+        assert_eq!(b.units[1].moves_left, moves - 2, "one whole move less");
+        // Terror: a unit with no resistance never saves.
+        let mut soft = of(Side::Defender, None, (17, 5));
+        soft.resistance = 0;
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), soft);
+        b.raise_field(Side::Attacker, Field::Terror, spell());
+        let events = end_turns(&mut b, 1);
+        assert!(events.contains(&BattleEvent::Terrified { unit: 1 }) || b.units[1].attacked);
+        let mut frozen = 0;
+        for seed in 0..40 {
+            let mut soft = of(Side::Defender, None, (17, 5));
+            soft.resistance = 0;
+            let mut b = duel(of(Side::Attacker, None, (3, 5)), soft, seed);
+            b.raise_field(Side::Attacker, Field::Terror, spell());
+            end_turns(&mut b, 1);
+            if b.units[1].attacked && b.units[1].moves_left == 0 {
+                frozen += 1;
+            }
+        }
+        assert!(frozen > 30, "{frozen} of 40 froze");
+    }
+
+    #[test]
+    fn wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[1].resistance = 0;
+        b.units[1].figures_start = 2;
+        b.units[1].figures = 2;
+        b.raise_field(Side::Attacker, Field::Wrack, spell());
+        let mut hurt = 0;
+        end_turns(&mut b, 2);
+        assert_eq!(b.turn, 2);
+        hurt += b.units[1].max_hit_points() - b.units[1].hit_points();
+        assert!(hurt >= 1, "a figure with no resistance feels it");
+        assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
+        // Call Lightning: bolts of strength eight on the enemy only.
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[1].defense = 0;
+        b.units[1].hits = 100;
+        b.raise_field(Side::Attacker, Field::CallLightning, spell());
+        let events = end_turns(&mut b, 2);
+        let bolts = events
+            .iter()
+            .filter(|e| matches!(e, BattleEvent::SpellDamaged { unit: 1, .. }))
+            .count();
+        assert!(bolts <= 5, "{bolts}");
+        assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
+    }
+
+    #[test]
+    fn mana_leak_drains_the_enemy_wizard_and_its_spell_shots() {
+        let mut shooter = of(Side::Defender, None, (17, 5));
+        shooter.ranged_kind = RangedKind::Magic;
+        shooter.ammo = 3;
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), shooter);
+        b.set_caster(Side::Defender, crate::battle::BattleCaster::new(20, 40, 10));
+        b.raise_field(Side::Attacker, Field::ManaLeak, spell());
+        end_turns(&mut b, 2);
+        assert_eq!(b.caster(Side::Defender).unwrap().mana, 40 - MANA_LEAK_DRAIN);
+        assert_eq!(b.units[1].ammo, 2);
+    }
+
+    #[test]
+    fn blur_turns_some_hits_away_and_illusion_immune_attackers_see_through_it() {
+        let hurt = |blur: bool, sees: bool| -> i32 {
+            let mut total = 0;
+            for seed in 0..300 {
+                let mut a = of(Side::Attacker, None, (5, 5));
+                a.melee = 10;
+                a.figures_start = 1;
+                a.figures = 1;
+                if sees {
+                    a.abilities.push("illusion_immunity".into());
+                }
+                let mut d = of(Side::Defender, None, (6, 5));
+                d.defense = 0;
+                d.hits = 1000;
+                d.melee = 0;
+                let mut b = duel(a, d, seed);
+                if blur {
+                    b.raise_field(Side::Defender, Field::Blur, spell());
+                }
+                b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+                    .unwrap();
+                total += b.units[1].max_hit_points() - b.units[1].hit_points();
+            }
+            total
+        };
+        let (plain, blurred, seen) = (hurt(false, false), hurt(true, false), hurt(true, true));
+        // About a tenth of the hits miss.
+        assert!(
+            blurred < plain && blurred as f64 > plain as f64 * 0.8,
+            "{blurred} of {plain}"
+        );
+        assert_eq!(seen, plain);
+    }
+
+    #[test]
+    fn an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions() {
+        let mut ghost = of(Side::Defender, None, (6, 5));
+        ghost.abilities.push("invisibility".into());
+        let b = pair(of(Side::Attacker, None, (5, 5)), ghost);
+        assert_eq!(b.invisibility_penalty(0, 1), 1);
+        assert_eq!(b.invisibility_penalty(1, 0), 0);
+        let mut b = b;
+        b.units[0].abilities.push("illusion_immunity".into());
+        assert_eq!(b.invisibility_penalty(0, 1), 0);
+        // Mass Invisibility does the same for the caster's whole side.
+        let mut b = pair(
+            of(Side::Attacker, None, (5, 5)),
+            of(Side::Defender, None, (6, 5)),
+        );
+        b.raise_field(Side::Defender, Field::MassInvisibility, spell());
+        assert_eq!(b.invisibility_penalty(0, 1), 1);
+    }
+
+    #[test]
+    fn figures_that_fail_their_resistance_are_destroyed() {
+        let mut soft = of(Side::Defender, None, (6, 5));
+        soft.resistance = 0;
+        soft.figures_start = 6;
+        soft.figures = 6;
+        let mut b = pair(of(Side::Attacker, None, (5, 5)), soft);
+        let dmg = b.spell_slay(1, Realm::Death, -9, &[], None).unwrap();
+        assert_eq!(dmg.kills, 6, "no chance against a penalty of nine");
+        assert!(!b.units[1].is_active());
+        // A unit with the right immunity takes no harm; one with enough resistance resists.
+        let mut tough = of(Side::Defender, None, (6, 5));
+        tough.resistance = 30;
+        tough.abilities.push("death_immunity".into());
+        let mut b = pair(of(Side::Attacker, None, (5, 5)), tough);
+        assert!(b
+            .spell_slay(1, Realm::Death, -2, &["death_immunity".into()], None)
+            .is_none());
+        assert_eq!(
+            b.spell_slay(1, Realm::Death, -2, &[], None).unwrap().kills,
+            0
+        );
+        // Disintegrate: resistance under ten and the whole unit is gone.
+        let mut frail = of(Side::Defender, None, (6, 5));
+        frail.resistance = 9;
+        let mut b = pair(of(Side::Attacker, None, (5, 5)), frail);
+        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10)).unwrap();
+        assert!(!b.units[1].is_active());
+        let mut hardy = of(Side::Defender, None, (6, 5));
+        hardy.resistance = 10;
+        let mut b = pair(of(Side::Attacker, None, (5, 5)), hardy);
+        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10)).unwrap();
+        assert!(b.units[1].is_active());
+    }
+}

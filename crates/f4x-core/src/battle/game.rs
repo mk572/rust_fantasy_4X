@@ -129,6 +129,7 @@ impl Game {
             attacked: false,
             combat_spells: Vec::new(),
             base: None,
+            field: Default::default(),
         })
     }
 
@@ -204,6 +205,8 @@ impl Game {
         }
         let active = self.battle.as_mut().ok_or(BattleError::Over)?;
         let events = active.battle.apply(command)?;
+        // Mana Leak and the like change the wizards' reserves.
+        self.sync_battle_mana();
         let mut out: Vec<Event> = events.iter().cloned().map(Event::Battle).collect();
         if events
             .iter()

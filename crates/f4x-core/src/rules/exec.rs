@@ -287,6 +287,8 @@ fn run_effect(
                 amount: healed,
             });
         }
+        // Battle spells: the battle carries them out (`battle/spells.rs`).
+        Effect::Slay { .. } => {}
         Effect::AddResource {
             gold,
             food,

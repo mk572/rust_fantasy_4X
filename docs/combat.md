@@ -162,7 +162,7 @@ healing that skips irreversible damage.
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins.
-- Casting is in section 8; battlefield spells are task 44. City walls and gates are in
+- Casting is in section 8; battlefield spells are section 9. City walls and gates are in
   (section 7).
 
 ## 4. Orders and events
@@ -232,7 +232,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - Grid band and deployment squares: the original plays on part of the grid (task 131).
 - No unit figures, animation, projectiles or combat frame (task 132); the map art lacks
   autotiled edges, roads, rivers and cities (task 112).
-- No battlefield spells (44), experience/fame/loot write-back (42).
+- No experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and
   no AI-versus-AI resolution (task 133).
 
@@ -278,7 +278,7 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
 - **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
   `bshootwall <unit> <x,y>` strike a wall, `raze <city>` razes.
 - **Not here** (task 158): the Wall of Fire and Wall of Darkness, Wall of Stone and Disrupt (battlefield
-  spells, task 44), Flying Fortress, the AI's decision to raze, the diplomatic effects of attacking a city, and monsters
+  spells; the field machinery is section 9), Flying Fortress, the AI's decision to raze, the diplomatic effects of attacking a city, and monsters
   and raiders taking a city.
 
 
@@ -341,8 +341,59 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   waits for a target (purple squares), Up/Down or Page Up/Down change the mana, Enter casts a spell
   with no target, Esc cancels. The panel shows the wizard's skill, mana and range cost.
 
-**Not here** (task 159): battlefield spells (task 44), the spells that need new effects (negative
-unit spells, Web, Earth to Mud, Cracks Call, Disrupt, Banish, Black Sleep, Life Drain, ...),
+**Not here** (task 159): the spells that need new effects (Web, Earth to Mud, Cracks Call, Disrupt, Black Sleep, Life Drain, ...),
 the battlefield node counter (a node of another realm may stop the spell), the AI wizard's
 casting (task 46), the heroes' own spells and the items' spells (51, 49), the spell shots using
 the unit's own mana, and the original's rule that Hit points added by Lionheart are lost with the spell.
+
+## 9. Battlefield enchantments and destroying spells (tasks 44 and part of 159)
+
+**Battlefield enchantments** (`battle/field.rs`): fourteen spells with the `battlefield` hook and
+target *Battlefield*; the battle knows what each does by the spell's id (`Field::of`), as the
+original's code does. Each side can have each one up once (a second cast is refused,
+`SpellError::AlreadyUp`); they last the battle. The stat changes are kept on every unit as a
+`FieldBonus` and recomputed by `Battle::refresh_fields` whenever a spell goes up or a unit changes,
+so they never pile up and never push a stat below nothing:
+
+| Spell | Effect |
+|---|---|
+| True Light / Darkness | creatures of life (death) gain 1 to melee (if it has any), ranged (if any), defence and resistance, creatures of death (life) lose 1 of each; the two cancel, whoever cast them |
+| Warp Reality | -2 to hit for every unit but chaos creatures, both sides |
+| Black Prayer | the caster's enemies: -1 melee, ranged and defence, -2 resistance |
+| Prayer | the caster's units: +1 to hit, +1 to block, +1 resistance |
+| High Prayer | instead of Prayer: +1 to hit, +1 to block, +3 resistance, +2 melee (if it has any), +2 defence (the code; the help said more) |
+| Metal Fires | the caster's units that are not fantastic and have no Flame Blade: +1 melee (if any), +1 missile and thrown attack, magical weapons |
+| Mass Invisibility | the caster's units are invisible: attackers not immune to illusions are -1 to hit them (also the `invisibility` ability, the Invisibility spell: its game name is `Invisiblity`) |
+| Blur | each point of an enemy attack's hits against the caster's units misses one time in ten, from attackers that do not see through illusions (the original checks the *defender's* immunity, an OGBUG) |
+| Terror | at the start of each of their turns, each of the caster's enemies must pass a resistance check at +1 against death or loses its turn (it can still strike back) |
+| Entangle | each of the caster's enemies loses one whole move at the start of its turn (the code: fliers too) |
+| Mana Leak | at the start of each turn the caster's enemy wizard loses 5 mana (the game's reserve is kept in step, `sync_battle_mana`), and each enemy unit with spell shots loses one |
+| Call Lightning | at the start of each turn three to five bolts of strength 8 (armour piercing, stopped by magic immunity) at random enemy units |
+| Wrack | at the start of each turn each figure of each enemy unit without death immunity (or Wraith Form) must pass a resistance check at +1 against death or the unit loses a hit point |
+
+The turn's order is the original's: Mana Leak, Call Lightning (attacker's, then defender's), Wrack,
+then each side's Terror and Entangle as its own turn begins.
+
+**Instant spells on the whole field**: Flame Strike (strength 15 fire, area, on every enemy
+unit), Mass Healing (five hit points to every unit of the caster's that is not a death creature),
+Death Spell (each figure of each enemy unit without death immunity resists at -2 or dies), Holy
+Word (the same on fantastic creatures; its resistance check is against life, the spell's own
+realm, where the original's code uses death, an OGBUG; undead are task 29) and Call Chaos (each
+enemy unit gets one of: nothing, 5 healing, Chaos Channels, Warp Creature, a strength-15 Fire Bolt,
+Warp Lightning, Doom Bolt, Disintegrate; the two spells not in the game yet do nothing).
+
+**Destroying and cursing one unit** (`Effect::Slay`, `SpellDef::save`): Word of Death (-5), Petrify
+(stoning immunity stops it), Dispel Evil (-4, on chaos and death creatures only, undead -9 later),
+Banish (-3, fantastic creatures only, each 15 more mana one point lower), Disintegrate (the unit is
+destroyed if its resistance is under 10), and the curses Weakness (-2 melee and ranged; a resistance
+check at -2), Vertigo (-2 to hit, -1 defence; a check at 0) and Mind Storm (-5 to everything, no
+check, but not on units immune to illusions). A unit protected by Spell Lock is spared the
+mass spells that destroy.
+
+Console: `battle` lists the field enchantments' effects through the units' numbers; the spell events
+are described. The client's panel names the enchantments over the field.
+
+**Not here** (task 159): dispelling battlefield enchantments (Dispel Magic aims at a unit; the
+original's also reaches the field), the node auras and counter, the city-wall spells (task 158),
+true sight (it cancels invisibility), the Mass Invisibility rule that an invisible unit next to an
+enemy is seen, Entangle's exemption for fliers in the help text.

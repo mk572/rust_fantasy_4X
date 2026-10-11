@@ -5,26 +5,29 @@
 //!   cast in battle. A spell costs its price (before the overland five-fold), less the usual
 //!   reductions, out of the casting skill they have for the whole battle, and the reserve pays
 //!   that times the range multiplier (`casting::range_percent`).
-//! - A bolt, a dispel and Counter Magic take extra mana: the more put in, the stronger the
+//! - A bolt, a dispel, Counter Magic and Banish take extra mana: the more put in, the stronger the
 //!   spell (one more strength per `mana_per_point` mana for a bolt; a dispel's strength is the
 //!   mana; Counter Magic's reserve is the mana).
 //! - The enemy's Counter Magic reserve then tries to stop the spell: a dispel of the reserve's
 //!   strength against the mana put in. The attempt drains the reserve either way, and a stopped
 //!   spell still costs its mana and the wizard's turn.
-//! - Lasting spells on units last until the battle ends; a dispel can take them off.
+//! - Lasting spells on units last until the battle ends; a dispel can take them off. A curse
+//!   (`SpellDef::save`) first gives its target a resistance check.
+//! - Battlefield enchantments (`field.rs`) stay up for the battle.
 //!
-//! Not yet: spells on the whole battlefield (task 44), the spells whose effects are not in the
-//! game, the node counter and the heroes' own casting.
+//! Not yet: dispelling battlefield enchantments, the spells whose effects are not in the game
+//! (task 159), the node counter and the heroes' own casting.
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
+use super::field::{Field, BATTLEFIELD, CALL_CHAOS};
 use super::immunity::{AttackNature, Immunities, Realm};
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::city::{PlayerId, Position};
-use crate::rules::defs::{CastContext, Duration, SpellDef, SpellTarget};
-use crate::rules::effects::{Condition, DamageTraits, Effect, Trigger};
+use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget};
+use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
 use crate::rules::stats::{Modifier, Source};
 use crate::rules::SpellId;
 use crate::units::UnitEnchantments;
@@ -38,17 +41,39 @@ enum Kind {
         immune: Vec<String>,
         realm: Option<Realm>,
         traits: DamageTraits,
+        /// Every enemy unit, not one chosen.
+        all: bool,
     },
-    Heal(i32),
+    Heal {
+        points: i32,
+        /// Every unit of the caster's, not one chosen.
+        all: bool,
+        /// Creatures of this realm are not healed (Mass Healing does not help the dead).
+        except: Option<Realm>,
+    },
     Summon(String),
-    /// A lasting spell on one unit.
+    /// A lasting spell on one unit; a curse has a save.
     Enchant {
         mods: Vec<Modifier>,
         grants: Vec<String>,
+        save: Option<SpellSave>,
     },
     /// A dispel of this strength for each mana put in.
     Dispel(u32),
     CounterMagic,
+    /// Figures that fail a resistance check are destroyed.
+    Slay {
+        realm: Realm,
+        modifier: i32,
+        immune: Vec<String>,
+        only: SlayOnly,
+        below: Option<i32>,
+        mana_per_step: u32,
+        all: bool,
+    },
+    /// A battlefield enchantment.
+    Field(Field),
+    CallChaos,
 }
 
 impl Kind {
@@ -56,6 +81,7 @@ impl Kind {
     fn takes_extra_mana(&self) -> bool {
         match self {
             Kind::Damage { traits, .. } => traits.mana_per_point > 0,
+            Kind::Slay { mana_per_step, .. } => *mana_per_step > 0,
             Kind::Dispel(_) | Kind::CounterMagic => true,
             _ => false,
         }
@@ -82,6 +108,14 @@ fn only_against(spell_id: &str) -> Option<&'static [Realm]> {
     match spell_id {
         "star_fires" => Some(&[Realm::Chaos, Realm::Death]),
         _ => None,
+    }
+}
+
+fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
+    match only {
+        SlayOnly::Any => true,
+        SlayOnly::Fantastic => unit.is_fantastic(),
+        SlayOnly::ChaosOrDeath => matches!(unit.realm, Some(Realm::Chaos | Realm::Death)),
     }
 }
 
@@ -112,7 +146,11 @@ impl Game {
             if mods.is_empty() && grants.is_empty() {
                 return None;
             }
-            return Some(Kind::Enchant { mods, grants });
+            return Some(Kind::Enchant {
+                mods,
+                grants,
+                save: def.save.clone(),
+            });
         }
         let [rule] = def.effects.as_slice() else {
             return None;
@@ -120,6 +158,7 @@ impl Game {
         if rule.when != Trigger::OnCast {
             return None;
         }
+        let all_enemies = rule.target == TargetSel::AllEnemyUnits;
         match &rule.effect {
             Effect::Damage {
                 amount,
@@ -132,11 +171,40 @@ impl Game {
                 immune: immune.clone(),
                 realm: realm.as_deref().and_then(Realm::from_id),
                 traits: *traits,
+                all: all_enemies,
             }),
-            Effect::Heal(n) => Some(Kind::Heal(*n)),
+            Effect::Heal(n) => Some(Kind::Heal {
+                points: *n,
+                all: rule.target == TargetSel::AllOwnUnits,
+                except: match &rule.condition {
+                    Condition::Not(c) => match &**c {
+                        Condition::RealmIs(r) => Realm::from_id(r),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+            }),
             Effect::Summon { unit, .. } => Some(Kind::Summon(unit.clone())),
             Effect::Dispel { strength } => Some(Kind::Dispel(*strength / def.cost.max(1))),
+            Effect::Slay {
+                realm,
+                modifier,
+                immune,
+                only,
+                below,
+                mana_per_step,
+            } => Some(Kind::Slay {
+                realm: Realm::from_id(realm)?,
+                modifier: *modifier,
+                immune: immune.clone(),
+                only: *only,
+                below: *below,
+                mana_per_step: *mana_per_step,
+                all: all_enemies,
+            }),
             Effect::Custom(h) if h == crate::dispel::COUNTER_MAGIC => Some(Kind::CounterMagic),
+            Effect::Custom(h) if h == BATTLEFIELD => Field::of(&def.id).map(Kind::Field),
+            Effect::Custom(h) if h == CALL_CHAOS => Some(Kind::CallChaos),
             _ => None,
         }
     }
@@ -244,6 +312,23 @@ impl Game {
         }
     }
 
+    /// Each wizard's reserve in the game is what the battle says it is: spells and Mana Leak
+    /// draw on it.
+    pub(super) fn sync_battle_mana(&mut self) {
+        let Some(active) = self.battle.as_ref() else {
+            return;
+        };
+        let reserves: Vec<(PlayerId, i32)> = [Side::Attacker, Side::Defender]
+            .into_iter()
+            .filter_map(|s| Some((active.battle.player_of(s), active.battle.caster(s)?.mana)))
+            .collect();
+        for (player, mana) in reserves {
+            if let Some(p) = self.player_mut(player) {
+                p.mana = mana;
+            }
+        }
+    }
+
     /// The wizard whose turn it is casts a spell.
     pub(super) fn battle_cast(
         &mut self,
@@ -278,9 +363,7 @@ impl Game {
             .battle
             .as_mut()
             .map_or(0, |a| a.battle.pay_for_spell(skill));
-        if let Some(p) = self.player_mut(player) {
-            p.mana = (p.mana - paid).max(0);
-        }
+        self.sync_battle_mana();
         let mut events = vec![BattleEvent::SpellCast {
             side,
             spell,
@@ -298,6 +381,9 @@ impl Game {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {
             events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool));
+        }
+        if let Some(active) = self.battle.as_mut() {
+            active.battle.refresh_fields();
         }
         let mut out: Vec<Event> = events.into_iter().map(Event::Battle).collect();
         let ended = self.battle.as_mut().and_then(|a| a.battle.check_winner());
@@ -318,7 +404,14 @@ impl Game {
         aim: SpellAim,
     ) -> Result<(), SpellError> {
         match (def.target, aim) {
-            (SpellTarget::None | SpellTarget::Battlefield, SpellAim::None) => Ok(()),
+            (SpellTarget::None | SpellTarget::Battlefield, SpellAim::None) => {
+                if let Kind::Field(f) = kind {
+                    if battle.has_field(side, *f) {
+                        return Err(SpellError::AlreadyUp);
+                    }
+                }
+                Ok(())
+            }
             (SpellTarget::Tile, SpellAim::Tile(cell)) => {
                 if battle.active_units(side).count() >= MAX_SIDE_UNITS
                     || !battle.is_summon_square(side, cell)
@@ -349,10 +442,66 @@ impl Game {
                         return Err(SpellError::BadTarget);
                     }
                 }
+                if let Kind::Slay {
+                    only, all: false, ..
+                } = kind
+                {
+                    if !slay_allows(*only, u) {
+                        return Err(SpellError::BadTarget);
+                    }
+                }
                 Ok(())
             }
             _ => Err(SpellError::BadTarget),
         }
+    }
+
+    /// The active enemy units of a side, by id.
+    fn enemies_of(&self, side: Side) -> Vec<usize> {
+        self.battle().map_or_else(Vec::new, |b| {
+            b.active_units(side.other()).map(|u| u.id).collect()
+        })
+    }
+
+    /// The damage a spell does, by its id: strength, what stops it, its realm and traits.
+    fn damage_of(&self, id: &str) -> Option<(i32, Vec<String>, Option<Realm>, DamageTraits)> {
+        let spell = self.content.rules.spells.id_of(id)?;
+        match self.battle_kind(spell, self.content.rules.spells.get(spell))? {
+            Kind::Damage {
+                strength,
+                immune,
+                realm,
+                traits,
+                ..
+            } => Some((strength, immune, realm, traits)),
+            _ => None,
+        }
+    }
+
+    /// Hit units with a damage spell; each gets its own events.
+    fn strike(
+        &mut self,
+        targets: &[usize],
+        strength: i32,
+        immune: &[String],
+        realm: Option<Realm>,
+        traits: &DamageTraits,
+    ) -> Vec<BattleEvent> {
+        let nature = AttackNature {
+            stopped_by: Immunities::from_names(immune.iter().map(String::as_str)),
+            realm,
+            armor_piercing: false,
+        };
+        let Some(active) = self.battle.as_mut() else {
+            return Vec::new();
+        };
+        let battle = &mut active.battle;
+        let mut events = Vec::new();
+        for &t in targets {
+            let dmg = battle.spell_damage(t, strength, traits, nature);
+            events.extend(battle.spell_events_for_damage(t, dmg));
+        }
+        events
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -373,35 +522,48 @@ impl Game {
                     immune,
                     realm,
                     traits,
+                    all,
                 },
-                SpellAim::Unit(target),
+                aim,
             ) => {
                 let extra = if traits.mana_per_point > 0 {
                     (pool - def.cost as i32) / traits.mana_per_point as i32
                 } else {
                     0
                 };
-                let nature = AttackNature {
-                    stopped_by: Immunities::from_names(immune.iter().map(String::as_str)),
-                    realm,
-                    armor_piercing: false,
+                let targets = match (all, aim) {
+                    (true, _) => self.enemies_of(side),
+                    (false, SpellAim::Unit(t)) => vec![t],
+                    _ => return Vec::new(),
                 };
+                self.strike(&targets, strength + extra, &immune, realm, &traits)
+            }
+            (
+                Kind::Heal {
+                    points,
+                    all,
+                    except,
+                },
+                aim,
+            ) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
-                let dmg = battle.spell_damage(target, strength + extra, &traits, nature);
-                battle.spell_events_for_damage(target, dmg)
-            }
-            (Kind::Heal(points), SpellAim::Unit(target)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
+                let targets: Vec<usize> = match (all, aim) {
+                    (true, _) => battle.active_units(side).map(|u| u.id).collect(),
+                    (false, SpellAim::Unit(t)) => vec![t],
+                    _ => return Vec::new(),
                 };
-                let healed = active.battle.spell_heal(target, points);
-                vec![BattleEvent::SpellHealed {
-                    unit: target,
-                    healed,
-                }]
+                let mut events = Vec::new();
+                for t in targets {
+                    if except.is_some() && battle.units[t].realm == except {
+                        continue;
+                    }
+                    let healed = battle.spell_heal(t, points);
+                    events.push(BattleEvent::SpellHealed { unit: t, healed });
+                }
+                events
             }
             (Kind::CounterMagic, _) => {
                 if let Some(active) = self.battle.as_mut() {
@@ -412,16 +574,84 @@ impl Game {
                     strength: pool as u32,
                 }]
             }
-            (Kind::Enchant { mods, grants }, SpellAim::Unit(target)) => {
+            (Kind::Field(field), _) => {
                 if let Some(active) = self.battle.as_mut() {
-                    active
-                        .battle
-                        .enchant_unit(target, spell, &def.id, player, &mods, &grants);
+                    active.battle.raise_field(side, field, spell);
                 }
+                vec![BattleEvent::FieldRaised { side, spell }]
+            }
+            (Kind::CallChaos, _) => self.call_chaos(side),
+            (Kind::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                if let Some(save) = save {
+                    let unit = &battle.units[target];
+                    if save.immune.iter().any(|i| unit.has(i)) {
+                        return vec![BattleEvent::SpellImmune { unit: target }];
+                    }
+                    let realm = Realm::from_id(&def.realm);
+                    if !battle.resist_fails(target, realm, save.modifier) {
+                        return vec![BattleEvent::SpellResisted { unit: target }];
+                    }
+                }
+                battle.enchant_unit(target, spell, &def.id, player, &mods, &grants);
                 vec![BattleEvent::SpellEnchanted {
                     unit: target,
                     spell,
                 }]
+            }
+            (
+                Kind::Slay {
+                    realm,
+                    modifier,
+                    immune,
+                    only,
+                    below,
+                    mana_per_step,
+                    all,
+                },
+                aim,
+            ) => {
+                let modifier = if mana_per_step > 0 {
+                    modifier - (pool - def.cost as i32) / mana_per_step as i32
+                } else {
+                    modifier
+                };
+                let targets = match (all, aim) {
+                    (true, _) => self.enemies_of(side),
+                    (false, SpellAim::Unit(t)) => vec![t],
+                    _ => return Vec::new(),
+                };
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                let mut events = Vec::new();
+                for t in targets {
+                    // Spell Lock keeps a unit from the spells that sever or burn it.
+                    let locked = battle.units[t]
+                        .enchantments
+                        .iter()
+                        .any(|e| e == "spell_lock");
+                    if !slay_allows(only, &battle.units[t]) || locked {
+                        continue;
+                    }
+                    match battle.spell_slay(t, realm, modifier, &immune, below) {
+                        None => events.push(BattleEvent::SpellImmune { unit: t }),
+                        Some(d) => {
+                            events.push(BattleEvent::SpellSlew {
+                                unit: t,
+                                kills: d.kills,
+                            });
+                            if !battle.units[t].is_active() {
+                                events.push(BattleEvent::UnitDied { unit: t });
+                            }
+                        }
+                    }
+                }
+                events
             }
             (Kind::Summon(name), SpellAim::Tile(cell)) => {
                 let Some(unit_id) = self.content.rules.units.id_of(&name) else {
@@ -453,6 +683,61 @@ impl Game {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, five hit
+    /// points of healing (not the dead), Chaos Channels, Warp Creature, a Fire Bolt of strength
+    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels and Warp Creature are
+    /// not in the game yet (task 159) and do nothing.
+    fn call_chaos(&mut self, side: Side) -> Vec<BattleEvent> {
+        let mut events = Vec::new();
+        for t in self.enemies_of(side) {
+            let Some(active) = self.battle.as_mut() else {
+                break;
+            };
+            let roll = active.battle.roll(8);
+            match roll {
+                2 => {
+                    let b = &mut active.battle;
+                    if b.units[t].realm != Some(Realm::Death) {
+                        events.push(BattleEvent::SpellHealed {
+                            unit: t,
+                            healed: b.spell_heal(t, 5),
+                        });
+                    }
+                }
+                5..=7 => {
+                    let (id, strength) = match roll {
+                        5 => ("fire_bolt", Some(15)),
+                        6 => ("warp_lightning", None),
+                        _ => ("doom_bolt", None),
+                    };
+                    if let Some((base, immune, realm, traits)) = self.damage_of(id) {
+                        events.extend(self.strike(
+                            &[t],
+                            strength.unwrap_or(base),
+                            &immune,
+                            realm,
+                            &traits,
+                        ));
+                    }
+                }
+                8 => {
+                    let b = &mut active.battle;
+                    if let Some(d) = b.spell_slay(t, Realm::Chaos, 0, &[], Some(10)) {
+                        events.push(BattleEvent::SpellSlew {
+                            unit: t,
+                            kills: d.kills,
+                        });
+                        if !b.units[t].is_active() {
+                            events.push(BattleEvent::UnitDied { unit: t });
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        events
     }
 
     /// A dispel of `strength` by `by` on a unit of the battle: the spells cast on it in the
@@ -509,13 +794,14 @@ impl Game {
             .filter_map(|&(s, _)| {
                 let def = self.content.rules.spells.get(s);
                 match self.battle_kind(s, def)? {
-                    Kind::Enchant { mods, grants } => Some((def.id.clone(), mods, grants)),
+                    Kind::Enchant { mods, grants, .. } => Some((def.id.clone(), mods, grants)),
                     _ => None,
                 }
             })
             .collect();
         if let Some(active) = self.battle.as_mut() {
             active.battle.rebuild_unit(target, base, kept, &lasting);
+            active.battle.refresh_fields();
         }
         vec![event]
     }
@@ -527,5 +813,12 @@ impl Battle {
         [Side::Attacker, Side::Defender]
             .into_iter()
             .find(|&s| self.player_of(s) == player)
+    }
+
+    /// A resistance check of one unit against a realm: whether it *fails*.
+    pub fn resist_fails(&mut self, target: usize, realm: Option<Realm>, modifier: i32) -> bool {
+        let state = self.units[target].defender_state();
+        let rng: &mut dyn rand::RngCore = &mut self.rng;
+        state.resistance_failure(realm, modifier, rng) > 0
     }
 }

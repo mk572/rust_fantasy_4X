@@ -12,6 +12,7 @@
 pub mod ai;
 pub mod attack;
 pub mod casting;
+pub mod field;
 pub mod game;
 pub mod immunity;
 pub mod map;
@@ -25,6 +26,7 @@ use crate::city::{PlayerId, Position};
 use crate::rules::SpellId;
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
+use field::{Field, FieldBonus};
 use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
 use special::{Gaze, SpecialAttacks};
@@ -128,6 +130,8 @@ pub struct BattleUnit {
     pub combat_spells: Vec<(SpellId, PlayerId)>,
     /// The unit as it was before the first of them, which a dispel goes back to.
     pub base: Option<Box<BattleUnit>>,
+    /// What the battlefield spells have changed (`field.rs`).
+    pub field: FieldBonus,
 }
 
 impl BattleUnit {
@@ -175,6 +179,7 @@ impl BattleUnit {
             attacked: false,
             combat_spells: Vec::new(),
             base: None,
+            field: FieldBonus::default(),
         }
     }
 
@@ -225,6 +230,7 @@ impl BattleUnit {
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
+            blur: self.field.blur,
         }
     }
 
@@ -256,6 +262,7 @@ impl BattleUnit {
             mode,
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
             special,
+            sees_through: self.has("illusion_immunity"),
         }
     }
 
@@ -387,6 +394,34 @@ pub enum BattleEvent {
         unit: usize,
         removed: u32,
     },
+    /// A battlefield spell went up for a side.
+    FieldRaised {
+        side: Side,
+        spell: SpellId,
+    },
+    /// A spell's resistance check: the unit resisted it.
+    SpellResisted {
+        unit: usize,
+    },
+    /// Figures were destroyed by a spell that gives each a resistance check.
+    SpellSlew {
+        unit: usize,
+        kills: u32,
+    },
+    /// Wrack or Call Lightning hurt a unit at the start of a turn.
+    FieldStruck {
+        unit: usize,
+        dealt: i32,
+        kills: u32,
+    },
+    /// Terror holds the unit back this turn.
+    Terrified {
+        unit: usize,
+    },
+    /// Mana Leak drained a side's wizard (and spell shots).
+    ManaLeaked {
+        side: Side,
+    },
     /// A creature was summoned.
     Summoned {
         unit: usize,
@@ -425,6 +460,8 @@ pub struct Battle {
     pub counter_magic: [u32; 2],
     /// Each side's wizard, indexed by [`Side::index`]: none for a side with no wizard.
     pub casters: [Option<BattleCaster>; 2],
+    /// The battlefield enchantments each side has put up, with the spell that did.
+    pub fields: [Vec<(Field, SpellId)>; 2],
     /// Damage to the city from the attackers inside it, one for each of their units there at
     /// the start of each turn (`Add_City_Damage_From_Battle_Units_Within`); it kills citizens
     /// and destroys buildings when the city falls.
@@ -470,10 +507,11 @@ impl Battle {
             winner: None,
             counter_magic: [0, 0],
             casters: [None, None],
+            fields: [Vec::new(), Vec::new()],
             city_damage: 0,
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
-        b.begin_side_turn();
+        let _ = b.begin_side_turn();
         b.check_winner();
         b
     }
@@ -538,8 +576,13 @@ impl Battle {
         squares
     }
 
-    fn begin_side_turn(&mut self) {
+    fn begin_side_turn(&mut self) -> Vec<BattleEvent> {
         let side = self.active;
+        let mut events = Vec::new();
+        // A new turn begins with the attacker: the spells that act every turn strike first.
+        if side == Side::Attacker {
+            events.extend(self.turn_effects());
+        }
         for u in self
             .units
             .iter_mut()
@@ -551,6 +594,7 @@ impl Battle {
         if let Some(caster) = &mut self.casters[side.index()] {
             caster.cast_this_turn = false;
         }
+        events.extend(self.side_turn_effects(side));
         // A new turn begins with the attacker: each of its units inside the city hurts it.
         if side == Side::Attacker && self.map.is_city() {
             let inside = self
@@ -559,6 +603,7 @@ impl Battle {
                 .count() as u32;
             self.city_damage += inside;
         }
+        events
     }
 
     fn check_winner(&mut self) -> Option<BattleEvent> {
@@ -666,6 +711,12 @@ impl Battle {
             cell,
             destroyed,
         }]
+    }
+
+    /// The penalty to hit that `hit`'s invisibility gives `attacker`: one, unless the attacker is
+    /// immune to illusions.
+    fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
+        i32::from(self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity"))
     }
 
     fn check_target(&self, unit: usize, target: usize) -> Result<&BattleUnit, BattleError> {
@@ -783,11 +834,11 @@ impl Battle {
                 if self.active == Side::Attacker {
                     self.turn += 1;
                 }
-                self.begin_side_turn();
                 events.push(BattleEvent::TurnStarted {
                     side: self.active,
                     turn: self.turn,
                 });
+                events.extend(self.begin_side_turn());
             }
             BattleCommand::Flee => {
                 let side = self.active;
@@ -829,6 +880,14 @@ impl Battle {
         let mut d = self.fighter(def, false);
         a.state.defense += self.city_defense_bonus(att, def);
         d.state.defense += self.city_defense_bonus(def, att);
+        // Invisible creatures are harder to hit (by anyone not immune to illusions).
+        for (fighter, hits, hit) in [(&mut a, att, def), (&mut d, def, att)] {
+            let penalty = self.invisibility_penalty(hits, hit);
+            fighter.melee.to_hit -= penalty;
+            if let Some(t) = &mut fighter.thrown {
+                t.to_hit -= penalty;
+            }
+        }
         let rng: &mut dyn RngCore = &mut self.rng;
         let out = attack::melee_exchange(&mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
@@ -862,6 +921,7 @@ impl Battle {
             }
         };
         let a = &self.units[att];
+        let penalty = penalty + self.invisibility_penalty(att, def);
         let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit - penalty);
         let figures = a.figures;
         let mut state = self.units[def].defender_state();

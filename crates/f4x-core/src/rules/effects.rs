@@ -31,6 +31,9 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::dispel::SPELL_BINDING,
     crate::dispel::SPELL_BLAST,
     crate::dispel::COUNTER_MAGIC,
+    crate::battle::field::BATTLEFIELD,
+    crate::battle::field::CALL_CHAOS,
+    crate::battle::field::DISINTEGRATE,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +107,17 @@ pub struct DamageTraits {
     pub mana_per_point: u32,
 }
 
+/// Which units a [`Effect::Slay`] spell can destroy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SlayOnly {
+    #[default]
+    Any,
+    /// Creatures of a realm (summoned and fantastic units), not the races' units.
+    Fantastic,
+    /// Creatures of the chaos or death realm.
+    ChaosOrDeath,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Effect {
     Modify {
@@ -130,6 +144,23 @@ pub enum Effect {
         traits: DamageTraits,
     },
     Heal(i32),
+    /// Battle only: each figure of the target must resist (a check against `realm` with
+    /// `modifier` added to the resistance) or is destroyed. A target with one of the `immune`
+    /// abilities takes no harm. `below`: the target is destroyed outright if its resistance
+    /// plus `modifier` is under this (Disintegrate) instead. `mana_per_step`: each this much
+    /// mana beyond the cost lowers the resistance by one more (Banish).
+    Slay {
+        realm: String,
+        modifier: i32,
+        #[serde(default)]
+        immune: Vec<String>,
+        #[serde(default)]
+        only: SlayOnly,
+        #[serde(default)]
+        below: Option<i32>,
+        #[serde(default)]
+        mana_per_step: u32,
+    },
     AddResource {
         #[serde(default)]
         gold: i32,

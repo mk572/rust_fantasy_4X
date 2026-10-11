@@ -369,6 +369,7 @@ pub fn content_with_economy() -> Content {
         duration: Duration::Permanent,
         upkeep: 1,
         dispel_difficulty: 10,
+        save: None,
         effects,
     };
     let spells = vec![
@@ -458,6 +459,7 @@ pub fn content_with_magic() -> Content {
         duration: Duration::Instant,
         upkeep: 0,
         dispel_difficulty: 0,
+        save: None,
         effects: vec![],
     };
     for realm in ["life", "chaos"] {

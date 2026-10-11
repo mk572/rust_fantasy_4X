@@ -199,6 +199,20 @@ pub(crate) fn describe(
             format!("Dispel on {}: {removed} removed", name(*unit))
         }
         BattleEvent::Summoned { unit } => format!("{} appears", name(*unit)),
+        BattleEvent::FieldRaised { spell: s, .. } => format!("{} covers the field", spell(*s)),
+        BattleEvent::SpellResisted { unit } => format!("{} resists", name(*unit)),
+        BattleEvent::SpellSlew { unit, kills } => {
+            format!("{} loses {kills} figures to the spell", name(*unit))
+        }
+        BattleEvent::FieldStruck { unit, dealt, kills } => {
+            format!(
+                "{} takes {dealt} damage{}",
+                name(*unit),
+                self::kills(*kills)
+            )
+        }
+        BattleEvent::Terrified { unit } => format!("{} cowers in terror", name(*unit)),
+        BattleEvent::ManaLeaked { .. } => "Mana drains away".to_string(),
         BattleEvent::CounterMagicRaised { strength, .. } => {
             format!("Counter Magic {strength} stands against spells")
         }
@@ -1213,6 +1227,34 @@ impl App {
             );
         }
         y += 22.0;
+        // The enchantments over the field, by who cast them.
+        let mine = Self::human_side(battle);
+        let over: Vec<String> = battle
+            .fields()
+            .map(|(side, _, spell)| {
+                let name = &self.game.content.rules.spells.get(spell).name;
+                if Some(side) == mine {
+                    name.clone()
+                } else {
+                    format!("{name} (enemy)")
+                }
+            })
+            .collect();
+        if !over.is_empty() {
+            for line in crate::ui::wrap(&over.join(", "), 16.0, PANEL_W - 24.0)
+                .iter()
+                .take(2)
+            {
+                draw_text(
+                    line,
+                    x + 12.0,
+                    y - 4.0,
+                    16.0,
+                    Color::new(0.8, 0.7, 1.0, 1.0),
+                );
+                y += 17.0;
+            }
+        }
 
         // The unit under the pointer, else the selected one.
         let shown = hovered

@@ -256,7 +256,20 @@ pub struct SpellDef {
     /// Strength a dispel must beat.
     #[serde(default)]
     pub dispel_difficulty: u32,
+    /// A curse the target can resist when it is cast in a battle.
+    #[serde(default)]
+    pub save: Option<SpellSave>,
     pub effects: Vec<EffectRule>,
+}
+
+/// The resistance check against a lasting spell that harms its target.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellSave {
+    /// Added to the target's resistance (negative: harder to resist).
+    pub modifier: i32,
+    /// A target with one of these abilities cannot be affected at all.
+    #[serde(default)]
+    pub immune: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

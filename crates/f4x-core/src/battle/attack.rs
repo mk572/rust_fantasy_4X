@@ -47,6 +47,8 @@ pub struct Combatant {
     pub nature: AttackNature,
     /// Poison, touches, life steal and gazes (`special.rs`).
     pub special: SpecialAttacks,
+    /// The attacker sees through illusions, so Blur does not trouble it.
+    pub sees_through: bool,
 }
 
 /// What a defending unit contributes to the rolls, and the damage it has taken.
@@ -72,6 +74,8 @@ pub struct DefenderState {
     pub figures: u32,
     /// Damage already taken by the front figure.
     pub front_damage: i32,
+    /// Blur is on it: each point of damage may miss.
+    pub blur: bool,
 }
 
 impl DefenderState {
@@ -121,7 +125,7 @@ impl DefenderState {
 
 /// Damage that no defence blocks, `points` of it, landing on the front figure and passing on
 /// to the next as figures die.
-fn apply_unblockable(def: &mut DefenderState, points: i32) -> Damage {
+pub fn unblockable(def: &mut DefenderState, points: i32) -> Damage {
     let mut total = Damage::default();
     let mut left = points;
     while left > 0 && def.figures > 0 {
@@ -142,8 +146,8 @@ fn apply_unblockable(def: &mut DefenderState, points: i32) -> Damage {
 }
 
 /// A whole figure's worth of damage no defence blocks (a failed gaze or touch).
-fn kill_figure(def: &mut DefenderState) -> Damage {
-    apply_unblockable(def, def.hits)
+pub fn kill_figure(def: &mut DefenderState) -> Damage {
+    unblockable(def, def.hits)
 }
 
 /// A ten-sided die: one to ten.
@@ -159,6 +163,24 @@ pub fn roll_successes(dice: i32, pluses: i32, rng: &mut dyn RngCore) -> i32 {
             die >= 8 - pluses || die == 10
         })
         .count() as i32
+}
+
+/// Blur: each point of damage has a one in ten chance to miss (the original's loop counts up
+/// as the damage comes down, so it can take off at most about half). Not against an attacker
+/// that sees through illusions.
+fn blurred(hits: i32, attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> i32 {
+    if !def.blur || attacker.sees_through {
+        return hits;
+    }
+    let mut left = hits;
+    let mut rolls = 0;
+    while rolls < left {
+        if d10(rng) == 10 {
+            left -= 1;
+        }
+        rolls += 1;
+    }
+    left
 }
 
 /// What one attack did.
@@ -245,7 +267,7 @@ pub fn process_attack(
             }
             if sp.life_steal && !def.immunities.death {
                 let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
-                total += apply_unblockable(def, stolen);
+                total += unblockable(def, stolen);
                 total.healed += stolen;
             }
             if sp.destruction && def.resistance_failure(Some(Realm::Chaos), 0, rng) > 0 {
@@ -258,7 +280,12 @@ pub fn process_attack(
         let mut dmg = if attacker.ignores_defense {
             attacker.strength
         } else {
-            let hits = roll_successes(attacker.strength, attacker.to_hit, rng);
+            let hits = blurred(
+                roll_successes(attacker.strength, attacker.to_hit, rng),
+                attacker,
+                def,
+                rng,
+            );
             (hits - roll_successes(defense, def.to_block, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
@@ -282,7 +309,7 @@ pub fn process_attack(
         if sp.poison > 0 && !def.immunities.poison {
             for _ in 0..sp.poison {
                 if def.figures > 0 && def.resistance_failure(None, 0, rng) > 0 {
-                    total += apply_unblockable(def, 1);
+                    total += unblockable(def, 1);
                 }
             }
         }
@@ -350,14 +377,14 @@ pub fn spell_attack(
                     }
                 })
                 .sum();
-            apply_unblockable(def, pooled)
+            unblockable(def, pooled)
         }
         Volley::Chain => {
             let pooled: i32 = (1..=attacker.strength)
                 .rev()
                 .map(|strength| blow(strength, rng))
                 .sum();
-            apply_unblockable(def, pooled)
+            unblockable(def, pooled)
         }
     }
 }

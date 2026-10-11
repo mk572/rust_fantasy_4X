@@ -679,6 +679,8 @@ UNIT_ENCHANT_MODS = {
     "Endurance": [("Moves", "Add", 1)],
     "Flame Blade": [("Melee", "Add", 2), ("Ranged", "Add", 2), ("Grant", "magical_weapon")],
     "Haste": [("Moves", "Percent", 100)],
+    # (The game's own spelling of the name.)
+    "Invisiblity": [("Grant", "invisibility")],
     "Flight": [("Moves", "Set", 3)],
     "Weakness": [("Melee", "Add", -2), ("Ranged", "Add", -2)],
     "Vertigo": [("ToHit", "Add", -20), ("Defense", "Add", -1)],
@@ -764,6 +766,35 @@ DISPEL_FAMILY = {
     "Counter Magic": ("None", "counter_magic", 1),
 }
 
+# Battlefield enchantments, whose effects the battle code carries out by the spell's id
+# (`battle/field.rs`).
+BATTLEFIELD_ENCHANTMENTS = {
+    "Entangle", "Call Lightning", "Blur", "Mass Invisibility", "Metal Fires", "Warp Reality",
+    "True Light", "Prayer", "High Prayer", "Terror", "Darkness", "Mana Leak", "Black Prayer",
+    "Wrack",
+}
+# Instant spells that destroy figures that fail a resistance check (`Effect::Slay`):
+# (target, realm, modifier, immune abilities, who, resistance limit, mana per extra step).
+# The modifiers are the original's `Spell_Resistance_Modifier`. Holy Word's check uses the
+# death realm in the original's code; its own realm (life) is used here, where Righteousness
+# does not help the creatures it is thrown at (an OGBUG).
+SLAY_SPELLS = {
+    "Holy Word": ("AllEnemyUnits", "life", -2, [], "Fantastic", None, 0),
+    "Death Spell": ("AllEnemyUnits", "death", -2, ["death_immunity"], "Any", None, 0),
+    "Word of Death": ("Chosen", "death", -5, [], "Any", None, 0),
+    "Petrify": ("Chosen", "nature", 0, ["stoning_immunity"], "Any", None, 0),
+    "Dispel Evil": ("Chosen", "life", -4, [], "ChaosOrDeath", None, 0),
+    "Disintegrate": ("Chosen", "chaos", 0, [], "Any", 10, 0),
+    "Banish": ("Chosen", "sorcery", -3, [], "Fantastic", None, 15),
+}
+# Curses a unit can resist when they are cast in a battle: (resistance modifier, abilities that
+# make the unit immune). Mind Storm has no resistance roll (a modifier no resistance can beat).
+CURSE_SAVES = {
+    "Weakness": (-2, []),
+    "Vertigo": (0, []),
+    "Mind Storm": (-100, ["illusion_immunity"]),
+}
+
 # Extra mana (beyond the cost) that buys one more point of strength from a damage spell in a
 # battle: Fire Bolt, Ice Bolt and Lightning Bolt take one each, Psionic Blast two and Fireball
 # three (`Combat_Cast_Apply_Spell_Effect`). The other damage spells take no extra mana.
@@ -804,13 +835,30 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
             rules.append(f"(condition: {cond}, effect: Modify(stat: {stat}, op: {op}, value: {value}))")
         return rules, "None", "lasting"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
+    if name in BATTLEFIELD_ENCHANTMENTS:
+        return ['(when: OnCast, target: Chosen, effect: Custom("battlefield"))'], "Battlefield", "lasting"
+    if name == "Call Chaos":
+        return ['(when: OnCast, target: Chosen, effect: Custom("call_chaos"))'], "Battlefield", "instant"
+    if name == "Mass Healing":
+        return ["(when: OnCast, condition: Not(RealmIs(\"death\")), target: AllOwnUnits, effect: Heal(5))"], "Battlefield", "instant"
+    if name == "Flame Strike":
+        immune = [ident for mask, ident, *_ in ATTRIB_1_FLAGS[:8] if row.param1 & mask]
+        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
+        return [f'(when: OnCast, target: AllEnemyUnits, effect: Damage(amount: {row.param0}, kind: Fire, resistible: true, '
+                f'immune: {immune_ron}, realm: Some("{realm_id}"), traits: (area: true)))'], "Battlefield", "instant"
+    if name in SLAY_SPELLS:
+        who, realm, modifier, immune, only, below, step = SLAY_SPELLS[name]
+        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
+        extra = (f", below: Some({below})" if below is not None else "") + (f", mana_per_step: {step}" if step else "")
+        effect = (f'Slay(realm: "{realm}", modifier: {modifier}, immune: {immune_ron}, only: {only}{extra})')
+        return [f"(when: OnCast, target: {who}, effect: {effect})"], ("Battlefield" if who == "AllEnemyUnits" else "AnyUnit"), "instant"
     if kind == 0:  # summoning
         unit = unit_ids.get(row.param0 | (row.param1 << 8))
         if unit:
             return [f'(when: OnCast, target: Chosen, effect: Summon(unit: {ron_str(unit)}, count: 1))'], "Tile", "instant"
         report.note("spells", f"{name}: summons unit index {row.param0} which is not a summonable unit")
         return unimplemented, "Tile", "instant"
-    if kind in (1, 15):
+    if kind in (1, 13, 14, 15):
         mods = UNIT_ENCHANT_MODS.get(name)
         target = "EnemyUnit" if name in NEGATIVE_UNIT_SPELLS else "OwnUnit"
         if mods is not None:
@@ -891,6 +939,10 @@ def build_spells(rows: list[SpellRow], help_: dict[str, SpellHelp], unit_ids: di
             parts.append(f"upkeep: {upkeep}")
         if lasting == "lasting":
             parts.append(f"dispel_difficulty: {max(row.cost, 1)}")
+        if row.name in CURSE_SAVES:
+            modifier, immune = CURSE_SAVES[row.name]
+            immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
+            parts.append(f"save: Some((modifier: {modifier}, immune: {immune_ron}))")
         parts.append("effects: [" + ", ".join(effects) + "]")
         out.append("    (" + ", ".join(parts) + "),")
     return out
@@ -996,6 +1048,14 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (607, "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack and to hit is increased by 10%.",
+     "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack is increased by 10%.",
+     "the code gives +2 to melee and defence, +3 to resistance and +1 (ten percent) to hit and to block"),
+    (632, "Causes all non-flying, corporeal enemy creatures to suffer a loss of one movement point per turn.",
+     "Causes all enemy creatures to suffer a loss of one movement point per turn.",
+     "the code takes the movement from every enemy unit, fliers and the non-corporeal too"),
+    (486, "Units get no chance to resist.", "Units get a chance to resist at a penalty of 2.",
+     "the code gives Weakness a resistance check at -2 (the spell's own help text says so)"),
     (733, "Maintenance: 2 gold/turn", "Maintenance: 3 gold/turn",
      "the building data file charges 3 gold"),
     (44, "Upkeep: 1 mana/turn", "Upkeep: 2 mana/turn",

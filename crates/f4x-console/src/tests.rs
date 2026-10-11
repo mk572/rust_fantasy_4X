@@ -1590,3 +1590,149 @@ fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
     let (left, max) = g.unit_hits(entity);
     assert!(left >= 1 && left <= max, "{left} of {max}");
 }
+
+// ---- battlefield and destroying spells (tasks 44 and 159) --------------------------------
+
+#[test]
+fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
+    use f4x_core::battle::field::Field;
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["high_prayer"]);
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    let defense = g.battle().unwrap().unit(mine).unwrap().defense;
+    let r = cast(&mut g, "bcast high prayer");
+    assert!(r.ok, "{}", r.text());
+    assert!(r.text().contains("raises High Prayer"), "{}", r.text());
+    let b = g.battle().unwrap();
+    assert!(b.has_field(Side::Attacker, Field::HighPrayer));
+    assert_eq!(b.unit(mine).unwrap().defense, defense + 2);
+    // Not again; and the enemy's units are not blessed.
+    pass_turn(&mut g);
+    assert!(!cast(&mut g, "bcast high prayer").ok);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().to_block, 0);
+}
+
+#[test]
+fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["mana_leak"]);
+    g.player_mut(PlayerId(1)).unwrap().mana = 100;
+    // The rival's wizard in the battle has its reserve from the game.
+    g.battle.as_mut().unwrap().battle.casters[Side::Defender.index()]
+        .as_mut()
+        .unwrap()
+        .mana = 100;
+    assert!(cast(&mut g, "bcast mana leak").ok);
+    pass_turn(&mut g);
+    // The rival's turn began a new turn: the attacker's.
+    assert_eq!(g.player(PlayerId(1)).unwrap().mana, 95);
+    assert_eq!(g.battle().unwrap().caster(Side::Defender).unwrap().mana, 95);
+}
+
+#[test]
+fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["flame_strike", "mass_healing"]);
+    let enemies = battle_units_of(&g, Side::Defender);
+    for &e in &enemies {
+        let u = &mut g.battle.as_mut().unwrap().battle.units[e];
+        (u.figures, u.hits, u.front_damage, u.defense) = (1, 100, 0, 0);
+    }
+    let r = cast(&mut g, "bcast flame strike");
+    assert!(r.ok, "{}", r.text());
+    let hurt = enemies
+        .iter()
+        .filter(|&&e| g.battle().unwrap().unit(e).unwrap().hit_points() < 100)
+        .count();
+    assert!(hurt >= 1, "a strength-15 fire attack on each: {}", r.text());
+    let mine = battle_units_of(&g, Side::Attacker);
+    for &m in &mine {
+        g.battle.as_mut().unwrap().battle.units[m].front_damage = 1;
+    }
+    pass_turn(&mut g);
+    let r = cast(&mut g, "bcast mass healing");
+    assert!(r.ok, "{}", r.text());
+    for &m in &mine {
+        assert_eq!(g.battle().unwrap().unit(m).unwrap().front_damage, 0, "{m}");
+    }
+}
+
+#[test]
+fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["death_spell", "word_of_death"]);
+    let enemies = battle_units_of(&g, Side::Defender);
+    for &e in &enemies {
+        g.battle.as_mut().unwrap().battle.units[e].resistance = 0;
+    }
+    // One enemy that cannot fall keeps the battle going.
+    let last = *enemies.last().unwrap();
+    g.battle.as_mut().unwrap().battle.units[last]
+        .abilities
+        .push("death_immunity".into());
+    let r = cast(&mut g, "bcast death spell");
+    assert!(r.ok, "{}", r.text());
+    let b = g.battle().unwrap();
+    let dead = enemies
+        .iter()
+        .filter(|&&e| !b.unit(e).unwrap().is_active())
+        .count();
+    // A penalty of two against resistance zero: a ten-sided die over two kills a figure about
+    // eight times in ten, so most of every unit goes.
+    let left: u32 = enemies.iter().map(|&e| b.unit(e).unwrap().figures).sum();
+    let start: u32 = enemies
+        .iter()
+        .map(|&e| b.unit(e).unwrap().figures_start)
+        .sum();
+    assert!(dead > 0 || left < start, "{}", r.text());
+}
+
+#[test]
+fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["weakness", "banish", "mind_storm"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    // Banish needs a fantastic creature.
+    assert!(!cast(&mut g, &format!("bcast banish unit:{enemy}")).ok);
+    // A unit with no resistance cannot save against Weakness.
+    g.battle.as_mut().unwrap().battle.units[enemy].resistance = 0;
+    let melee = g.battle().unwrap().unit(enemy).unwrap().melee;
+    let mut weakened = false;
+    for _ in 0..8 {
+        let r = cast(&mut g, &format!("bcast weakness unit:{enemy}"));
+        assert!(r.ok, "{}", r.text());
+        if g.battle().unwrap().unit(enemy).unwrap().melee < melee {
+            weakened = true;
+            break;
+        }
+        pass_turn(&mut g);
+    }
+    assert!(weakened, "an unresisting unit is weakened soon enough");
+    // Mind Storm: no save, but illusion immunity stops it.
+    let other = battle_units_of(&g, Side::Defender)[1];
+    g.battle.as_mut().unwrap().battle.units[other]
+        .abilities
+        .push("illusion_immunity".into());
+    pass_turn(&mut g);
+    let r = cast(&mut g, &format!("bcast mind storm unit:{other}"));
+    assert!(r.ok, "{}", r.text());
+    assert!(r.text().contains("takes no harm"), "{}", r.text());
+}
+
+#[test]
+fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["call_chaos", "invisiblity"]);
+    let list = cast(&mut g, "bspells").text();
+    assert!(
+        list.contains("call_chaos") && list.contains("invisiblity"),
+        "{list}"
+    );
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    assert!(cast(&mut g, &format!("bcast invisiblity unit:{mine}")).ok);
+    assert!(g.battle().unwrap().unit(mine).unwrap().is_invisible());
+    pass_turn(&mut g);
+    let r = cast(&mut g, "bcast call chaos");
+    assert!(r.ok, "{}", r.text());
+}

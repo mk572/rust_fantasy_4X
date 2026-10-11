@@ -287,6 +287,16 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             format!("Dispel takes {removed} spells off unit {unit}")
         }
         B::Summoned { unit } => format!("Unit {unit} is summoned"),
+        B::FieldRaised { side, spell: s } => {
+            format!("{side:?} raises {} over the field", spell(game, *s))
+        }
+        B::SpellResisted { unit } => format!("Unit {unit} resists the spell"),
+        B::SpellSlew { unit, kills } => format!("Spell destroys {kills} figures of unit {unit}"),
+        B::FieldStruck { unit, dealt, kills } => {
+            format!("Unit {unit} is struck for {dealt}, {kills} figures lost")
+        }
+        B::Terrified { unit } => format!("Unit {unit} cowers in terror"),
+        B::ManaLeaked { side } => format!("The {side:?} wizard's mana leaks away"),
         B::CounterMagicRaised { side, strength } => {
             format!("{side:?} raises Counter Magic {strength}")
         }

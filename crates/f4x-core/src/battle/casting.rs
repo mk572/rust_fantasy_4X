@@ -8,8 +8,8 @@
 
 use rand::RngCore;
 
-use super::attack::{spell_attack, Combatant, Damage, Mode, Volley};
-use super::immunity::{AttackNature, Realm};
+use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
+use super::immunity::{effective_resistance, AttackNature, Realm};
 use super::map::{is_wall_corner, Pos};
 use super::{Battle, BattleEvent, BattleUnit, Side, Status};
 use crate::city::PlayerId;
@@ -96,6 +96,8 @@ pub enum SpellError {
     BadTarget,
     /// No square for a creature, or the side has as many as it can control.
     NoRoom,
+    /// The side has this battlefield spell up already.
+    AlreadyUp,
 }
 
 impl Battle {
@@ -211,9 +213,56 @@ impl Battle {
                 ..nature
             },
             special: Default::default(),
+            sees_through: false,
         };
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = spell_attack(&spell, volley, &mut state, rng);
+        self.units[target].set_from(&state);
+        Some(dmg)
+    }
+
+    /// A die of `sides` sides, from the battle's own generator: one to `sides`.
+    pub fn roll(&mut self, sides: u32) -> u32 {
+        use rand::Rng;
+        self.rng.gen_range(1..=sides.max(1))
+    }
+
+    /// Each figure of the unit must pass a resistance check against `realm` (with `modifier`
+    /// added to the resistance) or be destroyed; with `below`, the whole unit goes if its
+    /// resistance plus `modifier` is under it. `None` if the unit is immune to the spell
+    /// (`immune` abilities, or protected by a spell it carries).
+    pub fn spell_slay(
+        &mut self,
+        target: usize,
+        realm: Realm,
+        modifier: i32,
+        immune: &[String],
+        below: Option<i32>,
+    ) -> Option<Damage> {
+        let unit = &self.units[target];
+        if immune.iter().any(|i| unit.has(i)) {
+            return None;
+        }
+        let mut state = unit.defender_state();
+        let dmg = if let Some(limit) = below {
+            let ids: Vec<&str> = state.enchantments.iter().map(String::as_str).collect();
+            let res = effective_resistance(state.resistance, &state.immunities, Some(realm), &ids);
+            if res + modifier < limit {
+                let all = state.hit_points();
+                unblockable(&mut state, all)
+            } else {
+                Damage::default()
+            }
+        } else {
+            let rng: &mut dyn RngCore = &mut self.rng;
+            let mut total = Damage::default();
+            for _ in 0..state.figures {
+                if state.resistance_failure(Some(realm), modifier, rng) > 0 {
+                    total += kill_figure(&mut state);
+                }
+            }
+            total
+        };
         self.units[target].set_from(&state);
         Some(dmg)
     }
@@ -239,6 +288,8 @@ impl Battle {
         grants: &[String],
     ) {
         let unit = &mut self.units[target];
+        // The base is the unit without the battlefield spells' changes too.
+        unit.take_off_field();
         if unit.base.is_none() {
             let mut base = unit.clone();
             base.base = None;
@@ -261,6 +312,7 @@ impl Battle {
     ) {
         let unit = &mut self.units[target];
         unit.restore_stats_from(&base);
+        unit.field = Default::default();
         unit.base = Some(Box::new(base));
         unit.combat_spells = kept;
         for (id, mods, grants) in lasting {
@@ -338,6 +390,7 @@ impl BattleUnit {
         self.defense = base.defense;
         self.resistance = base.resistance;
         self.to_hit = base.to_hit;
+        self.to_block = base.to_block;
         self.hits = base.hits;
         self.moves = base.moves;
         self.moves_left = self.moves_left.min(base.moves);
