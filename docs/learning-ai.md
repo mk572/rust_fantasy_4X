@@ -281,7 +281,8 @@ two outcomes mirror each other:
 
 ```
 won:   reward =  1 - stakes * (own units lost / own units sent)
-lost:  reward = -1 + (enemy units destroyed / enemy units fielded)
+lost:  reward = -1 + (enemy units destroyed + own units saved by fleeing)
+                     / (enemy units fielded + own units sent)
        - small * (mana spent / mana_budget)          (both cases)
 ```
 
@@ -292,7 +293,10 @@ lost:  reward = -1 + (enemy units destroyed / enemy units fielded)
   win with every unit lost and `stakes` 1 is 0 too, never below it.
 - Losing with the most enemy units destroyed is therefore the aim when the fight is
   overwhelming; `stakes` only changes how the agent weighs its own losses when it can win.
-- Fleeing (when `may_flee`) counts as a loss with the enemy units destroyed so far.
+- **Fleeing** (when `may_flee`) ends the battle as a loss, and every own unit that gets away
+  counts the same as an enemy unit destroyed. So fleeing pays in a battle where the agent is
+  unlikely to get any kills, and fighting on pays when it can destroy more enemy units than it
+  would save by leaving: that trade is what the agent learns.
 - A small per-step cost stops stalling; a battle that runs to the 100-turn limit is a loss for
   both.
 - Sampling `stakes` and `mana_budget` at random during training is what makes the policy obey
