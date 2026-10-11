@@ -1,6 +1,6 @@
 //! What a city is building, buying it, and finishing it.
 
-use crate::city::{City, Position};
+use crate::city::{City, PlayerId, Position};
 use crate::economy::{Buildings, CityRace};
 use crate::rules::{BuildingId, Stat, UnitId, UnitKind};
 use crate::units::Experience;
@@ -276,9 +276,10 @@ impl Game {
                 if let Ok(mut buildings) = self.world.get::<&mut Buildings>(city) {
                     buildings.0.push(b);
                 }
-                // Surplus production is lost; the city falls back to housing.
+                // Surplus production is lost; the city falls back to housing, unless the
+                // Grand Vizier picks the next building.
                 p = Production {
-                    item: Some(ProductionItem::Housing),
+                    item: Some(self.vizier_choice(city, owner).unwrap_or(ProductionItem::Housing)),
                     progress: 0,
                 };
             }
@@ -292,5 +293,47 @@ impl Game {
         }
         let _ = self.world.insert_one(city, p);
         Some(item)
+    }
+
+    /// What the Grand Vizier has the city build next: the first building in the rules'
+    /// `autobuild_order` that the city can build and whose upkeep the treasury can bear.
+    /// `None` when the player has not asked for the Vizier or nothing is left to build.
+    pub fn vizier_choice(&self, city: hecs::Entity, owner: PlayerId) -> Option<ProductionItem> {
+        if !self.player(owner)?.grand_vizier {
+            return None;
+        }
+        // An outpost builds nothing; housing is what makes it grow.
+        if self.city_economy(city).is_none_or(|e| e.figures == 0) {
+            return None;
+        }
+        let rules = &self.content.rules;
+        let net = self.treasury(owner).net_gold();
+        rules
+            .config
+            .autobuild_order
+            .iter()
+            .filter_map(|name| rules.buildings.id_of(name))
+            .filter(|&b| self.can_build(city, ProductionItem::Building(b)).is_ok())
+            .find(|&b| net >= rules.buildings.get(b).upkeep_gold as i32)
+            .map(ProductionItem::Building)
+    }
+
+    /// Turning the Vizier on: cities with nothing to build (or housing) get a building now.
+    pub(crate) fn vizier_fills_idle_cities(&mut self, player: PlayerId) {
+        for (city, c, _) in self.cities() {
+            if c.owner != player {
+                continue;
+            }
+            let idle = matches!(
+                self.city_production(city).item,
+                None | Some(ProductionItem::Housing)
+            );
+            if !idle {
+                continue;
+            }
+            if let Some(item) = self.vizier_choice(city, player) {
+                let _ = self.world.insert_one(city, Production { item: Some(item), progress: 0 });
+            }
+        }
     }
 }

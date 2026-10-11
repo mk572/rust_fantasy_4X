@@ -372,3 +372,14 @@ fn the_new_command_takes_the_settings_by_name() {
     let r = c.execute(&mut game, "new 3 difficulty=nightmare");
     assert!(matches!(r.error, Some(ConsoleError::Parse(_))));
 }
+
+#[test]
+fn the_vizier_command_turns_the_vizier_on_and_off() {
+    let (mut g, mut c) = (game(), console());
+    assert!(!g.player(HUMAN).unwrap().grand_vizier);
+    assert!(c.execute(&mut g, "vizier on").error.is_none());
+    assert!(g.player(HUMAN).unwrap().grand_vizier);
+    assert!(c.execute(&mut g, "vizier off").error.is_none());
+    assert!(!g.player(HUMAN).unwrap().grand_vizier);
+    assert!(c.execute(&mut g, "vizier maybe").error.is_some());
+}

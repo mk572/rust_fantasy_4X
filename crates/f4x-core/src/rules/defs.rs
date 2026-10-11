@@ -293,6 +293,8 @@ pub struct RulesConfig {
     /// Unrest (in tens of percent) in a city of one race under a capital of another:
     /// `racial_unrest[capital race][city race]`, indexed in race file order. Empty means none.
     pub racial_unrest: Vec<Vec<i8>>,
+    /// Building ids in the order the Grand Vizier picks them (our own list).
+    pub autobuild_order: Vec<String>,
 }
 
 impl Default for RulesConfig {
@@ -304,6 +306,7 @@ impl Default for RulesConfig {
             max_city_size: 25,
             tax_unrest_percent: vec![0, 10, 20, 30, 45, 60, 75],
             racial_unrest: Vec::new(),
+            autobuild_order: Vec::new(),
         }
     }
 }

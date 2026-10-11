@@ -21,6 +21,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 13 | Map | Teleporting and merging movement (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
+| 16 | City | Autobuild (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
@@ -93,6 +94,8 @@ its feature; the founding check (`city::check_site`) now follows the original's
 `Map_Square_Survey`: a tower (on either plane) or a node always blocks, an encounter site only
 while its lair record is intact. Tests in `city.rs`.
 
+**10. New-game settings (done; the generator port is task 150).** A new `Options` screen (`options_screen.rs`, the original's `Newgame_Screen_0`) comes after New Game in the start menu and before the wizard: difficulty (Intro, Easy, Average, Hard, Impossible), opponents (1 to 4), land size (Small 15%, Medium 20%, Large 30% of each plane, the figures of ReMoM's `NEWG_CreateLands`, not the 15/20/25 the old task text said) and magic power (Weak, Normal, Powerful); Cancel returns to the menu, OK goes on. `setup::NewGame` takes `land_percent`, `difficulty`, `magic_strength` and a finished `build` for the human; the game keeps `difficulty` beside `magic_strength` and both are saved (older saves read as average). The client now starts games through `setup::new_game`, so every wizard gets a fortress and a starting force, spread round the map, and the camera opens on the human's fortress (before, only the human had a city and the rival none). The console's `new` takes `land=`, `difficulty=` and `magic=`. Open: the map seed is still the command-line seed; difficulty only affects lair guards and treasure so far, not the AI or the final score (`endgame::scale_for_difficulty` is not called yet).
+
 **11. Roads and engineers (done).** `roads.rs`: units with the `Construction` stat (engineers: 1,
 2 for the dwarven ones; the importer now reads it) take `Command::BuildRoad` with a path; a
 square takes 3 turns on grassland, 4 desert, 6 forest, hills and tundra, 8 mountains and swamp,
@@ -123,6 +126,8 @@ their `Sight` stat (the importer reads it; scouting levels are not separate).
 
 **15. Fortress and summoning circle (done).** Implemented in `fortress.rs`; see `magic.md`
 section 12. What is left is split off as task 82.
+
+**16. Autobuild (done).** The original's Grand Vizier is a per-player switch (`grand_vizier` in its save): when a city finishes something, the game chooses what it builds next. Here: `Player::grand_vizier` (saved), `Command::SetGrandVizier`, and `Game::vizier_choice`: the first building in `rules.config.autobuild_order` (data: `content/rules.ron`, written by the importer) that the city can build and whose gold upkeep the treasury's net income can bear; outposts are left alone. When a building completes the city takes that choice instead of housing; turning the Vizier on gives cities that are idle or on housing a building at once. Units and trade goods are never chosen. The list is ours: the original's rules for the Vizier are not documented in the reference material (only its call sites), so how it chooses differs. Client: F8 toggles it (a log line; the original's yes/no window is not drawn). Console: `vizier on|off`. A smarter chooser is item 7 in PLANNED.md.
 
 **19. Forester's Guild raises the growth cap (done).** The city's maximum size already counts the
 guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on barren land
@@ -254,6 +259,3 @@ the original's road masking (the whole grid is drawn), animation of buildings an
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
 
 **145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.
-
-**10. New-game settings (done; the generator port is task 150).** A new `Options` screen (`options_screen.rs`, the original's `Newgame_Screen_0`) comes after New Game in the start menu and before the wizard: difficulty (Intro, Easy, Average, Hard, Impossible), opponents (1 to 4), land size (Small 15%, Medium 20%, Large 30% of each plane, the figures of ReMoM's `NEWG_CreateLands`, not the 15/20/25 the old task text said) and magic power (Weak, Normal, Powerful); Cancel returns to the menu, OK goes on. `setup::NewGame` takes `land_percent`, `difficulty`, `magic_strength` and a finished `build` for the human; the game keeps `difficulty` beside `magic_strength` and both are saved (older saves read as average). The client now starts games through `setup::new_game`, so every wizard gets a fortress and a starting force, spread round the map, and the camera opens on the human's fortress (before, only the human had a city and the rival none). The console's `new` takes `land=`, `difficulty=` and `magic=`. Open: the map seed is still the command-line seed; difficulty only affects lair guards and treasure so far, not the AI or the final score (`endgame::scale_for_difficulty` is not called yet).
-

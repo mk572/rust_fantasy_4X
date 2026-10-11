@@ -148,6 +148,11 @@ pub enum Command {
         player: city::PlayerId,
         rate: u8,
     },
+    /// Let the Grand Vizier choose what the player's cities build (`production::autobuild`).
+    SetGrandVizier {
+        player: city::PlayerId,
+        on: bool,
+    },
     /// Split the power base between mana, research and casting skill (percent, sum 100).
     SetPowerSplit {
         player: city::PlayerId,
@@ -623,6 +628,15 @@ impl Game {
                     .saturating_sub(1) as u8;
                 if let Some(p) = self.player_mut(player) {
                     p.tax_rate = rate.min(max);
+                }
+                Vec::new()
+            }
+            Command::SetGrandVizier { player, on } => {
+                if let Some(p) = self.player_mut(player) {
+                    p.grand_vizier = on;
+                }
+                if on {
+                    self.vizier_fills_idle_cities(player);
                 }
                 Vec::new()
             }

@@ -151,6 +151,9 @@ pub struct PlayerSave {
     pub gold: i32,
     pub mana: i32,
     pub tax_rate: u8,
+    /// The Grand Vizier chooses what the cities build.
+    #[serde(default)]
+    pub grand_vizier: bool,
     pub capital_race: Option<String>,
     pub fame: i32,
     /// Absent in saves from before wizards existed.
@@ -491,6 +494,7 @@ impl Game {
                 gold: p.gold,
                 mana: p.mana,
                 tax_rate: p.tax_rate,
+                grand_vizier: p.grand_vizier,
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
@@ -704,6 +708,7 @@ impl Snapshot {
                 gold: p.gold,
                 mana: p.mana,
                 tax_rate: p.tax_rate,
+                grand_vizier: p.grand_vizier,
                 capital_race,
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
@@ -1113,6 +1118,7 @@ mod tests {
         let mut p = Player::new(P0, "Merlin");
         p.gold = 300;
         p.tax_rate = 2;
+        p.grand_vizier = true;
         g.players.push(p);
         g.players.push(Player::new(PlayerId(1), "Rival"));
         let elf = g.content.rules.races.id_of("elf");
@@ -1189,6 +1195,7 @@ mod tests {
         assert_eq!(back.cities().len(), 3);
         assert_eq!(back.all_units().len(), g.all_units().len());
         assert_eq!(back.player(P0).unwrap().gold, g.player(P0).unwrap().gold);
+        assert!(back.player(P0).unwrap().grand_vizier);
         // Details that are easy to lose: roads, features, exploration, orders, the outpost.
         let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
         assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));

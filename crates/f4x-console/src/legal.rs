@@ -44,6 +44,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
+    legal!("vizier", "vizier <on|off>", "The Grand Vizier chooses what your cities build when they finish a building.", vizier),
     legal!("power", "power <mana> <research> <skill>", "Split your power base between mana, research and casting skill (percent, summing to 100).", power),
     legal!("research", "research <spell>", "Choose the spell to research.", research),
     legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N; give it now if the spell is paid in full this turn.", cast),
@@ -238,6 +239,18 @@ fn tax(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let rate = a.int(0, "rate")?.clamp(0, 255) as u8;
     let player = ctx.session.player;
     ctx.apply(Command::SetTaxRate { player, rate })
+}
+
+fn vizier(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let on = match a.need(0, "on or off")?.to_lowercase().as_str() {
+        "on" | "yes" | "1" => true,
+        "off" | "no" | "0" => false,
+        other => return Err(ConsoleError::Parse(format!("{other:?} is not on or off"))),
+    };
+    let player = ctx.session.player;
+    ctx.apply(Command::SetGrandVizier { player, on })?;
+    ctx.say(format!("Grand Vizier {}", if on { "on" } else { "off" }));
+    Ok(())
 }
 
 fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

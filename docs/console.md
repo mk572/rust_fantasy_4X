@@ -106,7 +106,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Engineers build a road; purify; meld a node; change plane; teleport by Earth Gate | `road <units> [pos ...]`, `purify`, `meld`, `shift`, `gate <units> <city pos>` |
 | Assault a lair, tower or node | `enter <units> <pos>` |
 | City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `sell <city> <building>` |
-| Tax rate, power split | `tax <rate>`, `power <mana> <research> <skill>` |
+| Tax rate, power split, Grand Vizier | `tax <rate>`, `power <mana> <research> <skill>`, `vizier <on\|off>` |
 | Choose research | `research <spell>` |
 | Cast; aim a spell paid over turns; give up a cast | `cast <spell> [target]`, `target <target>`, `cancelcast` |
 | Alchemy | `alchemy <amount> <gold\|mana>` (converts that much gold into mana, or mana into gold) |

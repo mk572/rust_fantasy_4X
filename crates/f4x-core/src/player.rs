@@ -29,6 +29,8 @@ pub struct Player {
     /// The banner colour: 0 blue, 1 green, 2 purple, 3 red, 4 yellow (5, brown, is the
     /// neutral player's). Flags, cities and units are drawn in it.
     pub banner: u8,
+    /// The Grand Vizier chooses what this player's cities build next.
+    pub grand_vizier: bool,
 }
 
 /// The banner of the neutral player and of monsters.
@@ -58,6 +60,7 @@ impl Player {
             } else {
                 id.0 % BANNER_CHOICES
             },
+            grand_vizier: false,
         }
     }
 }

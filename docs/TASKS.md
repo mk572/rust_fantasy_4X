@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level (low priority) |
 | 18 | City | Weapon quality from mithril and adamantium (low priority) |
 | 20 | City | Population growth edge rules (B19) |
@@ -145,9 +144,6 @@ the worked-area food and production of cities, and spells that set it.
 aura [653-656], and warping by spells. Depends on 6.
 
 ### City and economy
-
-**16. Autobuild.** The production queue has no automatic mode. Add an autobuild order that picks
-the next sensible building, as the original's city screen does.
 
 **17. Selling buildings: prerequisites beyond one level.** Selling a building currently checks only
 direct prerequisites. Block selling where later buildings depend on it through a chain. Low priority.

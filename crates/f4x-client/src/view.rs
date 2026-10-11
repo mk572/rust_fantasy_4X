@@ -656,6 +656,18 @@ impl App {
         if is_key_pressed(KeyCode::F5) {
             self.save_to(Path::new(QUICKSAVE));
         }
+        if is_key_pressed(KeyCode::F8) {
+            let on = !self.game.player(HUMAN).is_some_and(|p| p.grand_vizier);
+            self.game.apply(Command::SetGrandVizier { player: HUMAN, on });
+            self.log.push(
+                if on {
+                    "Grand Vizier on: your cities choose their next building"
+                } else {
+                    "Grand Vizier off"
+                }
+                .into(),
+            );
+        }
         if is_key_pressed(KeyCode::F9) {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
                 self.log.push(format!("Load failed: {e}"));
@@ -1035,7 +1047,7 @@ impl App {
                 "click select      right-click go      B settle / build road      U meld spirit",
                 "C city      P plane-shift      F stop      T balance farmers      M magic",
                 "Tab other plane      +/- zoom      arrows pan      Enter end turn",
-                "Ctrl-Z undo      F5 quick-save      F9 quick-load      N new map      R next race      Esc game menu",
+                "Ctrl-Z undo      F5 quick-save      F9 quick-load      F8 Grand Vizier      N new map      R next race      Esc game menu",
             ];
             let box_w = m.w * 0.9;
             draw_rectangle(

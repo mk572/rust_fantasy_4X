@@ -20,7 +20,7 @@ Done since this list was written (each with tests; see `crates/f4x-core`):
   with shared tiles; production queue, buying, selling, replaced buildings; units trained
   at guild experience; the treasury (food sold for gold, upkeep, disbanding the unpaid);
   healing; outposts and settlers. Not done: roads built by engineers, sold-building
-  prerequisites beyond one level, weapon quality (mithril/adamantium), autobuild.
+  prerequisites beyond one level, weapon quality (mithril/adamantium).
 - **Client:** units, selection, orders, fog, treasury, city screen with production menu.
 
 Still open: wizards and the spell system (step 6), combat (step 7, deliberately paused),

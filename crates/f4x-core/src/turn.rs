@@ -914,6 +914,97 @@ mod tests {
         assert_eq!(g.can_build(port, ProductionItem::Unit(galley)), Ok(()));
     }
 
+    /// A city that has just finished the barracks, with the Vizier's list set.
+    fn vizier_city(on: bool) -> (Game, hecs::Entity) {
+        let mut g = world();
+        g.content.rules.config.autobuild_order = ["barracks", "fighters_guild", "granary", "nope"]
+            .map(String::from)
+            .to_vec();
+        let city = found(&mut g, at(10, 6), "elf", 4);
+        g.apply(Command::SetGrandVizier { player: P0, on });
+        let barracks = building(&g, "barracks");
+        g.set_production(city, ProductionItem::Building(barracks))
+            .unwrap();
+        (g, city)
+    }
+
+    #[test]
+    fn without_the_vizier_a_finished_building_leaves_the_city_on_housing() {
+        let (mut g, city) = vizier_city(false);
+        g.apply_production(city, 1000);
+        assert_eq!(g.city_production(city).item, Some(ProductionItem::Housing));
+    }
+
+    #[test]
+    fn the_vizier_picks_the_next_building_in_the_list() {
+        let (mut g, city) = vizier_city(true);
+        g.apply_production(city, 1000);
+        let guild = building(&g, "fighters_guild");
+        assert_eq!(
+            g.city_production(city).item,
+            Some(ProductionItem::Building(guild)),
+            "barracks done, so the guild that needs it comes next"
+        );
+        g.apply_production(city, 1000);
+        let granary = building(&g, "granary");
+        assert_eq!(
+            g.city_production(city).item,
+            Some(ProductionItem::Building(granary))
+        );
+        g.apply_production(city, 1000);
+        assert_eq!(
+            g.city_production(city).item,
+            Some(ProductionItem::Housing),
+            "nothing left on the list"
+        );
+    }
+
+    #[test]
+    fn the_vizier_skips_what_the_treasury_cannot_keep() {
+        let (mut g, city) = vizier_city(true);
+        g.player_mut(P0).unwrap().tax_rate = 0;
+        let net = g.treasury(P0).net_gold();
+        add_building(&mut g, city, "barracks");
+        assert!(
+            net < 3,
+            "the test needs a poor treasury, net is {net} gold a turn"
+        );
+        assert_eq!(
+            g.vizier_choice(city, P0),
+            Some(ProductionItem::Building(building(&g, "granary"))),
+            "the guild costs 3 a turn and is skipped"
+        );
+    }
+
+    #[test]
+    fn turning_the_vizier_on_gives_idle_cities_a_building() {
+        let (mut g, city) = vizier_city(false);
+        g.set_production(city, ProductionItem::Housing).unwrap();
+        g.apply(Command::SetGrandVizier { player: P0, on: true });
+        let barracks = building(&g, "barracks");
+        assert_eq!(
+            g.city_production(city).item,
+            Some(ProductionItem::Building(barracks))
+        );
+        // A city already building something is left alone.
+        let other = found(&mut g, at(16, 6), "elf", 4);
+        let granary = building(&g, "granary");
+        g.set_production(other, ProductionItem::Building(granary))
+            .unwrap();
+        g.apply(Command::SetGrandVizier { player: P0, on: true });
+        assert_eq!(
+            g.city_production(other).item,
+            Some(ProductionItem::Building(granary))
+        );
+    }
+
+    #[test]
+    fn the_vizier_leaves_outposts_alone() {
+        let (mut g, _) = vizier_city(true);
+        let outpost = found(&mut g, at(4, 6), "elf", 0);
+        assert_eq!(g.vizier_choice(outpost, P0), None);
+    }
+
     #[test]
     fn buying_costs_more_the_less_is_done() {
         let mut g = world();
