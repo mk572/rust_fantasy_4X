@@ -394,7 +394,9 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
         if s.contexts.is_empty() {
             p.push(format!("{who} can be cast in no context"));
         }
-        if s.effects.is_empty() {
+        // A lasting spell may carry no effects of its own when the engine reads it by name
+        // (Resist Elements adds to resistance against some realms only).
+        if s.effects.is_empty() && s.duration == Duration::Instant {
             p.push(format!("{who} has no effects"));
         }
         if s.duration == Duration::Turns(0) {

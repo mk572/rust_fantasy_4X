@@ -22,7 +22,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
-| 35 | Combat | Immunities and resistance rolls |
 | 36 | Combat | Special attacks (low priority) |
 | 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 153 | Magic | Dispelling temporary effects |
 | 154 | Meta | Raiders from neutral cities |
 | 155 | Core | Starting setup: the original's random placement and AI race rules |
+| 156 | Combat | Defence bonuses of enchantments and the undead's immunities |
 
 ## Descriptions
 
@@ -167,11 +167,7 @@ combat-level exception from B9). Warlord retort needs task 53. Low priority: onl
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
 and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
 
-### Combat (paused)
-
-**35. Immunities and resistance rolls.** All the immunities and their numbers: weapon immunity (10
-defence against magic), magic immunity (50), missiles, fire, cold, poison, stoning, death,
-illusion [412-420]; resistance rolls with spell penalties.
+### Combat
 
 **36. Special attacks.** Armor piercing (halves defence), illusion (ignores armour), chaos damage
 (ignores everything), life steal (turns victims undead), poison per level, stoning, cause death,
@@ -591,3 +587,5 @@ Parity task, low priority.
 **154. Raiders from neutral cities.** The original's `Make_Raiders` (once per turn, the neutral player's event): an accumulator gains `Random(difficulty + 1)` each turn; at 30 it resets and, from a random neutral city that has a garrison and shares a landmass with a wizard's city, sends out `garrison * difficulty / 6` raiders (fewer near an AI fortress, half on Myrror before turn 200, experience cap rising with the turn), and the city loses a third of its garrison. Raiders attack the nearest wizard's city. It is an event for every player alike, so it follows design.md section 8. Reference: `reference/ReMoM/doc/ComputerPlayer/AIDATA-Make_Raiders.md`. Depends on 31 (done) and the AI or a simple raider mover; related to 68 (random events) and 69 (difficulty).
 
 **155. Starting setup: the original's random placement and AI race rules.** Task 32 brought the start in line with the original's `Generate_Home_Cities` (capital of four with three farmers, spearmen and swordsmen, smithy, barracks and builders hall, tax index 2, Myrran wizards on Myrror, sites that feed eight). Left out: (1) the original picks fortress sites at random (1000 tries per distance, fortress distance 16 relaxing to 10, node/tower/lair distance 7 relaxing to 1, halved in the check) while ours takes the nearest fitting site to a spread-out anchor, and measures every distance with `Range` where the original uses the wrapping delta for fortresses, nodes and lairs; (2) AI races: up to normal difficulty any of the nine Arcanus races, above it only Klackon, High Elf, Halfling, High Men and Nomad (a bias against the AI that design.md section 8 may rule out; decide), and a High Elf capital is moved off non-forest only by accident in the original; (3) starting gold: the original gives the human `(5 - difficulty) * 25` and every AI 150, ours gives everyone 100 by decision, and the AI's flat 150 would be an AI bonus; (4) fame 10 for the Famous retort (check it is set). Low priority.
+
+**156. Defence bonuses of enchantments and the undead's immunities.** Task 35 did immunities and resistance. Still open from the same original code: the unit enchantments that add *defence* against ranged magic of a realm (Elemental Armor +10 against chaos and nature, Resist Elements +3, Bless +3 against chaos and death), and the spells themselves, which the importer still leaves as `unimplemented`: Elemental Armor, Bless, Righteousness (their resistance part is done), Resist All and Invulnerability (-2 damage per hit). Undead should also gain cold, poison and illusion immunity (decision B10 in `help-vs-implementation-conflicts.md`), which belongs with task 29. Give `effective_defense` a realm bonus parameter and apply the spell tables in `immunity.rs`.

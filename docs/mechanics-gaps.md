@@ -23,7 +23,7 @@ Done since this list was written (each with tests; see `crates/f4x-core`):
   prerequisites beyond one level, weapon quality (mithril/adamantium).
 - **Client:** units, selection, orders, fog, treasury, city screen with production menu.
 
-Still open: wizards and the spell system (step 6), combat (step 7, deliberately paused),
+Still open: wizards and the spell system (step 6), combat (step 7),
 diplomacy, AI, random events, victory and score.
 
 ## Corrections already made to imported data

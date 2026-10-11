@@ -106,6 +106,7 @@ impl Game {
             first_strike: has("first_strike"),
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
+            magical_weapon: self.unit_has_magical_weapon(unit),
             abilities: abilities.clone(),
             status: Status::Active,
             attacked: false,

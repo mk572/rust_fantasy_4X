@@ -95,11 +95,19 @@ pub enum Effect {
     },
     GrantAbility(String),
     RemoveAbility(String),
-    /// `resistible`: the target gets a resistance check.
+    /// `resistible`: the target gets a resistance check, against `realm` with `resist_modifier`
+    /// added to its resistance (negative for a spell that is hard to resist). A target with
+    /// one of the `immune` abilities (`fire_immunity`, `magic_immunity`, ...) takes nothing.
     Damage {
         amount: i32,
         kind: DamageKind,
         resistible: bool,
+        #[serde(default)]
+        immune: Vec<String>,
+        #[serde(default)]
+        realm: Option<String>,
+        #[serde(default)]
+        resist_modifier: i32,
     },
     Heal(i32),
     AddResource {

@@ -881,3 +881,120 @@ fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
     assert_eq!(b.counter_magic, [0, 0]);
     assert!(!b.counter_magic_stops(Side::Attacker, 1));
 }
+
+/// Hit points a unit lost over many seeded one-round fights: `attacker` strikes (or shoots) at
+/// `target`, which is put next to it.
+fn damage_over_seeds(
+    attacker: impl Fn() -> BattleUnit,
+    target: impl Fn() -> BattleUnit,
+    shoot: bool,
+) -> i32 {
+    let mut total = 0;
+    for seed in 0..300 {
+        let mut b = duel(attacker(), target(), seed);
+        let command = if shoot {
+            BattleCommand::Shoot { unit: 0, target: 1 }
+        } else {
+            BattleCommand::Attack { unit: 0, target: 1 }
+        };
+        b.apply(command).unwrap();
+        total += b.unit(1).unwrap().max_hit_points() - b.unit(1).unwrap().hit_points();
+    }
+    total
+}
+
+fn with_abilities(mut u: BattleUnit, names: &[&str]) -> BattleUnit {
+    u.abilities = names.iter().map(|s| s.to_string()).collect();
+    u
+}
+
+fn dummy(abilities: &[&str]) -> BattleUnit {
+    with_abilities(
+        BattleUnit::simple(Side::Defender, "dummy", 60, 20, 0, 2).at((4, 10)),
+        abilities,
+    )
+}
+
+#[test]
+fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
+    let swordsman = || BattleUnit::simple(Side::Attacker, "swordsman", 6, 2, 4, 2).at((3, 10));
+    let magical = || BattleUnit {
+        magical_weapon: true,
+        ..swordsman()
+    };
+    let open = damage_over_seeds(swordsman, || dummy(&[]), false);
+    let stone = damage_over_seeds(swordsman, || dummy(&["weapon_immunity"]), false);
+    let stone_vs_magic = damage_over_seeds(magical, || dummy(&["weapon_immunity"]), false);
+    assert!(stone * 3 < open, "{stone} vs {open}");
+    let ratio = f64::from(stone_vs_magic) / f64::from(open);
+    assert!((ratio - 1.0).abs() < 0.1, "{ratio}");
+}
+
+#[test]
+fn missile_immunity_stops_arrows_completely() {
+    let archer = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "archer", 6, 1, 1, 1).at((3, 10));
+        u.ranged = 5;
+        u.ammo = 4;
+        u.ranged_kind = RangedKind::Missile;
+        with_abilities(u, &["bow"])
+    };
+    let open = damage_over_seeds(archer, || dummy(&[]), true);
+    let proof = damage_over_seeds(archer, || dummy(&["missile_immunity"]), true);
+    assert!(open > 20, "{open}");
+    assert_eq!(proof, 0);
+}
+
+#[test]
+fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
+    let mage = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "mage", 3, 1, 1, 1).at((3, 10));
+        u.ranged = 6;
+        u.ammo = 4;
+        u.ranged_kind = RangedKind::Magic;
+        with_abilities(u, &["fireball_attack"])
+    };
+    let open = damage_over_seeds(mage, || dummy(&[]), true);
+    let warded = damage_over_seeds(mage, || dummy(&["magic_immunity"]), true);
+    let fireproof = damage_over_seeds(mage, || dummy(&["fire_immunity"]), true);
+    assert!(open > 20, "{open}");
+    assert_eq!(warded, 0);
+    // The bolt is magic, not fire (only fire breath is stopped by fire immunity).
+    assert!(fireproof * 10 > open * 9, "{fireproof} vs {open}");
+}
+
+#[test]
+fn fire_breath_is_stopped_by_fire_immunity_and_magic_immunity() {
+    let dragon = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "dragon", 1, 20, 1, 1).at((3, 10));
+        u.ranged = 9;
+        u.ranged_kind = RangedKind::Short;
+        with_abilities(u, &["fire_breath"])
+    };
+    let open = damage_over_seeds(dragon, || dummy(&[]), false);
+    assert!(open > 0);
+    for ability in ["fire_immunity", "magic_immunity"] {
+        // The melee blow that follows the breath still lands, so compare with a unit that
+        // takes only that: the breath's share is gone.
+        let shielded = damage_over_seeds(dragon, || dummy(&[ability]), false);
+        assert!(shielded * 2 < open, "{ability}: {shielded} vs {open}");
+    }
+}
+
+#[test]
+fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
+    let thief = || {
+        with_abilities(
+            BattleUnit::simple(Side::Attacker, "nightblade", 4, 2, 4, 1).at((3, 10)),
+            &["illusion_attack"],
+        )
+    };
+    let armoured = |names: &[&str]| {
+        let mut u = dummy(names);
+        u.defense = 8;
+        u
+    };
+    let plain = damage_over_seeds(thief, || armoured(&[]), false);
+    let seen = damage_over_seeds(thief, || armoured(&["illusion_immunity"]), false);
+    assert!(plain > seen * 2, "{plain} vs {seen}");
+}

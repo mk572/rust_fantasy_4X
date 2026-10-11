@@ -53,8 +53,56 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
   it throws or breathes.
 - **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
 
-Not yet (task 35-37): immunities and resistance rolls, gazes, touches, life steal, armour
-piercing and illusion, large shield, the spell shots using mana, haste, blur.
+Not yet (task 36-37): gazes, touches, life steal, armour piercing, large shield, the spell
+shots using mana, haste, blur.
+
+### 2.1 Immunities and resistance (task 35)
+
+`battle/immunity.rs` holds the rules as pure functions; the dice code asks it for the defence
+to roll against each attack (`attack::process_attack`).
+
+- **An attack has a nature** (`AttackNature`): the immunities that stop it, and its realm if it
+  is magical. Melee blows, arrows and slings, boulders and thrown weapons are *normal weapons*
+  unless the attacker's weapon is magical. Arrows and slings are also *missiles*, fire breath
+  is *fire*, every spell shot (fireball, lightning, ice, nature, sorcery, death, drow, sprite,
+  shaman bolts) is *magic* with its realm, lightning breath has a realm but no immunity, and
+  the `illusion_attack` ability makes any of a unit's attacks an *illusion*.
+- **A unit's immunities** are its abilities `weapon_immunity`, `magic_immunity`,
+  `missile_immunity`, `fire_immunity`, `cold_immunity`, `poison_immunity`, `stoning_immunity`,
+  `death_immunity` and `illusion_immunity` (`Immunities::of`). Lasting spells can grant them:
+  a passive `GrantAbility` effect on a spell is read by `Game::unit_abilities` (Magic Immunity
+  grants `magic_immunity`, Guardian Wind `missile_immunity`).
+- **The defence rolled** (`effective_defense`, the original's `Battle_Unit_Defense_Special`):
+  1. An illusion rolls no defence at all (0) unless the defender has illusion immunity.
+  2. Against anything but melee, an immunity in common with the attack makes the defence 50.
+  3. Weapon immunity against a normal weapon (melee, arrow, boulder or thrown) makes the
+     defence at least 10, and this *replaces* the stop in step 2: a unit with both weapon and
+     missile immunity gets 10, not 50, against normal arrows (the original's order, kept).
+  4. Magic immunity makes the defence 50 against any non-melee attack that has a realm (spell
+     shots and breath).
+- **Magical weapons** (`Game::unit_has_magical_weapon`) ignore weapon immunity: heroes,
+  fantastic and summoned creatures, and units with the `magical_weapon` ability (Flame Blade
+  and Holy Weapon grant it). The original also uses a Chaos or Black Channels race change,
+  Eldritch Weapon, and mithril and adamantium weapons (task 18).
+- **One fix from ReMoM's `OGBUG` notes is used:** thrown normal weapons *are* stopped by weapon
+  immunity (the original's test for them can never match). Cold immunity is not set by any unit
+  attack in the original, only by the Ice Bolt and Ice Storm spell data, so a unit's ice bolt is
+  stopped by magic immunity alone.
+- **Spells** (`Effect::Damage`): the spell's data lists who it cannot hurt (`immune`, read from
+  the spell table's immunity byte: Fire Bolt stops fire and magic immunity, Ice Bolt cold and
+  magic, Psionic Blast illusion and magic, Life Drain magic and death immunity), and Righteousness
+  makes a unit proof against chaos and death spells outright (`EffectHost::protected_from`).
+  The damage itself is still the spell's flat amount; dice against the defence come with task 43.
+- **Resistance** (`effective_resistance`, `resistance_failure`): a ten-sided die rolling above
+  the resistance fails, by the amount it beats it. A spell's `resist_modifier` (negative for a
+  spell that is hard to resist) is added first. Magic immunity adds 30 against any realm;
+  Righteousness +30 and Bless +3 against chaos and death; Elemental Armor +10, or else Resist
+  Elements +3, against chaos and nature; Resist Magic +5 against any realm. They are read from
+  the unit's lasting spells by name (`Game::unit_resistance_against`), so Resist Elements and
+  Resist Magic have no flat resistance modifier any more.
+- **Not here:** the defence bonuses the same enchantments give against ranged magic (Elemental
+  Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
+  gazes and touches that call a resistance check (36), mithril and adamantium weapons (18).
 
 ## 3. The tactical map and the turn (task 40)
 

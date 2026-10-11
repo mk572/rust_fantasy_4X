@@ -12,6 +12,7 @@
 pub mod ai;
 pub mod attack;
 pub mod game;
+pub mod immunity;
 pub mod map;
 
 use rand::{RngCore, SeedableRng};
@@ -19,7 +20,8 @@ use rand_pcg::Pcg64Mcg;
 
 use crate::city::{PlayerId, Position};
 
-use attack::{Combatant, DefenderState, Fighter};
+use attack::{Combatant, DefenderState, Fighter, Mode};
+use immunity::{AttackNature, Immunities};
 use map::{distance, BattleMap, Pos, OPEN_COST};
 
 /// A side never fights on past this turn: the defender holds.
@@ -99,6 +101,9 @@ pub struct BattleUnit {
     pub first_strike: bool,
     pub negate_first_strike: bool,
     pub long_range: bool,
+    /// Its weapons are magical, so weapon immunity does not stop its normal attacks: heroes,
+    /// fantastic and summoned creatures, units with a flaming or blessed blade.
+    pub magical_weapon: bool,
     pub abilities: Vec<String>,
     pub status: Status,
     /// Has attacked or shot this turn.
@@ -140,6 +145,7 @@ impl BattleUnit {
             first_strike: false,
             negate_first_strike: false,
             long_range: false,
+            magical_weapon: false,
             abilities: Vec::new(),
             status: Status::Active,
             attacked: false,
@@ -175,6 +181,7 @@ impl BattleUnit {
         DefenderState {
             hits: self.hits,
             defense: self.defense,
+            immunities: Immunities::of(&self.abilities),
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
@@ -194,6 +201,8 @@ impl BattleUnit {
             strength: self.melee,
             to_hit: self.to_hit,
             ignores_defense: false,
+            mode: Mode::Melee,
+            nature: AttackNature::of_unit_attack(Mode::Melee, &self.abilities, self.magical_weapon),
         }
     }
 
@@ -202,6 +211,12 @@ impl BattleUnit {
             strength: self.ranged,
             to_hit: self.to_hit,
             ignores_defense: false,
+            mode: Mode::ThrownOrBreath,
+            nature: AttackNature::of_unit_attack(
+                Mode::ThrownOrBreath,
+                &self.abilities,
+                self.magical_weapon,
+            ),
         })
     }
 }
@@ -610,6 +625,8 @@ impl Battle {
             strength: a.ranged,
             to_hit: a.to_hit - penalty,
             ignores_defense: false,
+            mode: Mode::Ranged,
+            nature: AttackNature::of_unit_attack(Mode::Ranged, &a.abilities, a.magical_weapon),
         };
         let figures = a.figures;
         let mut state = self.units[def].defender_state();

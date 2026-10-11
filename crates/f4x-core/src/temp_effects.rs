@@ -5,6 +5,8 @@
 //! through `unit_modifiers` and `unit_abilities`, cities through `city_modifiers`. Cities have
 //! no abilities, so granting or removing one there does nothing.
 
+use crate::battle::immunity::{effective_resistance, Immunities, Realm};
+use crate::rules::effects::{Condition, Effect, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::stats::passive_modifiers;
 use crate::rules::{ModOp, Modifier, Source, Stat};
@@ -89,13 +91,27 @@ impl Game {
             .collect()
     }
 
-    /// The unit's abilities now: its own, plus granted ones, minus removed ones. Effects apply in
-    /// the order they were added, so a later grant restores what an earlier removal took.
+    /// The unit's abilities now: its own, those its lasting spells grant (Magic Immunity,
+    /// Guardian Wind), plus temporary grants, minus temporary removals. Temporary effects apply
+    /// in the order they were added, so a later grant restores what an earlier removal took.
     pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<String> {
         let mut out = self
             .unit_def(unit)
             .map(|d| d.abilities.clone())
             .unwrap_or_default();
+        if let Ok(list) = self.world.get::<&crate::units::UnitEnchantments>(unit) {
+            for &(spell, _) in &list.0 {
+                for rule in &self.content.rules.spells.get(spell).effects {
+                    if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
+                        (rule.when, &rule.condition, &rule.effect)
+                    {
+                        if !out.contains(a) {
+                            out.push(a.clone());
+                        }
+                    }
+                }
+            }
+        }
         if let Ok(list) = self.world.get::<&TempEffects>(unit) {
             for t in &list.0 {
                 match &t.kind {
@@ -106,6 +122,54 @@ impl Game {
             }
         }
         out
+    }
+
+    /// Whether the unit's normal attacks count as magical, so weapon immunity does not stop
+    /// them: heroes, fantastic and summoned creatures, and anything with the `magical_weapon`
+    /// ability (a flaming or blessed blade).
+    pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
+        self.unit_def(unit)
+            .is_some_and(|d| d.kind != crate::rules::UnitKind::Normal)
+            || self
+                .unit_abilities(unit)
+                .iter()
+                .any(|a| a == "magical_weapon")
+    }
+
+    /// The ids of the lasting spells on a unit.
+    fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
+        self.world
+            .get::<&crate::units::UnitEnchantments>(unit)
+            .map(|list| {
+                list.0
+                    .iter()
+                    .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The unit's resistance against a spell or attack of `realm`: its own, plus what magic
+    /// immunity and its lasting spells add against that realm (`battle::immunity`).
+    pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
+        let ids = self.unit_enchantment_ids(unit);
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        effective_resistance(
+            self.unit_stat(unit, Stat::Resistance),
+            &Immunities::of(&self.unit_abilities(unit)),
+            realm,
+            &ids,
+        )
+    }
+
+    /// Whether the unit cannot be hurt by spells of `realm` at all: Righteousness against
+    /// chaos and death.
+    pub fn unit_protected_from(&self, unit: hecs::Entity, realm: Option<Realm>) -> bool {
+        matches!(realm, Some(Realm::Chaos | Realm::Death))
+            && self
+                .unit_enchantment_ids(unit)
+                .iter()
+                .any(|i| i == "righteousness")
     }
 
     /// The passive modifiers of every ability the unit has now.
@@ -154,9 +218,11 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::battle::immunity::Realm;
     use crate::city::{PlayerId, Position};
     use crate::map::{Grid, Map, Plane};
     use crate::player::Player;
+    use crate::rules::UnitKind;
     use crate::testutil::content_with_magic;
 
     const P0: PlayerId = PlayerId(0);
@@ -281,5 +347,72 @@ mod tests {
         host.remove_ability(Target::Unit(u), "flying");
         drop(host);
         assert!(!g.unit_has_ability(u, "flying"));
+    }
+
+    fn enchant(g: &mut Game, u: hecs::Entity, spell: &str) {
+        let id = g.content.rules.spells.id_of(spell).unwrap();
+        g.attach_enchantment(Target::Unit(u), id, P0);
+    }
+
+    #[test]
+    fn a_lasting_spell_can_grant_an_ability() {
+        let mut g = world();
+        let u = unit(&mut g, "spear");
+        assert!(!g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+        enchant(&mut g, u, "magic_immunity");
+        assert!(g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+        // A temporary removal still takes it away again.
+        g.remove_temp_ability(Target::Unit(u), "magic_immunity", None);
+        assert!(!g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+    }
+
+    #[test]
+    fn resistance_against_a_realm_counts_immunity_and_enchantments() {
+        let mut g = world();
+        let u = unit(&mut g, "spear");
+        let base = g.unit_stat(u, Stat::Resistance);
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base);
+        enchant(&mut g, u, "resist_elements");
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base + 3);
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Nature)), base + 3);
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Life)), base);
+        enchant(&mut g, u, "magic_immunity");
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Life)), base + 30);
+        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base + 33);
+        assert_eq!(g.unit_resistance_against(u, None), base);
+    }
+
+    #[test]
+    fn righteousness_protects_against_chaos_and_death_only() {
+        let mut g = world();
+        let u = unit(&mut g, "spear");
+        for realm in [Realm::Chaos, Realm::Death, Realm::Nature] {
+            assert!(!g.unit_protected_from(u, Some(realm)));
+        }
+        enchant(&mut g, u, "righteousness");
+        assert!(g.unit_protected_from(u, Some(Realm::Chaos)));
+        assert!(g.unit_protected_from(u, Some(Realm::Death)));
+        assert!(!g.unit_protected_from(u, Some(Realm::Nature)));
+        assert!(!g.unit_protected_from(u, None));
+    }
+
+    #[test]
+    fn heroes_fantastic_creatures_and_flaming_blades_have_magical_weapons() {
+        let mut g = world();
+        let u = unit(&mut g, "spear");
+        assert!(!g.unit_has_magical_weapon(u));
+        enchant(&mut g, u, "flame_blade");
+        assert!(g.unit_has_magical_weapon(u));
+        let kinds = [UnitKind::Hero, UnitKind::Fantastic, UnitKind::Summoned];
+        for (i, kind) in kinds.into_iter().enumerate() {
+            let mut defs = g.content.rules.units.defs().to_vec();
+            let mut def = defs.iter().find(|d| d.id == "spear").unwrap().clone();
+            def.id = format!("special{i}");
+            def.kind = kind;
+            defs.push(def);
+            g.content.rules.units = crate::rules::Registry::new(defs);
+            let w = unit(&mut g, &format!("special{i}"));
+            assert!(g.unit_has_magical_weapon(w), "{kind:?}");
+        }
     }
 }

@@ -174,15 +174,15 @@ RANGED_TYPES = {
 
 # (mask, id, name, description) per flag word of the unit table.
 ATTRIB_1_FLAGS = [
-    (0x0001, "fire_immunity", "Fire Immunity", "Takes no damage from fire attacks."),
+    (0x0001, "fire_immunity", "Fire Immunity", "Fire attacks (fire breath, fire spells) do nothing to it."),
     (0x0002, "stoning_immunity", "Stoning Immunity", "Cannot be turned to stone."),
-    (0x0004, "missile_immunity", "Missile Immunity", "Takes no damage from normal missiles."),
-    (0x0008, "illusion_immunity", "Illusion Immunity", "Sees through illusions."),
-    (0x0010, "cold_immunity", "Cold Immunity", "Takes no damage from cold attacks."),
-    (0x0020, "magic_immunity", "Magic Immunity", "Cannot be affected by spells."),
-    (0x0040, "death_immunity", "Death Immunity", "Immune to death magic."),
+    (0x0004, "missile_immunity", "Missile Immunity", "Arrows and slings do nothing to it."),
+    (0x0008, "illusion_immunity", "Illusion Immunity", "Sees through illusions, so they do not ignore its defence."),
+    (0x0010, "cold_immunity", "Cold Immunity", "Cold attacks (ice spells) do nothing to it."),
+    (0x0020, "magic_immunity", "Magic Immunity", "Spells and magical ranged attacks do nothing to it, and it resists magic with +30."),
+    (0x0040, "death_immunity", "Death Immunity", "Spells that kill or frighten do nothing to it."),
     (0x0080, "poison_immunity", "Poison Immunity", "Immune to poison."),
-    (0x0100, "weapon_immunity", "Weapon Immunity", "Only magical attacks hurt it."),
+    (0x0100, "weapon_immunity", "Weapon Immunity", "Normal weapons barely hurt it: its defence is at least 10 against them, and normal arrows and thrown weapons are cut to the same. Heroes, fantastic creatures, magical weapons and spells ignore it."),
     (0x0200, "flying", "Flying", "Moves over any terrain."),
     (0x0400, "lucky", "Lucky", "Fortune favours this unit."),
     (0x0800, "summon_demon", "Creature Summoning", "Can summon demons to fight beside it."),
@@ -661,13 +661,17 @@ UNIT_ENCHANT_MODS = {
     "Giant Strength": [("Melee", "Add", 1)],
     "Stone Skin": [("Defense", "Add", 1)],
     "Iron Skin": [("Defense", "Add", 5)],
-    "Resist Elements": [("Resistance", "Add", 3)],
-    "Resist Magic": [("Resistance", "Add", 3)],
+    # Resist Elements and Resist Magic add to resistance against particular realms only, which
+    # the engine works out from the spell (`battle::immunity::effective_resistance`).
+    "Resist Elements": [],
+    "Resist Magic": [],
+    "Magic Immunity": [("Grant", "magic_immunity")],
+    "Guardian Wind": [("Grant", "missile_immunity")],
     "Lionheart": [("Melee", "Add", 3), ("Ranged", "Add", 3), ("Resistance", "Add", 3), ("MaxHp", "Add", 3)],
     "Holy Armor": [("Defense", "Add", 2)],
-    "Holy Weapon": [("ToHit", "Add", 10)],
+    "Holy Weapon": [("ToHit", "Add", 10), ("Grant", "magical_weapon")],
     "Endurance": [("Moves", "Add", 1)],
-    "Flame Blade": [("Melee", "Add", 2), ("Ranged", "Add", 2)],
+    "Flame Blade": [("Melee", "Add", 2), ("Ranged", "Add", 2), ("Grant", "magical_weapon")],
     "Haste": [("Moves", "Percent", 100)],
     "Flight": [("Moves", "Set", 3)],
     "Weakness": [("Melee", "Add", -2), ("Ranged", "Add", -2)],
@@ -707,8 +711,13 @@ DAMAGE_KIND_BY_REALM = {"nature": "Cold", "sorcery": "Lightning", "chaos": "Fire
                         "death": "Death", "arcane": "Physical"}
 
 
-def mods_effects(mods: list[tuple[str, str, int]]) -> list[str]:
-    return [f"(effect: Modify(stat: {s}, op: {op}, value: {v}))" for s, op, v in mods]
+def mods_effects(mods: list[tuple]) -> list[str]:
+    """Passive effects: stat modifiers `(stat, op, value)` and granted abilities `("Grant", id)`."""
+    return [
+        f'(effect: GrantAbility("{m[1]}"))' if m[0] == "Grant"
+        else f"(effect: Modify(stat: {m[0]}, op: {m[1]}, value: {m[2]}))"
+        for m in mods
+    ]
 
 
 # Spells that move the wizard's fortress or summoning circle; the engine runs these hooks.
@@ -791,7 +800,7 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if kind in (1, 15):
         mods = UNIT_ENCHANT_MODS.get(name)
         target = "EnemyUnit" if name in NEGATIVE_UNIT_SPELLS else "OwnUnit"
-        if mods:
+        if mods is not None:
             return mods_effects(mods), target, "lasting"
         report.note("spells", f"{name}: unit enchantment without a stat mapping; custom hook")
         return unimplemented, target, "lasting"
@@ -807,7 +816,11 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if kind in (4, 22):
         dk = DAMAGE_KIND_BY_NAME.get(name, DAMAGE_KIND_BY_REALM[realm_id])
         amount = max(row.param0, 1)
-        return [f"(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true))"], "EnemyUnit", "instant"
+        # The spell data's immunity byte lists who it cannot hurt (same bits as the unit flags).
+        immune = [ident for mask, ident, *_ in ATTRIB_1_FLAGS[:8] if row.param1 & mask]
+        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
+        return [f'(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true, '
+                f'immune: {immune_ron}, realm: Some("{realm_id}")))'], "EnemyUnit", "instant"
     if kind == 18:
         factor = 3 if name.endswith("True") else 1
         return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1) * factor}))"], "AnyUnit", "instant"
@@ -994,6 +1007,9 @@ HELP_CORRECTIONS = [
      "the code uses 25% for ranged attacks"),
     (281, "Maritime Guilds.", "Maritime Guilds. Dark elf cities receive 1 power per citizen.",
      "the code adds one mana per citizen for dark elf cities"),
+    (415, "and increases the unit's defense to 10 against magical attacks.",
+     "and raises the unit's defense to at least 10 against them.",
+     "the code gives defence 10 against normal weapons, not against magical attacks"),
     (478, "defense is increased by +3.", "defense is increased by +2.",
      "the code adds 2 defence (the spell text already says 2)"),
     (453, "+3 melee attack strength", "+2 melee attack strength",
@@ -1188,6 +1204,10 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         allowed = [r.id for r in races if r.id not in excluded] if excluded else []
         building_lines.append(building_ron(b, by_index, allowed))
 
+    used_abilities["magical_weapon"] = (
+        "Magical Weapon",
+        "Its normal attacks count as magical, so weapon immunity does not stop them.",
+    )
     abilities_lines = [
         f"    (id: {ron_str(i)}, name: {ron_str(n)}, description: {ron_str(d)}, effects: []),"
         for i, (n, d) in sorted(used_abilities.items())

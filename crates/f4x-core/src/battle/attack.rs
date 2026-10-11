@@ -17,9 +17,12 @@
 
 use rand::{Rng, RngCore};
 
+use super::immunity::{effective_defense, AttackNature, Immunities};
+
 /// How an attack is delivered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
+    #[default]
     Melee,
     /// A thrown weapon or breath, used just before melee.
     ThrownOrBreath,
@@ -28,7 +31,7 @@ pub enum Mode {
 }
 
 /// The numbers an attacker brings to one attack.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Combatant {
     /// Dice per attacking figure.
     pub strength: i32,
@@ -36,14 +39,19 @@ pub struct Combatant {
     pub to_hit: i32,
     /// Attackers ignore defense altogether (doom damage).
     pub ignores_defense: bool,
+    /// How the attack is delivered and what it is made of: what immunities it meets.
+    pub mode: Mode,
+    pub nature: AttackNature,
 }
 
 /// What a defending unit contributes to the rolls, and the damage it has taken.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DefenderState {
     /// Hit points of one figure.
     pub hits: i32,
     pub defense: i32,
+    /// What the defender is immune to, which changes the defence it rolls (`immunity.rs`).
+    pub immunities: Immunities,
     /// Pluses to block (each is ten percentage points).
     pub to_block: i32,
     /// Figures still alive.
@@ -104,6 +112,12 @@ pub fn process_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return total;
     }
+    let defense = effective_defense(
+        def.defense,
+        &def.immunities,
+        &attacker.nature,
+        attacker.mode,
+    );
     for _ in 0..figures {
         if def.figures == 0 {
             break;
@@ -112,7 +126,7 @@ pub fn process_attack(
             attacker.strength
         } else {
             let hits = roll_successes(attacker.strength, attacker.to_hit, rng);
-            (hits - roll_successes(def.defense, def.to_block, rng)).max(0)
+            (hits - roll_successes(defense, def.to_block, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
             let need = def.hits - def.front_damage;
@@ -124,7 +138,7 @@ pub fn process_attack(
                 dmg -= need;
                 // The overflow meets the next figure's defense.
                 if dmg > 0 && !attacker.ignores_defense {
-                    dmg = (dmg - roll_successes(def.defense, def.to_block, rng)).max(0);
+                    dmg = (dmg - roll_successes(defense, def.to_block, rng)).max(0);
                 }
             } else {
                 def.front_damage += dmg;
@@ -216,6 +230,7 @@ mod tests {
             to_block: 0,
             figures,
             front_damage: 0,
+            ..DefenderState::default()
         }
     }
 
@@ -223,7 +238,7 @@ mod tests {
         Combatant {
             strength,
             to_hit,
-            ignores_defense: false,
+            ..Combatant::default()
         }
     }
 
@@ -267,8 +282,8 @@ mod tests {
         // Unblockable, certain hits (strength 10 at +7 always rolls 1+ ... use doom damage).
         let doom = Combatant {
             strength: 5,
-            to_hit: 0,
             ignores_defense: true,
+            ..Combatant::default()
         };
         let mut d = def(3, 2, 9);
         let dmg = process_attack(&doom, 1, &mut d, &mut r);
@@ -336,8 +351,8 @@ mod tests {
     fn doomed(strength: i32) -> Combatant {
         Combatant {
             strength,
-            to_hit: 0,
             ignores_defense: true,
+            ..Combatant::default()
         }
     }
 
@@ -419,5 +434,64 @@ mod tests {
         assert_eq!(range_penalty(9, false), 3);
         assert_eq!(range_penalty(9, true), 1, "long range caps the penalty");
         assert_eq!(range_penalty(2, true), 0);
+    }
+
+    #[test]
+    fn a_defender_rolls_the_defense_its_immunities_give_it() {
+        use crate::battle::immunity::{AttackNature, Immunities};
+        let golem = Immunities {
+            weapon: true,
+            ..Immunities::default()
+        };
+        let armoured = |immunities| DefenderState {
+            immunities,
+            ..def(100, 100, 0)
+        };
+        // Normal swords: strength 6, no defense of its own, but weapon immunity gives it ten.
+        let sword = Combatant {
+            strength: 6,
+            mode: Mode::Melee,
+            nature: AttackNature::of_unit_attack(Mode::Melee, &[], false),
+            ..Combatant::default()
+        };
+        let magic_sword = Combatant {
+            nature: AttackNature::of_unit_attack(Mode::Melee, &[], true),
+            ..sword.clone()
+        };
+        let (mut plain, mut stone, mut stone_vs_magic) = (0, 0, 0);
+        let mut r = rng(11);
+        for _ in 0..1_000 {
+            plain += process_attack(&sword, 4, &mut armoured(Immunities::default()), &mut r).points;
+            stone += process_attack(&sword, 4, &mut armoured(golem), &mut r).points;
+            stone_vs_magic += process_attack(&magic_sword, 4, &mut armoured(golem), &mut r).points;
+        }
+        assert!(stone * 4 < plain, "{stone} vs {plain}");
+        assert!((f64::from(stone_vs_magic) / f64::from(plain) - 1.0).abs() < 0.1);
+        // Fifty dice of defense stop all but a die in a thousand: arrows against missile
+        // immunity do no damage at all over a thousand volleys.
+        let arrows = Combatant {
+            strength: 6,
+            mode: Mode::Ranged,
+            nature: AttackNature::of_unit_attack(Mode::Ranged, &["bow".to_string()], false),
+            ..Combatant::default()
+        };
+        let archer_proof = Immunities {
+            missiles: true,
+            ..Immunities::default()
+        };
+        let mut through = 0;
+        for _ in 0..1_000 {
+            through += process_attack(&arrows, 4, &mut armoured(archer_proof), &mut r).points;
+        }
+        assert_eq!(through, 0);
+        // Doom damage ignores even that.
+        let doom = Combatant {
+            ignores_defense: true,
+            ..arrows
+        };
+        assert_eq!(
+            process_attack(&doom, 1, &mut armoured(archer_proof), &mut r).points,
+            6
+        );
     }
 }

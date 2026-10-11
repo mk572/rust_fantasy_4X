@@ -10,6 +10,7 @@ use rand::RngCore;
 
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
+use crate::battle::immunity::{resistance_failure, Realm};
 use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
 use crate::map::Plane;
@@ -61,6 +62,16 @@ pub trait EffectHost {
     fn units(&self) -> Vec<hecs::Entity>;
     fn city_at(&self, pos: Position) -> Option<hecs::Entity>;
     fn stat(&self, who: Target, stat: Stat) -> i32;
+    /// The target's resistance against a spell of `realm`: its stat, plus whatever its
+    /// immunities and enchantments add against that realm.
+    fn resistance_against(&self, who: Target, _realm: Option<Realm>) -> i32 {
+        self.stat(who, Stat::Resistance)
+    }
+    /// Whether the target is wholly protected from spells of `realm` (Righteousness against
+    /// chaos and death).
+    fn protected_from(&self, _who: Target, _realm: Option<Realm>) -> bool {
+        false
+    }
 
     fn add_modifier(&mut self, who: Target, modifier: Modifier);
     fn grant_ability(&mut self, who: Target, ability: &str);
@@ -101,6 +112,10 @@ pub enum Outcome {
     },
     /// The target's resistance check negated the effect.
     Resisted {
+        who: Target,
+    },
+    /// The target is immune to the effect.
+    Immune {
         who: Target,
     },
     Healed {
@@ -204,12 +219,6 @@ pub fn resolve_targets(sel: TargetSel, ctx: &Context, host: &dyn EffectHost) -> 
     }
 }
 
-/// Roll a d10 against `resistance`: a roll of 1..=resistance resists.
-fn resists(resistance: i32, rng: &mut dyn RngCore) -> bool {
-    let roll = (rng.next_u32() % 10) as i32 + 1;
-    roll <= resistance
-}
-
 fn tile_of(who: Target, host: &dyn EffectHost) -> Option<Position> {
     match who {
         Target::Tile(p) => Some(p),
@@ -248,8 +257,18 @@ fn run_effect(
             amount,
             kind,
             resistible,
+            immune,
+            realm,
+            resist_modifier,
         } => {
-            if *resistible && resists(host.stat(who, Stat::Resistance), rng) {
+            let realm = realm.as_deref().and_then(Realm::from_id);
+            let abilities = host.facts(who).abilities;
+            if immune.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
+                out.push(Outcome::Immune { who });
+            } else if *resistible
+                && resistance_failure(host.resistance_against(who, realm), *resist_modifier, rng)
+                    == 0
+            {
                 out.push(Outcome::Resisted { who });
             } else {
                 let dealt = host.damage(who, *amount, *kind);
@@ -694,6 +713,9 @@ mod tests {
                     amount: 6,
                     kind: DamageKind::Fire,
                     resistible,
+                    immune: Vec::new(),
+                    realm: None,
+                    resist_modifier: 0,
                 },
             )]
         };
@@ -717,6 +739,77 @@ mod tests {
         // Not resistible: the immune unit takes it.
         run_rules(&dmg(false), Trigger::OnCast, &cx, &mut h, &mut rng());
         assert_eq!(h.unit(immune).hp, 0);
+    }
+
+    fn resists(resistance: i32, rng: &mut dyn RngCore) -> bool {
+        resistance_failure(resistance, 0, rng) == 0
+    }
+
+    #[test]
+    fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
+        let mut h = MockHost::default();
+        let caster = h.spawn(0, pos(0, 0), 5, 0);
+        let salamander = h.spawn(1, pos(1, 0), 9, 0);
+        h.grant_ability(Target::Unit(salamander), "fire_immunity");
+        let plain = h.spawn(1, pos(2, 0), 9, 0);
+        let bolt = |immune: &[&str], resist_modifier| {
+            [rule(
+                Trigger::OnCast,
+                Condition::Always,
+                TargetSel::AllEnemyUnits,
+                Effect::Damage {
+                    amount: 4,
+                    kind: DamageKind::Fire,
+                    resistible: true,
+                    immune: immune.iter().map(|s| s.to_string()).collect(),
+                    realm: Some("chaos".into()),
+                    resist_modifier,
+                },
+            )]
+        };
+        let cx = ctx(Target::Unit(caster), 0);
+        let out = run_rules(
+            &bolt(&["fire_immunity"], 0),
+            Trigger::OnCast,
+            &cx,
+            &mut h,
+            &mut rng(),
+        );
+        assert_eq!(
+            out,
+            vec![
+                Outcome::Immune {
+                    who: Target::Unit(salamander)
+                },
+                Outcome::Damaged {
+                    who: Target::Unit(plain),
+                    amount: 4,
+                    kind: DamageKind::Fire
+                },
+            ]
+        );
+        assert_eq!(h.unit(salamander).hp, 9);
+        // Resistance 5 resists half the time; a penalty of 5 leaves nothing to resist with.
+        let resisted = |modifier| {
+            (0..400u64)
+                .filter(|&seed| {
+                    let mut h = MockHost::default();
+                    let c = h.spawn(0, pos(0, 0), 5, 0);
+                    h.spawn(1, pos(1, 0), 9, 5);
+                    let mut r = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed);
+                    let out = run_rules(
+                        &bolt(&[], modifier),
+                        Trigger::OnCast,
+                        &ctx(Target::Unit(c), 0),
+                        &mut h,
+                        &mut r,
+                    );
+                    matches!(out[0], Outcome::Resisted { .. })
+                })
+                .count()
+        };
+        assert!((150..250).contains(&resisted(0)), "{}", resisted(0));
+        assert_eq!(resisted(-5), 0);
     }
 
     #[test]
@@ -857,6 +950,9 @@ mod tests {
                     amount: 3,
                     kind: DamageKind::Cold,
                     resistible: true,
+                    immune: Vec::new(),
+                    realm: None,
+                    resist_modifier: 0,
                 },
             )];
             run_rules(

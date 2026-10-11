@@ -2,6 +2,7 @@
 
 use rand::{Error, RngCore};
 
+use crate::battle::immunity::Realm;
 use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
 use crate::economy::Enchantments;
@@ -164,6 +165,20 @@ impl EffectHost for GameHost<'_> {
         match who {
             Target::Unit(u) => self.game.unit_stat(u, stat),
             _ => 0,
+        }
+    }
+
+    fn resistance_against(&self, who: Target, realm: Option<Realm>) -> i32 {
+        match who {
+            Target::Unit(u) => self.game.unit_resistance_against(u, realm),
+            _ => 0,
+        }
+    }
+
+    fn protected_from(&self, who: Target, realm: Option<Realm>) -> bool {
+        match who {
+            Target::Unit(u) => self.game.unit_protected_from(u, realm),
+            _ => false,
         }
     }
 

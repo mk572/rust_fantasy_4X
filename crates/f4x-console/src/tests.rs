@@ -785,3 +785,43 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() {
     let any = new_game(&content, &wizard(None)).unwrap();
     assert_eq!(capital(&any, HUMAN).1.plane, Plane::Myrror);
 }
+
+#[test]
+fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
+    let content = content();
+    let mut g = new_game(
+        &content,
+        &NewGame {
+            seed: 1,
+            ..NewGame::default()
+        },
+    )
+    .unwrap();
+    let (_, home) = capital(&g, HUMAN);
+    let werewolves = g.content.rules.units.id_of("werewolves").unwrap();
+    g.apply(f4x_core::Command::CreateUnit {
+        owner: HUMAN,
+        pos: home,
+        unit: werewolves,
+    });
+    let events = g.apply(f4x_core::Command::BeginBattle {
+        attackers: g.player_units(HUMAN),
+        defenders: g.player_units(PlayerId(1)),
+    });
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, f4x_core::Event::Rejected(_))),
+        "{events:?}"
+    );
+    let battle = g.battle().unwrap();
+    let find = |name: &str| battle.units.iter().find(|u| u.name == name).unwrap();
+    let spearmen = find("Spearmen");
+    assert!(!spearmen.magical_weapon);
+    let wolves = find("Werewolves");
+    assert!(
+        wolves.magical_weapon,
+        "summoned creatures fight with magical weapons"
+    );
+    assert!(wolves.abilities.iter().any(|a| a == "weapon_immunity"));
+}

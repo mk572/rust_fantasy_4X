@@ -535,6 +535,28 @@ pub fn content_with_magic() -> Content {
             value: 1,
         },
     }];
+    // Lasting spells that grant an ability, or that the engine reads by name for resistance.
+    for (id, grant) in [
+        ("magic_immunity", Some("magic_immunity")),
+        ("flame_blade", Some("magical_weapon")),
+        ("resist_elements", None),
+        ("righteousness", None),
+    ] {
+        let mut s = base(id, "life", Rarity::Rare, 30, 100, SpellTarget::OwnUnit);
+        s.duration = Duration::Permanent;
+        s.upkeep = 2;
+        s.dispel_difficulty = 30;
+        s.effects = grant
+            .map(|a| EffectRule {
+                when: Trigger::Passive,
+                condition: Condition::Always,
+                target: TargetSel::This,
+                effect: Effect::GrantAbility(a.into()),
+            })
+            .into_iter()
+            .collect();
+        spells.push(s);
+    }
     let mut brief = strength.clone();
     brief.id = "brief_strength".into();
     brief.duration = Duration::Turns(2);
@@ -558,6 +580,9 @@ pub fn content_with_magic() -> Content {
             amount: 3,
             kind: crate::rules::effects::DamageKind::Fire,
             resistible: false,
+            immune: Vec::new(),
+            realm: None,
+            resist_modifier: 0,
         },
     )];
     spells.push(bolt);
