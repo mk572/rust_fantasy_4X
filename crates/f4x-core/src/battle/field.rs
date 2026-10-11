@@ -12,7 +12,7 @@
 //! - **At the start of each turn** (the attacker's): Mana Leak, then Call Lightning, then Wrack,
 //!   for the sides that cast them.
 //! - **At the start of each side's turn**: Terror (the caster's enemies must resist or cannot
-//!   act) and Entangle (the caster's enemies lose a move).
+//!   act) and Entangle (the caster's enemies that walk and have a body lose a move).
 
 use rand::{Rng, RngCore};
 
@@ -378,7 +378,9 @@ impl Battle {
                     events.push(BattleEvent::Terrified { unit: id });
                 }
             }
-            if entangle {
+            // Entangle holds only walkers with a body: the help says so, and the original's code,
+            // which takes the move from every unit, is taken to be a bug.
+            if entangle && !self.units[id].flies && !self.units[id].has("non_corporeal") {
                 let u = &mut self.units[id];
                 u.moves_left = u.moves_left.saturating_sub(2);
             }

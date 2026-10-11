@@ -1742,6 +1742,19 @@ mod fields {
         end_turns(&mut b, 1);
         assert_eq!(b.active, Side::Defender);
         assert_eq!(b.units[1].moves_left, moves - 2, "one whole move less");
+        // Fliers and the non-corporeal are not held.
+        for ability in ["flying", "non_corporeal"] {
+            let mut free = of(Side::Defender, None, (17, 5));
+            if ability == "flying" {
+                free.flies = true;
+            } else {
+                free.abilities.push(ability.into());
+            }
+            let mut b = pair(of(Side::Attacker, None, (3, 5)), free);
+            b.raise_field(Side::Attacker, Field::Entangle, spell());
+            end_turns(&mut b, 1);
+            assert_eq!(b.units[1].moves_left, b.units[1].moves, "{ability}");
+        }
         // Terror: a unit with no resistance never saves.
         let mut soft = of(Side::Defender, None, (17, 5));
         soft.resistance = 0;

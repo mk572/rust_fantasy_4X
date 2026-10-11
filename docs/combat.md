@@ -366,7 +366,7 @@ so they never pile up and never push a stat below nothing:
 | Mass Invisibility | the caster's units are invisible: attackers not immune to illusions are -1 to hit them (also the `invisibility` ability, the Invisibility spell: its game name is `Invisiblity`) |
 | Blur | each point of an enemy attack's hits against the caster's units misses one time in ten, from attackers that do not see through illusions (the original checks the *defender's* immunity, an OGBUG) |
 | Terror | at the start of each of their turns, each of the caster's enemies must pass a resistance check at +1 against death or loses its turn (it can still strike back) |
-| Entangle | each of the caster's enemies loses one whole move at the start of its turn (the code: fliers too) |
+| Entangle | each of the caster's enemies that walks and has a body (not fliers, not the non-corporeal) loses one whole move at the start of its turn (the help is right; the original's code takes it from every unit, treated as a bug) |
 | Mana Leak | at the start of each turn the caster's enemy wizard loses 5 mana (the game's reserve is kept in step, `sync_battle_mana`), and each enemy unit with spell shots loses one |
 | Call Lightning | at the start of each turn three to five bolts of strength 8 (armour piercing, stopped by magic immunity) at random enemy units |
 | Wrack | at the start of each turn each figure of each enemy unit without death immunity (or Wraith Form) must pass a resistance check at +1 against death or the unit loses a hit point |
