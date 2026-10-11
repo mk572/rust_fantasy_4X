@@ -1896,3 +1896,83 @@ fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
         assert!(seen.insert(p.portrait), "picture {} twice", p.portrait);
     }
 }
+
+#[test]
+fn the_legal_casts_are_the_casts_the_game_accepts() {
+    use f4x_core::battle::{BattleCommand, Side};
+    let spells = [
+        "fire_bolt",
+        "fireball",
+        "giant_strength",
+        "healing",
+        "counter_magic",
+        "dispel_magic",
+    ];
+    let known: Vec<&str> = spells
+        .iter()
+        .copied()
+        .filter(|s| casting_siege(&[]).content.rules.spells.id_of(s).is_some())
+        .collect();
+    assert!(known.len() >= 3, "{known:?}");
+    let g = casting_siege(&known);
+    let legal = g.legal_battle_casts();
+    assert!(!legal.is_empty());
+    let enemy = battle_units_of(&g, Side::Defender);
+    let own = battle_units_of(&g, Side::Attacker);
+    for lc in &legal {
+        let def = g.content.rules.spells.get(lc.spell).id.clone();
+        assert!(!lc.aims.is_empty(), "{def}");
+        assert!(lc.least_mana <= lc.most_mana, "{def}");
+        // First, last and middle aim, at the least and the most mana, are accepted.
+        let picks = [
+            lc.aims[0],
+            lc.aims[lc.aims.len() / 2],
+            *lc.aims.last().unwrap(),
+        ];
+        for aim in picks {
+            for mana in [0, lc.least_mana, lc.most_mana] {
+                let mut fresh = casting_siege(&known);
+                let r = fresh.battle_command(BattleCommand::Cast {
+                    spell: lc.spell,
+                    aim,
+                    mana,
+                });
+                assert!(r.is_ok(), "{def} {aim:?} mana {mana}: {r:?}");
+            }
+        }
+        // One mana too many is refused when the spell takes extra mana within a limit.
+        if lc.most_mana > lc.least_mana {
+            let mut fresh = casting_siege(&known);
+            let r = fresh.battle_command(BattleCommand::Cast {
+                spell: lc.spell,
+                aim: lc.aims[0],
+                mana: lc.most_mana + 1,
+            });
+            assert!(r.is_err(), "{def}: more than the most is refused");
+        }
+    }
+    // An aim that is not listed is refused: a bolt at one's own unit.
+    let bolt = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    let listed = legal.iter().find(|l| l.spell == bolt).expect("fire bolt");
+    assert!(listed.aims.iter().all(|a| match a {
+        f4x_core::battle::SpellAim::Unit(u) => enemy.contains(u),
+        _ => false,
+    }));
+    let mut fresh = casting_siege(&known);
+    assert!(fresh
+        .battle_command(BattleCommand::Cast {
+            spell: bolt,
+            aim: f4x_core::battle::SpellAim::Unit(own[0]),
+            mana: 0
+        })
+        .is_err());
+    // After a cast the wizard has none left this turn.
+    let mut g = casting_siege(&known);
+    g.battle_command(BattleCommand::Cast {
+        spell: bolt,
+        aim: f4x_core::battle::SpellAim::Unit(enemy[0]),
+        mana: 0,
+    })
+    .unwrap();
+    assert!(g.legal_battle_casts().is_empty());
+}

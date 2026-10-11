@@ -15,6 +15,7 @@ pub mod casting;
 pub mod field;
 pub mod game;
 pub mod immunity;
+pub mod legal;
 pub mod map;
 pub mod special;
 pub mod spells;
@@ -814,6 +815,10 @@ impl Battle {
                 let u = self.check_unit(unit)?;
                 if u.moves_left == 0 {
                     return Err(BattleError::NoMovesLeft);
+                }
+                // Staying where it stands is not a move.
+                if to == u.cell {
+                    return Err(BattleError::Unreachable);
                 }
                 if u.moves_instantly() {
                     let cost = *self

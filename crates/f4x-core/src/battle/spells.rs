@@ -102,6 +102,19 @@ pub struct BattleSpell {
     pub castable: bool,
 }
 
+/// A spell the wizard may cast now, with where it may be aimed and how much mana may go in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalCast {
+    pub spell: SpellId,
+    /// Every aim the spell accepts: `None` for a spell with no target, a unit, or a square.
+    pub aims: Vec<SpellAim>,
+    /// The mana the spell takes at least (its cost) and at most (what the wizard can afford).
+    /// They are equal for a spell that takes no extra mana. Any amount between is legal; `0`
+    /// asks for the least.
+    pub least_mana: u32,
+    pub most_mana: u32,
+}
+
 /// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
 /// creatures and nothing else.
 fn only_against(spell_id: &str) -> Option<&'static [Realm]> {
@@ -333,13 +346,16 @@ impl Game {
         }
     }
 
-    /// The wizard whose turn it is casts a spell.
-    pub(super) fn battle_cast(
-        &mut self,
+    /// Every check a cast must pass before it is paid for: the wizard, the spell, its price,
+    /// the ward and the aim. `battle_cast` and the list of legal casts both use it, so they
+    /// cannot disagree. Gives the spell's definition, what it does, the skill it costs and the
+    /// strength it works with.
+    fn check_cast(
+        &self,
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
-    ) -> Result<Vec<Event>, BattleError> {
+    ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
         let err = BattleError::Spell;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
         let caster = battle.check_caster()?;
@@ -364,6 +380,63 @@ impl Game {
         }
         self.check_aim(battle, side, &def, &kind, aim)
             .map_err(err)?;
+        Ok((def, kind, skill, pool))
+    }
+
+    /// The casts the wizard of the side to play may make now, for each spell they could cast:
+    /// every aim the spell accepts and the least and most mana that can be put in. Empty when
+    /// the wizard has cast this turn or there is no wizard.
+    pub fn legal_battle_casts(&self) -> Vec<LegalCast> {
+        let Some(battle) = self.battle() else {
+            return Vec::new();
+        };
+        let player = battle.player_of(battle.active);
+        let mut out = Vec::new();
+        for s in self.battle_spells(player) {
+            if !s.castable {
+                continue;
+            }
+            let cost = self.content.rules.spells.get(s.spell).cost;
+            let most = self.battle_spell_most_mana(player, s.spell).max(0) as u32;
+            let (least_mana, most_mana) = if s.takes_extra_mana {
+                (cost, most.max(cost))
+            } else {
+                (cost, cost)
+            };
+            let mut candidates = vec![SpellAim::None];
+            candidates.extend(battle.units.iter().map(|u| SpellAim::Unit(u.id)));
+            for y in 0..super::map::GRID_H {
+                for x in 0..super::map::GRID_W {
+                    candidates.push(SpellAim::Tile((x, y)));
+                }
+            }
+            let aims: Vec<SpellAim> = candidates
+                .into_iter()
+                .filter(|&aim| self.check_cast(s.spell, aim, least_mana).is_ok())
+                .collect();
+            if !aims.is_empty() {
+                out.push(LegalCast {
+                    spell: s.spell,
+                    aims,
+                    least_mana,
+                    most_mana,
+                });
+            }
+        }
+        out
+    }
+
+    /// The wizard whose turn it is casts a spell.
+    pub(super) fn battle_cast(
+        &mut self,
+        spell: SpellId,
+        aim: SpellAim,
+        mana: u32,
+    ) -> Result<Vec<Event>, BattleError> {
+        let (def, kind, skill, pool) = self.check_cast(spell, aim, mana)?;
+        let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
+        let side = battle.active;
+        let player = battle.player_of(side);
 
         // Pay: the skill, and the mana from the reserve.
         let paid = self

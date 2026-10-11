@@ -2093,3 +2093,88 @@ fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
     assert!(ring(&fly_in));
     assert!(map.is_flying_fortress());
 }
+
+/// Every command that could be written, for the units and squares of a battle.
+fn every_command(b: &Battle) -> Vec<BattleCommand> {
+    let mut all = vec![BattleCommand::EndTurn, BattleCommand::Flee];
+    for unit in 0..b.units.len() + 1 {
+        all.push(BattleCommand::Done { unit });
+        for target in 0..b.units.len() + 1 {
+            all.push(BattleCommand::Attack { unit, target });
+            all.push(BattleCommand::Shoot { unit, target });
+        }
+        for y in 0..GRID_H {
+            for x in 0..GRID_W {
+                all.push(BattleCommand::Move { unit, to: (x, y) });
+                all.push(BattleCommand::AttackWall { unit, cell: (x, y) });
+                all.push(BattleCommand::ShootWall { unit, cell: (x, y) });
+            }
+        }
+    }
+    all
+}
+
+/// The list of legal commands is exactly what `apply` accepts.
+fn check_legal_list(b: &Battle) {
+    let legal = b.legal_commands();
+    for c in every_command(b) {
+        let accepted = b.clone().apply(c.clone()).is_ok();
+        assert_eq!(
+            accepted,
+            legal.contains(&c),
+            "{c:?}: apply says {accepted}, the list says otherwise"
+        );
+    }
+}
+
+#[test]
+fn the_legal_commands_are_exactly_what_apply_accepts() {
+    let archer = |side, cell| {
+        let mut u = BattleUnit::simple(side, "archer", 4, 1, 1, 0).at(cell);
+        u.ranged = 4;
+        u.ranged_kind = RangedKind::Missile;
+        u.ammo = 2;
+        u
+    };
+    // An open field: a spearman next to an enemy, an archer, a unit with no ammunition.
+    let mut spent = archer(Side::Attacker, (4, 14));
+    spent.ammo = 0;
+    let units = vec![
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (4, 10)),
+        archer(Side::Attacker, (3, 12)),
+        archer(Side::Defender, (9, 12)),
+        spent,
+    ];
+    let mut b = Battle::new(A, D, BattleMap::open(), units, 1);
+    check_legal_list(&b);
+    // After the attacker's turn, the defender's.
+    b.apply(BattleCommand::Done { unit: 0 }).unwrap();
+    b.apply(BattleCommand::EndTurn).unwrap();
+    check_legal_list(&b);
+}
+
+#[test]
+fn the_legal_commands_cover_walls_crushers_and_darkness() {
+    let mut b = siege(
+        vec![
+            crusher(Side::Attacker, (11, 11), true),
+            crusher(Side::Attacker, (3, 3), false),
+            guard((14, 11)),
+            guard((12, 12)),
+        ],
+        true,
+        3,
+    );
+    check_legal_list(&b);
+    assert!(b.legal_commands().contains(&BattleCommand::AttackWall {
+        unit: 0,
+        cell: (12, 11)
+    }));
+    // A Wall of Darkness stops the shots from outside the city at a unit inside it.
+    b.wall_of_darkness = true;
+    check_legal_list(&b);
+    // A won battle allows nothing.
+    b.apply(BattleCommand::Flee).unwrap();
+    assert!(b.legal_commands().is_empty());
+}
