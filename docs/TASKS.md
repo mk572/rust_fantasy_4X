@@ -22,7 +22,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
-| 36 | Combat | Special attacks (low priority) |
 | 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 154 | Meta | Raiders from neutral cities |
 | 155 | Core | Starting setup: the original's random placement and AI race rules |
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities |
+| 157 | Combat | Special attack leftovers |
 
 ## Descriptions
 
@@ -168,10 +168,6 @@ fantastic undead, and the full set of death-creature immunities (the original fo
 and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
 
 ### Combat
-
-**36. Special attacks.** Armor piercing (halves defence), illusion (ignores armour), chaos damage
-(ignores everything), life steal (turns victims undead), poison per level, stoning, cause death,
-destruction, power drain, dispel evil [429-439]. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **37. Combat ability rules.** Large shield (+2 versus ranged), wall crusher (50 percent melee, 25
 percent ranged), healer, invisibility, long range, regeneration, luck, negate first strike, mana
@@ -589,3 +585,5 @@ Parity task, low priority.
 **155. Starting setup: the original's random placement and AI race rules.** Task 32 brought the start in line with the original's `Generate_Home_Cities` (capital of four with three farmers, spearmen and swordsmen, smithy, barracks and builders hall, tax index 2, Myrran wizards on Myrror, sites that feed eight). Left out: (1) the original picks fortress sites at random (1000 tries per distance, fortress distance 16 relaxing to 10, node/tower/lair distance 7 relaxing to 1, halved in the check) while ours takes the nearest fitting site to a spread-out anchor, and measures every distance with `Range` where the original uses the wrapping delta for fortresses, nodes and lairs; (2) AI races: up to normal difficulty any of the nine Arcanus races, above it only Klackon, High Elf, Halfling, High Men and Nomad (a bias against the AI that design.md section 8 may rule out; decide), and a High Elf capital is moved off non-forest only by accident in the original; (3) starting gold: the original gives the human `(5 - difficulty) * 25` and every AI 150, ours gives everyone 100 by decision, and the AI's flat 150 would be an AI bonus; (4) fame 10 for the Famous retort (check it is set). Low priority.
 
 **156. Defence bonuses of enchantments and the undead's immunities.** Task 35 did immunities and resistance. Still open from the same original code: the unit enchantments that add *defence* against ranged magic of a realm (Elemental Armor +10 against chaos and nature, Resist Elements +3, Bless +3 against chaos and death), and the spells themselves, which the importer still leaves as `unimplemented`: Elemental Armor, Bless, Righteousness (their resistance part is done), Resist All and Invulnerability (-2 damage per hit). Undead should also gain cold, poison and illusion immunity (decision B10 in `help-vs-implementation-conflicts.md`), which belongs with task 29. Give `effective_defense` a realm bonus parameter and apply the spell tables in `immunity.rs`.
+
+**157. Special attack leftovers.** Task 36 did armour piercing, chaos (doom) damage, illusion, poison, life steal, stoning and death touch, destruction, dispel evil and the gazes. Left: (1) **Power drain** (the target resists or loses 2 to 20 spell points): needs battle mana, with task 43. (2) Attacks that come from an **item or spell** rather than the unit: the original gives them an extra penalty (stoning touch -1, death touch and life steal -3) and halves doom damage; the unit's own count in full. Needs the source of an ability to be known (task 30's store, items task 49). (3) **Hit points above full strength** from life steal (`Extra_Hits`). (4) The **damage types**: damage dealt by life steal, or by a create-undead attacker (`create_undead`: Ghouls), leaves the victim to return as an undead unit under the attacker's control, and stoning, death and destruction kills are irreversible (not healed afterwards); this belongs with the after-battle results of task 42 and the undead rules of task 29. (5) Cause fear and blur (task 37).

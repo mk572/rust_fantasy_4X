@@ -112,6 +112,8 @@ pub struct AttackNature {
     pub stopped_by: Immunities,
     /// The realm it belongs to, if it is magical.
     pub realm: Option<Realm>,
+    /// It halves the defence it meets (`armor_piercing`; lightning breath does too).
+    pub armor_piercing: bool,
 }
 
 impl AttackNature {
@@ -124,9 +126,14 @@ impl AttackNature {
             ..Immunities::default()
         };
         let mut realm = None;
+        let mut armor_piercing = has("armor_piercing");
         if mode == Mode::Melee {
             stopped_by.weapon = !magical_weapon;
-            return AttackNature { stopped_by, realm };
+            return AttackNature {
+                stopped_by,
+                realm,
+                armor_piercing,
+            };
         }
         match ranged_flavour(abilities) {
             Flavour::Arrows => {
@@ -138,14 +145,22 @@ impl AttackNature {
                 stopped_by.fire = true;
                 realm = Some(Realm::Chaos);
             }
-            Flavour::LightningBreath => realm = Some(Realm::Chaos),
+            Flavour::LightningBreath => {
+                realm = Some(Realm::Chaos);
+                armor_piercing = true;
+            }
             Flavour::Bolt(r) => {
                 stopped_by.magic = true;
                 realm = Some(r);
             }
+            Flavour::Gaze(r) => realm = Some(r),
             Flavour::None => {}
         }
-        AttackNature { stopped_by, realm }
+        AttackNature {
+            stopped_by,
+            realm,
+            armor_piercing,
+        }
     }
 }
 
@@ -159,6 +174,7 @@ enum Flavour {
     FireBreath,
     LightningBreath,
     Bolt(Realm),
+    Gaze(Realm),
 }
 
 fn ranged_flavour(abilities: &[String]) -> Flavour {
@@ -173,6 +189,12 @@ fn ranged_flavour(abilities: &[String]) -> Flavour {
         Flavour::FireBreath
     } else if has("lightning_breath") {
         Flavour::LightningBreath
+    } else if has("multi_gaze") {
+        Flavour::Gaze(Realm::Chaos)
+    } else if has("stoning_gaze") {
+        Flavour::Gaze(Realm::Nature)
+    } else if has("death_gaze") {
+        Flavour::Gaze(Realm::Death)
     } else if has("fireball_attack")
         || has("lightning_bolt")
         || has("drow_bolt")
@@ -190,7 +212,7 @@ fn ranged_flavour(abilities: &[String]) -> Flavour {
 
 /// The defence a unit rolls against one attack.
 ///
-/// An immunity in common with a non-melee attack makes the defence 50. Weapon immunity then
+/// Armour piercing halves the defence first (rounding down). An immunity in common with a non-melee attack makes the defence 50. Weapon immunity then
 /// sets it to at least 10 against a normal weapon, even if the attack was stopped outright
 /// above (the original's order), and magic immunity sets it to 50 against any ranged magic.
 pub fn effective_defense(
@@ -208,6 +230,11 @@ pub fn effective_defense(
     if stopped.illusion {
         return 0;
     }
+    let defense = if attack.armor_piercing {
+        defense / 2
+    } else {
+        defense
+    };
     let mut immune = false;
     let mut at_least_ten = false;
     if stopped.meets(unit) && mode != Mode::Melee {
@@ -375,7 +402,8 @@ mod tests {
                 Mode::ThrownOrBreath,
                 false
             ),
-            2
+            // Lightning breath pierces armour: half of 2.
+            1
         );
         assert_eq!(
             defense(2, &salamander, &["fireball_attack"], Mode::Ranged, false),
@@ -520,5 +548,44 @@ mod tests {
         assert!(count(4, 3, &mut rng) < count(4, 0, &mut rng));
         assert_eq!(count(9, 1, &mut rng), 0);
         assert_eq!(count(35, 0, &mut rng), 0);
+    }
+
+    #[test]
+    fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
+        let plain = unit(&[]);
+        assert_eq!(
+            defense(6, &plain, &["armor_piercing"], Mode::Melee, false),
+            3
+        );
+        // Rounded down.
+        assert_eq!(
+            defense(5, &plain, &["armor_piercing"], Mode::Melee, false),
+            2
+        );
+        assert_eq!(
+            defense(6, &plain, &["armor_piercing", "bow"], Mode::Ranged, false),
+            3
+        );
+        let golem = unit(&["weapon_immunity"]);
+        assert_eq!(
+            defense(30, &golem, &["armor_piercing"], Mode::Melee, false),
+            15
+        );
+        assert_eq!(
+            defense(8, &golem, &["armor_piercing"], Mode::Melee, false),
+            10
+        );
+        // Immunity still wins outright.
+        let shielded = unit(&["missile_immunity"]);
+        assert_eq!(
+            defense(
+                6,
+                &shielded,
+                &["armor_piercing", "bow"],
+                Mode::Ranged,
+                false
+            ),
+            50
+        );
     }
 }

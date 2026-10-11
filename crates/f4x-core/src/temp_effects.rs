@@ -137,7 +137,7 @@ impl Game {
     }
 
     /// The ids of the lasting spells on a unit.
-    fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
+    pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
         self.world
             .get::<&crate::units::UnitEnchantments>(unit)
             .map(|list| {

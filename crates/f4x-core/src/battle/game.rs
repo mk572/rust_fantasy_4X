@@ -6,6 +6,7 @@ use crate::rules::{MovementType, Stat};
 use crate::units::Hurt;
 use crate::{Event, Game};
 
+use super::immunity::Realm;
 use super::map::{deployment, BattleMap};
 use super::{
     Battle, BattleCommand, BattleError, BattleEvent, BattleUnit, RangedKind, Side, Status,
@@ -35,7 +36,14 @@ pub fn ranged_kind_of(abilities: &[String]) -> RangedKind {
     let has = |names: &[&str]| abilities.iter().any(|a| names.contains(&a.as_str()));
     if has(&["bow", "sling", "rock_throwing"]) {
         RangedKind::Missile
-    } else if has(&["thrown", "fire_breath", "lightning_breath"]) {
+    } else if has(&[
+        "thrown",
+        "fire_breath",
+        "lightning_breath",
+        "stoning_gaze",
+        "death_gaze",
+        "multi_gaze",
+    ]) {
         RangedKind::Short
     } else if has(&[
         "fireball_attack",
@@ -107,6 +115,10 @@ impl Game {
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
             magical_weapon: self.unit_has_magical_weapon(unit),
+            special_level: self.unit_stat(unit, Stat::SpecialLevel),
+            enchantments: self.unit_enchantment_ids(unit),
+            realm: def.realm.as_deref().and_then(Realm::from_id),
+            undead: false,
             abilities: abilities.clone(),
             status: Status::Active,
             attacked: false,

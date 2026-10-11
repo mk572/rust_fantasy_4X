@@ -505,6 +505,8 @@ def unit_stats(row: UnitRow) -> dict[str, int]:
         stats["Construction"] = v["construction"]
     if v["to_hit"] > 0:
         stats["ToHit"] = v["to_hit"] * 10  # the table counts in steps of 10%
+    if v["special"]:
+        stats["SpecialLevel"] = abs(v["special"])  # a penalty is stored negative; only the size counts
     return stats
 
 

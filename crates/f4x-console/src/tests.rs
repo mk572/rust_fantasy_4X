@@ -825,3 +825,52 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
     );
     assert!(wolves.abilities.iter().any(|a| a == "weapon_immunity"));
 }
+
+#[test]
+fn battle_units_carry_the_numbers_of_their_special_attacks() {
+    use f4x_core::battle::special::{Gaze, SpecialAttacks};
+    use f4x_core::battle::RangedKind;
+    let content = content();
+    let mut g = new_game(
+        &content,
+        &NewGame {
+            seed: 1,
+            ..NewGame::default()
+        },
+    )
+    .unwrap();
+    let (_, home) = capital(&g, HUMAN);
+    for name in ["cockatrices", "giant_spiders", "basilisk", "wraiths"] {
+        let unit = g.content.rules.units.id_of(name).unwrap();
+        g.apply(f4x_core::Command::CreateUnit {
+            owner: HUMAN,
+            pos: home,
+            unit,
+        });
+    }
+    g.apply(f4x_core::Command::BeginBattle {
+        attackers: g.player_units(HUMAN),
+        defenders: g.player_units(PlayerId(1)),
+    });
+    let battle = g.battle().unwrap();
+    let special = |name: &str| {
+        let u = battle.units.iter().find(|u| u.name == name).unwrap();
+        (
+            u.special_level,
+            SpecialAttacks::of_unit(&u.abilities, u.special_level),
+            u.ranged_kind,
+        )
+    };
+    let (level, s, _) = special("Cockatrices");
+    assert_eq!((level, s.stoning_touch, s.penalty), (3, true, 3));
+    let (_, s, _) = special("Giant Spiders");
+    assert_eq!(s.poison, 4);
+    let (_, s, kind) = special("Basilisk");
+    assert_eq!(
+        (s.gaze, s.penalty, kind),
+        (Gaze::Stoning, 1, RangedKind::Short)
+    );
+    let (_, s, _) = special("Wraiths");
+    assert!(s.life_steal);
+    assert_eq!(s.penalty, 3);
+}

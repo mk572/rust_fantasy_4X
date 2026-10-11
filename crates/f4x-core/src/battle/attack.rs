@@ -17,7 +17,10 @@
 
 use rand::{Rng, RngCore};
 
-use super::immunity::{effective_defense, AttackNature, Immunities};
+use super::immunity::{
+    effective_defense, effective_resistance, resistance_failure, AttackNature, Immunities, Realm,
+};
+use super::special::{Gaze, SpecialAttacks};
 
 /// How an attack is delivered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -42,6 +45,8 @@ pub struct Combatant {
     /// How the attack is delivered and what it is made of: what immunities it meets.
     pub mode: Mode,
     pub nature: AttackNature,
+    /// Poison, touches, life steal and gazes (`special.rs`).
+    pub special: SpecialAttacks,
 }
 
 /// What a defending unit contributes to the rolls, and the damage it has taken.
@@ -52,6 +57,15 @@ pub struct DefenderState {
     pub defense: i32,
     /// What the defender is immune to, which changes the defence it rolls (`immunity.rs`).
     pub immunities: Immunities,
+    /// Its resistance and the lasting spells that add to it, for the resistance checks of
+    /// special attacks.
+    pub resistance: i32,
+    pub enchantments: Vec<String>,
+    /// The realm of the creature, for dispel evil (chaos and death creatures); the undead.
+    pub realm: Option<Realm>,
+    pub undead: bool,
+    /// Figures it started with: healing can bring dead figures back up to this.
+    pub figures_max: u32,
     /// Pluses to block (each is ten percentage points).
     pub to_block: i32,
     /// Figures still alive.
@@ -68,6 +82,68 @@ impl DefenderState {
         }
         self.figures as i32 * self.hits - self.front_damage
     }
+
+    /// How far a resistance check against `realm` fails, with `modifier` added to the
+    /// resistance: 0 means the unit resisted.
+    pub fn resistance_failure(
+        &self,
+        realm: Option<Realm>,
+        modifier: i32,
+        rng: &mut dyn RngCore,
+    ) -> i32 {
+        let ids: Vec<&str> = self.enchantments.iter().map(String::as_str).collect();
+        let resistance = effective_resistance(self.resistance, &self.immunities, realm, &ids);
+        resistance_failure(resistance, modifier, rng)
+    }
+
+    /// Heal `amount` hit points: the damaged figure first, then bring dead figures back.
+    /// Nothing happens to a unit with no figures left.
+    pub fn heal(&mut self, amount: i32) {
+        if self.figures == 0 || amount <= 0 {
+            return;
+        }
+        let front = self.front_damage - amount;
+        if front >= 0 {
+            self.front_damage = front;
+            return;
+        }
+        self.front_damage = 0;
+        let mut balance = front;
+        while balance < 0 && self.figures < self.figures_max {
+            self.figures += 1;
+            balance += self.hits;
+        }
+        if balance > 0 {
+            self.front_damage = balance;
+        }
+    }
+}
+
+/// Damage that no defence blocks, `points` of it, landing on the front figure and passing on
+/// to the next as figures die.
+fn apply_unblockable(def: &mut DefenderState, points: i32) -> Damage {
+    let mut total = Damage::default();
+    let mut left = points;
+    while left > 0 && def.figures > 0 {
+        let need = def.hits - def.front_damage;
+        if left >= need {
+            total.points += need;
+            total.kills += 1;
+            def.figures -= 1;
+            def.front_damage = 0;
+            left -= need;
+        } else {
+            def.front_damage += left;
+            total.points += left;
+            left = 0;
+        }
+    }
+    total
+}
+
+/// A whole figure's worth of damage no defence blocks (a failed gaze or touch).
+fn kill_figure(def: &mut DefenderState) -> Damage {
+    apply_unblockable(def, def.hits)
 }
 
 /// A ten-sided die: one to ten.
@@ -92,16 +168,23 @@ pub struct Damage {
     pub points: i32,
     /// Figures killed.
     pub kills: u32,
+    /// Hit points the attacker heals from what it stole (life steal).
+    pub healed: i32,
 }
 
 impl std::ops::AddAssign for Damage {
     fn add_assign(&mut self, other: Damage) {
         self.points += other.points;
         self.kills += other.kills;
+        self.healed += other.healed;
     }
 }
 
 /// Resolve one attack by `figures` attacking figures against `def`, which is updated.
+///
+/// Order, as in the original: a gaze, once, against each of the target's figures; then for
+/// each attacking figure the touches (dispel evil, stoning, death, life steal, destruction),
+/// the blows themselves, and the poison.
 pub fn process_attack(
     attacker: &Combatant,
     figures: u32,
@@ -109,6 +192,25 @@ pub fn process_attack(
     rng: &mut dyn RngCore,
 ) -> Damage {
     let mut total = Damage::default();
+    let sp = &attacker.special;
+    let touchable = !def.immunities.magic;
+    if attacker.mode == Mode::ThrownOrBreath && sp.gaze != Gaze::None && touchable {
+        let gazed = def.figures;
+        if matches!(sp.gaze, Gaze::Stoning | Gaze::Multi) && !def.immunities.stoning {
+            for _ in 0..gazed {
+                if def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0 {
+                    total += kill_figure(def);
+                }
+            }
+        }
+        if matches!(sp.gaze, Gaze::Death | Gaze::Multi) && !def.immunities.death {
+            for _ in 0..gazed {
+                if def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0 {
+                    total += kill_figure(def);
+                }
+            }
+        }
+    }
     if attacker.strength <= 0 || def.figures == 0 {
         return total;
     }
@@ -119,6 +221,37 @@ pub fn process_attack(
         attacker.mode,
     );
     for _ in 0..figures {
+        if def.figures == 0 {
+            break;
+        }
+        if touchable {
+            if sp.dispel_evil && matches!(def.realm, Some(Realm::Chaos | Realm::Death)) {
+                let modifier = if def.undead { -9 } else { -4 };
+                if def.resistance_failure(Some(Realm::Life), modifier, rng) > 0 {
+                    total += kill_figure(def);
+                }
+            }
+            if sp.stoning_touch
+                && !def.immunities.stoning
+                && def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0
+            {
+                total += kill_figure(def);
+            }
+            if sp.death_touch
+                && !def.immunities.death
+                && def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0
+            {
+                total += kill_figure(def);
+            }
+            if sp.life_steal && !def.immunities.death {
+                let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
+                total += apply_unblockable(def, stolen);
+                total.healed += stolen;
+            }
+            if sp.destruction && def.resistance_failure(Some(Realm::Chaos), 0, rng) > 0 {
+                total += kill_figure(def);
+            }
+        }
         if def.figures == 0 {
             break;
         }
@@ -146,6 +279,13 @@ pub fn process_attack(
                 dmg = 0;
             }
         }
+        if sp.poison > 0 && !def.immunities.poison {
+            for _ in 0..sp.poison {
+                if def.figures > 0 && def.resistance_failure(None, 0, rng) > 0 {
+                    total += apply_unblockable(def, 1);
+                }
+            }
+        }
     }
     total
 }
@@ -170,24 +310,40 @@ pub struct Exchange {
 }
 
 /// A melee attack and the defender's reply, in the original's order. Both fighters' states
-/// are updated.
+/// are updated. Life stolen heals the thief at once.
 pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCore) -> Exchange {
     let mut out = Exchange::default();
     // Thrown weapons and breath go first, with every figure the attacker has.
     if let Some(thrown) = &att.thrown {
-        out.dealt += process_attack(thrown, att.state.figures, &mut def.state, rng);
+        let d = process_attack(thrown, att.state.figures, &mut def.state, rng);
+        att.state.heal(d.healed);
+        out.dealt += d;
+    }
+    // A defender with a gaze gazes back before the blows, with the figures it has left.
+    if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.gaze != Gaze::None) {
+        if def.state.figures > 0 && att.state.figures > 0 {
+            let d = process_attack(gaze, def.state.figures, &mut att.state, rng);
+            def.state.heal(d.healed);
+            out.taken += d;
+        }
     }
     let first_strike = att.first_strike && !def.negate_first_strike;
     if first_strike && def.state.figures > 0 {
-        out.dealt += process_attack(&att.melee, att.state.figures, &mut def.state, rng);
+        let d = process_attack(&att.melee, att.state.figures, &mut def.state, rng);
+        att.state.heal(d.healed);
+        out.dealt += d;
     }
     // The defender strikes back with the figures it has left.
-    if def.state.figures > 0 {
-        out.taken += process_attack(&def.melee, def.state.figures, &mut att.state, rng);
+    if def.state.figures > 0 && att.state.figures > 0 {
+        let d = process_attack(&def.melee, def.state.figures, &mut att.state, rng);
+        def.state.heal(d.healed);
+        out.taken += d;
     }
     // An attacker without first strike now swings with the figures that survived.
     if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
-        out.dealt += process_attack(&att.melee, att.state.figures, &mut def.state, rng);
+        let d = process_attack(&att.melee, att.state.figures, &mut def.state, rng);
+        att.state.heal(d.healed);
+        out.dealt += d;
     }
     out
 }
@@ -292,7 +448,8 @@ mod tests {
             dmg,
             Damage {
                 points: 5,
-                kills: 2
+                kills: 2,
+                healed: 0
             }
         );
         assert_eq!((d.figures, d.front_damage), (1, 1));
@@ -303,7 +460,8 @@ mod tests {
             dmg,
             Damage {
                 points: 1,
-                kills: 1
+                kills: 1,
+                healed: 0
             }
         );
         assert_eq!(d.figures, 0);
@@ -493,5 +651,287 @@ mod tests {
             process_attack(&doom, 1, &mut armoured(archer_proof), &mut r).points,
             6
         );
+    }
+
+    /// A defender that nothing blocks (defense 0) with the given resistance.
+    fn soft(figures: u32, hits: i32, resistance: i32) -> DefenderState {
+        DefenderState {
+            resistance,
+            figures_max: figures,
+            ..def(figures, hits, 0)
+        }
+    }
+
+    /// A weak attacker (one die) with the given special attacks.
+    fn special(special: SpecialAttacks, mode: Mode) -> Combatant {
+        Combatant {
+            strength: 1,
+            mode,
+            special,
+            ..Combatant::default()
+        }
+    }
+
+    /// Average kills over many attacks.
+    fn mean_kills(
+        attacker: &Combatant,
+        figures: u32,
+        mut target: impl FnMut() -> DefenderState,
+    ) -> f64 {
+        let mut r = rng(21);
+        let n = 3_000;
+        let total: u32 = (0..n)
+            .map(|_| process_attack(attacker, figures, &mut target(), &mut r).kills)
+            .sum();
+        f64::from(total) / f64::from(n)
+    }
+
+    #[test]
+    fn a_touch_that_is_not_resisted_kills_a_figure_for_each_attacker() {
+        let touch = |s: SpecialAttacks| special(s, Mode::Melee);
+        let stoner = SpecialAttacks {
+            stoning_touch: true,
+            penalty: 3,
+            ..SpecialAttacks::default()
+        };
+        // Resistance 4 at -3 fails on 2 to 10: nine times in ten; six attackers.
+        let k = mean_kills(&touch(stoner), 6, || soft(40, 100, 4));
+        assert!((k - 5.4).abs() < 0.3, "{k}");
+        // Stoning immunity and magic immunity both stop it.
+        let stone_proof = || DefenderState {
+            immunities: Immunities {
+                stoning: true,
+                ..Immunities::default()
+            },
+            ..soft(40, 100, 4)
+        };
+        let warded = || DefenderState {
+            immunities: Immunities {
+                magic: true,
+                ..Immunities::default()
+            },
+            ..soft(40, 100, 4)
+        };
+        assert!(mean_kills(&touch(stoner), 6, stone_proof) < 1.0);
+        assert!(mean_kills(&touch(stoner), 6, warded) < 1.0);
+        // A higher resistance resists more often.
+        assert!(mean_kills(&touch(stoner), 6, || soft(40, 100, 12)) < k / 3.0);
+        let death = SpecialAttacks {
+            death_touch: true,
+            penalty: 3,
+            ..SpecialAttacks::default()
+        };
+        let d = mean_kills(&touch(death), 6, || soft(40, 100, 4));
+        assert!((d - 5.4).abs() < 0.3, "{d}");
+        let destroyer = SpecialAttacks {
+            destruction: true,
+            ..SpecialAttacks::default()
+        };
+        // Destruction has no penalty: resistance 4 fails six times in ten.
+        let x = mean_kills(&touch(destroyer), 6, || soft(40, 100, 4));
+        assert!((x - 3.6).abs() < 0.3, "{x}");
+    }
+
+    #[test]
+    fn dispel_evil_works_on_creatures_of_chaos_and_death_only() {
+        let angel = special(
+            SpecialAttacks {
+                dispel_evil: true,
+                ..SpecialAttacks::default()
+            },
+            Mode::Melee,
+        );
+        let creature = |realm, undead| {
+            move || DefenderState {
+                realm,
+                undead,
+                ..soft(40, 100, 8)
+            }
+        };
+        // -4 on resistance 8 fails six times in ten, -9 always (the die cannot roll under 0).
+        let evil = mean_kills(&angel, 6, creature(Some(Realm::Death), false));
+        assert!((evil - 3.6).abs() < 0.3, "{evil}");
+        let dead = mean_kills(&angel, 6, creature(Some(Realm::Chaos), true));
+        assert!((dead - 6.0).abs() < 0.2, "{dead}");
+        assert!(mean_kills(&angel, 6, creature(Some(Realm::Life), false)) < 1.0);
+        assert!(mean_kills(&angel, 6, creature(None, false)) < 1.0);
+    }
+
+    #[test]
+    fn poison_makes_each_point_of_strength_resisted_or_hurt() {
+        let spider = special(
+            SpecialAttacks {
+                poison: 6,
+                ..SpecialAttacks::default()
+            },
+            Mode::Melee,
+        );
+        let armoured = |immunities| DefenderState {
+            immunities,
+            defense: 50,
+            ..soft(200, 100, 4)
+        };
+        let mut r = rng(5);
+        let n = 2_000;
+        let hurt: i32 = (0..n)
+            .map(|_| {
+                process_attack(&spider, 1, &mut armoured(Immunities::default()), &mut r).points
+            })
+            .sum();
+        // Six checks at resistance 4: six in ten fail, so 3.6 points a time.
+        let mean = f64::from(hurt) / f64::from(n);
+        assert!((mean - 3.6).abs() < 0.2, "{mean}");
+        let proof = Immunities {
+            poison: true,
+            ..Immunities::default()
+        };
+        let none: i32 = (0..200)
+            .map(|_| process_attack(&spider, 1, &mut armoured(proof), &mut r).points)
+            .sum();
+        assert_eq!(none, 0);
+        // Magic immunity does not stop poison.
+        let warded = Immunities {
+            magic: true,
+            ..Immunities::default()
+        };
+        let still: i32 = (0..200)
+            .map(|_| process_attack(&spider, 1, &mut armoured(warded), &mut r).points)
+            .sum();
+        assert!(still > 400, "{still}");
+    }
+
+    #[test]
+    fn life_steal_hurts_past_armour_and_heals_the_thief() {
+        let wraith = special(
+            SpecialAttacks {
+                life_steal: true,
+                penalty: 3,
+                ..SpecialAttacks::default()
+            },
+            Mode::Melee,
+        );
+        let target = || DefenderState {
+            defense: 50,
+            ..soft(200, 100, 4)
+        };
+        let mut r = rng(8);
+        let n = 3_000;
+        let (mut dealt, mut healed) = (0, 0);
+        for _ in 0..n {
+            let d = process_attack(&wraith, 1, &mut target(), &mut r);
+            dealt += d.points;
+            healed += d.healed;
+        }
+        // Resistance 1: a die of 2 to 10 fails by 1 to 9, 5 on average: 4.5 a time.
+        let mean = f64::from(healed) / f64::from(n);
+        assert!((mean - 4.5).abs() < 0.3, "{mean}");
+        assert_eq!(dealt, healed, "what it steals it takes from the target");
+        // Death immunity protects against it.
+        let proof = DefenderState {
+            immunities: Immunities {
+                death: true,
+                ..Immunities::default()
+            },
+            ..target()
+        };
+        let d = process_attack(&wraith, 1, &mut proof.clone(), &mut r);
+        assert_eq!((d.points, d.healed), (0, 0));
+    }
+
+    #[test]
+    fn a_melee_exchange_heals_a_life_stealer() {
+        let thief = Fighter {
+            melee: special(
+                SpecialAttacks {
+                    life_steal: true,
+                    penalty: 3,
+                    ..SpecialAttacks::default()
+                },
+                Mode::Melee,
+            ),
+            thrown: None,
+            first_strike: false,
+            negate_first_strike: false,
+            state: DefenderState {
+                front_damage: 3,
+                ..soft(1, 8, 4)
+            },
+        };
+        let victim = Fighter {
+            melee: Combatant::default(),
+            thrown: None,
+            first_strike: false,
+            negate_first_strike: false,
+            state: soft(50, 100, 4),
+        };
+        let mut healed_any = false;
+        for seed in 0..40 {
+            let (mut a, mut b) = (thief.clone(), victim.clone());
+            melee_exchange(&mut a, &mut b, &mut rng(seed));
+            assert!(a.state.front_damage <= 3);
+            healed_any |= a.state.front_damage < 3;
+        }
+        assert!(healed_any);
+    }
+
+    #[test]
+    fn a_gaze_makes_each_figure_resist_in_the_thrown_step_only() {
+        let gazer = |gaze, mode| {
+            special(
+                SpecialAttacks {
+                    gaze,
+                    penalty: 2,
+                    ..SpecialAttacks::default()
+                },
+                mode,
+            )
+        };
+        // Resistance 4 at -2: fails on 3 to 10, eight in ten of ten figures.
+        let k = mean_kills(&gazer(Gaze::Stoning, Mode::ThrownOrBreath), 1, || {
+            soft(10, 100, 4)
+        });
+        assert!((k - 8.0).abs() < 0.4, "{k}");
+        // The same unit's melee blows do not gaze.
+        assert!(mean_kills(&gazer(Gaze::Stoning, Mode::Melee), 1, || soft(10, 100, 4)) < 1.0);
+        // A multiple gaze stones and kills: about 1 - 0.2 * 0.2 of the figures.
+        let multi = mean_kills(&gazer(Gaze::Multi, Mode::ThrownOrBreath), 1, || {
+            soft(10, 100, 4)
+        });
+        assert!((multi - 9.6).abs() < 0.4, "{multi}");
+        let death = mean_kills(&gazer(Gaze::Death, Mode::ThrownOrBreath), 1, || {
+            DefenderState {
+                immunities: Immunities {
+                    death: true,
+                    ..Immunities::default()
+                },
+                ..soft(10, 100, 4)
+            }
+        });
+        assert!(death < 1.0, "{death}");
+    }
+
+    #[test]
+    fn healing_mends_the_front_figure_then_brings_the_dead_back() {
+        let mut d = DefenderState {
+            front_damage: 3,
+            figures_max: 4,
+            ..def(2, 5, 0)
+        };
+        d.heal(2);
+        assert_eq!((d.figures, d.front_damage), (2, 1));
+        // Past the front figure's damage, a dead figure returns, the rest wounding it.
+        d.heal(3);
+        assert_eq!((d.figures, d.front_damage), (3, 3));
+        d.heal(100);
+        assert_eq!((d.figures, d.front_damage), (4, 0));
+        // The dead cannot be healed, and nothing is healed for nothing.
+        let mut gone = DefenderState {
+            figures_max: 4,
+            ..def(0, 5, 0)
+        };
+        gone.heal(10);
+        assert_eq!(gone.figures, 0);
+        d.heal(-4);
+        assert_eq!((d.figures, d.front_damage), (4, 0));
     }
 }

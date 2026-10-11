@@ -14,6 +14,7 @@ pub mod attack;
 pub mod game;
 pub mod immunity;
 pub mod map;
+pub mod special;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -21,8 +22,9 @@ use rand_pcg::Pcg64Mcg;
 use crate::city::{PlayerId, Position};
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
-use immunity::{AttackNature, Immunities};
+use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, BattleMap, Pos, OPEN_COST};
+use special::{Gaze, SpecialAttacks};
 
 /// A side never fights on past this turn: the defender holds.
 pub const TURN_LIMIT: u32 = 100;
@@ -104,6 +106,14 @@ pub struct BattleUnit {
     /// Its weapons are magical, so weapon immunity does not stop its normal attacks: heroes,
     /// fantastic and summoned creatures, units with a flaming or blessed blade.
     pub magical_weapon: bool,
+    /// `Stat::SpecialLevel`: poison strength, or the penalty of its gaze and touches.
+    pub special_level: i32,
+    /// The ids of its lasting spells, which add to resistance against some realms.
+    pub enchantments: Vec<String>,
+    /// The creature's realm (chaos and death creatures fear dispel evil), and whether it is
+    /// undead.
+    pub realm: Option<Realm>,
+    pub undead: bool,
     pub abilities: Vec<String>,
     pub status: Status,
     /// Has attacked or shot this turn.
@@ -146,6 +156,10 @@ impl BattleUnit {
             negate_first_strike: false,
             long_range: false,
             magical_weapon: false,
+            special_level: 0,
+            enchantments: Vec::new(),
+            realm: None,
+            undead: false,
             abilities: Vec::new(),
             status: Status::Active,
             attacked: false,
@@ -182,6 +196,11 @@ impl BattleUnit {
             hits: self.hits,
             defense: self.defense,
             immunities: Immunities::of(&self.abilities),
+            resistance: self.resistance,
+            enchantments: self.enchantments.clone(),
+            realm: self.realm,
+            undead: self.undead,
+            figures_max: self.figures_start,
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
@@ -196,28 +215,36 @@ impl BattleUnit {
         }
     }
 
-    fn melee_combatant(&self) -> Combatant {
+    fn has(&self, ability: &str) -> bool {
+        self.abilities.iter().any(|a| a == ability)
+    }
+
+    fn special_attacks(&self) -> SpecialAttacks {
+        SpecialAttacks::of_unit(&self.abilities, self.special_level)
+    }
+
+    /// A combatant for one of the unit's attacks.
+    fn combatant(&self, mode: Mode, strength: i32, to_hit: i32) -> Combatant {
+        let special = self.special_attacks();
         Combatant {
-            strength: self.melee,
-            to_hit: self.to_hit,
-            ignores_defense: false,
-            mode: Mode::Melee,
-            nature: AttackNature::of_unit_attack(Mode::Melee, &self.abilities, self.magical_weapon),
+            strength,
+            to_hit,
+            // Chaos damage, and the damage of a multiple gaze, ignores every defence.
+            ignores_defense: self.has("doom_damage")
+                || (mode == Mode::ThrownOrBreath && special.gaze == Gaze::Multi),
+            mode,
+            nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
+            special,
         }
     }
 
+    fn melee_combatant(&self) -> Combatant {
+        self.combatant(Mode::Melee, self.melee, self.to_hit)
+    }
+
     fn thrown_combatant(&self) -> Option<Combatant> {
-        (self.ranged_kind == RangedKind::Short && self.ranged > 0).then_some(Combatant {
-            strength: self.ranged,
-            to_hit: self.to_hit,
-            ignores_defense: false,
-            mode: Mode::ThrownOrBreath,
-            nature: AttackNature::of_unit_attack(
-                Mode::ThrownOrBreath,
-                &self.abilities,
-                self.magical_weapon,
-            ),
-        })
+        (self.ranged_kind == RangedKind::Short && self.ranged > 0)
+            .then(|| self.combatant(Mode::ThrownOrBreath, self.ranged, self.to_hit))
     }
 }
 
@@ -621,19 +648,18 @@ impl Battle {
             }
         };
         let a = &self.units[att];
-        let shooter = Combatant {
-            strength: a.ranged,
-            to_hit: a.to_hit - penalty,
-            ignores_defense: false,
-            mode: Mode::Ranged,
-            nature: AttackNature::of_unit_attack(Mode::Ranged, &a.abilities, a.magical_weapon),
-        };
+        let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit - penalty);
         let figures = a.figures;
         let mut state = self.units[def].defender_state();
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = attack::ranged_attack(&shooter, figures, &mut state, rng);
         self.units[def].set_from(&state);
         let a = &mut self.units[att];
+        if dmg.healed > 0 {
+            let mut mine = a.defender_state();
+            mine.heal(dmg.healed);
+            a.set_from(&mine);
+        }
         a.ammo -= 1;
         a.attacked = true;
         let mut events = vec![BattleEvent::Shot {

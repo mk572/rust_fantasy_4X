@@ -998,3 +998,57 @@ fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
     let seen = damage_over_seeds(thief, || armoured(&["illusion_immunity"]), false);
     assert!(plain > seen * 2, "{plain} vs {seen}");
 }
+
+#[test]
+fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() {
+    let basilisk = || {
+        let mut u = BattleUnit::simple(Side::Defender, "basilisk", 1, 30, 0, 3).at((4, 10));
+        u.ranged = 1;
+        u.ranged_kind = RangedKind::Short;
+        u.special_level = 3;
+        with_abilities(u, &["stoning_gaze"])
+    };
+    let mut lost = 0;
+    let mut gazeless_lost = 0;
+    for seed in 0..100 {
+        let squad = || {
+            let mut u = BattleUnit::simple(Side::Attacker, "squad", 10, 1, 1, 0).at((3, 10));
+            u.resistance = 3;
+            u
+        };
+        let mut b = duel(squad(), basilisk(), seed);
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+            .unwrap();
+        lost += 10 - b.unit(0).unwrap().figures;
+        let mut plain = basilisk();
+        plain.abilities.clear();
+        let mut b = duel(squad(), plain, seed);
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+            .unwrap();
+        gazeless_lost += 10 - b.unit(0).unwrap().figures;
+    }
+    // Resistance 3 at -3 fails nine times in ten: about nine of the ten figures turn to stone.
+    assert!(lost > 700, "{lost}");
+    assert!(gazeless_lost < 100, "{gazeless_lost}");
+}
+
+#[test]
+fn a_life_stealing_shot_heals_the_shooter() {
+    let lord = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "lord", 2, 10, 1, 1).at((3, 10));
+        u.ranged = 4;
+        u.ammo = 4;
+        u.ranged_kind = RangedKind::Missile;
+        u.special_level = 3;
+        u.front_damage = 8;
+        with_abilities(u, &["bow", "life_steal"])
+    };
+    let mut healed = 0;
+    for seed in 0..50 {
+        let mut b = duel(lord(), dummy(&[]), seed);
+        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
+            .unwrap();
+        healed += 8 - b.unit(0).unwrap().front_damage;
+    }
+    assert!(healed > 0);
+}

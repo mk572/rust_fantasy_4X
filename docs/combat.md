@@ -53,8 +53,7 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
   it throws or breathes.
 - **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
 
-Not yet (task 36-37): gazes, touches, life steal, armour piercing, large shield, the spell
-shots using mana, haste, blur.
+Not yet (task 37 and later): large shield, the spell shots using mana, haste, blur, fear.
 
 ### 2.1 Immunities and resistance (task 35)
 
@@ -103,6 +102,46 @@ to roll against each attack (`attack::process_attack`).
 - **Not here:** the defence bonuses the same enchantments give against ranged magic (Elemental
   Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
   gazes and touches that call a resistance check (36), mithril and adamantium weapons (18).
+
+### 2.2 Special attacks (task 36)
+
+`battle/special.rs` and `attack::process_attack`, following the original's
+`Battle_Unit_Process_Attack`. The unit's `Stat::SpecialLevel` (the original's special attack
+number, kept positive) is poison strength, or the resistance penalty of its gaze, touch and
+life steal. Every attack of the unit (melee, thrown, ranged) carries its special attacks, as in
+the original; a gaze only counts in the thrown and breath step.
+
+Per attack, in order:
+1. **Gaze** (stoning, death, or both for a multiple gaze), once, against *each of the target's
+   figures*: the figure resists at the gaze's penalty (stoning is nature, death is death) or
+   is killed. Stoning immunity, death immunity and magic immunity stop the matching gaze. The
+   damage of a multiple gaze's ranged strength ignores defence. A defender with a gaze gazes
+   back at the attacker after the attacker's thrown step, with the figures it has left
+   (`melee_exchange`).
+2. **For each attacking figure**, if the target is not magic immune:
+   - *Dispel evil*: against creatures of chaos or death (the unit's realm), resist at -4 (-9
+     for the undead) or lose a figure.
+   - *Stoning touch* and *death touch*: resist at the penalty or lose a figure (stoning
+     immunity, death immunity).
+   - *Life steal*: resist at the penalty; every point by which it fails is a point of damage no
+     defence blocks, and the attacker heals the same (death immunity stops it).
+   - *Destruction*: resist (no penalty) or lose a figure.
+3. **The blows**, as before. `doom_damage` makes the attack strength the damage, with no to-hit
+   or defence roll (the original halves it when it comes from an item or a spell; nothing
+   here is not innate yet).
+4. **Poison**: one resistance check per point of strength, each failure a point of damage
+   no defence blocks (poison immunity; magic immunity does not stop it).
+
+A failed check "kills a figure" by dealing a whole figure's hit points of damage no defence
+blocks, so a figure already hurt dies sooner, and the damage that is left spills on to the next.
+Armour piercing halves the defence (rounding down) before the immunity floor of 10 is applied;
+lightning breath pierces armour too. Healing (`DefenderState::heal`) mends the front figure,
+then brings dead figures back, and nothing over full strength is kept.
+
+Not here (task 157): power drain (it needs battle mana, task 43), the extra penalty and half
+strength of touches and doom damage granted by items and spells, hit points above full
+strength from life steal, the undead that life steal and create undead leave behind, and
+healing that skips irreversible damage.
 
 ## 3. The tactical map and the turn (task 40)
 

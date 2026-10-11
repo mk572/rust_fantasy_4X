@@ -25,6 +25,11 @@ pub enum Stat {
     /// Percentage points added to the base to-hit chance (may be negative).
     ToHit,
     Ammo,
+    /// The number that goes with a unit's special attack or ability: poison strength, or the
+    /// resistance penalty of its gaze, touch or life steal (the original stores a penalty as a
+    /// negative number; only the size counts, so it is kept positive here), or
+    /// the level of a bonus such as Holy Bonus. Zero when it has none.
+    SpecialLevel,
     /// Road-building strength: engineers have 1 (some 2); the stack's total divides the
     /// turns a road square takes.
     Construction,
