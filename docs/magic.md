@@ -66,9 +66,17 @@ generator, so a seed gives the same wizard.
 
 ## 5. Research
 
-`SetResearch` picks a researchable spell; the cost is the spell's `research_cost`. The choice
-stands until the spell is learned (no switching). When the remaining cost reaches 0 the spell
-becomes known (`SpellLearned`), and the player picks the next.
+Eight spells are on offer at a time (`Magic::candidates`, `RESEARCH_SLOTS`), the original's
+`research_spells`: `refill_research` tops the offer up from `research_pool` (the original's
+`Build_Research_List`: in each realm every researchable spell of its lowest rarity that is
+still left, so commons come before uncommons; arcane spells in three steps, the first three, the
+next five, the rest), picking at random and working the pool out afresh after each pick, then
+sorts the offer by the time each would take. It runs when a wizard is made, every turn and when
+a spell is learned. `SetResearch` takes one of the offered spells; the cost is its
+`research_cost`, and the choice stands until the spell is learned (no switching). When the
+remaining cost reaches 0 the spell becomes known (`SpellLearned`), leaves the offer, and the
+player picks the next. Not done: the Spell of Mastery joining the offer when nothing else is
+left (task 61).
 
 ## 6. Casting overland
 
@@ -110,11 +118,21 @@ Within the turn change, after the treasury: magic power applied → research che
 
 ## 10. Client
 
-M opens the magic screen: power and split (click a bar), research choices (click), the spell
-book (click to cast), alchemy buttons, casting status. A spell with a target closes the screen
-and waits for a click on the map; Esc cancels. The top bar shows mana and its net change.
-Until there is a wizard-creation screen the human gets fixed picks (3 sorcery, 2 nature,
-Conjurer) and the rival 3 chaos, 2 death, Warlord.
+The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.rs`):
+- **M, the Magic button:** the three staves (drag one; the lock above holds its share, and the
+  others give and take as `staff_adjust` says), the income under each, the casting skill,
+  magic reserve and power base, what is being cast and researched, the summoning circle's city,
+  the gems of the other wizards (grey until diplomacy: tasks 63, 83), the overland enchantments
+  of every wizard (click your own to turn it off: `Command::TurnOffSpell`), and the Alchemy
+  window (the slider and the arrow that turns the exchange round).
+- **V, the Spells button:** the small spell book, spells by realm six to a page with the cost and
+  a symbol for each turn it takes; click to cast (a spell with a target is aimed on the map; Esc
+  cancels); casting another spell asks before giving up the one under way.
+- **F3:** the Apprentice's big book, every spell the books allow (greyed when not known yet), then
+  the two pages of spells on offer for research, with what each does (the help text, local only).
+- **At the start of a turn with nothing being researched** (from the second turn, as in the
+  original) the big book opens on the research pages and asks which to take; a spell just
+  learned is announced first.
 
 ## 11. Differences from the original
 
@@ -165,7 +183,8 @@ importer, optional) lists the ready-made wizards. Eleven picks buy books (one ea
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
 Myrran), at most six retorts, with the prerequisites in `retort_available`. A realm with `n`
 books lets the wizard choose `n - 1` common spells at the start (more are filled from
-`RealmDef::default_spells`). Ready-made wizards skip the budget check (the original's Lo Pan
+`RealmDef::default_spells`); with eleven books in one realm the wizard knows all ten commons and
+chooses two uncommon and one rare (`WizardBuild::spell_choices_of`). Ready-made wizards skip the budget check (the original's Lo Pan
 spends twelve). The client's creation screen is `create_screen.rs`.
 
 ## 14. Global enchantments

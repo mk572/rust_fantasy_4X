@@ -45,6 +45,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
+| 92 | Client | Spell-research dialogs (done) |
+| 93 | Client | Spell-book view of the magic screen (done) |
+| 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
 | 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
@@ -84,6 +87,10 @@ volcano rain (needs timed global spells, 57) and Gaia's Blessing turning volcano
 neighbours. Only table 0 (ocean shores) is used; the tables for mountains, hills and tundra
 edges are extracted but not yet drawn.
 
+**5. Land corruption and purification (done).** Corruption of tiles (by units, spells and Great Wasting)
+and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on
+the worked-area food and production of cities, and spells that set it.
+
 **6. Magic node ownership, melding and power (done).** `nodes.rs`: every node feature gets a `Node`
 (on `Map`, saved in `MapSave::nodes`) with power (5-10 on Arcanus, 10-20 on Myrror: the number
 of aura squares), an aura of squares around it, an owner, a guardian flag and a warped flag.
@@ -95,6 +102,9 @@ by Node Mastery; a warped node costs five. The client tints aura squares by real
 owned nodes in the owner's colour and melds with U. Not done: node guardians (monsters) to
 beat before melding (8), conjunction events (68), the warp spell (7), a setting screen for the
 strength (10, 89).
+
+**7. Node auras and warped nodes (done).** +2 attack and defence to matching creatures inside a node's
+aura [653-656], and warping by spells. Depends on 6. Warping is done (`nodes.rs`); the battle auras are task 160.
 
 **8. Encounter sites: guardians and loot (done).** Core done (`lairs.rs`, `docs/lairs.md`): guards and hoards
 for towers, nodes and encounter sites, assault by `Command::EnterSite`, treasure and clearing. Open
@@ -277,6 +287,17 @@ undone, and clears the history before it; ending the turn clears it too, and ref
 leave no entry. An undo rebuilds the units, so `hecs` entities change: find them again by
 creation number (`entity_of_serial`, now public); the client does this for its selection and
 binds undo to Ctrl or Cmd with Z. Hardcore mode (`PLANNED.md` item 8) will switch undo off.
+
+**92. Spell-research dialogs (done).** The dialogs of the original's research flow: the choice of the
+next spell to research when one is learned (a list of the researchable spells with costs and
+turns left), and the "spell learned" announcement. Today the magic screen holds the list and
+learned spells only show in the message log. Done: the original's offer of eight spells at a time is now the rule (`Magic::candidates`, `refill_research`, `magic.md` section 5, the old list of every researchable spell is gone), the choice dialog is the big book on its research pages (`bigbook.rs`, opened by itself at the start of a turn with nothing under research, from turn two) with each spell's cost, turns and description (the help text, local only), and a learned spell is announced first. Left over: task 166.
+
+**93. Spell-book view of the magic screen (done).** A page-turning spell book, as in the original,
+beside or instead of the list: spells by realm and rarity with their costs, casting buttons
+and the research queue, using the original's book art locally. Done: the small book the Spells button and V open (`spellbook.rs`: pages by realm, cost, a symbol for each turn, "Instant Cast", replacing a spell under way asks first) and the Apprentice's big book on F3 (`bigbook.rs`: the library, then the research pages). The Magic screen itself no longer lists spells. Left over: task 166.
+
+**101. Eleven-book realms and the full starting-spell rule (done).** The original lets one realm hold 11 books (with 10 common choices, 2 uncommon and 1 rare starting spell, `m_select_count_*`); the creation screen and `init_wizard` stop at 10 books and only choose common spells. Raise the limit, add the uncommon and rare starting picks, and extend the creation screen's spell lists. Done: 11 books in a realm (`MAX_BOOKS`) know all ten commons and pick two uncommon and one rare (`WizardBuild::spell_choices_of`, `init_spell_library`), the importer gives each realm its original defaults for them (`realms.ron`), and the creation screen lists the uncommon and rare spells too.
 
 **105. Wire overland attacks to battles (done).** Done: the winner of an overland battle moves onto the square, takes a city on it (`capture_city`) and an empty enemy city is taken by walking in (`Game::hostile_entry`); the human's attack opens the battle screen (task 45) and AIs use `Command::AutoResolve` (39). Experience and loot are task 42, walls and razing task 41. Original text: Moving into a hostile square only emits `AttackRequested`. Connect it: the client opens a battle (`Command::BeginBattle`) for the human, the AI does so for itself, and the winner takes the square (attackers advance when the defenders are gone), with the defenders' city handled by the siege task (41). Needs the after-battle results of 42 for experience and loot.
 

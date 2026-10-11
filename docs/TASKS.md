@@ -60,8 +60,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
 | 91 | Client | Diplomacy screen |
-| 92 | Client | Spell-research dialogs |
-| 93 | Client | Spell-book view of the magic screen |
 | 94 | Client | Settings screen |
 | 95 | Client | Tutorial |
 | 96 | Client | City screen: enchantments list |
@@ -69,7 +67,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 98 | Housekeeping | Packaging for Linux |
 | 99 | Combat | Saving during a battle |
 | 100 | Map | Draw the original's edge variants for mountains, hills and tundra |
-| 101 | Magic | Eleven-book realms and the full starting-spell rule |
 | 102 | Map | Road-building path selection in the client |
 | 103 | Units | Scouting levels and unit sight |
 | 104 | Units | Ship tiers by building and ship movement estimates (low priority) |
@@ -128,17 +125,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 162 | Client | Weapon quality icons and help |
 | 163 | Combat | Wall of Stone in battle |
 | 164 | Combat | Heavenly Light's True Light |
+| 166 | Client | Book animations, the combat spell book and spell help |
 
 ## Descriptions
-
-### Map
-
-**5. Land corruption and purification.** Corruption of tiles (by units, spells and Great Wasting)
-and purification (three turns) [404, 615-617]. Needs a corruption layer in `Grid`, its effect on
-the worked-area food and production of cities, and spells that set it.
-
-**7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
-aura [653-656], and warping by spells. Depends on 6.
 
 ### Units
 
@@ -332,7 +321,7 @@ layout with its fonts, citizen icons, resource icon rows, unit pictures, product
 picture buttons and the cityscape. The screenshots in `reference/screenshots/` include
 Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and building-choice
 screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
-Still open: the magic screen, the wizard creation screen, the unit and army lists, the battle
+The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
 screen, the hero sheet and the diplomacy screen.
 
 **85. Import and play the original's opening movie.** Extract the intro from the author's own
@@ -366,15 +355,6 @@ change presentation. Reachable from the start menu (86) and in game.
 **91. Diplomacy screen.** Talk to a rival wizard: attitude, treaties on offer, proposals and
 answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63. See `docs/diplomacy.md`.
 
-**92. Spell-research dialogs.** The dialogs of the original's research flow: the choice of the
-next spell to research when one is learned (a list of the researchable spells with costs and
-turns left), and the "spell learned" announcement. Today the magic screen holds the list and
-learned spells only show in the message log.
-
-**93. Spell-book view of the magic screen.** A page-turning spell book, as in the original,
-beside or instead of the list: spells by realm and rarity with their costs, casting buttons
-and the research queue, using the original's book art locally.
-
 **94. Settings screen.** The client screen for the options of task 89: gameplay options and
 presentation options (volume, speeds, zoom), reachable from the start menu (86).
 
@@ -403,8 +383,6 @@ fighters were copied from (by creation number). Restore it on load, check it for
 middle of a battle continues exactly like the unsaved one.
 
 **100. Draw the original's edge variants for mountains, hills and tundra.** The extractor already writes all five tables of `autotile.tsv` (neighbour mask to terrain type), but the client only uses table 0 (ocean shores). Use the other tables so mountain, hill and tundra squares blend with their neighbours as in the original, and check the result against the screenshots (84).
-
-**101. Eleven-book realms and the full starting-spell rule.** The original lets one realm hold 11 books (with 10 common choices, 2 uncommon and 1 rare starting spell, `m_select_count_*`); the creation screen and `init_wizard` stop at 10 books and only choose common spells. Raise the limit, add the uncommon and rare starting picks, and extend the creation screen's spell lists.
 
 **102. Road-building path selection in the client.** The B key builds a road only on the square under the engineers. Add the original's road-building mode (topics 510-512): click a path, show valid squares in blue and invalid in red with the turns it will take, OK and Cancel buttons, using `find_path`-style planning and `Command::BuildRoad` with the whole path.
 
@@ -572,3 +550,5 @@ Parity task, low priority.
 **163. Wall of Stone in battle.** The spell is a combat spell too: `Wall_Rise` in `Combat.c` lets the defender raise the walls of its city during the battle (the original refuses it for an attacker or a city that has walls). Task 25 did the overland casting only (`city_spells.rs`: it builds City Walls). Needs the `Wall::Standing` sites made mid-battle (`BattleMap::with_city`) and the spell in `battle/spells.rs`; Disrupt (breaks a section) belongs with it (task 159).
 
 **164. Heavenly Light's True Light.** The original gives the defender True Light in every battle at a city with Heavenly Light, as Cloud of Shadow gives Darkness (`Calc_Battlefield_Bonuses`); here Heavenly Light is only its unrest modifier. Task 25 did Cloud of Shadow (`Game::start_battle`); this is the mirror: raise `Field::TrueLight` for the defender when the city has `heavenly_light`.
+
+**166. Book animations, the combat spell book and spell help.** What the spell books of task 93 leave out: the page-turn animation (`SmlBook_PageTurn`, `BigBook_PageTurn`, `book.lbx`), the animation that shows a learned spell (`Learn_Spell_Animation`), the combat spell book drawn on the same book picture (the battle screen has its own list), the help that a right-click on a spell opens, and the glow of the book's palette-cycled pixels (task 146). Also the Magic screen's gems: a wizard's portrait, relations text, treaty icons and what it is casting once diplomacy (tasks 63, 91) and portraits (83) exist.

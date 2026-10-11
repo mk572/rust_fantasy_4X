@@ -29,6 +29,12 @@ pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
+    /// The spell book the wizard casts from.
+    Spellbook,
+    /// The Apprentice's library: every spell the wizard can learn.
+    Apprentice,
+    /// Choosing what to research next.
+    Research,
     /// A tactical battle is being fought.
     Battle,
     /// Creating the human wizard before the game begins.
@@ -64,10 +70,16 @@ pub struct App {
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
     pub(crate) choice_scroll: usize,
-    /// Scroll position of the research and spell lists on the magic screen.
-    pub(crate) magic_scroll: [usize; 2],
+    /// The magic screen's staves, locks and windows.
+    pub(crate) magic_ui: crate::magic_screen::MagicUi,
+    /// The small spell book's pages.
+    pub(crate) book_ui: crate::spellbook::BookUi,
+    /// The big spell book: the library, the research choice, spells just learned.
+    pub(crate) big_ui: crate::bigbook::BigBookUi,
+    /// The help topics (local only), which describe the spells.
+    pub(crate) help: f4x_core::help::Help,
     /// A spell waiting for a target to be clicked on the map.
-    pub(crate) targeting: Option<crate::magic_screen::Targeting>,
+    pub(crate) targeting: Option<crate::spellbook::Targeting>,
     /// The key list is shown (F1 shows it while held).
     pub(crate) show_keys: bool,
     /// The wizard creation screen's state.
@@ -129,7 +141,10 @@ impl App {
             log: Vec::new(),
             choosing: false,
             choice_scroll: 0,
-            magic_scroll: [0, 0],
+            magic_ui: Default::default(),
+            book_ui: Default::default(),
+            big_ui: Default::default(),
+            help: Default::default(),
             targeting: None,
             show_keys: false,
             create: crate::create_screen::CreateState::empty(),
@@ -344,10 +359,15 @@ impl App {
                 Event::SummoningCircleMoved { .. } => {
                     Some("The summoning circle has moved".to_string())
                 }
-                Event::SpellLearned { spell, .. } => Some(format!(
-                    "Learned {}: choose new research (M)",
-                    self.game.content.rules.spells.get(spell).name
-                )),
+                Event::SpellLearned { player, spell } => {
+                    if player == HUMAN {
+                        self.big_ui.learned.push_back(spell);
+                    }
+                    Some(format!(
+                        "Learned {}",
+                        self.game.content.rules.spells.get(spell).name
+                    ))
+                }
                 Event::SpellCast { spell, .. } => Some(format!(
                     "Cast {}",
                     self.game.content.rules.spells.get(spell).name
@@ -658,6 +678,15 @@ impl App {
                 return self.ward_prompt_frame(prompt);
             }
         }
+        // A spell just learned is announced over the big book, and then the next research asked.
+        if !self.big_ui.learned.is_empty()
+            && !self.game.in_battle()
+            && matches!(self.screen, Screen::Map)
+            && self.learned_notice()
+        {
+            return true;
+        }
+        self.maybe_ask_for_research();
         if self.game.game_over.is_some()
             && !self.game_over_seen
             && !self.game.in_battle()
@@ -672,6 +701,9 @@ impl App {
                 self.city_screen(city);
             }
             Screen::Magic => self.magic_screen(),
+            Screen::Spellbook => self.spellbook_screen(),
+            Screen::Apprentice => self.apprentice_screen(),
+            Screen::Research => self.research_screen(),
             Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
             Screen::Options => self.options_screen(),
@@ -899,7 +931,13 @@ impl App {
             }
         }
         if is_key_pressed(KeyCode::M) {
-            self.screen = Screen::Magic;
+            self.open_magic();
+        }
+        if is_key_pressed(KeyCode::V) {
+            self.open_spellbook();
+        }
+        if is_key_pressed(KeyCode::F3) {
+            self.open_apprentice();
         }
         if is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
@@ -1206,7 +1244,8 @@ impl App {
         // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
         match click.menu {
             Some(0) => self.open_slots(false),
-            Some(1) | Some(4) => self.open_magic(),
+            Some(1) => self.open_spellbook(),
+            Some(4) => self.open_magic(),
             Some(3) => self.open_first_city(),
             Some(6) => {
                 self.plane = if self.plane == Plane::Arcanus {
@@ -1270,7 +1309,7 @@ impl App {
         if self.show_keys || is_key_down(KeyCode::F1) {
             let keys = [
                 "click select      right-click go      B settle / build road      U meld spirit",
-                "C city      P plane-shift      F stop      T balance farmers      M magic",
+                "C city      P plane-shift      F stop      T balance farmers      M magic      V spell book      F3 apprentice",
                 "Tab other plane      +/- zoom      arrows pan      Enter end turn",
                 "Ctrl-Z undo      F5 quick-save      F9 quick-load      F8 Grand Vizier      N new map      R next race      Esc game menu",
             ];

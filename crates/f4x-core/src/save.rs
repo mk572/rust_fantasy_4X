@@ -188,6 +188,9 @@ pub struct MagicSave {
     pub skill_pct: u8,
     pub known: Vec<String>,
     pub researchable: Vec<String>,
+    /// The spells on offer for research; absent in older saves (the game offers some again).
+    #[serde(default)]
+    pub candidates: Vec<String>,
     pub researching: Option<String>,
     pub research_remaining: i32,
     /// `(spell, mana still to pay)`.
@@ -208,6 +211,7 @@ impl Default for MagicSave {
             skill_pct: m.skill_pct,
             known: Vec::new(),
             researchable: Vec::new(),
+            candidates: Vec::new(),
             researching: None,
             research_remaining: 0,
             casting: None,
@@ -229,6 +233,7 @@ impl Magic {
             skill_pct: self.skill_pct,
             known: self.known.iter().map(name).collect(),
             researchable: self.researchable.iter().map(name).collect(),
+            candidates: self.candidates.iter().map(name).collect(),
             researching: self.researching.as_ref().map(name),
             research_remaining: self.research_remaining,
             casting: self.casting.map(|c| (name(&c.spell), c.remaining)),
@@ -267,6 +272,7 @@ impl Magic {
             skill_pct: m.skill_pct,
             known,
             researchable,
+            candidates: ids(&m.candidates)?,
             researching: m.researching.as_ref().map(id).transpose()?,
             research_remaining: m.research_remaining,
             casting: m
@@ -1016,6 +1022,16 @@ impl Snapshot {
                 caster: PlayerId(t.caster),
                 left: t.left,
             });
+        }
+        // Saves from before the offer was kept have none: offer some.
+        let idle: Vec<PlayerId> = game
+            .players
+            .iter()
+            .filter(|p| p.magic.candidates.is_empty() && !p.magic.researchable.is_empty())
+            .map(|p| p.id)
+            .collect();
+        for player in idle {
+            game.refill_research(player);
         }
         Ok(game)
     }

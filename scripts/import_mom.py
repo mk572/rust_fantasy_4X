@@ -85,20 +85,25 @@ REALMS = [  # index = realm byte in the spell table
     ("arcane", "Arcane", (190, 190, 190)),
 ]
 
-# Spells a wizard starts with when none are chosen: per realm the ten common spells in
-# the original's default order (a realm with n books takes the first n - 1).
+# Spells a wizard starts with when none are chosen: per realm the ten common spells, two uncommon
+# and one rare one, in the original's default order (a realm with n books takes the first n - 1
+# common ones; with eleven books it knows all ten, and the two uncommon and the rare one).
 DEFAULT_START_SPELLS = {
     "nature": ["War Bears", "Stone Skin", "Sprites", "Water Walking", "Giant Strength", "Web",
-               "Earth to Mud", "Wall of Stone", "Resist Elements", "Earth Lore"],
+               "Earth to Mud", "Wall of Stone", "Resist Elements", "Earth Lore",
+               "Cockatrices", "Change Terrain", "Gorgons"],
     "sorcery": ["Nagas", "Psionic Blast", "Phantom Warriors", "Floating Island", "Confusion",
                 "Counter Magic", "Word of Recall", "Dispel Magic True", "Resist Magic",
-                "Guardian Wind"],
+                "Guardian Wind", "Flight", "Phantom Beast", "Storm Giant"],
     "chaos": ["Fire Bolt", "Fire Elemental", "Eldritch Weapon", "Hell Hounds", "Corruption",
-              "Warp Creature", "Shatter", "Wall of Fire", "Disrupt", "Warp Wood"],
+              "Warp Creature", "Shatter", "Wall of Fire", "Disrupt", "Warp Wood",
+              "Lightning Bolt", "Doom Bat", "Efreet"],
     "life": ["Heroism", "Guardian Spirit", "Holy Armor", "Just Cause", "Healing", "Holy Weapon",
-             "Star Fires", "Endurance", "True Light", "Bless"],
+             "Star Fires", "Endurance", "True Light", "Bless",
+             "Resurrection", "Unicorns", "Angel"],
     "death": ["Life Drain", "Ghouls", "Weakness", "Dark Rituals", "Black Sleep", "Darkness",
-              "Terror", "Skeletons", "Mana Leak", "Cloak of Fear"],
+              "Terror", "Skeletons", "Mana Leak", "Cloak of Fear",
+              "Black Prayer", "Black Channels", "Wraiths"],
 }
 
 # The ready-made wizards (NewGame.c `_wizard_presets_table`): books in the order life,

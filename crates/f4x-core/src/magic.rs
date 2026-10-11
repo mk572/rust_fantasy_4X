@@ -37,6 +37,9 @@ pub enum Retort {
     NodeMastery,
 }
 
+/// How many spells are offered for research at once.
+pub const RESEARCH_SLOTS: usize = 8;
+
 /// A spell the wizard is casting overland: the mana still to be paid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Casting {
@@ -61,6 +64,10 @@ pub struct Magic {
     pub known: BTreeSet<SpellId>,
     /// Spells the wizard may research, not yet known.
     pub researchable: BTreeSet<SpellId>,
+    /// The spells on offer for research now (at most [`RESEARCH_SLOTS`]), fastest first:
+    /// the wizard picks the next research from these (`Magic::researchable` is what
+    /// the books allow in all).
+    pub candidates: Vec<SpellId>,
     pub researching: Option<SpellId>,
     /// Research points still to pay for `researching`.
     pub research_remaining: i32,
@@ -83,6 +90,7 @@ impl Default for Magic {
             skill_pct: 33,
             known: BTreeSet::new(),
             researchable: BTreeSet::new(),
+            candidates: Vec::new(),
             researching: None,
             research_remaining: 0,
             casting: None,
@@ -211,7 +219,7 @@ impl Game {
         let mut magic = Magic::default();
         for &(realm, n) in books {
             if n > 0 {
-                magic.books.insert(realm.to_string(), n.min(10));
+                magic.books.insert(realm.to_string(), n.min(11));
             }
         }
         magic.retorts = retorts.iter().copied().collect();
@@ -266,8 +274,35 @@ impl Game {
         let mut known = BTreeSet::new();
         let mut available = BTreeSet::new();
         for (realm, n) in books {
-            let n = usize::from(n).clamp(1, 10);
+            let n = usize::from(n).clamp(1, 11);
             let common = self.spells_of(&realm, Rarity::Common);
+            if n == 11 {
+                // Everything is open; all the common spells are known, and so are the two
+                // uncommon and the one rare spell the wizard picked.
+                known.extend(common.iter().copied());
+                for (rarity, count) in [(Rarity::Uncommon, 2), (Rarity::Rare, 1)] {
+                    let pool = self.spells_of(&realm, rarity);
+                    let picked: Vec<SpellId> = match start_spells {
+                        Some(chosen) => chosen
+                            .iter()
+                            .copied()
+                            .filter(|s| pool.contains(s))
+                            .take(count)
+                            .collect(),
+                        None => self.pick_spells(&pool, &known, count),
+                    };
+                    known.extend(picked);
+                }
+                for rarity in [
+                    Rarity::Common,
+                    Rarity::Uncommon,
+                    Rarity::Rare,
+                    Rarity::VeryRare,
+                ] {
+                    available.extend(self.spells_of(&realm, rarity));
+                }
+                continue;
+            }
             let start = match start_spells {
                 Some(chosen) => chosen
                     .iter()
@@ -311,7 +346,9 @@ impl Game {
         if let Some(m) = self.magic_mut(player) {
             m.researchable = available.difference(&known).copied().collect();
             m.known = known;
+            m.candidates.clear();
         }
+        self.refill_research(player);
     }
 
     // ---- power -------------------------------------------------------------------
@@ -526,7 +563,7 @@ impl Game {
         if m.researching.is_some() {
             return Err(MagicError::AlreadyResearching);
         }
-        if !m.researchable.contains(&spell) {
+        if !m.researchable.contains(&spell) || !m.candidates.contains(&spell) {
             return Err(MagicError::NotAvailable);
         }
         m.researching = Some(spell);
@@ -534,14 +571,111 @@ impl Game {
         Ok(())
     }
 
-    /// Spells the wizard could pick to research now, cheapest first.
+    /// The spells on offer for research now, fastest first.
     pub fn research_choices(&self, player: PlayerId) -> Vec<SpellId> {
+        self.magic(player)
+            .map(|m| m.candidates.clone())
+            .unwrap_or_default()
+    }
+
+    /// The spells the books would let the wizard add to the offer next (the original's
+    /// `Build_Research_List`): in each realm every researchable spell of the lowest rarity that
+    /// still has one, so a realm's commons are offered before its uncommons. Arcane spells go
+    /// in three steps (the first three, the next five, then the rest).
+    fn research_pool(&self, player: PlayerId) -> Vec<SpellId> {
         let Some(m) = self.magic(player) else {
             return Vec::new();
         };
-        let mut v: Vec<SpellId> = m.researchable.iter().copied().collect();
-        v.sort_by_key(|&s| (self.content.rules.spells.get(s).research_cost, s));
-        v
+        let rules = &self.content.rules;
+        let open = |s: &SpellId| m.researchable.contains(s) && !m.candidates.contains(s);
+        let mut pool = Vec::new();
+        for realm in ["nature", "sorcery", "chaos", "life", "death"] {
+            let mut of: Vec<(Rarity, SpellId)> = rules
+                .spells
+                .iter()
+                .filter(|(id, d)| d.realm == realm && open(id))
+                .map(|(id, d)| (d.rarity, id))
+                .collect();
+            if let Some(lowest) = of.iter().map(|&(r, _)| r).min() {
+                of.retain(|&(r, _)| r == lowest);
+                pool.extend(of.into_iter().map(|(_, id)| id));
+            }
+        }
+        let arcane: Vec<SpellId> = rules
+            .spells
+            .iter()
+            .filter(|(_, d)| d.realm == "arcane")
+            .map(|(id, _)| id)
+            .collect();
+        let step = |at: usize| match at {
+            0..=2 => 0,
+            3..=7 => 1,
+            _ => 2,
+        };
+        let open_arcane: Vec<(usize, SpellId)> = arcane
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, s)| open(s))
+            .collect();
+        if let Some(first) = open_arcane.iter().map(|&(i, _)| step(i)).min() {
+            pool.extend(
+                open_arcane
+                    .into_iter()
+                    .filter(|&(i, _)| step(i) == first)
+                    .map(|(_, s)| s),
+            );
+        }
+        pool
+    }
+
+    /// Top the offer for research up to [`RESEARCH_SLOTS`] spells from [`Game::research_pool`]
+    /// (the pool is worked out afresh after each pick, so a realm's next rarity opens as its
+    /// last cheaper spell goes on offer), drop spells that are no longer researchable, and sort
+    /// the offer by the time each would take. Called each turn, when a wizard is made and
+    /// when books are added.
+    pub fn refill_research(&mut self, player: PlayerId) {
+        if let Some(m) = self.magic_mut(player) {
+            let keep: Vec<SpellId> = m
+                .candidates
+                .iter()
+                .copied()
+                .filter(|s| m.researchable.contains(s))
+                .collect();
+            m.candidates = keep;
+        }
+        while self
+            .magic(player)
+            .is_some_and(|m| m.candidates.len() < RESEARCH_SLOTS)
+        {
+            let pool = self.research_pool(player);
+            if pool.is_empty() {
+                break;
+            }
+            let pick = pool[self.roll(pool.len() as u32) as usize - 1];
+            if let Some(m) = self.magic_mut(player) {
+                m.candidates.push(pick);
+            }
+        }
+        let income = self.research_income(player).max(0);
+        let Some(offer) = self.magic(player).map(|m| m.candidates.clone()) else {
+            return;
+        };
+        let time = |game: &Game, s: SpellId| {
+            let cost = game.content.rules.spells.get(s).research_cost as i32;
+            let bonus = game.research_bonus(player, s);
+            let cost = cost * 100 / (100 + bonus);
+            if income == 0 {
+                cost
+            } else {
+                cost / income
+            }
+        };
+        let mut sorted = offer;
+        sorted.sort_by_key(|&s| time(self, s));
+        if let Some(m) = self.magic_mut(player) {
+            m.candidates = sorted;
+        }
     }
 
     /// Convert gold to mana or mana to gold (alchemy): one for one with the retort, two for
@@ -589,6 +723,9 @@ impl Game {
             events.extend(self.check_research(player));
         }
         for &player in &ids {
+            self.refill_research(player);
+        }
+        for &player in &ids {
             events.extend(self.apply_mana_upkeep(player));
         }
         for &player in &ids {
@@ -629,6 +766,7 @@ impl Game {
             Some(spell) if m.research_remaining == 0 => {
                 m.researching = None;
                 m.researchable.remove(&spell);
+                m.candidates.retain(|&s| s != spell);
                 m.known.insert(spell);
                 vec![Event::SpellLearned { player, spell }]
             }
@@ -760,6 +898,20 @@ impl Game {
         let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
         m.casting = None;
         Ok(())
+    }
+
+    /// Turn off one of the wizard's own global enchantments.
+    pub fn turn_off_spell(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+    ) -> Result<Vec<Event>, MagicError> {
+        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
+        if !m.global.contains(&spell) {
+            return Err(MagicError::NotAvailable);
+        }
+        m.global.retain(|&s| s != spell);
+        Ok(vec![Event::EnchantmentLapsed { player, spell }])
     }
 
     /// Choose the target of a spell that has been fully paid for.

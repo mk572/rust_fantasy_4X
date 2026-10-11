@@ -200,7 +200,7 @@ pub struct WizardDef {
     pub retorts: Vec<crate::magic::Retort>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Rarity {
     Common,
     Uncommon,

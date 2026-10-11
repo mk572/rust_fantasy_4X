@@ -4,6 +4,7 @@
 mod art;
 mod battle_anim;
 mod battle_screen;
+mod bigbook;
 mod city_screen;
 mod cityscape;
 mod console_screen;
@@ -14,6 +15,7 @@ mod magic_screen;
 mod map_draw;
 mod menu_screen;
 mod options_screen;
+mod spellbook;
 mod terrain_pick;
 mod ui;
 mod view;
@@ -34,6 +36,10 @@ struct Options {
     city: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// With `--shot`, open the spell book, the Apprentice or the research choice first.
+    spells: bool,
+    apprentice: bool,
+    research: bool,
     /// With `--shot`, explore the whole map first.
     reveal: bool,
     /// With `--shot`, put the top-left of the map view at this tile.
@@ -72,6 +78,9 @@ fn parse_args() -> Result<Options, String> {
         shot: None,
         city: false,
         magic: false,
+        spells: false,
+        apprentice: false,
+        research: false,
         create: false,
         menu: false,
         options: false,
@@ -101,6 +110,9 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
+            "--spells" => o.spells = true,
+            "--apprentice" => o.apprentice = true,
+            "--research" => o.research = true,
             "--create" => o.create = true,
             "--menu" => o.menu = true,
             "--options" => o.options = true,
@@ -143,7 +155,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -157,6 +169,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    let help = f4x_data::load_help(&options.content).unwrap_or_default();
     let mut app = match App::new(content, art::Art::load(options.assets), options.seed) {
         Ok(app) => app,
         Err(e) => {
@@ -164,6 +177,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    app.help = help;
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
             eprintln!("could not load {}: {e}", path.display());
@@ -188,6 +202,15 @@ async fn main() {
     }
     if options.magic {
         app.open_magic();
+    }
+    if options.spells {
+        app.open_spellbook();
+    }
+    if options.apprentice {
+        app.open_apprentice();
+    }
+    if options.research {
+        app.open_research_choice();
     }
     if options.battle {
         app.open_test_battle();

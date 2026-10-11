@@ -1,527 +1,676 @@
-//! The magic screen: power and its split, research, the spell book and casting.
+//! The magic screen: the wizard overview, laid out like the original's `Magic_Screen`
+//! (`MagicScr.c`) on its 320 by 200 pixels.
+//!
+//! Three staves set how the power base is split between mana, research and casting skill
+//! (drag one; the lock above each holds its share), the four gems on top are the other wizards
+//! (grey until diplomacy gives a wizard something to say), the panel on the right lists the
+//! overland enchantments of every wizard, and the block of text below the staves has the
+//! casting skill, the mana reserve, the power base and what is being cast and researched. The
+//! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
+//! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
-use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, Rarity, SpellId, SpellTarget};
+use f4x_core::magic::Retort;
+use f4x_core::rules::SpellId;
 use f4x_core::Command;
 use macroquad::prelude::*;
 
-use crate::ui::{bar, button, Lines, GOLD, PANEL};
+use crate::frame::{Align, Layout};
+use crate::ui::button;
 use crate::view::{App, Screen, HUMAN};
 
-/// A spell waiting for the player to click its target on the map.
-#[derive(Clone, Copy)]
-pub(crate) struct Targeting {
-    pub spell: SpellId,
-    /// The spell is already paid for (cast over several turns) rather than starting now.
-    pub resolve: bool,
-}
+/// The staves, in the order the split is kept: mana, research, skill.
+const STAFF_X: [f32; 3] = [29.0, 75.0, 122.0];
+/// The picture entries of each staff: empty, full, locked (`magic.lbx`).
+const STAFF_ART: [(usize, usize, usize); 3] = [(7, 8, 15), (9, 10, 16), (11, 12, 17)];
+/// Where each staff's picture goes (empty, full, lock), in the original's pixels.
+const STAFF_AT: [[(f32, f32); 3]; 3] = [
+    [(29.0, 83.0), (32.0, 102.0), (27.0, 81.0)],
+    [(75.0, 85.0), (79.0, 102.0), (74.0, 81.0)],
+    [(122.0, 83.0), (126.0, 102.0), (121.0, 81.0)],
+];
+/// The bottom of a full staff: a staff at `n` holds `n` pixels up from here.
+const STAFF_FLOOR: f32 = 152.0;
+/// A staff is full at fifty pixels; the split is kept in hundredths, two for each.
+const STAFF_MAX: i32 = 50;
 
-const ROW_H: f32 = 24.0;
-
-/// Move one share of the split to `new` percent and spread the rest over the other two in
-/// proportion to what they had.
-pub(crate) fn rebalance(split: [u8; 3], index: usize, new: u8) -> [u8; 3] {
-    let new = new.min(100);
-    let others: Vec<usize> = (0..3).filter(|&i| i != index).collect();
-    let old_total: u32 = others.iter().map(|&i| u32::from(split[i])).sum();
-    let rest = u32::from(100 - new);
-    let mut out = split;
-    out[index] = new;
-    let first = match (u32::from(split[others[0]]) * rest).checked_div(old_total) {
-        Some(first) => first,
-        None => rest / 2,
-    };
-    out[others[0]] = first as u8;
-    out[others[1]] = (rest - first) as u8;
+/// Move staff `changed` (0 mana, 1 research, 2 skill) to `new`, taking from or giving to the
+/// others as the original does: nothing moves if the staff is locked or both others are; with
+/// one other locked the free one takes the difference (the staff can only grow by what that
+/// one has); with neither locked they share it, the odd point staying where it was. The three
+/// always add up to fifty.
+pub(crate) fn staff_adjust(pos: [i32; 3], locked: [bool; 3], changed: usize, new: i32) -> [i32; 3] {
+    let new = new.clamp(0, STAFF_MAX);
+    if locked[changed] {
+        return pos;
+    }
+    // The original works out the other two in this order: skill, research, mana.
+    let mut others: Vec<usize> = [2usize, 1, 0]
+        .into_iter()
+        .filter(|&i| i != changed)
+        .collect();
+    let (a, b) = (others.remove(0), others.remove(0));
+    let d = new - pos[changed];
+    let mut out = pos;
+    match (locked[a], locked[b]) {
+        (true, true) => {}
+        (true, false) | (false, true) => {
+            let free = if locked[a] { b } else { a };
+            if d > 0 {
+                let take = d.min(pos[free]);
+                out[free] -= take;
+                out[changed] += take;
+            } else {
+                out[free] -= d;
+                out[changed] += d;
+            }
+        }
+        (false, false) => {
+            let half = d.abs() / 2;
+            if d > 0 {
+                let mut from_a = half.min(pos[a]);
+                let from_b = (half + (half - from_a)).min(pos[b]);
+                // What the second could not give comes from the first, if it has it.
+                from_a = (2 * half - from_b).min(pos[a]).max(from_a);
+                out[a] -= from_a;
+                out[b] -= from_b;
+                out[changed] += from_a + from_b;
+            } else {
+                out[a] += half;
+                out[b] += half;
+                out[changed] -= 2 * half;
+            }
+        }
+    }
     out
 }
 
-fn rarity_name(r: Rarity) -> &'static str {
-    match r {
-        Rarity::Common => "common",
-        Rarity::Uncommon => "uncommon",
-        Rarity::Rare => "rare",
-        Rarity::VeryRare => "very rare",
+/// The staves' positions for a split of percentages (mana, research, skill).
+pub(crate) fn staves_from_split(mana: u8, research: u8, skill: u8) -> [i32; 3] {
+    let (r, s) = (i32::from(research) / 2, i32::from(skill) / 2);
+    let m = (i32::from(mana) / 2).max(STAFF_MAX - r - s);
+    [m.clamp(0, STAFF_MAX), r, s]
+}
+
+/// The alchemy window's slider runs from 3 to 53 (`Alchemy_Popup`): gold or power it converts.
+pub(crate) fn alchemy_amount(pool: i32, slider: i32) -> i32 {
+    let mut rate = 50;
+    if 50 * pool / rate > 999 {
+        rate = 50 * pool / 999;
     }
+    (pool * (slider - 3) / rate.max(1)).clamp(0, 999)
+}
+
+/// The alchemy window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AlchemyUi {
+    /// Converting gold into power (true) or power into gold.
+    pub gold_to_mana: bool,
+    /// The slider, 3 to 53.
+    pub slider: i32,
+}
+
+/// What the magic screen remembers while it is open.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct MagicUi {
+    pub pos: [i32; 3],
+    pub locked: [bool; 3],
+    pub drag: Option<usize>,
+    /// The first overland enchantment shown, when there are more than eighteen.
+    pub first: usize,
+    pub alchemy: Option<AlchemyUi>,
+    /// Asking whether to turn off one of the wizard's own enchantments.
+    pub turn_off: Option<SpellId>,
 }
 
 impl App {
     pub fn open_magic(&mut self) {
+        let (m, r, s) = {
+            let m = self.game.magic(HUMAN);
+            m.map_or((34, 33, 33), |m| (m.mana_pct, m.research_pct, m.skill_pct))
+        };
+        self.magic_ui = MagicUi {
+            pos: staves_from_split(m, r, s),
+            ..Default::default()
+        };
         self.screen = Screen::Magic;
     }
 
-    fn realm_color(&self, realm: &str) -> Color {
+    /// Every overland enchantment in play, with its wizard: the original lists all of them.
+    fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::city::PlayerId)> {
         self.game
-            .content
-            .rules
-            .realms
-            .by_name(realm)
-            .map_or(WHITE, |r| {
-                Color::from_rgba(r.color.0, r.color.1, r.color.2, 255)
-            })
+            .players
+            .iter()
+            .flat_map(|p| p.magic.global.iter().map(move |&s| (s, p.id)))
+            .collect()
     }
 
     pub(crate) fn magic_screen(&mut self) {
-        if is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::M)
-            || is_mouse_button_pressed(MouseButton::Right)
+        let modal = self.magic_ui.alchemy.is_some() || self.magic_ui.turn_off.is_some();
+        if !modal
+            && (is_key_pressed(KeyCode::Escape)
+                || is_key_pressed(KeyCode::M)
+                || is_key_pressed(KeyCode::O))
         {
             self.screen = Screen::Map;
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let (w, h) = (screen_width(), screen_height());
-        draw_rectangle(0.0, 0.0, w, h, PANEL);
-        let col = (w - 80.0) / 3.0;
-        let (x0, x1, x2) = (30.0, 40.0 + col, 50.0 + 2.0 * col);
-        self.magic_power_column(x0, col);
-        self.magic_research_column(x1, col, h);
-        self.magic_spell_column(x2, col, h);
-        draw_text("M or Esc: back to the map", 30.0, h - 12.0, 18.0, LIGHTGRAY);
-    }
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+        if self.draw_pic(&lay, "magic", 0, 0, 0.0, 0.0).is_none() {
+            draw_rectangle(
+                full.x,
+                full.y,
+                full.w,
+                full.h,
+                Color::new(0.18, 0.2, 0.3, 1.0),
+            );
+        }
+        self.magic_staves(&lay, !modal);
+        self.magic_text(&lay, view);
+        self.magic_gems(&lay);
+        self.magic_enchantments(&lay, view, !modal);
 
-    fn magic_power_column(&mut self, x: f32, width: f32) {
-        let Some(magic) = self.game.magic(HUMAN).cloned() else {
-            return;
+        // The Alchemy and OK buttons.
+        let alchemy = self.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
+        let ok = self.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
+        let hit = |r: Option<Rect>| {
+            r.is_some_and(|r| r.contains(mouse_position().into()))
+                && is_mouse_button_pressed(MouseButton::Left)
         };
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
-        let split = self.game.power_split(HUMAN);
-        let upkeep = self.game.mana_upkeep(HUMAN);
-        let mut lines = Lines::new(x, 40.0);
-        lines.line("Wizard", GOLD);
-        let books: Vec<String> = magic
-            .books
-            .iter()
-            .map(|(r, n)| format!("{n} {r}"))
-            .collect();
-        lines.line(&format!("Books: {}", books.join(", ")), WHITE);
-        let retorts: Vec<String> = magic.retorts.iter().map(|r| format!("{r:?}")).collect();
-        if !retorts.is_empty() {
-            lines.line(&format!("Retorts: {}", retorts.join(", ")), WHITE);
-        }
-        let fortress = match self.game.player(HUMAN) {
-            Some(p) if p.defeated => "Defeated".to_string(),
-            Some(p) if p.banished => "BANISHED: casting the Spell of Return".to_string(),
-            Some(p) => match self.game.fortress_city(HUMAN) {
-                Some(c) => format!(
-                    "Fortress: {}   circle: {}",
-                    self.city_name(c),
-                    p.summon_at
-                        .and_then(|pos| self.game.city_at(pos))
-                        .map_or("-".to_string(), |c| self.city_name(c))
-                ),
-                None => "No fortress".to_string(),
-            },
-            None => String::new(),
-        };
-        lines.line(&fortress, WHITE);
-        // Detect Magic shows what the other wizards are casting.
-        for (other, spell) in self.game.detect_magic_view(HUMAN) {
-            let name = self.game.player(other).map_or("?", |p| p.name.as_str());
-            lines.line(
-                &format!(
-                    "{name} is casting {}",
-                    self.game.content.rules.spells.get(spell).name
-                ),
-                Color::new(0.8, 0.6, 0.9, 1.0),
-            );
-        }
-        lines.gap(8.0);
-        lines.line(
-            &format!(
-                "Mana reserve {mana}   income +{}   upkeep -{upkeep}",
-                split.mana
-            ),
-            WHITE,
-        );
-        lines.line(
-            &format!(
-                "Casting skill {}   (+{} points a turn)",
-                self.game.casting_skill(HUMAN),
-                split.skill
-            ),
-            WHITE,
-        );
-        lines.line(
-            &format!("Power base {}", self.game.power_base(HUMAN)),
-            WHITE,
-        );
-        lines.gap(8.0);
-        lines.line("Power split (click a bar)", GOLD);
-        let shares = [magic.mana_pct, magic.research_pct, magic.skill_pct];
-        let names = ["Mana", "Research", "Skill"];
-        let colors = [
-            Color::new(0.3, 0.5, 0.95, 1.0),
-            Color::new(0.35, 0.8, 0.4, 1.0),
-            Color::new(0.9, 0.7, 0.25, 1.0),
-        ];
-        for i in 0..3 {
-            let y = lines.y;
-            draw_text(names[i], x, y + 16.0, 20.0, WHITE);
-            let r = Rect::new(x + 90.0, y, width - 170.0, 20.0);
-            bar(r, f32::from(shares[i]) / 100.0, colors[i]);
-            draw_text(
-                format!("{}%", shares[i]),
-                r.x + r.w + 8.0,
-                y + 16.0,
-                20.0,
-                WHITE,
-            );
-            if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse_position().into()) {
-                let frac = ((mouse_position().0 - r.x) / r.w).clamp(0.0, 1.0);
-                let pct = ((frac * 20.0).round() as u8) * 5;
-                let s = rebalance(shares, i, pct);
-                let events = self.game.apply(Command::SetPowerSplit {
-                    player: HUMAN,
-                    mana: s[0],
-                    research: s[1],
-                    skill: s[2],
-                });
-                self.note(events);
-            }
-            lines.gap(30.0);
-        }
-        lines.gap(6.0);
-        lines.line(
-            &format!(
-                "Research +{}/turn   city research {}",
-                self.game.research_income(HUMAN),
-                self.game.city_research(HUMAN)
-            ),
-            WHITE,
-        );
-        lines.gap(8.0);
-        // Alchemy.
-        let y = lines.y;
-        let alchemy = |gold_to_mana, label: &str, rect: Rect, game: &f4x_core::Game| {
-            let enough = if gold_to_mana { gold >= 10 } else { mana >= 10 };
-            let _ = game;
-            (button(rect, label, enough), gold_to_mana)
-        };
-        let a = alchemy(
-            true,
-            "10 gold > mana",
-            Rect::new(x, y, width / 2.0 - 6.0, 28.0),
-            &self.game,
-        );
-        let b = alchemy(
-            false,
-            "10 mana > gold",
-            Rect::new(x + width / 2.0, y, width / 2.0 - 6.0, 28.0),
-            &self.game,
-        );
-        for (clicked, gold_to_mana) in [a, b] {
-            if clicked {
-                let events = self.game.apply(Command::Alchemy {
-                    player: HUMAN,
-                    amount: 10,
+        if !modal {
+            if hit(alchemy)
+                || (alchemy.is_none()
+                    && button(lay.rect((232.0, 181.0, 58.0, 15.0)), "Alchemy", true))
+            {
+                let gold_to_mana = true;
+                self.magic_ui.alchemy = Some(AlchemyUi {
                     gold_to_mana,
+                    slider: 3,
                 });
-                self.note(events);
+            }
+            if hit(ok) || (ok.is_none() && button(lay.rect((291.0, 181.0, 26.0, 15.0)), "OK", true))
+            {
+                self.screen = Screen::Map;
             }
         }
-        lines.y += 40.0;
-        lines.line(
-            &format!(
-                "Alchemy rate {}",
-                if magic.has(f4x_core::magic::Retort::Alchemy) {
-                    "1 for 1"
-                } else {
-                    "2 for 1"
-                }
-            ),
-            GRAY,
-        );
-        // Casting in progress.
-        lines.gap(10.0);
-        lines.line("Casting", GOLD);
-        match magic.casting {
-            None => lines.line("Nothing in progress", GRAY),
-            Some(c) => {
-                let name = self.game.content.rules.spells.get(c.spell).name.clone();
-                if c.remaining > 0 {
-                    lines.line(&format!("{name}: {} mana to go", c.remaining), WHITE);
-                } else {
-                    lines.line(&format!("{name} is ready: choose a target"), WHITE);
-                }
-                let y = lines.y;
-                if c.remaining <= 0
-                    && self.game.spell_needs_target(HUMAN, c.spell)
-                    && button(Rect::new(x, y, 130.0, 28.0), "Choose target", true)
-                {
-                    self.targeting = Some(Targeting {
-                        spell: c.spell,
-                        resolve: true,
+        if self.magic_ui.alchemy.is_some() {
+            self.alchemy_popup(&lay, view);
+        }
+        if let Some(spell) = self.magic_ui.turn_off {
+            let name = self.game.content.rules.spells.get(spell).name.clone();
+            match self.confirm_box(&format!("Do you wish to cancel your {name} spell?")) {
+                Some(true) => {
+                    self.magic_ui.turn_off = None;
+                    let events = self.game.apply(Command::TurnOffSpell {
+                        player: HUMAN,
+                        spell,
                     });
-                    self.screen = Screen::Map;
-                }
-                if button(Rect::new(x + 140.0, y, 110.0, 28.0), "Cancel cast", true) {
-                    let events = self.game.apply(Command::CancelCast { player: HUMAN });
                     self.note(events);
+                    self.magic_ui.first = 0;
                 }
+                Some(false) => self.magic_ui.turn_off = None,
+                None => {}
             }
         }
     }
 
-    fn magic_research_column(&mut self, x: f32, width: f32, height: f32) {
-        let mut lines = Lines::new(x, 40.0);
-        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
-        lines.line("Research", GOLD);
-        match magic.researching {
-            Some(s) => {
-                let name = self.game.content.rules.spells.get(s).name.clone();
-                let income = self.game.research_income(HUMAN).max(1);
-                let turns = (magic.research_remaining + income - 1) / income;
-                lines.line(
-                    &format!(
-                        "{name}: {} to go (~{turns} turns)",
-                        magic.research_remaining
-                    ),
-                    WHITE,
-                );
-                lines.gap(10.0);
-                lines.line("The choice stands until learned.", GRAY);
-                return;
-            }
-            None => lines.line("Choose a spell to research:", WHITE),
-        }
-        let choices = self.game.research_choices(HUMAN);
-        let top = lines.y;
-        let rows = ((height - top - 50.0) / ROW_H) as usize;
-        self.scroll_list(0, x, top, width, choices.len(), rows);
-        let first = self.magic_scroll[0];
-        for (i, &spell) in choices.iter().skip(first).take(rows).enumerate() {
-            let def = self.game.content.rules.spells.get(spell);
-            let bonus = self.game.research_bonus(HUMAN, spell);
-            let cost = def.research_cost as i32 * 100 / (100 + bonus);
-            let r = Rect::new(x, top + i as f32 * ROW_H, width, ROW_H - 2.0);
-            let hover = r.contains(mouse_position().into());
-            if hover {
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.22, 0.12, 1.0));
-            }
-            let label = format!(
-                "{} ({}, {}) {}",
-                def.name,
-                def.realm,
-                rarity_name(def.rarity),
-                cost
-            );
-            draw_text(
-                &label,
-                r.x + 4.0,
-                r.y + 17.0,
-                18.0,
-                self.realm_color(&def.realm),
-            );
-            if hover && is_mouse_button_pressed(MouseButton::Left) {
-                let events = self.game.apply(Command::SetResearch {
-                    player: HUMAN,
-                    spell,
-                });
-                self.note(events);
-            }
-        }
-    }
-
-    fn magic_spell_column(&mut self, x: f32, width: f32, height: f32) {
-        let mut lines = Lines::new(x, 40.0);
-        lines.line("Spell book", GOLD);
-        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        let mut known: Vec<SpellId> = magic.known.iter().copied().collect();
-        known.sort_by_key(|&s| {
-            let d = self.game.content.rules.spells.get(s);
-            (d.realm.clone(), d.cost)
-        });
-        let castable: Vec<SpellId> = known
-            .iter()
-            .copied()
-            .filter(|&s| {
-                self.game
-                    .content
-                    .rules
-                    .spells
-                    .get(s)
-                    .contexts
-                    .contains(&CastContext::Overland)
-            })
-            .collect();
-        lines.line(
-            &format!(
-                "{} known, {} castable on the map (click to cast)",
-                known.len(),
-                castable.len()
-            ),
-            WHITE,
-        );
-        let top = lines.y;
-        let rows = ((height - top - 50.0) / ROW_H) as usize;
-        self.scroll_list(1, x, top, width, castable.len(), rows);
-        let first = self.magic_scroll[1];
-        for (i, &spell) in castable.iter().skip(first).take(rows).enumerate() {
-            let def = self.game.content.rules.spells.get(spell);
-            let cost = self.game.casting_cost(HUMAN, spell, false);
-            let r = Rect::new(x, top + i as f32 * ROW_H, width, ROW_H - 2.0);
-            let hover = r.contains(mouse_position().into());
-            let affordable = magic.casting.is_none() && mana > 0;
-            if hover {
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.22, 0.12, 1.0));
-            }
-            let upkeep = if def.upkeep > 0 {
-                format!("  upkeep {}", def.upkeep)
-            } else {
-                String::new()
-            };
-            let color = if affordable {
-                self.realm_color(&def.realm)
-            } else {
-                GRAY
-            };
-            draw_text(
-                format!("{}  {cost}{upkeep}", def.name),
-                r.x + 4.0,
-                r.y + 17.0,
-                18.0,
-                color,
-            );
-            if hover && affordable && is_mouse_button_pressed(MouseButton::Left) {
-                self.begin_cast(spell);
-            }
-        }
-    }
-
-    /// Mouse-wheel scrolling for one of the two lists.
-    fn scroll_list(&mut self, which: usize, x: f32, top: f32, width: f32, len: usize, rows: usize) {
-        let area = Rect::new(x, top, width, rows as f32 * ROW_H);
-        let (_, wheel) = mouse_wheel();
-        if wheel != 0.0 && area.contains(mouse_position().into()) {
-            let step = 3 * wheel.signum() as i32;
-            self.magic_scroll[which] = (self.magic_scroll[which] as i32 - step)
-                .clamp(0, len.saturating_sub(rows) as i32)
-                as usize;
-        }
-        self.magic_scroll[which] = self.magic_scroll[which].min(len.saturating_sub(rows));
-    }
-
-    /// Start casting: a spell without a target goes straight to the game, one with a target
-    /// asks for it on the map.
-    fn begin_cast(&mut self, spell: SpellId) {
-        let needs = self.game.spell_needs_target(HUMAN, spell);
-        let cost = self.game.casting_cost(HUMAN, spell, false);
-        let instant = self.game.magic(HUMAN).map_or(0, |m| m.skill_left);
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        if needs && cost <= instant.min(mana) {
-            self.targeting = Some(Targeting {
-                spell,
-                resolve: false,
-            });
-            self.screen = Screen::Map;
-            return;
-        }
-        let events = self.game.apply(Command::CastSpell {
-            player: HUMAN,
-            spell,
-            target: None,
-        });
-        self.note(events);
-    }
-
-    /// The player clicked `pos` while choosing a target.
-    pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::city::Position) {
-        let def = self.game.content.rules.spells.get(t.spell);
-        let target = match def.target {
-            SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
-                let units = self.game.units_at(pos);
-                let wanted = units.into_iter().find(|&u| {
-                    let mine = self.game.unit_owner(u) == Some(HUMAN);
-                    match def.target {
-                        SpellTarget::OwnUnit => mine,
-                        SpellTarget::EnemyUnit => !mine,
-                        _ => true,
+    /// The three staves: drawn empty above the line and full below it, locked or not, and
+    /// dragged with the mouse (the share changes as the mouse moves and is kept on release).
+    fn magic_staves(&mut self, lay: &Layout, active: bool) {
+        let (mx, my) = mouse_position();
+        let virtual_y = (my - lay.origin.y) / lay.scale;
+        let virtual_x = (mx - lay.origin.x) / lay.scale;
+        if active {
+            // Locks.
+            if is_mouse_button_pressed(MouseButton::Left) {
+                for (i, &sx) in STAFF_X.iter().enumerate() {
+                    let lock = (sx - 1.0, 82.0, sx + 12.0, 101.0);
+                    if (lock.0..=lock.2).contains(&virtual_x)
+                        && (lock.1..=lock.3).contains(&virtual_y)
+                    {
+                        self.magic_ui.locked[i] = !self.magic_ui.locked[i];
+                    } else if (sx - 4.0..=sx + 18.0).contains(&virtual_x)
+                        && (83.0..=158.0).contains(&virtual_y)
+                    {
+                        self.magic_ui.drag = Some(i);
                     }
-                });
-                wanted.map(Target::Unit)
-            }
-            SpellTarget::OwnCity | SpellTarget::EnemyCity => {
-                self.game.city_at(pos).map(Target::City)
-            }
-            // Another wizard, by clicking one of their cities or units.
-            SpellTarget::EnemyWizard => self
-                .game
-                .city_at(pos)
-                .and_then(|c| self.game.city_owner(c))
-                .or_else(|| {
-                    self.game
-                        .units_at(pos)
-                        .into_iter()
-                        .find_map(|u| self.game.unit_owner(u))
-                })
-                .filter(|&o| o != HUMAN)
-                .map(Target::Player),
-            _ => Some(Target::Tile(pos)),
-        };
-        // A Spell Ward also needs a realm: ask for it.
-        if self
-            .game
-            .spell_has_hook(t.spell, f4x_core::city_spells::SPELL_WARD)
-        {
-            match target {
-                Some(Target::City(city))
-                    if self.game.city_owner(city) == Some(HUMAN)
-                        && !self.game.fully_warded(city) =>
-                {
-                    self.ward_prompt = Some((t.spell, city, t.resolve));
-                }
-                _ => {
-                    self.log.push(
-                        "Choose one of your cities that is not warded against every realm".into(),
-                    );
-                    self.targeting = Some(t);
                 }
             }
-            return;
+            if let Some(i) = self.magic_ui.drag {
+                if is_mouse_button_down(MouseButton::Left) {
+                    let value = (STAFF_FLOOR - virtual_y).round() as i32;
+                    let moved = staff_adjust(self.magic_ui.pos, self.magic_ui.locked, i, value);
+                    self.magic_ui.pos = moved;
+                } else {
+                    self.magic_ui.drag = None;
+                    self.commit_staves();
+                }
+            }
         }
-        let Some(target) = target else {
-            self.log.push("No valid target there".into());
-            self.targeting = Some(t);
-            return;
-        };
-        let cmd = if t.resolve {
-            Command::ResolveCast {
-                player: HUMAN,
-                target,
+        let pos = self.magic_ui.pos;
+        let locked = self.magic_ui.locked;
+        for i in 0..3 {
+            let (empty, full, lock) = STAFF_ART[i];
+            let fill = pos[i] as f32;
+            let line = STAFF_FLOOR - fill;
+            let (ex, ey) = STAFF_AT[i][0];
+            let (fx, fy) = STAFF_AT[i][1];
+            self.draw_pic_rows(lay, "magic", empty, ex, ey, 79.0, line);
+            self.draw_pic_rows(lay, "magic", full, fx, fy, line, 166.0);
+            if locked[i] {
+                let (lx, ly) = STAFF_AT[i][2];
+                self.draw_pic(lay, "magic", lock, 0, lx, ly);
             }
-        } else {
-            Command::CastSpell {
-                player: HUMAN,
-                spell: t.spell,
-                target: Some(target),
-            }
-        };
-        let events = self.game.apply(cmd);
-        let rejected = events
-            .iter()
-            .any(|e| matches!(e, f4x_core::Event::Rejected(_)));
+        }
+    }
+
+    /// Keep the staves' positions as the power split.
+    fn commit_staves(&mut self) {
+        let [m, r, s] = self.magic_ui.pos;
+        let events = self.game.apply(Command::SetPowerSplit {
+            player: HUMAN,
+            mana: (2 * m) as u8,
+            research: (2 * r) as u8,
+            skill: (2 * s) as u8,
+        });
         self.note(events);
-        if rejected {
-            self.targeting = Some(t);
+    }
+
+    /// The income under each staff and the block of facts below them.
+    fn magic_text(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let gold = Color::new(0.95, 0.55, 0.1, 1.0);
+        let split = if self.magic_ui.drag.is_some() {
+            // While dragging show what the staves would give.
+            let base = self.game.power_base(HUMAN);
+            let [m, _, s] = self.magic_ui.pos;
+            let mut p = self.game.power_split(HUMAN);
+            p.mana = base * 2 * m / 100;
+            p.skill = base * 2 * s / 100;
+            p.research = base - p.mana - p.skill + self.game.city_research(HUMAN);
+            p
+        } else {
+            self.game.power_split(HUMAN)
+        };
+        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
+        self.bm_text(
+            view,
+            2,
+            gold,
+            &format!("{} MP", split.mana),
+            54.0,
+            160.0,
+            Align::Right,
+        );
+        if magic.researching.is_none() {
+            self.bm_text(view, 2, gold, "No Spell", 67.0, 100.0, Align::Left);
+        } else {
+            self.bm_text(
+                view,
+                2,
+                gold,
+                &format!("{} RP", self.game.research_income(HUMAN)),
+                101.0,
+                160.0,
+                Align::Right,
+            );
         }
+        self.bm_text(
+            view,
+            2,
+            gold,
+            &format!("{} SP", split.skill),
+            148.0,
+            160.0,
+            Align::Right,
+        );
+
+        let skill = self.game.casting_skill(HUMAN);
+        let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let base = self.game.power_base(HUMAN);
+        let name = |g: &f4x_core::Game, s: SpellId| g.content.rules.spells.get(s).name.clone();
+        let casting = magic
+            .casting
+            .map_or("None".to_string(), |c| name(&self.game, c.spell));
+        let researching = magic
+            .researching
+            .map_or("None".to_string(), |s| name(&self.game, s));
+        let summon = self
+            .game
+            .player(HUMAN)
+            .and_then(|p| p.summon_at)
+            .and_then(|at| self.game.city_at(at))
+            .map_or("None".to_string(), |c| self.city_name(c));
+        let rows = [
+            (
+                "Casting Skill:",
+                format!("{skill}({skill})"),
+                "Casting:",
+                casting,
+            ),
+            (
+                "Magic Reserve:",
+                reserve.to_string(),
+                "Researching:",
+                researching,
+            ),
+            ("Power Base:", base.to_string(), "Summon To:", summon),
+        ];
+        for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
+            let y = 177.0 + 8.0 * i as f32;
+            self.bm_text(view, 1, light, l1, 5.0, y, Align::Left);
+            self.bm_text(view, 1, light, &v1, 90.0, y, Align::Right);
+            self.bm_text(view, 1, light, l2, 100.0, y, Align::Left);
+            self.bm_text(view, 1, light, &v2, 156.0, y, Align::Left);
+        }
+        let _ = lay;
+    }
+
+    /// The other wizards' gems. A gem is grey until the wizard is met, and broken once the
+    /// wizard is gone; a met wizard's portrait and relations are tasks 83 and 63.
+    fn magic_gems(&mut self, lay: &Layout) {
+        for i in 0..4 {
+            self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
+        }
+        let others: Vec<bool> = self
+            .game
+            .players
+            .iter()
+            .filter(|p| p.id != HUMAN && !p.neutral)
+            .map(|p| p.defeated)
+            .collect();
+        for (i, gone) in others.into_iter().take(4).enumerate() {
+            if gone {
+                self.draw_pic(lay, "magic", 51, 0, 23.0 + 77.0 * i as f32, 3.0);
+            }
+        }
+    }
+
+    /// The overland enchantments panel: one column of up to nine, or two of up to eighteen
+    /// with a "More..." that turns the page. A click on one of your own offers to turn it off.
+    fn magic_enchantments(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool) {
+        let list = self.overland_enchantments();
+        let two_columns = list.len() >= 10;
+        let per_page = if two_columns { 18 } else { 9 };
+        if self.magic_ui.first >= list.len() {
+            self.magic_ui.first = 0;
+        }
+        let first = self.magic_ui.first;
+        for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
+            let name = self.game.content.rules.spells.get(spell).name.clone();
+            let color = self.banner_color(owner.0);
+            let (x, y, style) = if two_columns {
+                (
+                    171.0 + 69.0 * (i % 2) as f32,
+                    81.0 + 9.0 * (i / 2) as f32,
+                    0,
+                )
+            } else {
+                (171.0, 80.0 + 10.0 * i as f32, 2)
+            };
+            self.bm_text(view, style, color, &name, x, y, Align::Left);
+            let rect = if two_columns {
+                lay.rect((x - 2.0, y - 1.0, 65.0, 8.0))
+            } else {
+                lay.rect((x - 2.0, y - 1.0, 120.0, 9.0))
+            };
+            if active
+                && owner == HUMAN
+                && is_mouse_button_pressed(MouseButton::Left)
+                && rect.contains(mouse_position().into())
+            {
+                self.magic_ui.turn_off = Some(spell);
+            }
+        }
+        if list.len() > 18 {
+            self.bm_text(view, 0, WHITE, "More...", 286.0, 163.0, Align::Left);
+            if active
+                && is_mouse_button_pressed(MouseButton::Left)
+                && lay
+                    .rect((286.0, 163.0, 21.0, 7.0))
+                    .contains(mouse_position().into())
+            {
+                self.magic_ui.first += 18;
+                if self.magic_ui.first >= list.len() {
+                    self.magic_ui.first = 0;
+                }
+            }
+        }
+    }
+
+    /// The alchemy window at (80, 60): drag the star along the bar to pick how much, the arrow
+    /// button turns the exchange round, OK does it.
+    fn alchemy_popup(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+        let Some(mut ui) = self.magic_ui.alchemy else {
+            return;
+        };
+        let (px, py) = (80.0, 60.0);
+        let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
+        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let skilled = self
+            .game
+            .magic(HUMAN)
+            .is_some_and(|m| m.has(Retort::Alchemy));
+        let divisor = if skilled { 1 } else { 2 };
+        let pool = if ui.gold_to_mana { gold } else { mana };
+        if pool <= 1 {
+            ui.slider = 3;
+        }
+        let amount = alchemy_amount(pool, ui.slider);
+        let (mx, my) = mouse_position();
+        let vx = (mx - lay.origin.x) / lay.scale;
+        let vy = (my - lay.origin.y) / lay.scale;
+        // The slider bar.
+        if is_mouse_button_down(MouseButton::Left)
+            && (px + 46.0..=px + 108.0).contains(&vx)
+            && (py + 22.0..=py + 34.0).contains(&vy)
+            && pool > 1
+        {
+            ui.slider = ((vx - (px + 50.0)).round() as i32 + 3).clamp(3, 53);
+        }
+        self.draw_pic(lay, "magic", 52, 0, px - 5.0, py);
+        if !ui.gold_to_mana {
+            self.draw_pic(lay, "magic", 59, 0, px + 7.0, py + 10.0);
+        }
+        // The bar's shaded part up to the star, then the star.
+        self.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
+        self.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let (gold_amount, power_amount) = if ui.gold_to_mana {
+            (amount, amount / divisor)
+        } else {
+            (amount / divisor, amount)
+        };
+        self.bm_text(
+            view,
+            1,
+            light,
+            &gold_amount.to_string(),
+            px + 28.0,
+            py + 26.0,
+            Align::Right,
+        );
+        self.bm_text(view, 1, light, "GP", px + 40.0, py + 26.0, Align::Right);
+        self.bm_text(
+            view,
+            1,
+            light,
+            &power_amount.to_string(),
+            px + 130.0,
+            py + 26.0,
+            Align::Right,
+        );
+        self.bm_text(view, 1, light, "PP", px + 142.0, py + 26.0, Align::Right);
+        // Cancel, the arrow that turns the exchange, and OK.
+        let click = |app: &mut App, entry: usize, x: f32, y: f32| {
+            let r = app.draw_pic(lay, "magic", entry, 0, x, y);
+            r.is_some_and(|r| r.contains(mouse_position().into()))
+                && is_mouse_button_pressed(MouseButton::Left)
+        };
+        let cancel = click(self, 53, px + 13.0, py + 39.0);
+        let turn = click(
+            self,
+            if ui.gold_to_mana { 56 } else { 55 },
+            px + 66.0,
+            py + 39.0,
+        );
+        let ok = click(self, 54, px + 96.0, py + 39.0);
+        if turn || is_key_pressed(KeyCode::Space) {
+            ui.gold_to_mana = !ui.gold_to_mana;
+            ui.slider = 3;
+        }
+        if ok && amount > 0 {
+            let events = self.game.apply(Command::Alchemy {
+                player: HUMAN,
+                amount,
+                gold_to_mana: ui.gold_to_mana,
+            });
+            self.note(events);
+            self.magic_ui.alchemy = None;
+            return;
+        }
+        if cancel || ok || is_key_pressed(KeyCode::Escape) {
+            self.magic_ui.alchemy = None;
+            return;
+        }
+        self.magic_ui.alchemy = Some(ui);
+    }
+
+    /// A picture whose rows between `top` and `bottom` (in the original's pixels) are drawn:
+    /// the part of a staff above or below the line its share reaches.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_pic_rows(
+        &mut self,
+        lay: &Layout,
+        lbx: &str,
+        entry: usize,
+        x: f32,
+        y: f32,
+        top: f32,
+        bottom: f32,
+    ) {
+        let Some(tex) = self.art_picture(lbx, entry, 0) else {
+            return;
+        };
+        let h = tex.height();
+        let (from, to) = (top.max(y), bottom.min(y + h));
+        if to <= from {
+            return;
+        }
+        let at = lay.point(x, from);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(tex.width() * lay.scale, (to - from) * lay.scale)),
+                source: Some(Rect::new(0.0, from - y, tex.width(), to - from)),
+                ..Default::default()
+            },
+        );
+    }
+
+    /// A question with Yes and No (or Y and N); `Some` once the player has answered.
+    pub(crate) fn confirm_box(&mut self, text: &str) -> Option<bool> {
+        let (w, h) = (screen_width(), screen_height());
+        let (bw, bh) = (w.min(560.0), 130.0);
+        let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
+        draw_rectangle(x, y, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
+        draw_rectangle_lines(x, y, bw, bh, 3.0, crate::ui::GOLD);
+        crate::frame::text_centered(text, w / 2.0, y + 45.0, 22.0, WHITE);
+        let yes = button(
+            Rect::new(x + bw / 2.0 - 110.0, y + 70.0, 100.0, 36.0),
+            "Yes",
+            true,
+        );
+        let no = button(
+            Rect::new(x + bw / 2.0 + 10.0, y + 70.0, 100.0, 36.0),
+            "No",
+            true,
+        );
+        if yes || is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter) {
+            return Some(true);
+        }
+        if no || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
+            return Some(false);
+        }
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::rebalance;
+    use super::*;
 
     #[test]
-    fn rebalancing_keeps_the_total_at_one_hundred() {
-        assert_eq!(rebalance([33, 34, 33], 0, 50), [50, 25, 25]);
-        assert_eq!(rebalance([100, 0, 0], 1, 40), [60, 40, 0]);
-        assert_eq!(rebalance([20, 80, 0], 2, 100), [0, 0, 100]);
-        for new in 0..=100u8 {
-            let s = rebalance([10, 30, 60], 1, new);
-            assert_eq!(s.iter().map(|&v| u32::from(v)).sum::<u32>(), 100);
+    fn the_staves_always_add_up_to_fifty() {
+        for locked in [
+            [false; 3],
+            [true, false, false],
+            [false, true, false],
+            [false, false, true],
+            [true, true, false],
+        ] {
+            for changed in 0..3 {
+                for new in 0..=60 {
+                    let out = staff_adjust([17, 17, 16], locked, changed, new);
+                    assert_eq!(out.iter().sum::<i32>(), 50, "{locked:?} {changed} {new}");
+                    assert!(out.iter().all(|&v| (0..=50).contains(&v)));
+                    for i in 0..3 {
+                        if locked[i] {
+                            assert_eq!(out[i], [17, 17, 16][i], "a locked staff stays");
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    #[test]
+    fn a_free_pair_share_what_a_staff_takes_and_gives() {
+        // Skill up four: research and mana give two each.
+        assert_eq!(staff_adjust([17, 17, 16], [false; 3], 2, 20), [15, 15, 20]);
+        // An odd point stays where it was: skill up three moves two.
+        assert_eq!(staff_adjust([17, 17, 16], [false; 3], 2, 19), [16, 16, 18]);
+        // Skill down four: research and mana take two each.
+        assert_eq!(staff_adjust([17, 17, 16], [false; 3], 2, 12), [19, 19, 12]);
+        // With nothing left in one of them the other pays.
+        assert_eq!(staff_adjust([0, 30, 20], [false; 3], 2, 40), [0, 10, 40]);
+    }
+
+    #[test]
+    fn a_locked_staff_holds_and_the_free_one_takes_the_difference() {
+        // Research locked: mana pays for skill, to the last point it has.
+        assert_eq!(
+            staff_adjust([17, 17, 16], [false, true, false], 2, 20),
+            [13, 17, 20]
+        );
+        assert_eq!(
+            staff_adjust([5, 17, 28], [false, true, false], 2, 40),
+            [0, 17, 33]
+        );
+        // Both others locked: nothing moves.
+        assert_eq!(
+            staff_adjust([17, 17, 16], [true, true, false], 2, 30),
+            [17, 17, 16]
+        );
+    }
+
+    #[test]
+    fn a_split_becomes_staves_and_back() {
+        assert_eq!(staves_from_split(34, 33, 33), [18, 16, 16]);
+        assert_eq!(staves_from_split(100, 0, 0), [50, 0, 0]);
+        assert_eq!(staves_from_split(0, 0, 100), [0, 0, 50]);
+    }
+
+    #[test]
+    fn the_alchemy_slider_converts_up_to_everything() {
+        assert_eq!(alchemy_amount(100, 3), 0);
+        assert_eq!(alchemy_amount(100, 53), 100);
+        assert_eq!(alchemy_amount(100, 28), 50);
+        assert_eq!(alchemy_amount(5000, 53), 999);
     }
 }

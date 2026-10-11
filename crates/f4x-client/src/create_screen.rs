@@ -2,7 +2,7 @@
 //! choose starting spells and a race, then begin.
 
 use f4x_core::magic::Retort;
-use f4x_core::rules::SpellId;
+use f4x_core::rules::{Rarity, SpellId};
 use f4x_core::wizard::{
     retort_available, retort_cost, retort_name, WizardBuild, ALL_RETORTS, MAX_BOOKS, MAX_RETORTS,
     PICKS,
@@ -89,33 +89,35 @@ impl App {
         let realms = self.book_realms();
         let mut spells: Vec<SpellId> = Vec::new();
         for realm in &realms {
-            let want = self.create.build.spell_choices(realm);
-            let mut chosen: Vec<SpellId> = self
-                .create
-                .build
-                .spells
-                .iter()
-                .copied()
-                .filter(|&s| self.game.content.rules.spells.get(s).realm == *realm)
-                .collect();
-            chosen.truncate(want);
-            for s in self.game.default_starting_spells(realm) {
-                if chosen.len() >= want {
-                    break;
+            for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
+                let want = self.create.build.spell_choices_of(realm, rarity);
+                let mut chosen: Vec<SpellId> = self
+                    .create
+                    .build
+                    .spells
+                    .iter()
+                    .copied()
+                    .filter(|&s| {
+                        let d = self.game.content.rules.spells.get(s);
+                        d.realm == *realm && d.rarity == rarity
+                    })
+                    .collect();
+                chosen.truncate(want);
+                for s in self
+                    .game
+                    .default_starting_spells_of(realm, rarity)
+                    .into_iter()
+                    .chain(self.game.starting_spell_pool_of(realm, rarity))
+                {
+                    if chosen.len() >= want {
+                        break;
+                    }
+                    if !chosen.contains(&s) {
+                        chosen.push(s);
+                    }
                 }
-                if !chosen.contains(&s) {
-                    chosen.push(s);
-                }
+                spells.extend(chosen);
             }
-            for s in self.game.starting_spell_pool(realm) {
-                if chosen.len() >= want {
-                    break;
-                }
-                if !chosen.contains(&s) {
-                    chosen.push(s);
-                }
-            }
-            spells.extend(chosen);
         }
         self.create.build.spells = spells;
     }
@@ -421,71 +423,84 @@ impl App {
         let mut y = 52.0;
         let mut toggle: Option<SpellId> = None;
         for realm in &realms {
-            let need = self.create.build.spell_choices(realm);
-            if need == 0 {
-                continue;
-            }
-            let have = self
-                .create
-                .build
-                .spells
-                .iter()
-                .filter(|&&s| self.game.content.rules.spells.get(s).realm == *realm)
-                .count();
-            let color = self
-                .game
-                .content
-                .rules
-                .realms
-                .by_name(realm)
-                .map_or(WHITE, |r| {
-                    Color::from_rgba(r.color.0, r.color.1, r.color.2, 255)
-                });
-            let title = self
-                .game
-                .content
-                .rules
-                .realms
-                .by_name(realm)
-                .map_or(realm.as_str(), |r| r.name.as_str());
-            draw_text(
-                format!("{title}: {have} of {need}"),
-                x,
-                y + 16.0,
-                20.0,
-                color,
-            );
-            y += 22.0;
-            // Two spell names per row keeps ten commons per realm compact.
-            let pool = self.game.starting_spell_pool(realm);
-            let half = width / 2.0;
-            for (i, &s) in pool.iter().enumerate() {
-                let r = Rect::new(
-                    x + (i % 2) as f32 * half,
-                    y + (i / 2) as f32 * 20.0,
-                    half - 4.0,
-                    20.0,
-                );
-                let picked = self.create.build.spells.contains(&s);
-                let hover = r.contains(mouse_position().into());
-                if hover {
-                    draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.22, 0.12, 0.7));
+            for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
+                let need = self.create.build.spell_choices_of(realm, rarity);
+                if need == 0 {
+                    continue;
                 }
-                let name = self.game.content.rules.spells.get(s).name.clone();
+                let have = self
+                    .create
+                    .build
+                    .spells
+                    .iter()
+                    .filter(|&&s| {
+                        let d = self.game.content.rules.spells.get(s);
+                        d.realm == *realm && d.rarity == rarity
+                    })
+                    .count();
+                let color = self
+                    .game
+                    .content
+                    .rules
+                    .realms
+                    .by_name(realm)
+                    .map_or(WHITE, |r| {
+                        Color::from_rgba(r.color.0, r.color.1, r.color.2, 255)
+                    });
+                let title = self
+                    .game
+                    .content
+                    .rules
+                    .realms
+                    .by_name(realm)
+                    .map_or(realm.as_str(), |r| r.name.as_str());
+                let sort = match rarity {
+                    Rarity::Common => "",
+                    Rarity::Uncommon => " uncommon",
+                    _ => " rare",
+                };
                 draw_text(
-                    &name,
-                    r.x + 4.0,
-                    r.y + 15.0,
-                    17.0,
-                    if picked { GREEN } else { LIGHTGRAY },
+                    format!("{title}{sort}: {have} of {need}"),
+                    x,
+                    y + 16.0,
+                    20.0,
+                    color,
                 );
-                if hover && is_mouse_button_pressed(MouseButton::Left) && (picked || have < need) {
-                    toggle = Some(s);
+                y += 22.0;
+                // Two spell names per row keeps ten spells per list compact.
+                let pool = self.game.starting_spell_pool_of(realm, rarity);
+                let half = width / 2.0;
+                for (i, &s) in pool.iter().enumerate() {
+                    let r = Rect::new(
+                        x + (i % 2) as f32 * half,
+                        y + (i / 2) as f32 * 20.0,
+                        half - 4.0,
+                        20.0,
+                    );
+                    let picked = self.create.build.spells.contains(&s);
+                    let hover = r.contains(mouse_position().into());
+                    if hover {
+                        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.22, 0.12, 0.7));
+                    }
+                    let name = self.game.content.rules.spells.get(s).name.clone();
+                    draw_text(
+                        &name,
+                        r.x + 4.0,
+                        r.y + 15.0,
+                        17.0,
+                        if picked { GREEN } else { LIGHTGRAY },
+                    );
+                    if hover
+                        && is_mouse_button_pressed(MouseButton::Left)
+                        && (picked || have < need)
+                    {
+                        toggle = Some(s);
+                    }
                 }
-            }
-            y += pool.len().div_ceil(2) as f32 * 20.0 + 10.0;
-            if y > h - 40.0 {
-                break;
+                y += pool.len().div_ceil(2) as f32 * 20.0 + 10.0;
+                if y > h - 40.0 {
+                    break;
+                }
             }
         }
         if let Some(s) = toggle {

@@ -1103,7 +1103,14 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
         matches!(events[..], [f4x_core::Event::Rejected(_)]),
         "{events:?}"
     );
-    // The taker razes it: size 3 costs 4 more fame, and a tenth of each building's cost is looted.
+    // The taker razes it: the size plus one more fame is lost (the fighting leaves a size that
+    // depends on the dice), and a tenth of each building's cost is looted.
+    let size = f4x_core::conquest::city_size_class(
+        g.world
+            .get::<&f4x_core::economy::Population>(city)
+            .unwrap()
+            .figures,
+    ) as i32;
     let events = g.apply(f4x_core::Command::RazeCity {
         player: HUMAN,
         city,
@@ -1117,7 +1124,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
     assert!(g.world.get::<&f4x_core::city::City>(city).is_err());
     assert_eq!(
         g.player(HUMAN).unwrap().fame,
-        (fame_after_taking - 4).max(0)
+        (fame_after_taking - (size + 1)).max(0)
     );
     assert!(g.player(HUMAN).unwrap().gold > gold_after_taking);
 

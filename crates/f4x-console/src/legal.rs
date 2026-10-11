@@ -49,6 +49,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N (a Spell Ward: ward:<city>:<realm>); give it now if the spell is paid in full this turn.", cast),
     legal!("target", "target <target>", "Aim a spell that has been paid for over several turns.", target),
     legal!("cancelcast", "cancelcast", "Give up the spell being cast.", cancelcast),
+    legal!("turnoff", "turnoff <spell>", "Turn off one of your own lasting spells that is on the wizard (a global enchantment).", turnoff),
     legal!("alchemy", "alchemy <amount> <gold|mana>", "Convert that much gold into mana (or mana into gold): two for one, one for one with Alchemy.", alchemy),
     legal!("bmove", "bmove <unit> <x,y>", "In battle: walk a unit to a square (`battle` lists unit numbers and squares).", bmove),
     legal!("battack", "battack <unit> <target>", "In battle: attack an adjacent enemy in melee.", battack),
@@ -309,6 +310,17 @@ fn target(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn cancelcast(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let player = ctx.session.player;
     ctx.apply(Command::CancelCast { player })
+}
+
+fn turnoff(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let spell = crate::args::resolve(
+        &ctx.game.content.rules.spells,
+        a.need(0, "spell")?,
+        |d| &d.name,
+        "spell",
+    )?;
+    let player = ctx.session.player;
+    ctx.apply(Command::TurnOffSpell { player, spell })
 }
 
 fn alchemy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

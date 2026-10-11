@@ -189,6 +189,12 @@ pub enum Command {
     CancelCast {
         player: city::PlayerId,
     },
+    /// Turn off one of the wizard's own lasting spells that is on the wizard (a global
+    /// enchantment): it ends and stops costing upkeep.
+    TurnOffSpell {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
     /// Trade gold and mana (two for one, one for one with the alchemy retort).
     Alchemy {
         player: city::PlayerId,
@@ -725,6 +731,9 @@ impl Game {
             } => reject(self.set_power_split(player, mana, research, skill)),
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
             Command::CancelCast { player } => reject(self.cancel_cast(player)),
+            Command::TurnOffSpell { player, spell } => {
+                events_or_reject(self.turn_off_spell(player, spell))
+            }
             Command::Alchemy {
                 player,
                 amount,

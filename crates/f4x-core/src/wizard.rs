@@ -3,7 +3,8 @@
 //! The rules follow the original's custom-wizard screen: eleven picks buy spell books (one
 //! each) and retorts (one each; two for Warlord, Channeler, Divine Power, Famous and Infernal
 //! Power; three for Myrran), at most six retorts, and some retorts need books first. A realm
-//! with `n` books lets the wizard choose `n - 1` common spells to start with.
+//! with `n` books lets the wizard choose `n - 1` common spells to start with; with eleven
+//! (all the picks) it knows all ten common spells and chooses two uncommon and one rare.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,7 +18,7 @@ pub const PICKS: u8 = 11;
 /// Most retorts a wizard may have.
 pub const MAX_RETORTS: usize = 6;
 /// Most books in one realm.
-pub const MAX_BOOKS: u8 = 10;
+pub const MAX_BOOKS: u8 = 11;
 
 /// What a wizard is made of, before the game starts.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -155,15 +156,26 @@ impl WizardBuild {
         i16::from(PICKS) - i16::from(self.picks_spent())
     }
 
-    /// Common spells the wizard may choose in a realm: one fewer than the books.
+    /// Common spells the wizard may choose in a realm: one fewer than the books, up to nine
+    /// (eleven books give all ten commons, with no choice).
     pub fn spell_choices(&self, realm: &str) -> usize {
-        usize::from(
-            self.books
-                .get(realm)
-                .copied()
-                .unwrap_or(0)
-                .saturating_sub(1),
-        )
+        match self.books.get(realm).copied().unwrap_or(0) {
+            n if n > 10 => 0,
+            n => usize::from(n.saturating_sub(1)),
+        }
+    }
+
+    /// Spells of a rarity the wizard may choose in a realm: the commons as
+    /// [`WizardBuild::spell_choices`], two uncommon and one rare with eleven books, nothing
+    /// else.
+    pub fn spell_choices_of(&self, realm: &str, rarity: Rarity) -> usize {
+        let eleven = self.books.get(realm).copied().unwrap_or(0) > 10;
+        match rarity {
+            Rarity::Common => self.spell_choices(realm),
+            Rarity::Uncommon if eleven => 2,
+            Rarity::Rare if eleven => 1,
+            _ => 0,
+        }
     }
 }
 
@@ -203,17 +215,27 @@ impl Game {
 
     /// The spells a realm offers at the start: its common spells in file order.
     pub fn starting_spell_pool(&self, realm: &str) -> Vec<SpellId> {
+        self.starting_spell_pool_of(realm, Rarity::Common)
+    }
+
+    /// The spells of one rarity a realm offers at the start, in file order.
+    pub fn starting_spell_pool_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
         self.content
             .rules
             .spells
             .iter()
-            .filter(|(_, d)| d.realm == realm && d.rarity == Rarity::Common)
+            .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
             .map(|(id, _)| id)
             .collect()
     }
 
     /// The realm's default starting spells that are common ones, in default order.
     pub fn default_starting_spells(&self, realm: &str) -> Vec<SpellId> {
+        self.default_starting_spells_of(realm, Rarity::Common)
+    }
+
+    /// The realm's default starting spells of one rarity, in default order.
+    pub fn default_starting_spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
         let Some(def) = self
             .content
             .rules
@@ -224,7 +246,7 @@ impl Game {
         else {
             return Vec::new();
         };
-        let pool = self.starting_spell_pool(realm);
+        let pool = self.starting_spell_pool_of(realm, rarity);
         def.default_spells
             .iter()
             .filter_map(|s| self.content.rules.spells.id_of(s))
@@ -240,44 +262,40 @@ impl Game {
         build: &WizardBuild,
     ) -> Result<(), BuildError> {
         self.check_wizard_build(build)?;
-        // Chosen spells must be commons of a realm the wizard has books in, within the limit.
-        let mut per_realm: BTreeMap<String, Vec<SpellId>> = BTreeMap::new();
+        // Chosen spells must be of a realm the wizard has books in, and of a rarity and number
+        // the books allow.
+        let mut per_realm: BTreeMap<(String, Rarity), Vec<SpellId>> = BTreeMap::new();
         for &s in &build.spells {
             let def = self.content.rules.spells.get(s);
-            let realm = def.realm.clone();
-            let ok = def.rarity == Rarity::Common
-                && build.spell_choices(&realm) > 0
-                && !per_realm.get(&realm).is_some_and(|v| v.contains(&s));
-            if !ok {
-                return Err(BuildError::BadSpell(s));
-            }
-            let list = per_realm.entry(realm.clone()).or_default();
-            if list.len() >= build.spell_choices(&realm) {
+            let key = (def.realm.clone(), def.rarity);
+            let room = build.spell_choices_of(&def.realm, def.rarity);
+            let list = per_realm.entry(key).or_default();
+            if list.contains(&s) || list.len() >= room {
                 return Err(BuildError::BadSpell(s));
             }
             list.push(s);
         }
         let mut start = Vec::new();
         for realm in build.books.keys() {
-            let want = build.spell_choices(realm);
-            let mut chosen = per_realm.remove(realm).unwrap_or_default();
-            for s in self.default_starting_spells(realm) {
-                if chosen.len() >= want {
-                    break;
+            for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
+                let want = build.spell_choices_of(realm, rarity);
+                let mut chosen = per_realm
+                    .remove(&(realm.clone(), rarity))
+                    .unwrap_or_default();
+                for s in self
+                    .default_starting_spells_of(realm, rarity)
+                    .into_iter()
+                    .chain(self.starting_spell_pool_of(realm, rarity))
+                {
+                    if chosen.len() >= want {
+                        break;
+                    }
+                    if !chosen.contains(&s) {
+                        chosen.push(s);
+                    }
                 }
-                if !chosen.contains(&s) {
-                    chosen.push(s);
-                }
+                start.extend(chosen);
             }
-            for s in self.starting_spell_pool(realm) {
-                if chosen.len() >= want {
-                    break;
-                }
-                if !chosen.contains(&s) {
-                    chosen.push(s);
-                }
-            }
-            start.extend(chosen);
         }
         let books: Vec<(&str, u8)> = build.books.iter().map(|(r, &n)| (r.as_str(), n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
@@ -523,5 +541,119 @@ mod tests {
         g.create_wizard(P0, &b).unwrap();
         assert!(g.magic(P0).unwrap().has(Retort::Channeler));
         assert!(g.preset_build("nobody").is_none());
+    }
+
+    #[test]
+    fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
+        let mut g = game();
+        let id = |g: &Game, n: &str| g.content.rules.spells.id_of(n).unwrap();
+        let (u1, u2, u3) = (id(&g, "life_u0"), id(&g, "life_u1"), id(&g, "life_u2"));
+        let rare = id(&g, "life_r3");
+        let b = build(&[("life", 11)], &[]);
+        assert_eq!(b.spell_choices("life"), 0, "the commons are all given");
+        assert_eq!(b.spell_choices_of("life", Rarity::Uncommon), 2);
+        assert_eq!(b.spell_choices_of("life", Rarity::Rare), 1);
+        // Too many, or the wrong sort, are refused.
+        for bad in [vec![u1, u2, u3], vec![rare, id(&g, "life_r4")]] {
+            let mut b = b.clone();
+            b.spells = bad;
+            assert!(matches!(
+                g.create_wizard(P0, &b),
+                Err(BuildError::BadSpell(_))
+            ));
+        }
+        let mut chosen = b.clone();
+        chosen.spells = vec![u2, u3, rare];
+        g.create_wizard(P0, &chosen).unwrap();
+        let magic = g.magic(P0).unwrap();
+        assert_eq!(magic.books_in("life"), 11);
+        let known = |name: &str| {
+            magic
+                .known
+                .contains(&g.content.rules.spells.id_of(name).unwrap())
+        };
+        assert!(
+            (0..10).all(|i| known(&format!("life_c{i}"))),
+            "every common"
+        );
+        assert!(known("life_u2") && known("life_u1") && known("life_r3"));
+        assert!(
+            !known("life_u0") && !known("life_r0"),
+            "only what was picked"
+        );
+        let researchable = |name: &str| {
+            magic
+                .researchable
+                .contains(&g.content.rules.spells.id_of(name).unwrap())
+        };
+        assert!(researchable("life_u0") && researchable("life_v0") && researchable("life_r0"));
+        // Without a choice the realm's defaults fill in: still two uncommon and one rare.
+        let mut g = game();
+        g.create_wizard(P0, &b).unwrap();
+        let magic = g.magic(P0).unwrap();
+        let count = |r: Rarity| {
+            magic
+                .known
+                .iter()
+                .filter(|&&s| g.content.rules.spells.get(s).rarity == r)
+                .count()
+        };
+        assert_eq!((count(Rarity::Uncommon), count(Rarity::Rare)), (2, 1));
+    }
+
+    #[test]
+    fn ten_books_still_choose_nine_commons_and_nothing_else() {
+        let b = build(&[("life", 10)], &[]);
+        assert_eq!(b.spell_choices("life"), 9);
+        assert_eq!(b.spell_choices_of("life", Rarity::Uncommon), 0);
+        assert_eq!(b.spell_choices_of("life", Rarity::Rare), 0);
+        assert_eq!(b.picks_spent(), 10);
+    }
+
+    #[test]
+    fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
+        use crate::magic::RESEARCH_SLOTS;
+        let mut g = game();
+        g.create_wizard(P0, &build(&[("life", 6), ("chaos", 5)], &[]))
+            .unwrap();
+        let magic = g.magic(P0).unwrap().clone();
+        assert_eq!(magic.candidates.len(), RESEARCH_SLOTS);
+        assert!(magic
+            .candidates
+            .iter()
+            .all(|s| magic.researchable.contains(s)));
+        // While a realm has researchable commons, no uncommon of it is offered.
+        for realm in ["life", "chaos"] {
+            let left_common = magic.researchable.iter().any(|&s| {
+                let d = g.content.rules.spells.get(s);
+                d.realm == realm && d.rarity == Rarity::Common
+            });
+            let offered_other = magic.candidates.iter().any(|&s| {
+                let d = g.content.rules.spells.get(s);
+                d.realm == realm && d.rarity != Rarity::Common
+            });
+            assert!(!(left_common && offered_other), "{realm}");
+        }
+        // Only an offered spell can be researched.
+        let outside = *magic
+            .researchable
+            .iter()
+            .find(|s| !magic.candidates.contains(s))
+            .unwrap();
+        assert_eq!(
+            g.set_research(P0, outside),
+            Err(crate::magic::MagicError::NotAvailable)
+        );
+        let pick = magic.candidates[3];
+        g.set_research(P0, pick).unwrap();
+        // Learning it takes it off the offer, and the offer is topped up again.
+        g.magic_mut(P0).unwrap().research_remaining = 0;
+        let events = g.process_magic();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, crate::Event::SpellLearned { spell, .. } if *spell == pick)));
+        let after = g.magic(P0).unwrap();
+        assert!(after.known.contains(&pick) && !after.candidates.contains(&pick));
+        assert_eq!(after.candidates.len(), RESEARCH_SLOTS);
     }
 }
