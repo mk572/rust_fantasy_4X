@@ -161,7 +161,7 @@ wizard is remembered (`da_action`, `da_strength`) so the AI can comment next tur
 5. If the pair are at war and the type is one of the first 14 (reaction events, not talks), a
    negative change is not applied; a quarter of it (only if the attacker is the human) moves the
    peace patience instead.
-6. *(Not ported: the AI gets no special treatment, design.md section 8. This step and the difficulty-based war rolls in section 9 below are the original's AI safeguards and bonuses; the AI decides war, peace and proposals on its own logic instead.)* AI-to-AI changes are doubled when positive after turn 200, and divided by `difficulty / 2 + 1`
+6. *(Not ported: the AI gets no special treatment, design.md section 8. This step and the difficulty-based war roll in section 8 are the original's AI safeguards and bonuses; the AI decides war, peace and proposals on its own logic instead.)* AI-to-AI changes are doubled when positive after turn 200, and divided by `difficulty / 2 + 1`
    when negative after turn 200 (an AI-only safeguard against late-game wars).
 7. Applied: relation and the treaty and exchange patience move by the change; peace patience moves
    by a quarter of the pre-charisma change (negative) or the pre-charisma change (positive). The
