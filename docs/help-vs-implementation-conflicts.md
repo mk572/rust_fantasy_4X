@@ -35,7 +35,7 @@ Written in our own words; nothing here is copied from either source.
 | B15 Swamp | Half a food. Needs terrain food in half-units (the sample `terrain.ron` uses whole numbers). |
 | B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). |
 | B18 Events | Use the real turn number, so events run from turn one and after loading a save. |
-| B19 Growth | Growth may be negative at maximum size; surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug and stays.) |
+| B19 Growth | Growth may be negative at maximum size; surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug in the original, but we do not port it: neutrals get no bonus or penalty, design.md section 8.) |
 | B20 Outposts | Outpost growth includes wild game; no AI difficulty modifier applies to anyone (no AI advantage, design.md section 8). |
 
 ### Decided by rule 2 (ReMoM to-do)
@@ -112,7 +112,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B16 | Nature node food | not stated | 5 base food in the main game, 4 in the new-game generator (ReMoM `OGBUG`) | Verified | n/a | Pick one (4 for consistency?). |
 | B17 | City spacing [400] | outpost must be at least four squares from any city | any city within distance 3 blocks it (`Map_Square_Survey`), i.e. at least 4 apart; only *intact* lairs, towers and nodes block | Verified | our `min_city_distance` is 3 (wrong) and every encounter blocks | Set 4; block only on towers, nodes, intact encounters. |
 | B18 | Random events [768-775] | each ends with a 5% chance per turn | events are not processed during the first five turns after a game starts or is loaded (ReMoM `OGBUG` in `EVENTS.c`) | Check | not modelled | Count from the real turn number instead of launch time. |
-| B19 | Population growth | "x people per turn" | excess above the next whole figure is discarded when a figure is gained; growth is clamped so it cannot go negative at maximum size; neutral cities grow at half rate (ReMoM notes) | Verified | not modelled | Follow the code; note it for the economy step. |
+| B19 | Population growth | "x people per turn" | excess above the next whole figure is discarded when a figure is gained; growth is clamped so it cannot go negative at maximum size; neutral cities grow at half rate (ReMoM notes) | Verified | not modelled | Follow the code except the neutral half rate, which is dropped (design.md section 8). |
 | B20 | Wild game / outposts | outposts grow from food | outpost growth ignores wild game and applies the AI difficulty modifier to the human player too (ReMoM `OGBUG`) | Check | not modelled | Follow intent: include wild game; no AI modifier at all. |
 
 ## C. The help contradicts itself

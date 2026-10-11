@@ -153,8 +153,9 @@ adamantium access get better weapons (+1 or +2 attack and to-hit bonuses in the 
 per-unit quality attribute set at creation and saved. Low priority.
 
 **20. Population growth edge rules (B19).** Excess above the next whole figure is discarded when a
-figure is gained, growth is clamped so it cannot go negative at maximum size, and neutral cities
-grow at half rate. Verify against `apply_growth` and add tests.
+figure is gained and growth is clamped so it cannot go negative at maximum size. (The original's
+half growth for neutral cities is not ported: neutrals get no bonus or penalty, design.md section 8.)
+Verify against `apply_growth` and add tests.
 
 **21. Outpost growth: wild game and difficulty (B20).** Follow the intent: include wild game in
 outpost growth. Apply no difficulty modifier to anyone: the AI gets no advantage or disadvantage
@@ -187,7 +188,8 @@ per-unit and per-city effects component (source, value, remaining turns) read by
 and `city_modifiers`, saved by name. Prerequisite for 52 and many spells.
 
 **31. Neutral player and neutral cities.** Neutral cities (rebels, raider cities) and the neutral
-player are not modelled; neutral cities grow at half rate (20).
+player are not modelled. Neutral cities and units follow the ordinary rules with no bonus or
+penalty for being neutral (design.md section 8), so there is no half growth (20).
 
 **32. Starting economy tuning.** After eight turns the starting army costs about 3 gold more than
 the single city earns. Tune the starting setup (units, tax, buildings) or document it as intended. A related finding: in a console game from the shared new-game setup (the same start as the client's), ending the first turn without changing farmers disbanded two of the three starting units (food upkeep, `UnitsDisbanded`), so the starting army and settlers do not fit the starting city's food either.
