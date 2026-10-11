@@ -149,17 +149,9 @@ impl Game {
         events
     }
 
-    /// Destroy a building, unless another that is built needs it.
+    /// Destroy a building, unless another that is built needs it (also down a chain).
     fn destroy_building(&mut self, city: hecs::Entity, building: crate::rules::BuildingId) -> bool {
-        let rules = &self.content.rules;
-        let name = rules.buildings.get(building).id.clone();
-        let needed = rules.buildings.defs().iter().any(|b| {
-            b.requires.contains(&name)
-                && rules
-                    .buildings
-                    .id_of(&b.id)
-                    .is_some_and(|id| self.has_building(city, id))
-        });
+        let needed = self.has_dependants(city, building);
         if needed {
             return false;
         }

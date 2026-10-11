@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 17 | City | Selling buildings: prerequisites beyond one level (low priority) |
 | 18 | City | Weapon quality from mithril and adamantium (low priority) |
 | 24 | City | Stream of Life and Gaia's Blessing (B8) (low priority) |
 | 25 | City | City enchantments with non-stat effects (low priority) |
@@ -142,9 +141,6 @@ the worked-area food and production of cities, and spells that set it.
 aura [653-656], and warping by spells. Depends on 6.
 
 ### City and economy
-
-**17. Selling buildings: prerequisites beyond one level.** Selling a building currently checks only
-direct prerequisites. Block selling where later buildings depend on it through a chain. Low priority.
 
 **18. Weapon quality from mithril and adamantium.** Units trained in a city with mithril or
 adamantium access get better weapons (+1 or +2 attack and to-hit bonuses in the original). Needs a
@@ -571,8 +567,6 @@ Parity task, low priority.
 
 **153. Dispelling temporary effects.** Temporary effects (task 30) are not enchantments, so Dispel Magic, Disenchant and Disjunction cannot remove them. Decide which ones a dispel should reach (the original makes instant grants permanent; timed ones may be the exception), give those a source spell and caster so dispel difficulty and the enemy-only rule apply (task 59), and have `dispel_target` include them.
 
-**154. Raiders from neutral cities.** The original's `Make_Raiders` (once per turn, the neutral player's event): an accumulator gains `Random(difficulty + 1)` each turn; at 30 it resets and, from a random neutral city that has a garrison and shares a landmass with a wizard's city, sends out `garrison * difficulty / 6` raiders (fewer near an AI fortress, half on Myrror before turn 200, experience cap rising with the turn), and the city loses a third of its garrison. Raiders attack the nearest wizard's city. It is an event for every player alike, so it follows design.md section 8. Reference: `reference/ReMoM/doc/ComputerPlayer/AIDATA-Make_Raiders.md`. Depends on 31 (done) and the AI or a simple raider mover; related to 68 (random events) and 69 (difficulty).
-
 **155. Starting setup: the original's random placement and AI race rules.** Task 32 brought the start in line with the original's `Generate_Home_Cities` (capital of four with three farmers, spearmen and swordsmen, smithy, barracks and builders hall, tax index 2, Myrran wizards on Myrror, sites that feed eight). Left out: (1) the original picks fortress sites at random (1000 tries per distance, fortress distance 16 relaxing to 10, node/tower/lair distance 7 relaxing to 1, halved in the check) while ours takes the nearest fitting site to a spread-out anchor, and measures every distance with `Range` where the original uses the wrapping delta for fortresses, nodes and lairs; (2) AI races: up to normal difficulty any of the nine Arcanus races, above it only Klackon, High Elf, Halfling, High Men and Nomad (a bias against the AI that design.md section 8 may rule out; decide), and a High Elf capital is moved off non-forest only by accident in the original; (3) starting gold: the original gives the human `(5 - difficulty) * 25` and every AI 150, ours gives everyone 100 by decision, and the AI's flat 150 would be an AI bonus; (4) fame 10 for the Famous retort (check it is set). Low priority.
 
 **156. Defence bonuses of enchantments and the undead's immunities.** Task 35 did immunities and resistance. Still open from the same original code: the unit enchantments that add *defence* against ranged magic of a realm (Elemental Armor +10 against chaos and nature, Resist Elements +3, Bless +3 against chaos and death), and the spells themselves, which the importer still leaves as `unimplemented`: Elemental Armor, Bless, Righteousness (their resistance part is done), Resist All and Invulnerability (-2 damage per hit). Undead should also gain cold, poison and illusion immunity (decision B10 in `help-vs-implementation-conflicts.md`), which belongs with task 29. Give `effective_defense` a realm bonus parameter and apply the spell tables in `immunity.rs`.
@@ -586,4 +580,3 @@ Parity task, low priority.
 **160. Battlefield node counter and node auras.** A battle fought on a magic node (the battle map's centre square holds a node of the sorcery, chaos or nature realm; `Combat_Cast_Spell` reads `battlefield->center_square_structure`) works against spells of other realms: every spell the wizard casts that is not of the node's realm must first beat a dispel of strength 50 against the mana put in (`Combat_Spell_Dispel_Attempt(50, ...)`), unless the caster has Node Mastery; a stopped spell still costs its mana and the turn, like Counter Magic. The node also gives the auras (help 615 to 617): +2 attack and +2 defence to creatures of the node's realm (the original's `Calc_Battlefield_Bonuses`), which fits the `FieldBonus` of `battle/field.rs`. Needs the battle to know the node under it (`Game::start_battle` has the site; `nodes.rs` has the node's realm and the owner's melding) and a way to show it. Hard to say which realm: the original reads the structure type; ours would use the node's kind. See `combat.md` sections 8 and 9.
 
 **161. Dispelling battlefield enchantments.** Battlefield enchantments (`battle/field.rs`) cannot be dispelled: Dispel Magic aims at a unit, while the original's `Combat_Cast_Dispel` takes a square and works on the enchantments of the battlefield too, and the combat Disenchant spells (`Combat_Cast_Disenchant`) go for the field's spells only. Add what the dispel can reach: each enchantment the caster's enemy has up is tried at its dispel difficulty (`Game::dispel_difficulty`, the caster's masteries doubling it) with the strength of the mana put in (Disenchant True three times), a success removes it and `Battle::refresh_fields` puts the bonuses right. Decide how the player picks it (the unit's square, as now, plus the field?) and whether Counter Magic should be dispellable (the original's Disenchant True can), and add an event. `combat.md` section 9 lists it under "Not here".
-

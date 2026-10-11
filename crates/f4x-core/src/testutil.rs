@@ -284,6 +284,7 @@ pub fn content_with_economy() -> Content {
             &["barracks"],
             vec![modify(Stat::StartingXp, ModOp::Min, 20)],
         ),
+        building("war_college", 500, 5, &["fighters_guild"], vec![]),
         building(
             "marketplace",
             100,

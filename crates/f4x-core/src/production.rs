@@ -202,23 +202,15 @@ impl Game {
         Ok(cost)
     }
 
-    /// Sell a building for its construction cost. The city's first building cannot be
-    /// sold if others depend on it.
+    /// Sell a building for its construction cost, unless a built building needs it (directly
+    /// or through a chain of requirements).
     pub fn sell_building(
         &mut self,
         city: hecs::Entity,
         building: BuildingId,
     ) -> Result<u32, ProductionError> {
-        let rules = &self.content.rules;
-        let name = rules.buildings.get(building).id.clone();
-        let cost = rules.buildings.get(building).cost;
-        let dependants = rules.buildings.defs().iter().any(|b| {
-            b.requires.contains(&name)
-                && rules
-                    .buildings
-                    .id_of(&b.id)
-                    .is_some_and(|id| self.has_building(city, id))
-        });
+        let cost = self.content.rules.buildings.get(building).cost;
+        let dependants = self.has_dependants(city, building);
         if dependants {
             return Err(ProductionError::MissingBuilding);
         }
@@ -238,6 +230,31 @@ impl Game {
             p.gold += cost as i32;
         }
         Ok(cost)
+    }
+
+    /// Whether a building that is built in the city needs `building`, directly or down a chain
+    /// of requirements (an unbuilt link in the chain does not break it).
+    pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
+        let rules = &self.content.rules;
+        let mut needed = vec![rules.buildings.get(building).id.clone()];
+        let mut i = 0;
+        while let Some(name) = needed.get(i).cloned() {
+            i += 1;
+            for b in rules.buildings.defs() {
+                if !b.requires.contains(&name) || needed.contains(&b.id) {
+                    continue;
+                }
+                if rules
+                    .buildings
+                    .id_of(&b.id)
+                    .is_some_and(|id| self.has_building(city, id))
+                {
+                    return true;
+                }
+                needed.push(b.id.clone());
+            }
+        }
+        false
     }
 
     pub fn has_building(&self, city: hecs::Entity, building: BuildingId) -> bool {

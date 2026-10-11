@@ -1150,6 +1150,24 @@ mod tests {
     }
 
     #[test]
+    fn selling_is_blocked_through_a_chain_with_a_missing_link() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 4);
+        // The war college needs the fighters guild, which needs the barracks; the guild is
+        // not built, but the barracks still cannot go while the college stands.
+        add_building(&mut g, city, "barracks");
+        add_building(&mut g, city, "war_college");
+        let barracks = building(&g, "barracks");
+        assert_eq!(
+            g.sell_building(city, barracks),
+            Err(ProductionError::MissingBuilding)
+        );
+        let college = building(&g, "war_college");
+        assert_eq!(g.sell_building(city, college), Ok(500));
+        assert_eq!(g.sell_building(city, barracks), Ok(30));
+    }
+
+    #[test]
     fn replaced_buildings_cost_nothing_to_keep() {
         let mut g = world();
         let city = found(&mut g, at(10, 6), "elf", 4);
