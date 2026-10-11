@@ -71,6 +71,7 @@ ends with a note `[Updated from game code: ...]`. 16 topic edits, applied by
 | C2 Black Channels | +2 melee (the other bonuses were already right) |
 | C3 Invisibility | -1 to hit against the unit (the two enchantment-list copies said -2) |
 | D1 Weapon Immunity [415] | defence of at least 10 against *normal weapons* (melee, arrows, boulders, thrown); the help said "against magical attacks", which the code never does (task 35, `docs/combat.md` 2.1) |
+| D2 Chaos [433] | doom damage (no to-hit, no resistance, no defence) is the full attack strength when the unit has it itself, half only when an item or spell gives it; the help said half (task 36, `combat.md` 2.2) |
 
 Not changed:
 - **B8 Stream of Life / Gaia's Blessing** stays open: the code reads the wrong table, which
