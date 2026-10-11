@@ -43,7 +43,7 @@ pub fn dispel_roll(strength: u32, difficulty: u32, rng: &mut dyn RngCore) -> boo
         return false;
     }
     let chance = 250 * u64::from(strength) / u64::from(strength + difficulty);
-    rng.next_u64() % 250 + 1 <= chance
+    rng.next_u64() % 250 < chance
 }
 
 impl Game {

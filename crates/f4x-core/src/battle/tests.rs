@@ -873,7 +873,7 @@ fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
         }
     }
     assert_eq!(b.counter_magic, [0, 50], "ten attempts, five each");
-    assert!(stopped >= 1 && stopped <= 9, "stopped {stopped} of 10");
+    assert!((1..=9).contains(&stopped), "stopped {stopped} of 10");
     // A drained reserve stops nothing.
     for _ in 0..10 {
         b.counter_magic_stops(Side::Attacker, 1);
