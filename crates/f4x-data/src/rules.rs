@@ -737,8 +737,17 @@ mod tests {
         let sunfolk = rules.races.by_name("sunfolk").unwrap();
         assert_eq!(sunfolk.city_names, ["Alpha", "Beta"]);
         // Another race keeps the names of its table (none, in this fixture).
-        assert!(rules.races.by_name("ironclans").unwrap().city_names.is_empty());
-        std::fs::write(over.join("city_names.ron"), r#"[(race: "nobody", names: ["X"])]"#).unwrap();
+        assert!(rules
+            .races
+            .by_name("ironclans")
+            .unwrap()
+            .city_names
+            .is_empty());
+        std::fs::write(
+            over.join("city_names.ron"),
+            r#"[(race: "nobody", names: ["X"])]"#,
+        )
+        .unwrap();
         assert!(load_rules(&[&over, &content_dir()], &features).is_err());
         let _ = std::fs::remove_dir_all(&base);
     }

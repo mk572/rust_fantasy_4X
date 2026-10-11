@@ -12,10 +12,13 @@ use crate::economy::Population;
 use crate::rules::{SpellId, SpellTarget};
 use crate::Game;
 
-/// Buildings that allow the use of nightshade (the original's list; its help text names a
-/// different set, which is corrected in the imported help).
-pub const NIGHTSHADE_BUILDINGS: [&str; 8] = [
+/// Buildings that allow the use of nightshade. The original's code lists eight of them, with
+/// the Shrine checked twice where the Animist's Guild, which its help names, was evidently
+/// meant; we include the Animist's Guild. (The help names only four buildings and is
+/// extended in the imported help.)
+pub const NIGHTSHADE_BUILDINGS: [&str; 9] = [
     "shrine",
+    "animists_guild",
     "temple",
     "parthenon",
     "cathedral",

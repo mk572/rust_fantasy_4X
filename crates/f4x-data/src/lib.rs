@@ -313,6 +313,17 @@ mod tests {
     }
 
     #[test]
+    fn the_buildings_that_allow_nightshade_exist() {
+        // The real rules data, not the small test set.
+        let c =
+            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+                .unwrap();
+        for id in f4x_core::nightshade::NIGHTSHADE_BUILDINGS {
+            assert!(c.rules.buildings.id_of(id).is_some(), "no building {id}");
+        }
+    }
+
+    #[test]
     fn generated_maps_obey_placement_rules() {
         let c = shipped_content();
         let p = f4x_core::mapgen::GenParams::default();
