@@ -30,6 +30,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::dispel::DISJUNCTION_TRUE,
     crate::dispel::SPELL_BINDING,
     crate::dispel::SPELL_BLAST,
+    crate::dispel::COUNTER_MAGIC,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +87,23 @@ pub enum DamageKind {
     Holy,
 }
 
+/// How a damage spell is dealt in a battle (the original's attack attributes). None of it
+/// matters overland, where the damage is a flat number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DamageTraits {
+    /// Halves the target's defence.
+    pub armor_piercing: bool,
+    /// The target's defence does not count at all.
+    pub ignores_defense: bool,
+    /// Every figure of the target is hit on its own, none losing more than one figure.
+    pub area: bool,
+    /// A chain of bolts, each one die weaker than the last.
+    pub decaying: bool,
+    /// Mana beyond the cost that buys one more point of strength; 0 if extra mana does nothing.
+    pub mana_per_point: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Effect {
     Modify {
@@ -108,6 +126,8 @@ pub enum Effect {
         realm: Option<String>,
         #[serde(default)]
         resist_modifier: i32,
+        #[serde(default)]
+        traits: DamageTraits,
     },
     Heal(i32),
     AddResource {

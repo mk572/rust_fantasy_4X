@@ -91,7 +91,8 @@ to roll against each attack (`attack::process_attack`).
   the spell table's immunity byte: Fire Bolt stops fire and magic immunity, Ice Bolt cold and
   magic, Psionic Blast illusion and magic, Life Drain magic and death immunity), and Righteousness
   makes a unit proof against chaos and death spells outright (`EffectHost::protected_from`).
-  The damage itself is still the spell's flat amount; dice against the defence come with task 43.
+  In a battle the damage is dice against the defence (section 8); overland it is still the
+  spell's flat amount.
 - **Resistance** (`effective_resistance`, `resistance_failure`): a ten-sided die rolling above
   the resistance fails, by the amount it beats it. A spell's `resist_modifier` (negative for a
   spell that is hard to resist) is added first. Magic immunity adds 30 against any realm;
@@ -138,7 +139,7 @@ Armour piercing halves the defence (rounding down) before the immunity floor of 
 lightning breath pierces armour too. Healing (`DefenderState::heal`) mends the front figure,
 then brings dead figures back, and nothing over full strength is kept.
 
-Not here (task 157): power drain (it needs battle mana, task 43), the extra penalty and half
+Not here (task 157): power drain (it needs battle mana: now there, see section 8), the extra penalty and half
 strength of touches and doom damage granted by items and spells, hit points above full
 strength from life steal, the undead that life steal and create undead leave behind, and
 healing that skips irreversible damage.
@@ -161,7 +162,7 @@ healing that skips irreversible damage.
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins.
-- Not yet (task 43, 44): casting in battle, battlefield spells. City walls and gates are in
+- Casting is in section 8; battlefield spells are task 44. City walls and gates are in
   (section 7).
 
 ## 4. Orders and events
@@ -171,12 +172,14 @@ healing that skips irreversible damage.
 | `Move { unit, to }` | Walk to a square in `Battle::reachable`; costs its path. | no moves left, unreachable |
 | `Attack { unit, target }` | Melee exchange with an adjacent enemy (thrown/breath first); ends the unit's moves. | not adjacent, already attacked |
 | `Shoot { unit, target }` | Ranged attack at any distance (`Missile` or `Magic` kind), uses one ammunition. | no ranged attack, out of ammunition, already attacked |
+| `Cast { spell, aim, mana }` | The wizard casts a spell (section 8). Only through `Game::battle_command`: `Battle::apply` needs the rules and refuses. | no wizard, already cast this turn, not known, not a battle spell, not in the game yet, too dear, bad target |
 | `Done { unit }` | Gives up the rest of the unit's turn. | not the active side's unit |
 | `EndTurn` | Hands play to the other side; the turn number rises when the attacker is up again. | |
 | `Flee` | All the side's active units leave; the other side wins. | |
 
 Events: `Moved` (with the path), `Attacked` (damage and kills both ways), `Shot`, `UnitDied`,
-`TurnStarted`, `Fled`, `Ended`. `Game::battle_command` wraps them as `Event::Battle(..)` and,
+`TurnStarted`, `Fled`, `Ended`, and for spells `SpellCast`, `SpellCountered`, `SpellDamaged`,
+`SpellImmune`, `SpellHealed`, `SpellEnchanted`, `SpellDispelled`, `Summoned`, `CounterMagicRaised`. `Game::battle_command` wraps them as `Event::Battle(..)` and,
 when the battle ends, adds `Event::BattleEnded` and the results of `finish_battle`. A unit's
 ranged kind comes from its abilities (`ranged_kind_of`): bows, slings and rock throwing are
 `Missile`; thrown weapons and breaths are `Short` (used inside melee, no ammunition); the bolt
@@ -216,7 +219,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - **Controls:** click one of your units to select it; blue squares are where it can walk; red
   outlines are enemies it can hit (adjacent: melee, otherwise a shot if it has ranged attack and
   ammunition). Click a blue square to move, an enemy to attack. Space or D is `Done`, Tab picks
-  the next unit that can still act, Enter or E ends the turn, Flee asks twice. The buttons are the original's `compix.lbx` pictures (Spell, Wait, Done, Auto, Info, Flee; Wait picks the next unit); Spell, Auto and Info are drawn greyed until casting (43), auto-play (133) and the info window exist. End turn is a plain button, as the original ends a turn when every unit is done. The panel shows the
+  the next unit that can still act, Enter or E ends the turn, Flee asks twice. The buttons are the original's `compix.lbx` pictures (Spell, Wait, Done, Auto, Info, Flee; Wait picks the next unit); Auto and Info are drawn greyed until auto-play (133) and the info window exist; Spell opens the wizard's spell list (section 8). End turn is a plain button, as the original ends a turn when every unit is done. The panel shows the
   hovered (else selected) unit's melee, ranged, defence, resistance, figures, hit points, moves,
   ammunition and abilities, and the last combat lines.
 - **The other side** is played by `battle/ai.rs` after a short delay per order: each unit attacks
@@ -229,7 +232,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - Grid band and deployment squares: the original plays on part of the grid (task 131).
 - No unit figures, animation, projectiles or combat frame (task 132); the map art lacks
   autotiled edges, roads, rivers and cities (task 112).
-- No casting (43), battlefield spells (44), walls (41), experience/fame/loot write-back (42).
+- No battlefield spells (44), experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and
   no AI-versus-AI resolution (task 133).
 
@@ -278,3 +281,68 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   spells, task 44), Flying Fortress, the AI's decision to raze, the diplomatic effects of attacking a city, and monsters
   and raiders taking a city.
 
+
+## 8. Casting in battle (task 43)
+
+The wizard does not stand on the field: each side with a wizard (not the independent cities and
+monsters) has a `BattleCaster` (`battle/casting.rs`) and casts through `BattleCommand::Cast`,
+which `Game::battle_command` carries out (`battle/spells.rs`) because it needs the spell rules.
+It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effect`.
+
+- **Skill and mana.** The wizard has their whole casting skill to spend over the battle (none
+  while they are on the way home from banishment, `casting_return`). A spell costs its price
+  (`casting_cost(.., in_battle)`: the base cost, not the overland five-fold, less the usual
+  reductions) in skill, and the reserve pays that **times the range multiplier**: half at the
+  fortress itself, one for one up to five squares from it, then half as much again for each five
+  squares more, up to three times (and three times on the other plane or with no fortress). A
+  Channeler counts as two squares away anywhere but at the fortress. A spell can be cast when its
+  cost is at most `min(skill left, mana x 10 / multiplier)` (`BattleCaster::affordable`). The
+  reserve is paid at once (the game's `mana` goes down as the spell is cast).
+- **Once a turn.** One spell for each turn of the wizard's side, whatever it did.
+- **Which spells.** The ones the wizard knows with a `Battle` context whose effects are in the
+  game (`Game::battle_spells`): bolts and other damage (`Effect::Damage`), `Heal`, `Summon`,
+  `Dispel`, Counter Magic and the lasting spells on one unit that only change numbers (Giant
+  Strength, Stone Skin, Iron Skin, Flame Blade, Holy Weapon, Holy Armor, Lionheart, Haste, ...). The
+  rest wait for their effects (task 159); they are not offered and `Cast` refuses them.
+- **Extra mana.** Fire, Ice and Lightning Bolt add a point of strength for each extra mana,
+  Psionic Blast one for each two and Fireball one for each three (`DamageTraits::mana_per_point`,
+  set by the importer); a dispel's strength is the mana put in (three times for the "True"
+  spells); Counter Magic's reserve is the mana. The `mana` of the command is the total in the
+  spell, from its cost up to what the wizard can afford (`battle_spell_most_mana`); `0` is the
+  least. The skill cost is the least cost plus the extra less the realm reductions.
+- **Damage spells** (`Battle::spell_damage`, `attack::spell_attack`): the spell attacks with its
+  strength in dice (hit on 8 or better, as for a blow) against the target's defence, which its
+  realm and immunities change as for any ranged magic. They are not resisted. Magic immunity
+  and Righteousness (against chaos and death) stop them outright. The spell data's attributes
+  come through the importer: Lightning Bolt and Warp Lightning halve the defence, Doom Bolt ignores it,
+  Fireball hits each figure separately (none loses more than one figure; the damage short of a
+  kill pools over the unit), Warp Lightning is a chain of bolts one die weaker each (the
+  damage pools; the overflow is not blocked again). Star Fires can only be thrown at chaos and
+  death creatures.
+- **Counter Magic.** The caster's enemy's reserve tries to stop every spell: a dispel of the
+  reserve's strength against the mana put in (times the caster's mastery, as in `dispel.rs`);
+  the attempt drains the reserve by five whether or not it works, and a stopped spell still
+  costs its mana and the wizard's turn.
+- **Lasting spells** change the unit's numbers for the battle only (`BattleUnit::apply_lasting`):
+  the original keeps them on the battle unit and they are gone afterwards. The unit remembers
+  its numbers from before the first one (`base`) and the spells on it (`combat_spells` with
+  their casters), so a **dispel** (`Game::dispel_battle_unit`) can take one off: it works on the
+  spells cast in the battle and on the lasting spells of the overland unit the fighter was
+  copied from (those *are* taken off the overland unit), only those cast by another wizard, and
+  then the unit is rebuilt from its base (re-read from the overland unit if that changed) with the
+  spells that are left. A unit cannot be given a spell it has.
+- **Summons** appear on a free square of the caster's half of the field, at most nine units a
+  side, ready to act; they are made like any unit and the overland copy is dropped at once, so
+  nothing is left on the map afterwards.
+- **A spell that kills the last enemy ends the battle** at once, with the usual results.
+- **Console:** `battle` shows each wizard's skill, mana and range cost; `bspells` lists the
+  spells that can be cast; `bcast <spell> [unit:N | tile:x,y] [mana:N]` casts.
+- **Client:** the Spell button opens the list (cost, `+` where extra mana helps); picking one
+  waits for a target (purple squares), Up/Down or Page Up/Down change the mana, Enter casts a spell
+  with no target, Esc cancels. The panel shows the wizard's skill, mana and range cost.
+
+**Not here** (task 159): battlefield spells (task 44), the spells that need new effects (negative
+unit spells, Web, Earth to Mud, Cracks Call, Disrupt, Banish, Black Sleep, Life Drain, ...),
+the battlefield node counter (a node of another realm may stop the spell), the AI wizard's
+casting (task 46), the heroes' own spells and the items' spells (51, 49), the spell shots using
+the unit's own mana, and the original's rule that Hit points added by Lionheart are lost with the spell.

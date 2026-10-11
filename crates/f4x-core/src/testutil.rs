@@ -583,6 +583,7 @@ pub fn content_with_magic() -> Content {
             immune: Vec::new(),
             realm: None,
             resist_modifier: 0,
+            traits: Default::default(),
         },
     )];
     spells.push(bolt);

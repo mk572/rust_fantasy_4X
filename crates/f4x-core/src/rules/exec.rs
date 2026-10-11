@@ -260,6 +260,7 @@ fn run_effect(
             immune,
             realm,
             resist_modifier,
+            ..
         } => {
             let realm = realm.as_deref().and_then(Realm::from_id);
             let abilities = host.facts(who).abilities;
@@ -716,6 +717,7 @@ mod tests {
                     immune: Vec::new(),
                     realm: None,
                     resist_modifier: 0,
+                    traits: Default::default(),
                 },
             )]
         };
@@ -764,6 +766,7 @@ mod tests {
                     immune: immune.iter().map(|s| s.to_string()).collect(),
                     realm: Some("chaos".into()),
                     resist_modifier,
+                    traits: Default::default(),
                 },
             )]
         };
@@ -953,6 +956,7 @@ mod tests {
                     immune: Vec::new(),
                     realm: None,
                     resist_modifier: 0,
+                    traits: Default::default(),
                 },
             )];
             run_rules(

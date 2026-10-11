@@ -11,20 +11,25 @@
 
 pub mod ai;
 pub mod attack;
+pub mod casting;
 pub mod game;
 pub mod immunity;
 pub mod map;
 pub mod special;
+pub mod spells;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
 use crate::city::{PlayerId, Position};
+use crate::rules::SpellId;
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
 use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
 use special::{Gaze, SpecialAttacks};
+
+pub use casting::{BattleCaster, SpellAim, SpellError};
 
 /// A side never fights on past this turn: the defender holds.
 pub const TURN_LIMIT: u32 = 100;
@@ -118,6 +123,11 @@ pub struct BattleUnit {
     pub status: Status,
     /// Has attacked or shot this turn.
     pub attacked: bool,
+    /// Lasting spells cast on it in this battle, and who cast them. They last until the battle
+    /// ends or a dispel takes them off.
+    pub combat_spells: Vec<(SpellId, PlayerId)>,
+    /// The unit as it was before the first of them, which a dispel goes back to.
+    pub base: Option<Box<BattleUnit>>,
 }
 
 impl BattleUnit {
@@ -163,6 +173,8 @@ impl BattleUnit {
             abilities: Vec::new(),
             status: Status::Active,
             attacked: false,
+            combat_spells: Vec::new(),
+            base: None,
         }
     }
 
@@ -270,6 +282,13 @@ pub enum BattleCommand {
     AttackWall { unit: usize, cell: Pos },
     /// A wall crusher fires at a standing section of the city wall.
     ShootWall { unit: usize, cell: Pos },
+    /// The wizard casts a spell (once a turn). `mana` is the total put into a spell that takes
+    /// extra mana (a bolt, a dispel, Counter Magic); other spells take their cost whatever it is.
+    Cast {
+        spell: SpellId,
+        aim: SpellAim,
+        mana: u32,
+    },
     /// Give up the rest of the unit's turn.
     Done { unit: usize },
     /// End the side's turn.
@@ -297,6 +316,8 @@ pub enum BattleError {
     NoWall,
     /// Only the attackers' wall crushers attack walls.
     NotWallCrusher,
+    /// The spell cannot be cast now.
+    Spell(SpellError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -330,6 +351,51 @@ pub enum BattleEvent {
     UnitDied {
         unit: usize,
     },
+    /// A wizard cast a spell, paying `skill` of its casting skill and `mana` from the reserve.
+    SpellCast {
+        side: Side,
+        spell: SpellId,
+        skill: i32,
+        mana: i32,
+    },
+    /// The enemy's Counter Magic stopped the spell.
+    SpellCountered {
+        side: Side,
+        spell: SpellId,
+    },
+    /// A damage spell hurt a unit.
+    SpellDamaged {
+        unit: usize,
+        dealt: i32,
+        kills: u32,
+    },
+    /// The unit took no harm from the spell: immune, or protected by a lasting spell.
+    SpellImmune {
+        unit: usize,
+    },
+    SpellHealed {
+        unit: usize,
+        healed: i32,
+    },
+    /// A lasting spell was put on the unit.
+    SpellEnchanted {
+        unit: usize,
+        spell: SpellId,
+    },
+    /// A dispel took this many lasting spells off the unit.
+    SpellDispelled {
+        unit: usize,
+        removed: u32,
+    },
+    /// A creature was summoned.
+    Summoned {
+        unit: usize,
+    },
+    /// A side's Counter Magic reserve was set.
+    CounterMagicRaised {
+        side: Side,
+        strength: u32,
+    },
     TurnStarted {
         side: Side,
         turn: u32,
@@ -357,6 +423,8 @@ pub struct Battle {
     /// Each side's Counter Magic reserve, indexed by [`Side::index`]: spells the other side
     /// casts must first beat a dispel of this strength, and each attempt drains it.
     pub counter_magic: [u32; 2],
+    /// Each side's wizard, indexed by [`Side::index`]: none for a side with no wizard.
+    pub casters: [Option<BattleCaster>; 2],
     /// Damage to the city from the attackers inside it, one for each of their units there at
     /// the start of each turn (`Add_City_Damage_From_Battle_Units_Within`); it kills citizens
     /// and destroys buildings when the city falls.
@@ -401,6 +469,7 @@ impl Battle {
             active: Side::Attacker,
             winner: None,
             counter_magic: [0, 0],
+            casters: [None, None],
             city_damage: 0,
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
@@ -478,6 +547,9 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
+        }
+        if let Some(caster) = &mut self.casters[side.index()] {
+            caster.cast_this_turn = false;
         }
         // A new turn begins with the attacker: each of its units inside the city hurts it.
         if side == Side::Attacker && self.map.is_city() {
@@ -699,6 +771,8 @@ impl Battle {
                 }
                 events.extend(self.attack_wall(unit, cell, true));
             }
+            // Spells need the rules, which only the game has (`spells.rs`).
+            BattleCommand::Cast { .. } => return Err(BattleError::Spell(SpellError::NeedsGame)),
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
                 self.units[unit].moves_left = 0;

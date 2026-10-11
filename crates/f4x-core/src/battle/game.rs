@@ -74,7 +74,12 @@ impl Game {
     }
 
     /// Copy an overland unit into battle form.
-    fn battle_unit_from(&self, unit: hecs::Entity, side: Side, index: usize) -> Option<BattleUnit> {
+    pub(super) fn battle_unit_from(
+        &self,
+        unit: hecs::Entity,
+        side: Side,
+        index: usize,
+    ) -> Option<BattleUnit> {
         let def = self.unit_def(unit)?;
         let hits = self.unit_stat(unit, Stat::MaxHp).max(1);
         let figures = self.unit_stat(unit, Stat::Figures).max(1) as u32;
@@ -122,6 +127,8 @@ impl Game {
             abilities: abilities.clone(),
             status: Status::Active,
             attacked: false,
+            combat_spells: Vec::new(),
+            base: None,
         })
     }
 
@@ -177,6 +184,7 @@ impl Game {
         }
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
+        self.battle_casters(&mut battle, site);
         self.battle = Some(ActiveBattle {
             battle,
             sources,
@@ -191,6 +199,9 @@ impl Game {
 
     /// Carry out a battle command; when it ends the battle, apply the results.
     pub fn battle_command(&mut self, command: BattleCommand) -> Result<Vec<Event>, BattleError> {
+        if let BattleCommand::Cast { spell, aim, mana } = command {
+            return self.battle_cast(spell, aim, mana);
+        }
         let active = self.battle.as_mut().ok_or(BattleError::Over)?;
         let events = active.battle.apply(command)?;
         let mut out: Vec<Event> = events.iter().cloned().map(Event::Battle).collect();
@@ -204,7 +215,7 @@ impl Game {
     }
 
     /// Write a finished battle back: wounds, deaths, and who won.
-    fn finish_battle(&mut self) -> Vec<Event> {
+    pub(super) fn finish_battle(&mut self) -> Vec<Event> {
         let Some(active) = self.battle.take() else {
             return Vec::new();
         };
@@ -221,8 +232,13 @@ impl Game {
             if u.status == Status::Dead {
                 let _ = self.world.despawn(entity);
             } else {
-                let hurt = (u.max_hit_points() - u.hit_points()).max(0) as u32;
-                let _ = self.world.insert_one(entity, Hurt(hurt));
+                let mut hurt = (u.max_hit_points() - u.hit_points()).max(0);
+                // Hit points a lasting spell added (Lionheart) are gone with it: the unit
+                // is hurt by at most what it can lose and live.
+                if let Some(base) = &u.base {
+                    hurt = hurt.min(base.hits * u.figures_start as i32 - 1);
+                }
+                let _ = self.world.insert_one(entity, Hurt(hurt as u32));
             }
         }
         if let Some(side) = battle.winner {

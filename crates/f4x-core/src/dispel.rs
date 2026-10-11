@@ -4,8 +4,8 @@
 //! (the original rolls 1 to 250 against `250 s / (s + d)`). A spell's difficulty is its cost,
 //! doubled again for each of its caster's masteries that applies: the mastery of the spell's
 //! realm (nature, sorcery, chaos) and Archmage each add one more times the cost. A spell's
-//! dispel strength is the mana put into it, here always its base cost (we have no extra mana);
-//! the "True" spells count every point as three.
+//! dispel strength is the mana put into it: overland always its base cost, in a battle whatever the
+//! wizard puts in (`battle/spells.rs`); the "True" spells count every point as three.
 //!
 //! Users: Dispel Magic (units), Disenchant Area and True (a map square), Disjunction and True
 //! (an enemy wizard's global enchantment), Spell Binding (the same, but the caster takes the
@@ -34,6 +34,7 @@ pub const DISJUNCTION: &str = "disjunction";
 pub const DISJUNCTION_TRUE: &str = "disjunction_true";
 pub const SPELL_BINDING: &str = "spell_binding";
 pub const SPELL_BLAST: &str = "spell_blast";
+pub const COUNTER_MAGIC: &str = "counter_magic";
 
 /// Whether a dispel of `strength` beats something of `difficulty`: a roll of 1 to 250 at or
 /// under `250 * strength / (strength + difficulty)`.
@@ -75,7 +76,7 @@ impl Game {
     /// Try each enchantment in `list` cast by someone other than `by`; returns what is left
     /// and how many were removed. A unit under another wizard's Spell Lock can only have the
     /// lock attacked, at difficulty 150.
-    fn dispel_list(
+    pub(crate) fn dispel_list(
         &self,
         list: Vec<(SpellId, PlayerId)>,
         strength: u32,

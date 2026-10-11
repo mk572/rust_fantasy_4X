@@ -254,6 +254,9 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             f4x_core::battle::BattleCommand::ShootWall { unit, cell } => {
                 format!("bshootwall {unit} {},{}", cell.0, cell.1)
             }
+            f4x_core::battle::BattleCommand::Cast { .. } => {
+                unreachable!("the AI casts nothing yet")
+            }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
             f4x_core::battle::BattleCommand::Flee => "bflee".into(),
@@ -1192,4 +1195,398 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
         }
     }
     assert!(taken + held == 4);
+}
+
+// ---- casting in battle (task 43) ------------------------------------------------------
+
+/// A siege of the rival's capital in which the human wizard knows `spells`, with plenty of
+/// mana and skill; returns the game.
+fn casting_siege(spells: &[&str]) -> Game {
+    let (mut g, city) = siege_world(6, &[]);
+    {
+        let ids: Vec<_> = spells
+            .iter()
+            .map(|s| {
+                g.content
+                    .rules
+                    .spells
+                    .id_of(s)
+                    .unwrap_or_else(|| panic!("{s}"))
+            })
+            .collect();
+        let p = g.player_mut(HUMAN).unwrap();
+        p.mana = 5000;
+        p.magic.skill_points = 20_000;
+        p.magic.known.extend(ids);
+    }
+    start_siege(&mut g, city);
+    g
+}
+
+fn cast(g: &mut Game, line: &str) -> crate::Reply {
+    let mut c = console();
+    c.execute(g, line)
+}
+
+/// The human side ends its turn and the rival's does too, so the human wizard casts again.
+fn pass_turn(g: &mut Game) {
+    let r = cast(g, "bend");
+    assert!(r.ok, "{}", r.text());
+    g.apply(f4x_core::Command::Battle(
+        f4x_core::battle::BattleCommand::EndTurn,
+    ));
+}
+
+fn battle_units_of(g: &Game, side: f4x_core::battle::Side) -> Vec<usize> {
+    g.battle()
+        .unwrap()
+        .units
+        .iter()
+        .filter(|u| u.side == side)
+        .map(|u| u.id)
+        .collect()
+}
+
+#[test]
+fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
+    use f4x_core::battle::Side;
+    let g = casting_siege(&["fire_bolt"]);
+    let b = g.battle().unwrap();
+    let mine = b.caster(Side::Attacker).expect("the human wizard casts");
+    assert_eq!(mine.skill_left, g.casting_skill(HUMAN));
+    assert_eq!(mine.mana, 5000);
+    assert!(mine.range >= 5 && mine.range <= 30 && mine.range % 5 == 0);
+    assert!(b.caster(Side::Defender).is_some(), "so does the rival");
+    // Independent cities have no wizard.
+    let (mut g, city) = neutral_world(6, &[]);
+    start_siege(&mut g, city);
+    assert!(g.battle().unwrap().caster(Side::Defender).is_none());
+}
+
+#[test]
+fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["fire_bolt"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    let before = *g.battle().unwrap().caster(Side::Attacker).unwrap();
+    let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
+    assert!(r.ok, "{}", r.text());
+    let after = *g.battle().unwrap().caster(Side::Attacker).unwrap();
+    // Fire Bolt costs 5; the mana is that times the range multiplier.
+    assert_eq!(before.skill_left - after.skill_left, 5);
+    assert_eq!(before.mana - after.mana, 5 * before.range / 10);
+    assert_eq!(
+        g.player(HUMAN).unwrap().mana,
+        after.mana,
+        "the reserve pays"
+    );
+    assert!(r.text().contains("casts Fire Bolt"), "{}", r.text());
+    // A second spell in the same turn is refused; the next turn allows one.
+    let again = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
+    assert!(!again.ok, "{}", again.text());
+    pass_turn(&mut g);
+    assert_eq!(g.battle().unwrap().active, Side::Attacker);
+    assert!(cast(&mut g, &format!("bcast fire bolt unit:{enemy}")).ok);
+}
+
+#[test]
+fn only_known_battle_spells_with_effects_can_be_cast() {
+    use f4x_core::battle::Side;
+    // Web is known but not yet in the game; Earth Lore is overland only; Fireball is not known.
+    let mut g = casting_siege(&["web", "earth_lore"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    for spell in ["web", "earth lore", "fireball"] {
+        let r = cast(&mut g, &format!("bcast {spell} unit:{enemy}"));
+        assert!(!r.ok, "{spell}");
+    }
+    assert!(
+        cast(&mut g, "bspells").text().is_empty()
+            || !cast(&mut g, "bspells").text().contains("web"),
+        "unfinished spells are not offered"
+    );
+}
+
+#[test]
+fn a_spell_that_costs_more_than_the_wizard_has_is_refused() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["fire_bolt"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    // A reserve too small for the mana the spell takes at this range.
+    g.battle.as_mut().unwrap().battle.casters[Side::Attacker.index()]
+        .as_mut()
+        .unwrap()
+        .mana = 1;
+    let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
+    assert!(!r.ok, "{}", r.text());
+    assert!(
+        !g.battle()
+            .unwrap()
+            .caster(Side::Attacker)
+            .unwrap()
+            .cast_this_turn
+    );
+    assert!(
+        cast(&mut g, "bspells").text().contains("cannot cast now"),
+        "the list says so"
+    );
+}
+
+#[test]
+fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["fire_bolt"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    g.battle
+        .as_mut()
+        .unwrap()
+        .battle
+        .cast_counter_magic(Side::Defender, 100_000);
+    let hits = g.battle().unwrap().unit(enemy).unwrap().hit_points();
+    let mana = g.player(HUMAN).unwrap().mana;
+    let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
+    assert!(r.ok, "{}", r.text());
+    assert!(r.text().contains("Counter Magic stops"), "{}", r.text());
+    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().hit_points(), hits);
+    assert!(g.player(HUMAN).unwrap().mana < mana, "the mana is spent");
+    assert_eq!(
+        g.battle().unwrap().counter_magic[Side::Defender.index()],
+        100_000 - f4x_core::dispel::COUNTER_MAGIC_DRAIN,
+        "every attempt drains the reserve"
+    );
+}
+
+#[test]
+fn counter_magic_is_a_reserve_of_the_mana_put_in() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["counter_magic"]);
+    let r = cast(&mut g, "bcast counter magic mana:25");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(
+        g.battle().unwrap().counter_magic[Side::Attacker.index()],
+        25
+    );
+    // Less than the cost cannot be put in.
+    let mut g = casting_siege(&["counter_magic"]);
+    assert!(!cast(&mut g, "bcast counter magic mana:3").ok);
+}
+
+#[test]
+fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["phantom_warriors"]);
+    let overland = g.world.len();
+    let before = g.battle().unwrap().active_units(Side::Attacker).count();
+    let r = cast(&mut g, "bcast phantom warriors tile:3,5");
+    assert!(r.ok, "{}", r.text());
+    let b = g.battle().unwrap();
+    assert_eq!(b.active_units(Side::Attacker).count(), before + 1);
+    let new = b.units.last().unwrap();
+    assert_eq!(
+        (new.side, new.cell, new.source),
+        (Side::Attacker, (3, 5), None)
+    );
+    assert_eq!(g.world.len(), overland, "no unit is left on the map");
+    // Not on the enemy's half, nor on an occupied square.
+    let mut g = casting_siege(&["phantom_warriors"]);
+    assert!(!cast(&mut g, "bcast phantom warriors tile:19,5").ok);
+    let own = g.battle().unwrap().units[0].cell;
+    assert!(
+        !cast(
+            &mut g,
+            &format!("bcast phantom warriors tile:{},{}", own.0, own.1)
+        )
+        .ok
+    );
+}
+
+#[test]
+fn a_lasting_spell_changes_a_unit_until_a_dispel_takes_it_off() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["giant_strength"]);
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    let melee = g.battle().unwrap().unit(mine).unwrap().melee;
+    let r = cast(&mut g, &format!("bcast giant strength unit:{mine}"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.battle().unwrap().unit(mine).unwrap().melee, melee + 1);
+    // Not twice on one unit, and not on the enemy's.
+    pass_turn(&mut g);
+    assert!(!cast(&mut g, &format!("bcast giant strength unit:{mine}")).ok);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    assert!(!cast(&mut g, &format!("bcast giant strength unit:{enemy}")).ok);
+}
+
+#[test]
+fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["dispel_magic"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    let strength = g.content.rules.spells.id_of("giant_strength").unwrap();
+    let rival = PlayerId(1);
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        let m = |stat, value| {
+            f4x_core::rules::stats::Modifier::new(
+                stat,
+                f4x_core::rules::stats::ModOp::Add,
+                value,
+                f4x_core::rules::stats::Source::Other,
+            )
+        };
+        b.enchant_unit(
+            enemy,
+            strength,
+            "giant_strength",
+            rival,
+            &[m(f4x_core::rules::stats::Stat::Melee, 1)],
+            &[],
+        );
+    }
+    let melee = g.battle().unwrap().unit(enemy).unwrap().melee;
+    // So much mana that a dispel hardly ever fails; try over a few turns.
+    let mut removed = false;
+    for _ in 0..6 {
+        let r = cast(&mut g, &format!("bcast dispel magic unit:{enemy} mana:30"));
+        assert!(r.ok, "{}", r.text());
+        if g.battle()
+            .unwrap()
+            .unit(enemy)
+            .unwrap()
+            .combat_spells
+            .is_empty()
+        {
+            removed = true;
+            break;
+        }
+        pass_turn(&mut g);
+    }
+    assert!(removed, "the dispel took the spell off");
+    let u = g.battle().unwrap().unit(enemy).unwrap();
+    assert_eq!(u.melee, melee - 1);
+    assert!(u.enchantments.is_empty() && u.base.is_none());
+}
+
+#[test]
+fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
+    use f4x_core::battle::Side;
+    let (mut g, city) = siege_world(6, &[]);
+    let rival = PlayerId(1);
+    let at = *g.world.get::<&f4x_core::city::Position>(city).unwrap();
+    let defender = g.units_at(at)[0];
+    let spell = g.content.rules.spells.id_of("giant_strength").unwrap();
+    let dispel = g.content.rules.spells.id_of("dispel_magic").unwrap();
+    g.world
+        .insert_one(
+            defender,
+            f4x_core::units::UnitEnchantments(vec![(spell, rival)]),
+        )
+        .unwrap();
+    let plain = g.unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
+    {
+        let p = g.player_mut(HUMAN).unwrap();
+        p.mana = 5000;
+        p.magic.skill_points = 20_000;
+        p.magic.known.insert(dispel);
+    }
+    start_siege(&mut g, city);
+    let enemy = g
+        .battle()
+        .unwrap()
+        .units
+        .iter()
+        .position(|u| {
+            u.side == Side::Defender
+                && u.melee == plain + 1
+                && u.enchantments.contains(&"giant_strength".to_string())
+        })
+        .expect("the copy carries the spell");
+    let mut gone = false;
+    for _ in 0..6 {
+        let r = cast(&mut g, &format!("bcast dispel magic unit:{enemy} mana:30"));
+        assert!(r.ok, "{}", r.text());
+        if g.world
+            .get::<&f4x_core::units::UnitEnchantments>(defender)
+            .map_or(true, |l| l.0.is_empty())
+        {
+            gone = true;
+            break;
+        }
+        pass_turn(&mut g);
+    }
+    assert!(gone, "the overland unit lost the spell");
+    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().melee, plain);
+}
+
+#[test]
+fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["doom_bolt", "star_fires", "healing"]);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    {
+        // A tough target, so the bolt does not overkill.
+        let u = &mut g.battle.as_mut().unwrap().battle.units[enemy];
+        (u.figures, u.hits, u.front_damage) = (1, 50, 0);
+    }
+    let before = g.battle().unwrap().unit(enemy).unwrap().hit_points();
+    let r = cast(&mut g, &format!("bcast doom bolt unit:{enemy}"));
+    assert!(r.ok, "{}", r.text());
+    let after = g.battle().unwrap().unit(enemy).unwrap().hit_points();
+    assert_eq!(
+        before - after,
+        10,
+        "doom damage ignores the defence: {}",
+        r.text()
+    );
+    // Star Fires: not on ordinary units.
+    pass_turn(&mut g);
+    assert!(!cast(&mut g, &format!("bcast star fires unit:{enemy}")).ok);
+    // Healing: one's own units only, and it brings figures back.
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    g.battle.as_mut().unwrap().battle.units[mine].front_damage = 1;
+    assert!(!cast(&mut g, &format!("bcast healing unit:{enemy}")).ok);
+    let r = cast(&mut g, &format!("bcast healing unit:{mine}"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.battle().unwrap().unit(mine).unwrap().front_damage, 0);
+}
+
+#[test]
+fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["doom_bolt"]);
+    let enemies = battle_units_of(&g, Side::Defender);
+    // Leave one frail defender.
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        for &e in &enemies[1..] {
+            b.units[e].status = f4x_core::battle::Status::Dead;
+        }
+        b.units[enemies[0]].figures = 1;
+        b.units[enemies[0]].hits = 3;
+        b.units[enemies[0]].front_damage = 0;
+    }
+    let r = cast(&mut g, &format!("bcast doom bolt unit:{}", enemies[0]));
+    assert!(r.ok, "{}", r.text());
+    assert!(!g.in_battle(), "the battle is over: {}", r.text());
+    assert!(r.text().contains("Battle over"), "{}", r.text());
+}
+
+#[test]
+fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["lionheart"]);
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    let entity = {
+        let a = g.battle.as_ref().unwrap();
+        a.sources[a.battle.unit(mine).unwrap().source.unwrap()]
+    };
+    let r = cast(&mut g, &format!("bcast lionheart unit:{mine}"));
+    assert!(r.ok, "{}", r.text());
+    {
+        let u = &mut g.battle.as_mut().unwrap().battle.units[mine];
+        assert!(u.hits > 1 && u.figures_start > 1, "{u:?}");
+        u.figures = 1;
+    }
+    assert!(cast(&mut g, "bflee").ok);
+    assert!(!g.in_battle());
+    let (left, max) = g.unit_hits(entity);
+    assert!(left >= 1 && left <= max, "{left} of {max}");
 }

@@ -645,6 +645,8 @@ class SpellRow:
     research: int
     param0: int
     param1: int
+    #: The attack attributes of a damage spell (`ATTACK_FLAGS`: armour piercing, area, ...).
+    attributes: int = 0
 
 
 def import_spell_rows(game: Path) -> list[SpellRow]:
@@ -653,7 +655,9 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
         kind, category, realm, elig = struct.unpack_from("<bbbb", r, 21)
         cost, research = struct.unpack_from("<hh", r, 26)
         p0, p1 = struct.unpack_from("<BB", r, 32)
-        rows.append(SpellRow(i, cstr(r[:19]), kind, category, realm, elig, cost, research, p0, p1))
+        attributes = struct.unpack_from("<H", r, 34)[0]
+        rows.append(SpellRow(i, cstr(r[:19]), kind, category, realm, elig, cost, research, p0, p1,
+                             attributes))
     return rows
 
 
@@ -756,7 +760,14 @@ DISPEL_FAMILY = {
     "Disjunction True": ("GlobalEnchantment", "disjunction_true", 1),
     "Spell Binding": ("GlobalEnchantment", "spell_binding", 1),
     "Spell Blast": ("EnemyWizard", "spell_blast", 1),
+    # A reserve in a battle (`Battle::counter_magic`) that the mana put into the spell fills.
+    "Counter Magic": ("None", "counter_magic", 1),
 }
+
+# Extra mana (beyond the cost) that buys one more point of strength from a damage spell in a
+# battle: Fire Bolt, Ice Bolt and Lightning Bolt take one each, Psionic Blast two and Fireball
+# three (`Combat_Cast_Apply_Spell_Effect`). The other damage spells take no extra mana.
+MANA_PER_POINT = {"Fire Bolt": 1, "Ice Bolt": 1, "Lightning Bolt": 1, "Psionic Blast": 2, "Fireball": 3}
 # Global enchantments that change unit stats: (condition, stat, op, value) per rule.
 GLOBAL_MODS = {
     "Holy Arms": [("KindIs(Normal)", "Melee", "Add", 1), ("KindIs(Normal)", "Ranged", "Add", 1)],
@@ -821,8 +832,15 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
         # The spell data's immunity byte lists who it cannot hurt (same bits as the unit flags).
         immune = [ident for mask, ident, *_ in ATTRIB_1_FLAGS[:8] if row.param1 & mask]
         immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
+        # How it is dealt in a battle: the attack attributes of the spell data.
+        traits = [f"{field}: true" for bit, field in ((0x0001, "armor_piercing"), (0x0010, "ignores_defense"),
+                                                      (0x1000, "area"), (0x8000, "decaying"))
+                  if row.attributes & bit]
+        if name in MANA_PER_POINT:
+            traits.append(f"mana_per_point: {MANA_PER_POINT[name]}")
+        traits_ron = f", traits: ({', '.join(traits)})" if traits else ""
         return [f'(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true, '
-                f'immune: {immune_ron}, realm: Some("{realm_id}")))'], "EnemyUnit", "instant"
+                f'immune: {immune_ron}, realm: Some("{realm_id}"){traits_ron}))'], "EnemyUnit", "instant"
     if kind == 18:
         factor = 3 if name.endswith("True") else 1
         return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1) * factor}))"], "AnyUnit", "instant"

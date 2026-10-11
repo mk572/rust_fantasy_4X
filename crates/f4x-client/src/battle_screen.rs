@@ -9,9 +9,13 @@ use std::collections::{HashMap, VecDeque};
 
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Cell, Pos, Wall, GRID_H, GRID_W};
-use f4x_core::battle::{Battle, BattleCommand, BattleEvent, BattleUnit, RangedKind, Side};
+use f4x_core::battle::{
+    Battle, BattleCommand, BattleEvent, BattleUnit, RangedKind, Side, SpellAim,
+};
 use f4x_core::content::TerrainClass;
 use f4x_core::map::Plane;
+use f4x_core::rules::defs::SpellTarget;
+use f4x_core::rules::SpellId;
 use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
@@ -51,6 +55,21 @@ pub(crate) struct BattleUi {
     playing: Option<(Anim, f32)>,
     /// Which way each unit looks (0 north, clockwise), by unit id.
     facing: HashMap<usize, u8>,
+    /// The wizard's spell list is open.
+    spell_list: bool,
+    /// A spell chosen and waiting for its target (and the mana put into it).
+    aiming: Option<Aiming>,
+}
+
+/// A spell the player has picked.
+#[derive(Debug, Clone, Copy)]
+struct Aiming {
+    spell: SpellId,
+    /// Mana put into it, between its cost and the most the wizard can afford.
+    mana: i32,
+    most: i32,
+    target: SpellTarget,
+    takes_extra_mana: bool,
 }
 
 impl BattleUi {
@@ -113,7 +132,11 @@ fn ground_variant(pos: Pos) -> usize {
 }
 
 /// Tell what a battle event did, in one line.
-pub(crate) fn describe(names: &[String], event: &BattleEvent) -> Option<String> {
+pub(crate) fn describe(
+    names: &[String],
+    spell: &dyn Fn(SpellId) -> String,
+    event: &BattleEvent,
+) -> Option<String> {
     let name = |i: usize| names.get(i).map_or("?", String::as_str);
     Some(match event {
         BattleEvent::Moved { .. } => return None,
@@ -154,6 +177,31 @@ pub(crate) fn describe(names: &[String], event: &BattleEvent) -> Option<String> 
             if *destroyed { " and it falls" } else { "" }
         ),
         BattleEvent::UnitDied { unit } => format!("{} is destroyed", name(*unit)),
+        BattleEvent::SpellCast { spell: s, .. } => format!("{} is cast", spell(*s)),
+        BattleEvent::SpellCountered { spell: s, .. } => {
+            format!("Counter Magic stops {}", spell(*s))
+        }
+        BattleEvent::SpellDamaged { unit, dealt, kills } => {
+            format!(
+                "{} takes {dealt} damage{}",
+                name(*unit),
+                self::kills(*kills)
+            )
+        }
+        BattleEvent::SpellImmune { unit } => format!("{} is unharmed", name(*unit)),
+        BattleEvent::SpellHealed { unit, healed } => {
+            format!("{} heals {healed}", name(*unit))
+        }
+        BattleEvent::SpellEnchanted { unit, spell: s } => {
+            format!("{} is under {}", name(*unit), spell(*s))
+        }
+        BattleEvent::SpellDispelled { unit, removed } => {
+            format!("Dispel on {}: {removed} removed", name(*unit))
+        }
+        BattleEvent::Summoned { unit } => format!("{} appears", name(*unit)),
+        BattleEvent::CounterMagicRaised { strength, .. } => {
+            format!("Counter Magic {strength} stands against spells")
+        }
         BattleEvent::TurnStarted { turn, .. } => format!("Turn {turn}"),
         BattleEvent::Fled { .. } => "The army flees".to_string(),
         BattleEvent::Ended { .. } => return None,
@@ -247,12 +295,20 @@ impl App {
     fn battle_order(&mut self, order: BattleCommand) {
         let before = self.game.battle().cloned();
         let events = self.game.apply(Command::Battle(order));
+        // A summoned creature has a name too.
+        if let Some(b) = self.game.battle() {
+            if b.units.len() != self.battle_ui.names.len() {
+                self.battle_ui.names = b.units.iter().map(|u| u.name.clone()).collect();
+            }
+        }
         let names = self.battle_ui.names.clone();
         let mut anims = Vec::new();
         for event in &events {
             match event {
                 Event::Battle(e) => {
-                    if let Some(line) = describe(&names, e) {
+                    let spell_name =
+                        |id: SpellId| self.game.content.rules.spells.get(id).name.clone();
+                    if let Some(line) = describe(&names, &spell_name, e) {
                         self.battle_ui.log.push(line);
                     }
                     if let Some(b) = &before {
@@ -457,6 +513,9 @@ impl App {
     }
 
     fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
+        if self.battle_ui.aiming.is_some() || self.battle_ui.spell_list {
+            return self.spell_input(battle, hovered);
+        }
         let selected = self.battle_ui.selected;
         let sel_unit = selected
             .and_then(|i| battle.unit(i))
@@ -543,6 +602,182 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// The human wizard's casting in the battle.
+    fn my_caster(battle: &Battle) -> Option<f4x_core::battle::BattleCaster> {
+        battle.caster(Self::human_side(battle)?).copied()
+    }
+
+    /// Choose a spell from the list: cast it at once if it needs no target and no extra mana,
+    /// otherwise wait for the target (and the amount of mana).
+    fn pick_spell(&mut self, spell: &f4x_core::battle::spells::BattleSpell) {
+        self.battle_ui.spell_list = false;
+        let cost = self.game.content.rules.spells.get(spell.spell).cost as i32;
+        let aimless = matches!(spell.target, SpellTarget::None | SpellTarget::Battlefield);
+        if aimless && !spell.takes_extra_mana {
+            self.battle_order(BattleCommand::Cast {
+                spell: spell.spell,
+                aim: SpellAim::None,
+                mana: 0,
+            });
+            self.battle_ui.selected = None;
+            return;
+        }
+        let most = self
+            .game
+            .battle_spell_most_mana(HUMAN, spell.spell)
+            .max(cost);
+        self.battle_ui.aiming = Some(Aiming {
+            spell: spell.spell,
+            mana: cost,
+            most,
+            target: spell.target,
+            takes_extra_mana: spell.takes_extra_mana,
+        });
+    }
+
+    /// Keys and clicks while the spell list is open or a spell waits for its target.
+    fn spell_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
+        if is_key_pressed(KeyCode::Escape) {
+            self.battle_ui.aiming = None;
+            self.battle_ui.spell_list = false;
+            return;
+        }
+        let Some(mut aim) = self.battle_ui.aiming else {
+            return;
+        };
+        // More or less mana: Up/Down by one, Page Up/Down by five.
+        let cost = self.game.content.rules.spells.get(aim.spell).cost as i32;
+        let step = |up: KeyCode, down: KeyCode, by: i32| {
+            i32::from(is_key_pressed(up)) * by - i32::from(is_key_pressed(down)) * by
+        };
+        if aim.takes_extra_mana {
+            let change = step(KeyCode::Up, KeyCode::Down, 1)
+                + step(KeyCode::PageUp, KeyCode::PageDown, 5)
+                + step(KeyCode::Equal, KeyCode::Minus, 1);
+            aim.mana = (aim.mana + change).clamp(cost, aim.most);
+            self.battle_ui.aiming = Some(aim);
+        }
+        let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
+        let target = if aimless {
+            is_key_pressed(KeyCode::Enter).then_some(SpellAim::None)
+        } else if is_mouse_button_pressed(MouseButton::Left) {
+            let (w, h) = (screen_width(), screen_height());
+            let on_grid = mouse_position().0 < w - PANEL_W && mouse_position().1 < h - 30.0;
+            hovered
+                .filter(|_| on_grid)
+                .and_then(|cell| match aim.target {
+                    SpellTarget::Tile => Some(SpellAim::Tile(cell)),
+                    _ => battle.unit_at(cell).map(|u| SpellAim::Unit(u.id)),
+                })
+        } else {
+            None
+        };
+        if let Some(target) = target {
+            self.battle_ui.aiming = None;
+            self.battle_order(BattleCommand::Cast {
+                spell: aim.spell,
+                aim: target,
+                mana: if aim.takes_extra_mana {
+                    aim.mana as u32
+                } else {
+                    0
+                },
+            });
+            self.battle_ui.selected = None;
+        }
+    }
+
+    /// Whether the spell may be aimed at the unit or square (for the markers).
+    fn spell_aim_ok(&self, battle: &Battle, aim: &Aiming, cell: Pos) -> bool {
+        let Some(side) = Self::human_side(battle) else {
+            return false;
+        };
+        match aim.target {
+            SpellTarget::Tile => battle.is_summon_square(side, cell),
+            target => battle.unit_at(cell).is_some_and(|u| match target {
+                SpellTarget::OwnUnit => u.side == side,
+                SpellTarget::EnemyUnit => u.side != side,
+                _ => true,
+            }),
+        }
+    }
+
+    /// The list of spells the wizard can cast, drawn over the field.
+    fn draw_spell_list(&mut self, battle: &Battle) {
+        let spells = self.game.battle_spells(HUMAN);
+        let (row_h, width) = (26.0, 360.0);
+        let height = (spells.len().max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
+        let (x, y) = (20.0, 20.0);
+        draw_rectangle(x, y, width, height, PANEL);
+        draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
+        let caster = Self::my_caster(battle);
+        let head = caster.map_or("No wizard".to_string(), |c| {
+            format!("Skill {}   Mana {}   Esc closes", c.skill_left, c.mana)
+        });
+        draw_text(&head, x + 10.0, y + 22.0, 18.0, WHITE);
+        if spells.is_empty() {
+            draw_text("No spell to cast here", x + 10.0, y + 50.0, 18.0, LIGHTGRAY);
+        }
+        let room = ((height - 34.0) / row_h) as usize;
+        for (i, spell) in spells.iter().take(room).enumerate() {
+            let def = self.game.content.rules.spells.get(spell.spell);
+            let label = format!(
+                "{}   {}{}",
+                def.name,
+                spell.cost,
+                if spell.takes_extra_mana { "+" } else { "" }
+            );
+            let rect = Rect::new(
+                x + 8.0,
+                y + 30.0 + i as f32 * row_h,
+                width - 16.0,
+                row_h - 2.0,
+            );
+            if button(rect, &label, spell.castable) {
+                self.pick_spell(spell);
+            }
+        }
+    }
+
+    /// The prompt for the spell waiting for its target, and the squares it can be aimed at.
+    fn draw_aiming(&mut self, battle: &Battle, hovered: Option<Pos>, origin: (f32, f32, f32)) {
+        let Some(aim) = self.battle_ui.aiming else {
+            return;
+        };
+        let (ox, oy, scale) = origin;
+        for gy in 0..GRID_H {
+            for gx in 0..GRID_W {
+                let cell = (gx, gy);
+                if self.spell_aim_ok(battle, &aim, cell) {
+                    let (x, y) = cell_origin(cell);
+                    let hot = hovered == Some(cell);
+                    let color = if hot {
+                        Color::new(0.9, 0.4, 1.0, 1.0)
+                    } else {
+                        Color::new(0.7, 0.3, 0.9, 0.6)
+                    };
+                    diamond(ox + x * scale, oy + y * scale, scale, color, hot);
+                }
+            }
+        }
+        let name = self.game.content.rules.spells.get(aim.spell).name.clone();
+        let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
+        let mut text = format!(
+            "{name}: {}",
+            if aimless {
+                "Enter casts"
+            } else {
+                "click a target"
+            }
+        );
+        if aim.takes_extra_mana {
+            text += &format!("   mana {} (Up/Down, most {})", aim.mana, aim.most);
+        }
+        text += "   Esc cancels";
+        draw_rectangle(8.0, 6.0, text.len() as f32 * 8.5 + 16.0, 26.0, PANEL);
+        draw_text(&text, 16.0, 25.0, 20.0, GOLD);
     }
 
     /// Keep the selection on a unit that can still act.
@@ -679,7 +914,11 @@ impl App {
                 }
             }
         }
+        self.draw_aiming(battle, hovered, (ox, oy, scale));
         self.draw_battle_panel(battle, my_turn, hovered);
+        if my_turn && self.battle_ui.spell_list {
+            self.draw_spell_list(battle);
+        }
     }
 
     fn draw_scenery(
@@ -957,7 +1196,23 @@ impl App {
             20.0,
             WHITE,
         );
-        y += 30.0;
+        y += 22.0;
+        if let Some(c) = Self::my_caster(battle) {
+            draw_text(
+                format!(
+                    "Skill {}   Mana {}   Range x{:.1}{}",
+                    c.skill_left,
+                    c.mana,
+                    c.range as f32 / 10.0,
+                    if c.cast_this_turn { "   (cast)" } else { "" }
+                ),
+                x + 12.0,
+                y,
+                18.0,
+                Color::new(0.7, 0.8, 1.0, 1.0),
+            );
+        }
+        y += 22.0;
 
         // The unit under the pointer, else the selected one.
         let shown = hovered
@@ -1007,8 +1262,13 @@ impl App {
         let sel = self.battle_ui.selected;
         let mut order = None;
         let col = |i: f32| x + 12.0 + i * 92.0;
-        // Spells, auto-play and the information window are not built yet (tasks 43, 133, 132).
-        self.compix_button(1, "Spell", (col(0.0), by), false);
+        // Auto-play and the information window are not built yet (tasks 133, 132).
+        let can_cast = my_turn
+            && self.battle_ui.aiming.is_none()
+            && Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn);
+        if self.compix_button(1, "Spell", (col(0.0), by), can_cast) {
+            self.battle_ui.spell_list = !self.battle_ui.spell_list;
+        }
         if self.compix_button(2, "Wait", (col(1.0), by), my_turn) {
             self.select_next(sel);
         }
@@ -1188,8 +1448,10 @@ mod tests {
     #[test]
     fn events_are_told_with_unit_names() {
         let names = vec!["Spearmen".to_string(), "Orc".to_string()];
+        let spell = |_: SpellId| "Fire Bolt".to_string();
         let line = describe(
             &names,
+            &spell,
             &BattleEvent::Attacked {
                 attacker: 0,
                 defender: 1,
@@ -1203,6 +1465,7 @@ mod tests {
         assert_eq!(line, "Spearmen hits Orc: 4 damage, 1 figure lost");
         assert!(describe(
             &names,
+            &spell,
             &BattleEvent::Moved {
                 unit: 0,
                 path: vec![]

@@ -290,6 +290,78 @@ pub fn process_attack(
     total
 }
 
+/// How a damage spell lands on its target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Volley {
+    /// One attack of `strength` dice, as from a single figure.
+    Bolt,
+    /// Every figure of the target is hit on its own (Fireball); none loses more than one figure
+    /// and the damage short of a kill pools over the unit.
+    Area,
+    /// A chain of attacks, each with one die less than the last (Warp Lightning); the damage
+    /// from all of them pools over the unit.
+    Chain,
+}
+
+/// A damage spell against `def`: unlike a blow it ignores the target's resistance and
+/// brings no special attacks. `attacker.strength` is the spell's strength.
+pub fn spell_attack(
+    attacker: &Combatant,
+    volley: Volley,
+    def: &mut DefenderState,
+    rng: &mut dyn RngCore,
+) -> Damage {
+    if attacker.strength <= 0 || def.figures == 0 {
+        return Damage::default();
+    }
+    let defense = effective_defense(
+        def.defense,
+        &def.immunities,
+        &attacker.nature,
+        attacker.mode,
+    );
+    let blow = |strength: i32, rng: &mut dyn RngCore| {
+        if attacker.ignores_defense {
+            strength
+        } else {
+            let hits = roll_successes(strength, attacker.to_hit, rng);
+            (hits - roll_successes(defense, def.to_block, rng)).max(0)
+        }
+    };
+    match volley {
+        Volley::Bolt => process_attack(
+            &Combatant {
+                special: SpecialAttacks::default(),
+                ..attacker.clone()
+            },
+            1,
+            def,
+            rng,
+        ),
+        Volley::Area => {
+            let hits = def.hits;
+            let pooled: i32 = (0..def.figures)
+                .map(|_| {
+                    let d = blow(attacker.strength, rng);
+                    if d > hits {
+                        hits
+                    } else {
+                        d
+                    }
+                })
+                .sum();
+            apply_unblockable(def, pooled)
+        }
+        Volley::Chain => {
+            let pooled: i32 = (1..=attacker.strength)
+                .rev()
+                .map(|strength| blow(strength, rng))
+                .sum();
+            apply_unblockable(def, pooled)
+        }
+    }
+}
+
 /// One side of a melee exchange.
 #[derive(Debug, Clone)]
 pub struct Fighter {

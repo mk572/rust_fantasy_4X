@@ -88,6 +88,13 @@ pub const TABLE: &[CommandDef] = &[
         run: battle,
     },
     CommandDef {
+        name: "bspells",
+        kind: Kind::Query,
+        usage: "bspells",
+        help: "The spells you could cast in a battle, what each costs in casting skill, and what it must be aimed at.",
+        run: bspells,
+    },
+    CommandDef {
         name: "score",
         kind: Kind::Query,
         usage: "score [player]",
@@ -630,6 +637,7 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
                 .map_or(String::new(), |w| format!(", won by {w:?}"))
         ))
         .chain(city_lines(b))
+        .chain(wizard_lines(b))
         .chain(b.units.iter().map(|u| {
             format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
@@ -642,6 +650,66 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         ctx.say(l);
     }
     Ok(())
+}
+
+fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::rules::defs::SpellTarget;
+    let me = ctx.session.player;
+    let rules = &ctx.game.content.rules;
+    let lines: Vec<String> = ctx
+        .game
+        .battle_spells(me)
+        .into_iter()
+        .map(|s| {
+            let d = rules.spells.get(s.spell);
+            let aim = match s.target {
+                SpellTarget::OwnUnit => "own unit",
+                SpellTarget::EnemyUnit => "enemy unit",
+                SpellTarget::AnyUnit => "any unit",
+                SpellTarget::Tile => "a square",
+                _ => "no target",
+            };
+            format!(
+                "{} ({}) costs {}{}, aimed at {}{}",
+                d.id,
+                d.name,
+                s.cost,
+                if s.takes_extra_mana { "+" } else { "" },
+                aim,
+                if s.castable { "" } else { " [cannot cast now]" }
+            )
+        })
+        .collect();
+    for l in lines {
+        ctx.say(l);
+    }
+    Ok(())
+}
+
+/// Each side's wizard: casting skill and mana left, what casting costs, Counter Magic.
+fn wizard_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
+    use f4x_core::battle::Side;
+    [Side::Attacker, Side::Defender]
+        .into_iter()
+        .filter_map(|side| {
+            let c = b.caster(side)?;
+            Some(format!(
+                "{side:?} wizard: casting skill {} left, mana {}, casting costs x{:.1}{}{}",
+                c.skill_left,
+                c.mana,
+                c.range as f32 / 10.0,
+                if c.cast_this_turn {
+                    ", has cast this turn"
+                } else {
+                    ""
+                },
+                match b.counter_magic[side.index()] {
+                    0 => String::new(),
+                    n => format!(", Counter Magic {n}"),
+                }
+            ))
+        })
+        .collect()
 }
 
 /// What stands round a city fought over: its walls, standing and fallen, and the gate.

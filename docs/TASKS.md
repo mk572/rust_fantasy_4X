@@ -26,7 +26,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
 | 42 | Combat | Fleeing and after-battle results |
-| 43 | Combat | Casting in battle |
 | 44 | Combat | Battlefield-effect spells (low priority) |
 | 46 | Combat | Battle AI |
 | 47 | Heroes | Hero abilities (low priority) |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities |
 | 157 | Combat | Special attack leftovers |
 | 158 | Combat | Siege leftovers: magic walls, the AI's raze decision, diplomacy |
+| 159 | Combat | Casting leftovers: the rest of the battle spells |
 
 ## Descriptions
 
@@ -180,9 +180,6 @@ shots" that use mana [542].
 
 **42. Fleeing and after-battle results.** Done: fleeing units are lost (50 percent, 25 percent of heroes; `overland_aftermath`), and dead units are removed. Open: experience awarded, healing of the healer ability, summoned creatures vanishing, loot and fame,
 removal of destroyed units from the ECS.
-
-**43. Casting in battle.** Battle spell lists, casting skill as the per-combat mana limit, the mana
-range multiplier by distance from the wizard's fortress, and Counter Magic [610].
 
 **44. Battlefield-effect spells.** 19 spells with combat-wide modifiers by realm, per-turn bolts,
 mud, entangle and counter magic; implement on top of 30 and 43. Low priority: only needed for specific spells, buildings, units or abilities.
@@ -585,3 +582,5 @@ Parity task, low priority.
 **157. Special attack leftovers.** Task 36 did armour piercing, chaos (doom) damage, illusion, poison, life steal, stoning and death touch, destruction, dispel evil and the gazes. Left: (1) **Power drain** (the target resists or loses 2 to 20 spell points): needs battle mana, with task 43. (2) Attacks that come from an **item or spell** rather than the unit: the original gives them an extra penalty (stoning touch -1, death touch and life steal -3) and halves doom damage; the unit's own count in full. Needs the source of an ability to be known (task 30's store, items task 49). (3) **Hit points above full strength** from life steal (`Extra_Hits`). (4) The **damage types**: damage dealt by life steal, or by a create-undead attacker (`create_undead`: Ghouls), leaves the victim to return as an undead unit under the attacker's control, and stoning, death and destruction kills are irreversible (not healed afterwards); this belongs with the after-battle results of task 42 and the undead rules of task 29. (5) Cause fear and blur (task 37).
 
 **158. Siege leftovers: magic walls, the AI's raze decision, diplomacy.** Task 41 did city battles with walls and a gate, wall crushers, the defence bonus, city damage, loot, fame, losses and razing. Left: (1) the **battlefield spells** that act on the city: Wall of Fire (each figure of a non-flying unit that passes through takes a strength 5 fire attack, ranged attacks not), Wall of Darkness (no ranged attack from outside unless the attacker has illusion immunity or true sight), Wall of Stone (raises a wall in battle) and Disrupt (breaks a section), and **Flying Fortress** (the whole city shut to walkers), with task 44. (2) The **AI's decision to raze**: the original's `Raze_Check` scores the wizard's personality, how few troops it has left to garrison the city, and its units on the continent against the loser's; it needs an AI player (design.md section 8: the decision lives in `f4x-ai` and arrives as `RazeCity`). (3) **Diplomacy**: attacking a wizard's city lowers their opinion (-20, and -60 for the fortress city: `Change_Relations` in `End_Of_Combat`), see `diplomacy.md`. (4) **Monsters and raiders** taking a city: the neutral attackers' extra losses (50 percent more citizens, 50 more building chance) and the rampage that can leave ruins (with task 154). (5) The **city damage from spells** such as Magic Vortex (5 for each turn spent in the city). (6) The wizard whose fortress falls to a razed city: check the banishment and the summoning circle when the capital is razed (the original changes the owner first and then destroys the city, as here).
+
+**159. Casting leftovers.** Task 43 did the wizard's casting in battle: skill and mana with the range multiplier, one spell a turn, bolts with extra mana, healing, summoning, lasting spells that only change numbers, dispel and Counter Magic (`combat.md` section 8). Left: (1) the battle spells whose effects are not in the game, which are not offered yet: Earth to Mud, Web, Cracks Call, Petrify, Regeneration, Confusion, Vertigo, Spell Lock, Invisibility, Banish, Mind Storm, Creature Binding, Warp Wood, Disrupt, Eldritch Weapon, Shatter, Warp Creature, Immolation, Magic Vortex, Disintegrate, Weakness, Cloak of Fear, Black Sleep, **Life Drain** (a resistance roll worth the extra mana, and it heals the caster), Possession, Berserk, Wraith Form, Word of Death, Animate Dead, Raise Dead, Dispel Evil, Heroism, Invulnerability and Recall Hero. The negative unit spells (Weakness, Vertigo, Mind Storm, Black Prayer ...) also need `Spell_Resistance_Modifier` (the table in `CMBMAGIC.c`: Weakness -2, Black Sleep -2, Confusion -4, Stasis -5 ...) in the spell data, and a target that resists; most of the rest are task 37 (abilities) or 44 (battlefield). (2) The **battlefield node counter**: a battle on a node of another realm stops the caster's spells of other realms with a dispel of strength 50 (unless the wizard has Node Mastery). (3) The **hero's own casting** and the units' spell-like abilities (Doom Bolt, Web, Fireball, Healing from a unit's `casts_...` abilities) with their mana (`BattleUnit` has no `mana` yet), and the **items' spells** (task 49); the spell shots' mana and the units' power drain (task 157). (4) A wizard **Spell of Return** casting skill of zero is done; the original also stops Word of Recall and Recall Hero while banished. (5) Hit points from **Lionheart** (and Black Channels' hit points) are only counted during the fight; damage taken above the unit's real maximum is capped when the battle is written back, so the unit never dies from the spell ending. (6) The AI wizard casts nothing (task 46). (7) A spell animation and sound (art not extracted); the client shows the log line only.

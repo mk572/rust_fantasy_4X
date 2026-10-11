@@ -55,6 +55,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("bshoot", "bshoot <unit> <target>", "In battle: fire at an enemy at a distance.", bshoot),
     legal!("bwall", "bwall <unit> <x,y>", "In battle: a wall crusher strikes the wall section at that square, next to it.", bwall),
     legal!("bshootwall", "bshootwall <unit> <x,y>", "In battle: a wall crusher fires at the wall section at that square.", bshootwall),
+    legal!("bcast", "bcast <spell> [unit:N | tile:x,y] [mana:N]", "In battle: your wizard casts a spell (once a turn). Aim it at a battle unit or a square; extra mana makes a bolt, a dispel or Counter Magic stronger (`bspells` lists what you can cast).", bcast),
     legal!("bdone", "bdone <unit>", "In battle: give up the rest of a unit's turn.", bdone),
     legal!("bend", "bend", "In battle: end your side's turn.", bend),
     legal!("bflee", "bflee", "In battle: leave; the other side wins.", bflee),
@@ -394,6 +395,31 @@ fn bshootwall(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         cell: battle_pos(a.need(1, "square")?)?,
     };
     battle_order(ctx, order)
+}
+
+fn bcast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::battle::SpellAim;
+    let mut aim = SpellAim::None;
+    let mut mana = 0;
+    let mut name = Vec::new();
+    for word in a.words {
+        if let Some(n) = word.strip_prefix("mana:") {
+            mana = n
+                .parse()
+                .map_err(|_| ConsoleError::Parse(format!("{n:?} is not an amount of mana")))?;
+        } else if let Some(n) = word.strip_prefix("unit:") {
+            aim = SpellAim::Unit(
+                n.parse()
+                    .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a battle unit")))?,
+            );
+        } else if let Some(c) = word.strip_prefix("tile:") {
+            aim = SpellAim::Tile(battle_pos(c)?);
+        } else {
+            name.push(word.as_str());
+        }
+    }
+    let spell = spell_arg(ctx, &name.join(" "))?;
+    battle_order(ctx, BattleCommand::Cast { spell, aim, mana })
 }
 
 fn bdone(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

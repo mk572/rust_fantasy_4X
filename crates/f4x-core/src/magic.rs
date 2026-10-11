@@ -458,7 +458,7 @@ impl Game {
         cost
     }
 
-    fn casting_cost_reduction(&self, player: PlayerId, spell: SpellId) -> i32 {
+    pub(crate) fn casting_cost_reduction(&self, player: PlayerId, spell: SpellId) -> i32 {
         let (Some(m), def) = (self.magic(player), self.content.rules.spells.get(spell)) else {
             return 0;
         };

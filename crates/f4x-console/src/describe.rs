@@ -205,6 +205,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *attacker),
             player(game, *defender)
         ),
+        Event::Battle(e) => battle_event(game, e),
         Event::BattleEnded { winner, loser } => format!(
             "Battle over: {} beats {}",
             player(game, *winner),
@@ -253,6 +254,42 @@ pub fn event(game: &Game, e: &Event) -> String {
             )
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
+        other => format!("{other:?}"),
+    }
+}
+
+/// The spell events of a battle; the other battle events are shown plainly.
+fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
+    use f4x_core::battle::BattleEvent as B;
+    match e {
+        B::SpellCast {
+            side,
+            spell: s,
+            skill,
+            mana,
+        } => format!(
+            "{side:?} wizard casts {} (skill {skill}, mana {mana})",
+            spell(game, *s)
+        ),
+        B::SpellCountered { side, spell: s } => {
+            format!(
+                "Counter Magic stops the {side:?} wizard's {}",
+                spell(game, *s)
+            )
+        }
+        B::SpellDamaged { unit, dealt, kills } => {
+            format!("Spell hits unit {unit} for {dealt}, {kills} figures lost")
+        }
+        B::SpellImmune { unit } => format!("Unit {unit} takes no harm from the spell"),
+        B::SpellHealed { unit, healed } => format!("Unit {unit} heals {healed}"),
+        B::SpellEnchanted { unit, spell: s } => format!("Unit {unit} is under {}", spell(game, *s)),
+        B::SpellDispelled { unit, removed } => {
+            format!("Dispel takes {removed} spells off unit {unit}")
+        }
+        B::Summoned { unit } => format!("Unit {unit} is summoned"),
+        B::CounterMagicRaised { side, strength } => {
+            format!("{side:?} raises Counter Magic {strength}")
+        }
         other => format!("{other:?}"),
     }
 }

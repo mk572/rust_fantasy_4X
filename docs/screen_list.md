@@ -121,7 +121,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Alchemy pop-up (`Alchemy_Popup`) | Converts gold to mana or back. | Button on the Magic screen and the Item screen. | **Partial** (core `alchemy`; the console has the command; the client has no pop-up). |
 | Spell target selection (`Spell_Casting_Screen__WIP`, `SCastScr.c`) | Pick a square, city or unit on the map as a spell's target. | Casting a spell that needs a map target. | **Done:** the magic screen lets the player click the target on the map (`magic_screen.rs`). |
 | Target wizard (`Target_Wizard_Screen`) / target enchantment (`Spell_Target_Global_Enchantment_Screen`) | Choose a wizard (portraits) or one of another wizard's global enchantments as a spell's target. | Wizard- or enchantment-targeting spells (Spell Binding, Subversion...). | **Missing.** Tasks 60 and 62 (the spells). |
-| Spell mana adder (`Spellbook_Mana_Adder_Screen`, `Combat_Spellbook_Mana_Adder_Screen`) | Choose how much extra mana to put into an infusable spell (its strength grows with the mana). | Choosing such a spell from the book, overland or in combat. | **Missing** (task 43 for combat casting). |
+| Spell mana adder (`Spellbook_Mana_Adder_Screen`, `Combat_Spellbook_Mana_Adder_Screen`) | Choose how much extra mana to put into an infusable spell (its strength grows with the mana). | Choosing such a spell from the book, overland or in combat. | **Partial.** Combat casting has Up/Down keys for the extra mana in the battle screen's target prompt (task 43), no separate screen; overland still missing. |
 | Item-making (`Item_Make_Screen`, `ItemMake.c`) | Design a magic item or artifact: choose its type, powers and name, with the mana cost. | Casting Enchant Item or Create Artifact. | **Missing.** Task 50. |
 
 ### 5.2 Offers, rewards and events
@@ -140,7 +140,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 | Window | What it does | Entered | Status here |
 |---|---|---|---|
-| **Combat screen** (`Combat_Screen`, `Combat.c`) | The tactical battle: the 21 by 22 map, units, spell book, Wait, Done, Flee and Auto buttons; the result goes back to the caller. | A stack moves into an enemy unit, city or guarded site (`Move_Units`, `Lair_Combat`); the computer fights its own battles without showing the screen. | **Partial.** `battle_screen.rs`: the grid, figures, animation, controls (task 132). No spell casting (43), no Auto button or attack prompt (133), no walls (41). |
+| **Combat screen** (`Combat_Screen`, `Combat.c`) | The tactical battle: the 21 by 22 map, units, spell book, Wait, Done, Flee and Auto buttons; the result goes back to the caller. | A stack moves into an enemy unit, city or guarded site (`Move_Units`, `Lair_Combat`); the computer fights its own battles without showing the screen. | **Partial.** `battle_screen.rs`: the grid, figures, animation, controls (task 132). Spell casting by list (43), no Auto button or attack prompt (133), no walls (41). |
 | Combat spell book (`Combat_Spellbook_Screen`) | Choose a combat spell. | The Spell button in combat. | **Missing.** Task 43. |
 | Combat spell target (`Combat_Spell_Target_Screen`) | Pick the target square or unit. | After choosing a combat spell. | **Missing.** Task 43. |
 | Combat information (`Combat_Information_Window`) | Battle-wide info: enchantments in force and so on. | The Info button in combat. | **Missing.** Task 132. |

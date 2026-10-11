@@ -94,7 +94,7 @@ attached to its target: a city (`Enchantments`), a unit (`UnitEnchantments`) or 
 still the `unimplemented` hook are cast, cost mana, and report `SpellHasNoEffectYet`.
 
 Known gaps: timed durations are not counted down yet; instant `Modify`/ability grants have no
-home; battle spells exist only in data.
+home; battle spells are cast in battles (`combat.md` section 8).
 
 ## 8. Upkeep
 
@@ -123,7 +123,7 @@ Conjurer) and the rival 3 chaos, 2 death, Warlord.
   (section 12); the aftermath of a wizard's defeat (neutral units and cities) does not.
 - No heroes' casting contribution or sage heroes, no node power, no Evil Omens or other global
   modifiers on cost, no Spell of Return handling, no spell research cost for the Spell of Mastery
-  (placeholder data), no battle casting.
+  (placeholder data). Casting in battle is in `combat.md` section 8.
 - Imported eligibility 2 and 3 (overland-only spells that the original still costs ×5) are
   collapsed to overland-only here, so those spells cost less than in the original. To be fixed in
   the importer.

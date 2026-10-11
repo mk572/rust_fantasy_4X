@@ -1310,3 +1310,252 @@ fn the_battle_ai_takes_a_walled_city() {
 }
 
 const GATE_SPOT: Pos = (12, 12);
+
+// ---- spells (task 43) -----------------------------------------------------------------
+
+mod casting {
+    use super::*;
+    use crate::battle::attack::{spell_attack, Combatant, Mode, Volley};
+    use crate::battle::casting::{range_percent, BattleCaster};
+    use crate::battle::immunity::{AttackNature, Immunities, Realm};
+    use crate::rules::effects::DamageTraits;
+    use crate::rules::stats::{ModOp, Modifier, Source, Stat};
+
+    #[test]
+    fn casting_costs_more_the_further_from_the_fortress() {
+        // At the fortress half; within five squares as is; then half as much again for each
+        // five more, up to three times; another plane is as far as it gets.
+        let table = [
+            (Some(0), 5),
+            (Some(1), 10),
+            (Some(5), 10),
+            (Some(6), 15),
+            (Some(10), 15),
+            (Some(11), 20),
+            (Some(16), 25),
+            (Some(21), 30),
+            (Some(40), 30),
+            (None, 30),
+        ];
+        for (distance, percent) in table {
+            assert_eq!(range_percent(distance, false), percent, "{distance:?}");
+        }
+        // A channeler is two squares away wherever they are, except at the fortress.
+        assert_eq!(range_percent(Some(25), true), 10);
+        assert_eq!(range_percent(None, true), 10);
+        assert_eq!(range_percent(Some(0), true), 5);
+    }
+
+    #[test]
+    fn what_a_wizard_can_afford_is_the_lesser_of_skill_and_what_the_reserve_pays_for() {
+        let near = BattleCaster::new(20, 100, 10);
+        assert_eq!(near.affordable(), 20);
+        let far = BattleCaster::new(20, 30, 30);
+        assert_eq!(far.affordable(), 10, "30 mana at three times pays for 10");
+        assert_eq!(far.mana_for(10), 30);
+        assert_eq!(
+            BattleCaster::new(20, 100, 5).mana_for(7),
+            3,
+            "halved, rounded down"
+        );
+    }
+
+    fn target(figures: u32, hits: i32, defense: i32) -> DefenderState {
+        DefenderState {
+            hits,
+            defense,
+            figures,
+            figures_max: figures,
+            ..Default::default()
+        }
+    }
+
+    fn bolt(strength: i32) -> Combatant {
+        Combatant {
+            strength,
+            to_hit: 0,
+            mode: Mode::Ranged,
+            ..Default::default()
+        }
+    }
+
+    fn mean(volley: Volley, spell: &Combatant, def: &DefenderState, trials: u64) -> f64 {
+        let total: i32 = (0..trials)
+            .map(|seed| {
+                let mut state = def.clone();
+                let mut rng = Pcg64Mcg::seed_from_u64(seed);
+                spell_attack(spell, volley, &mut state, &mut rng).points
+            })
+            .sum();
+        total as f64 / trials as f64
+    }
+
+    #[test]
+    fn a_stronger_bolt_does_more_damage_and_defence_blocks_some_of_it() {
+        let soft = target(1, 100, 0);
+        let (weak, strong) = (
+            mean(Volley::Bolt, &bolt(5), &soft, 2000),
+            mean(Volley::Bolt, &bolt(15), &soft, 2000),
+        );
+        // A die hits three times in ten.
+        assert!((weak - 1.5).abs() < 0.2, "{weak}");
+        assert!((strong - 4.5).abs() < 0.4, "{strong}");
+        let armoured = mean(Volley::Bolt, &bolt(15), &target(1, 100, 6), 2000);
+        assert!(armoured < strong - 1.0, "{armoured} against {strong}");
+        // Armour piercing halves the defence; doom ignores it.
+        let piercing = Combatant {
+            nature: AttackNature {
+                armor_piercing: true,
+                ..Default::default()
+            },
+            ..bolt(15)
+        };
+        let doom = Combatant {
+            ignores_defense: true,
+            ..bolt(15)
+        };
+        let wall = target(1, 100, 6);
+        assert!(mean(Volley::Bolt, &piercing, &wall, 2000) > armoured + 0.5);
+        assert_eq!(mean(Volley::Bolt, &doom, &wall, 10), 15.0);
+    }
+
+    #[test]
+    fn a_fireball_hits_each_figure_and_none_loses_more_than_one_figure() {
+        let squad = target(6, 2, 0);
+        let ball = Combatant {
+            ignores_defense: true,
+            ..bolt(5)
+        };
+        let mut state = squad.clone();
+        let mut rng = Pcg64Mcg::seed_from_u64(1);
+        let dmg = spell_attack(&ball, Volley::Area, &mut state, &mut rng);
+        // Five points a figure, capped at its two hit points: a whole squad of six dies.
+        assert_eq!((dmg.points, dmg.kills, state.figures), (12, 6, 0));
+        let mut state = squad;
+        let single = spell_attack(&ball, Volley::Bolt, &mut state, &mut rng);
+        assert_eq!(
+            single.kills, 2,
+            "a bolt of five kills two of them and no more"
+        );
+    }
+
+    #[test]
+    fn warp_lightning_is_a_chain_of_weaker_and_weaker_bolts() {
+        let chain = Combatant {
+            ignores_defense: true,
+            ..bolt(4)
+        };
+        let mut state = target(10, 5, 0);
+        let mut rng = Pcg64Mcg::seed_from_u64(1);
+        let dmg = spell_attack(&chain, Volley::Chain, &mut state, &mut rng);
+        assert_eq!(dmg.points, 4 + 3 + 2 + 1);
+    }
+
+    fn unit_with(abilities: &[&str]) -> BattleUnit {
+        let mut u = BattleUnit::simple(Side::Defender, "t", 1, 20, 3, 0);
+        u.abilities = abilities.iter().map(|s| s.to_string()).collect();
+        u
+    }
+
+    #[test]
+    fn magic_immunity_and_righteousness_turn_spells_away() {
+        let strike = |unit: BattleUnit, realm| {
+            let mut b = duel(spearman(Side::Attacker, (3, 5)), unit.at((8, 5)), 1);
+            let nature = AttackNature {
+                stopped_by: Immunities::default(),
+                realm: Some(realm),
+                armor_piercing: false,
+            };
+            b.spell_damage(1, 10, &DamageTraits::default(), nature)
+        };
+        assert!(strike(unit_with(&[]), Realm::Chaos).is_some());
+        assert!(strike(unit_with(&["magic_immunity"]), Realm::Chaos).is_none());
+        let mut blessed = unit_with(&[]);
+        blessed.enchantments.push("righteousness".into());
+        assert!(strike(blessed.clone(), Realm::Death).is_none());
+        assert!(
+            strike(blessed, Realm::Nature).is_some(),
+            "only chaos and death"
+        );
+    }
+
+    #[test]
+    fn a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again() {
+        let mut b = duel(
+            spearman(Side::Attacker, (3, 5)),
+            spearman(Side::Defender, (8, 5)),
+            1,
+        );
+        let m = |stat, op, value| Modifier::new(stat, op, value, Source::Other);
+        let spell = crate::rules::SpellId::new(0);
+        let before = b.units[0].clone();
+        b.enchant_unit(
+            0,
+            spell,
+            "haste",
+            A,
+            &[
+                m(Stat::Moves, ModOp::Percent, 100),
+                m(Stat::Melee, ModOp::Add, 1),
+            ],
+            &["first_strike".to_string()],
+        );
+        let u = &b.units[0];
+        assert_eq!(u.moves, before.moves * 2);
+        assert_eq!(
+            u.moves_left,
+            before.moves_left * 2,
+            "the extra moves come at once"
+        );
+        assert_eq!(u.melee, before.melee + 1);
+        assert!(u.first_strike && u.has("first_strike"));
+        assert_eq!(u.combat_spells, vec![(spell, A)]);
+        // A dispel: back to the base, with no spells on.
+        let base = u.base.as_deref().unwrap().clone();
+        b.rebuild_unit(0, base, Vec::new(), &[]);
+        let u = &b.units[0];
+        assert_eq!(
+            (u.moves, u.melee, u.first_strike),
+            (before.moves, before.melee, false)
+        );
+        assert!(u.combat_spells.is_empty() && u.base.is_none());
+        assert!(u.abilities.is_empty() && u.enchantments.is_empty());
+    }
+
+    #[test]
+    fn healing_brings_figures_back_and_a_new_creature_arrives_ready_to_act() {
+        let mut hurt = spearman(Side::Attacker, (3, 5));
+        hurt.figures = 1;
+        hurt.front_damage = 1;
+        let mut b = duel(hurt, spearman(Side::Defender, (8, 5)), 1);
+        assert_eq!(b.units[0].hit_points(), 1);
+        // Two hit points a figure, three figures: five points heal the lot.
+        assert_eq!(b.spell_heal(0, 5), 5);
+        assert_eq!(b.units[0].figures, 3);
+        b.units[0].moves_left = 0;
+        let fresh = BattleUnit::simple(Side::Attacker, "p", 1, 5, 2, 0);
+        let id = b.add_summoned(Side::Attacker, fresh, (4, 5));
+        assert_eq!(id, 2);
+        assert_eq!(b.units[2].moves_left, b.units[2].moves);
+        assert!(b.units[2].is_active());
+    }
+
+    #[test]
+    fn creatures_appear_only_on_a_free_square_of_the_casters_half() {
+        let b = duel(
+            spearman(Side::Attacker, (3, 5)),
+            spearman(Side::Defender, (17, 5)),
+            1,
+        );
+        assert!(b.is_summon_square(Side::Attacker, (4, 5)));
+        assert!(!b.is_summon_square(Side::Attacker, (3, 5)), "occupied");
+        assert!(
+            !b.is_summon_square(Side::Attacker, (15, 5)),
+            "the other half"
+        );
+        assert!(b.is_summon_square(Side::Defender, (15, 5)));
+        assert!(b
+            .first_summon_square(Side::Attacker)
+            .is_some_and(|c| c.0 == 0));
+    }
+}
