@@ -52,7 +52,7 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "new",
         kind: Kind::Legal,
-        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5]",
+        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful]",
         help: "Start a new game on a generated map, replacing this one. Without wizard or books, a fixed wizard is used.",
         run: new,
     },
@@ -77,7 +77,12 @@ fn help(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.session.mode.name()
     ));
     for def in commands() {
-        ctx.say(format!("{:<9} {:<9} {}", def.name, kind_name(def.kind), def.usage));
+        ctx.say(format!(
+            "{:<9} {:<9} {}",
+            def.name,
+            kind_name(def.kind),
+            def.usage
+        ));
     }
     Ok(())
 }
@@ -92,7 +97,12 @@ pub fn kind_name(k: Kind) -> &'static str {
 
 fn list(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     for def in commands() {
-        ctx.say(format!("{}\t{}\t{}", def.name, kind_name(def.kind), def.usage));
+        ctx.say(format!(
+            "{}\t{}\t{}",
+            def.name,
+            kind_name(def.kind),
+            def.usage
+        ));
     }
     Ok(())
 }
@@ -142,7 +152,11 @@ fn history(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn save_path(a: &Args) -> Result<PathBuf, ConsoleError> {
     let name = a.get(0).unwrap_or("quick");
-    if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
         return Err(ConsoleError::Parse(
             "a save name is letters, digits, - and _".into(),
         ));
@@ -181,7 +195,11 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     game.human.get_or_insert(ctx.session.player);
     game.set_undo(true);
     *ctx.game = game;
-    ctx.say(format!("loaded {} (turn {})", path.display(), ctx.game.turn));
+    ctx.say(format!(
+        "loaded {} (turn {})",
+        path.display(),
+        ctx.game.turn
+    ));
     Ok(())
 }
 
@@ -207,6 +225,9 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     .parse()
                     .map_err(|_| ConsoleError::Parse(format!("{v:?} is not a number of wizards")))?
             }
+            "land" => spec.land_percent = parse_choice(v, "land", &LAND, 1, 99)?,
+            "difficulty" => spec.difficulty = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?,
+            "magic" => spec.magic_strength = parse_choice(v, "magic", &MAGIC, 0, 2)?,
             "books" => {
                 for part in v.split(',') {
                     let (realm, n) = part.split_once(':').ok_or_else(|| {
@@ -234,6 +255,40 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.session.player = crate::setup::HUMAN;
     ctx.say(format!("new game, seed {}", spec.seed));
     Ok(())
+}
+
+const LAND: [(&str, u8); 3] = [
+    ("small", f4x_core::setup::LAND_SMALL),
+    ("medium", f4x_core::setup::LAND_MEDIUM),
+    ("large", f4x_core::setup::LAND_LARGE),
+];
+const DIFFICULTY: [(&str, u8); 5] = [
+    ("intro", 0),
+    ("easy", 1),
+    ("average", 2),
+    ("hard", 3),
+    ("impossible", 4),
+];
+const MAGIC: [(&str, u8); 3] = [("weak", 0), ("normal", 1), ("powerful", 2)];
+
+/// A setting given by name or as a number in `min..=max`.
+fn parse_choice(
+    v: &str,
+    what: &str,
+    names: &[(&str, u8)],
+    min: u8,
+    max: u8,
+) -> Result<u8, ConsoleError> {
+    let lower = v.to_lowercase();
+    if let Some(&(_, n)) = names.iter().find(|(name, _)| *name == lower) {
+        return Ok(n);
+    }
+    match lower.parse::<u8>() {
+        Ok(n) if (min..=max).contains(&n) => Ok(n),
+        _ => Err(ConsoleError::Parse(format!(
+            "{v:?} is not a {what}: use a name or a number from {min} to {max}"
+        ))),
+    }
 }
 
 fn quit(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {

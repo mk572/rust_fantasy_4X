@@ -16,7 +16,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 10 | Map | Generator parity with the original and new-game settings |
+| 10 | Map | Generator parity with the original (the new-game settings are done) |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -142,11 +142,13 @@ the worked-area food and production of cities, and spells that set it.
 **7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
 aura [653-656], and warping by spells. Depends on 6.
 
-**10. Generator parity and new-game settings.** Our generator is our own design. Optionally port
-the original's landmass growth and shore fix-up, and add the new-game settings: land size 15/20/25
-percent, 1-4 opponents, node strength, difficulty [648-652] (difficulty and node strength are now
-inputs to `GenParams`, used for lairs and node power). Lair placement parity is task 129. Mark as a
-parity task, low priority.
+**10. Generator parity with the original.** Our generator is our own design (noise-based
+elevation with a land percentage). Optionally port the original's `NEWG_CreateLands`: random walkers
+from origins spread over map sections (3 to 5 arms of 6-15, 11-20 or 21-30 steps by land size, with
+a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix-up, as described in
+`reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
+opponents, land size, node strength) are done; see TASKS-DONE. Lair placement parity is task 129.
+Parity task, low priority.
 
 ### City and economy
 

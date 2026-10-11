@@ -50,6 +50,12 @@ pub fn parse_retort(text: &str) -> Option<Retort> {
         .find(|r| format!("{r:?}").to_lowercase() == key)
 }
 
+/// The original's land sizes, as a share of each plane's tiles (`NEWG_CreateLands`: 360, 480 and
+/// 720 of 2400).
+pub const LAND_SMALL: u8 = 15;
+pub const LAND_MEDIUM: u8 = 20;
+pub const LAND_LARGE: u8 = 30;
+
 /// What a new game is made from. Everything but the seed is optional.
 #[derive(Debug, Clone)]
 pub struct NewGame {
@@ -66,6 +72,15 @@ pub struct NewGame {
     pub retorts: BTreeSet<Retort>,
     /// Player 0's race id; the default is the first race with city names.
     pub race: Option<String>,
+    /// A finished wizard for player 0 (name, books, retorts, spells, banner); it wins over
+    /// `preset`, `name`, `books` and `retorts`.
+    pub build: Option<WizardBuild>,
+    /// Land as a share of each plane's tiles, 1 to 99 (see [`LAND_SMALL`]).
+    pub land_percent: u8,
+    /// 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
+    pub difficulty: u8,
+    /// Node strength: 0 weak, 1 normal, 2 powerful.
+    pub magic_strength: u8,
 }
 
 impl Default for NewGame {
@@ -79,6 +94,10 @@ impl Default for NewGame {
             books: BTreeMap::new(),
             retorts: BTreeSet::new(),
             race: None,
+            build: None,
+            land_percent: LAND_LARGE,
+            difficulty: 2,
+            magic_strength: 1,
         }
     }
 }
@@ -87,9 +106,16 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     if !(2..=5).contains(&spec.wizards) {
         return Err("a game has 2 to 5 wizards".into());
     }
-    let params = GenParams::default();
+    let params = GenParams {
+        land_percent: spec.land_percent,
+        difficulty: spec.difficulty.min(4),
+        magic_strength: spec.magic_strength.min(2),
+        ..GenParams::default()
+    };
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::new(spec.seed);
+    game.difficulty = params.difficulty;
+    game.magic_strength = params.magic_strength;
     game.map = Some(map);
     game.content = content.clone();
     for k in 0..spec.wizards {
@@ -119,7 +145,12 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut builds = Vec::new();
     for k in 0..spec.wizards as usize {
         let build = if k == 0 && !spec.all_ai {
-            if let Some(id) = &spec.preset {
+            if let Some(build) = &spec.build {
+                if let Some(id) = build.preset.then(|| spec.preset.clone()).flatten() {
+                    taken.push(id);
+                }
+                build.clone()
+            } else if let Some(id) = &spec.preset {
                 taken.push(id.clone());
                 game.preset_build(id)
                     .ok_or_else(|| format!("no ready-made wizard {id:?}"))?
@@ -194,7 +225,13 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         races.push(id);
     }
     for k in 0..spec.wizards {
-        start_player(&mut game, &params, PlayerId(k), spec.wizards, &races[k as usize])?;
+        start_player(
+            &mut game,
+            &params,
+            PlayerId(k),
+            spec.wizards,
+            &races[k as usize],
+        )?;
     }
     game.set_undo(true);
     Ok(game)
@@ -206,7 +243,9 @@ fn anchor(params: &GenParams, k: u8, n: u8) -> (u32, u32) {
     let angle = std::f32::consts::PI + std::f32::consts::TAU * f32::from(k) / f32::from(n);
     (
         (w / 2.0 + angle.cos() * w / 4.0).round() as u32 % params.width,
-        (h / 2.0 + angle.sin() * h / 3.0).round().clamp(2.0, h - 3.0) as u32,
+        (h / 2.0 + angle.sin() * h / 3.0)
+            .round()
+            .clamp(2.0, h - 3.0) as u32,
     )
 }
 

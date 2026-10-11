@@ -5,14 +5,14 @@
 
 pub mod battle;
 pub mod cast;
+pub mod cheat;
 pub mod city;
 pub mod content;
 pub mod corruption;
 pub mod economy;
+pub mod endgame;
 pub mod featuregen;
 pub mod fog;
-pub mod cheat;
-pub mod endgame;
 pub mod fortress;
 pub mod gates;
 pub mod globals;
@@ -406,6 +406,8 @@ pub struct Game {
     pub(crate) timers: Vec<timers::Timer>,
     /// The game's node setting: 0 weak, 1 normal, 2 powerful.
     pub magic_strength: u8,
+    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
+    pub difficulty: u8,
     /// The battle being fought, if any. Saves do not hold a battle in progress.
     pub battle: Option<battle::game::ActiveBattle>,
     /// Set once the game has ended; every later command is refused.
@@ -433,6 +435,7 @@ impl Game {
             rng: Pcg64Mcg::seed_from_u64(seed),
             timers: Vec::new(),
             magic_strength: 1,
+            difficulty: 2,
             battle: None,
             game_over: None,
             human: None,
@@ -450,6 +453,7 @@ impl Game {
     ) -> Result<Self, mapgen::GenError> {
         let mut game = Self::new(seed);
         game.magic_strength = params.magic_strength.min(2);
+        game.difficulty = params.difficulty.min(4);
         game.map = Some(mapgen::generate(seed, params, content)?);
         game.content = content.clone();
         Ok(game)

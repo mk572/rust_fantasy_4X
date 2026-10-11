@@ -76,7 +76,7 @@ and forth between them (Cancel goes back one step).
 
 | Step | Original | What it does | Status here |
 |---|---|---|---|
-| 0 Options | `Newgame_Screen_0` | Difficulty, opponents, land size, magic power (the game options). | **Missing.** The seed, land size and opponents are given at launch; task 10. |
+| 0 Options | `Newgame_Screen_0` | Difficulty, opponents, land size, magic power (the game options). | **Done** (`options_screen.rs`, plain widgets rather than the original's art): difficulty, opponents, land size, magic power. The map seed is still a launch option. |
 | 1 Wizard | `Newgame_Screen_1__WIP` | Choose one of the 14 ready-made wizards, or "Custom". | **Partial** (the creation screen offers ready-made wizards). |
 | 2 Portrait | `Newgame_Screen_2__WIP` | Custom only: pick the wizard's picture. | **Missing.** Task 83 (portraits and banners). |
 | 3 Name | `Newgame_Screen_3__WIP` | Type the wizard's name. | **Missing** (the wizard has a fixed name). Task 83. |

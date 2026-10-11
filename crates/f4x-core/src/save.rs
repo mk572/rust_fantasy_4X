@@ -46,6 +46,9 @@ pub struct Snapshot {
     /// The node setting: 0 weak, 1 normal, 2 powerful.
     #[serde(default = "normal_magic")]
     pub magic_strength: u8,
+    /// The difficulty, 0 intro to 4 impossible.
+    #[serde(default = "normal_difficulty")]
+    pub difficulty: u8,
     /// Set once the game has ended.
     #[serde(default)]
     pub game_over: Option<crate::endgame::GameOver>,
@@ -82,6 +85,10 @@ pub struct TimerSave {
 
 fn normal_magic() -> u8 {
     1
+}
+
+fn normal_difficulty() -> u8 {
+    2
 }
 
 /// The map with terrain and features saved as indexes into name lists.
@@ -596,6 +603,7 @@ impl Game {
             turn: self.turn,
             next_serial: self.next_serial,
             magic_strength: self.magic_strength,
+            difficulty: self.difficulty,
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
             override_log: self.override_log.clone(),
@@ -655,6 +663,7 @@ impl Snapshot {
         game.content = content;
         game.turn = self.turn;
         game.magic_strength = self.magic_strength.min(2);
+        game.difficulty = self.difficulty.min(4);
         game.game_over = self.game_over;
         game.human = self.human.map(PlayerId);
         game.override_log = self.override_log;
@@ -1099,6 +1108,7 @@ mod tests {
         let mut g = Game::new(99);
         g.content = c;
         g.magic_strength = 2;
+        g.difficulty = 4;
         g.map = Some(map);
         let mut p = Player::new(P0, "Merlin");
         p.gold = 300;
@@ -1192,6 +1202,7 @@ mod tests {
             g.map.as_ref().unwrap().nodes()
         );
         assert_eq!(back.magic_strength, 2);
+        assert_eq!(back.difficulty, 4);
         assert!(grid.feature(10, 8).is_some());
         assert_eq!(
             back.fog.explored_count(P0, Plane::Arcanus),

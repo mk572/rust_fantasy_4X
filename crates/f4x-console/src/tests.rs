@@ -37,7 +37,12 @@ fn the_table_is_well_formed() {
     names.dedup();
     assert_eq!(before, names.len(), "command names are unique");
     for c in &all {
-        assert!(c.usage.starts_with(c.name), "{} usage {:?}", c.name, c.usage);
+        assert!(
+            c.usage.starts_with(c.name),
+            "{} usage {:?}",
+            c.name,
+            c.usage
+        );
         assert!(!c.help.is_empty());
     }
     for kind in [Kind::Query, Kind::Legal, Kind::Override] {
@@ -51,7 +56,16 @@ fn queries_describe_the_new_game() {
     let status = c.execute(&mut g, "status");
     assert!(status.ok, "{}", status.text());
     assert!(status.text().contains("turn 1"));
-    for line in ["players", "units", "cities", "spells", "help", "help move", "commands", "map"] {
+    for line in [
+        "players",
+        "units",
+        "cities",
+        "spells",
+        "help",
+        "help move",
+        "commands",
+        "map",
+    ] {
         let r = c.execute(&mut g, line);
         assert!(r.ok, "{line}: {}", r.text());
         assert!(!r.lines.is_empty(), "{line}");
@@ -66,7 +80,10 @@ fn override_commands_need_the_override_mode() {
     let (mut g, mut c) = (game(), console());
     let refused = c.execute(&mut g, "give gold 500");
     assert!(!refused.ok);
-    assert!(matches!(err(&refused), ConsoleError::NotAllowed(_)), "{refused:?}");
+    assert!(
+        matches!(err(&refused), ConsoleError::NotAllowed(_)),
+        "{refused:?}"
+    );
     let gold = g.player(HUMAN).unwrap().gold;
 
     assert!(c.execute(&mut g, "mode override").ok);
@@ -82,10 +99,7 @@ fn override_commands_need_the_override_mode() {
     let log = g.override_log().to_vec();
     assert_eq!(log.len(), 2, "{log:?}");
     assert!(log[0].contains("mode override") && log[1].contains("give gold 500"));
-    let restored = g
-        .snapshot()
-        .restore(g.content.clone())
-        .unwrap();
+    let restored = g.snapshot().restore(g.content.clone()).unwrap();
     assert_eq!(restored.override_log(), log.as_slice());
     assert!(c.execute(&mut g, "history").text().contains("give gold"));
 }
@@ -102,7 +116,10 @@ fn access_limits_what_a_front_end_can_ever_do() {
     assert!(player.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 2);
     assert!(!player.execute(&mut g, "give gold 1").ok);
-    assert!(!player.execute(&mut g, "new 5").ok, "a player may not replace the game");
+    assert!(
+        !player.execute(&mut g, "new 5").ok,
+        "a player may not replace the game"
+    );
     assert!(!player.execute(&mut g, "load quick").ok);
     // Placing a fortress is not normal play: the legal commands do not have it.
     assert!(!player.execute(&mut g, "fortress 5,5").ok);
@@ -121,7 +138,12 @@ fn legal_commands_check_ownership() {
     assert!(spawn.ok, "{}", spawn.text());
     c.execute(&mut g, "mode legal");
     // The rival's unit is the newest one.
-    let newest = g.all_units().into_iter().map(|u| g.serial_of(u).0).max().unwrap();
+    let newest = g
+        .all_units()
+        .into_iter()
+        .map(|u| g.serial_of(u).0)
+        .max()
+        .unwrap();
     let r = c.execute(&mut g, &format!("stop {newest}"));
     assert!(matches!(err(&r), ConsoleError::NotAllowed(_)), "{r:?}");
     // In override mode the same line works and is logged.
@@ -149,14 +171,20 @@ fn a_player_can_run_a_turn_by_text() {
     assert!(end.ok);
     assert_eq!(g.turn, 2);
     assert!(end.text().contains("Turn 2"));
-    assert!(c.execute(&mut g, "undo").error.is_some(), "ending a turn cannot be undone");
+    assert!(
+        c.execute(&mut g, "undo").error.is_some(),
+        "ending a turn cannot be undone"
+    );
 }
 
 #[test]
 fn unknown_and_malformed_lines_are_errors_not_panics() {
     let (mut g, mut c) = (game(), console());
     assert!(matches!(err(&c.execute(&mut g, "")), ConsoleError::Empty));
-    assert!(matches!(err(&c.execute(&mut g, "frobnicate")), ConsoleError::Unknown(_)));
+    assert!(matches!(
+        err(&c.execute(&mut g, "frobnicate")),
+        ConsoleError::Unknown(_)
+    ));
     assert!(c.execute(&mut g, "move").error.is_some());
     assert!(c.execute(&mut g, "move x y").error.is_some());
     assert!(c.execute(&mut g, "move 999 1,1").error.is_some());
@@ -179,7 +207,10 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
         .to_string();
     let (x, y): (u32, u32) = {
         let mut it = at.split(',');
-        (it.next().unwrap().parse().unwrap(), it.next().unwrap().parse().unwrap())
+        (
+            it.next().unwrap().parse().unwrap(),
+            it.next().unwrap().parse().unwrap(),
+        )
     };
     c.execute(&mut g, "mode override");
     let r = c.execute(&mut g, &format!("spawn spearmen {},{},a 1", x + 1, y));
@@ -203,9 +234,15 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
         }
         let order = f4x_core::battle::ai::next_command(b);
         let line = match order {
-            f4x_core::battle::BattleCommand::Move { unit, to } => format!("bmove {unit} {},{}", to.0, to.1),
-            f4x_core::battle::BattleCommand::Attack { unit, target } => format!("battack {unit} {target}"),
-            f4x_core::battle::BattleCommand::Shoot { unit, target } => format!("bshoot {unit} {target}"),
+            f4x_core::battle::BattleCommand::Move { unit, to } => {
+                format!("bmove {unit} {},{}", to.0, to.1)
+            }
+            f4x_core::battle::BattleCommand::Attack { unit, target } => {
+                format!("battack {unit} {target}")
+            }
+            f4x_core::battle::BattleCommand::Shoot { unit, target } => {
+                format!("bshoot {unit} {target}")
+            }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
             f4x_core::battle::BattleCommand::Flee => "bflee".into(),
@@ -245,7 +282,14 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     assert_eq!(c.session.mode, Mode::ReadOnly);
     assert!(c.execute(&mut g, "status").ok);
     assert!(c.execute(&mut g, "cities").ok);
-    for line in ["end", "tax 1", "save", "new 3", "give gold 5", "mode override"] {
+    for line in [
+        "end",
+        "tax 1",
+        "save",
+        "new 3",
+        "give gold 5",
+        "mode override",
+    ] {
         let r = c.execute(&mut g, line);
         // Switching up needs a deliberate `mode legal` first for legal commands; the
         // mode word itself is how you leave read-only, so that one is allowed.
@@ -254,7 +298,10 @@ fn read_only_mode_runs_queries_and_nothing_else() {
             assert!(c.execute(&mut g, "mode readonly").ok);
             continue;
         }
-        assert!(matches!(err(&r), ConsoleError::NotAllowed(_)), "{line}: {r:?}");
+        assert!(
+            matches!(err(&r), ConsoleError::NotAllowed(_)),
+            "{line}: {r:?}"
+        );
     }
     assert_eq!(g.turn, 1);
     assert!(c.execute(&mut g, "mode legal").ok);
@@ -269,4 +316,59 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     assert!(player.execute(&mut g, "mode readonly").ok);
     assert!(player.execute(&mut g, "mode legal").ok);
     assert!(!player.execute(&mut g, "mode override").ok);
+}
+
+fn content() -> f4x_core::content::Content {
+    f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+}
+
+#[test]
+fn new_game_settings_reach_the_game() {
+    let content = content();
+    let made = |spec: NewGame| new_game(&content, &spec).unwrap();
+    let base = made(NewGame {
+        seed: 7,
+        ..NewGame::default()
+    });
+    assert_eq!((base.difficulty, base.magic_strength), (2, 1));
+    assert_eq!(base.players.len(), 2);
+
+    let small = made(NewGame {
+        seed: 7,
+        wizards: 5,
+        land_percent: f4x_core::setup::LAND_SMALL,
+        difficulty: 4,
+        magic_strength: 2,
+        ..NewGame::default()
+    });
+    assert_eq!(small.players.len(), 5, "four opponents");
+    assert_eq!((small.difficulty, small.magic_strength), (4, 2));
+    let land = |g: &Game| {
+        let map = g.map.as_ref().unwrap();
+        f4x_core::mapgen::land_percent(
+            map.plane(f4x_core::map::Plane::Arcanus),
+            &g.content.terrains,
+        )
+    };
+    assert!(
+        land(&small).abs_diff(15) <= 2,
+        "small land {}",
+        land(&small)
+    );
+    assert!(land(&base).abs_diff(30) <= 2, "large land {}", land(&base));
+}
+
+#[test]
+fn the_new_command_takes_the_settings_by_name() {
+    let mut game = game();
+    let mut c = console();
+    let r = c.execute(
+        &mut game,
+        "new 3 land=small difficulty=hard magic=weak players=3",
+    );
+    assert!(r.error.is_none(), "{:?}", r.error);
+    assert_eq!((game.difficulty, game.magic_strength), (3, 0));
+    assert_eq!(game.players.len(), 3);
+    let r = c.execute(&mut game, "new 3 difficulty=nightmare");
+    assert!(matches!(r.error, Some(ConsoleError::Parse(_))));
 }

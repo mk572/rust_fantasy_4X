@@ -273,7 +273,7 @@ impl App {
         if button(Rect::new(12.0, 12.0, 110.0, 30.0), "Back", true)
             || is_key_pressed(KeyCode::Escape)
         {
-            self.open_main_menu();
+            self.open_options();
             return;
         }
         // Begin.

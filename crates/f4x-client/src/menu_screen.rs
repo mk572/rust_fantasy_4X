@@ -289,7 +289,7 @@ impl App {
                 }
             }
             Some(Entry::Load) => self.open_slots(true),
-            Some(Entry::New) => self.open_creation(),
+            Some(Entry::New) => self.open_options(),
             Some(Entry::Fame) => {}
             Some(Entry::Quit) => return false,
             None => {}

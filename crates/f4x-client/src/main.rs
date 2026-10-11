@@ -13,6 +13,7 @@ mod game_over_screen;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
+mod options_screen;
 mod terrain_pick;
 mod ui;
 mod view;
@@ -41,6 +42,8 @@ struct Options {
     create: bool,
     /// With `--shot`, show the start menu.
     menu: bool,
+    /// With `--shot`, show the new-game options.
+    options: bool,
     /// With `--shot`, show the save slots (as if opened from the start menu).
     slots: bool,
     /// Skip the creation screen and play the default wizard.
@@ -71,6 +74,7 @@ fn parse_args() -> Result<Options, String> {
         magic: false,
         create: false,
         menu: false,
+        options: false,
         slots: false,
         reveal: false,
         at: None,
@@ -99,6 +103,7 @@ fn parse_args() -> Result<Options, String> {
             "--magic" => o.magic = true,
             "--create" => o.create = true,
             "--menu" => o.menu = true,
+            "--options" => o.options = true,
             "--slots" => o.slots = true,
             "--reveal" => o.reveal = true,
             "--at" => {
@@ -138,7 +143,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--menu] [--slots] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -189,6 +194,8 @@ async fn main() {
     }
     if options.create {
         app.open_creation();
+    } else if options.options {
+        app.open_options();
     } else if options.slots {
         app.open_slots(true);
     } else if options.menu || (options.shot.is_none() && options.load.is_none() && !options.quick) {

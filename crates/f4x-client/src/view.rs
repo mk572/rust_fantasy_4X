@@ -6,20 +6,19 @@ use std::path::Path;
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, TerrainClass};
-use f4x_core::magic::Retort;
 use f4x_core::map::Plane;
-use f4x_core::mapgen::{generate, GenParams};
-use f4x_core::player::Player;
+use f4x_core::mapgen::GenParams;
+use f4x_core::setup::{self, NewGame};
 use f4x_core::wizard::WizardBuild;
 use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
 use crate::art::{terrain_type as tt, Art, TILE_H, TILE_W};
 use crate::frame::Align;
+use crate::options_screen::OptionsState;
 use crate::ui::{Lines, GOLD};
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
-const RIVAL: PlayerId = PlayerId(1);
 
 /// Where F5 / F9 save and load, and where each turn is saved automatically.
 pub const QUICKSAVE: &str = "saves/quick.ron";
@@ -34,6 +33,8 @@ pub enum Screen {
     Battle,
     /// Creating the human wizard before the game begins.
     Create,
+    /// The new-game options (difficulty, opponents, land size, magic power).
+    Options,
     /// The game has ended: result and score.
     GameOver,
     /// The text console (F2).
@@ -48,6 +49,8 @@ pub struct App {
     pub(crate) game: Game,
     pub(crate) art: Art,
     params: GenParams,
+    /// The new-game options chosen before the wizard is made.
+    pub(crate) options: OptionsState,
     pub(crate) seed: u64,
     pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
@@ -96,7 +99,6 @@ pub(crate) fn base_type(class: TerrainClass) -> usize {
 impl App {
     pub fn new(content: Content, art: Art, seed: u64) -> Result<Self, String> {
         let params = GenParams::default();
-        let game = Self::new_game(seed, &params, &content, None)?;
         // Start as the first race that has city names, else the first race.
         let race = content
             .rules
@@ -105,10 +107,13 @@ impl App {
             .iter()
             .position(|r| !r.city_names.is_empty())
             .unwrap_or(0);
+        let options = OptionsState::default();
+        let game = Self::new_game(seed, &options, &content, None, race)?;
         let mut app = Self {
             game,
             art,
             params,
+            options,
             seed,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
@@ -133,101 +138,49 @@ impl App {
         Ok(app)
     }
 
+    /// A new game from the options and the human wizard; `race` is an index into the races.
     fn new_game(
         seed: u64,
-        params: &GenParams,
+        options: &OptionsState,
         content: &Content,
         human: Option<&WizardBuild>,
+        race: usize,
     ) -> Result<Game, String> {
-        let map = generate(seed, params, content).map_err(|e| e.to_string())?;
-        let mut game = Game::new(seed);
-        game.map = Some(map);
-        game.content = content.clone();
-        game.players.push(Player::new(HUMAN, "You"));
-        game.players.push(Player::new(RIVAL, "Rival"));
-        // Without a creation screen's choice, fixed picks: five books each.
-        let fixed = |books: &[(&str, u8)], retort| WizardBuild {
-            name: String::new(),
-            books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
-            retorts: [retort].into_iter().collect(),
-            spells: Vec::new(),
-            banner: None,
-            preset: true,
+        let preset = human
+            .filter(|b| b.preset)
+            .and_then(|b| {
+                content
+                    .rules
+                    .wizards
+                    .defs()
+                    .iter()
+                    .find(|w| w.name == b.name)
+            })
+            .map(|w| w.id.clone());
+        let spec = NewGame {
+            seed,
+            wizards: options.wizards(),
+            preset,
+            build: human.cloned(),
+            race: content.rules.races.defs().get(race).map(|r| r.id.clone()),
+            land_percent: options.land_percent(),
+            difficulty: options.difficulty,
+            magic_strength: options.magic,
+            ..NewGame::default()
         };
-        let human_build = human
-            .cloned()
-            .unwrap_or_else(|| fixed(&[("sorcery", 3), ("nature", 2)], Retort::Conjurer));
-        // The rival is one of the ready-made wizards other than the human's, by seed.
-        let rival_build = {
-            let defs = content.rules.wizards.defs();
-            let others: Vec<&str> = defs
-                .iter()
-                .filter(|w| w.name != human_build.name)
-                .map(|w| w.id.as_str())
-                .collect();
-            others
-                .get(seed as usize % others.len().max(1))
-                .and_then(|id| game.preset_build(id))
-                .unwrap_or_else(|| fixed(&[("chaos", 3), ("death", 2)], Retort::Warlord))
-        };
-        for (player, build) in [(HUMAN, human_build), (RIVAL, rival_build)] {
-            game.create_wizard(player, &build)
-                .map_err(|e| format!("{e:?}"))?;
-        }
-        // Rivals never share the human's banner.
-        let human_banner = game.player(HUMAN).map_or(0, |p| p.banner);
-        if let Some(p) = game.player_mut(RIVAL) {
-            if p.banner == human_banner {
-                p.banner = (human_banner + 1) % f4x_core::player::BANNER_CHOICES;
-            }
-        }
-        game.human = Some(HUMAN);
-        game.set_undo(true);
-        Ok(game)
+        setup::new_game(content, &spec)
     }
 
-    /// Found the first city near the middle and hand out a small starting force.
+    /// Look at the human wizard's fortress, where the game starts.
     fn start_game(&mut self) {
-        let (cx, cy) = (self.params.width / 2, self.params.height / 2);
-        let mut spots: Vec<(u32, u32)> = (0..self.params.height)
-            .flat_map(|y| (0..self.params.width).map(move |x| (x, y)))
-            .collect();
-        spots.sort_by_key(|&(x, y)| x.abs_diff(cx).pow(2) + y.abs_diff(cy).pow(2));
-        for (x, y) in spots {
-            let pos = Position {
-                plane: Plane::Arcanus,
-                x,
-                y,
-            };
-            if self.game.can_found_city(pos).is_ok() && self.found_city(pos, 3, true) {
-                self.give_starting_units(pos);
-                self.center_on(pos);
-                return;
-            }
-        }
-    }
-
-    fn give_starting_units(&mut self, at: Position) {
-        let rules = &self.game.content.rules;
-        let race = &rules.races.defs()[self.race];
-        let (mut army, mut settlers) = (Vec::new(), None);
-        for name in &race.units {
-            let Some(id) = rules.units.id_of(name) else {
-                continue;
-            };
-            let def = rules.units.get(id);
-            if def.abilities.iter().any(|a| a == "create_outpost") {
-                settlers.get_or_insert(id);
-            } else if army.len() < 2 && def.cost > 0 {
-                army.push(id);
-            }
-        }
-        for unit in army.into_iter().chain(settlers) {
-            self.game.apply(Command::CreateUnit {
-                owner: HUMAN,
-                pos: at,
-                unit,
-            });
+        let fortress = self
+            .game
+            .cities()
+            .into_iter()
+            .find(|(_, c, _)| c.owner == HUMAN)
+            .map(|(_, _, pos)| pos);
+        if let Some(pos) = fortress {
+            self.center_on(pos);
         }
     }
 
@@ -267,32 +220,6 @@ impl App {
             .get(used % race.city_names.len().max(1))
             .cloned()
             .unwrap_or_else(|| format!("City {}", used + 1))
-    }
-
-    /// Found a city; the first one holds the wizard's fortress.
-    fn found_city(&mut self, pos: Position, population: u32, fortress: bool) -> bool {
-        let name = self.next_city_name();
-        let rules = &self.game.content.rules;
-        let race = rules.races.id_of(&rules.races.defs()[self.race].id);
-        let cmd = if fortress {
-            Command::PlaceFortress {
-                player: HUMAN,
-                pos,
-                name,
-                race,
-                population,
-            }
-        } else {
-            Command::FoundCity {
-                owner: HUMAN,
-                pos,
-                name,
-                race,
-                population,
-            }
-        };
-        let events = self.game.apply(cmd);
-        self.note(events)
     }
 
     /// Turn events into log lines; returns whether a city was founded.
@@ -573,7 +500,13 @@ impl App {
 
     pub(crate) fn new_map(&mut self, seed: u64) {
         let content = self.game.content.clone();
-        match Self::new_game(seed, &self.params, &content, self.human_build.as_ref()) {
+        match Self::new_game(
+            seed,
+            &self.options,
+            &content,
+            self.human_build.as_ref(),
+            self.race,
+        ) {
             Ok(game) => {
                 self.game = game;
                 self.seed = seed;
@@ -645,6 +578,7 @@ impl App {
             Screen::Magic => self.magic_screen(),
             Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
+            Screen::Options => self.options_screen(),
             Screen::MainMenu => return self.main_menu_screen(),
             Screen::Slots => self.slots_screen(),
             Screen::Map => {
