@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 10 | Map | Generator parity with the original and new-game settings |
-| 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
@@ -122,6 +121,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 133 | Client | Prompt before attacking, and battles between AI players |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 135 | Client | Run the AI wizards in the client |
+| 136 | Client | Earth Gate and Astral Gate in the client and the AI |
 
 ## Descriptions
 
@@ -139,10 +139,6 @@ the original's landmass growth and shore fix-up, and add the new-game settings: 
 percent, 1-4 opponents, node strength, difficulty [648-652] (difficulty and node strength are now
 inputs to `GenParams`, used for lairs and node power). Lair placement parity is task 129. Mark as a
 parity task, low priority.
-
-**12. Gates and the Planar Seal.** Earth Gate links two own cities for a one-move trip; Astral Gate
-and towers link planes; Planar Seal closes planar travel [750, 752]. Needs gate state on cities and
-movement rules.
 
 **13. Teleporting and merging movement.** Teleport and merge movement types [253-261] are listed
 but have no rules. Add them to `movement.rs`, including their stack and plane rules.
@@ -589,3 +585,8 @@ cities, battles against the human, captured cities) as notes, and handle an AI a
 human: the human defends in the battle screen or auto-resolves, instead of the attack being
 ignored. Needs the attack prompt and Auto button (133) and the AI tuning in 65 to be worth playing
 against. See `docs/console.md` section 6 for the matching console gaps.
+
+**136. Earth Gate and Astral Gate in the client and the AI.** The core has both (task 12). The client
+should offer the teleport when a stack in an Earth Gate city moves onto another gate city (a button
+or a prompt) and enable the plane-shift button in an Astral Gate city; the AI should use them to
+reinforce threatened cities and to cross planes.

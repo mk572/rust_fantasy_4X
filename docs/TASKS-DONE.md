@@ -17,6 +17,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 8 | Map | Encounter sites: guardians and loot (done; the open parts are tasks 127 to 130) |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
+| 12 | Map | Gates and the Planar Seal (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
@@ -99,6 +100,12 @@ Endurance adds one per unit), then the stack steps to the next square of the pat
 roads on Myrror cost walking units no movement. The client's B key builds a road under
 engineers (one square; path drawing is not done) and draws enchanted roads in gold. The trade
 bonus now has roads to work with.
+
+**12. Gates and the Planar Seal (done).** `gates.rs`: Earth Gate teleports a stack between two of
+its wizard's gate cities on the same plane for one move (`Command::EarthGate`, console `gate`);
+Astral Gate lets a stack in the city change plane (`shift`), blocked when the other plane has a city
+on the square or stationed enemies; the Planar Seal (`globals.rs`) and towers were already in. A gate
+works only for the wizard who cast it. The client and AI do not use Earth Gates yet (task 136).
 
 **14. Sight radius sources (done).** `Stat::CitySight` (base 2) with `Min` modifiers: an Oracle
 makes a city see 4 squares, City Walls 3, Nature's Eye 4; the best one counts, they do not add
