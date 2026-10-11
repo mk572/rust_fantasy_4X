@@ -593,6 +593,13 @@ pub fn content_with_magic() -> Content {
         s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
         spells.push(s);
     }
+    // City gates (task 12): the effect lives in `gates.rs`, the spell only enchants the city.
+    for id in ["earth_gate", "astral_gate"] {
+        let mut s = base(id, "arcane", Rarity::VeryRare, 100, 100, SpellTarget::OwnCity);
+        s.duration = Duration::Permanent;
+        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(crate::gates::CITY_GATE.into()))];
+        spells.push(s);
+    }
     // Global enchantments the engine reads from the wizard's list.
     for id in [
         "evil_omens",

@@ -242,7 +242,7 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
-        if hook == crate::globals::GLOBAL_EFFECT {
+        if hook == crate::globals::GLOBAL_EFFECT || hook == crate::gates::CITY_GATE {
             // Carried out by the engine wherever the wizard's global spells are consulted.
             return;
         }

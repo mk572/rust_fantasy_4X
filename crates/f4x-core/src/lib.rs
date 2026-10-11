@@ -14,6 +14,7 @@ pub mod fog;
 pub mod cheat;
 pub mod endgame;
 pub mod fortress;
+pub mod gates;
 pub mod globals;
 pub mod help;
 pub mod lairs;
@@ -100,6 +101,11 @@ pub enum Command {
     /// Move a stack to the same tile on the other plane.
     ShiftPlane {
         units: Vec<hecs::Entity>,
+    },
+    /// Teleport a stack from a city with an Earth Gate to another such city of the same wizard.
+    EarthGate {
+        units: Vec<hecs::Entity>,
+        to: city::Position,
     },
     /// Found a city. No population makes an outpost; race decides what it can build.
     FoundCity {
@@ -554,6 +560,9 @@ impl Game {
                     (Ok(_), None) => Vec::new(),
                 }
             }
+            Command::EarthGate { units, to } => self
+                .use_earth_gate(&units, to)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Move(e))]),
             Command::FoundCity {
                 owner,
                 pos,

@@ -13,7 +13,7 @@ Done since this list was written (each with tests; see `crates/f4x-core`):
   movement types and costs (walking, flying, swimming, sailing, forester, mountaineer,
   pathfinding, non-corporeal, wind walking), roads, stacks of nine, plane shifting by tower
   or planar travel, A* routes, standing go-to orders, fog of war and sight.
-  Not done: gates, merging/teleport, corruption, node melding, mineral transmutation.
+  Not done: merging/teleport, corruption, node melding, mineral transmutation.
 - **City economy (step 5):** population with farmers, workers and rebels; food with the
   farmland cap and starvation; production, gold (taxes, trade, coast, mines, markets),
   mana, research; unrest from tax rate, racial table and troops; growth; the worked area
@@ -64,8 +64,9 @@ diplomacy, AI, random events, victory and score.
   can be enchanted), movement types: walking, forester, mountaineer, pathfinding,
   swimming, sailing, flying, wind walking, non-corporeal (half cost anywhere), planar
   travel, plane shift, teleporting and merging [253-261, 545-551, 565, 575].
-- Gates: Earth Gate links two own cities for one move; Astral Gate and towers link planes;
-  Planar Seal closes them [750, 752].
+- Gates (`gates.rs`, task 12): Earth Gate links two own cities with gates on the same plane for
+  one move (`Command::EarthGate`); Astral Gate lets a stack in the city change plane, unless a
+  city lies on the other side; towers link planes; Planar Seal closes them [750, 752].
 - Fog of war: unexplored squares, sight radius (scouting), Oracle sees 4 squares, walls 3,
   Nature's Eye 4 [546, 731, 748].
 - Magic nodes: melding a spirit to channel power, node strength per square (setting

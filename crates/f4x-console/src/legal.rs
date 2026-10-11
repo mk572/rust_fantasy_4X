@@ -37,6 +37,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("purify", "purify <units>", "Cleanse the corrupted square the stack stands on.", purify),
     legal!("meld", "meld <units>", "Meld a spirit of the stack into the magic node it stands on.", meld),
     legal!("shift", "shift <units>", "Move the stack to the same square of the other plane.", shift),
+    legal!("gate", "gate <units> <x,y[,plane]>", "Teleport the stack through Earth Gates to another of your cities that has one (one move).", gate),
     legal!("enter", "enter <units> <x,y[,plane]>", "Assault a guarded site (tower, node or lair) the stack stands next to.", enter),
     legal!("produce", "produce <city> <building|unit|trade|housing>", "Set what a city builds. Ids or names; `options` lists what is possible.", produce),
     legal!("buy", "buy <city>", "Pay gold to finish the current item at the next turn change.", buy),
@@ -178,6 +179,12 @@ fn meld(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn shift(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let units = ctx.my_units(a, 0)?;
     ctx.apply(Command::ShiftPlane { units })
+}
+
+fn gate(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let to = parse_pos(a.need(1, "city")?, ctx.plane_of(&units))?;
+    ctx.apply(Command::EarthGate { units, to })
 }
 
 fn enter(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

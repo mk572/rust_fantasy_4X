@@ -27,6 +27,9 @@ pub enum MoveError {
     NoRoom,
     /// No tower here, or a unit lacks planar travel.
     CannotShiftPlane,
+    /// The stack is not in a city with an Earth Gate, or the target has none (or is not the
+    /// same wizard's city on the same plane).
+    NoGate,
 }
 
 /// What a step into a tile leads to.
@@ -209,7 +212,7 @@ impl Game {
         (!defenders.is_empty() || hostile_city).then_some(defenders)
     }
 
-    fn check_stack(&self, units: &[hecs::Entity]) -> Result<(Position, PlayerId), MoveError> {
+    pub(crate) fn check_stack(&self, units: &[hecs::Entity]) -> Result<(Position, PlayerId), MoveError> {
         let first = *units.first().ok_or(MoveError::NoUnits)?;
         let pos = self.unit_position(first).ok_or(MoveError::BadSelection)?;
         let owner = self.unit_owner(first).ok_or(MoveError::BadSelection)?;
@@ -370,7 +373,9 @@ impl Game {
         let all_travel = units
             .iter()
             .all(|&u| self.unit_has_ability(u, "planar_travel"));
-        if !on_tower && !all_travel {
+        let (_, owner) = self.check_stack(units)?;
+        let on_gate = self.has_gate(from, owner, crate::gates::ASTRAL_GATE);
+        if !on_tower && !all_travel && !on_gate {
             return Err(MoveError::CannotShiftPlane);
         }
         let other = match from.plane {
@@ -381,6 +386,10 @@ impl Game {
             plane: other,
             ..from
         };
+        // An Astral Gate only works while it does not lead into another city.
+        if !on_tower && !all_travel && self.city_at(to).is_some() {
+            return Err(MoveError::CannotShiftPlane);
+        }
         // Every unit must be able to stand on the other plane's tile.
         let flies = self.stack_traits(units);
         for &u in units {

@@ -103,7 +103,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Fight a battle without the tactical map (the battle screen's Auto) | `auto <units> <pos>` |
 | Standing order to walk somewhere; cancel it | `goto <units> <pos>`, `stop <units>` |
 | Settler founds an outpost | `outpost <unit> [name]` |
-| Engineers build a road; purify; meld a node; change plane | `road <units> [pos ...]`, `purify`, `meld`, `shift` |
+| Engineers build a road; purify; meld a node; change plane; teleport by Earth Gate | `road <units> [pos ...]`, `purify`, `meld`, `shift`, `gate <units> <city pos>` |
 | Assault a lair, tower or node | `enter <units> <pos>` |
 | City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `sell <city> <building>` |
 | Tax rate, power split | `tax <rate>`, `power <mana> <research> <skill>` |

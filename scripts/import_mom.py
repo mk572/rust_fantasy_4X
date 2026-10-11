@@ -739,6 +739,10 @@ GLOBAL_MODS = {
 }
 
 
+# City enchantments whose effect the engine reads from the city's enchantment list (`gates.rs`).
+CITY_ENGINE = {"Earth Gate", "Astral Gate"}
+
+
 def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
     """Return (effects, target, duration-kind) for a spell; `duration-kind` is
     "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
@@ -771,6 +775,8 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
         report.note("spells", f"{name}: unit enchantment without a stat mapping; custom hook")
         return unimplemented, target, "lasting"
     if kind in (2, 3):
+        if name in CITY_ENGINE:
+            return ['(when: OnCast, target: Chosen, effect: Custom("city_gate"))'], "OwnCity", "lasting"
         mods = CITY_ENCHANT_MODS.get(name)
         target = "OwnCity" if kind == 2 else "EnemyCity"
         if mods:
