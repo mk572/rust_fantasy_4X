@@ -275,16 +275,24 @@ remaining budget. Network size around 1 to 5 million parameters.
 
 ### 7.4 Reward
 
-At the end of the battle, from the point of view of the side the agent plays:
+At the end of the battle, from the point of view of the side the agent plays. The agent cannot
+always win, so a battle it is losing is not a lost cause: it should sell its units dearly. The
+two outcomes mirror each other:
 
 ```
-reward = win
-       - stakes * (value of own units lost / value of own units sent)
-       - small * (mana spent / mana_budget)
+won:   reward =  1 - stakes * (own units lost / own units sent)
+lost:  reward = -1 + (enemy units destroyed / enemy units fielded)
+       - small * (mana spent / mana_budget)          (both cases)
 ```
 
-- "Value" of a unit is its build cost from the rules (the same number the game uses), not a
-  hand-tuned rating.
+- Units are **counted** (a unit destroyed is one, whatever it is). The game has no unit-value
+  logic yet; when it has (task 107's neighbours, the unit cost in the rules would be the first
+  candidate), the two counts become value-weighted sums and nothing else changes.
+- A win is always better than a loss of the same battle: the loss term is at most 0, and a
+  win with every unit lost and `stakes` 1 is 0 too, never below it.
+- Losing with the most enemy units destroyed is therefore the aim when the fight is
+  overwhelming; `stakes` only changes how the agent weighs its own losses when it can win.
+- Fleeing (when `may_flee`) counts as a loss with the enemy units destroyed so far.
 - A small per-step cost stops stalling; a battle that runs to the 100-turn limit is a loss for
   both.
 - Sampling `stakes` and `mana_budget` at random during training is what makes the policy obey
