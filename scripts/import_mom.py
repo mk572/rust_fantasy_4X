@@ -980,6 +980,12 @@ HELP_CORRECTIONS = [
      "the code applies -1 to hit against invisible units"),
     (564, "enemy units by -2.", "enemy units by -1.",
      "the code applies -1 to hit against invisible units"),
+    (37, "between any two of the casting wizard's cities equipped with earth gates",
+     "between any two of the casting wizard's cities on the same plane equipped with earth gates",
+     "the original's code and this game only link cities on the same plane"),
+    (750, "between any two cities held by the wizard.",
+     "between any two cities held by the wizard on the same plane.",
+     "the original's code and this game only link cities on the same plane"),
 ]
 
 
