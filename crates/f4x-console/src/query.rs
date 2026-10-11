@@ -88,6 +88,13 @@ pub const TABLE: &[CommandDef] = &[
         run: battle,
     },
     CommandDef {
+        name: "blegal",
+        kind: Kind::Query,
+        usage: "blegal [unit]",
+        help: "Everything your side may do in the battle now, as the game itself lists it: for each unit its moves, melee attacks, shots and wall attacks, then the casts (spell, aims, mana). Give a unit number for one unit.",
+        run: blegal,
+    },
+    CommandDef {
         name: "bspells",
         kind: Kind::Query,
         usage: "bspells",
@@ -647,6 +654,87 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         )
         }))
         .collect();
+    for l in lines {
+        ctx.say(l);
+    }
+    Ok(())
+}
+
+fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::battle::{BattleCommand as C, SpellAim};
+    let b = ctx
+        .game
+        .battle()
+        .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
+    if b.player_of(b.active) != ctx.session.player && !ctx.overriding() {
+        return Err(ConsoleError::NotAllowed(
+            "it is not your side's turn".into(),
+        ));
+    }
+    let only: Option<usize> = match a.get(0) {
+        Some(w) => Some(
+            w.parse()
+                .map_err(|_| ConsoleError::Parse(format!("{w:?} is not a battle unit")))?,
+        ),
+        None => None,
+    };
+    let mut lines = Vec::new();
+    for u in b
+        .active_units(b.active)
+        .filter(|u| only.is_none_or(|o| o == u.id))
+    {
+        let (mut moves, mut attacks, mut shots, mut walls) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for c in b.legal_commands() {
+            match c {
+                C::Move { unit, to } if unit == u.id => moves.push(format!("{},{}", to.0, to.1)),
+                C::Attack { unit, target } if unit == u.id => attacks.push(target.to_string()),
+                C::Shoot { unit, target } if unit == u.id => shots.push(target.to_string()),
+                C::AttackWall { unit, cell } | C::ShootWall { unit, cell } if unit == u.id => {
+                    walls.push(format!("{},{}", cell.0, cell.1))
+                }
+                _ => {}
+            }
+        }
+        let list = |name: &str, v: &[String]| {
+            if v.is_empty() {
+                String::new()
+            } else {
+                format!("; {name} {}", v.join(" "))
+            }
+        };
+        lines.push(format!(
+            "unit {} ({}): {} moves{}{}{}{}",
+            u.id,
+            u.name,
+            moves.len(),
+            list("move to", &moves),
+            list("attack", &attacks),
+            list("shoot", &shots),
+            list("wall", &walls)
+        ));
+    }
+    if only.is_none() {
+        let rules = &ctx.game.content.rules;
+        for lc in ctx.game.legal_battle_casts() {
+            let aims: Vec<String> = lc
+                .aims
+                .iter()
+                .map(|a| match a {
+                    SpellAim::None => "none".to_string(),
+                    SpellAim::Unit(u) => format!("unit:{u}"),
+                    SpellAim::Tile(c) => format!("tile:{},{}", c.0, c.1),
+                })
+                .collect();
+            lines.push(format!(
+                "cast {}: mana {}..{}; aims {}",
+                rules.spells.get(lc.spell).id,
+                lc.least_mana,
+                lc.most_mana,
+                aims.join(" ")
+            ));
+        }
+    }
     for l in lines {
         ctx.say(l);
     }

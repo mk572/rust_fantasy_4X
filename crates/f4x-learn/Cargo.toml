@@ -1,0 +1,23 @@
+[package]
+name = "f4x-learn"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+f4x-core.workspace = true
+f4x-data.workspace = true
+hecs.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true
+serde.workspace = true
+ron.workspace = true
+burn = { version = "0.22", optional = true, default-features = false, features = ["std", "optim", "flex", "simd", "rayon", "metal", "fusion", "autotune"] }
+
+[features]
+# The framework spike of task 169 (`examples/spike.rs`); the environment itself needs no framework.
+spike = ["dep:burn"]
+
+[[example]]
+name = "spike"
+required-features = ["spike"]

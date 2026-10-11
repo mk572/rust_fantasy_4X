@@ -91,6 +91,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | `spells` | known and researchable spells |
 | `diplomacy [wizard]` | the wizards met: relation word and number, treaty, what may be proposed, proposals waiting |
 | `battle` | the battle being fought: units, squares, figures, moves |
+| `blegal [unit]` | what your side may do in the battle now: each unit's moves, attacks, shots and wall attacks, and the casts with their aims and mana (the list the learning environment uses) |
 | `score [player]` | the score breakdown (`game_end.md`) |
 | `mode`, `history` | the mode; the override log |
 

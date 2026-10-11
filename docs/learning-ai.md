@@ -84,8 +84,10 @@ trained with (no ONNX export, no `tract`). On one M4 with shared memory that is 
 route. What it costs is our own work: PPO, GAE, masked sampling and the league are a few
 thousand lines to write, and there are fewer ready tools for plotting and debugging.
 
-Framework: **Burn** (autodiff, an `ndarray` CPU backend, a `wgpu` backend that runs on Metal);
-**Candle** is the fallback. I have not checked the current state of either; a short spike in
+Framework: **Burn** (0.22 on crates.io when this was written: autodiff, a pure-Rust `flex` CPU
+backend, a `metal` backend, kernel fusion; the older `ndarray` backend is deprecated, and a
+`rl` feature with reinforcement-learning utilities exists, not yet looked at); **Candle** is
+the fallback. I have not checked the current state of either; a short spike in
 phase 0 confirms that a 1 to 5 million parameter network trains at a useful speed on the M4
 before anything else is built on it. For networks this small the CPU backend may beat the GPU
 (no transfer cost), and the spike measures both.
@@ -100,6 +102,18 @@ plus a minute's rest. A state that cannot be read counts as hot. In addition the
 at most 4 of the M4's 10 cores (the thread count is a setting, default 4) and writes a
 checkpoint at least every few minutes, so a pause or a stop loses little.
 
+**Spike result (task 169, 12 Oct 2026, the M4 with 32 GB, run at background priority on 4
+threads).** A network of 3.7 million parameters (four linear layers, input 2048), batch 256,
+Adam: the `flex` CPU backend takes about 110 ms a step; the `metal` backend about 30 ms a step
+once started, but it spends about 20 seconds in its first three steps compiling kernels. Both
+learn (the loss falls). Building Burn with these features takes about 27 minutes the first
+time (4 jobs, release), and a debug build is slower to run, so training always runs in release.
+These are one short run each: the real network and batch will differ. The environment itself:
+a generated battle builds in about 19 ms and a random-play battle takes about 88 ms (250
+commands, 355 microseconds a command, most of it listing the legal casts), single thread.
+Reproduce with `cargo run --release -p f4x-learn --example bench` and
+`... --features spike --example spike -- flex|metal`.
+
 Everything stays reproducible: the policy's sampling RNG is separate from the game's, and a
 training run is fixed by `(seeds, config, code version)`.
 ## 4. Legal actions: one definition, shared with the console
@@ -109,6 +123,13 @@ action has a **legal command** (`move`, `produce`, `cast`, `research`, `bmove`, 
 sent through `Game::apply`, and in legal mode its queries show only what the player can see.
 The learner uses exactly that:
 
+0. **What is done.** `Battle::legal_commands()` (every move, melee attack, shot and wall
+   attack of the side to play, then `Done`, `EndTurn`, `Flee`) and `Game::legal_battle_casts()`
+   (each castable spell with its aims and least and most mana) are in the core, tested against
+   `Battle::apply` and `Game::battle_command` (the first exhaustively over every command that
+   could be written), and the console's `blegal` query prints them. `Game::battle_command`
+   checks a cast through the same `check_cast` the list uses. The overland enumerators (stack
+   moves, spell targets, production items) wait for the strategic phases.
 1. **Action families = the console's legal commands**, with the same arguments. Nothing is
    added for the learner, and nothing the console cannot say is allowed. A new legal command
    later becomes a new family by being added to a table, not by new code paths.
@@ -134,8 +155,8 @@ The learner uses exactly that:
 
 Other core changes, small:
 
-- `Game::observe(player)` and `Battle::observe(side)` build the tensors from section 5.1 and
-  7.2.
+- The observation tensors of section 5.1 and 7.2 are built in `f4x-learn` (`obs.rs`) from the
+  core's public accessors: the core stays free of any tensor layout.
 - `mana_budget` as a battle setting checked in `Cast`.
 - Starting games and battles from a `Snapshot` (exists in `save.rs`), for the curriculum.
 - The policy's RNG is separate from the game's; episodes replay from the command log.

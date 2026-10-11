@@ -2008,3 +2008,38 @@ fn the_undead_cheat_needs_override_and_makes_units_undead() {
     let info = full.execute(&mut g, &format!("unit {serial}"));
     assert!(info.text().contains("undead"), "{}", info.text());
 }
+
+#[test]
+fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["fire_bolt"]);
+    let all = cast(&mut g, "blegal");
+    assert!(all.ok, "{}", all.text());
+    assert!(
+        all.text().contains("cast fire_bolt: mana"),
+        "{}",
+        all.text()
+    );
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    let one = cast(&mut g, &format!("blegal {mine}"));
+    assert!(
+        one.text().contains(&format!("unit {mine} (")),
+        "{}",
+        one.text()
+    );
+    // The first listed square is accepted by bmove.
+    let line = one.text();
+    let first = line
+        .split("move to ")
+        .nth(1)
+        .and_then(|s| s.split([' ', ';']).next())
+        .expect("a move is listed")
+        .to_string();
+    let r = cast(&mut g, &format!("bmove {mine} {first}"));
+    assert!(r.ok, "{} / {}", first, r.text());
+    // The side that does not play gets no list.
+    assert!(cast(&mut g, "bend").ok);
+    let mut play = Console::new(HUMAN, Access::Play);
+    let refused = play.execute(&mut g, "blegal");
+    assert!(!refused.ok, "{}", refused.text());
+}
