@@ -157,8 +157,8 @@ figure is gained, growth is clamped so it cannot go negative at maximum size, an
 grow at half rate. Verify against `apply_growth` and add tests.
 
 **21. Outpost growth: wild game and difficulty (B20).** Follow the intent: include wild game in
-outpost growth and apply the AI difficulty modifier only to AI players (the original applied it to
-the human too).
+outpost growth. Apply no difficulty modifier to anyone: the AI gets no advantage or disadvantage
+(design.md section 8; the original applied its AI modifier to the human too).
 
 **22. Nightshade dispel strength.** Each nightshade plant in a city's area adds 100 dispel strength
 against bad city enchantments [766]. Hook into the dispel code (task 59).
@@ -314,10 +314,11 @@ combat (33-42).
 ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow intent for B18
 (count from the real turn, not from game start or load).
 
-**69. Difficulty levels.** AI power, gold and mana modifiers by difficulty and the Hard-level
-starting spells for the AI [difficulty tables in the original]; apply to AI players only. The
-final score is also scaled by difficulty (`endgame::scale_for_difficulty` exists; the score is
-not yet scaled because the game has no difficulty setting). See `docs/game_end.md`.
+**69. Difficulty levels.** Difficulty is chosen in the options step (task 10) and scales lair guards
+and treasure. The original's AI power, gold and mana modifiers and the Hard-level starting spells
+for the AI are **not** ported: the AI gets no advantage or disadvantage (design.md section 8), so
+difficulty can only change how well the AI plays. The final score is scaled by difficulty
+(`endgame::scale_for_difficulty` exists but is not called yet). See `docs/game_end.md`.
 
 **71. Advisors.** The original's advisors (surveyor, cartographer, historian, astrologer, chancellor,
 tax collector, grand vizier, war and mage advisors) give information screens and messages about
@@ -604,7 +605,7 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **147. Find the use of the unreferenced art files.** ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
 
-**148. Difficulty beyond lairs, and the seed field.** The difficulty chosen in the options step (task 10) only scales lair guards and treasure. Call `endgame::scale_for_difficulty` where the final score is made, find what else the original scales by difficulty (AI production and spending, wizard aggression, start gold and mana for the AI) and apply it, and add a map-seed field to the options screen (the seed is a command-line option now).
+**148. Difficulty beyond lairs, and the seed field.** The difficulty chosen in the options step (task 10) only scales lair guards and treasure. Call `endgame::scale_for_difficulty` where the final score is made, leave out the original's AI bonuses (design.md section 8: no advantage or disadvantage for the AI), let the difficulty set only how well the new AI plays once it exists, and add a map-seed field to the options screen (the seed is a command-line option now).
 
 **149. Fog of war: known but unseen squares.** The overworld draws two states only: never explored (black) and explored (drawn in full). The game already tracks what each wizard sees now (`Game::visibility`); the client uses it only to hide enemy units. Draw explored squares that no unit or city currently sees dimmed, as the original does (check how it does it in ReMoM's map drawing before copying; it may use a darkening palette remap), keep what was last seen of cities there (a remembered city, not its current state, if the rules need that), and make the minimap match. Soft edges along the explored border are task 121.
 

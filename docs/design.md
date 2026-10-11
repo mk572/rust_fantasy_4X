@@ -82,8 +82,14 @@ Not started. Intended design:
 ## 8. AI
 - Layered: strategic (what to build, where to expand, when to attack), operational (unit group tasks), and tactical (battle moves).
 - Implement as utility scoring or a behaviour tree over read-only views of the world, outputting `Command`s.
-- Difficulty comes from bonuses and knowledge limits, not different rules.
+- Difficulty comes from the AI's own play (how well it evaluates and plans), not from bonuses or different rules. See the revamp below.
 - Start with a simple expansion-and-defend AI, then add aggression and spell use.
+
+**The AI is being revamped (decided October 2026).** Two rules from now on:
+1. **No hard-coded AI decisions in the game rules.** The core holds state, validates commands and applies them. Anything an AI player would *decide* (whether to accept a treaty, what to build, where to attack, how it answers a proposal) lives in `f4x-ai` and reaches the core only as ordinary commands, the same ones a human uses. Diplomacy already works this way (`diplomacy.md` section 9.2).
+2. **No advantage or disadvantage for the AI player.** The AI plays by the human's rules, sees what a human would see, and gets the same income, costs, growth and combat results. Difficulty changes how well the AI plays, not what it is given.
+
+So we **skip every piece of the original's code that exists only for AI parity**: difficulty-based bonuses or penalties for computer wizards (extra gold, production, growth or mana, cheaper units, a modifier on outpost growth), AI-only branches inside rule code, and AI knowledge of hidden information. Where the original's rules treat the human and the AI differently, we use the human's rules for both. Rule parity with the original applies to the rules a human also plays under. The difficulty setting stays for what is not about the AI (lair guards and treasure, the final score), and it may set how strong the AI's play is once the new AI exists.
 
 ## 9. Client and art
 - Rendering and input: **macroquad** (decided). Fixed logical layouts scaled by integer factors where the original's screens are reproduced (the city screen uses the original 320x200 layout).
