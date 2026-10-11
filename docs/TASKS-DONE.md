@@ -14,6 +14,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 5 | Map | Land corruption and purification (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
 | 7 | Map | Node auras and warped nodes (done) |
+| 8 | Map | Encounter sites: guardians and loot (done; the open parts are tasks 127 to 130) |
 | 9 | Map | City founding blocked only by intact encounter sites (B17) (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
