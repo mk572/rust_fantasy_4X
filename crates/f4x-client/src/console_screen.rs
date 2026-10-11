@@ -47,10 +47,10 @@ impl App {
         if line.trim().is_empty() {
             return;
         }
-        let prompt = if self.console.console.session.mode == Mode::Override {
-            "override>"
-        } else {
-            "legal>"
+        let prompt = match self.console.console.session.mode {
+            Mode::Override => "override>",
+            Mode::Legal => "legal>",
+            Mode::ReadOnly => "readonly>",
         };
         self.console.lines.push(format!("{prompt} {line}"));
         let reply = self.console.console.execute(&mut self.game, &line);
@@ -122,7 +122,7 @@ impl App {
         for line in &self.console.lines[skip..] {
             let color = if line.starts_with("error:") {
                 Color::new(1.0, 0.5, 0.45, 1.0)
-            } else if line.starts_with("override>") || line.starts_with("legal>") {
+            } else if line.starts_with("override>") || line.starts_with("legal>") || line.starts_with("readonly>") {
                 GOLD
             } else {
                 WHITE
@@ -130,11 +130,10 @@ impl App {
             draw_text(line, 16.0, y, size, color);
             y += size * 1.15;
         }
-        let overriding = self.console.console.session.mode == Mode::Override;
-        let (prompt, color) = if overriding {
-            ("[OVERRIDE]>", Color::new(1.0, 0.4, 0.35, 1.0))
-        } else {
-            ("[legal]>", Color::new(0.5, 0.9, 0.5, 1.0))
+        let (prompt, color) = match self.console.console.session.mode {
+            Mode::Override => ("[OVERRIDE]>", Color::new(1.0, 0.4, 0.35, 1.0)),
+            Mode::Legal => ("[legal]>", Color::new(0.5, 0.9, 0.5, 1.0)),
+            Mode::ReadOnly => ("[read-only]>", Color::new(0.6, 0.75, 1.0, 1.0)),
         };
         let blink = if (get_time() * 2.0) as i64 % 2 == 0 { "_" } else { " " };
         draw_text(

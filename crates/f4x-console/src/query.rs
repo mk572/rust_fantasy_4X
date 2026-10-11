@@ -130,7 +130,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         "turn {}, playing {}, mode {}",
         ctx.game.turn,
         describe::player(ctx.game, me),
-        if ctx.overriding() { "override" } else { "legal" }
+        ctx.session.mode.name()
     ));
     if let Some(p) = ctx.game.player(me) {
         let t = ctx.game.treasury(me);

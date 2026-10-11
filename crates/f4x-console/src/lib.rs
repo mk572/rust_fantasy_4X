@@ -37,11 +37,36 @@ pub enum Kind {
     Override,
 }
 
-/// Whether override commands are accepted right now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What the console accepts right now; the user switches it with `mode`, within the limit set
+/// by the console's [`Access`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Mode {
+    /// Queries only: nothing typed can change the game.
+    ReadOnly,
+    /// Queries and legal commands.
     Legal,
+    /// Everything, including override commands (cheats).
     Override,
+}
+
+impl Mode {
+    pub fn name(self) -> &'static str {
+        match self {
+            Mode::ReadOnly => "readonly",
+            Mode::Legal => "legal",
+            Mode::Override => "override",
+        }
+    }
+
+    /// The mode words `mode` accepts.
+    pub fn parse(word: &str) -> Option<Mode> {
+        match word {
+            "readonly" | "read-only" => Some(Mode::ReadOnly),
+            "legal" => Some(Mode::Legal),
+            "override" => Some(Mode::Override),
+            _ => None,
+        }
+    }
 }
 
 /// The most a front end may ever do through its console.
@@ -167,7 +192,11 @@ impl Console {
         Self {
             session: Session {
                 player,
-                mode: Mode::Legal,
+                mode: if access == Access::ReadOnly {
+                    Mode::ReadOnly
+                } else {
+                    Mode::Legal
+                },
                 access,
                 quit: false,
             },
@@ -188,10 +217,13 @@ impl Console {
         let s = &self.session;
         match kind {
             Kind::Query => Ok(()),
-            Kind::Legal if s.access >= Access::Play => Ok(()),
-            Kind::Legal => Err(ConsoleError::NotAllowed(
+            Kind::Legal if s.access < Access::Play => Err(ConsoleError::NotAllowed(
                 "this console is read-only".into(),
             )),
+            Kind::Legal if s.mode == Mode::ReadOnly => Err(ConsoleError::NotAllowed(
+                "read-only mode: switch with `mode legal` to change the game".into(),
+            )),
+            Kind::Legal => Ok(()),
             Kind::Override if s.access < Access::Full => Err(ConsoleError::NotAllowed(
                 "override commands are not available to this console".into(),
             )),

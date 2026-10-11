@@ -24,8 +24,8 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "mode",
         kind: Kind::Query,
-        usage: "mode [legal|override]",
-        help: "Show or set the mode. Override commands (cheats) only run in override mode, and switching it on is written to the game's override log.",
+        usage: "mode [readonly|legal|override]",
+        help: "Show or set the mode. In readonly mode only queries run; legal allows normal play; override also allows cheats, and switching it on is written to the game's override log.",
         run: mode,
     },
     CommandDef {
@@ -74,7 +74,7 @@ fn help(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     ctx.say(format!(
         "Mode: {}. Kinds: query reads, legal is normal play, override is cheating (needs `mode override`).",
-        if ctx.overriding() { "override" } else { "legal" }
+        ctx.session.mode.name()
     ));
     for def in commands() {
         ctx.say(format!("{:<9} {:<9} {}", def.name, kind_name(def.kind), def.usage));
@@ -98,33 +98,34 @@ fn list(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    match a.get(0) {
-        None => {
-            let m = if ctx.overriding() { "override" } else { "legal" };
-            ctx.say(format!("mode {m}"));
-        }
-        Some("legal") => {
-            ctx.session.mode = Mode::Legal;
-            ctx.say("mode legal");
-        }
-        Some("override") => {
-            if ctx.session.access < crate::Access::Full {
-                return Err(ConsoleError::NotAllowed(
-                    "override mode is not available to this console".into(),
-                ));
-            }
-            if ctx.session.mode != Mode::Override {
-                ctx.session.mode = Mode::Override;
-                ctx.game.record_override("mode override");
-            }
-            ctx.say("mode override: cheats are on, and logged in the game");
-        }
-        Some(other) => {
-            return Err(ConsoleError::Usage(format!(
-                "mode is legal or override, not {other:?}"
-            )))
-        }
+    let Some(word) = a.get(0) else {
+        ctx.say(format!("mode {}", ctx.session.mode.name()));
+        return Ok(());
+    };
+    let wanted = Mode::parse(word).ok_or_else(|| {
+        ConsoleError::Usage(format!("mode is readonly, legal or override, not {word:?}"))
+    })?;
+    // Going down is always allowed; going up is limited by the console's access.
+    let needed = match wanted {
+        Mode::ReadOnly => crate::Access::ReadOnly,
+        Mode::Legal => crate::Access::Play,
+        Mode::Override => crate::Access::Full,
+    };
+    if ctx.session.access < needed {
+        return Err(ConsoleError::NotAllowed(format!(
+            "{} mode is not available to this console",
+            wanted.name()
+        )));
     }
+    if wanted == Mode::Override && ctx.session.mode != Mode::Override {
+        ctx.game.record_override("mode override");
+    }
+    ctx.session.mode = wanted;
+    ctx.say(match wanted {
+        Mode::ReadOnly => "mode readonly: only queries run".to_string(),
+        Mode::Legal => "mode legal".to_string(),
+        Mode::Override => "mode override: cheats are on, and logged in the game".to_string(),
+    });
     Ok(())
 }
 

@@ -237,3 +237,36 @@ fn eliminating_the_rival_wins_by_conquest() {
     assert!(r.text().contains("GAME OVER"), "{}", r.text());
     assert_eq!(g.game_over.unwrap().winner, HUMAN);
 }
+
+#[test]
+fn read_only_mode_runs_queries_and_nothing_else() {
+    let (mut g, mut c) = (game(), console());
+    assert!(c.execute(&mut g, "mode readonly").ok);
+    assert_eq!(c.session.mode, Mode::ReadOnly);
+    assert!(c.execute(&mut g, "status").ok);
+    assert!(c.execute(&mut g, "cities").ok);
+    for line in ["end", "tax 1", "save", "new 3", "give gold 5", "mode override"] {
+        let r = c.execute(&mut g, line);
+        // Switching up needs a deliberate `mode legal` first for legal commands; the
+        // mode word itself is how you leave read-only, so that one is allowed.
+        if line == "mode override" {
+            assert!(r.ok);
+            assert!(c.execute(&mut g, "mode readonly").ok);
+            continue;
+        }
+        assert!(matches!(err(&r), ConsoleError::NotAllowed(_)), "{line}: {r:?}");
+    }
+    assert_eq!(g.turn, 1);
+    assert!(c.execute(&mut g, "mode legal").ok);
+    assert!(c.execute(&mut g, "end").ok);
+    assert_eq!(g.turn, 2);
+    // A console limited to read-only access starts there and cannot leave.
+    let mut spectator = Console::new(HUMAN, Access::ReadOnly);
+    assert_eq!(spectator.session.mode, Mode::ReadOnly);
+    assert!(!spectator.execute(&mut g, "mode legal").ok);
+    assert!(!spectator.execute(&mut g, "mode override").ok);
+    let mut player = Console::new(HUMAN, Access::Play);
+    assert!(player.execute(&mut g, "mode readonly").ok);
+    assert!(player.execute(&mut g, "mode legal").ok);
+    assert!(!player.execute(&mut g, "mode override").ok);
+}

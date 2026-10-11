@@ -17,8 +17,12 @@ command, and the commands are split by what they let you do:
 
 ## 1. Modes and access
 
-- **Mode** is the toggle: `mode legal` (the default) or `mode override`. Override commands are
-  refused in legal mode with a message that says so. Legal commands work in both modes.
+- **Mode** is the toggle, three values: `mode readonly` (queries only: nothing typed can change
+  the game, a guard against slips), `mode legal` (the default: queries and legal commands) and
+  `mode override` (also the cheats). Commands the mode does not allow are refused with a message
+  that says which `mode` to switch to. Going down a mode is always allowed; going up is limited
+  by the console's access (below). A read-only mode console cannot save, load or start a new
+  game either.
 - In override mode a legal command may also be used on things that are not yours (another
   wizard's units or cities, or a battle side that is not to play); that use is an override too.
 - **Every override is written to the game's override log** (`Game::override_log`, saved with
@@ -31,7 +35,7 @@ command, and the commands are split by what they let you do:
 
 | Access | Allows | For |
 |---|---|---|
-| `ReadOnly` | queries | a spectator, a read-only remote |
+| `ReadOnly` | queries; starts and stays in read-only mode | a spectator, a read-only remote |
 | `Play` | queries and legal commands; `mode override` is refused | an AI player, a networked player, hardcore games |
 | `Full` | everything, once the mode is `override` | the local player, developers |
 
@@ -42,7 +46,7 @@ everything.
 ## 2. Using it
 
 **In the client:** F2 opens the console as a screen (F2 or Esc closes it). The prompt shows the
-mode (`[legal]>` or red `[OVERRIDE]>`). Up and Down walk through the history and Tab completes a
+mode (`[read-only]>`, `[legal]>` or red `[OVERRIDE]>`). Up and Down walk through the history and Tab completes a
 command name. A battle that starts from a console line keeps the console open, so a fight can
 be played from text (`battle`, `bmove`, `battack`, ...).
 
