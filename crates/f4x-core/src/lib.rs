@@ -14,6 +14,7 @@ pub mod endgame;
 pub mod featuregen;
 pub mod fog;
 pub mod fortress;
+pub mod dispel;
 pub mod gates;
 pub mod nightshade;
 pub mod globals;
@@ -271,6 +272,41 @@ pub enum Event {
     SpellCast {
         player: city::PlayerId,
         spell: rules::SpellId,
+    },
+    /// A dispel took `removed` enchantments off its target.
+    Dispelled {
+        player: city::PlayerId,
+        removed: u32,
+    },
+    /// A dispel against the global enchantment `spell` failed.
+    DispelFailed {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// Disjunction ended `victim`'s global enchantment.
+    GlobalSpellRemoved {
+        player: city::PlayerId,
+        victim: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// Spell Binding took `victim`'s global enchantment.
+    GlobalSpellTaken {
+        player: city::PlayerId,
+        victim: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// Spell Blast ended the spell `victim` was casting, for `mana` of the caster's own.
+    SpellBlasted {
+        player: city::PlayerId,
+        victim: city::PlayerId,
+        spell: rules::SpellId,
+        mana: i32,
+    },
+    /// Another wizard's Suppress Magic stopped the spell.
+    SpellSuppressed {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+        by: city::PlayerId,
     },
     /// A spell aimed at a city was turned away by the city's nightshade.
     SpellFizzled {

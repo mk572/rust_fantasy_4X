@@ -383,3 +383,15 @@ fn the_vizier_command_turns_the_vizier_on_and_off() {
     assert!(!g.player(HUMAN).unwrap().grand_vizier);
     assert!(c.execute(&mut g, "vizier maybe").error.is_some());
 }
+
+#[test]
+fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
+    let g = game();
+    let awareness = g.content.rules.spells.id_of("awareness").unwrap();
+    assert_eq!(
+        crate::args::parse_target(&g, "global:1:awareness").unwrap(),
+        f4x_core::rules::exec::Target::Global(PlayerId(1), awareness)
+    );
+    assert!(crate::args::parse_target(&g, "global:1").is_err());
+    assert!(crate::args::parse_target(&g, "global:1:no_such_spell").is_err());
+}

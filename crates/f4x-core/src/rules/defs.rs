@@ -222,6 +222,10 @@ pub enum SpellTarget {
     Tile,
     Battlefield,
     Wizard,
+    /// Another wizard, by clicking one of their cities or units (Spell Blast).
+    EnemyWizard,
+    /// One of another wizard's global enchantments (Disjunction, Spell Binding).
+    GlobalEnchantment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

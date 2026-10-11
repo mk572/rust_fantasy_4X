@@ -82,7 +82,8 @@ impl Game {
         if strength == 0 {
             return false;
         }
-        let difficulty = def.dispel_difficulty;
+        // The caster's masteries make the spell harder to turn away, as for any dispel.
+        let difficulty = self.dispel_difficulty(spell, Some(player));
         self.roll(100) as u64 <= u64::from(strength) * 100 / u64::from(strength + difficulty)
     }
 }
@@ -127,6 +128,7 @@ mod tests {
             if s.id == "famine" {
                 s.target = SpellTarget::EnemyCity;
                 s.dispel_difficulty = difficulty;
+                s.cost = difficulty;
             }
         }
         c.rules.spells = Registry::new(spells);

@@ -158,7 +158,11 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
 pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
     let (kind, rest) = text
         .split_once(':')
-        .ok_or_else(|| ConsoleError::Parse("a target is unit:N, city:N, tile:x,y or player:N".into()))?;
+        .ok_or_else(|| {
+            ConsoleError::Parse(
+                "a target is unit:N, city:N, tile:x,y, player:N or global:N:<spell>".into(),
+            )
+        })?;
     let num = || {
         rest.parse::<u64>()
             .map_err(|_| ConsoleError::Parse(format!("{rest:?} is not a number")))
@@ -168,6 +172,14 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
         "city" => Target::City(city_by_serial(game, num()?)?),
         "tile" => Target::Tile(parse_pos(rest, Plane::Arcanus)?),
         "player" => Target::Player(parse_player(rest)?),
+        // An enemy wizard's global enchantment: the wizard and the spell, as `global:1:awareness`.
+        "global" => {
+            let (who, name) = rest.split_once(':').ok_or_else(|| {
+                ConsoleError::Parse("a global target is global:<player>:<spell>".into())
+            })?;
+            let spell = resolve(&game.content.rules.spells, name, |d| &d.name, "spell")?;
+            Target::Global(parse_player(who)?, spell)
+        }
         other => return Err(ConsoleError::Parse(format!("unknown target kind {other:?}"))),
     })
 }

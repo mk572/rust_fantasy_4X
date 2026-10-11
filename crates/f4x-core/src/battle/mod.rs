@@ -32,6 +32,13 @@ pub enum Side {
 }
 
 impl Side {
+    pub fn index(self) -> usize {
+        match self {
+            Side::Attacker => 0,
+            Side::Defender => 1,
+        }
+    }
+
     pub fn other(self) -> Side {
         match self {
             Side::Attacker => Side::Defender,
@@ -280,10 +287,28 @@ pub struct Battle {
     pub turn: u32,
     pub active: Side,
     pub winner: Option<Side>,
+    /// Each side's Counter Magic reserve, indexed by [`Side::index`]: spells the other side
+    /// casts must first beat a dispel of this strength, and each attempt drains it.
+    pub counter_magic: [u32; 2],
     rng: Pcg64Mcg,
 }
 
 impl Battle {
+    /// Counter Magic: put `strength` (the mana paid for the spell) into `side`'s reserve.
+    pub fn cast_counter_magic(&mut self, side: Side, strength: u32) {
+        self.counter_magic[side.index()] = strength;
+    }
+
+    /// Whether `side`'s enemy's Counter Magic stops a spell of `difficulty` that `side` casts: a
+    /// dispel of the reserve's strength must beat the spell. Every attempt drains the reserve
+    /// by [`crate::dispel::COUNTER_MAGIC_DRAIN`], whether or not it stopped the spell.
+    pub fn counter_magic_stops(&mut self, side: Side, difficulty: u32) -> bool {
+        let reserve = &mut self.counter_magic[side.other().index()];
+        let strength = *reserve;
+        *reserve = reserve.saturating_sub(crate::dispel::COUNTER_MAGIC_DRAIN);
+        crate::dispel::dispel_roll(strength, difficulty, &mut self.rng)
+    }
+
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
     pub fn new(
         attacker: PlayerId,
@@ -304,6 +329,7 @@ impl Battle {
             turn: 1,
             active: Side::Attacker,
             winner: None,
+            counter_magic: [0, 0],
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
         b.begin_side_turn();

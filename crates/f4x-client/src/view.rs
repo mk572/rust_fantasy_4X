@@ -315,6 +315,34 @@ impl App {
                     self.game.content.rules.spells.get(spell).name,
                     self.city_name(city)
                 )),
+                Event::SpellSuppressed { spell, by, .. } => Some(format!(
+                    "{} is stopped by {}'s Suppress Magic",
+                    self.game.content.rules.spells.get(spell).name,
+                    self.game.player(by).map_or("a rival", |p| p.name.as_str())
+                )),
+                Event::SpellBlasted { spell, victim, mana, .. } => Some(format!(
+                    "Spell Blast ends {}'s {} ({mana} mana)",
+                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::GlobalSpellRemoved { victim, spell, .. } => Some(format!(
+                    "{}'s {} is ended",
+                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
+                    "Took {}'s {}",
+                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::DispelFailed { spell, .. } => Some(format!(
+                    "The dispel of {} fails",
+                    self.game.content.rules.spells.get(spell).name
+                )),
+                Event::Dispelled { removed, .. } => Some(format!(
+                    "{removed} enchantment{} dispelled",
+                    if removed == 1 { "" } else { "s" }
+                )),
                 Event::SpellReady { spell, .. } => Some(format!(
                     "{} is ready: choose its target (M)",
                     self.game.content.rules.spells.get(spell).name

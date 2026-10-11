@@ -446,6 +446,19 @@ impl App {
             SpellTarget::OwnCity | SpellTarget::EnemyCity => {
                 self.game.city_at(pos).map(Target::City)
             }
+            // Another wizard, by clicking one of their cities or units.
+            SpellTarget::EnemyWizard => self
+                .game
+                .city_at(pos)
+                .and_then(|c| self.game.city_owner(c))
+                .or_else(|| {
+                    self.game
+                        .units_at(pos)
+                        .into_iter()
+                        .find_map(|u| self.game.unit_owner(u))
+                })
+                .filter(|&o| o != HUMAN)
+                .map(Target::Player),
             _ => Some(Target::Tile(pos)),
         };
         let Some(target) = target else {

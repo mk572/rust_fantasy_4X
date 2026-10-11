@@ -838,3 +838,35 @@ fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
         Err(BattleError::Unreachable)
     );
 }
+
+#[test]
+fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (17, 10)),
+        4,
+    );
+    // No reserve: nothing is stopped, nothing drains.
+    assert!(!b.counter_magic_stops(Side::Attacker, 10));
+    assert_eq!(b.counter_magic, [0, 0]);
+    // The defender holds a reserve of 100; only the attacker's spells face it.
+    b.cast_counter_magic(Side::Defender, 100);
+    assert_eq!(b.counter_magic, [0, 100]);
+    assert!(!b.counter_magic_stops(Side::Defender, 10), "the holder's own spells pass");
+    assert_eq!(b.counter_magic, [0, 100]);
+    // Against difficulty 100 the reserve of 100 stops about half, and every try costs five.
+    let mut stopped = 0;
+    for _ in 0..10 {
+        if b.counter_magic_stops(Side::Attacker, 100) {
+            stopped += 1;
+        }
+    }
+    assert_eq!(b.counter_magic, [0, 50], "ten attempts, five each");
+    assert!(stopped >= 1 && stopped <= 9, "stopped {stopped} of 10");
+    // A drained reserve stops nothing.
+    for _ in 0..10 {
+        b.counter_magic_stops(Side::Attacker, 1);
+    }
+    assert_eq!(b.counter_magic, [0, 0]);
+    assert!(!b.counter_magic_stops(Side::Attacker, 1));
+}

@@ -59,6 +59,53 @@ struct GameHost<'a> {
     events: Vec<Event>,
 }
 
+impl GameHost<'_> {
+    /// Disjunction, Spell Binding and Spell Blast; `None` for any other hook.
+    fn dispel_hook(
+        &mut self,
+        hook: &str,
+        who: Target,
+        ctx: &Context,
+        rng: &mut dyn RngCore,
+    ) -> Option<Vec<Event>> {
+        use crate::dispel::{
+            global_attack_events, DISJUNCTION, DISJUNCTION_TRUE, SPELL_BINDING, SPELL_BLAST,
+        };
+        let by = ctx.owner;
+        let cost = match ctx.source {
+            Source::Spell(s) => self.game.content.rules.spells.get(s).cost,
+            _ => 0,
+        };
+        let (factor, steal) = match hook {
+            DISJUNCTION => (1, false),
+            DISJUNCTION_TRUE => (3, false),
+            SPELL_BINDING => (1, true),
+            SPELL_BLAST => {
+                let Target::Player(victim) = who else {
+                    return Some(Vec::new());
+                };
+                return Some(match self.game.spell_blast(by, victim) {
+                    Some((spell, mana)) => vec![Event::SpellBlasted {
+                        player: by,
+                        victim,
+                        spell,
+                        mana,
+                    }],
+                    None => Vec::new(),
+                });
+            }
+            _ => return None,
+        };
+        let Target::Global(victim, spell) = who else {
+            return Some(Vec::new());
+        };
+        let result = self
+            .game
+            .attack_global(by, victim, spell, cost * factor, steal, rng);
+        Some(global_attack_events(by, victim, spell, result, steal))
+    }
+}
+
 impl EffectHost for GameHost<'_> {
     fn facts(&self, who: Target) -> Facts {
         let g = &*self.game;
@@ -87,6 +134,7 @@ impl EffectHost for GameHost<'_> {
             Target::Tile(p) => Some(p),
             // A wizard is "at" their summoning circle.
             Target::Player(p) => self.game.summon_point(p),
+            Target::Global(owner, _) => self.game.summon_point(owner),
         }
     }
 
@@ -99,7 +147,7 @@ impl EffectHost for GameHost<'_> {
                 .get::<&crate::city::City>(c)
                 .ok()
                 .map(|c| c.owner),
-            Target::Player(p) => Some(p),
+            Target::Player(p) | Target::Global(p, _) => Some(p),
             Target::Tile(_) => None,
         }
     }
@@ -200,50 +248,19 @@ impl EffectHost for GameHost<'_> {
         self.game.attach_enchantment(who, id, caster);
     }
 
-    /// Each enchantment on the target is removed with chance `strength / (strength +
-    /// difficulty)`.
-    fn dispel(&mut self, who: Target, strength: u32, rng: &mut dyn RngCore) -> u32 {
-        let list: Vec<(SpellId, PlayerId)> = match who {
-            Target::City(c) => self
-                .game
-                .world
-                .get::<&Enchantments>(c)
-                .map(|e| e.0.clone())
-                .unwrap_or_default(),
-            Target::Unit(u) => self
-                .game
-                .world
-                .get::<&UnitEnchantments>(u)
-                .map(|e| e.0.clone())
-                .unwrap_or_default(),
-            _ => Vec::new(),
-        };
-        let mut kept = Vec::new();
-        let mut removed = 0;
-        for (spell, caster) in list {
-            let difficulty = self.game.content.rules.spells.get(spell).dispel_difficulty;
-            let chance = u64::from(strength) * 100 / u64::from((strength + difficulty).max(1));
-            if rng.next_u64() % 100 < chance {
-                removed += 1;
-            } else {
-                kept.push((spell, caster));
-            }
-        }
-        match who {
-            Target::City(c) => {
-                let _ = self.game.world.insert_one(c, Enchantments(kept));
-            }
-            Target::Unit(u) => {
-                let _ = self.game.world.insert_one(u, UnitEnchantments(kept));
-            }
-            _ => {}
-        }
-        removed
+    /// Other wizards' enchantments on the target are removed with chance
+    /// `strength / (strength + difficulty)` (see `dispel.rs`).
+    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId, rng: &mut dyn RngCore) -> u32 {
+        self.game.dispel_target(who, strength, by, rng)
     }
 
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
         if hook == crate::globals::GLOBAL_EFFECT || hook == crate::gates::CITY_GATE {
             // Carried out by the engine wherever the wizard's global spells are consulted.
+            return;
+        }
+        if let Some(events) = self.dispel_hook(hook, who, ctx, rng) {
+            self.events.extend(events);
             return;
         }
         if hook == crate::endgame::SPELL_OF_MASTERY {
@@ -404,6 +421,14 @@ impl Game {
             (SpellTarget::EnemyCity, Some(Target::City(c))) => {
                 self.city_owner(c).is_some_and(|o| o != player)
             }
+            (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
+                p != player
+                    && self.player(p).is_some_and(|x| !x.defeated)
+                    && self.mana_spent_casting(p).is_some()
+            }
+            (SpellTarget::GlobalEnchantment, Some(Target::Global(owner, s))) => {
+                owner != player && self.magic(owner).is_some_and(|m| m.global.contains(&s))
+            }
             (SpellTarget::Tile, Some(Target::Tile(p))) => self
                 .map
                 .as_ref()
@@ -450,7 +475,7 @@ impl Game {
                 }
                 self.reveal_for_globals(p);
             }
-            Target::Tile(_) => {}
+            Target::Tile(_) | Target::Global(..) => {}
         }
     }
 
@@ -464,6 +489,9 @@ impl Game {
     ) -> Vec<Event> {
         if let Some(m) = self.player_mut(player).map(|p| &mut p.magic) {
             m.casting = None;
+        }
+        if let Some(by) = self.suppressed_by(player, spell) {
+            return vec![Event::SpellSuppressed { player, spell, by }];
         }
         if let Some(Target::City(city)) = target {
             if self.nightshade_fizzles(player, spell, city) {
@@ -497,6 +525,14 @@ impl Game {
         self.draws += rng.draws;
 
         let mut events = vec![Event::SpellCast { player, spell }];
+        for o in &outcomes {
+            if let Outcome::Dispelled { removed, .. } = o {
+                events.push(Event::Dispelled {
+                    player,
+                    removed: *removed,
+                });
+            }
+        }
         events.extend(hook_events);
         if def.duration != Duration::Instant {
             self.attach_enchantment(this, spell, player);

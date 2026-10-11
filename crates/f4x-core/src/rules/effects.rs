@@ -26,6 +26,10 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::corruption::WARP_NODE,
     crate::endgame::SPELL_OF_MASTERY,
     crate::gates::CITY_GATE,
+    crate::dispel::DISJUNCTION,
+    crate::dispel::DISJUNCTION_TRUE,
+    crate::dispel::SPELL_BINDING,
+    crate::dispel::SPELL_BLAST,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

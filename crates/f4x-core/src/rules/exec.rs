@@ -21,6 +21,8 @@ pub enum Target {
     City(hecs::Entity),
     Tile(Position),
     Player(PlayerId),
+    /// An enemy wizard's global enchantment: its owner and the spell.
+    Global(PlayerId, crate::rules::SpellId),
 }
 
 /// What the rules need to know about a target to evaluate a [`Condition`].
@@ -71,8 +73,9 @@ pub trait EffectHost {
     fn change_terrain(&mut self, at: Position, class: TerrainClass);
     fn set_feature(&mut self, at: Position, feature: &str);
     fn apply_enchantment(&mut self, who: Target, spell: &str, caster: PlayerId);
-    /// Remove enchantments the strength beats; returns how many were removed.
-    fn dispel(&mut self, who: Target, strength: u32, rng: &mut dyn RngCore) -> u32;
+    /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
+    /// returns how many were removed.
+    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId, rng: &mut dyn RngCore) -> u32;
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore);
 }
 
@@ -305,7 +308,7 @@ fn run_effect(
             });
         }
         Effect::Dispel { strength } => {
-            let removed = host.dispel(who, *strength, rng);
+            let removed = host.dispel(who, *strength, ctx.owner, rng);
             out.push(Outcome::Dispelled { who, removed });
         }
         Effect::Custom(hook) => {
@@ -427,7 +430,7 @@ mod tests {
                 Target::Unit(e) => self.unit(e).pos,
                 Target::City(_) => self.city.map(|c| c.1),
                 Target::Tile(p) => Some(p),
-                Target::Player(_) => None,
+                Target::Player(_) | Target::Global(..) => None,
             }
         }
         fn owner_of(&self, who: Target) -> Option<PlayerId> {
@@ -491,7 +494,7 @@ mod tests {
                 u.enchants.push(spell.to_string());
             }
         }
-        fn dispel(&mut self, who: Target, strength: u32, _rng: &mut dyn RngCore) -> u32 {
+        fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId, _rng: &mut dyn RngCore) -> u32 {
             let u = self.unit_mut(who).unwrap();
             let n = if strength > 0 {
                 u.enchants.len() as u32

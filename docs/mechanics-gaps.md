@@ -114,8 +114,8 @@ still open.
   creatures vanish [266]; alchemy converts gold and mana (1:1 with the ability, else 2:1) [693].
 - Casting: overland vs combat lists, cost ranges ("5/25 mana" = base/maximum), cancel loses
   mana spent, research, learning, spell books ordered by rarity [759, 217].
-- Dispel mathematics (strength vs mana spent, node protection, Archmage/mastery doubling),
-  Disenchant, Disjunction, Spell Blast, Counter Magic, Spell Binding [610].
+- Dispel mathematics, Disenchant, Disjunction, Spell Blast, Spell Binding, Suppress Magic and
+  the Counter Magic reserve (done, task 59, `dispel.rs`); dispelling in a battle waits for 43.
 - (Done: fortress, summoning circle, banishment, Spell of Return; see `magic.md` section 12.)
   Spell of Mastery as a victory condition remains open,
   Spell of Mastery as a victory condition [749, 753, 804].

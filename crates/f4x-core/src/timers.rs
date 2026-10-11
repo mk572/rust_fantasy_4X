@@ -70,7 +70,7 @@ impl Game {
             Target::Unit(u) => TimerTarget::Unit(self.serial_of(u)),
             Target::City(c) => TimerTarget::City(self.serial_of(c)),
             Target::Player(p) => TimerTarget::Wizard(p),
-            Target::Tile(_) => return None,
+            Target::Tile(_) | Target::Global(..) => return None,
         };
         self.timers
             .iter()

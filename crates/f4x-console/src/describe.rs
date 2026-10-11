@@ -108,6 +108,36 @@ pub fn event(game: &Game, e: &Event) -> String {
             spell(game, *s),
             city_name(game, *city)
         ),
+        Event::Dispelled { player: p, removed } => {
+            format!("{}'s dispel removes {removed} enchantment(s)", player(game, *p))
+        }
+        Event::DispelFailed { player: p, spell: s } => {
+            format!("{}'s dispel of {} fails", player(game, *p), spell(game, *s))
+        }
+        Event::GlobalSpellRemoved { player: p, victim, spell: s } => format!(
+            "{} ends {}'s {}",
+            player(game, *p),
+            player(game, *victim),
+            spell(game, *s)
+        ),
+        Event::GlobalSpellTaken { player: p, victim, spell: s } => format!(
+            "{} takes {}'s {}",
+            player(game, *p),
+            player(game, *victim),
+            spell(game, *s)
+        ),
+        Event::SpellBlasted { player: p, victim, spell: s, mana } => format!(
+            "{} blasts {}'s {} for {mana} mana",
+            player(game, *p),
+            player(game, *victim),
+            spell(game, *s)
+        ),
+        Event::SpellSuppressed { player: p, spell: s, by } => format!(
+            "{}'s {} is stopped by {}'s Suppress Magic",
+            player(game, *p),
+            spell(game, *s),
+            player(game, *by)
+        ),
         Event::SpellReady { spell: s, .. } => {
             format!("{} is paid for: choose a target with `target`", spell(game, *s))
         }

@@ -730,7 +730,18 @@ TILE_HOOKS = {
 # runs no effect of its own.
 GLOBAL_ENGINE = {
     "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature's Awareness",
-    "Detect Magic", "Charm of Life",
+    "Detect Magic", "Charm of Life", "Suppress Magic",
+}
+
+# The dispel family (`dispel.rs`): (target, effect, strength factor). The strength is the
+# spell's cost (we have no extra mana); the "True" spells count every point three times.
+DISPEL_FAMILY = {
+    "Disenchant Area": ("Tile", "Dispel", 1),
+    "Disenchant True": ("Tile", "Dispel", 3),
+    "Disjunction": ("GlobalEnchantment", "disjunction", 1),
+    "Disjunction True": ("GlobalEnchantment", "disjunction_true", 1),
+    "Spell Binding": ("GlobalEnchantment", "spell_binding", 1),
+    "Spell Blast": ("EnemyWizard", "spell_blast", 1),
 }
 # Global enchantments that change unit stats: (condition, stat, op, value) per rule.
 GLOBAL_MODS = {
@@ -755,6 +766,13 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in TILE_HOOKS:
         hook = TILE_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"
+    if name in DISPEL_FAMILY:
+        target, effect, factor = DISPEL_FAMILY[name]
+        if effect == "Dispel":
+            effect = f"Dispel(strength: {max(row.cost, 1) * factor})"
+        else:
+            effect = f'Custom("{effect}")'
+        return [f"(when: OnCast, target: Chosen, effect: {effect})"], target, "instant"
     if name in GLOBAL_ENGINE or name in GLOBAL_MODS:
         rules = ['(when: OnCast, target: Chosen, effect: Custom("global_effect"))']
         for cond, stat, op, value in GLOBAL_MODS.get(name, []):
@@ -788,7 +806,8 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
         amount = max(row.param0, 1)
         return [f"(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true))"], "EnemyUnit", "instant"
     if kind == 18:
-        return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1)}))"], "AnyUnit", "instant"
+        factor = 3 if name.endswith("True") else 1
+        return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1) * factor}))"], "AnyUnit", "instant"
     if name == "Healing":
         return ["(when: OnCast, target: Chosen, effect: Heal(5))"], "OwnUnit", "instant"
     target = {6: "Wizard", 17: "Wizard", 9: "None", 10: "Battlefield", 11: "None"}.get(kind)

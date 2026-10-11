@@ -44,7 +44,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
 | 56 | Magic | Implement the 37 "special" spells (low priority) |
 | 58 | Magic | Unit enchantments needing non-stat effects (low priority) |
-| 59 | Magic | Dispel mathematics and the counter-magic family |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) |
 | 61 | Magic | The Spell of Mastery's research cost and the AI casting it |
 | 62 | Magic | Player-chosen losses when mana runs short |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 148 | Core | Difficulty beyond lairs: the final score, AI strength and the seed field |
 | 149 | Client | Show squares that are known but not currently seen (fog of war) |
 | 150 | Map | Generator parity with the original |
+| 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
 
 ## Descriptions
 
@@ -255,10 +255,6 @@ tables) and implement them in groups. Low priority: only needed for specific spe
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
 conditional bonuses and regeneration. Needs conditional modifiers (by attacker realm, ranged versus
 melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**59. Dispel mathematics and the counter-magic family.** Dispel strength versus spell cost with
-node protection and Archmage or mastery doubling, Disenchant Area, Disjunction, Spell Blast, Counter
-Magic and Spell Binding [610]. The current host dispel is a simple strength-over-difficulty roll.
 
 **60. Wizard-targeting, destruction and other special categories.** About 20 spells aimed at
 wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
@@ -603,3 +599,5 @@ a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix
 `reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
 opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair placement parity is task 129.
 Parity task, low priority.
+
+**151. Choose an enemy global enchantment as a target.** Disjunction, Disjunction True and Spell Binding take `Target::Global(owner, spell)`. The client cannot pick one yet: casting them does nothing. Add a picker (the original's list of each rival's global enchantments by wizard, with the spell's name and cost) that opens when the spell needs it, then sends the cast with the chosen target. The console already takes `global:<player>:<spell>`.
