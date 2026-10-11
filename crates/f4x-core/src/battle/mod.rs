@@ -36,6 +36,9 @@ pub use casting::{BattleCaster, SpellAim, SpellError};
 /// A side never fights on past this turn: the defender holds.
 pub const TURN_LIMIT: u32 = 100;
 
+/// The strength of a Wall of Fire's attack.
+pub const WALL_OF_FIRE_STRENGTH: i32 = 5;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Side {
     Attacker,
@@ -341,6 +344,9 @@ pub enum BattleError {
     NotWallCrusher,
     /// The spell cannot be cast now.
     Spell(SpellError),
+    /// A Wall of Darkness: no ranged attack on a unit inside the city from outside it, unless
+    /// the shooter sees through illusions.
+    WallOfDarkness,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -482,6 +488,14 @@ pub struct Battle {
     /// the start of each turn (`Add_City_Damage_From_Battle_Units_Within`); it kills citizens
     /// and destroys buildings when the city falls.
     pub city_damage: u32,
+    /// The city has a Wall of Fire: a walker coming into the city area from outside, or striking
+    /// into it, is burned (strength 5, `burn`).
+    pub wall_of_fire: bool,
+    /// The city has a Wall of Darkness: see [`BattleError::WallOfDarkness`].
+    pub wall_of_darkness: bool,
+    /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
+    /// of them. (The help says "including combat spells"; the original's code does not check.)
+    pub warded_realms: Vec<String>,
     rng: Pcg64Mcg,
 }
 
@@ -525,6 +539,9 @@ impl Battle {
             casters: [None, None],
             fields: [Vec::new(), Vec::new()],
             city_damage: 0,
+            wall_of_fire: false,
+            wall_of_darkness: false,
+            warded_realms: Vec::new(),
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
         let _ = b.begin_side_turn();
@@ -735,6 +752,49 @@ impl Battle {
         i32::from(self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity"))
     }
 
+    /// Whether a Spell Ward keeps `side` from casting spells of `realm`: it guards the city
+    /// against that realm and the side is attacking the city.
+    pub fn ward_stops(&self, side: Side, realm: &str) -> bool {
+        side == Side::Attacker && self.warded_realms.iter().any(|r| r == realm)
+    }
+
+    /// Whether a Wall of Fire burns this unit when it crosses: walkers do, fliers and the units
+    /// that move instantly do not.
+    fn burns_at_the_wall(&self, unit: usize) -> bool {
+        let u = &self.units[unit];
+        !u.flies && !u.moves_instantly()
+    }
+
+    /// A Wall of Fire's attack on a unit: strength 5, area, fire (the original casts a Fireball
+    /// of its base strength).
+    fn burn(&mut self, unit: usize) -> Vec<BattleEvent> {
+        let traits = crate::rules::effects::DamageTraits {
+            area: true,
+            ..Default::default()
+        };
+        let nature = AttackNature {
+            stopped_by: Immunities {
+                fire: true,
+                magic: true,
+                ..Default::default()
+            },
+            realm: Some(Realm::Chaos),
+            armor_piercing: false,
+        };
+        let dmg = self.spell_damage(unit, WALL_OF_FIRE_STRENGTH, &traits, nature);
+        self.spell_events_for_damage(unit, dmg)
+    }
+
+    /// Whether a Wall of Darkness stops `unit` shooting at `target`: the target is in the city
+    /// and the shooter outside it, and the shooter does not see through illusions (the
+    /// original's code forgets the innate immunity, which its help text allows).
+    fn blocked_by_darkness(&self, unit: usize, target: usize) -> bool {
+        self.wall_of_darkness
+            && in_city_area(self.units[target].cell)
+            && !in_city_area(self.units[unit].cell)
+            && !self.units[unit].has("illusion_immunity")
+    }
+
     fn check_target(&self, unit: usize, target: usize) -> Result<&BattleUnit, BattleError> {
         let t = self.units.get(target).ok_or(BattleError::NoSuchUnit)?;
         if !t.is_active() || t.side == self.units[unit].side {
@@ -786,10 +846,30 @@ impl Battle {
                     }
                     path.reverse();
                     let left = u.moves_left.saturating_sub(cost);
+                    // A Wall of Fire burns the walker that steps into the city from outside.
+                    let mut burned = Vec::new();
+                    let mut stopped = false;
+                    if self.wall_of_fire && self.burns_at_the_wall(unit) {
+                        let mut cell = u.cell;
+                        for (i, &step) in path.iter().enumerate() {
+                            if !in_city_area(cell) && in_city_area(step) {
+                                burned = self.burn(unit);
+                                if !self.units[unit].is_active() {
+                                    path.truncate(i);
+                                    stopped = true;
+                                    break;
+                                }
+                            }
+                            cell = step;
+                        }
+                    }
                     let u = &mut self.units[unit];
-                    u.cell = to;
+                    u.cell = path.last().copied().unwrap_or(u.cell);
                     u.moves_left = left;
-                    events.push(BattleEvent::Moved { unit, path });
+                    if !stopped || !path.is_empty() {
+                        events.push(BattleEvent::Moved { unit, path });
+                    }
+                    events.extend(burned);
                 }
             }
             BattleCommand::Attack { unit, target } => {
@@ -800,6 +880,17 @@ impl Battle {
                 let t = self.check_target(unit, target)?;
                 if distance(u.cell, t.cell) != 1 {
                     return Err(BattleError::NotAdjacent);
+                }
+                // Striking into a city behind a Wall of Fire from outside it burns the attacker.
+                if self.wall_of_fire
+                    && self.burns_at_the_wall(unit)
+                    && !in_city_area(u.cell)
+                    && in_city_area(t.cell)
+                {
+                    events.extend(self.burn(unit));
+                    if !self.units[unit].is_active() {
+                        return Ok(events);
+                    }
                 }
                 events.extend(self.melee(unit, target));
             }
@@ -817,6 +908,9 @@ impl Battle {
                     return Err(BattleError::OutOfAmmo);
                 }
                 self.check_target(unit, target)?;
+                if self.blocked_by_darkness(unit, target) {
+                    return Err(BattleError::WallOfDarkness);
+                }
                 events.extend(self.shoot(unit, target));
             }
             BattleCommand::AttackWall { unit, cell } => {

@@ -7,6 +7,7 @@ pub mod battle;
 pub mod cast;
 pub mod cheat;
 pub mod city;
+pub mod city_spells;
 pub mod conquest;
 pub mod content;
 pub mod corruption;
@@ -208,6 +209,12 @@ pub enum Event {
     ProductionCompleted {
         city: hecs::Entity,
         item: production::ProductionItem,
+    },
+    /// A Chaos Rift struck the city: units it destroyed, and a building that fell.
+    ChaosRiftStrikes {
+        city: hecs::Entity,
+        units_lost: u32,
+        building: Option<rules::BuildingId>,
     },
     CityGrew {
         city: hecs::Entity,

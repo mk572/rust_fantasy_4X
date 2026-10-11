@@ -1932,3 +1932,164 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
         assert_eq!(bu.to_hit + bu.weapon_plus(), plain.to_hit + plus);
     }
 }
+
+// ---- city enchantments (task 25) ---------------------------------------------------------
+
+fn city_map() -> BattleMap {
+    BattleMap::open().with_city(false)
+}
+
+/// Ten figures of one hit point and no defence: a Wall of Fire's attack leaves a mark on them.
+fn crowd(side: Side, cell: Pos) -> BattleUnit {
+    BattleUnit::simple(side, "crowd", 10, 1, 1, 0).at(cell)
+}
+
+#[test]
+fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() {
+    let far = crowd(Side::Defender, (19, 2));
+    for (flies, burned) in [(false, true), (true, false)] {
+        let mut walker = crowd(Side::Attacker, (10, 11));
+        walker.flies = flies;
+        let mut b = Battle::new(A, D, city_map(), vec![walker, far.clone()], 5);
+        b.wall_of_fire = true;
+        let events = b
+            .apply(BattleCommand::Move {
+                unit: 0,
+                to: (12, 11),
+            })
+            .unwrap();
+        let hurt = events
+            .iter()
+            .any(|e| matches!(e, BattleEvent::SpellDamaged { unit: 0, .. }));
+        assert_eq!(hurt, burned, "flies: {flies}");
+        assert_eq!(b.unit(0).unwrap().figures < 10, burned);
+    }
+    // Walking about outside, or inside once there, costs nothing; so does a city without it.
+    let mut b = Battle::new(
+        A,
+        D,
+        city_map(),
+        vec![crowd(Side::Attacker, (13, 11)), far.clone()],
+        5,
+    );
+    b.wall_of_fire = true;
+    let events = b
+        .apply(BattleCommand::Move {
+            unit: 0,
+            to: (14, 11),
+        })
+        .unwrap();
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
+    let mut b = Battle::new(
+        A,
+        D,
+        city_map(),
+        vec![crowd(Side::Attacker, (10, 11)), far],
+        5,
+    );
+    let events = b
+        .apply(BattleCommand::Move {
+            unit: 0,
+            to: (12, 11),
+        })
+        .unwrap();
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
+}
+
+#[test]
+fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() {
+    let mut b = Battle::new(
+        A,
+        D,
+        city_map(),
+        vec![
+            crowd(Side::Attacker, (11, 11)),
+            crowd(Side::Defender, (12, 11)),
+        ],
+        5,
+    );
+    b.wall_of_fire = true;
+    let events = b
+        .apply(BattleCommand::Attack { unit: 0, target: 1 })
+        .unwrap();
+    assert!(matches!(
+        events.first(),
+        Some(BattleEvent::SpellDamaged { unit: 0, .. })
+    ));
+}
+
+#[test]
+fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through() {
+    let archer = |cell, illusion_immune: bool| {
+        let mut u = BattleUnit::simple(Side::Attacker, "archer", 4, 1, 1, 0).at(cell);
+        u.ranged = 4;
+        u.ranged_kind = RangedKind::Missile;
+        u.ammo = 3;
+        if illusion_immune {
+            u.abilities.push("illusion_immunity".into());
+        }
+        u
+    };
+    let inside = crowd(Side::Defender, (13, 11));
+    let shoot = |from: Pos, immune: bool, dark: bool| {
+        let mut b = Battle::new(
+            A,
+            D,
+            city_map(),
+            vec![archer(from, immune), inside.clone()],
+            5,
+        );
+        b.wall_of_darkness = dark;
+        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
+    };
+    assert_eq!(
+        shoot((8, 11), false, true),
+        Err(BattleError::WallOfDarkness)
+    );
+    assert!(
+        shoot((8, 11), true, true).is_ok(),
+        "illusion immunity sees through"
+    );
+    assert!(shoot((8, 11), false, false).is_ok(), "no wall, no darkness");
+    assert!(
+        shoot((12, 10), false, true).is_ok(),
+        "shooters inside the city are not stopped"
+    );
+}
+
+#[test]
+fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
+    let map = city_map().with_flying_fortress();
+    let mut walker_out = crowd(Side::Attacker, (10, 11));
+    walker_out.moves = 20;
+    let mut flier = walker_out.clone();
+    flier.flies = true;
+    let mut walker_in = crowd(Side::Defender, (13, 11));
+    walker_in.moves = 20;
+    let mut flier_in = walker_in.clone();
+    flier_in.flies = true;
+    let b = Battle::new(
+        A,
+        D,
+        map.clone(),
+        vec![walker_out, flier, walker_in, flier_in],
+        5,
+    );
+    let area =
+        |reach: &std::collections::HashMap<Pos, u32>| reach.keys().any(|&p| map::in_city_area(p));
+    let ring =
+        |reach: &std::collections::HashMap<Pos, u32>| reach.keys().any(|&p| map::in_city_ring(p));
+    // A walker outside reaches the ring but not the city; a flier gets in.
+    let (out, fly) = (b.reachable(0), b.reachable(1));
+    assert!(ring(&out) && !area(&out));
+    assert!(area(&fly));
+    // A walker inside is kept in: it never reaches the ring; a flier inside gets out.
+    let (inn, fly_in) = (b.reachable(2), b.reachable(3));
+    assert!(area(&inn) && !ring(&inn));
+    assert!(ring(&fly_in));
+    assert!(map.is_flying_fortress());
+}

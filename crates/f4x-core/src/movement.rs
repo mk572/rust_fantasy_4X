@@ -30,6 +30,8 @@ pub enum MoveError {
     /// The stack is not in a city with an Earth Gate, or the target has none (or is not the
     /// same wizard's city on the same plane).
     NoGate,
+    /// A Spell Ward on the city at the target bars a fantastic creature of the realm it guards.
+    Warded,
 }
 
 /// What a step into a tile leads to.
@@ -284,6 +286,11 @@ impl Game {
                 .sum();
             if walkers > room {
                 return Err(MoveError::NoRoom);
+            }
+        }
+        if let Some(city) = self.city_at(to) {
+            if units.iter().any(|&u| self.ward_bars_creature(city, u)) {
+                return Err(MoveError::Warded);
             }
         }
         if let Some(defenders) = self.hostile_at(to, owner) {

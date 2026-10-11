@@ -461,6 +461,27 @@ impl App {
                 .map(Target::Player),
             _ => Some(Target::Tile(pos)),
         };
+        // A Spell Ward also needs a realm: ask for it.
+        if self
+            .game
+            .spell_has_hook(t.spell, f4x_core::city_spells::SPELL_WARD)
+        {
+            match target {
+                Some(Target::City(city))
+                    if self.game.city_owner(city) == Some(HUMAN)
+                        && !self.game.fully_warded(city) =>
+                {
+                    self.ward_prompt = Some((t.spell, city, t.resolve));
+                }
+                _ => {
+                    self.log.push(
+                        "Choose one of your cities that is not warded against every realm".into(),
+                    );
+                    self.targeting = Some(t);
+                }
+            }
+            return;
+        }
         let Some(target) = target else {
             self.log.push("No valid target there".into());
             self.targeting = Some(t);

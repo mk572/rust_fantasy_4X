@@ -6,6 +6,7 @@ use crate::rules::{MovementType, Stat};
 use crate::units::Hurt;
 use crate::{Event, Game};
 
+use super::field::Field;
 use super::immunity::Realm;
 use super::map::{city_deployment, deployment, BattleMap};
 use super::{
@@ -145,6 +146,30 @@ impl Game {
         })
     }
 
+    /// Hurt an overland unit with a damage spell of `strength`, by the dice of a battle: its
+    /// figures and wounds are those of the unit, and a unit that loses its last figure is
+    /// destroyed. Returns whether it was.
+    pub(crate) fn spell_hit_overland_unit(
+        &mut self,
+        unit: hecs::Entity,
+        strength: i32,
+        traits: &crate::rules::effects::DamageTraits,
+        nature: super::immunity::AttackNature,
+        rng: &mut dyn rand::RngCore,
+    ) -> bool {
+        let Some(mut bu) = self.battle_unit_from(unit, Side::Defender, 0) else {
+            return false;
+        };
+        let _ = super::casting::damage_unit_with_spell(&mut bu, strength, traits, nature, rng);
+        if bu.figures == 0 {
+            let _ = self.world.despawn(unit);
+            return true;
+        }
+        let hurt = (bu.max_hit_points() - bu.hit_points()).max(0);
+        let _ = self.world.insert_one(unit, Hurt(hurt as u32));
+        false
+    }
+
     /// Begin a battle between two stacks. The defenders' square decides the terrain.
     pub fn start_battle(
         &mut self,
@@ -192,11 +217,26 @@ impl Game {
         let seed = self.next_u64();
         let mut map_rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed ^ 0xB477);
         let mut map = BattleMap::generate(self.terrain_class_at(site), &mut map_rng);
+        let has = |name: &str| city.is_some_and(|c| self.city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);
+            if has("flying_fortress") {
+                map = map.with_flying_fortress();
+            }
         }
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
+        battle.wall_of_fire = has("wall_of_fire");
+        battle.wall_of_darkness = has("wall_of_darkness");
+        if let Some(c) = city {
+            battle.warded_realms = self.city_wards(c);
+        }
+        // A Cloud of Shadow treats every fight at the city as if its owner had cast Darkness.
+        if let Some(cloud) = self.content.rules.spells.id_of("cloud_of_shadow") {
+            if has("cloud_of_shadow") {
+                battle.raise_field(Side::Defender, Field::Darkness, cloud);
+            }
+        }
         self.battle_casters(&mut battle, site);
         self.battle = Some(ActiveBattle {
             battle,

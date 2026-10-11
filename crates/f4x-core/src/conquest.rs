@@ -150,7 +150,11 @@ impl Game {
     }
 
     /// Destroy a building, unless another that is built needs it (also down a chain).
-    fn destroy_building(&mut self, city: hecs::Entity, building: crate::rules::BuildingId) -> bool {
+    pub(crate) fn destroy_building(
+        &mut self,
+        city: hecs::Entity,
+        building: crate::rules::BuildingId,
+    ) -> bool {
         let needed = self.has_dependants(city, building);
         if needed {
             return false;

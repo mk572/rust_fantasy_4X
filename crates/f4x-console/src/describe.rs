@@ -71,6 +71,20 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::ProductionCompleted { city, item: i } => {
             format!("{} finished {}", city_name(game, *city), item(game, *i))
         }
+        Event::ChaosRiftStrikes {
+            city,
+            units_lost,
+            building,
+        } => {
+            let mut line = format!("The chaos rift over {} strikes", city_name(game, *city));
+            if *units_lost > 0 {
+                line += &format!(": {units_lost} unit(s) destroyed");
+            }
+            if let Some(b) = building {
+                line += &format!(", {} falls", game.content.rules.buildings.get(*b).name);
+            }
+            line
+        }
         Event::CityGrew { city, figures } => {
             format!("{} grew to {figures}", city_name(game, *city))
         }

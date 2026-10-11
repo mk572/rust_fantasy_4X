@@ -177,3 +177,20 @@ passive rules for unit stats (a rule may carry a condition such as `KindIs(Norma
 the `global_effect` hook so that casting them does not report "no effect yet". Implemented:
 Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature's Awareness, Detect Magic, Holy Arms,
 Chaos Surge, Charm of Life. The rest is task 87.
+
+## 15. City enchantments with engine effects (task 25)
+
+A city enchantment sits in the city's `Enchantments` (spell and caster), costs its upkeep, and is
+dispelled like any other. Most are read by name where they matter. Stat-only ones (Heavenly Light,
+Consecration, Prosperity, Inspirations, famine, pestilence...) are plain modifiers; the rest have
+the hook `city_flag` (casting only enchants the city), and the code is in `city_spells.rs`:
+
+| Spell | Effect |
+|---|---|
+| Gaia's Blessing | 50% more terrain food, the land greens and cleans each turn (`corruption.rs`), faster outpost growth, two rebels pacified (the help omits that, B8) |
+| Stream of Life | doubled growth (stat), no rebels in the city and the units there heal completely each turn (task 24) |
+| Evil Presence | an enemy city: the mana of its shrines, temples, parthenons and cathedrals is destroyed, unless the owner has death books; casting it on such a city is refused; an outpost shrinks faster (B22: the help, not the original's code, which stops them pacifying) |
+| Chaos Rift | an enemy city: each turn every unit inside takes five strength 8 lightning bolts (armour piercing, stopped by magic immunity) and a building that nothing needs falls with 5 percent chance (`Event::ChaosRiftStrikes`; help only, B26) |
+| Wall of Stone | not an enchantment: builds City Walls in a friendly city that has none (the original's `Cast_Wall_Of_Stone`) |
+| Wall of Fire, Wall of Darkness, Flying Fortress, Cloud of Shadow | read when a battle starts at the city: `combat.md` section 7 |
+| Spell Ward | cast with a realm (`Target::CityRealm`: the console's `ward:<city>:<realm>`, the client asks); the realms are kept in `SpellWards`, one ward costs the upkeep each; it turns away overland spells of that realm aimed at the city or at enemy units in it (`SpellFizzled`), bars fantastic creatures of the realm from entering the city, and stops the attackers casting spells of it in a battle there (B24) |

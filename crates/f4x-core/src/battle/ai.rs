@@ -94,7 +94,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                     target: enemy.id,
                 };
             }
-            if can_shoot(unit) {
+            if can_shoot(unit) && !battle.blocked_by_darkness(unit.id, enemy.id) {
                 return BattleCommand::Shoot {
                     unit: unit.id,
                     target: enemy.id,

@@ -68,7 +68,7 @@ impl Game {
     pub fn enchantment_turns_left(&self, who: Target, spell: SpellId) -> Option<u16> {
         let target = match who {
             Target::Unit(u) => TimerTarget::Unit(self.serial_of(u)),
-            Target::City(c) => TimerTarget::City(self.serial_of(c)),
+            Target::City(c) | Target::CityRealm(c, _) => TimerTarget::City(self.serial_of(c)),
             Target::Player(p) => TimerTarget::Wizard(p),
             Target::Tile(_) | Target::Global(..) => return None,
         };

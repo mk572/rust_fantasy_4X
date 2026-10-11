@@ -234,7 +234,11 @@ impl Game {
                     cost,
                     takes_extra_mana: kind.takes_extra_mana(),
                     target: def.target,
-                    castable: caster.is_some_and(|c| !c.cast_this_turn && cost <= c.affordable()),
+                    castable: caster.is_some_and(|c| !c.cast_this_turn && cost <= c.affordable())
+                        && !self.battle().is_some_and(|b| {
+                            b.side_of(player)
+                                .is_some_and(|side| b.ward_stops(side, &def.realm))
+                        }),
                 })
             })
             .collect()
@@ -354,6 +358,9 @@ impl Game {
         let (skill, pool) = self.battle_spell_price(player, spell, mana).map_err(err)?;
         if skill > caster.affordable() {
             return Err(err(SpellError::TooExpensive));
+        }
+        if battle.ward_stops(side, &def.realm) {
+            return Err(err(SpellError::Warded));
         }
         self.check_aim(battle, side, &def, &kind, aim)
             .map_err(err)?;

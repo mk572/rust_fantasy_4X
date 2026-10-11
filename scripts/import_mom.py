@@ -809,6 +809,13 @@ GLOBAL_MODS = {
 # City enchantments whose effect the engine reads from the city's enchantment list (`gates.rs`).
 CITY_ENGINE = {"Earth Gate", "Astral Gate"}
 
+# City enchantments the engine reads by name from the city's enchantment list (`cityflags.rs`,
+# `economy.rs`, `battle/`): casting only puts the enchantment on the city.
+CITY_FLAGS = {
+    "Gaia's Blessing", "Flying Fortress", "Wall of Fire", "Wall of Darkness", "Cloud of Shadow",
+    "Chaos Rift", "Evil Presence",
+}
+
 
 def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
     """Return (effects, target, duration-kind) for a spell; `duration-kind` is
@@ -835,6 +842,10 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
             rules.append(f"(condition: {cond}, effect: Modify(stat: {stat}, op: {op}, value: {value}))")
         return rules, "None", "lasting"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
+    if name == "Wall of Stone":  # builds City Walls in a friendly city (`Cast_Wall_Of_Stone`)
+        return ['(when: OnCast, target: Chosen, effect: Custom("wall_of_stone"))'], "OwnCity", "instant"
+    if name == "Spell Ward":  # the realm is picked when casting
+        return ['(when: OnCast, target: Chosen, effect: Custom("spell_ward"))'], "OwnCity", "lasting"
     if name in BATTLEFIELD_ENCHANTMENTS:
         return ['(when: OnCast, target: Chosen, effect: Custom("battlefield"))'], "Battlefield", "lasting"
     if name == "Call Chaos":
@@ -868,6 +879,9 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if kind in (2, 3):
         if name in CITY_ENGINE:
             return ['(when: OnCast, target: Chosen, effect: Custom("city_gate"))'], "OwnCity", "lasting"
+        if name in CITY_FLAGS:
+            target = "OwnCity" if kind == 2 else "EnemyCity"
+            return ['(when: OnCast, target: Chosen, effect: Custom("city_flag"))'], target, "lasting"
         mods = CITY_ENCHANT_MODS.get(name)
         target = "OwnCity" if kind == 2 else "EnemyCity"
         if mods:
@@ -1084,6 +1098,9 @@ HELP_CORRECTIONS = [
      "the code uses 25% for ranged attacks"),
     (281, "Maritime Guilds.", "Maritime Guilds. Dark elf cities receive 1 power per citizen.",
      "the code adds one mana per citizen for dark elf cities"),
+    (29, "and a 20% chance that its corrupted lands return to their pristine state.",
+     "and a 20% chance that its corrupted lands return to their pristine state. Two rebels are pacified.",
+     "the unrest code pacifies two for Gaia's Blessing (the wiki lists it too)"),
     (415, "and increases the unit's defense to 10 against magical attacks.",
      "and raises the unit's defense to at least 10 against them.",
      "the code gives defence 10 against normal weapons, not against magical attacks"),

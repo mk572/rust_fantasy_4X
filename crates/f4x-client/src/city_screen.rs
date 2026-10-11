@@ -344,7 +344,11 @@ impl App {
             line += 1;
         }
         for (spell, caster) in list.iter().take(6usize.saturating_sub(line)) {
-            let name = self.game.content.rules.spells.get(*spell).name.clone();
+            let def = self.game.content.rules.spells.get(*spell);
+            let mut name = def.name.clone();
+            if def.id == "spell_ward" {
+                name = format!("{name} ({})", self.game.city_wards(city).join(", "));
+            }
             let color = self.banner_color(caster.0);
             self.bm_text(
                 view,

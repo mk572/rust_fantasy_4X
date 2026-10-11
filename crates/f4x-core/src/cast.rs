@@ -131,7 +131,9 @@ impl EffectHost for GameHost<'_> {
     fn position(&self, who: Target) -> Option<Position> {
         match who {
             Target::Unit(u) => self.game.unit_position(u),
-            Target::City(c) => self.game.world.get::<&Position>(c).ok().map(|p| *p),
+            Target::City(c) | Target::CityRealm(c, _) => {
+                self.game.world.get::<&Position>(c).ok().map(|p| *p)
+            }
             Target::Tile(p) => Some(p),
             // A wizard is "at" their summoning circle.
             Target::Player(p) => self.game.summon_point(p),
@@ -142,7 +144,7 @@ impl EffectHost for GameHost<'_> {
     fn owner_of(&self, who: Target) -> Option<PlayerId> {
         match who {
             Target::Unit(u) => self.game.unit_owner(u),
-            Target::City(c) => self
+            Target::City(c) | Target::CityRealm(c, _) => self
                 .game
                 .world
                 .get::<&crate::city::City>(c)
@@ -276,7 +278,10 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
-        if hook == crate::globals::GLOBAL_EFFECT || hook == crate::gates::CITY_GATE {
+        if hook == crate::globals::GLOBAL_EFFECT
+            || hook == crate::gates::CITY_GATE
+            || hook == crate::city_spells::CITY_FLAG
+        {
             // Carried out by the engine wherever the wizard's global spells are consulted.
             return;
         }
@@ -304,6 +309,11 @@ impl EffectHost for GameHost<'_> {
         let Target::City(city) = who else {
             return;
         };
+        if hook == crate::city_spells::WALL_OF_STONE {
+            let events = self.game.wall_of_stone(city);
+            self.events.extend(events);
+            return;
+        }
         use crate::fortress::{MOVE_CIRCLE, MOVE_FORTRESS, RETURN};
         let result = match hook {
             MOVE_FORTRESS => self.game.move_fortress(ctx.owner, city),
@@ -395,6 +405,35 @@ impl Game {
             };
             return ok.then_some(()).ok_or(MagicError::NoSuchTarget);
         }
+        if self.spell_has_hook(spell, crate::city_spells::SPELL_WARD) {
+            return match target {
+                Some(Target::CityRealm(c, r))
+                    if self.city_owner(c) == Some(player) && self.can_ward(c, r) =>
+                {
+                    Ok(())
+                }
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.content.rules.spells.get(spell).id == "evil_presence" {
+            if let Some(Target::City(c)) = target {
+                if self.evil_presence_is_wasted_on(c) {
+                    return Err(MagicError::NoSuchTarget);
+                }
+            }
+        }
+        if self.spell_has_hook(spell, crate::city_spells::WALL_OF_STONE) {
+            return match target {
+                Some(Target::City(c))
+                    if self.city_owner(c) == Some(player) && self.can_raise_wall_of_stone(c) =>
+                {
+                    Ok(())
+                }
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
         if self.spell_has_hook(spell, crate::terraform::RAISE_VOLCANO) {
             return match target {
                 Some(Target::Tile(p)) if self.can_raise_volcano(p) => Ok(()),
@@ -466,7 +505,7 @@ impl Game {
             self.start_timer(who, spell, caster, n);
         }
         match who {
-            Target::City(c) => {
+            Target::City(c) | Target::CityRealm(c, _) => {
                 let mut list = self
                     .world
                     .get::<&Enchantments>(c)
@@ -514,6 +553,13 @@ impl Game {
         if let Some(by) = self.suppressed_by(player, spell) {
             return vec![Event::SpellSuppressed { player, spell, by }];
         }
+        if let Some(city) = self.ward_turns_away(player, spell, target) {
+            return vec![Event::SpellFizzled {
+                player,
+                spell,
+                city,
+            }];
+        }
         if let Some(Target::City(city)) = target {
             if self.nightshade_fizzles(player, spell, city) {
                 return vec![Event::SpellFizzled {
@@ -523,6 +569,14 @@ impl Game {
                 }];
             }
         }
+        // A Spell Ward is set up as a spell on the city; the realm it guards is kept beside it.
+        let target = match target {
+            Some(Target::CityRealm(city, realm)) => {
+                self.add_spell_ward(city, realm);
+                Some(Target::City(city))
+            }
+            other => other,
+        };
         let def = self.content.rules.spells.get(spell).clone();
         let this = target.unwrap_or(Target::Player(player));
         let ctx = Context {
@@ -581,16 +635,14 @@ impl Game {
                 });
             }
         }
-        for (city, c, _) in self.cities() {
-            if c.owner != player {
-                continue;
-            }
+        // Every city: the caster pays for what they put on somebody else's city too.
+        for (city, _, _) in self.cities() {
             if let Ok(list) = self.world.get::<&Enchantments>(city) {
                 for &(s, caster) in &list.0 {
                     if caster == player {
                         items.push(UpkeepItem {
                             kind: UpkeepKind::City(city, s),
-                            mana: spells.get(s).upkeep as i32,
+                            mana: spells.get(s).upkeep as i32 * self.upkeep_count(city, s),
                         });
                     }
                 }

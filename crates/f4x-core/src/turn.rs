@@ -127,14 +127,6 @@ impl Game {
         grow
     }
 
-    fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
-        self.content.rules.spells.id_of(name).is_some_and(|id| {
-            self.world
-                .get::<&Enchantments>(city)
-                .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
-        })
-    }
-
     /// Outposts grow a few tens of people at a time, by chance.
     fn grow_outpost(&mut self, city: hecs::Entity) -> bool {
         if self.world.get::<&Position>(city).is_err() {
@@ -236,6 +228,7 @@ impl Game {
         events.extend(self.process_magic());
         events.extend(self.process_gaias_blessing());
         self.heal_units();
+        events.extend(self.process_chaos_rifts());
         events
     }
 

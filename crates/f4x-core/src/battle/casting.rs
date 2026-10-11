@@ -20,6 +20,46 @@ use crate::rules::SpellId;
 /// The most creatures a side can have in a battle: summoning stops here.
 pub const MAX_SIDE_UNITS: usize = 9;
 
+/// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
+/// in place. Overland spells that hurt units (`Game::process_chaos_rifts`) use it too.
+pub(crate) fn damage_unit_with_spell(
+    unit: &mut BattleUnit,
+    strength: i32,
+    traits: &DamageTraits,
+    nature: AttackNature,
+    rng: &mut dyn RngCore,
+) -> Option<Damage> {
+    let mut state = unit.defender_state();
+    let ids = state.enchantments.iter().map(String::as_str);
+    let protected = ids.clone().any(|i| i == "righteousness")
+        && matches!(nature.realm, Some(Realm::Chaos | Realm::Death));
+    if state.immunities.magic || protected {
+        return None;
+    }
+    let volley = if traits.area {
+        Volley::Area
+    } else if traits.decaying {
+        Volley::Chain
+    } else {
+        Volley::Bolt
+    };
+    let spell = Combatant {
+        strength,
+        to_hit: 0,
+        ignores_defense: traits.ignores_defense,
+        mode: Mode::Ranged,
+        nature: AttackNature {
+            armor_piercing: traits.armor_piercing,
+            ..nature
+        },
+        special: Default::default(),
+        sees_through: false,
+    };
+    let dmg = spell_attack(&spell, volley, &mut state, rng);
+    unit.set_from(&state);
+    Some(dmg)
+}
+
 /// A wizard casting in a battle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattleCaster {
@@ -98,6 +138,8 @@ pub enum SpellError {
     NoRoom,
     /// The side has this battlefield spell up already.
     AlreadyUp,
+    /// A Spell Ward on the city guards it from the spell's realm, and the caster is attacking it.
+    Warded,
 }
 
 impl Battle {
@@ -189,36 +231,8 @@ impl Battle {
         traits: &DamageTraits,
         nature: AttackNature,
     ) -> Option<Damage> {
-        let mut state = self.units[target].defender_state();
-        let ids = state.enchantments.iter().map(String::as_str);
-        let protected = ids.clone().any(|i| i == "righteousness")
-            && matches!(nature.realm, Some(Realm::Chaos | Realm::Death));
-        if state.immunities.magic || protected {
-            return None;
-        }
-        let volley = if traits.area {
-            Volley::Area
-        } else if traits.decaying {
-            Volley::Chain
-        } else {
-            Volley::Bolt
-        };
-        let spell = Combatant {
-            strength,
-            to_hit: 0,
-            ignores_defense: traits.ignores_defense,
-            mode: Mode::Ranged,
-            nature: AttackNature {
-                armor_piercing: traits.armor_piercing,
-                ..nature
-            },
-            special: Default::default(),
-            sees_through: false,
-        };
         let rng: &mut dyn RngCore = &mut self.rng;
-        let dmg = spell_attack(&spell, volley, &mut state, rng);
-        self.units[target].set_from(&state);
-        Some(dmg)
+        damage_unit_with_spell(&mut self.units[target], strength, traits, nature, rng)
     }
 
     /// A die of `sides` sides, from the battle's own generator: one to `sides`.

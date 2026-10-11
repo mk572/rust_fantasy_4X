@@ -283,9 +283,22 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   decision exists for it yet).
 - **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
   `bshootwall <unit> <x,y>` strike a wall, `raze <city>` razes.
-- **Not here** (task 158): the Wall of Fire and Wall of Darkness, Wall of Stone and Disrupt (battlefield
-  spells; the field machinery is section 9), Flying Fortress, the AI's decision to raze, the diplomatic effects of attacking a city, and monsters
-  and raiders taking a city.
+- **City enchantments** (task 25, `city_spells.rs`; read when the battle starts, `Game::start_battle`):
+  - *Wall of Fire* (`Battle::wall_of_fire`): a walker (not a flier, not a teleporter or merger) that steps
+    from outside the city area into it, or strikes into it from outside, takes the original's Fireball of
+    its base strength 5 (fire, each figure, stopped by fire and magic immunity). Shots are not affected.
+  - *Wall of Darkness* (`Battle::wall_of_darkness`): no ranged attack from outside the city area on a unit
+    inside it (`BattleError::WallOfDarkness`), unless the shooter has illusion immunity (the help; the
+    original's code only lets True Sight through, B23). The AI does not try.
+  - *Flying Fortress* (`BattleMap::with_flying_fortress`): every square of the city area is shut to walkers
+    outside, and the squares round it to walkers inside, the gate too; fliers, teleporters, mergers and the
+    non-corporeal pass. No wall defence bonus.
+  - *Cloud of Shadow*: the city's owner has Darkness up for the whole battle (a field spell of the defender).
+  - *Spell Ward* (`Battle::warded_realms`): the attackers cannot cast spells of a warded realm.
+  - Walls from *Wall of Stone* are the City Walls building, built overland (the spell is instant).
+- **Not here** (tasks 158, 163, 164): Wall of Stone and Disrupt cast in battle, the AI's decision to raze,
+  the diplomatic effects of attacking a city, monsters and raiders taking a city, and Heavenly Light's True
+  Light.
 
 
 ## 8. Casting in battle (task 43)
@@ -400,6 +413,6 @@ Console: `battle` lists the field enchantments' effects through the units' numbe
 are described. The client's panel names the enchantments over the field.
 
 **Not here** (task 159): dispelling battlefield enchantments (Dispel Magic aims at a unit; the
-original's also reaches the field), the node auras and counter, the city-wall spells (task 158),
+original's also reaches the field), the node auras and counter, Wall of Stone and Disrupt in battle (tasks 158 and 163),
 true sight (it cancels invisibility), the Mass Invisibility rule that an invisible unit next to an
 enemy is seen, Entangle's exemption for fliers in the help text.

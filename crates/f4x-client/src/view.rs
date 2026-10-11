@@ -83,6 +83,9 @@ pub struct App {
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// A city just taken, waiting for the player to keep or raze it.
     pub(crate) raze_prompt: Option<hecs::Entity>,
+    /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
+    /// paid for (`Targeting::resolve`).
+    pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -136,6 +139,7 @@ impl App {
             menu: Default::default(),
             console: Default::default(),
             raze_prompt: None,
+            ward_prompt: None,
         };
         app.start_game();
         Ok(app)
@@ -240,6 +244,21 @@ impl App {
                 Event::ProductionCompleted { city, item } => {
                     let what = self.item_name(item);
                     Some(format!("{}: {what} complete", self.city_name(city)))
+                }
+                Event::ChaosRiftStrikes {
+                    city,
+                    units_lost,
+                    building,
+                } => {
+                    let mut line = format!("The chaos rift over {} strikes", self.city_name(city));
+                    if units_lost > 0 {
+                        line += &format!(": {units_lost} unit(s) destroyed");
+                    }
+                    if let Some(b) = building {
+                        let name = &self.game.content.rules.buildings.get(b).name;
+                        line += &format!(", {name} falls");
+                    }
+                    Some(line)
                 }
                 Event::CityGrew { city, figures } => {
                     Some(format!("{} grows to {figures}", self.city_name(city)))
@@ -634,6 +653,11 @@ impl App {
                 return self.raze_prompt_frame(city);
             }
         }
+        if let Some(prompt) = self.ward_prompt {
+            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+                return self.ward_prompt_frame(prompt);
+            }
+        }
         if self.game.game_over.is_some()
             && !self.game_over_seen
             && !self.game.in_battle()
@@ -667,6 +691,79 @@ impl App {
                 self.draw_bars();
             }
         }
+        true
+    }
+
+    /// The question after aiming a Spell Ward at a city: which realm to ward it against, by the
+    /// first letter of the realm, shown over the map. Realms already warded are not offered.
+    fn ward_prompt_frame(
+        &mut self,
+        (spell, city, resolve): (f4x_core::rules::SpellId, hecs::Entity, bool),
+    ) -> bool {
+        const KEYS: [(KeyCode, &str); 5] = [
+            (KeyCode::N, "nature"),
+            (KeyCode::S, "sorcery"),
+            (KeyCode::C, "chaos"),
+            (KeyCode::L, "life"),
+            (KeyCode::D, "death"),
+        ];
+        let open: Vec<(KeyCode, &str)> = KEYS
+            .into_iter()
+            .filter(|(_, r)| !self.game.city_warded_against(city, r))
+            .collect();
+        if is_key_pressed(KeyCode::Escape) || open.is_empty() {
+            self.ward_prompt = None;
+            self.log.push("Cast cancelled".into());
+        } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| is_key_pressed(*k)) {
+            self.ward_prompt = None;
+            if let Some(realm) = self.game.content.rules.realms.id_of(realm) {
+                let target = f4x_core::rules::exec::Target::CityRealm(city, realm);
+                let cmd = if resolve {
+                    Command::ResolveCast {
+                        player: HUMAN,
+                        target,
+                    }
+                } else {
+                    Command::CastSpell {
+                        player: HUMAN,
+                        spell,
+                        target: Some(target),
+                    }
+                };
+                let events = self.game.apply(cmd);
+                self.note(events);
+            }
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let (w, h) = (screen_width(), screen_height());
+        draw_rectangle(
+            w / 2.0 - 260.0,
+            h / 2.0 - 70.0,
+            520.0,
+            140.0,
+            Color::new(0.08, 0.06, 0.04, 0.95),
+        );
+        draw_rectangle_lines(w / 2.0 - 260.0, h / 2.0 - 70.0, 520.0, 140.0, 3.0, GOLD);
+        let name = self.city_name(city);
+        crate::frame::text_centered(
+            &format!("Select a Spell Ward for {name}"),
+            w / 2.0,
+            h / 2.0 - 25.0,
+            22.0,
+            WHITE,
+        );
+        let choices: Vec<String> = open
+            .iter()
+            .map(|(_, r)| {
+                let mut c = r.chars();
+                let first = c.next().map(|f| f.to_ascii_uppercase()).unwrap_or(' ');
+                format!("{first}: {r}")
+            })
+            .collect();
+        crate::frame::text_centered(&choices.join("   "), w / 2.0, h / 2.0 + 15.0, 22.0, GOLD);
+        crate::frame::text_centered("Esc: cancel", w / 2.0, h / 2.0 + 50.0, 18.0, WHITE);
         true
     }
 

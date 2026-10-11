@@ -9,6 +9,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use crate::city::{City, PlayerId, Position};
+use crate::city_spells::RELIGIOUS;
 use crate::content::TerrainClass;
 use crate::map::Plane;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
@@ -123,11 +124,16 @@ impl Game {
             mods.extend(passive_modifiers(&def.effects, Source::Race(race.0)));
         }
         if let Ok(buildings) = self.world.get::<&Buildings>(city) {
+            let evil = self.evil_presence_active(city);
             for &b in &buildings.0 {
-                mods.extend(passive_modifiers(
-                    &rules.buildings.get(b).effects,
-                    Source::Building(b),
-                ));
+                let def = rules.buildings.get(b);
+                let mut found = passive_modifiers(&def.effects, Source::Building(b));
+                // Evil Presence destroys the magic power of the religious buildings (the help;
+                // the original's code stops their pacifying instead, B22).
+                if evil && RELIGIOUS.contains(&def.id.as_str()) {
+                    found.retain(|m| m.stat != Stat::CityMana);
+                }
+                mods.extend(found);
             }
         }
         if let Ok(enchantments) = self.world.get::<&Enchantments>(city) {

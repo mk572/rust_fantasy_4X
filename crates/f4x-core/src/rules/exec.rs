@@ -20,6 +20,8 @@ use crate::map::Plane;
 pub enum Target {
     Unit(hecs::Entity),
     City(hecs::Entity),
+    /// A city and a realm: what a Spell Ward is aimed at.
+    CityRealm(hecs::Entity, crate::rules::RealmId),
     Tile(Position),
     Player(PlayerId),
     /// An enemy wizard's global enchantment: its owner and the spell.
@@ -450,7 +452,7 @@ mod tests {
         fn position(&self, who: Target) -> Option<Position> {
             match who {
                 Target::Unit(e) => self.unit(e).pos,
-                Target::City(_) => self.city.map(|c| c.1),
+                Target::City(_) | Target::CityRealm(..) => self.city.map(|c| c.1),
                 Target::Tile(p) => Some(p),
                 Target::Player(_) | Target::Global(..) => None,
             }

@@ -53,7 +53,7 @@ Written in our own words; nothing here is copied from either source.
 ReMoM states these were verified one-to-one against the original assembly, so the code and
 data are the original game and the help text is the odd one out. Decision: the game wins.
 The imported help (`content-local/help.ron`) is rewritten to match, and each changed topic
-ends with a note `[Updated from game code: ...]`. 16 topic edits, applied by
+ends with a note `[Updated from game code: ...]`. 17 topic edits, applied by
 `HELP_CORRECTIONS` in `scripts/import_mom.py` (it fails loudly if a text no longer matches).
 
 | # | Game behaviour now in help and content |
@@ -72,6 +72,7 @@ ends with a note `[Updated from game code: ...]`. 16 topic edits, applied by
 | C3 Invisibility | -1 to hit against the unit (the two enchantment-list copies said -2) |
 | D1 Weapon Immunity [415] | defence of at least 10 against *normal weapons* (melee, arrows, boulders, thrown); the help said "against magical attacks", which the code never does (task 35, `docs/combat.md` 2.1) |
 | D2 Chaos [433] | doom damage (no to-hit, no resistance, no defence) is the full attack strength when the unit has it itself, half only when an item or spell gives it; the help said half (task 36, `combat.md` 2.2) |
+| B8 Gaia's Blessing [29] | two rebels are pacified (task 24; the help did not say so) |
 
 Not changed:
 - **B8 Stream of Life / Gaia's Blessing** (task 24, done): the code reads the wrong table, which
@@ -121,6 +122,11 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B19 | Population growth | "x people per turn" | excess above the next whole figure is discarded when a figure is gained; growth is clamped so it cannot go negative at maximum size; neutral cities grow at half rate (ReMoM notes) | Verified | done (task 20) | Follow the code except the neutral half rate, which is dropped (design.md section 8). |
 | B20 | Wild game / outposts | outposts grow from food | outpost growth ignores wild game and applies the AI difficulty modifier to the human player too (ReMoM `OGBUG`) | Check | done (task 21) | Follow intent: include wild game; no AI modifier at all. |
 | B21 | Disenchant Area and True [help topics of the same names] | dispel every *enemy* enchantment on the targeted square, each with the usual dispel chance | `Cast_Disenchant` (`OverSpel.c`) tests a city's enchantments only when the stored caster is the *casting* wizard, and rolls `Random(250) <= threshold + 500`, which always succeeds; the unit loop's bit test `>= 0` is always true. Read literally it would strip the caster's own enchantments every time; ReMoM carries it without an `OGBUG` mark, so it may be a disassembly artefact | Check | done (task 59): the help's rule, enemy enchantments only, with the dispel formula | Follow the help. If ReMoM or the original is shown to behave as the code reads, record that here. |
+| B22 | Evil Presence [183] | destroys the magic power of shrines, temples, parthenons and cathedrals; no effect if the owner can use death magic | `City_Rebel_Count` stops those four buildings from pacifying unless the owner has death books (`CITYCALC.c`); the mana code never looks at it; casting it on such a city is refused (`OverSpel.c`) | Verified | done (task 25): the mana is destroyed as the help says; the buildings still pacify | Follow the help (decided by the project owner; done). |
+| B23 | Wall of Darkness [178] | no ranged attack from outside unless the attacker has illusions immunity | `Check_Attack_Ranged` only lets True Sight through (ReMoM `OGBUG`: ignores innate illusions immunity) | Verified | done (task 25): illusions immunity sees through | Follow the help (rule 1). |
+| B24 | Spell Ward [72] | total immunity from spells of one realm including combat spells; bars fantastic creatures of that realm from entering | only overland spells aimed at the city or at units in it fizzle (`Apply_Automatic_Spell_Counters`); combat and movement never read the wards | Verified | done (task 25): all three follow the help (attackers' combat spells of the realm are refused; fantastic creatures of it, the owner's too, cannot enter) | Follow the help (done). |
+| B25 | Flying Fortress [77] | only flyers may enter, attack or leave; the wizard's foot troops may use it overland; a walker that leaves in battle cannot re-enter | in battle the city area is shut to walkers outside and the ring round it to walkers inside (the gate too); the overland code never reads the spell (and a `Check_FlyingFortress_Bug` jumps past part of the restriction) | Check | done (task 25) in battle as the code does; no overland rule | Keep. |
+| B26 | Chaos Rift [110] | five strength 8 lightning bolts on each unit in the city each turn, 5% chance a building is destroyed | the turn code for it is a stub (`CTY_ChaosRift`); only the outpost shrink chance (+10) exists | Check | done (task 25) as the help says | Follow the help (done). |
 
 ## C. The help contradicts itself
 

@@ -46,7 +46,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("vizier", "vizier <on|off>", "The Grand Vizier chooses what your cities build when they finish a building.", vizier),
     legal!("power", "power <mana> <research> <skill>", "Split your power base between mana, research and casting skill (percent, summing to 100).", power),
     legal!("research", "research <spell>", "Choose the spell to research.", research),
-    legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N; give it now if the spell is paid in full this turn.", cast),
+    legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N (a Spell Ward: ward:<city>:<realm>); give it now if the spell is paid in full this turn.", cast),
     legal!("target", "target <target>", "Aim a spell that has been paid for over several turns.", target),
     legal!("cancelcast", "cancelcast", "Give up the spell being cast.", cancelcast),
     legal!("alchemy", "alchemy <amount> <gold|mana>", "Convert that much gold into mana (or mana into gold): two for one, one for one with Alchemy.", alchemy),

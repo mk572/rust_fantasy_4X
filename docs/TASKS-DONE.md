@@ -30,6 +30,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 22 | City | Nightshade dispel strength | (done)
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 24 | City | Stream of Life and Gaia's Blessing (B8) (done) |
+| 25 | City | City enchantments with non-stat effects (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
 | 30 | Units | Temporary effects store (done) |
@@ -48,6 +49,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 145 | Client | Save and load screen with slots (done) |
+| 165 | Magic | Upkeep of enchantments cast on enemy cities (done) |
 
 ## Descriptions
 
@@ -158,6 +160,8 @@ the economy adds to each farmer's harvest (not a flat bonus per city); the test
 `help-vs-implementation-conflicts.md` section D was removed.
 
 **24. Stream of Life and Gaia's Blessing (B8) (done).** The original's unrest code reads the owner's overland-enchantment table at the city enchantments' index numbers (`City_Rebel_Count`: Gaia's Blessing adds 2 to the pacification, Stream of Life sets the rebels to 0), so in the original the two city spells do nothing there and the owner's Life Force or Crusade, which the conflicts list (B8) says sit at those slots, does; ReMoM's reconstruction leaves the Stream of Life healing (`CTY_StreamOfLife`) as a commented-out stub. Decision: follow the help. Stream of Life gives its city no rebels (`economy.rs`) and heals every unit in it completely at the end of each turn (`heal_units`; the undead stay unhealed as everywhere); its doubled growth was already in. Gaia's Blessing keeps what its help says (half as much more food, the land cleansing and greening, faster outpost growth) and also pacifies two rebels: the original's code does it and the Master of Magic wiki lists it, though the help text does not. Logged in `help-vs-implementation-conflicts.md`.
+
+**25. City enchantments with non-stat effects (done).** The nine spells: Wall of Stone, Gaia's Blessing, Spell Ward, Flying Fortress, Wall of Fire, Chaos Rift, Wall of Darkness, Evil Presence and Cloud of Shadow now do what they should (`city_spells.rs`, `magic.md` section 15, `combat.md` section 7), with the importer giving them the `city_flag`, `wall_of_stone` and `spell_ward` hooks and `Target::CityRealm` for the Spell Ward's realm (console `ward:<city>:<realm>`, a prompt in the client). Where the original's help and code disagree the decisions are B22 to B26 in `help-vs-implementation-conflicts.md`. Left over: tasks 163, 164 and 165.
 
 **26. Unit abilities that need code (done).** All 66 imported abilities were sorted by where
 they act. *Overland, now implemented:* flying, wind walking, planar travel, non-corporeal,
@@ -302,3 +306,5 @@ the ward and enchantment icons along the bottom, rubble, and selling by clicking
 **145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.
 
 **154. Raiders from neutral cities.** The original's `Make_Raiders` (once per turn, the neutral player's event): an accumulator gains `Random(difficulty + 1)` each turn; at 30 it resets and, from a random neutral city that has a garrison and shares a landmass with a wizard's city, sends out `garrison * difficulty / 6` raiders (fewer near an AI fortress, half on Myrror before turn 200, experience cap rising with the turn), and the city loses a third of its garrison. Raiders attack the nearest wizard's city. It is an event for every player alike, so it follows design.md section 8. Reference: `reference/ReMoM/doc/ComputerPlayer/AIDATA-Make_Raiders.md`. Depends on 31 (done) and the AI or a simple raider mover; related to 68 (random events) and 69 (difficulty).
+
+**165. Upkeep of enchantments cast on enemy cities (done).** `Game::upkeep_items` (`cast.rs`) goes through the player's *own* cities only (`if c.owner != player { continue }`), so a bad city enchantment cast on somebody else's city (Famine, Pestilence, Cursed Lands, Chaos Rift, Evil Presence) never costs its caster the upkeep the help lists. It should walk every city and take the enchantments whose caster is the player, and dropping an item for want of mana already removes the right entry (`drop_upkeep_item`). Found while doing task 25 and fixed on the project owner's say-so: `upkeep_items` now walks every city and takes the enchantments the player cast.

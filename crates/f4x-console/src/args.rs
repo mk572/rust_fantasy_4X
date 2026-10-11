@@ -154,11 +154,13 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
     Ok(units)
 }
 
-/// A spell target: `unit:12`, `city:3`, `tile:x,y[,plane]` or `player:0`.
+/// A spell target: `unit:12`, `city:3`, `ward:3:chaos` (a Spell Ward's city and realm),
+/// `tile:x,y[,plane]` or `player:0`.
 pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
     let (kind, rest) = text.split_once(':').ok_or_else(|| {
         ConsoleError::Parse(
-            "a target is unit:N, city:N, tile:x,y, player:N or global:N:<spell>".into(),
+            "a target is unit:N, city:N, ward:N:<realm>, tile:x,y, player:N or global:N:<spell>"
+                .into(),
         )
     })?;
     let num = || {
@@ -168,6 +170,19 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
     Ok(match kind {
         "unit" => Target::Unit(unit_by_serial(game, num()?)?),
         "city" => Target::City(city_by_serial(game, num()?)?),
+        // A Spell Ward's target: the city and the realm it is set against, as `ward:3:chaos`.
+        "ward" => {
+            let (city, name) = rest.split_once(':').ok_or_else(|| {
+                ConsoleError::Parse("a ward target is ward:<city>:<realm>".into())
+            })?;
+            let city = city_by_serial(
+                game,
+                city.parse::<u64>()
+                    .map_err(|_| ConsoleError::Parse(format!("{city:?} is not a number")))?,
+            )?;
+            let realm = resolve(&game.content.rules.realms, name, |d| &d.name, "realm")?;
+            Target::CityRealm(city, realm)
+        }
         "tile" => Target::Tile(parse_pos(rest, Plane::Arcanus)?),
         "player" => Target::Player(parse_player(rest)?),
         // An enemy wizard's global enchantment: the wizard and the spell, as `global:1:awareness`.

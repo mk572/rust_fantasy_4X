@@ -49,6 +49,12 @@ impl Game {
         to: Position,
     ) -> Result<(), MoveError> {
         let (from, owner) = self.check_stack(units)?;
+        if self
+            .city_at(to)
+            .is_some_and(|c| units.iter().any(|&u| self.ward_bars_creature(c, u)))
+        {
+            return Err(MoveError::Warded);
+        }
         if from == to
             || from.plane != to.plane
             || !self.has_gate(from, owner, EARTH_GATE)

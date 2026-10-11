@@ -383,6 +383,9 @@ pub struct CitySave {
     pub buildings: Vec<String>,
     /// `(spell, caster)`.
     pub enchantments: Vec<(String, u8)>,
+    /// The realms a Spell Ward guards the city against; absent in older saves.
+    #[serde(default)]
+    pub wards: Vec<String>,
     pub item: Option<ItemSave>,
     pub progress: u32,
     /// Temporary modifiers.
@@ -669,6 +672,7 @@ impl Game {
                                 .collect()
                         })
                         .unwrap_or_default(),
+                    wards: self.city_wards(e),
                     item: production.item.map(item_save),
                     progress: production.progress,
                     effects: effects_save(self, e),
@@ -965,6 +969,11 @@ impl Snapshot {
                 let _ = game.world.insert_one(entity, CityRace(r));
             }
             effects_load(&mut game.world, entity, c.effects);
+            if !c.wards.is_empty() {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::city_spells::SpellWards(c.wards));
+            }
             if let Some(p) = c.conquered {
                 let _ = game
                     .world

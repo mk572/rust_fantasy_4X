@@ -45,6 +45,13 @@ pub fn in_city_area(pos: Pos) -> bool {
         && (CITY_Y0..CITY_Y0 + CITY_SIZE).contains(&pos.1)
 }
 
+/// Whether a square touches the city area from outside (the twenty squares round it).
+pub fn in_city_ring(pos: Pos) -> bool {
+    (CITY_X0 - 1..=CITY_X0 + CITY_SIZE).contains(&pos.0)
+        && (CITY_Y0 - 1..=CITY_Y0 + CITY_SIZE).contains(&pos.1)
+        && !in_city_area(pos)
+}
+
 /// Whether a square is one of the twelve round the edge of the city area (where a wall stands).
 pub fn is_wall_site(pos: Pos) -> bool {
     in_city_area(pos)
@@ -90,6 +97,9 @@ pub struct BattleMap {
     /// The walls of the city, indexed by the square's place in the city area; `None` outside
     /// a city battle, and in one without walls every site is `Wall::None`.
     walls: Option<[Wall; 16]>,
+    /// The city is a Flying Fortress: it is shut to anyone who cannot fly or pass through walls,
+    /// from the outside and from the inside alike.
+    fortress: bool,
 }
 
 impl BattleMap {
@@ -98,7 +108,21 @@ impl BattleMap {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
             walls: None,
+            fortress: false,
         }
+    }
+
+    /// Make the city a Flying Fortress (the original's `Update_Move_Map_City_Area_Restrictions`
+    /// shuts every square of the city area to walkers outside, and the squares round it to
+    /// walkers inside, the gate included).
+    pub fn with_flying_fortress(mut self) -> Self {
+        self.fortress = true;
+        self
+    }
+
+    /// Whether the city is a Flying Fortress.
+    pub fn is_flying_fortress(&self) -> bool {
+        self.fortress
     }
 
     /// Put a city on the map: the city area is open ground, ringed by standing walls if
@@ -247,6 +271,18 @@ impl BattleMap {
     /// - for the others, a unit outside cannot enter a standing wall (the gate is no wall), and
     ///   a unit inside cannot step out to a square beside a standing wall (only by the gate).
     fn shut_by_walls(&self, pos: Pos, mover: Mover, inside: bool) -> bool {
+        if self.fortress {
+            if mover.flying || mover.through_walls {
+                return false;
+            }
+            // Walkers outside cannot enter the city area; walkers inside cannot step out to
+            // any square round it.
+            return if inside {
+                !in_city_area(pos) && in_city_ring(pos)
+            } else {
+                in_city_area(pos)
+            };
+        }
         if !self.is_walled() {
             return false;
         }
