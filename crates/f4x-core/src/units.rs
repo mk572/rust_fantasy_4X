@@ -2,6 +2,7 @@
 //! definition, abilities and experience level through the modifier engine.
 
 use crate::city::{PlayerId, Position};
+use crate::magic::Retort;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{Stat, UnitDef, UnitId};
 use crate::Game;
@@ -30,6 +31,11 @@ pub struct Experience(pub u32);
 /// normal adds a plus to hit and makes the weapons magical.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WeaponQuality(pub u8);
+
+/// The level Heroism lifts a unit to (the original's level 3: Elite, or a hero's Commander).
+pub(crate) const HEROISM_LEVEL: usize = 3;
+/// The spell that does it.
+pub(crate) const HEROISM: &str = "heroism";
 
 pub const WEAPON_MAGIC: u8 = 1;
 pub const WEAPON_MITHRIL: u8 = 2;
@@ -75,20 +81,60 @@ impl Game {
         self.unit_def(unit).is_some() && self.unit_abilities(unit).iter().any(|a| a == ability)
     }
 
-    /// Experience level, 0-based, from the unit's level path (0 without one).
-    pub fn unit_level(&self, unit: hecs::Entity) -> usize {
-        let Some(def) = self.unit_def(unit) else {
-            return 0;
-        };
-        let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
-        let Some(path) = def
+    fn unit_level_path(&self, unit: hecs::Entity) -> Option<&crate::rules::LevelPathDef> {
+        self.unit_def(unit)?
             .level_path
             .as_deref()
             .and_then(|p| self.content.rules.level_paths.by_name(p))
-        else {
+    }
+
+    /// The level the unit's experience points alone give, 0-based (0 without a level path).
+    pub fn unit_xp_level(&self, unit: hecs::Entity) -> usize {
+        let Some(path) = self.unit_level_path(unit) else {
             return 0;
         };
+        let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
         path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
+    }
+
+    /// Whether the Heroism spell is on the unit.
+    pub fn unit_has_heroism(&self, unit: hecs::Entity) -> bool {
+        let Some(spell) = self.content.rules.spells.id_of(HEROISM) else {
+            return false;
+        };
+        self.world
+            .get::<&UnitEnchantments>(unit)
+            .is_ok_and(|list| list.0.iter().any(|&(s, _)| s == spell))
+    }
+
+    /// Experience level, 0-based, from the unit's level path (0 without one): the level its
+    /// experience gives, raised to Elite by Heroism, then by one each for its owner's Warlord
+    /// retort and Crusade spell (which leave the undead and creatures alone). Battles use the
+    /// same level as the map (the original's battle code ignores Warlord, Crusade and xp when
+    /// Heroism is on: B9 in `help-vs-implementation-conflicts.md`, we follow the help).
+    pub fn unit_level(&self, unit: hecs::Entity) -> usize {
+        let Some(path) = self.unit_level_path(unit) else {
+            return 0;
+        };
+        let mut level = self.unit_xp_level(unit);
+        if level < HEROISM_LEVEL && self.unit_has_heroism(unit) {
+            level = HEROISM_LEVEL;
+        }
+        if let Some(owner) = self.unit_owner(unit) {
+            if self.magic(owner).is_some_and(|m| m.has(Retort::Warlord)) {
+                level += 1;
+            }
+            let normal = self.unit_def(unit).is_some_and(|d| {
+                matches!(
+                    d.kind,
+                    crate::rules::UnitKind::Normal | crate::rules::UnitKind::Hero
+                )
+            });
+            if normal && !self.unit_is_undead(unit) && self.has_global(owner, "crusade") {
+                level += 1;
+            }
+        }
+        level.min(path.level_count().saturating_sub(1))
     }
 
     /// Every modifier currently affecting the unit: its abilities and level effects.
@@ -105,8 +151,10 @@ impl Game {
             .and_then(|p| rules.level_paths.by_name(p))
         {
             let level = self.unit_level(unit);
-            for (i, lvl) in path.levels.iter().enumerate().take(level + 1) {
-                mods.extend(passive_modifiers(&lvl.effects, Source::Level(i as u8)));
+            for i in 0..=level {
+                if let Some((_, effects)) = path.level(i) {
+                    mods.extend(passive_modifiers(effects, Source::Level(i as u8)));
+                }
             }
         }
         if let Ok(list) = self.world.get::<&UnitEnchantments>(unit) {

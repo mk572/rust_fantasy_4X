@@ -1,0 +1,282 @@
+//! Experience at the turn change (task 27).
+//!
+//! The level itself is worked out by [`Game::unit_level`]: experience gives up to Elite (a
+//! hero's Demi-god), Heroism lifts a unit to Elite, and the Warlord retort and the Crusade spell
+//! add a level each, which is the only way for a normal unit into Ultra-Elite and Champion.
+//! Here the turn change does two things:
+//! - Heroism ends on a unit that reaches Elite by itself, as the help says;
+//! - a hero with the Armsmaster ability trains the other units on its square: each gets 2 xp (3
+//!   with Super Armsmaster) per level the hero has, counting from 1. When several heroes with the
+//!   ability share a square, the best of them counts. (Heroes' abilities are task 47; until it
+//!   hands them out, the ability is only there when a unit's definition lists it.)
+//!
+//! The original also gives every living normal unit 1 xp each turn; the rule is not in the game
+//! yet (task 173).
+
+use crate::city::{PlayerId, Position};
+use crate::rules::UnitKind;
+use crate::units::{Experience, UnitEnchantments, HEROISM, HEROISM_LEVEL};
+use crate::Game;
+
+/// A hero's ability ids (task 47 adds the rest).
+pub const ARMSMASTER: &str = "armsmaster";
+pub const SUPER_ARMSMASTER: &str = "super_armsmaster";
+
+impl Game {
+    /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
+    pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
+        let per_level = if self.unit_has_ability(hero, SUPER_ARMSMASTER) {
+            3
+        } else if self.unit_has_ability(hero, ARMSMASTER) {
+            2
+        } else {
+            return 0;
+        };
+        (self.unit_level(hero) as u32 + 1) * per_level
+    }
+
+    pub(crate) fn process_experience(&mut self) {
+        let units = self.all_units();
+        if let Some(heroism) = self.content.rules.spells.id_of(HEROISM) {
+            for &unit in &units {
+                if self.unit_has_heroism(unit) && self.unit_xp_level(unit) >= HEROISM_LEVEL {
+                    if let Ok(mut list) = self.world.get::<&mut UnitEnchantments>(unit) {
+                        list.0.retain(|&(s, _)| s != heroism);
+                    }
+                }
+            }
+        }
+        let mut best: Vec<(Position, PlayerId, u32)> = Vec::new();
+        for &unit in &units {
+            let gain = self.armsmaster_xp(unit);
+            let (Some(at), Some(owner)) = (self.unit_position(unit), self.unit_owner(unit)) else {
+                continue;
+            };
+            if gain == 0
+                || !self
+                    .unit_def(unit)
+                    .is_some_and(|d| d.kind == UnitKind::Hero)
+            {
+                continue;
+            }
+            match best.iter_mut().find(|b| b.0 == at && b.1 == owner) {
+                Some(b) => b.2 = b.2.max(gain),
+                None => best.push((at, owner, gain)),
+            }
+        }
+        for (at, owner, gain) in best {
+            for unit in self.units_at(at) {
+                let trainee = self.unit_owner(unit) == Some(owner)
+                    && self
+                        .unit_def(unit)
+                        .is_some_and(|d| d.kind != UnitKind::Hero && d.level_path.is_some());
+                if trainee {
+                    let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+                    let _ = self.world.insert_one(unit, Experience(xp + gain));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::magic::Retort;
+    use crate::map::{Grid, Map, Plane};
+    use crate::player::Player;
+    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+    use crate::rules::{BonusLevelDef, LevelDef, LevelPathDef, ModOp, Registry, Stat, UnitKind};
+    use crate::testutil::content_with_magic;
+
+    const P0: PlayerId = PlayerId(0);
+
+    fn at(x: u32, y: u32) -> Position {
+        Position {
+            plane: Plane::Arcanus,
+            x,
+            y,
+        }
+    }
+
+    /// Every level adds one to the melee attack, so the level shows in the stat.
+    fn melee_plus_one() -> Vec<EffectRule> {
+        vec![EffectRule {
+            when: Trigger::Passive,
+            condition: Condition::Always,
+            target: TargetSel::This,
+            effect: Effect::Modify {
+                stat: Stat::Melee,
+                op: ModOp::Add,
+                value: 1,
+            },
+        }]
+    }
+
+    fn world() -> Game {
+        let mut c = content_with_magic();
+        let mut units = c.rules.units.defs().to_vec();
+        for u in units.iter_mut() {
+            match u.id.as_str() {
+                "walker" => u.kind = UnitKind::Normal,
+                "hardy" => {
+                    u.kind = UnitKind::Hero;
+                    u.abilities.push(ARMSMASTER.into());
+                }
+                "scout" => {
+                    u.kind = UnitKind::Hero;
+                    u.abilities.push(SUPER_ARMSMASTER.into());
+                }
+                _ => {}
+            }
+        }
+        c.rules.units = Registry::new(units);
+        let level = |name: &str, xp| LevelDef {
+            name: name.into(),
+            xp,
+            effects: melee_plus_one(),
+        };
+        let bonus = |name: &str| BonusLevelDef {
+            name: name.into(),
+            effects: melee_plus_one(),
+        };
+        c.rules.level_paths = Registry::new(vec![LevelPathDef {
+            id: "xp".into(),
+            levels: vec![
+                LevelDef {
+                    name: "Recruit".into(),
+                    xp: 0,
+                    effects: vec![],
+                },
+                level("Regular", 20),
+                level("Veteran", 60),
+                level("Elite", 120),
+            ],
+            bonus: vec![bonus("Ultra-Elite"), bonus("Champion")],
+        }]);
+        let grass = c.terrains.id_of("grassland").unwrap();
+        let mut g = Game::new(3);
+        g.content = c;
+        g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
+        g.fog = crate::fog::Fog::new(24, 14);
+        let mut p = Player::new(P0, "W");
+        p.mana = 5000;
+        g.players.push(p);
+        g.init_wizard(P0, &[("life", 4)], &[]).unwrap();
+        g
+    }
+
+    fn spawn(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
+        let def = g.content.rules.units.id_of(id).unwrap();
+        g.spawn_unit(P0, pos, def)
+    }
+
+    fn set_xp(g: &mut Game, unit: hecs::Entity, xp: u32) {
+        g.world.insert_one(unit, Experience(xp)).unwrap();
+    }
+
+    fn enchant(g: &mut Game, spell: &str, who: crate::rules::exec::Target) {
+        let s = g.content.rules.spells.id_of(spell).unwrap();
+        g.attach_enchantment(who, s, P0);
+    }
+
+    fn xp(g: &Game, unit: hecs::Entity) -> u32 {
+        g.world.get::<&Experience>(unit).map_or(0, |x| x.0)
+    }
+
+    #[test]
+    fn warlord_and_crusade_each_add_a_level_and_only_they_reach_the_top() {
+        let mut g = world();
+        let unit = spawn(&mut g, "walker", at(3, 3));
+        set_xp(&mut g, unit, 120);
+        assert_eq!(g.unit_level(unit), 3, "experience stops at elite");
+        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 3);
+        g.player_mut(P0)
+            .unwrap()
+            .magic
+            .retorts
+            .insert(Retort::Warlord);
+        assert_eq!(g.unit_level(unit), 4, "warlord: ultra-elite");
+        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 4);
+        enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
+        assert_eq!(g.unit_level(unit), 5, "both: champion");
+        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 5);
+        // A recruit gets the two levels too, and nothing lifts anyone past champion.
+        let recruit = spawn(&mut g, "walker", at(4, 3));
+        assert_eq!(g.unit_level(recruit), 2);
+        set_xp(&mut g, recruit, 1000);
+        assert_eq!(g.unit_level(recruit), 5);
+    }
+
+    #[test]
+    fn crusade_leaves_the_undead_and_creatures_alone_but_warlord_does_not() {
+        let mut g = world();
+        let normal = spawn(&mut g, "walker", at(3, 3));
+        let creature = spawn(&mut g, "slow", at(4, 3));
+        let undead = spawn(&mut g, "walker", at(5, 3));
+        g.make_undead(undead);
+        enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
+        assert_eq!(g.unit_level(normal), 1);
+        assert_eq!(g.unit_level(undead), 0, "not for the undead");
+        assert_eq!(g.unit_level(creature), 0, "nor for creatures");
+        g.player_mut(P0)
+            .unwrap()
+            .magic
+            .retorts
+            .insert(Retort::Warlord);
+        assert_eq!(g.unit_level(undead), 1, "warlord is for every unit");
+    }
+
+    #[test]
+    fn heroism_makes_a_unit_elite_and_ends_when_it_gets_there_by_itself() {
+        let mut g = world();
+        let unit = spawn(&mut g, "walker", at(3, 3));
+        enchant(&mut g, "heroism", crate::rules::exec::Target::Unit(unit));
+        assert!(g.unit_has_heroism(unit));
+        assert_eq!(g.unit_level(unit), 3);
+        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 3);
+        // Warlord goes on top of the floor.
+        g.player_mut(P0)
+            .unwrap()
+            .magic
+            .retorts
+            .insert(Retort::Warlord);
+        assert_eq!(g.unit_level(unit), 4);
+        g.player_mut(P0).unwrap().magic.retorts.clear();
+        // Enough experience for a veteran: the spell stays.
+        set_xp(&mut g, unit, 60);
+        g.process_experience();
+        assert!(g.unit_has_heroism(unit));
+        // An elite by experience no longer needs it.
+        set_xp(&mut g, unit, 120);
+        g.process_experience();
+        assert!(!g.unit_has_heroism(unit));
+        assert_eq!(g.unit_level(unit), 3);
+    }
+
+    #[test]
+    fn an_armsmaster_trains_the_units_on_its_square() {
+        let mut g = world();
+        let hero = spawn(&mut g, "hardy", at(3, 3));
+        let near = spawn(&mut g, "walker", at(3, 3));
+        let far = spawn(&mut g, "walker", at(4, 3));
+        assert_eq!(g.armsmaster_xp(hero), 2, "level 1: 2 xp");
+        set_xp(&mut g, hero, 20);
+        assert_eq!(g.armsmaster_xp(hero), 4, "level 2: 4 xp");
+        g.process_experience();
+        assert_eq!(xp(&g, near), 4);
+        assert_eq!(xp(&g, far), 0);
+        assert_eq!(xp(&g, hero), 20, "not the hero itself");
+        // Another hero with the better ability on the same square: the best counts, not the sum.
+        let _super = spawn(&mut g, "scout", at(3, 3));
+        g.process_experience();
+        assert_eq!(
+            xp(&g, near),
+            4 + 4,
+            "super at level 1 gives 3, the first hero's 4 wins"
+        );
+        set_xp(&mut g, hero, 120);
+        g.process_experience();
+        assert_eq!(xp(&g, near), 8 + 8, "level 4: 8 xp");
+    }
+}

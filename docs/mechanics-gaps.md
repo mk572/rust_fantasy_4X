@@ -89,7 +89,7 @@ diplomacy, AI, random events, victory and score.
   travel, undead rules (no healing, +50% upkeep for fantastic undead) [396-427, 552-553].
 - Ranged ammunition (quiver refills after combat), magical ranged "spell shots", mana
   leak [542, 491].
-- Experience, level effects, Warlord/Crusade, Armsmaster [515-541].
+- Experience gain and the original's level bonuses (tasks 173, 174). Warlord, Crusade, Heroism and the Armsmaster training are done (task 27, `experience.rs`).
 - Heroes: 13 hero abilities with levels and "super" versions; item slots by hero type
   (sword/bow/staff/armor/misc); item powers, charges, anvil to scrap items, hiring,
   noble/charmed/lucky traits, resurrection, recall [515-526, 577-588, 240, 246].

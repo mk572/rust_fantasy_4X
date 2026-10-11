@@ -209,6 +209,7 @@ pub fn content_with_units() -> Content {
                 }],
             },
         ],
+        bonus: vec![],
     };
     c.rules = Rules {
         units: Registry::new(units),
@@ -665,6 +666,7 @@ pub fn content_with_magic() -> Content {
         "charm_of_life",
         "holy_arms",
         "chaos_surge",
+        "crusade",
     ] {
         let mut s = base(id, "arcane", Rarity::VeryRare, 100, 100, SpellTarget::None);
         s.duration = Duration::Permanent;
@@ -696,6 +698,18 @@ pub fn content_with_magic() -> Content {
         }
         spells.push(s);
     }
+    // Heroism: a lasting unit enchantment the level code looks for by name.
+    let mut heroism = base(
+        "heroism",
+        "life",
+        Rarity::Common,
+        20,
+        100,
+        SpellTarget::OwnUnit,
+    );
+    heroism.duration = Duration::Permanent;
+    heroism.upkeep = 2;
+    spells.push(heroism);
     // The map-square spells.
     for (id, cost, hook) in [
         ("raise_volcano", 200, crate::terraform::RAISE_VOLCANO),

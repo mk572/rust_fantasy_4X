@@ -715,6 +715,7 @@ impl Game {
         let mut events = self.tick_timers();
         self.tick_temp_effects();
         self.process_globals();
+        self.process_experience();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {
             self.apply_magic_power(player);

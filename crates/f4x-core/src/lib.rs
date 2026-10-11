@@ -15,6 +15,7 @@ pub mod diplomacy;
 pub mod dispel;
 pub mod economy;
 pub mod endgame;
+pub mod experience;
 pub mod featuregen;
 pub mod fog;
 pub mod fortress;

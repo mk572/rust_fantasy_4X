@@ -5,6 +5,9 @@
         (name: "Regular", xp: 20, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1))]),
         (name: "Veteran", xp: 60, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: ToHit, op: Add, value: 10))]),
         (name: "Elite", xp: 120, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: ToHit, op: Add, value: 10))]),
+    ], bonus: [
+        (name: "Ultra-Elite", effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: ToHit, op: Add, value: 10))]),
+        (name: "Champion", effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: ToHit, op: Add, value: 10))]),
     ]),
     (id: "hero_xp", levels: [
         (name: "Hero", xp: 0, effects: []),

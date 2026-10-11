@@ -294,6 +294,35 @@ pub struct LevelDef {
 pub struct LevelPathDef {
     pub id: String,
     pub levels: Vec<LevelDef>,
+    /// Levels above the last one experience reaches: only Warlord, Crusade and the like lift a
+    /// unit into them (Ultra-Elite and Champion for normal units).
+    #[serde(default)]
+    pub bonus: Vec<BonusLevelDef>,
+}
+
+/// A level that experience alone never gives.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BonusLevelDef {
+    pub name: String,
+    pub effects: Vec<EffectRule>,
+}
+
+impl LevelPathDef {
+    /// Levels in all, those experience gives and the bonus levels.
+    pub fn level_count(&self) -> usize {
+        self.levels.len() + self.bonus.len()
+    }
+
+    /// Name and effects of level `index` (0-based), bonus levels last.
+    pub fn level(&self, index: usize) -> Option<(&str, &[EffectRule])> {
+        match self.levels.get(index) {
+            Some(l) => Some((&l.name, &l.effects)),
+            None => self
+                .bonus
+                .get(index - self.levels.len())
+                .map(|b| (&b.name[..], &b.effects[..])),
+        }
+    }
 }
 
 /// Tunable numbers that are not content.

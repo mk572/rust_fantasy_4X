@@ -32,6 +32,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 24 | City | Stream of Life and Gaia's Blessing (B8) (done) |
 | 25 | City | City enchantments with non-stat effects (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
+| 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (done) |
 | 30 | Units | Temporary effects store (done) |
@@ -192,6 +193,8 @@ large shield, long range, lucky, holy bonus, illusion, cause fear, wall crusher,
 teleport, merging, gazes and bolts, poison, stoning and life steal touches, immolation,
 spellcasters and the casting units. *Waiting for another system:* create undead and summon
 demon (after-battle results, 42), purify and land corruption (5), undead rules (29).
+
+**27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (done).** `Game::unit_level` (`units.rs`) is the one level for the map and for battles: the level experience gives (up to Elite for normal units, Demi-god for heroes), raised to Elite by Heroism, then plus one for the owner's Warlord retort and one for their Crusade spell (not for the undead or creatures; heroes count, as in the original's code, though the help says "normal units"), capped at the last level. Ultra-Elite and Champion are *bonus levels* of the `standard_xp` level path (`LevelPathDef::bonus`, written by `scripts/import_mom.py`), which experience never reaches. Heroism (a permanent unit enchantment with no stat effect) ends when the unit is Elite by experience; a hero with the `armsmaster` or `super_armsmaster` ability gives each other unit on its square 2 (3) xp per level counting from 1 at the turn change, the best hero of a square counting (`experience.rs`; hero abilities are handed out by task 47). Crusade is now a global enchantment the level code reads. B9: battles use the map's level (the help); the original's battle code ignores Warlord, Crusade and xp when Heroism is on.
 
 **28. Transport (done).** `transport.rs`: ships have a `Transport` stat (Trireme 2, Galley 5,
 Warship 3, Floating Island 8; imported). Land units cannot enter the sea alone: they board by

@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
@@ -125,14 +124,10 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 167 | Meta | Diplomacy leftovers |
 | 168 | Client | The original's diplomacy dialog as a local resource |
 | 172 | Meta | Learning AI: battle AI follow-ups |
+| 173 | Units | Experience gain: one xp a turn for living normal units (and battles: 42) |
+| 174 | Units | Level bonuses of the original (the level path has our simpler pattern) |
 
 ## Descriptions
-
-### Units
-
-**27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9).** Elite levels beyond 120 xp need
-Warlord or Crusade; Armsmaster doubles hero xp use; Heroism should make a unit elite (decide the
-combat-level exception from B9). Warlord retort needs task 53. Low priority: only needed for specific spells, buildings, units or abilities.
 
 ### Combat
 
@@ -154,7 +149,7 @@ wizard's combat spells. After 40 and 43.
 ### Heroes and items
 
 **47. Hero abilities.** 13 hero abilities with levels and "super" versions [515-526]; data exists
-as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities.
+as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities. Armsmaster itself is in the engine (task 27): give the heroes the `armsmaster` and `super_armsmaster` ability ids.
 
 **48. Hiring, summoning, recall, resurrection and fame.** Hero availability by fame, hiring cost,
 the noble, charmed and lucky traits, Summon Hero and Summon Champion, Recall Hero, dead hero
@@ -324,8 +319,7 @@ Nature's Wrath, Time Stop's combat part: 33-46); *corruption and map change* (Gr
 Armageddon, Meteor Storm: land corruption 5, terraform volcano rain, timed damage); *dispel
 mathematics* (Suppress Magic, Life Force, Tranquility: 59); *diplomacy and fame* (Aura of
 Majesty: 63; Just Cause: 72); *movement* (Wind Mastery: doubles own ship and sky speeds and
-halves everyone else's, which needs a condition on movement type); *experience* (Crusade: one
-level more for normal units, 27); *abilities* (Holy Arms' magic weapons, Doom Mastery's
+halves everyone else's, which needs a condition on movement type); *abilities* (Holy Arms' magic weapons, Doom Mastery's
 mutation of new units: temporary effects store 30); and Time Stop's turn flow. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **88. Hall of fame.** The list of best finished games with wizard, race, score, turns and
@@ -541,3 +535,7 @@ Parity task, low priority.
 **168. The original's diplomacy dialog as a local resource.** The wizards of task 91 speak lines of the game's own (`diplomacy_text.rs`); the original's are in `DIPLOMSG.LBX` and are its prose, so they may only be used locally, like the help text (`docs/local-assets.md`). Extract them with `scripts/import_mom.py` (or `f4x-tools`) into `content-local/diplomsg.ron`: entry 0 holds, for each of the situations (`diplomsg_0_record_number`, the original's `do_*` message numbers), a 6-byte record with the count of variants; entry 1 holds the variants, 15 to a situation and 200 bytes each (`Get_Diplomacy_Statement`, `DIPLOMAC.c`). The text has control codes (bytes above 127, `code & 0x7F` up to 20) that stand for the player's name, the wizard's name, a spell, gold or a treaty: decode them into placeholders and read how each is filled in. Then the client (`diplomacy_text.rs`) uses the original's line for a situation when the file is there, picking a variant at random as the original does (one fewer in a two-player game), and falls back to its own otherwise. Map each situation to what the core does (greeting by personality, accept, refuse, counter, threat, war, peace offer, tribute thanks, get-off-my-lawn, treaty broken; `diplomacy.md` section 9.5). The situations the game cannot yet reach (threats, trespass, demands: task 167) can wait. Gitignored output, as for the help text.
 
 **172. Learning AI: battle AI follow-ups.** What tasks 170 and 171 left (`learning-ai.md` 7.7 and 7.8): (1) stronger yardsticks than the scripted AI, which random orders already beat: past checkpoints as opponents (the league of 6.4), Elo, and an evaluation as the defender; (2) the agent chooses **which unit** moves (a pointer over the units) and can cast later in the turn, not only at its start; (3) fleeing: it is found only with the help of a head that compares the value of fleeing with the critic's, and it still flees in fights it would win; (4) longer runs and a checkpoint chosen by its held-out score; (5) the AI wizards' real battles as training data (task 8.3), difficulty levels from checkpoints, and a client setting for `--battle-ai` (the client needs the `learned` feature and a checkpoint file); (6) the battle outcome model for the strategic AI (8.4); (7) a gap the first runs show: the odds classes were measured with the scripted AI, so a better player makes them easy.
+
+**173. Experience gain.** Nothing gives units experience yet except a training guild. The original (`Do_All_Units_XP_Check`, `NEXTTURN.c`) adds 1 xp every turn to each living normal unit and hero (not creatures or the undead) and caps normal units at the Elite threshold; experience from battles (kills, survival) is part of task 42. Needs a decision on what a battle gives, since the original's help is silent; heroes' levels also wait on Demi-god at 1000 xp.
+
+**174. Level bonuses of the original.** The `standard_xp` and `hero_xp` level paths give every level +1 resistance and, from the third, +10 to hit (`level_path_ron` in `import_mom.py`): a simple stand-in. The original's battle code (`Battle_Unit_Level_Stats`, `COMBINIT.c`) gives normal units: level 1 resistance +1 and melee/ranged +1; level 2 resistance +1 and defence +1; level 3 to hit +1, resistance +1, attacks +1; level 4 to hit, resistance, defence; level 5 to hit, resistance, attacks (attacks only when the unit has them). Heroes differ. Port them, including Ultra-Elite and Champion, and check the figures against the help text.

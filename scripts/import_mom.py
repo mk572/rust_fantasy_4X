@@ -269,8 +269,10 @@ UNIT_COLUMNS = (
 ).split()
 
 # Normal units stop at Elite by experience; Ultra-Elite and Champion need the Warlord
-# ability / Crusade spell (help topics 530-532), which a level path cannot express.
+# ability / Crusade spell (help topics 530-532): the level path lists them as bonus levels,
+# which `Game::unit_level` lifts a unit into.
 LEVELS_NORMAL = [("Recruit", 0), ("Regular", 20), ("Veteran", 60), ("Elite", 120)]
+BONUS_LEVELS_NORMAL = ["Ultra-Elite", "Champion"]
 LEVELS_HERO = [
     ("Hero", 0), ("Myrmidon", 20), ("Captain", 60), ("Commander", 120), ("Champion", 200),
     ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 1000),
@@ -669,6 +671,8 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
 # Unit-enchantment style spells that map directly onto stat modifiers.
 # name -> list of (stat, op, value). Sourced from the original manual text.
 UNIT_ENCHANT_MODS = {
+    # Heroism lifts the unit to Elite (`Game::unit_level`).
+    "Heroism": [],
     "Giant Strength": [("Melee", "Add", 1)],
     "Stone Skin": [("Defense", "Add", 1)],
     "Iron Skin": [("Defense", "Add", 5)],
@@ -755,7 +759,7 @@ TILE_HOOKS = {
 # runs no effect of its own.
 GLOBAL_ENGINE = {
     "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature's Awareness",
-    "Detect Magic", "Charm of Life", "Suppress Magic",
+    "Detect Magic", "Charm of Life", "Suppress Magic", "Crusade",
 }
 
 # The dispel family (`dispel.rs`): (target, effect, strength factor). The strength is the
@@ -1210,16 +1214,22 @@ def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
 
-def level_path_ron(ident: str, levels: list[tuple[str, int]]) -> str:
-    rows = []
-    for i, (name, xp) in enumerate(levels):
-        effects = []
-        if i >= 1:
-            effects.append("(effect: Modify(stat: Resistance, op: Add, value: 1))")
-        if i >= 2:
-            effects.append("(effect: Modify(stat: ToHit, op: Add, value: 10))")
-        rows.append(f"        (name: {ron_str(name)}, xp: {xp}, effects: [{', '.join(effects)}]),")
-    return f"    (id: {ron_str(ident)}, levels: [\n" + "\n".join(rows) + "\n    ]),"
+def level_effects(i: int) -> str:
+    effects = []
+    if i >= 1:
+        effects.append("(effect: Modify(stat: Resistance, op: Add, value: 1))")
+    if i >= 2:
+        effects.append("(effect: Modify(stat: ToHit, op: Add, value: 10))")
+    return ", ".join(effects)
+
+
+def level_path_ron(ident: str, levels: list[tuple[str, int]], bonus: list[str] = ()) -> str:
+    rows = [f"        (name: {ron_str(name)}, xp: {xp}, effects: [{level_effects(i)}])," for i, (name, xp) in enumerate(levels)]
+    out = f"    (id: {ron_str(ident)}, levels: [\n" + "\n".join(rows) + "\n    ]"
+    if bonus:
+        rows = [f"        (name: {ron_str(name)}, effects: [{level_effects(len(levels) + i)}])," for i, name in enumerate(bonus)]
+        out += ", bonus: [\n" + "\n".join(rows) + "\n    ]"
+    return out + "),"
 
 
 # Percent unrest caused by each tax rate (the rate is also half the gold per citizen).
@@ -1337,7 +1347,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     write_list(rules_out / "items.ron", header, items)
     write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
     write_list(rules_out / "level_paths.ron", header,
-               [level_path_ron("standard_xp", LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
+               [level_path_ron("standard_xp", LEVELS_NORMAL, BONUS_LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])
