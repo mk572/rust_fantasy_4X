@@ -582,7 +582,7 @@ elevation with a land percentage). Optionally port the original's `NEWG_CreateLa
 from origins spread over map sections (3 to 5 arms of 6-15, 11-20 or 21-30 steps by land size, with
 a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix-up, as described in
 `reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
-opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair placement parity is task 129.
+opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair placement parity is done (task 129 in TASKS-DONE).
 Parity task, low priority.
 
 **151. Choose an enemy global enchantment as a target.** Disjunction, Disjunction True and Spell Binding take `Target::Global(owner, spell)`. The client cannot pick one yet: casting them does nothing. Add a picker (the original's list of each rival's global enchantments by wizard, with the spell's name and cost) that opens when the spell needs it, then sends the cast with the chosen target. The console already takes `global:<player>:<spell>`.
