@@ -416,7 +416,7 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
     let cities = neutral_cities(&g);
     for plane in [Plane::Arcanus, Plane::Myrror] {
         let here: Vec<_> = cities.iter().filter(|(_, p)| p.plane == plane).collect();
-        assert_eq!(here.len(), 15, "{plane:?}");
+        assert!((2..=15).contains(&here.len()), "{plane:?}: {}", here.len());
         // Cities keep their distance from each other and from every fortress.
         let grid = g.map.as_ref().unwrap().plane(plane);
         for (i, (_, a)) in here.iter().enumerate() {
@@ -515,7 +515,7 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     }
     assert_eq!(
         neutral_cities(&g).len(),
-        30,
+        before.len(),
         "no neutral city is lost on its own"
     );
     let grew = before.iter().any(|&(e, pop, _)| {
@@ -547,7 +547,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .iter()
         .filter_map(|(e, _)| g.city_owner(*e))
         .collect();
-    assert_eq!(owners.len(), 30, "one player each");
+    assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
         let p = g.player(o).unwrap();
         assert!(p.neutral && p.grand_vizier && p.gold > 0);
@@ -622,7 +622,7 @@ fn neutral_cities_survive_a_save() {
     let snap = g.snapshot();
     let back = snap.clone().restore(g.content.clone()).unwrap();
     assert_eq!(back.snapshot(), snap);
-    assert_eq!(neutral_cities(&back).len(), 30);
+    assert_eq!(neutral_cities(&back).len(), neutral_cities(&g).len());
 }
 
 #[test]
@@ -646,6 +646,34 @@ fn neutral_cities_keep_their_garrisons_for_sixty_turns() {
                     );
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn a_world_has_the_originals_number_of_lairs() {
+    use f4x_core::map::Plane;
+    let content = content();
+    for seed in [1, 2, 3, 4] {
+        let g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        let map = g.map.as_ref().unwrap();
+        // 6 towers on each plane, a lair at each of the 30 nodes, and 25 + 32 random sites.
+        assert_eq!(map.nodes().len(), 30, "seed {seed}");
+        assert_eq!(map.lairs().len(), 12 + 30 + 57, "seed {seed}");
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            // Up to 15 a plane: the original gives up after 1000 tries, too.
+            let n = neutral_cities(&g)
+                .iter()
+                .filter(|(_, p)| p.plane == plane)
+                .count();
+            assert!((2..=15).contains(&n), "seed {seed} {plane:?}: {n}");
         }
     }
 }

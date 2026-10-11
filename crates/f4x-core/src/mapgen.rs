@@ -17,8 +17,6 @@ pub struct PlaneParams {
     pub mineral_percent: u8,
     /// Number of magic nodes to place.
     pub node_count: u8,
-    /// One encounter site per this many land tiles; 0 disables encounters.
-    pub encounter_ratio: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +27,9 @@ pub struct GenParams {
     pub land_percent: u8,
     /// Towers placed at identical coordinates on both planes.
     pub tower_count: u8,
+    /// Strong and weak random encounter sites, on either plane (the original's 25 and 32).
+    pub strong_sites: u32,
+    pub weak_sites: u32,
     /// The game's difficulty, 0 (intro) to 4 (impossible): guards and treasure scale with it.
     pub difficulty: u8,
     /// The game's node setting, 0 weak to 2 powerful.
@@ -44,18 +45,18 @@ impl Default for GenParams {
             height: 40,
             land_percent: 30,
             tower_count: 6,
+            strong_sites: 25,
+            weak_sites: 32,
             difficulty: 2,
             magic_strength: 1,
             planes: [
                 PlaneParams {
                     mineral_percent: 6,
                     node_count: 16,
-                    encounter_ratio: 10,
                 },
                 PlaneParams {
                     mineral_percent: 10,
                     node_count: 14,
-                    encounter_ratio: 10,
                 },
             ],
         }

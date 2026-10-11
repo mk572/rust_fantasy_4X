@@ -104,7 +104,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 126 | Client | Bitmap font for the remaining overland text |
 | 127 | Map | Lair rewards: original spell, book and retort selection |
 | 128 | Client | Site encounter dialogs and treasure popup |
-| 129 | Map | Lair generation parity |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
 | 131 | Combat | Battle grid shape and deployment as in the original |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
@@ -501,15 +500,6 @@ original's confirm box ("You have found a ruins.  Scouts have spotted 4 Skeleton
 Do you wish to enter?", node pictures per realm, Y/N), send `EnterSite`, and after a win show
 "Inside you find ..." with the gold, mana, items, prisoner and spell lines. Unguarded sites pay out
 on arrival without a prompt. The fight itself uses the battle screen (done); the prompt is what is missing.
-
-**129. Lair generation parity.** The original places 6 towers, 30 nodes, 25 strong and 32 weak random
-sites (102 slots, three left switched off), each at least two squares from any other lair, on land,
-2 squares from the map edge, with a seven-way random site type (cave, dungeon, temple, keep, lair, ruins,
-fallen temple). We give every generated feature a lair and split strong/weak 25:32 at random. Port the
-exact placement, counts and type roll once the generator parity task (10) is taken. Neutral cities
-(task 31) keep only 2 squares from a lair, node or tower instead of the original's 4, because our
-generator makes about twice as many lairs and with 4 no land is left; restore 4 with the real counts
-(`SITE_CLEARANCE` in `neutral_cities.rs`).
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a

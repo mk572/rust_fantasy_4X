@@ -13,6 +13,10 @@ use crate::mapgen::{GenError, GenParams};
 const TOWER_SPACING: u32 = 10;
 /// Nodes keep at least this distance from towers and from each other.
 const NODE_SPACING: u32 = 4;
+/// Random sites keep this far from the map's top and bottom edges.
+const SITE_MARGIN: u32 = 2;
+/// Random sites keep at least this distance from every other site.
+const SITE_SPACING: u32 = 2;
 /// Towers and nodes stay away from the polar rows.
 const POLE_MARGIN: u32 = 3;
 
@@ -23,6 +27,7 @@ pub fn place_features(
     map: &mut Map,
 ) -> Result<(), GenError> {
     let towers = place_towers(seed, params, content, map)?;
+    let mut rngs = Vec::new();
     for plane in Plane::ALL {
         let salt = 0x51ED_2701_F00D_0000u64 + plane.index() as u64;
         let mut rng = Pcg64Mcg::seed_from_u64(seed ^ salt.wrapping_mul(0x9E37_79B9_7F4A_7C15));
@@ -37,19 +42,13 @@ pub fn place_features(
             content,
             grid,
         );
-
-        let land = candidates(grid, content, |_| true).len() as u32;
-        if let Some(n) = land.checked_div(pp.encounter_ratio) {
-            place_weighted(
-                &mut rng,
-                plane,
-                FeatureKind::Encounter,
-                n as usize,
-                content,
-                grid,
-            );
-        }
-
+        rngs.push(rng);
+    }
+    place_random_sites(seed, params, content, map, &towers);
+    for plane in Plane::ALL {
+        let mut rng = rngs.remove(0);
+        let pp = params.planes[plane.index()];
+        let grid = map.plane_mut(plane);
         let mineral_tiles = candidates(grid, content, |c| {
             !content
                 .features
@@ -61,6 +60,76 @@ pub fn place_features(
         place_weighted(&mut rng, plane, FeatureKind::Mineral, n, content, grid);
     }
     Ok(())
+}
+
+/// The random encounter sites of the original's `Generate_Lairs`: a fixed number (25 strong and
+/// 32 weak, told apart when the lairs are made) on land of either plane, a plane and a square
+/// rolled for each, none within one square of a tower, node or other site on either plane and
+/// none within 2 squares of the map's top or bottom.
+fn place_random_sites(
+    seed: u64,
+    params: &GenParams,
+    content: &Content,
+    map: &mut Map,
+    towers: &[(u32, u32)],
+) {
+    let want = (params.strong_sites + params.weak_sites) as usize;
+    let (w, h) = (map.width(), map.height());
+    if want == 0 || h <= 2 * SITE_MARGIN {
+        return;
+    }
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x517E_5EED_0000_0003);
+    let mut taken: Vec<(u32, u32)> = towers.to_vec();
+    for plane in Plane::ALL {
+        let grid = map.plane(plane);
+        for y in 0..h {
+            for x in 0..w {
+                let is_node = grid
+                    .feature(x as i32, y as i32)
+                    .and_then(|f| content.features.get(f))
+                    .is_some_and(|d| d.kind == FeatureKind::Node);
+                if is_node {
+                    taken.push((x, y));
+                }
+            }
+        }
+    }
+    let (mut placed, mut tries) = (0, 0);
+    while placed < want && tries < want * 100 {
+        tries += 1;
+        let plane = Plane::ALL[rng.gen_range(0..2)];
+        let (x, y) = (
+            rng.gen_range(SITE_MARGIN..w - SITE_MARGIN),
+            rng.gen_range(SITE_MARGIN..h - SITE_MARGIN),
+        );
+        let grid = map.plane(plane);
+        if grid.feature(x as i32, y as i32).is_some()
+            || taken
+                .iter()
+                .any(|&o| grid.chebyshev(o, (x, y)) < SITE_SPACING)
+        {
+            continue;
+        }
+        let Some(class) = grid
+            .get(x as i32, y as i32)
+            .and_then(|t| content.terrains.get(t))
+            .map(|d| d.class)
+            .filter(|&c| c != TerrainClass::Ocean)
+        else {
+            continue;
+        };
+        let Some(id) = pick(
+            &mut rng,
+            &content
+                .features
+                .weighted(FeatureKind::Encounter, class, plane),
+        ) else {
+            continue;
+        };
+        map.plane_mut(plane).set_feature(x, y, Some(id));
+        taken.push((x, y));
+        placed += 1;
+    }
 }
 
 /// Towers share coordinates across planes; water under a tower becomes grass.

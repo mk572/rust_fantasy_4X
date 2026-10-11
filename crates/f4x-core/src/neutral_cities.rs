@@ -29,9 +29,8 @@ pub const NEUTRAL_CITIES_PER_PLANE: u32 = 15;
 /// Placement attempts before giving up on the rest.
 const MAX_TRIES: u32 = 1000;
 
-/// Squares between a neutral city and a node, tower or lair. The original keeps 4, but our
-/// generator places about twice as many lairs as it does (task 129), and with 4 no land is left.
-const SITE_CLEARANCE: u32 = 2;
+/// Squares between a neutral city and a node, tower or lair.
+const SITE_CLEARANCE: u32 = 4;
 
 /// Squares between a neutral city and a wizard's fortress.
 const FORTRESS_CLEARANCE: u32 = 5;
@@ -54,6 +53,13 @@ const STARTING_BUILDINGS: [(u32, &str); 10] = [
 /// The first number given to the players of neutral cities, well clear of the wizards.
 const FIRST_CITY_PLAYER: u8 = 100;
 
+/// The original's `Range`: the longer side plus half the shorter, with no wrap-around. Squares
+/// at a range under 4 form a diamond-cornered block, smaller than a square of 7 by 7.
+fn range(x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
+    let (dx, dy) = (x1.abs_diff(x2), y1.abs_diff(y2));
+    dx.max(dy) + dx.min(dy) / 2
+}
+
 impl Game {
     /// A new player for one neutral city, with the lowest number not yet taken.
     fn new_city_player(&mut self, name: &str) -> PlayerId {
@@ -75,7 +81,7 @@ impl Game {
             return false;
         };
         let grid = map.plane(pos.plane);
-        let near = |x: u32, y: u32, d: u32| grid.chebyshev((x, y), (pos.x, pos.y)) < d;
+        let near = |x: u32, y: u32, d: u32| range(x, y, pos.x, pos.y) < d;
         if self
             .players
             .iter()

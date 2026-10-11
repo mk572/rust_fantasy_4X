@@ -26,9 +26,6 @@ use crate::{Event, Game};
 const MAX_GUARDS: u32 = 9;
 /// Most guards of the first kind.
 const MAX_FIRST_GUARDS: i32 = 8;
-/// The original's two kinds of random encounter site: 25 strong ones to 32 weak ones.
-const STRONG_SHARE: (u32, u32) = (25, 57);
-
 /// What kind of site a lair guards, for choosing its guards' realm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SiteType<'a> {
@@ -334,6 +331,9 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
         );
         lairs.push(lair);
     }
+    // The random sites, in map order; exactly `strong_sites` of them (picked at random) are the
+    // strong ones, the rest weak.
+    let mut sites = Vec::new();
     for plane in Plane::ALL {
         let grid = map.plane(plane);
         for y in 0..grid.height() {
@@ -344,29 +344,42 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
                 else {
                     continue;
                 };
-                if def.kind != FeatureKind::Encounter {
-                    continue;
+                if def.kind == FeatureKind::Encounter {
+                    sites.push((plane, x, y, def));
                 }
-                let strong = rng.gen_range(0..STRONG_SHARE.1) < STRONG_SHARE.0;
-                let budget = match (strong, plane) {
-                    (true, Plane::Arcanus) => 50 + random(&mut rng, 29) * 50,
-                    (true, Plane::Myrror) => 100 + random(&mut rng, 24) * 100,
-                    (false, Plane::Arcanus) => random(&mut rng, 10) * 10,
-                    (false, Plane::Myrror) => random(&mut rng, 20) * 10,
-                };
-                let lair = make_lair(
-                    &mut rng,
-                    content,
-                    plane,
-                    (x, y),
-                    &def.id,
-                    site_type(&def.id, def.kind),
-                    budget,
-                    difficulty,
-                );
-                lairs.push(lair);
             }
         }
+    }
+    let mut order: Vec<usize> = (0..sites.len()).collect();
+    for i in (1..order.len()).rev() {
+        order.swap(i, rng.gen_range(0..=i));
+    }
+    let strong_count = (params.strong_sites as usize).min(sites.len());
+    let strong: Vec<bool> = {
+        let mut flags = vec![false; sites.len()];
+        for &i in &order[..strong_count] {
+            flags[i] = true;
+        }
+        flags
+    };
+    for (i, &(plane, x, y, def)) in sites.iter().enumerate() {
+        let budget = match (strong[i], plane) {
+            (true, Plane::Arcanus) => 50 + random(&mut rng, 29) * 50,
+            (true, Plane::Myrror) => 100 + random(&mut rng, 24) * 100,
+            (false, Plane::Arcanus) => random(&mut rng, 10) * 10,
+            (false, Plane::Myrror) => random(&mut rng, 20) * 10,
+        };
+        let lair = make_lair(
+            &mut rng,
+            content,
+            plane,
+            (x, y),
+            &def.id,
+            site_type(&def.id, def.kind),
+            budget,
+            difficulty,
+        );
+        lairs.push(lair);
     }
     map.set_lairs(lairs);
 }

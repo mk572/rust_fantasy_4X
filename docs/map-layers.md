@@ -185,7 +185,7 @@ generator).
 | `tower_count` | 6 | towers, at the same coordinates on both planes |
 | `planes[].mineral_percent` | 6 (Arcanus), 10 (Myrror) | share of mineral-capable land tiles that get a mineral |
 | `planes[].node_count` | 16 (Arcanus), 14 (Myrror) | magic nodes per plane |
-| `planes[].encounter_ratio` | 10 | one encounter site per this many land tiles (0 disables) |
+| `strong_sites`, `weak_sites` | 25, 32 | random encounter sites on either plane (the original's counts) |
 
 **Terrain, per plane:**
 1. Two noise fields, *elevation* and *moisture*, are built from several octaves of value
@@ -205,7 +205,7 @@ generator).
 2. **Nodes.** At least 4 tiles from every tower and from each other node, at least 3 rows
    from a pole. The type is chosen by the terrain under it (nature favours forest and swamp,
    sorcery grassland, tundra and desert, chaos mountains and hills).
-3. **Encounter sites.** One per `encounter_ratio` land tiles, anywhere on free land.
+3. **Encounter sites.** `strong_sites + weak_sites` in all (57), each on a random plane at a random land square from 2 squares inside the map's top and bottom edges, at least 2 squares from every tower, node and other site on either plane; the kind is picked by terrain weight. Exactly `strong_sites` of them, chosen at random, get the strong budget (`lairs.rs`). A world has 12 tower lairs, 30 node lairs and these 57: 99 in all, as the original.
 4. **Minerals.** `mineral_percent` of the free land tiles whose class has any mineral that
    can spawn there, drawn by weight.
 
