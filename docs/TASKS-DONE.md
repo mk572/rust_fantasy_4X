@@ -29,6 +29,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 21 | City | Outpost growth: wild game and difficulty (B20) | (done)
 | 22 | City | Nightshade dispel strength | (done)
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
+| 24 | City | Stream of Life and Gaia's Blessing (B8) (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
 | 30 | Units | Temporary effects store (done) |
@@ -155,6 +156,8 @@ guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on 
 the economy adds to each farmer's harvest (not a flat bonus per city); the test
 `the_animists_guild_adds_food_for_every_farmer` pins it. The stale note in
 `help-vs-implementation-conflicts.md` section D was removed.
+
+**24. Stream of Life and Gaia's Blessing (B8) (done).** The original's unrest code reads the owner's overland-enchantment table at the city enchantments' index numbers (`City_Rebel_Count`: Gaia's Blessing adds 2 to the pacification, Stream of Life sets the rebels to 0), so in the original the two city spells do nothing there and the owner's Life Force or Crusade, which the conflicts list (B8) says sit at those slots, does; ReMoM's reconstruction leaves the Stream of Life healing (`CTY_StreamOfLife`) as a commented-out stub. Decision: follow the help. Stream of Life gives its city no rebels (`economy.rs`) and heals every unit in it completely at the end of each turn (`heal_units`; the undead stay unhealed as everywhere); its doubled growth was already in. Gaia's Blessing keeps what its help says (half as much more food, the land cleansing and greening, faster outpost growth) and also pacifies two rebels: the original's code does it and the Master of Magic wiki lists it, though the help text does not. Logged in `help-vs-implementation-conflicts.md`.
 
 **26. Unit abilities that need code (done).** All 66 imported abilities were sorted by where
 they act. *Overland, now implemented:* flying, wind walking, planar travel, non-corporeal,

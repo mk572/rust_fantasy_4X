@@ -74,8 +74,11 @@ ends with a note `[Updated from game code: ...]`. 16 topic edits, applied by
 | D2 Chaos [433] | doom damage (no to-hit, no resistance, no defence) is the full attack strength when the unit has it itself, half only when an item or spell gives it; the help said half (task 36, `combat.md` 2.2) |
 
 Not changed:
-- **B8 Stream of Life / Gaia's Blessing** stays open: the code reads the wrong table, which
-  looks like a port error rather than the original's behaviour. Needs the Dasm listing.
+- **B8 Stream of Life / Gaia's Blessing** (task 24, done): the code reads the wrong table, which
+  looks like a port error rather than the original's behaviour; the Dasm listing was not
+  consulted. We follow the help: Stream of Life removes the city's unrest and heals its units.
+  Gaia's Blessing also pacifies two rebels, as the original's code and the wiki have it (its
+  help names no unrest effect).
 - **C5 naming** (Cloud of Shadow/Darkness, Holy Light/Heavenly Light): both names occur in
   the game's own text, so both are left as is.
 
@@ -104,7 +107,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B5 | Sawmill [728] | +25% production of **forest squares** | +25% to the city's **total** production (`City_Production_Production`) | Verified | +25% city production | Use the code. |
 | B6 | Wall Crusher [398] | destroys a wall section 50% of the time | 50% in melee, **25% for ranged** attacks (combat code) | Verified | not modelled | Use the code (adds the ranged case). |
 | B7 | Dark Elf cities [281] | grow slowly, no Cathedral/Maritime; nothing about power | +1 mana per citizen (others with a power race get half) (`City_Mana_Production`) | Verified | not modelled | Use the code; the help omits it. |
-| B8 | Stream of Life [751], Gaia's Blessing | city enchantments | unrest code reads the **owner's overland-enchantment table** at the same index numbers (`City_Rebel_Count`), where those slots mean Life Force and Crusade | Check (not marked OGBUG; may be a port error) | not modelled | Verify against the Dasm listing; implement as city enchantments either way. |
+| B8 | Stream of Life [751], Gaia's Blessing | city enchantments | unrest code reads the **owner's overland-enchantment table** at the same index numbers (`City_Rebel_Count`), where those slots mean Life Force and Crusade | Check (not marked OGBUG; may be a port error) | Stream of Life: no unrest, full healing (task 24); Gaia's: help plus 2 pacified (wiki) | Follow the help (done). |
 | B9 | Heroism [473] | unit becomes elite | in combat, ignores Crusade, Warlord and xp when deciding the level (ReMoM note at the combat-init level code) | Check | not modelled | Follow the help; document the exception if parity is wanted. |
 | B10 | Undead [553] | gain every immunity of death creatures | combat init grants only some of them; cold, poison and illusion immunity are missing for raised/black-channelled units (ReMoM note) | Check | not modelled | Follow the help. |
 | B11 | Evil Omens [spell text] | all nature and life spells cost 50% more | several cost calculations (spell book display, summoning-master, counter-magic cost, item spells) ignore it (ReMoM notes in `Spellbook.c`, `SPLMASTR.c`, `CMBMAGIC.c`, `Combat.c`) | Check | not modelled | Follow the help: one cost function everywhere. |

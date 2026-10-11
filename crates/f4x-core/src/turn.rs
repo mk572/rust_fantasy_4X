@@ -441,6 +441,11 @@ impl Game {
             let city = at
                 .and_then(|p| self.city_at(p))
                 .filter(|&c| self.city_owner(c) == owner);
+            // Stream of Life: every unit in the city heals completely each turn.
+            if city.is_some_and(|c| self.city_has_enchantment(c, "stream_of_life")) {
+                let _ = self.world.insert_one(unit, Hurt(0));
+                continue;
+            }
             let divisor = match city {
                 Some(c) if self.city_has_building(c, "animists_guild") => 6,
                 Some(_) => 10,
@@ -828,6 +833,40 @@ mod tests {
             6,
             "10 * (45+20)% = 6"
         );
+    }
+
+    #[test]
+    fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() {
+        let mut g = world();
+        g.player_mut(P0).unwrap().tax_rate = 4;
+        let city = found(&mut g, at(10, 6), "elf", 10);
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        let home = g.spawn_unit(P0, at(10, 6), spear);
+        let field = g.spawn_unit(P0, at(14, 3), spear);
+        for u in [home, field] {
+            g.world.insert_one(u, Hurt(5)).unwrap();
+        }
+        assert!(g.city_economy(city).unwrap().rebels > 0);
+        let mut spells = g.content.rules.spells.defs().to_vec();
+        let mut def = spells
+            .iter()
+            .find(|s| s.id == "gaias_blessing")
+            .unwrap()
+            .clone();
+        def.id = "stream_of_life".into();
+        spells.push(def);
+        g.content.rules.spells = crate::rules::Registry::new(spells);
+        let stream = g.content.rules.spells.id_of("stream_of_life").unwrap();
+        g.world
+            .get::<&mut Enchantments>(city)
+            .unwrap()
+            .0
+            .push((stream, P0));
+        assert_eq!(g.city_economy(city).unwrap().rebels, 0, "no unrest");
+        g.apply(Command::EndTurn);
+        let hurt = |u| g.world.get::<&Hurt>(u).unwrap().0;
+        assert_eq!(hurt(home), 0, "healed completely in one turn");
+        assert!(hurt(field) > 0, "units outside the city are not");
     }
 
     #[test]
@@ -1500,5 +1539,20 @@ mod tests {
         // Gaia's blessing raises the food the land can carry by half.
         let blessed = g.city_economy_with(city, 2).unwrap();
         assert!(blessed.max_size >= base.max_size);
+    }
+
+    #[test]
+    fn gaias_blessing_pacifies_two_rebels() {
+        let mut g = world();
+        g.player_mut(P0).unwrap().tax_rate = 4; // 45% unrest: 4 rebels of 10
+        let city = found(&mut g, at(10, 6), "elf", 10);
+        assert_eq!(g.city_economy(city).unwrap().rebels, 4);
+        let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
+        g.world
+            .get::<&mut Enchantments>(city)
+            .unwrap()
+            .0
+            .push((gaia, P0));
+        assert_eq!(g.city_economy(city).unwrap().rebels, 2);
     }
 }

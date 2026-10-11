@@ -344,6 +344,11 @@ impl Game {
         let raw_rebels = (figures as i32 * unrest_percent / 100).max(0);
         // Pacification: negative CityUnrest modifiers calm the city; troops help if still short.
         let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
+        // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text
+        // does not).
+        if mods_have_enchantment_named(self, city, "gaias_blessing") {
+            pacify += 2;
+        }
         if pacify < raw_rebels {
             let police = self
                 .units_at(at)
@@ -360,7 +365,13 @@ impl Game {
                 .count() as i32;
             pacify += police / 2;
         }
-        let rebels = (raw_rebels - pacify).clamp(0, figures as i32) as u32;
+        // Stream of Life: the citizens are so pleased that unrest disappears (the original's
+        // code reads the owner's table instead of the city's, see B8).
+        let rebels = if mods_have_enchantment_named(self, city, "stream_of_life") {
+            0
+        } else {
+            (raw_rebels - pacify).clamp(0, figures as i32) as u32
+        };
         let farmers = farmers.min(figures - rebels.min(figures));
         let workers = figures - farmers - rebels;
 

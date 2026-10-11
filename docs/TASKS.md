@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 24 | City | Stream of Life and Gaia's Blessing (B8) (low priority) |
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
@@ -141,10 +140,6 @@ the worked-area food and production of cities, and spells that set it.
 aura [653-656], and warping by spells. Depends on 6.
 
 ### City and economy
-
-**24. Stream of Life and Gaia's Blessing (B8).** The original reads the wrong table, which looks
-like a port error. Needs the original's disassembly; until then, implement the described behaviour
-(unrest relief and growth) and note the decision. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **25. City enchantments with non-stat effects.** Nine spells (walls, gates, scouting, spell ward,
 and so on) need effects that stat modifiers cannot express. Add city-state flags consumed by
