@@ -131,6 +131,13 @@ the project can ship go into the repository (for example an open blackletter pix
 to stand in for the original's display font), while the original's bitmap fonts stay local.
 Modding support (item 5) should let a mod ship its own fonts and map them to the roles.
 
+Chosen candidates for the replacement set (found by the project owner, October 2026): **Cloister
+Black** for city names and other large writing, **Carolingia** for mid-sized text and **Xentype**
+for small text. Their licences and the licence of any files we would ship have not been checked
+yet; check them against the CC0 repository rule above before adding any font file, and keep the
+files out of the repository if they cannot be redistributed (the set can then be a local
+download, like the original's art).
+
 **11. Higher resolution modes.** The client keeps the original's 320 by 200 layout and scales it by a
 whole factor (`frame::Layout`, the city screen's `Layout`), so a bigger window just shows a
 bigger copy. Add real higher-resolution modes: layouts designed for 1920 by 1080 and beyond
