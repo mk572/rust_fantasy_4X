@@ -29,6 +29,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("undo", "undo", "Take back your last reversible action.", undo),
     legal!("move", "move <units> <x,y[,plane]>", "Move a stack one square. Units are numbers (12,13) or @x,y for the whole stack there. Moving into an enemy stack or city attacks it (a battle starts), and onto a guarded site assaults it.", mv),
     legal!("attack", "attack <units> <x,y[,plane]>", "The same as `move`, for attacking an adjacent square.", mv),
+    legal!("auto", "auto <units> <x,y[,plane]>", "Fight the hostile stack on an adjacent square to the end without the tactical map (the battle AI plays both sides). The winner moves in and takes a city.", auto),
     legal!("goto", "goto <units> <x,y[,plane]>", "Give a stack a standing order to walk to a square, a step each turn.", goto),
     legal!("stop", "stop <units>", "Cancel standing orders.", stop),
     legal!("outpost", "outpost <unit> [name]", "A settler founds an outpost where it stands.", outpost),
@@ -107,6 +108,21 @@ fn mv(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let units = ctx.my_units(a, 0)?;
     let to = parse_pos(a.need(1, "destination")?, ctx.plane_of(&units))?;
     ctx.apply(Command::MoveStack { units, to })
+}
+
+fn auto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let attackers = ctx.my_units(a, 0)?;
+    let at = parse_pos(a.need(1, "target square")?, ctx.plane_of(&attackers))?;
+    let me = ctx.session.player;
+    let defenders = ctx
+        .game
+        .hostile_at(at, me)
+        .filter(|d| !d.is_empty())
+        .ok_or_else(|| ConsoleError::NoSuch(format!("hostile units at {}", crate::describe::pos(at))))?;
+    ctx.apply(Command::AutoResolve {
+        attackers,
+        defenders,
+    })
 }
 
 fn goto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

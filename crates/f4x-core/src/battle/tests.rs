@@ -620,12 +620,13 @@ fn wounded_units_enter_a_battle_wounded() {
     });
     let u = g.battle().unwrap().unit(0).unwrap();
     assert_eq!((u.figures, u.hit_points()), (1, 1));
-    // Fleeing ends it at once, and the wound is still there afterwards.
+    // Fleeing ends it at once, and the wound is still there afterwards (unless the unit was
+    // one of the half that is lost on the way).
     let ev = g.apply(Command::Battle(BattleCommand::Flee));
     assert!(ev
         .iter()
         .any(|e| matches!(e, Event::BattleEnded { winner, .. } if *winner == D)));
-    assert_eq!(g.unit_hits(a).0, 1);
+    assert!(!g.world.contains(a) || g.unit_hits(a).0 == 1);
 }
 
 #[test]
@@ -641,4 +642,112 @@ fn ranged_abilities_map_to_battle_kinds() {
     );
     assert_eq!(ranged_kind_of(&v(&["ice_bolt"])), RangedKind::Magic);
     assert_eq!(ranged_kind_of(&v(&["forester"])), RangedKind::None);
+}
+
+fn found(g: &mut Game, owner: PlayerId, pos: crate::city::Position) -> hecs::Entity {
+    let race = g.content.rules.races.id_of("elf");
+    g.apply(Command::FoundCity {
+        owner,
+        pos,
+        name: "Town".into(),
+        race,
+        population: 3,
+    });
+    g.city_at(pos).unwrap()
+}
+
+#[test]
+fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attackers: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let defender = g.spawn_unit(D, at(5, 4), walker);
+    let events = g.apply(Command::AutoResolve {
+        attackers: attackers.clone(),
+        defenders: vec![defender],
+    });
+    assert!(!g.in_battle(), "{events:?}");
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::BattleEnded { winner, .. } if *winner == A)));
+    assert!(!g.world.contains(defender));
+    let survivors: Vec<_> = attackers.iter().filter(|&&u| g.world.contains(u)).collect();
+    assert!(!survivors.is_empty());
+    for &&u in &survivors {
+        assert_eq!(g.unit_position(u), Some(at(5, 4)), "moved onto the square");
+    }
+    // Another battle can start afterwards.
+    assert!(g.battle().is_none());
+}
+
+#[test]
+fn a_battle_won_at_a_city_captures_it() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let city = found(&mut g, D, at(5, 4));
+    let defender = g.spawn_unit(D, at(5, 4), walker);
+    let attackers: Vec<_> = (0..5).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let events = g.apply(Command::AutoResolve {
+        attackers,
+        defenders: vec![defender],
+    });
+    assert!(
+        events.iter().any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == A)),
+        "{events:?}"
+    );
+    assert_eq!(g.city_owner(city), Some(A));
+}
+
+#[test]
+fn an_empty_enemy_city_is_taken_by_walking_in() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let city = found(&mut g, D, at(5, 4));
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let events = g.apply(Command::MoveStack {
+        units: vec![unit],
+        to: at(5, 4),
+    });
+    assert!(
+        events.iter().any(|e| matches!(e, Event::CityCaptured { .. })),
+        "{events:?}"
+    );
+    assert_eq!(g.city_owner(city), Some(A));
+    assert_eq!(g.unit_position(unit), Some(at(5, 4)));
+}
+
+#[test]
+fn a_losing_attacker_stays_where_it_was() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attacker = g.spawn_unit(A, at(4, 4), walker);
+    let defenders: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.apply(Command::AutoResolve {
+        attackers: vec![attacker],
+        defenders: defenders.clone(),
+    });
+    assert!(!g.world.contains(attacker));
+    assert!(defenders.iter().any(|&d| g.world.contains(d)));
+    for &d in defenders.iter().filter(|&&d| g.world.contains(d)) {
+        assert_eq!(g.unit_position(d), Some(at(5, 4)));
+    }
+}
+
+#[test]
+fn auto_resolve_needs_an_adjacent_target() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(2, 4), walker);
+    let d = g.spawn_unit(D, at(6, 4), walker);
+    let events = g.apply(Command::AutoResolve {
+        attackers: vec![a],
+        defenders: vec![d],
+    });
+    assert_eq!(
+        events,
+        vec![Event::Rejected(Rejection::BattleStart(
+            BattleStartError::NotAdjacent
+        ))]
+    );
+    assert!(!g.in_battle());
 }

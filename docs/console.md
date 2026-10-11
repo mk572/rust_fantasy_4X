@@ -100,6 +100,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | End turn | `end` |
 | Undo | `undo` |
 | Move a stack a step; attack a stack or city; assault a site | `move <units> <pos>` (`attack` is the same). A hostile square starts the battle and a guarded site is assaulted, as in the client. |
+| Fight a battle without the tactical map (the battle screen's Auto) | `auto <units> <pos>` |
 | Standing order to walk somewhere; cancel it | `goto <units> <pos>`, `stop <units>` |
 | Settler founds an outpost | `outpost <unit> [name]` |
 | Engineers build a road; purify; meld a node; change plane | `road <units> [pos ...]`, `purify`, `meld`, `shift` |

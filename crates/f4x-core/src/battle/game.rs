@@ -26,6 +26,8 @@ pub enum BattleStartError {
     InProgress,
     /// A side is empty, or its units are not one player's on one square.
     BadSides,
+    /// An auto-resolved attack must come from an adjacent square.
+    NotAdjacent,
 }
 
 /// What kind of ranged attack the unit's abilities give it.
@@ -206,6 +208,9 @@ impl Game {
                 loser: battle.player_of(side.other()),
             });
         }
+        if site.is_none() {
+            events.extend(self.overland_aftermath(&battle, &sources));
+        }
         if let Some(index) = site {
             let attackers: Vec<hecs::Entity> = battle
                 .units
@@ -218,6 +223,129 @@ impl Game {
                 .filter(|&s| s == Side::Attacker)
                 .map(|s| battle.player_of(s));
             events.extend(self.finish_site_battle(index, winner, &attackers));
+        }
+        events
+    }
+
+    /// What a battle on the overland map leaves behind: units that fled lose some of their
+    /// number, and an attacker who won and cleared the square moves in and takes a city.
+    fn overland_aftermath(
+        &mut self,
+        battle: &Battle,
+        sources: &[hecs::Entity],
+    ) -> Vec<Event> {
+        use crate::rules::UnitKind;
+        let mut events = Vec::new();
+        let source_of = |u: &BattleUnit| u.source.and_then(|i| sources.get(i).copied());
+
+        // Fleeing costs half the units and a quarter of the heroes (task 42).
+        for side in [Side::Attacker, Side::Defender] {
+            let mut fled: Vec<hecs::Entity> = battle
+                .units
+                .iter()
+                .filter(|u| u.side == side && u.status == Status::Fled)
+                .filter_map(source_of)
+                .collect();
+            if fled.is_empty() {
+                continue;
+            }
+            self.sort_by_serial(&mut fled);
+            let mut lost = 0;
+            for unit in fled {
+                let percent = match self.unit_def(unit).map(|d| d.kind) {
+                    Some(UnitKind::Hero) => 25,
+                    _ => 50,
+                };
+                if self.roll(100) <= percent {
+                    let _ = self.world.despawn(unit);
+                    lost += 1;
+                }
+            }
+            if lost > 0 {
+                events.push(Event::UnitsLostFleeing {
+                    player: battle.player_of(side),
+                    units: lost,
+                });
+            }
+        }
+
+        // The winner takes the square if no enemy is left on it.
+        let (Some(Side::Attacker), Some(pos)) = (battle.winner, battle.site) else {
+            return events;
+        };
+        let attacker = battle.player_of(Side::Attacker);
+        let hostile_left = self
+            .units_at(pos)
+            .into_iter()
+            .any(|u| self.unit_owner(u).is_some_and(|o| o != attacker));
+        if hostile_left {
+            return events;
+        }
+        let movers: Vec<hecs::Entity> = battle
+            .units
+            .iter()
+            .filter(|u| u.side == Side::Attacker && u.status == Status::Active)
+            .filter_map(source_of)
+            .filter(|&u| self.unit_position(u).is_some())
+            .collect();
+        if let Some(&first) = movers.first() {
+            let from = self.unit_position(first).unwrap_or(pos);
+            for &u in &movers {
+                let _ = self.world.insert_one(u, pos);
+            }
+            self.explore(attacker, pos, 2);
+            events.push(Event::UnitsMoved {
+                units: movers,
+                from,
+                to: pos,
+            });
+        }
+        if let Some(city) = self.city_at(pos) {
+            if self.city_owner(city).is_some_and(|o| o != attacker) {
+                events.extend(self.capture_city(city, attacker));
+            }
+        }
+        events
+    }
+
+    /// Fight a battle to the end with the battle AI playing both sides (the original's
+    /// strategic combat, and what an AI player uses against another player's stack).
+    pub fn auto_resolve(
+        &mut self,
+        attackers: &[hecs::Entity],
+        defenders: &[hecs::Entity],
+    ) -> Vec<Event> {
+        let near = |game: &Game| -> Option<bool> {
+            let a = game.unit_position(*attackers.first()?)?;
+            let d = game.unit_position(*defenders.first()?)?;
+            let map = game.map.as_ref()?;
+            Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
+        };
+        if near(self) == Some(false) {
+            return vec![Event::Rejected(crate::Rejection::BattleStart(
+                BattleStartError::NotAdjacent,
+            ))];
+        }
+        let mut events = match self.start_battle(attackers, defenders) {
+            Ok(e) => e,
+            Err(e) => return vec![Event::Rejected(crate::Rejection::BattleStart(e))],
+        };
+        for _ in 0..20_000 {
+            let Some(battle) = self.battle() else {
+                break;
+            };
+            let command = super::ai::next_command(battle);
+            match self.battle_command(command) {
+                Ok(e) => events.extend(e),
+                Err(_) => break,
+            }
+        }
+        // A battle that somehow stalls ends with the active side fleeing.
+        while self.battle.is_some() {
+            match self.battle_command(BattleCommand::Flee) {
+                Ok(e) => events.extend(e),
+                Err(_) => break,
+            }
         }
         events
     }

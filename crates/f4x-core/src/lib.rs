@@ -73,6 +73,11 @@ pub enum Command {
     },
     /// An order in the battle being fought.
     Battle(battle::BattleCommand),
+    /// Fight a battle between two stacks to the end without the tactical map.
+    AutoResolve {
+        attackers: Vec<hecs::Entity>,
+        defenders: Vec<hecs::Entity>,
+    },
     /// A stack next to a guarded site (tower, node or encounter site) assaults its guards.
     EnterSite {
         units: Vec<hecs::Entity>,
@@ -275,6 +280,11 @@ pub enum Event {
     },
     /// Something happened in the battle being fought.
     Battle(battle::BattleEvent),
+    /// Units of a side that fled a battle were lost on the way.
+    UnitsLostFleeing {
+        player: city::PlayerId,
+        units: u32,
+    },
     BattleEnded {
         winner: city::PlayerId,
         loser: city::PlayerId,
@@ -516,6 +526,10 @@ impl Game {
             } => self
                 .start_battle(&attackers, &defenders)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::BattleStart(e))]),
+            Command::AutoResolve {
+                attackers,
+                defenders,
+            } => self.auto_resolve(&attackers, &defenders),
             Command::EnterSite { units, to } => self
                 .enter_site(&units, to)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),
@@ -663,12 +677,9 @@ impl Game {
                 to,
                 lair,
             }],
-            (Ok(movement::Entry::Hostile(defenders)), Some(from)) => vec![Event::AttackRequested {
-                attackers: units.to_vec(),
-                from,
-                to,
-                defenders,
-            }],
+            (Ok(movement::Entry::Hostile(defenders)), Some(from)) => {
+                self.hostile_entry(units, from, to, defenders)
+            }
             (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
             (Ok(_), None) => Vec::new(),
         }
@@ -731,12 +742,7 @@ impl Game {
                         path.clear();
                     }
                     Ok(movement::Entry::Hostile(defenders)) => {
-                        events.push(Event::AttackRequested {
-                            attackers: group.clone(),
-                            from,
-                            to: next,
-                            defenders,
-                        });
+                        events.extend(self.hostile_entry(&group, from, next, defenders));
                         path.clear();
                     }
                     Err(movement::MoveError::NoMovesLeft) => break,
@@ -752,6 +758,42 @@ impl Game {
                     let _ = self.world.insert_one(u, units::Order::GoTo(path.clone()));
                 }
             }
+        }
+        events
+    }
+
+    /// A stack moved into hostile units or a hostile city. Against units it asks for a battle;
+    /// an enemy city with no unit in it is simply walked into and taken.
+    fn hostile_entry(
+        &mut self,
+        units: &[hecs::Entity],
+        from: city::Position,
+        to: city::Position,
+        defenders: Vec<hecs::Entity>,
+    ) -> Vec<Event> {
+        if !defenders.is_empty() {
+            return vec![Event::AttackRequested {
+                attackers: units.to_vec(),
+                from,
+                to,
+                defenders,
+            }];
+        }
+        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+            return Vec::new();
+        };
+        for &u in units {
+            let _ = self.world.insert_one(u, to);
+            let _ = self.world.insert_one(u, units::MovesLeft(0));
+        }
+        self.explore(owner, to, 2);
+        let mut events = vec![Event::UnitsMoved {
+            units: units.to_vec(),
+            from,
+            to,
+        }];
+        if let Some(city) = self.city_at(to) {
+            events.extend(self.capture_city(city, owner));
         }
         events
     }
