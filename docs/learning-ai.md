@@ -90,6 +90,16 @@ phase 0 confirms that a 1 to 5 million parameter network trains at a useful spee
 before anything else is built on it. For networks this small the CPU backend may beat the GPU
 (no transfer cost), and the spike measures both.
 
+**Running on a laptop: stay cool.** An overheated Mac slows everything to a crawl, so every
+long run (training, evaluation, soak) goes through `scripts/cool_run.sh COMMAND...`: it runs
+the command at background priority (`taskpolicy -b`, `nice -n 19`), reads the macOS thermal
+state every 15 seconds (`ProcessInfo.thermalState`, no privileges; the same signal the imagegen
+project uses, `scripts/thermal_state.swift`), **stops the whole command while the state is
+`fair` or worse** (`COOL_PAUSE_AT`), and continues it only once the state is `nominal` again
+plus a minute's rest. A state that cannot be read counts as hot. In addition the trainer uses
+at most 4 of the M4's 10 cores (the thread count is a setting, default 4) and writes a
+checkpoint at least every few minutes, so a pause or a stop loses little.
+
 Everything stays reproducible: the policy's sampling RNG is separate from the game's, and a
 training run is fixed by `(seeds, config, code version)`.
 ## 4. Legal actions: one definition, shared with the console
