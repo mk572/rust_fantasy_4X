@@ -294,11 +294,12 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         stats.join(", "),
         ctx.game.unit_level(u)
     ));
-    if let Some(def) = ctx.game.unit_def(u) {
-        if !def.abilities.is_empty() {
-            let list = def.abilities.join(", ");
-            ctx.say(format!("abilities: {list}"));
-        }
+    let abilities = ctx.game.unit_abilities(u);
+    if !abilities.is_empty() {
+        ctx.say(format!("abilities: {}", abilities.join(", ")));
+    }
+    if ctx.game.unit_is_undead(u) {
+        ctx.say("undead: a Death creature, not healed".to_string());
     }
     Ok(())
 }

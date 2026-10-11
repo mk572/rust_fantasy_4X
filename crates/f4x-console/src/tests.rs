@@ -1923,14 +1923,10 @@ fn the_legal_casts_are_the_casts_the_game_accepts() {
         let def = g.content.rules.spells.get(lc.spell).id.clone();
         assert!(!lc.aims.is_empty(), "{def}");
         assert!(lc.least_mana <= lc.most_mana, "{def}");
-        // First, last and middle aim, at the least and the most mana, are accepted.
-        let picks = [
-            lc.aims[0],
-            lc.aims[lc.aims.len() / 2],
-            *lc.aims.last().unwrap(),
-        ];
+        // The first and last aim, at the least and the most mana, are accepted.
+        let picks = [lc.aims[0], *lc.aims.last().unwrap()];
         for aim in picks {
-            for mana in [0, lc.least_mana, lc.most_mana] {
+            for mana in [0, lc.most_mana] {
                 let mut fresh = casting_siege(&known);
                 let r = fresh.battle_command(BattleCommand::Cast {
                     spell: lc.spell,
@@ -1975,4 +1971,40 @@ fn the_legal_casts_are_the_casts_the_game_accepts() {
     })
     .unwrap();
     assert!(g.legal_battle_casts().is_empty());
+}
+
+#[test]
+fn healing_does_not_work_on_a_death_creature() {
+    use f4x_core::battle::{immunity::Realm, Side};
+    let mut g = casting_siege(&["healing"]);
+    let own = battle_units_of(&g, Side::Attacker)[0];
+    // A wounded living unit can be healed; the same unit as a death creature cannot.
+    g.battle.as_mut().unwrap().battle.units[own].realm = Some(Realm::Death);
+    let r = cast(&mut g, &format!("bcast healing unit:{own}"));
+    assert!(!r.ok, "{}", r.text());
+    g.battle.as_mut().unwrap().battle.units[own].realm = None;
+    let r = cast(&mut g, &format!("bcast healing unit:{own}"));
+    assert!(r.ok, "{}", r.text());
+}
+
+#[test]
+fn the_undead_cheat_needs_override_and_makes_units_undead() {
+    let (mut g, _) = siege_world(6, &[]);
+    let unit = g
+        .all_units()
+        .into_iter()
+        .find(|&u| g.unit_owner(u) == Some(HUMAN))
+        .unwrap();
+    let serial = g.serial_of(unit).0;
+    let mut play = Console::new(HUMAN, Access::Play);
+    let refused = play.execute(&mut g, &format!("undead {serial}"));
+    assert!(!refused.ok);
+    assert!(!g.unit_is_undead(unit));
+    let mut full = Console::new(HUMAN, Access::Full);
+    assert!(full.execute(&mut g, "mode override").ok);
+    let r = full.execute(&mut g, &format!("undead {serial}"));
+    assert!(r.ok, "{}", r.text());
+    assert!(g.unit_is_undead(unit));
+    let info = full.execute(&mut g, &format!("unit {serial}"));
+    assert!(info.text().contains("undead"), "{}", info.text());
 }

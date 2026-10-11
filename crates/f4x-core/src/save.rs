@@ -313,6 +313,9 @@ pub struct UnitSave {
     /// Creation number of the ship the unit is aboard.
     #[serde(default)]
     pub aboard: Option<u64>,
+    /// The unit was made undead (`undead.rs`); absent in older saves.
+    #[serde(default)]
+    pub undead: bool,
     /// Temporary modifiers and abilities.
     #[serde(default)]
     pub effects: Vec<TempSave>,
@@ -631,6 +634,7 @@ impl Game {
                         .ok()
                         .map(|w| (w.at, w.left, w.rest.clone())),
                     effects: effects_save(self, u),
+                    undead: self.unit_is_undead(u),
                 })
             })
             .collect();
@@ -881,6 +885,9 @@ impl Snapshot {
                     .insert_one(entity, crate::transport::Aboard(Serial(ship)));
             }
             effects_load(&mut game.world, entity, u.effects);
+            if u.undead {
+                let _ = game.world.insert_one(entity, crate::undead::Undead);
+            }
             if let Some((at, left, rest)) = u.road_work {
                 let _ = game
                     .world
@@ -1547,6 +1554,22 @@ mod tests {
             back.unit_weapon_quality(again),
             crate::units::WEAPON_MITHRIL
         );
+    }
+
+    #[test]
+    fn an_undead_unit_stays_undead_through_a_save() {
+        let mut g = game();
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let unit = g.spawn_unit(P0, at(11, 6), walker);
+        g.make_undead(unit);
+        let snap = g.snapshot();
+        let back = Snapshot::from_text(&snap.to_text().unwrap())
+            .unwrap()
+            .restore(g.content.clone())
+            .unwrap();
+        let again = back.units_at(at(11, 6)).into_iter().next().unwrap();
+        assert!(back.unit_is_undead(again));
+        assert_eq!(back.snapshot(), snap);
     }
 
     #[test]

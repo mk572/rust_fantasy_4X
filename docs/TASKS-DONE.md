@@ -33,6 +33,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 25 | City | City enchantments with non-stat effects (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
+| 29 | Units | Undead and fantastic-creature rules (B10) (done) |
 | 30 | Units | Temporary effects store (done) |
 | 31 | Units | Neutral player and neutral cities (done) |
 | 33 | Combat | ~~Battle data model in the ECS~~ (done) |
@@ -198,6 +199,8 @@ stepping ashore is an ordinary move that unloads, and land units left at sea wit
 drown at the start of the next turn. Not done: ship tiers by building (which buildings allow
 which ship is already in the unit data's requirements), and path turn estimates that mix ship
 and passenger speeds.
+
+**29. Undead and fantastic-creature rules (B10) (done).** `undead.rs`: a unit can be made undead (`Game::make_undead`, the `undead` console cheat; the sources, Animate Dead, Life Steal, Create Undead and Zombie Mastery, are tasks 157 and 159). An undead unit is a Death creature and fantastic in battle with the immunities to death, cold, poison and illusions (the original forgot the last three for raised units: B10, the help is followed), is not healed (nor are born Death creatures; the Healing spell refuses them), costs no gold and no food, pays half as much mana again if it is a fantastic creature, passes Holy Arms and Crusade by, and is harder on Dispel Evil (-9) and Holy Word (extra -5). A unit under Black Channels fights as undead and cannot be healed, but keeps its upkeep. Saved with the game. Left: the lair guardians the original makes undead (`Lair_Make_Guardians`, not understood), Wraith Form and the raising itself (tasks 157, 159).
 
 **30. Temporary effects store (done).** New `temp_effects.rs`: a `TempEffects` component on a unit or city holds stat modifiers, granted abilities and removed abilities, each with turns left (`None` lasts for good), counted down once per turn change in the magic step (`tick_temp_effects`). `unit_modifiers` and `city_modifiers` read the modifiers; `Game::unit_abilities` gives a unit's abilities now (own, plus granted, minus removed, in the order added, so a later grant undoes an earlier removal) and `unit_has_ability`, the abilities' own passive modifiers, the spell facts, global-spell facts, battle units, movement checks, ship need and noble upkeep all use it. A city only takes modifiers. `GameHost::add_modifier`, `grant_ability` and `remove_ability` now store (without an end, since a rule's effect carries no duration yet; `add_temp_modifier` and the other two take turns for callers that have one). Saved with units and cities (`effects`, older saves read as none). Tests in `temp_effects.rs`. Not done: no screen lists these effects, and an effect has no source for dispelling (they are not enchantments).
 

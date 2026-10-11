@@ -397,12 +397,12 @@ then each side's Terror and Entangle as its own turn begins.
 unit), Mass Healing (five hit points to every unit of the caster's that is not a death creature),
 Death Spell (each figure of each enemy unit without death immunity resists at -2 or dies), Holy
 Word (the same on fantastic creatures; its resistance check is against life, the spell's own
-realm, where the original's code uses death, an OGBUG; undead are task 29) and Call Chaos (each
+realm, where the original's code uses death, an OGBUG; the undead resist at an extra -5, as the help says: the original has it reversed) and Call Chaos (each
 enemy unit gets one of: nothing, 5 healing, Chaos Channels, Warp Creature, a strength-15 Fire Bolt,
 Warp Lightning, Doom Bolt, Disintegrate; the two spells not in the game yet do nothing).
 
 **Destroying and cursing one unit** (`Effect::Slay`, `SpellDef::save`): Word of Death (-5), Petrify
-(stoning immunity stops it), Dispel Evil (-4, on chaos and death creatures only, undead -9 later),
+(stoning immunity stops it), Dispel Evil (-4, on chaos and death creatures only, undead -9),
 Banish (-3, fantastic creatures only, each 15 more mana one point lower), Disintegrate (the unit is
 destroyed if its resistance is under 10), and the curses Weakness (-2 melee and ranged; a resistance
 check at -2), Vertigo (-2 to hit, -1 defence; a check at 0) and Mind Storm (-5 to everything, no

@@ -112,6 +112,13 @@ impl Game {
                 }
             }
         }
+        if self.unit_counts_as_undead(unit) {
+            for a in crate::undead::UNDEAD_IMMUNITIES {
+                if !out.iter().any(|x| x == a) {
+                    out.push(a.to_string());
+                }
+            }
+        }
         if let Ok(list) = self.world.get::<&TempEffects>(unit) {
             for t in &list.0 {
                 match &t.kind {

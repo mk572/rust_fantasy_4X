@@ -74,8 +74,13 @@ impl Game {
         let facts = Facts {
             abilities: self.unit_abilities(unit),
             race: def.race.clone(),
-            realm: def.realm.clone(),
-            kind: Some(def.kind),
+            realm: self.unit_realm(unit),
+            // The undead are not normal units: Holy Arms and Crusade pass them by.
+            kind: Some(if self.unit_is_undead(unit) {
+                crate::rules::UnitKind::Summoned
+            } else {
+                def.kind
+            }),
             ..Facts::default()
         };
         let mut mods = Vec::new();
@@ -134,7 +139,9 @@ impl Game {
         for player in ids {
             if self.has_global(player, "herb_mastery") {
                 for unit in self.player_units(player) {
-                    let _ = self.world.insert_one(unit, Hurt(0));
+                    if !self.unit_is_death(unit) {
+                        let _ = self.world.insert_one(unit, Hurt(0));
+                    }
                 }
             }
             self.reveal_for_globals(player);
@@ -253,6 +260,36 @@ mod tests {
         g.process_globals();
         assert_eq!(g.unit_hits(a).0, g.unit_hits(a).1, "mine is healed");
         assert_eq!(g.world.get::<&Hurt>(b).unwrap().0, 3, "theirs is not");
+    }
+
+    #[test]
+    fn undead_get_no_herb_mastery_no_holy_arms_and_cost_half_as_much_mana_again() {
+        let mut g = world();
+        let mut units = g.content.rules.units.defs().to_vec();
+        for u in units.iter_mut() {
+            if u.id == "slow" {
+                u.upkeep.mana = 4;
+            }
+        }
+        g.content.rules.units = Registry::new(units);
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let slow = g.content.rules.units.id_of("slow").unwrap();
+        let normal = g.spawn_unit(P0, at(5, 5), walker);
+        let fantastic = g.spawn_unit(P0, at(6, 5), slow);
+        assert_eq!(g.mana_upkeep(P0), 4);
+        g.make_undead(fantastic);
+        assert_eq!(g.mana_upkeep(P0), 6, "half as much again");
+        g.make_undead(normal);
+        assert_eq!(g.mana_upkeep(P0), 6, "a normal unit made undead costs none");
+        // Holy Arms passes a unit made undead by.
+        let melee = g.unit_stat(normal, Stat::Melee);
+        grant(&mut g, P0, "holy_arms");
+        assert_eq!(g.unit_stat(normal, Stat::Melee), melee);
+        // Herb Mastery does not heal it either.
+        g.world.insert_one(normal, Hurt(3)).unwrap();
+        grant(&mut g, P0, "herb_mastery");
+        g.process_globals();
+        assert_eq!(g.world.get::<&Hurt>(normal).unwrap().0, 3);
     }
 
     #[test]

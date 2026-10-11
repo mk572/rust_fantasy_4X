@@ -27,6 +27,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("spawn", "spawn <unit> <x,y[,plane]> [player]", "Create a unit at no cost.", spawn),
     cheat!("kill", "kill <units>", "Remove units from the game.", kill),
     cheat!("restore", "restore <units>", "Heal units fully and refill their moves.", restore),
+    cheat!("undead", "undead <units>", "Make units undead: Death creatures that are not healed, cost no gold or food, and are immune to death, cold, poison and illusions.", undead),
     cheat!("teleport", "teleport <units> <x,y[,plane]>", "Put units on a square, whatever is there.", teleport),
     cheat!("fortress", "fortress <x,y[,plane]> [name] [race=<id>] [player=<n>]", "Place a wizard's first city with the fortress and summoning circle. A game-start action: the game refuses it once the wizard has a fortress, is banished or is defeated.", fortress),
     cheat!("newcity", "newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]", "Found a city anywhere the map allows, at no cost.", newcity),
@@ -113,6 +114,15 @@ fn restore(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .insert_one(u, f4x_core::units::MovesLeft(moves));
         let line = describe::unit(ctx.game, u);
         ctx.say(format!("restored {line}"));
+    }
+    Ok(())
+}
+
+fn undead(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    for u in parse_units(ctx.game, a.need(0, "units")?)? {
+        ctx.game.make_undead(u);
+        let line = describe::unit(ctx.game, u);
+        ctx.say(format!("made undead: {line}"));
     }
     Ok(())
 }

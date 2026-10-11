@@ -28,7 +28,7 @@ Written in our own words; nothing here is copied from either source.
 | # | Decision |
 |---|---|
 | B9 Heroism | Combat uses the same level calculation as overland: Heroism sets the Elite floor, Warlord and Crusade add on top. (ReMoM's note offers two fixes and does not pick; this one matches the help.) |
-| B10 Undead | Undead also get cold, poison and illusion immunity. |
+| B10 Undead | Undead also get cold, poison and illusion immunity (done, task 29: `undead.rs`; Holy Word's extra -5 for undead also follows the help, the original has it reversed). |
 | B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
 | B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction. |
 | B14 Forester's Guild | Its food counts toward a city's maximum size. |

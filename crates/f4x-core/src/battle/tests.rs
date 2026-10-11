@@ -2178,3 +2178,32 @@ fn the_legal_commands_cover_walls_crushers_and_darkness() {
     b.apply(BattleCommand::Flee).unwrap();
     assert!(b.legal_commands().is_empty());
 }
+
+#[test]
+fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a1 = g.spawn_unit(A, at(4, 4), walker);
+    let a2 = g.spawn_unit(A, at(4, 4), walker);
+    let d1 = g.spawn_unit(D, at(5, 4), walker);
+    assert!(g.make_undead(a1));
+    g.apply(Command::BeginBattle {
+        attackers: vec![a1, a2],
+        defenders: vec![d1],
+    });
+    let b = g.battle().unwrap();
+    let raised = b.units.iter().find(|u| u.source == Some(0)).unwrap();
+    let living = b.units.iter().find(|u| u.source == Some(1)).unwrap();
+    assert!(raised.undead && raised.is_fantastic());
+    assert_eq!(raised.realm, Some(immunity::Realm::Death));
+    for a in [
+        "death_immunity",
+        "cold_immunity",
+        "poison_immunity",
+        "illusion_immunity",
+    ] {
+        assert!(raised.has(a), "{a}");
+        assert!(!living.has(a), "{a}");
+    }
+    assert!(!living.undead && !living.is_fantastic());
+}

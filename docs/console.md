@@ -125,6 +125,7 @@ give the same information.
 |---|---|
 | `give <gold\|mana\|fame> <n> [player]` | add (or remove, with a negative number) |
 | `spawn <unit> <pos> [player]`, `kill <units>`, `restore <units>`, `teleport <units> <pos>` | make, remove, heal and refill, or move units |
+| `undead <units>` | make units undead (task 29) |
 | `fortress <pos> [name] [race=] [player=]` | place a wizard's fortress and first city. A game-start action, not normal play: the game refuses it once the wizard has one |
 | `newcity <pos> <name> [player] [race=] [pop=]`, `build <city> <building>` | found a city, add a building without cost |
 | `terrain <pos> <terrain-id>` | change a square |

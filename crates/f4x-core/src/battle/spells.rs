@@ -124,6 +124,16 @@ fn only_against(spell_id: &str) -> Option<&'static [Realm]> {
     }
 }
 
+/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel
+/// Evil and Holy Word (the help's "much more difficult time"; the original's Holy Word code
+/// has it the wrong way round).
+fn undead_penalty(spell_id: &str) -> i32 {
+    match spell_id {
+        "dispel_evil" | "holy_word" => 5,
+        _ => 0,
+    }
+}
+
 fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
     match only {
         SlayOnly::Any => true,
@@ -514,6 +524,10 @@ impl Game {
                 {
                     return Err(SpellError::BadTarget);
                 }
+                // Death creatures, born so or undead, cannot be healed.
+                if matches!(kind, Kind::Heal { all: false, .. }) && u.realm == Some(Realm::Death) {
+                    return Err(SpellError::BadTarget);
+                }
                 if matches!(kind, Kind::Enchant { .. }) && u.enchantments.contains(&def.id) {
                     return Err(SpellError::BadTarget);
                 }
@@ -718,6 +732,11 @@ impl Game {
                     if !slay_allows(only, &battle.units[t]) || locked {
                         continue;
                     }
+                    let modifier = if battle.units[t].undead {
+                        modifier - undead_penalty(&def.id)
+                    } else {
+                        modifier
+                    };
                     match battle.spell_slay(t, realm, modifier, &immune, below) {
                         None => events.push(BattleEvent::SpellImmune { unit: t }),
                         Some(d) => {
@@ -900,5 +919,17 @@ impl Battle {
         let state = self.units[target].defender_state();
         let rng: &mut dyn rand::RngCore = &mut self.rng;
         state.resistance_failure(realm, modifier, rng) > 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::undead_penalty;
+
+    #[test]
+    fn only_dispel_evil_and_holy_word_are_harder_on_the_undead() {
+        assert_eq!(undead_penalty("dispel_evil"), 5);
+        assert_eq!(undead_penalty("holy_word"), 5);
+        assert_eq!(undead_penalty("word_of_death"), 0);
     }
 }

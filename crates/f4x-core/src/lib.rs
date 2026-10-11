@@ -44,6 +44,7 @@ mod testutil;
 pub mod timers;
 pub mod transport;
 pub mod turn;
+pub mod undead;
 pub mod undo;
 pub mod units;
 pub mod vision;

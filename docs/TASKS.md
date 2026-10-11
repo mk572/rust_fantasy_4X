@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
-| 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
 | 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
@@ -136,10 +135,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 **27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9).** Elite levels beyond 120 xp need
 Warlord or Crusade; Armsmaster doubles hero xp use; Heroism should make a unit elite (decide the
 combat-level exception from B9). Warlord retort needs task 53. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
-fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
-and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
 
 ### Combat
 

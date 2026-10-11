@@ -165,7 +165,7 @@ the client at game start, that sets farmers so the cities also feed the army.
 
 ## 6. Healing
 
-Each unit with damage heals once per turn, except units with the `undead` ability. The base
+Each unit with damage heals once per turn, except Death creatures (born so or made undead, `undead.rs`) and units under Black Channels. The base
 is a fraction of its total hit points: one twentieth in the field, one tenth in a city of
 its owner, one sixth in such a city if it has an animist's guild. The remainder is settled by
 a seeded roll so the average is exact. Every unit in a stack that contains a unit with the

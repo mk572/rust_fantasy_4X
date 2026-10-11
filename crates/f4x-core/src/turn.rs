@@ -37,6 +37,9 @@ impl Game {
 
     /// Food a unit eats per turn.
     pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
+        if self.unit_is_undead(unit) {
+            return 0;
+        }
         match self.unit_def(unit).map(|d| d.kind) {
             Some(UnitKind::Normal) => 1,
             _ => 0,
@@ -48,6 +51,9 @@ impl Game {
         let Some(def) = self.unit_def(unit) else {
             return 0;
         };
+        if self.unit_is_undead(unit) {
+            return 0;
+        }
         match def.kind {
             UnitKind::Normal => def.upkeep.gold as i32,
             UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
@@ -422,7 +428,7 @@ impl Game {
         for unit in rules_units {
             let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
             let (_, max) = self.unit_hits(unit);
-            if hurt == 0 || self.unit_has_ability(unit, "undead") {
+            if hurt == 0 || self.unit_is_death(unit) {
                 continue;
             }
             if self.unit_has_ability(unit, "regeneration") {
@@ -860,6 +866,37 @@ mod tests {
         let hurt = |u| g.world.get::<&Hurt>(u).unwrap().0;
         assert_eq!(hurt(home), 0, "healed completely in one turn");
         assert!(hurt(field) > 0, "units outside the city are not");
+    }
+
+    #[test]
+    fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() {
+        let mut g = world();
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        let living = g.spawn_unit(P0, at(10, 6), spear);
+        let raised = g.spawn_unit(P0, at(10, 7), spear);
+        for u in [living, raised] {
+            g.world.insert_one(u, Hurt(5)).unwrap();
+        }
+        assert!(g.make_undead(raised));
+        g.heal_units();
+        let hurt = |u| g.world.get::<&Hurt>(u).unwrap().0;
+        assert!(hurt(living) < 5, "the living heal");
+        assert_eq!(hurt(raised), 5, "the undead do not");
+        assert_eq!(g.unit_food_upkeep(living), 1);
+        assert_eq!(g.unit_food_upkeep(raised), 0);
+        assert_eq!(g.unit_gold_upkeep(raised), 0);
+        assert_eq!(g.unit_realm(raised).as_deref(), Some("death"));
+        assert_eq!(g.unit_realm(living), None);
+        assert!(g.unit_is_death(raised) && !g.unit_is_death(living));
+        for a in [
+            "death_immunity",
+            "cold_immunity",
+            "poison_immunity",
+            "illusion_immunity",
+        ] {
+            assert!(g.unit_has_ability(raised, a), "{a}");
+            assert!(!g.unit_has_ability(living, a), "{a}");
+        }
     }
 
     #[test]
