@@ -31,6 +31,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 18 | Meta | Hot seat multiplayer |
 | 19 | Meta | Asynchronous multiplayer |
 | 20 | Rules | Early-game speed-up options |
+| 21 | Rules | Faster outpost growth |
 
 ## Descriptions
 
@@ -208,3 +209,15 @@ skipped turns. Builds on hot seat (item 18).
 explored at the start, extra starting units, extra mana and gold, a few starting buildings in the
 capital, and a faster research start. Each as an independent option with sensible presets
 (e.g. "quick start"); recorded in the saved settings so a game remembers how it began.
+
+**21. Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
+(`grow_outpost` in `turn.rs`; the chance comes from the race, the land and features, task 21 of
+`TASKS.md` for the original's edge rules) and needs 100 tens, one citizen, to become a city. In
+AI-against-AI soak runs (`f4x-tools soak`) most outposts were still outposts after 100 to 250
+turns: one wizard held 15 "cities", 12 of them outposts, which stalls expansion, production and
+army building. Add a rule option for how fast outposts grow: the original's rate (the default
+while parity is the goal), a multiplier on the growth chance and the tens gained, or a fixed
+number of turns to grow into a city. Housing production in an outpost (it already exists as a
+production item) could add to it. Keep it a rules setting in the saved game settings, so a game
+remembers which rate it used. First check the soak numbers against the original's real rate
+(`TASKS.md` 21), in case the engine's rate is the part that is wrong rather than the original's.
