@@ -130,6 +130,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 144 | Client | Turn summary and message pop-ups |
 | 146 | Client | Palette cycling: the pulsing colour of index 198 |
 | 147 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
+| 148 | Core | Difficulty beyond lairs: the final score, AI strength and the seed field |
 
 ## Descriptions
 
@@ -613,3 +614,5 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 **146. Palette cycling: the pulsing colour of index 198.** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 
 **147. Find the use of the unreferenced art files.** ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
+
+**148. Difficulty beyond lairs, and the seed field.** The difficulty chosen in the options step (task 10a) only scales lair guards and treasure. Call `endgame::scale_for_difficulty` where the final score is made, find what else the original scales by difficulty (AI production and spending, wizard aggression, start gold and mana for the AI) and apply it, and add a map-seed field to the options screen (the seed is a command-line option now).
