@@ -51,6 +51,9 @@ pub struct Snapshot {
     pub game_over: Option<crate::endgame::GameOver>,
     #[serde(default)]
     pub human: Option<u8>,
+    /// Override (cheat) commands used in this game.
+    #[serde(default)]
+    pub override_log: Vec<String>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
     pub players: Vec<PlayerSave>,
@@ -595,6 +598,7 @@ impl Game {
             magic_strength: self.magic_strength,
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
+            override_log: self.override_log.clone(),
             map,
             fog,
             players,
@@ -653,6 +657,7 @@ impl Snapshot {
         game.magic_strength = self.magic_strength.min(2);
         game.game_over = self.game_over;
         game.human = self.human.map(PlayerId);
+        game.override_log = self.override_log;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         let mut rng = Pcg64Mcg::seed_from_u64(self.seed);

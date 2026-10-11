@@ -15,6 +15,7 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 crates/f4x-core/    rules + simulation, no I/O or rendering
 crates/f4x-data/    content loaders and cross-reference validation (RON)
 crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
+crates/f4x-console/ the text console: every action as a line of text (`console.md`)
 crates/f4x-client/  rendering, input, UI (macroquad)
 crates/f4x-tools/   validator, map preview, original-art extractor
 content/            shipped, original sample data (terrain, features, a small rules set)

@@ -34,6 +34,8 @@ const AI_DELAY: f32 = 0.3;
 /// What the screen remembers between frames.
 #[derive(Default)]
 pub(crate) struct BattleUi {
+    /// The screen's state has been set up for the battle being fought.
+    pub(crate) ready: bool,
     selected: Option<usize>,
     ai_timer: f32,
     log: Vec<String>,
@@ -181,7 +183,17 @@ impl App {
         self.battle_ui = BattleUi::default();
         let events = self.game.apply(command);
         self.note(events);
+        self.init_battle_ui();
+        if self.game.in_battle() {
+            self.screen = Screen::Battle;
+        }
+    }
+
+    /// Set the screen up for the battle in progress (it may have been started by the console).
+    pub(crate) fn init_battle_ui(&mut self) {
+        self.battle_ui = BattleUi::default();
         if let Some(battle) = self.game.battle() {
+            self.battle_ui.ready = true;
             self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
             let first = battle
                 .active_units(battle.active)
@@ -193,7 +205,6 @@ impl App {
                 let look = if u.side == Side::Attacker { 3 } else { 7 };
                 self.battle_ui.facing.insert(u.id, look);
             }
-            self.screen = Screen::Battle;
         }
     }
 

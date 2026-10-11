@@ -1,6 +1,7 @@
 //! Developer tooling: content validation and map preview.
 
 mod art;
+mod console_cmd;
 mod fonts;
 mod image;
 mod lbx;
@@ -18,13 +19,16 @@ const USAGE: &str = "usage:
   f4x-tools mapgen <seed> [width height] [land%] [content-dir]
                                               print both planes as ASCII
   f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
-                                              (default out: assets-local/art)";
+                                              (default out: assets-local/art)
+  f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
+                                              run the game from text commands (stdin, or the script)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("validate") => validate(args.get(1)),
         Some("mapgen") => mapgen(&args[1..]),
+        Some("console") => console_cmd::run(&args[1..]),
         Some("extract-art") => match args.get(1) {
             Some(game) => art::extract(
                 &PathBuf::from(game),

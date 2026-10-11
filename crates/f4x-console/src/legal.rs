@@ -1,0 +1,385 @@
+//! Legal commands: what a player may do in normal play, one per action of the client.
+//! They build the same `Command`s the client does and send them through `Game::apply`.
+
+use f4x_core::battle::BattleCommand;
+use f4x_core::city::Position;
+use f4x_core::map::Plane;
+use f4x_core::production::ProductionItem;
+use f4x_core::Command;
+
+use crate::args::{
+    city_by_serial, parse_pos, parse_target, parse_units, resolve, Args,
+};
+use crate::{CommandDef, ConsoleError, Ctx, Kind};
+
+macro_rules! legal {
+    ($name:literal, $usage:literal, $help:literal, $run:ident) => {
+        CommandDef {
+            name: $name,
+            kind: Kind::Legal,
+            usage: $usage,
+            help: $help,
+            run: $run,
+        }
+    };
+}
+
+pub const TABLE: &[CommandDef] = &[
+    legal!("end", "end", "End your turn (the other wizards play, then the next turn begins).", end),
+    legal!("undo", "undo", "Take back your last reversible action.", undo),
+    legal!("move", "move <units> <x,y[,plane]>", "Move a stack one square. Units are numbers (12,13) or @x,y for the whole stack there. Moving into an enemy stack or city attacks it (a battle starts), and onto a guarded site assaults it.", mv),
+    legal!("attack", "attack <units> <x,y[,plane]>", "The same as `move`, for attacking an adjacent square.", mv),
+    legal!("goto", "goto <units> <x,y[,plane]>", "Give a stack a standing order to walk to a square, a step each turn.", goto),
+    legal!("stop", "stop <units>", "Cancel standing orders.", stop),
+    legal!("outpost", "outpost <unit> [name]", "A settler founds an outpost where it stands.", outpost),
+    legal!("fortress", "fortress <x,y[,plane]> [name] [race=<id>]", "Found your first city with the fortress and summoning circle.", fortress),
+    legal!("road", "road <units> [x,y ...]", "Engineers build a road where they stand, then along the squares given.", road),
+    legal!("purify", "purify <units>", "Cleanse the corrupted square the stack stands on.", purify),
+    legal!("meld", "meld <units>", "Meld a spirit of the stack into the magic node it stands on.", meld),
+    legal!("shift", "shift <units>", "Move the stack to the same square of the other plane.", shift),
+    legal!("enter", "enter <units> <x,y[,plane]>", "Assault a guarded site (tower, node or lair) the stack stands next to.", enter),
+    legal!("produce", "produce <city> <building|unit|trade|housing>", "Set what a city builds. Ids or names; `options` lists what is possible.", produce),
+    legal!("buy", "buy <city>", "Pay gold to finish the current item at the next turn change.", buy),
+    legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
+    legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
+    legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
+    legal!("power", "power <mana> <research> <skill>", "Split your power base between mana, research and casting skill (percent, summing to 100).", power),
+    legal!("research", "research <spell>", "Choose the spell to research.", research),
+    legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N; give it now if the spell is paid in full this turn.", cast),
+    legal!("target", "target <target>", "Aim a spell that has been paid for over several turns.", target),
+    legal!("cancelcast", "cancelcast", "Give up the spell being cast.", cancelcast),
+    legal!("alchemy", "alchemy <amount> <gold|mana>", "Convert that much gold into mana (or mana into gold): two for one, one for one with Alchemy.", alchemy),
+    legal!("bmove", "bmove <unit> <x,y>", "In battle: walk a unit to a square (`battle` lists unit numbers and squares).", bmove),
+    legal!("battack", "battack <unit> <target>", "In battle: attack an adjacent enemy in melee.", battack),
+    legal!("bshoot", "bshoot <unit> <target>", "In battle: fire at an enemy at a distance.", bshoot),
+    legal!("bdone", "bdone <unit>", "In battle: give up the rest of a unit's turn.", bdone),
+    legal!("bend", "bend", "In battle: end your side's turn.", bend),
+    legal!("bflee", "bflee", "In battle: leave; the other side wins.", bflee),
+];
+
+impl Ctx<'_> {
+    /// Units from a list word, all of which must be the player's (override mode may act for
+    /// anyone, and the line is then logged as an override).
+    fn my_units(&mut self, a: &Args, i: usize) -> Result<Vec<hecs::Entity>, ConsoleError> {
+        let units = parse_units(self.game, a.need(i, "units")?)?;
+        let me = self.session.player;
+        if units.iter().any(|&u| self.game.unit_owner(u) != Some(me)) {
+            if !self.overriding() {
+                return Err(ConsoleError::NotAllowed("those are not your units".into()));
+            }
+            self.bypassed = true;
+        }
+        Ok(units)
+    }
+
+    fn my_city(&mut self, a: &Args, i: usize) -> Result<hecs::Entity, ConsoleError> {
+        let c = city_by_serial(self.game, a.int(i, "city number")? as u64)?;
+        if self.game.city_owner(c) != Some(self.session.player) {
+            if !self.overriding() {
+                return Err(ConsoleError::NotAllowed("that is not your city".into()));
+            }
+            self.bypassed = true;
+        }
+        Ok(c)
+    }
+
+    fn plane_of(&self, units: &[hecs::Entity]) -> Plane {
+        units
+            .first()
+            .and_then(|&u| self.game.unit_position(u))
+            .map_or(Plane::Arcanus, |p| p.plane)
+    }
+}
+
+fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    ctx.apply(Command::EndTurn)
+}
+
+fn undo(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let label = ctx
+        .game
+        .undo()
+        .map_err(|e| ConsoleError::Refused(format!("{e:?}")))?;
+    ctx.say(format!("undone: {label}"));
+    Ok(())
+}
+
+fn mv(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let to = parse_pos(a.need(1, "destination")?, ctx.plane_of(&units))?;
+    ctx.apply(Command::MoveStack { units, to })
+}
+
+fn goto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let to = parse_pos(a.need(1, "destination")?, ctx.plane_of(&units))?;
+    ctx.apply(Command::GoTo { units, to })
+}
+
+fn stop(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    ctx.apply(Command::ClearOrders { units })
+}
+
+fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let &[unit] = units.as_slice() else {
+        return Err(ConsoleError::Usage("outpost takes one unit".into()));
+    };
+    let name = if a.len() > 1 {
+        a.rest(1)
+    } else {
+        let used = ctx.game.cities().len();
+        ctx.game
+            .unit_def(unit)
+            .and_then(|d| d.race.as_deref())
+            .and_then(|r| ctx.game.content.rules.races.by_name(r))
+            .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
+            .unwrap_or_else(|| format!("Outpost {}", used + 1))
+    };
+    ctx.apply(Command::SettleOutpost { unit, name })
+}
+
+fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let (plain, opts) = a.split_options();
+    let pos = parse_pos(
+        plain.first().ok_or(ConsoleError::Usage("missing position".into()))?,
+        Plane::Arcanus,
+    )?;
+    let rules = &ctx.game.content.rules;
+    let race_def = match opts.iter().find(|(k, _)| *k == "race") {
+        Some((_, id)) => rules
+            .races
+            .by_name(id)
+            .ok_or_else(|| ConsoleError::NoSuch(format!("race {id:?}")))?,
+        None => rules
+            .races
+            .defs()
+            .iter()
+            .find(|r| !r.city_names.is_empty())
+            .ok_or(ConsoleError::NoSuch("race".into()))?,
+    };
+    let name = if plain.len() > 1 {
+        plain[1..].join(" ")
+    } else {
+        race_def.city_names.first().cloned().unwrap_or_else(|| "Capital".into())
+    };
+    let race = rules.races.id_of(&race_def.id);
+    let player = ctx.session.player;
+    ctx.apply(Command::PlaceFortress {
+        player,
+        pos,
+        name,
+        race,
+        population: 3,
+    })
+}
+
+fn road(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let plane = ctx.plane_of(&units);
+    let path = a.words[1..]
+        .iter()
+        .map(|w| parse_pos(w, plane))
+        .collect::<Result<Vec<Position>, _>>()?;
+    ctx.apply(Command::BuildRoad { units, path })
+}
+
+fn purify(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    ctx.apply(Command::Purify { units })
+}
+
+fn meld(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    ctx.apply(Command::Meld { units })
+}
+
+fn shift(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    ctx.apply(Command::ShiftPlane { units })
+}
+
+fn enter(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let units = ctx.my_units(a, 0)?;
+    let to = parse_pos(a.need(1, "site")?, ctx.plane_of(&units))?;
+    ctx.apply(Command::EnterSite { units, to })
+}
+
+fn production_item(ctx: &Ctx, text: &str) -> Result<ProductionItem, ConsoleError> {
+    let rules = &ctx.game.content.rules;
+    match text.to_lowercase().as_str() {
+        "trade" | "tradegoods" | "trade_goods" => return Ok(ProductionItem::TradeGoods),
+        "housing" => return Ok(ProductionItem::Housing),
+        _ => {}
+    }
+    if let Ok(b) = resolve(&rules.buildings, text, |d| &d.name, "building") {
+        return Ok(ProductionItem::Building(b));
+    }
+    resolve(&rules.units, text, |d| &d.name, "building or unit").map(ProductionItem::Unit)
+}
+
+fn produce(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let city = ctx.my_city(a, 0)?;
+    let item = production_item(ctx, &a.rest(1))?;
+    ctx.apply(Command::SetProduction { city, item })
+}
+
+fn buy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let city = ctx.my_city(a, 0)?;
+    ctx.apply(Command::BuyProduction { city })
+}
+
+fn farmers(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let city = ctx.my_city(a, 0)?;
+    let farmers = a.int(1, "number of farmers")?.max(0) as u32;
+    ctx.apply(Command::SetFarmers { city, farmers })
+}
+
+fn sell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let city = ctx.my_city(a, 0)?;
+    let building = resolve(
+        &ctx.game.content.rules.buildings,
+        &a.rest(1),
+        |d| &d.name,
+        "building",
+    )?;
+    ctx.apply(Command::SellBuilding { city, building })
+}
+
+fn tax(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let rate = a.int(0, "rate")?.clamp(0, 255) as u8;
+    let player = ctx.session.player;
+    ctx.apply(Command::SetTaxRate { player, rate })
+}
+
+fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let part = |i, what| a.int(i, what).map(|v| v.clamp(0, 100) as u8);
+    let (mana, research, skill) = (part(0, "mana")?, part(1, "research")?, part(2, "skill")?);
+    let player = ctx.session.player;
+    ctx.apply(Command::SetPowerSplit {
+        player,
+        mana,
+        research,
+        skill,
+    })
+}
+
+fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
+    resolve(&ctx.game.content.rules.spells, text, |d| &d.name, "spell")
+}
+
+fn research(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let spell = spell_arg(ctx, &a.rest(0))?;
+    let player = ctx.session.player;
+    ctx.apply(Command::SetResearch { player, spell })
+}
+
+fn cast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let target = match a.words.last().filter(|w| w.contains(':')) {
+        Some(t) => Some(parse_target(ctx.game, t)?),
+        None => None,
+    };
+    let name_words = a.len() - usize::from(target.is_some());
+    let spell = spell_arg(ctx, &a.words[..name_words].join(" "))?;
+    let player = ctx.session.player;
+    ctx.apply(Command::CastSpell {
+        player,
+        spell,
+        target,
+    })
+}
+
+fn target(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let target = parse_target(ctx.game, a.need(0, "target")?)?;
+    let player = ctx.session.player;
+    ctx.apply(Command::ResolveCast { player, target })
+}
+
+fn cancelcast(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let player = ctx.session.player;
+    ctx.apply(Command::CancelCast { player })
+}
+
+fn alchemy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let amount = a.int(0, "amount")? as i32;
+    let gold_to_mana = match a.need(1, "gold or mana")? {
+        "gold" => true,
+        "mana" => false,
+        other => {
+            return Err(ConsoleError::Usage(format!(
+                "convert gold or mana, not {other:?}"
+            )))
+        }
+    };
+    let player = ctx.session.player;
+    ctx.apply(Command::Alchemy {
+        player,
+        amount,
+        gold_to_mana,
+    })
+}
+
+fn battle_unit(a: &Args, i: usize) -> Result<usize, ConsoleError> {
+    Ok(a.int(i, "battle unit number")?.max(0) as usize)
+}
+
+fn battle_pos(text: &str) -> Result<(i32, i32), ConsoleError> {
+    let bad = || ConsoleError::Parse(format!("{text:?} is not a battle square (x,y)"));
+    let (x, y) = text.split_once(',').ok_or_else(bad)?;
+    Ok((x.parse().map_err(|_| bad())?, y.parse().map_err(|_| bad())?))
+}
+
+/// A battle order is only the console player's when that player's side is the one to play.
+fn battle_order(ctx: &mut Ctx, order: BattleCommand) -> Result<(), ConsoleError> {
+    let b = ctx
+        .game
+        .battle()
+        .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
+    if b.player_of(b.active) != ctx.session.player {
+        if !ctx.overriding() {
+            return Err(ConsoleError::NotAllowed("it is not your side's turn".into()));
+        }
+        ctx.bypassed = true;
+    }
+    ctx.apply(Command::Battle(order))
+}
+
+fn bmove(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Move {
+        unit: battle_unit(a, 0)?,
+        to: battle_pos(a.need(1, "square")?)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn battack(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Attack {
+        unit: battle_unit(a, 0)?,
+        target: battle_unit(a, 1)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bshoot(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Shoot {
+        unit: battle_unit(a, 0)?,
+        target: battle_unit(a, 1)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bdone(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Done {
+        unit: battle_unit(a, 0)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bend(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    battle_order(ctx, BattleCommand::EndTurn)
+}
+
+fn bflee(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    battle_order(ctx, BattleCommand::Flee)
+}

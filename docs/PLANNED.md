@@ -25,7 +25,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 12 | Content | Replacement art |
 | 13 | Client | Different settlement icons by race |
 | 14 | Client | Fortress art by magic type |
-| 15 | Tools | Console for game commands |
+| 15 | Tools | Console for game commands (first version done) |
 | 16 | Tools | Map editor |
 | 17 | Meta | MCP server for remote control |
 | 18 | Meta | Hot seat multiplayer |
@@ -176,7 +176,7 @@ the content data keyed by realm with the original's tower as the default, and a 
 so a mod can add looks for its own realms (item 5). Closely related to the banners and
 settlement icons by race (item 13).
 
-**15. Console for game commands.** A text console in the client (and the headless tools) that runs
+**15. Console for game commands.** First version done: see `docs/console.md` (legal and override commands, the override log, one `Console::execute` hook for the client, the headless runner and future front ends). Still to do from the plan: setting features and lairs, clearing lairs, triggering events, disabling overrides in hardcore mode (item 8). The original plan: a text console in the client (and the headless tools) that runs
 cheat and debugging commands through the same `Command` path as play where possible: change a
 square's terrain or feature, add units, buildings and cities, set gold, mana or research, reveal the
 map, clear a lair, trigger events. Commands that bypass the rules go through one `debug` command
@@ -190,7 +190,7 @@ generating one. Built on the layers in `docs/map-layers.md`; needs a map-file fo
 **17. MCP server for remote control.** An MCP server that exposes the game: read state (map, cities,
 units, players), issue `Command`s and receive `Event`s, save and load. Lets a Claude session or
 other agent play, test or script the game; should run headless on the core crate with a seed, and
-share the console's command set (item 15). Authentication and a read-only mode matter if it is
+share the console's command set (item 15, done: `docs/console.md` section 5 is the interface). Authentication and a read-only mode matter if it is
 reachable from outside the machine.
 
 **18. Hot seat multiplayer.** Several human wizards on one machine, taking turns, with a hand-over

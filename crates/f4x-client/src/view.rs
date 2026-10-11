@@ -36,6 +36,8 @@ pub enum Screen {
     Create,
     /// The game has ended: result and score.
     GameOver,
+    /// The text console (F2).
+    Console,
 }
 
 pub struct App {
@@ -50,7 +52,7 @@ pub struct App {
     /// Index into `content.rules.races` the human plays.
     pub(crate) race: usize,
     pub(crate) screen: Screen,
-    selection: Vec<hecs::Entity>,
+    pub(crate) selection: Vec<hecs::Entity>,
     pub(crate) log: Vec<String>,
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
@@ -69,6 +71,8 @@ pub struct App {
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
+    /// The text console's state (F2).
+    pub(crate) console: crate::console_screen::ConsoleUi,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -117,6 +121,7 @@ impl App {
             human_build: None,
             battle_ui: Default::default(),
             game_over_seen: false,
+            console: Default::default(),
         };
         app.start_game();
         Ok(app)
@@ -605,18 +610,29 @@ impl App {
     pub fn frame(&mut self) -> bool {
         self.selection
             .retain(|&u| self.game.unit_position(u).is_some());
-        if self.game.in_battle() && self.screen != Screen::Battle {
-            self.screen = Screen::Battle;
+        if self.game.in_battle() {
+            if !self.battle_ui.ready {
+                self.init_battle_ui();
+            }
+            if !matches!(self.screen, Screen::Battle | Screen::Console) {
+                self.screen = Screen::Battle;
+            }
+        } else {
+            self.battle_ui.ready = false;
+        }
+        if is_key_pressed(KeyCode::F2) {
+            self.toggle_console();
         }
         if self.game.game_over.is_some()
             && !self.game_over_seen
             && !self.game.in_battle()
-            && self.screen != Screen::GameOver
+            && !matches!(self.screen, Screen::GameOver | Screen::Console)
         {
             self.screen = Screen::GameOver;
         }
         match self.screen {
             Screen::GameOver => return self.game_over_screen(),
+            Screen::Console => self.console_screen(),
             Screen::City(city) => {
                 self.city_screen(city);
             }

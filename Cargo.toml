@@ -18,3 +18,4 @@ png = { version = "0.17", default-features = false }
 f4x-core = { path = "crates/f4x-core" }
 f4x-data = { path = "crates/f4x-data" }
 f4x-ai = { path = "crates/f4x-ai" }
+f4x-console = { path = "crates/f4x-console" }

@@ -112,12 +112,22 @@ dependencies = [
 name = "f4x-client"
 version = "0.1.0"
 dependencies = [
+ "f4x-console",
  "f4x-core",
  "f4x-data",
  "hecs",
  "macroquad",
  "rand",
  "rand_pcg",
+]
+
+[[package]]
+name = "f4x-console"
+version = "0.1.0"
+dependencies = [
+ "f4x-core",
+ "f4x-data",
+ "hecs",
 ]
 
 [[package]]
@@ -144,6 +154,7 @@ dependencies = [
 name = "f4x-tools"
 version = "0.1.0"
 dependencies = [
+ "f4x-console",
  "f4x-core",
  "f4x-data",
  "png",

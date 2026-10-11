@@ -11,6 +11,7 @@ pub mod corruption;
 pub mod economy;
 pub mod featuregen;
 pub mod fog;
+pub mod cheat;
 pub mod endgame;
 pub mod fortress;
 pub mod globals;
@@ -394,6 +395,8 @@ pub struct Game {
     pub game_over: Option<endgame::GameOver>,
     /// The human wizard, whose defeat ends the game at once.
     pub human: Option<city::PlayerId>,
+    /// Every override (cheat) command that changed the game, oldest first.
+    pub(crate) override_log: Vec<String>,
     undo_on: bool,
     undo_stack: Vec<undo::UndoEntry>,
 }
@@ -416,6 +419,7 @@ impl Game {
             battle: None,
             game_over: None,
             human: None,
+            override_log: Vec::new(),
             undo_on: false,
             undo_stack: Vec::new(),
         }

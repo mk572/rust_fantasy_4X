@@ -217,7 +217,7 @@ impl Game {
         }]
     }
 
-    fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+    pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         if let Some(p) = self.player_mut(loser) {
             p.defeated = true;
             p.banished = false;
