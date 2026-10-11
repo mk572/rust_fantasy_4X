@@ -92,9 +92,16 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - **A file shown under several palettes:** `wizlab` (used by the spell book, the conquest and the
   Spell of Mastery screens) is extracted with the base palette plus its own colours; the screens
   that need another look may need their own copy. Nothing in the client uses it yet.
-- **Not reproduced:** palette cycling (the original rotates a few colours for animation, for
-  example `Cycle_Palette_Color(198, ...)` on the main screen), fades, and the colour remapping for
-  disabled or "ghost" drawing.
+- **Palette cycling (not reproduced):** the original animates by changing one palette entry over
+  time, so every pixel that uses that index changes colour at once, with no redrawing.
+  `Cycle_Palette_Color(index, min r,g,b, max r,g,b, step)` (`Fonts.c`) moves the entry back and
+  forth between two colours (6-bit values), one step per call. ReMoM only ever cycles index 198:
+  from dark to bright red (40..63) on the main screen, load screen and menu, from black to red
+  (0..55) in combat, and between pale greys or blues in the spell book. The extractor bakes the
+  base palette's fixed colour for index 198 into the PNGs, so those pixels do not pulse. Which
+  pictures use index 198 has not been checked. To reproduce it, extract those pixels as a mask
+  (like the banner mask) and tint it with a colour that oscillates over time.
+- **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
 **If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" reference/ReMoM/MoM/src`);
 (2) look for a `Load_Palette(n)` or `Load_Palette_From_Animation(...)` shortly before it;
