@@ -37,6 +37,7 @@ Written in our own words; nothing here is copied from either source.
 | B18 Events | Use the real turn number, so events run from turn one and after loading a save. |
 | B19 Growth | The original suppresses shrinking at maximum size and at the largest size; here starvation and being over the limit still shrink (done, task 20). Surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug in the original, but we do not port it: neutrals get no bonus or penalty, design.md section 8.) |
 | B20 Outposts | Done (task 21). Outpost growth includes wild game; no AI difficulty modifier applies to anyone (no AI advantage, design.md section 8). |
+| B21 Disenchant | Dispels only other wizards' enchantments, by the usual chance (`dispel.rs`, task 59); the code's always-succeeding roll and its test against the caster are not followed. |
 
 ### Decided by rule 2 (ReMoM to-do)
 | # | Decision |
@@ -114,6 +115,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B18 | Random events [768-775] | each ends with a 5% chance per turn | events are not processed during the first five turns after a game starts or is loaded (ReMoM `OGBUG` in `EVENTS.c`) | Check | not modelled | Count from the real turn number instead of launch time. |
 | B19 | Population growth | "x people per turn" | excess above the next whole figure is discarded when a figure is gained; growth is clamped so it cannot go negative at maximum size; neutral cities grow at half rate (ReMoM notes) | Verified | done (task 20) | Follow the code except the neutral half rate, which is dropped (design.md section 8). |
 | B20 | Wild game / outposts | outposts grow from food | outpost growth ignores wild game and applies the AI difficulty modifier to the human player too (ReMoM `OGBUG`) | Check | done (task 21) | Follow intent: include wild game; no AI modifier at all. |
+| B21 | Disenchant Area and True [help topics of the same names] | dispel every *enemy* enchantment on the targeted square, each with the usual dispel chance | `Cast_Disenchant` (`OverSpel.c`) tests a city's enchantments only when the stored caster is the *casting* wizard, and rolls `Random(250) <= threshold + 500`, which always succeeds; the unit loop's bit test `>= 0` is always true. Read literally it would strip the caster's own enchantments every time; ReMoM carries it without an `OGBUG` mark, so it may be a disassembly artefact | Check | done (task 59): the help's rule, enemy enchantments only, with the dispel formula | Follow the help. If ReMoM or the original is shown to behave as the code reads, record that here. |
 
 ## C. The help contradicts itself
 
