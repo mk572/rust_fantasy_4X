@@ -6,7 +6,7 @@ mod image;
 mod lbx;
 mod map_art;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use f4x_core::content::{Content, FeatureKind, TerrainClass};
@@ -45,9 +45,10 @@ fn main() -> ExitCode {
     }
 }
 
+/// The content in `dir` (default `content`), over the committed `content/` for any file it lacks.
 fn content(dir: Option<&String>) -> Result<Content, String> {
     let dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
-    f4x_data::load_content(&dir).map_err(|e| e.to_string())
+    f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {

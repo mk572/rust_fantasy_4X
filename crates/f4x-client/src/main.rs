@@ -53,7 +53,7 @@ struct Options {
 
 fn parse_args() -> Result<Options, String> {
     let mut o = Options {
-        content: if Path::new("content-local/rules.ron").exists() {
+        content: if Path::new("content-local").exists() {
             "content-local".into()
         } else {
             "content".into()
@@ -132,7 +132,7 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    let content = match f4x_data::load_content(&options.content) {
+    let content = match f4x_data::load_content_layers(&[&options.content, Path::new("content")]) {
         Ok(c) => c,
         Err(e) => {
             eprintln!(

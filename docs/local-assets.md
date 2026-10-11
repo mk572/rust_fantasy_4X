@@ -1,8 +1,9 @@
 # Local-only original assets and data
 
-Nothing derived from the original game may be committed or shared (the repo is CC0).
-Both outputs below are gitignored and the game runs without them (flat colours, the
-sample `content/` set).
+Nothing protected by IP may be committed or shared (the repo is CC0): the original's art, music
+and sound, help text and other prose, and code. The game's rules data (names, costs, stats,
+effects and numbers) is not in that class and is committed in `content/`. The two outputs below
+are the local-only ones; both are gitignored and the game runs without them (flat colours, no help).
 
 ## Where the originals live
 
@@ -28,23 +29,34 @@ index 0 transparent) plus `manifest.tsv`, and the terrain tiles (`terrain/tile_N
 `terrain/types.tsv` mapping terrain type -> tile, `terrain/sheet.png` overview).
 Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`.
 
-## Data: `content-local/`
+## Rules data: `content/` (committed)
 
 ```
 python3 -I scripts/import_mom.py [--game DIR] [--remom DIR]
-cargo run -p f4x-tools -- validate content-local
+cargo run -p f4x-tools -- validate content
 ```
 
-Builds races (with city names), units, buildings, abilities, spells, items, realms,
-level paths and the original help (`help.ron`: 807 topics; `help_screens.ron`: which
-screen areas open which topic) from the original `.lbx` files and the unit/race tables of a local
-ReMoM clone. Everything it cannot map goes to `content-local/IMPORT_REPORT.txt`.
-Spells without a matching effect primitive use the `unimplemented` custom hook; the
-count of those is the to-do list for new primitives. Spell rarity is inferred from
-table order and some upkeep values are estimated (see the report).
+Writes the game's rules to `content/`: races, units, buildings, abilities,
+spells, items, realms, level paths and `rules.ron`, from the original `.lbx` files and the
+unit/race tables of a local ReMoM clone. These are names and numbers, not IP-protected prose,
+so they are committed (`terrain.ron` and `features.ron` there are hand-written). Rerun the
+importer to regenerate them; edit the importer, not the files, for anything it produces.
+Spells without a matching effect primitive use the `unimplemented` custom hook; the count of
+those is the to-do list for new primitives. Spell rarity is inferred from table order and some
+upkeep values are estimated (see the report).
 
-The client prefers `content-local/` when it exists, else `content/`.
+## Help text: `content-local/` (gitignored)
 
-The importer also cross-checks costs, upkeep and race build bans against the help text
-(`[check]` lines in the report). What the help describes that is not implemented yet is in
-`docs/mechanics-gaps.md`.
+The city names are IP too: `content/city_names.ron` holds invented names in each race's style (20 a race), and the same run writes the original's to `content-local/city_names.ron`, which replaces them per race when present. The run also writes the original help (`help.ron`: 807 topics; `help_screens.ron`: which screen
+areas open which topic), the preset wizards (`wizards.ron`, built from help topics) and
+`IMPORT_REPORT.txt` (everything it could not map) to `content-local/`. Old runs also wrote the
+rules files there; the importer now removes those stale copies.
+
+The client and `f4x-tools` read `content-local/` first and `content/` for every file it lacks
+(`f4x_data::load_content_layers`), so the game runs without any local files, only without help
+or preset wizards. The importer also cross-checks costs, upkeep and race build bans against the
+help text (`[check]` lines in the report). What the help describes that is not implemented yet
+is in `docs/mechanics-gaps.md`.
+
+The small invented sample rule set (sunfolk, ironclans, spearman, fireball) that `content/` used
+to hold is now `crates/f4x-data/testdata/`, the fixture for the data loader's tests.

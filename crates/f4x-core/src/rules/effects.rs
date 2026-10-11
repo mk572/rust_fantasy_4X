@@ -24,6 +24,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::roads::ENCHANT_ROAD,
     crate::corruption::CORRUPT_LAND,
     crate::corruption::WARP_NODE,
+    crate::endgame::SPELL_OF_MASTERY,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -12,20 +12,56 @@ use f4x_core::rules::{
 
 use crate::{id_problem, ContentError};
 
-fn read(dir: &Path, name: &str) -> Result<String, ContentError> {
-    let path = dir.join(name);
+/// The first of `dirs` that has the file `name`.
+fn find(dirs: &[&Path], name: &str) -> Option<std::path::PathBuf> {
+    dirs.iter().map(|d| d.join(name)).find(|p| p.exists())
+}
+
+fn read(dirs: &[&Path], name: &str) -> Result<String, ContentError> {
+    let path = find(dirs, name)
+        .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
     std::fs::read_to_string(&path).map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
 }
 
-fn parse<T: serde::de::DeserializeOwned>(dir: &Path, name: &str) -> Result<T, ContentError> {
-    ron::from_str(&read(dir, name)?).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
+fn parse<T: serde::de::DeserializeOwned>(dirs: &[&Path], name: &str) -> Result<T, ContentError> {
+    ron::from_str(&read(dirs, name)?).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
 }
 
-/// Load and validate every rules file in `dir`.
-pub fn load_rules(dir: &Path, features: &Features) -> Result<Rules, ContentError> {
+/// The race's city names, kept apart from the race table so a local file can replace them.
+#[derive(serde::Deserialize)]
+struct CityNames {
+    race: String,
+    names: Vec<String>,
+}
+
+/// Fill in `city_names` from `city_names.ron`, if any directory has it. A race the file does
+/// not mention keeps the names in the race table.
+fn apply_city_names(dirs: &[&Path], races: &mut [RaceDef]) -> Result<(), ContentError> {
+    if find(dirs, "city_names.ron").is_none() {
+        return Ok(());
+    }
+    let lists = parse::<Vec<CityNames>>(dirs, "city_names.ron")?;
+    for list in lists {
+        let Some(race) = races.iter_mut().find(|r| r.id == list.race) else {
+            return Err(ContentError::Invalid(vec![format!(
+                "city_names.ron names unknown race {:?}",
+                list.race
+            )]));
+        };
+        race.city_names = list.names;
+    }
+    Ok(())
+}
+
+/// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
+/// so a local directory can replace single files of the committed one.
+pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
+    let dir = dirs;
+    let mut races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
+    apply_city_names(dir, &mut races)?;
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
-        races: Registry::new(parse::<Vec<RaceDef>>(dir, "races.ron")?),
+        races: Registry::new(races),
         units: Registry::new(parse::<Vec<UnitDef>>(dir, "units.ron")?),
         abilities: Registry::new(parse::<Vec<AbilityDef>>(dir, "abilities.ron")?),
         buildings: Registry::new(parse::<Vec<BuildingDef>>(dir, "buildings.ron")?),
@@ -34,7 +70,7 @@ pub fn load_rules(dir: &Path, features: &Features) -> Result<Rules, ContentError
         items: Registry::new(parse::<Vec<ItemDef>>(dir, "items.ron")?),
         level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
         // Ready-made wizards are optional: a rule set without them just has no presets.
-        wizards: Registry::new(if dir.join("wizards.ron").exists() {
+        wizards: Registry::new(if find(dir, "wizards.ron").is_some() {
             parse::<Vec<WizardDef>>(dir, "wizards.ron")?
         } else {
             Vec::new()
@@ -503,7 +539,7 @@ mod tests {
     use f4x_core::rules::Source;
 
     fn content_dir() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")
     }
 
     fn features() -> Features {
@@ -547,14 +583,14 @@ mod tests {
     #[test]
     fn shipped_rules_are_valid() {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&content_dir(), &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], &features()).unwrap();
         assert_eq!(rules.realms.len(), 5);
         assert!(rules.units.by_name("captain_mira").unwrap().hero.is_some());
     }
 
     #[test]
     fn typed_ids_round_trip() {
-        let rules = load_rules(&content_dir(), &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], &features()).unwrap();
         let id = rules.units.id_of("archer").unwrap();
         assert_eq!(rules.units.get(id).name, "Archer");
         assert!(rules.units.id_of("nope").is_none());
@@ -664,7 +700,7 @@ mod tests {
 
     #[test]
     fn veteran_spearman_stats_come_from_def_plus_level_modifiers() {
-        let rules = load_rules(&content_dir(), &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], &features()).unwrap();
         let unit = rules.units.by_name("spearman").unwrap();
         let path = rules
             .level_paths
@@ -684,5 +720,26 @@ mod tests {
         let mut all = mods.clone();
         all.extend(passive_modifiers(&spell.effects, Source::Spell(id)));
         assert_eq!(compute(Stat::Defense, unit.stats[&Stat::Defense], &all), 6);
+    }
+
+    #[test]
+    fn city_names_come_from_the_first_directory_that_has_the_file() {
+        let base = std::env::temp_dir().join(format!("f4x-names-{}", std::process::id()));
+        let over = base.join("over");
+        std::fs::create_dir_all(&over).unwrap();
+        std::fs::write(
+            over.join("city_names.ron"),
+            r#"[(race: "sunfolk", names: ["Alpha", "Beta"])]"#,
+        )
+        .unwrap();
+        let features = features();
+        let rules = load_rules(&[&over, &content_dir()], &features).unwrap();
+        let sunfolk = rules.races.by_name("sunfolk").unwrap();
+        assert_eq!(sunfolk.city_names, ["Alpha", "Beta"]);
+        // Another race keeps the names of its table (none, in this fixture).
+        assert!(rules.races.by_name("ironclans").unwrap().city_names.is_empty());
+        std::fs::write(over.join("city_names.ron"), r#"[(race: "nobody", names: ["X"])]"#).unwrap();
+        assert!(load_rules(&[&over, &content_dir()], &features).is_err());
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

@@ -6,7 +6,7 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
 - **Parity first.** The first target is every system working as in the original; departures are planned only once that is reached. Where we are unsure, we follow the original.
-- Don't copy its code, data or art into the repository. The repository is CC0 and says so. Original-derived material exists only in gitignored local folders (see section 9 and `local-assets.md`).
+- Don't copy anything protected by IP into the repository: its art, music and sound, help text (and other prose), and code. The repository is CC0 and says so. Those exist only in gitignored local folders (see section 9 and `local-assets.md`). The game's *rules* (names, costs, stats, effects and numbers of races, units, buildings, spells, items and the global rule values) are not treated as protected and are committed in `content/`, as the importer makes them.
 - Targets are Mac and Linux, with low-res pixel graphics scaled by integer factors.
 - The simulation is deterministic: the same seed plus the same command log gives the same game. That gives replays, regression tests, and an optional path to multiplayer.
 
@@ -18,10 +18,10 @@ crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
 crates/f4x-client/  rendering, input, UI (macroquad)
 crates/f4x-tools/   validator, map preview, original-art extractor
 content/            shipped, original sample data (terrain, features, a small rules set)
-scripts/            import_mom.py (original data -> content-local), list_ogbugs.py
+scripts/            import_mom.py (original rules data -> content, help text -> content-local), list_ogbugs.py
 docs/               design and reference documents
 ```
-Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (data imported from the author's own copy of the original game, including the help text).
+Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them).
 
 `f4x-core` must never depend on the client. That keeps it testable and fast to iterate.
 
@@ -54,7 +54,7 @@ least four squares apart. Layers, rules, generation and differences from the ori
 - Definitions refer to each other by string id in files; loading turns them into typed ids into registries, so the simulation never meets a dangling reference.
 - Abilities and spell effects are composed from a small set of effect primitives and conditions (modify stat, grant ability, damage, heal, summon, change terrain, enchant, dispel, custom hook). Stats are a closed enum; content cannot invent stats.
 - A rule the engine cannot express yet uses the `unimplemented` custom hook. Imported content uses it for 134 of 214 spells; the count of uses is the to-do list for new primitives.
-- Two content sets: `content/` (original sample data, committed, used by tests and CI) and `content-local/` (imported from the author's own copy of the game; the client prefers it when present).
+- Two content directories, layered: `content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `content/` for every file it lacks). The loader's tests use a small invented rule set in `crates/f4x-data/testdata/`.
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems
@@ -92,10 +92,10 @@ Not started. Intended design:
 - Audio is not started (`rodio` or SDL_mixer).
 
 ### Placeholder art and original data (local only)
-- The original game's art and data are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project.
-- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-tools extract-art` into `assets-local/art`. Data is imported by `scripts/import_mom.py` into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
+- The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `content/`.
+- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-tools extract-art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
 - The client loads local art if present and falls back to flat colours otherwise, so the game runs and CI passes without it.
-- Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary.
+- Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `content/` stays: it is ours to change.
 
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.

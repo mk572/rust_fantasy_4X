@@ -67,7 +67,7 @@ mod tests {
     }
 
     fn content() -> Content {
-        crate::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+        crate::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
     }
 
     /// A real generated map with the shipped content, a city, units and a few turns.

@@ -62,8 +62,8 @@ note: AI cost grows with wizard count, so measure turn time first (T65).
 patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the
 Caster of Magic expansion: list every changed number, ability, building, unit, spell and item;
 decide per change whether it becomes the default, a rule-set option or a mod (see 5); and add
-the new items, units and spells to `content-local/` through `scripts/import_mom.py` where they
-come from original files, or hand-write CC0 equivalents for the repository. Details of the
+the new items, units and spells to `content/` through `scripts/import_mom.py` where they
+come from original rules data, or write them by hand. Details of the
 expansion are not yet gathered here, so the first step is a survey document in `docs/` listing
 what exists, before any code. The importer's conflict rules (`help-vs-implementation-conflicts.md`)
 apply: patch behaviour that fixes a marked bug wins; anything else is an option.
@@ -75,8 +75,8 @@ version and dependencies; validation that reports conflicts by id; a list of the
 (`CUSTOM_HOOKS`, effect primitives) as the documented extension surface, and a decision on
 scripting (none, or a small embedded language) for effects the data cannot express; mod-aware
 saves that record the active mods and refuse to load without them; a mod picker in the client.
-Document the data formats in `docs/` for modders. Keep original-derived data out of the
-repository, as for all content.
+Document the data formats in `docs/` for modders. Keep IP-protected material (art, music, help text) out of the
+repository.
 
 **6. Upscaled graphics.** The client draws the original's 20x18 tiles and small unit pictures,
 scaled with nearest-neighbour. Add an optional higher-resolution art path: an upscaling step in
@@ -142,7 +142,7 @@ enchantments), and UI scale is a separate setting from the map zoom. Needs the f
 breakpoint. Keep the original layout as one of the modes.
 
 **12. Replacement art.** The placeholder art comes from the author's own copy of the original and is
-local only; the repository must stay CC0 and original-free. Before any public release, source
+local only; the repository must stay CC0 and free of IP-protected art, music and text. Before any public release, source
 art that can be shipped: commissioned, generated or CC0 pieces for terrain tiles, units,
 buildings, portraits, the interface frame, battle scenery and fonts, in the same sizes and
 file layout as the extracted set so the client loads them unchanged (`assets/` next to the

@@ -1,0 +1,14 @@
+// Terrain definitions. `class` drives map generation; at least one definition
+// per class and plane is required (checked by `f4x-tools validate`).
+// `food` is in half-food units (3 = one and a half food) and sets how many citizens a
+// city's land can feed; `production_percent` is added to a city's production per tile.
+[
+    (id: "ocean",     name: "Ocean",     class: Ocean,     walkable: false, can_found_city: false, move_cost: 0, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "grassland", name: "Grassland", class: Grassland, walkable: true,  can_found_city: true,  move_cost: 1, food: 3, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "forest",    name: "Forest",    class: Forest,    walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 3, planes: [Arcanus, Myrror]),
+    (id: "hills",     name: "Hills",     class: Hills,     walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 3, planes: [Arcanus, Myrror]),
+    (id: "mountains", name: "Mountains", class: Mountains, walkable: true,  can_found_city: false,  move_cost: 3, food: 0, production_percent: 5, planes: [Arcanus, Myrror]),
+    (id: "swamp",     name: "Swamp",     class: Swamp,     walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "desert",    name: "Desert",    class: Desert,    walkable: true,  can_found_city: true,  move_cost: 1, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "tundra",    name: "Tundra",    class: Tundra,    walkable: true,  can_found_city: true,  move_cost: 2, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
+]

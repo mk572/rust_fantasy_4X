@@ -199,14 +199,24 @@ pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
 
 /// Load and validate all content files from a content directory.
 pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
+    load_content_layers(&[dir])
+}
+
+/// Like [`load_content`], with several directories: each file is read from the first one that
+/// has it (the game puts its local directory before the committed `content/`).
+pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let read = |name: &str| {
-        let path = dir.join(name);
+        let path = dirs
+            .iter()
+            .map(|d| d.join(name))
+            .find(|p| p.exists())
+            .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
         std::fs::read_to_string(&path)
             .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
     };
     let terrains = parse_terrains(&read("terrain.ron")?)?;
     let features = parse_features(&read("features.ron")?)?;
-    let rules = rules::load_rules(dir, &features)?;
+    let rules = rules::load_rules(dirs, &features)?;
     Ok(Content {
         terrains,
         features,
@@ -229,7 +239,7 @@ mod tests {
     }
 
     fn shipped_content() -> Content {
-        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
     }
 
     #[test]
