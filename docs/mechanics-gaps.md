@@ -73,7 +73,7 @@ diplomacy, AI, random events, victory and score.
   0.5 / 1 / 1.5, doubled on Myrror), node auras (+2 attack/defence to matching creatures),
   warping; corruption of land and purification (3 turns) [227-228, 653-656, 615-617].
 - Minerals, terrain-changing spells, volcanoes, land corruption by units [404].
-- World generation settings (done, task 10a): land size 15/20/30% (ReMoM's table; the help text's figures were not checked), number of opponents 1-4 [648-652].
+- World generation settings (done, task 10): land size 15/20/30% (ReMoM's table; the help text's figures were not checked), number of opponents 1-4 [648-652].
 
 ## 3. Units and combat (step 7)
 - Attack order: thrown, breath, gaze, then first strike, then melee; to-hit is 30% base,

@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 10 | Map | Generator parity with the original (the new-game settings are done) |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -132,6 +131,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 147 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
 | 148 | Core | Difficulty beyond lairs: the final score, AI strength and the seed field |
 | 149 | Client | Show squares that are known but not currently seen (fog of war) |
+| 150 | Map | Generator parity with the original |
 
 ## Descriptions
 
@@ -143,14 +143,6 @@ the worked-area food and production of cities, and spells that set it.
 
 **7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
 aura [653-656], and warping by spells. Depends on 6.
-
-**10. Generator parity with the original.** Our generator is our own design (noise-based
-elevation with a land percentage). Optionally port the original's `NEWG_CreateLands`: random walkers
-from origins spread over map sections (3 to 5 arms of 6-15, 11-20 or 21-30 steps by land size, with
-a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix-up, as described in
-`reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
-opponents, land size, node strength) are done; see TASKS-DONE. Lair placement parity is task 129.
-Parity task, low priority.
 
 ### City and economy
 
@@ -616,6 +608,14 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **147. Find the use of the unreferenced art files.** ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
 
-**148. Difficulty beyond lairs, and the seed field.** The difficulty chosen in the options step (task 10a) only scales lair guards and treasure. Call `endgame::scale_for_difficulty` where the final score is made, find what else the original scales by difficulty (AI production and spending, wizard aggression, start gold and mana for the AI) and apply it, and add a map-seed field to the options screen (the seed is a command-line option now).
+**148. Difficulty beyond lairs, and the seed field.** The difficulty chosen in the options step (task 10) only scales lair guards and treasure. Call `endgame::scale_for_difficulty` where the final score is made, find what else the original scales by difficulty (AI production and spending, wizard aggression, start gold and mana for the AI) and apply it, and add a map-seed field to the options screen (the seed is a command-line option now).
 
 **149. Fog of war: known but unseen squares.** The overworld draws two states only: never explored (black) and explored (drawn in full). The game already tracks what each wizard sees now (`Game::visibility`); the client uses it only to hide enemy units. Draw explored squares that no unit or city currently sees dimmed, as the original does (check how it does it in ReMoM's map drawing before copying; it may use a darkening palette remap), keep what was last seen of cities there (a remembered city, not its current state, if the rules need that), and make the minimap match. Soft edges along the explored border are task 121.
+
+**150. Generator parity with the original.** Our generator is our own design (noise-based
+elevation with a land percentage). Optionally port the original's `NEWG_CreateLands`: random walkers
+from origins spread over map sections (3 to 5 arms of 6-15, 11-20 or 21-30 steps by land size, with
+a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix-up, as described in
+`reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
+opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair placement parity is task 129.
+Parity task, low priority.
