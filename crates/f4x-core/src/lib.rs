@@ -33,6 +33,7 @@ pub mod rules;
 pub mod save;
 pub mod serial;
 pub mod setup;
+pub mod temp_effects;
 pub mod terraform;
 #[cfg(test)]
 mod testutil;

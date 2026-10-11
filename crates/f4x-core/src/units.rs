@@ -57,7 +57,8 @@ impl Game {
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
         self.unit_def(unit)
-            .is_some_and(|d| d.abilities.iter().any(|a| a == ability))
+            .is_some()
+            && self.unit_abilities(unit).iter().any(|a| a == ability)
     }
 
     /// Experience level, 0-based, from the unit's level path (0 without one).
@@ -83,14 +84,7 @@ impl Game {
             return Vec::new();
         };
         let mut mods = Vec::new();
-        for name in &def.abilities {
-            if let Some(id) = rules.abilities.id_of(name) {
-                mods.extend(passive_modifiers(
-                    &rules.abilities.get(id).effects,
-                    Source::Ability(id),
-                ));
-            }
-        }
+        mods.extend(self.ability_modifiers(unit));
         if let Some(path) = def
             .level_path
             .as_deref()
@@ -109,6 +103,7 @@ impl Game {
                 ));
             }
         }
+        mods.extend(self.temp_modifiers(unit));
         mods.extend(self.global_unit_modifiers(unit));
         mods
     }

@@ -31,8 +31,8 @@ impl Game {
         !stack_flies
             && self.unit_def(unit).is_some_and(|d| {
                 d.movement == MovementType::Walking
-                    && !d
-                        .abilities
+                    && !self
+                        .unit_abilities(unit)
                         .iter()
                         .any(|a| a == "flying" || a == "non_corporeal")
             })

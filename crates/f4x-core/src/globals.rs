@@ -72,7 +72,7 @@ impl Game {
             return Vec::new();
         }
         let facts = Facts {
-            abilities: def.abilities.clone(),
+            abilities: self.unit_abilities(unit),
             race: def.race.clone(),
             realm: def.realm.clone(),
             kind: Some(def.kind),

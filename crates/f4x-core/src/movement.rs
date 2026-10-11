@@ -124,7 +124,8 @@ impl Game {
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
             .ok_or(MoveError::OffMap)?;
-        let has = |a: &str| def.abilities.iter().any(|x| x == a);
+        let abilities = self.unit_abilities(unit);
+        let has = |a: &str| abilities.iter().any(|x| x == a);
         let is_water = terrain.class == TerrainClass::Ocean;
 
         if has("non_corporeal") && !is_water {

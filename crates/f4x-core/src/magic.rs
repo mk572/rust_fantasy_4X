@@ -579,6 +579,7 @@ impl Game {
     /// All wizards' magic at the turn change: income, research, upkeep, casting.
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
         let mut events = self.tick_timers();
+        self.tick_temp_effects();
         self.process_globals();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {

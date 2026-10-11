@@ -78,9 +78,9 @@ impl Game {
             .min(total - 1);
         let current = total - hurt;
         let alive = ((current + hits - 1) / hits) as u32;
-        let flies =
-            def.movement == MovementType::Flying || def.abilities.iter().any(|a| a == "flying");
-        let has = |a: &str| def.abilities.iter().any(|x| x == a);
+        let abilities = self.unit_abilities(unit);
+        let flies = def.movement == MovementType::Flying || abilities.iter().any(|a| a == "flying");
+        let has = |a: &str| abilities.iter().any(|x| x == a);
         Some(BattleUnit {
             id: 0,
             side,
@@ -101,12 +101,12 @@ impl Game {
             moves: self.unit_max_moves(unit),
             moves_left: self.unit_max_moves(unit),
             ammo: self.unit_stat(unit, Stat::Ammo),
-            ranged_kind: ranged_kind_of(&def.abilities),
+            ranged_kind: ranged_kind_of(&abilities),
             flies,
             first_strike: has("first_strike"),
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
-            abilities: def.abilities.clone(),
+            abilities: abilities.clone(),
             status: Status::Active,
             attacked: false,
         })

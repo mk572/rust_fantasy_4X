@@ -29,6 +29,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
+| 30 | Units | Temporary effects store (done) |
 | 33 | Combat | ~~Battle data model in the ECS~~ (done) |
 | 34 | Combat | ~~Attack resolution: to-hit, damage, defence, attack order~~ (done) |
 | 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
@@ -271,3 +272,5 @@ the original's road masking (the whole grid is drawn), animation of buildings an
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
 
 **145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.
+
+**30. Temporary effects store (done).** New `temp_effects.rs`: a `TempEffects` component on a unit or city holds stat modifiers, granted abilities and removed abilities, each with turns left (`None` lasts for good), counted down once per turn change in the magic step (`tick_temp_effects`). `unit_modifiers` and `city_modifiers` read the modifiers; `Game::unit_abilities` gives a unit's abilities now (own, plus granted, minus removed, in the order added, so a later grant undoes an earlier removal) and `unit_has_ability`, the abilities' own passive modifiers, the spell facts, global-spell facts, battle units, movement checks, ship need and noble upkeep all use it. A city only takes modifiers. `GameHost::add_modifier`, `grant_ability` and `remove_ability` now store (without an end, since a rule's effect carries no duration yet; `add_temp_modifier` and the other two take turns for callers that have one). Saved with units and cities (`effects`, older saves read as none). Tests in `temp_effects.rs`. Not done: no screen lists these effects, and an effect has no source for dispelling (they are not enchantments).

@@ -138,6 +138,7 @@ impl Game {
                 ));
             }
         }
+        mods.extend(self.temp_modifiers(city));
         mods
     }
 

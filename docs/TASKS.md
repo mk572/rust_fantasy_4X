@@ -22,7 +22,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
-| 30 | Units | Temporary effects store (instant modifiers, granted abilities) |
 | 31 | Units | Neutral player and neutral cities |
 | 32 | Units | Starting economy tuning |
 | 35 | Combat | Immunities and resistance rolls |
@@ -166,11 +165,6 @@ combat-level exception from B9). Warlord retort needs task 53. Low priority: onl
 **29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
 and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
-
-**30. Temporary effects store.** `GameHost::add_modifier`, `grant_ability` and `remove_ability` do
-nothing, so instant or timed spells that grant a modifier or ability have nowhere to live. Add a
-per-unit and per-city effects component (source, value, remaining turns) read by `unit_modifiers`
-and `city_modifiers`, saved by name. Prerequisite for 52 and many spells.
 
 **31. Neutral player and neutral cities.** Neutral cities (rebels, raider cities) and the neutral
 player are not modelled. Neutral cities and units follow the ordinary rules with no bonus or

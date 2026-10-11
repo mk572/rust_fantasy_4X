@@ -295,6 +295,63 @@ pub struct UnitSave {
     /// Creation number of the ship the unit is aboard.
     #[serde(default)]
     pub aboard: Option<u64>,
+    /// Temporary modifiers and abilities.
+    #[serde(default)]
+    pub effects: Vec<TempSave>,
+}
+
+/// A temporary effect as saved; stats are named by their own serialisation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TempSave {
+    pub kind: TempKindSave,
+    pub turns: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TempKindSave {
+    Modifier {
+        stat: crate::rules::Stat,
+        op: crate::rules::ModOp,
+        value: i32,
+    },
+    Grant(String),
+    Remove(String),
+}
+
+fn effects_save(game: &Game, e: hecs::Entity) -> Vec<TempSave> {
+    use crate::temp_effects::TempKind;
+    game.temp_effects(e)
+        .into_iter()
+        .map(|t| TempSave {
+            kind: match t.kind {
+                TempKind::Modifier { stat, op, value } => {
+                    TempKindSave::Modifier { stat, op, value }
+                }
+                TempKind::Grant(a) => TempKindSave::Grant(a),
+                TempKind::Remove(a) => TempKindSave::Remove(a),
+            },
+            turns: t.turns,
+        })
+        .collect()
+}
+
+fn effects_load(world: &mut hecs::World, e: hecs::Entity, list: Vec<TempSave>) {
+    use crate::temp_effects::{TempEffect, TempEffects, TempKind};
+    if list.is_empty() {
+        return;
+    }
+    let list = list
+        .into_iter()
+        .map(|t| TempEffect {
+            kind: match t.kind {
+                TempKindSave::Modifier { stat, op, value } => TempKind::Modifier { stat, op, value },
+                TempKindSave::Grant(a) => TempKind::Grant(a),
+                TempKindSave::Remove(a) => TempKind::Remove(a),
+            },
+            turns: t.turns,
+        })
+        .collect();
+    let _ = world.insert_one(e, TempEffects(list));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -320,6 +377,9 @@ pub struct CitySave {
     pub enchantments: Vec<(String, u8)>,
     pub item: Option<ItemSave>,
     pub progress: u32,
+    /// Temporary modifiers.
+    #[serde(default)]
+    pub effects: Vec<TempSave>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -541,6 +601,7 @@ impl Game {
                         .get::<&crate::roads::RoadWork>(u)
                         .ok()
                         .map(|w| (w.at, w.left, w.rest.clone())),
+                    effects: effects_save(self, u),
                 })
             })
             .collect();
@@ -597,6 +658,7 @@ impl Game {
                         .unwrap_or_default(),
                     item: production.item.map(item_save),
                     progress: production.progress,
+                    effects: effects_save(self, e),
                 })
             })
             .collect();
@@ -772,6 +834,7 @@ impl Snapshot {
                     .world
                     .insert_one(entity, crate::transport::Aboard(Serial(ship)));
             }
+            effects_load(&mut game.world, entity, u.effects);
             if let Some((at, left, rest)) = u.road_work {
                 let _ = game
                     .world
@@ -877,6 +940,7 @@ impl Snapshot {
             if let Some(r) = race {
                 let _ = game.world.insert_one(entity, CityRace(r));
             }
+            effects_load(&mut game.world, entity, c.effects);
         }
         for p in &game.players {
             for pos in [p.fortress, p.summon_at].into_iter().flatten() {

@@ -50,7 +50,7 @@ impl Game {
         };
         match def.kind {
             UnitKind::Normal => def.upkeep.gold as i32,
-            UnitKind::Hero if !def.abilities.iter().any(|a| a == "noble") => def.upkeep.gold as i32,
+            UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
             _ => 0,
         }
     }

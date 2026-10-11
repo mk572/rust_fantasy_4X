@@ -118,7 +118,7 @@ impl EffectHost for GameHost<'_> {
         }
         if let Target::Unit(u) = who {
             if let Some(def) = g.unit_def(u) {
-                facts.abilities = def.abilities.clone();
+                facts.abilities = g.unit_abilities(u);
                 facts.race = def.race.clone();
                 facts.realm = def.realm.clone();
                 facts.kind = Some(def.kind);
@@ -167,13 +167,19 @@ impl EffectHost for GameHost<'_> {
         }
     }
 
-    /// Lasting modifiers come from enchantments (see `apply_enchantment`), so a bare
-    /// modifier from an instant spell has nowhere to live and is dropped.
-    fn add_modifier(&mut self, _who: Target, _modifier: Modifier) {}
+    /// Bare modifiers and abilities from instant spells and rules go to the bearer's
+    /// temporary effects (`temp_effects.rs`); lasting spells use enchantments instead.
+    fn add_modifier(&mut self, who: Target, modifier: Modifier) {
+        self.game.add_temp_modifier(who, modifier, None);
+    }
 
-    fn grant_ability(&mut self, _who: Target, _ability: &str) {}
+    fn grant_ability(&mut self, who: Target, ability: &str) {
+        self.game.grant_temp_ability(who, ability, None);
+    }
 
-    fn remove_ability(&mut self, _who: Target, _ability: &str) {}
+    fn remove_ability(&mut self, who: Target, ability: &str) {
+        self.game.remove_temp_ability(who, ability, None);
+    }
 
     fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {
         let Target::Unit(u) = who else {
