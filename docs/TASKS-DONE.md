@@ -220,7 +220,7 @@ conditions on a unit's kind (`Condition::KindIs`). The data marks these spells w
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
 the cut-scenes and the hall of fame are tasks 134 and 88.
 
-**86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed, land size and opponents on a new-game options step (10).
+**86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed on the new-game options step (148); land size and opponents are there now (10).
 
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
 command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness
