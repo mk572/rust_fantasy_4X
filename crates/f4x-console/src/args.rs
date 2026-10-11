@@ -156,13 +156,11 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
 
 /// A spell target: `unit:12`, `city:3`, `tile:x,y[,plane]` or `player:0`.
 pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
-    let (kind, rest) = text
-        .split_once(':')
-        .ok_or_else(|| {
-            ConsoleError::Parse(
-                "a target is unit:N, city:N, tile:x,y, player:N or global:N:<spell>".into(),
-            )
-        })?;
+    let (kind, rest) = text.split_once(':').ok_or_else(|| {
+        ConsoleError::Parse(
+            "a target is unit:N, city:N, tile:x,y, player:N or global:N:<spell>".into(),
+        )
+    })?;
     let num = || {
         rest.parse::<u64>()
             .map_err(|_| ConsoleError::Parse(format!("{rest:?} is not a number")))
@@ -180,7 +178,11 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
             let spell = resolve(&game.content.rules.spells, name, |d| &d.name, "spell")?;
             Target::Global(parse_player(who)?, spell)
         }
-        other => return Err(ConsoleError::Parse(format!("unknown target kind {other:?}"))),
+        other => {
+            return Err(ConsoleError::Parse(format!(
+                "unknown target kind {other:?}"
+            )))
+        }
     })
 }
 
@@ -209,7 +211,10 @@ pub fn resolve<T: Def>(
     {
         return Ok(id);
     }
-    let hits: Vec<_> = reg.iter().filter(|(_, d)| d.id().starts_with(text)).collect();
+    let hits: Vec<_> = reg
+        .iter()
+        .filter(|(_, d)| d.id().starts_with(text))
+        .collect();
     match hits.as_slice() {
         [(id, _)] => Ok(*id),
         [] => Err(ConsoleError::NoSuch(format!("{what} {text:?}"))),
@@ -242,7 +247,10 @@ mod tests {
     fn positions_take_an_optional_plane() {
         let p = parse_pos("4,5,m", Plane::Arcanus).unwrap();
         assert_eq!((p.x, p.y, p.plane), (4, 5, Plane::Myrror));
-        assert_eq!(parse_pos("4,5", Plane::Myrror).unwrap().plane, Plane::Myrror);
+        assert_eq!(
+            parse_pos("4,5", Plane::Myrror).unwrap().plane,
+            Plane::Myrror
+        );
         assert!(parse_pos("4", Plane::Arcanus).is_err());
         assert!(parse_pos("a,b", Plane::Arcanus).is_err());
     }

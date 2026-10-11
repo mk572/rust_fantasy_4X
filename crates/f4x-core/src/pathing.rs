@@ -97,7 +97,9 @@ impl Game {
                 // A guarded site stops the stack: go round unless it is the destination.
                 if next != to
                     && owner != crate::units::NEUTRAL
-                    && self.lair_at(next).is_some_and(|(_, l)| !l.guards.is_empty())
+                    && self
+                        .lair_at(next)
+                        .is_some_and(|(_, l)| !l.guards.is_empty())
                 {
                     continue;
                 }

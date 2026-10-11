@@ -13,7 +13,8 @@ const NEUTRAL: PlayerId = PlayerId(u8::MAX);
 impl Game {
     /// Note that an override command changed the game.
     pub fn record_override(&mut self, line: &str) {
-        self.override_log.push(format!("turn {}: {line}", self.turn));
+        self.override_log
+            .push(format!("turn {}: {line}", self.turn));
     }
 
     /// Override commands that changed this game, oldest first.

@@ -115,20 +115,22 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 1. **Turn counter** goes up; every unit's moves are refilled to its allowance.
 2. **`TurnStarted`** is emitted.
-3. **Cities**, one by one in creation order:
+3. **Treasury**, per player in the order players were added (section 5), on the cities as they
+   stand: first every city's farmers are raised to the minimum that feeds its citizens. As in
+   the original, upkeep is paid before the cities grow, so a city that grows this turn makes
+   its new mouths felt next turn, when the player can still put them on the farms.
+4. **Cities**, one by one in creation order:
    - *Outposts* (no citizens) roll to grow: a chance each turn made of the race's base
      chance, the land's food capacity, bonuses from worked features (mines, game), and
      enchantments; if the roll succeeds the outpost gains a few tens of people, and a small
      chance makes it lose some. At 100 tens it becomes a one-citizen city (farmers are set,
      `CityGrew`). An outpost does nothing else.
-   - *Cities*: farmers are raised to the minimum that feeds the citizens; the economy is
-     computed **once**; the item in production gets this turn's production added and, if
+   - *Cities*: the economy is computed **once**; the item in production gets this turn's production added and, if
      covered, completes (a building is added and the city falls back to housing; a unit is
      created in the city with the guilds' starting experience and the same unit is queued
      again; surplus production is lost); then population changes by the growth rate computed
      in the same economy (`CityGrew`/`CityShrank`). Because the economy was computed before
      the changes, a building finished this turn first affects the next one.
-4. **Treasury**, per player in the order players were added (section 5).
 5. **Magic**, for all wizards (see [`magic.md`](magic.md) section 9): power applied, research
    checked, mana upkeep paid, casting progress, finished spells resolve.
 6. **Healing** of wounded units (section 6).
@@ -143,7 +145,7 @@ combat resolution wherever an `AttackRequested` is acted on; victory checks last
 `Game::treasury(player)` previews what the next `EndTurn` will do; the turn applies the same
 numbers.
 
-**Income**, from the player's cities as they stand after step 3:
+**Income**, from the player's cities as they stand before step 4 changes them:
 - gold of each city (taxes, trade, mines, percentage buildings) minus its building upkeep;
 - plus ten gold per noble hero (none exist yet);
 - plus **spare food sold at two for one**: each city's food beyond what its citizens eat,

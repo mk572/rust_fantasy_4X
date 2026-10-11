@@ -677,3 +677,111 @@ fn a_world_has_the_originals_number_of_lairs() {
         }
     }
 }
+
+/// The units, in the order they were made, of a player's starting army.
+fn start_army(g: &Game, p: PlayerId) -> Vec<String> {
+    g.player_units(p)
+        .iter()
+        .filter_map(|&u| g.unit_def(u).map(|d| d.name.clone()))
+        .collect()
+}
+
+/// A wizard's capital and what is in it.
+fn capital(g: &Game, p: PlayerId) -> (hecs::Entity, f4x_core::city::Position) {
+    g.cities()
+        .into_iter()
+        .find(|(_, c, _)| c.owner == p)
+        .map(|(e, _, at)| (e, at))
+        .unwrap()
+}
+
+#[test]
+fn a_wizard_starts_as_in_the_original() {
+    let content = content();
+    for seed in [1, 2, 3, 4, 5, 6] {
+        let g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                wizards: 4,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        for k in 0..4 {
+            let p = PlayerId(k);
+            let (city, _) = capital(&g, p);
+            let mut army = start_army(&g, p);
+            army.sort();
+            assert_eq!(army, ["Spearmen", "Swordsmen"], "seed {seed} wizard {k}");
+            let eco = g.city_economy(city).unwrap();
+            assert_eq!(
+                (eco.figures, eco.farmers, g.player(p).unwrap().tax_rate),
+                (4, 3, 2)
+            );
+            for b in ["smithy", "barracks", "builders_hall"] {
+                assert!(g.city_has_building(city, b), "seed {seed} wizard {k}: {b}");
+            }
+            // Land that feeds eight (seven for later wizards), so the farmers feed the army.
+            assert!(
+                eco.max_size >= 7,
+                "seed {seed} wizard {k}: {}",
+                eco.max_size
+            );
+            assert_eq!(g.player(p).unwrap().gold, 100);
+        }
+    }
+}
+
+#[test]
+fn the_starting_army_and_capital_pay_their_way() {
+    let content = content();
+    for seed in [1, 2, 3, 4, 5, 6] {
+        let mut g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        let t = g.treasury(HUMAN);
+        assert!(t.food_surplus >= t.food_upkeep, "seed {seed}: {t:?}");
+        assert!(t.net_gold() >= 0, "seed {seed}: {t:?}");
+        // Growth makes new mouths, so a careful ruler keeps putting people on the farms.
+        for _ in 0..8 {
+            g.balance_farmers(HUMAN);
+            g.apply(f4x_core::Command::EndTurn);
+        }
+        assert_eq!(start_army(&g, HUMAN).len(), 2, "seed {seed}");
+        assert!(g.player(HUMAN).unwrap().gold >= 100, "seed {seed}");
+    }
+}
+
+#[test]
+fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() {
+    use f4x_core::magic::Retort;
+    use f4x_core::map::Plane;
+    let content = content();
+    let wizard = |race: Option<&str>| NewGame {
+        seed: 2,
+        books: [("sorcery".to_string(), 5), ("nature".to_string(), 3)]
+            .into_iter()
+            .collect(),
+        retorts: [Retort::Myrran].into_iter().collect(),
+        race: race.map(str::to_string),
+        ..NewGame::default()
+    };
+    let g = new_game(&content, &wizard(Some("dwarven"))).unwrap();
+    let (city, at) = capital(&g, HUMAN);
+    assert_eq!(at.plane, Plane::Myrror);
+    // Dwarves have no spearmen: two swordsmen.
+    assert_eq!(start_army(&g, HUMAN), ["Swordsmen", "Swordsmen"]);
+    assert!(g.city_economy(city).unwrap().max_size >= 7);
+    // The rival is no Myrran and starts on Arcanus.
+    assert_eq!(capital(&g, PlayerId(1)).1.plane, Plane::Arcanus);
+    // Nobody picks an Arcanus race for a Myrran wizard.
+    assert!(new_game(&content, &wizard(Some("high_men"))).is_err());
+    let any = new_game(&content, &wizard(None)).unwrap();
+    assert_eq!(capital(&any, HUMAN).1.plane, Plane::Myrror);
+}

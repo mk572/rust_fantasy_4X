@@ -176,8 +176,35 @@ impl Game {
         let mut cities: Vec<_> = self.cities().into_iter().map(|(e, ..)| e).collect();
         self.sort_by_serial(&mut cities);
 
-        for city in &cities {
-            let city = *city;
+        // Keep enough hands on the farms to feed everyone.
+        for &city in &cities {
+            if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
+                continue;
+            }
+            let min = self.city_min_farmers(city);
+            let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+            if farmers < min {
+                let _ = self.world.insert_one(city, Farmers(min));
+            }
+        }
+
+        // Upkeep is paid on the cities as they stand, before they grow, as in the original: a
+        // city that grows this turn makes its new mouths felt next turn, when the player can
+        // still put them on the farms.
+        let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        for &player in &players {
+            // Nobody sets an independent city's farmers, so it puts enough on the farms to
+            // feed its garrison, as a careful ruler would.
+            if self.is_neutral_player(player) {
+                self.balance_farmers(player);
+                self.balance_taxes(player);
+            }
+        }
+        for player in players {
+            events.extend(self.settle_treasury(player));
+        }
+
+        for &city in &cities {
             let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
             if figures == 0 {
                 if self.grow_outpost(city) {
@@ -186,12 +213,6 @@ impl Game {
                     events.push(Event::CityGrew { city, figures: 1 });
                 }
                 continue;
-            }
-            // Keep enough hands on the farms to feed everyone.
-            let min = self.city_min_farmers(city);
-            let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
-            if farmers < min {
-                let _ = self.world.insert_one(city, Farmers(min));
             }
             let Some(eco) = self.city_economy(city) else {
                 continue;
@@ -211,19 +232,6 @@ impl Game {
                     figures: after,
                 });
             }
-        }
-
-        let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
-        for &player in &players {
-            // Nobody sets an independent city's farmers, so it puts enough on the farms to
-            // feed its garrison, as a careful ruler would.
-            if self.is_neutral_player(player) {
-                self.balance_farmers(player);
-                self.balance_taxes(player);
-            }
-        }
-        for player in players {
-            events.extend(self.settle_treasury(player));
         }
         events.extend(self.process_magic());
         events.extend(self.process_gaias_blessing());
@@ -1028,7 +1036,10 @@ mod tests {
     fn turning_the_vizier_on_gives_idle_cities_a_building() {
         let (mut g, city) = vizier_city(false);
         g.set_production(city, ProductionItem::Housing).unwrap();
-        g.apply(Command::SetGrandVizier { player: P0, on: true });
+        g.apply(Command::SetGrandVizier {
+            player: P0,
+            on: true,
+        });
         let barracks = building(&g, "barracks");
         assert_eq!(
             g.city_production(city).item,
@@ -1039,7 +1050,10 @@ mod tests {
         let granary = building(&g, "granary");
         g.set_production(other, ProductionItem::Building(granary))
             .unwrap();
-        g.apply(Command::SetGrandVizier { player: P0, on: true });
+        g.apply(Command::SetGrandVizier {
+            player: P0,
+            on: true,
+        });
         assert_eq!(
             g.city_production(other).item,
             Some(ProductionItem::Building(granary))

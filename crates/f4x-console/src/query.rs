@@ -151,7 +151,13 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             ));
             let research = m
                 .researching
-                .map(|s| format!("{} ({} to go)", describe::spell(ctx.game, s), m.research_remaining))
+                .map(|s| {
+                    format!(
+                        "{} ({} to go)",
+                        describe::spell(ctx.game, s),
+                        m.research_remaining
+                    )
+                })
                 .unwrap_or_else(|| "nothing".into());
             lines.push(format!("researching {research}"));
             if let Some(c) = m.casting {
@@ -198,7 +204,11 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             } else {
                 "active"
             };
-            let me = if p.id == ctx.session.player { " (you)" } else { "" };
+            let me = if p.id == ctx.session.player {
+                " (you)"
+            } else {
+                ""
+            };
             format!("{} {}{me}: {state}", p.id.0, p.name)
         })
         .collect();
@@ -248,12 +258,18 @@ fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let u = unit_by_serial(ctx.game, a.int(0, "unit number")? as u64)?;
     let me = ctx.session.player;
-    let at = ctx.game.unit_position(u).ok_or(ConsoleError::NoSuch("unit".into()))?;
+    let at = ctx
+        .game
+        .unit_position(u)
+        .ok_or(ConsoleError::NoSuch("unit".into()))?;
     if ctx.game.unit_owner(u) != Some(me)
         && !(ctx.sees(at) && ctx.game.unit_visible_to(u, me))
         && !ctx.overriding()
     {
-        return Err(ConsoleError::NoSuch(format!("unit {}", a.get(0).unwrap_or(""))));
+        return Err(ConsoleError::NoSuch(format!(
+            "unit {}",
+            a.get(0).unwrap_or("")
+        )));
     }
     let line = unit_line(ctx, u);
     ctx.say(line);
@@ -286,7 +302,11 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let mut rows = Vec::new();
     for (e, c, p) in ctx.game.cities() {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
-            let pop = ctx.game.world.get::<&Population>(e).map_or(0, |p| p.figures);
+            let pop = ctx
+                .game
+                .world
+                .get::<&Population>(e)
+                .map_or(0, |p| p.figures);
             rows.push((
                 ctx.game.serial_of(e),
                 format!(
@@ -319,7 +339,10 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .map(|(_, _, p)| p)
         .ok_or(ConsoleError::NoSuch("city".into()))?;
     if owner != Some(ctx.session.player) && !ctx.sees(at) && !ctx.overriding() {
-        return Err(ConsoleError::NoSuch(format!("city {}", a.get(0).unwrap_or(""))));
+        return Err(ConsoleError::NoSuch(format!(
+            "city {}",
+            a.get(0).unwrap_or("")
+        )));
     }
     ctx.say(format!(
         "{} owner {} at {}",
@@ -352,7 +375,11 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .unwrap_or_default();
     ctx.say(format!(
         "buildings: {}",
-        if built.is_empty() { "none".into() } else { built.join(", ") }
+        if built.is_empty() {
+            "none".into()
+        } else {
+            built.join(", ")
+        }
     ));
     let prod = ctx.game.city_production(c);
     match prod.item {
@@ -418,7 +445,11 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!("{} is unexplored", describe::pos(p)));
         return Ok(());
     }
-    let map = ctx.game.map.as_ref().ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx
+        .game
+        .map
+        .as_ref()
+        .ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(p.plane);
     let t = grid
         .get(p.x as i32, p.y as i32)
@@ -467,7 +498,11 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .into_iter()
             .find(|(_, c, _)| c.owner == me)
             .map(|(_, _, p)| p)
-            .unwrap_or(Position { plane: Plane::Arcanus, x: 0, y: 0 });
+            .unwrap_or(Position {
+                plane: Plane::Arcanus,
+                x: 0,
+                y: 0,
+            });
         let mut radius = 8i64;
         for w in a.words {
             if w.contains(',') {
@@ -480,7 +515,11 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         (centre, radius.clamp(1, 20) as i32)
     };
-    let map = ctx.game.map.as_ref().ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx
+        .game
+        .map
+        .as_ref()
+        .ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(centre.plane);
     let mut rows = Vec::new();
     for dy in -radius..=radius {
@@ -491,7 +530,11 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let mut row = String::new();
         for dx in -radius..=radius {
             let x = grid.wrap_x(centre.x as i32 + dx);
-            let p = Position { plane: centre.plane, x, y: y as u32 };
+            let p = Position {
+                plane: centre.plane,
+                x,
+                y: y as u32,
+            };
             row.push(map_char(ctx, p));
         }
         rows.push(row);
@@ -545,7 +588,11 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>, cost_research: bool| {
         ids.map(|&s| {
             let d = rules.spells.get(s);
-            let c = if cost_research { d.research_cost } else { d.cost };
+            let c = if cost_research {
+                d.research_cost
+            } else {
+                d.cost
+            };
             format!("{} ({}, {c})", d.id, d.name)
         })
         .collect::<Vec<_>>()
@@ -553,7 +600,10 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let known = line(&mut m.known.iter(), false);
     let researchable = line(&mut m.researchable.iter(), true);
     ctx.say(format!("known (id, name, mana): {}", join(&known)));
-    ctx.say(format!("researchable (id, name, research): {}", join(&researchable)));
+    ctx.say(format!(
+        "researchable (id, name, research): {}",
+        join(&researchable)
+    ));
     Ok(())
 }
 
@@ -570,21 +620,23 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
-    let lines: Vec<String> = std::iter::once(format!(
-        "turn {}, {:?} to play ({}){}",
-        b.turn,
-        b.active,
-        describe::player(ctx.game, b.player_of(b.active)),
-        b.winner.map_or(String::new(), |w| format!(", won by {w:?}"))
-    ))
-    .chain(b.units.iter().map(|u| {
-        format!(
+    let lines: Vec<String> =
+        std::iter::once(format!(
+            "turn {}, {:?} to play ({}){}",
+            b.turn,
+            b.active,
+            describe::player(ctx.game, b.player_of(b.active)),
+            b.winner
+                .map_or(String::new(), |w| format!(", won by {w:?}"))
+        ))
+        .chain(b.units.iter().map(|u| {
+            format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
             u.id, u.side, u.name, u.cell.0, u.cell.1, u.figures, u.figures_start, u.melee,
             u.ranged, u.defense, u.moves_left, u.moves, u.ammo
         )
-    }))
-    .collect();
+        }))
+        .collect();
     for l in lines {
         ctx.say(l);
     }

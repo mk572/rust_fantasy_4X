@@ -494,7 +494,13 @@ mod tests {
                 u.enchants.push(spell.to_string());
             }
         }
-        fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId, _rng: &mut dyn RngCore) -> u32 {
+        fn dispel(
+            &mut self,
+            who: Target,
+            strength: u32,
+            _by: PlayerId,
+            _rng: &mut dyn RngCore,
+        ) -> u32 {
             let u = self.unit_mut(who).unwrap();
             let n = if strength > 0 {
                 u.enchants.len() as u32

@@ -7,9 +7,7 @@ use f4x_core::map::Plane;
 use f4x_core::production::ProductionItem;
 use f4x_core::Command;
 
-use crate::args::{
-    city_by_serial, parse_pos, parse_target, parse_units, resolve, Args,
-};
+use crate::args::{city_by_serial, parse_pos, parse_target, parse_units, resolve, Args};
 use crate::{CommandDef, ConsoleError, Ctx, Kind};
 
 macro_rules! legal {
@@ -120,7 +118,9 @@ fn auto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .game
         .hostile_at(at, me)
         .filter(|d| !d.is_empty())
-        .ok_or_else(|| ConsoleError::NoSuch(format!("hostile units at {}", crate::describe::pos(at))))?;
+        .ok_or_else(|| {
+            ConsoleError::NoSuch(format!("hostile units at {}", crate::describe::pos(at)))
+        })?;
     ctx.apply(Command::AutoResolve {
         attackers,
         defenders,
@@ -338,7 +338,9 @@ fn battle_order(ctx: &mut Ctx, order: BattleCommand) -> Result<(), ConsoleError>
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     if b.player_of(b.active) != ctx.session.player {
         if !ctx.overriding() {
-            return Err(ConsoleError::NotAllowed("it is not your side's turn".into()));
+            return Err(ConsoleError::NotAllowed(
+                "it is not your side's turn".into(),
+            ));
         }
         ctx.bypassed = true;
     }

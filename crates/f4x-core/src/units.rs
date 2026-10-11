@@ -56,9 +56,7 @@ impl Game {
     }
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
-        self.unit_def(unit)
-            .is_some()
-            && self.unit_abilities(unit).iter().any(|a| a == ability)
+        self.unit_def(unit).is_some() && self.unit_abilities(unit).iter().any(|a| a == ability)
     }
 
     /// Experience level, 0-based, from the unit's level path (0 without one).

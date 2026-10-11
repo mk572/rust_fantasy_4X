@@ -279,7 +279,10 @@ impl Game {
                 // Surplus production is lost; the city falls back to housing, unless the
                 // Grand Vizier picks the next building.
                 p = Production {
-                    item: Some(self.vizier_choice(city, owner).unwrap_or(ProductionItem::Housing)),
+                    item: Some(
+                        self.vizier_choice(city, owner)
+                            .unwrap_or(ProductionItem::Housing),
+                    ),
                     progress: 0,
                 };
             }
@@ -332,7 +335,13 @@ impl Game {
                 continue;
             }
             if let Some(item) = self.vizier_choice(city, player) {
-                let _ = self.world.insert_one(city, Production { item: Some(item), progress: 0 });
+                let _ = self.world.insert_one(
+                    city,
+                    Production {
+                        item: Some(item),
+                        progress: 0,
+                    },
+                );
             }
         }
     }

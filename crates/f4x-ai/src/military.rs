@@ -88,7 +88,14 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             if defenders.is_empty() {
                 // An empty enemy city: walk in.
-                if ai.send(game, Command::MoveStack { units: units.clone(), to: target }, events) {
+                if ai.send(
+                    game,
+                    Command::MoveStack {
+                        units: units.clone(),
+                        to: target,
+                    },
+                    events,
+                ) {
                     spent.extend(&units);
                     break;
                 }
@@ -96,7 +103,12 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             let seen = sight.sees(target);
             let theirs = if seen {
-                stack_strength(game, &defenders) * if game.city_at(target).is_some() { 1.3 } else { 1.0 }
+                stack_strength(game, &defenders)
+                    * if game.city_at(target).is_some() {
+                        1.3
+                    } else {
+                        1.0
+                    }
             } else {
                 GUESS_DEFENDERS * average_strength(game, me)
             };
@@ -107,7 +119,14 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 } else {
                     units.clone()
                 };
-                ai.send(game, Command::AutoResolve { attackers, defenders }, events);
+                ai.send(
+                    game,
+                    Command::AutoResolve {
+                        attackers,
+                        defenders,
+                    },
+                    events,
+                );
                 spent.extend(&units);
                 break;
             }
@@ -117,7 +136,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // 2. Everyone who is neither at home guarding nor fighting is free to campaign.
     let mut free: Vec<hecs::Entity> = Vec::new();
     for (pos, units) in stacks(game, ai) {
-        let skip = if own_cities.contains(&pos) { GARRISON } else { 0 };
+        let skip = if own_cities.contains(&pos) {
+            GARRISON
+        } else {
+            0
+        };
         free.extend(
             units
                 .into_iter()
@@ -135,10 +158,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
 
     // 3. Choose (or keep) a city to attack.
-    if ai
-        .campaign
-        .is_some_and(|c| game.city_at(c).and_then(|e| game.city_owner(e)).is_none_or(|o| o == me))
-    {
+    if ai.campaign.is_some_and(|c| {
+        game.city_at(c)
+            .and_then(|e| game.city_owner(e))
+            .is_none_or(|o| o == me)
+    }) {
         ai.campaign = None;
     }
     if ai.campaign.is_none() {
@@ -169,11 +193,20 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let force = stack_strength(game, &at_rally);
     for u in &elsewhere {
         if game.world.get::<&f4x_core::units::Order>(*u).is_err()
-            && game.unit_position(*u).is_some_and(|p| p.plane == rally.plane)
+            && game
+                .unit_position(*u)
+                .is_some_and(|p| p.plane == rally.plane)
         {
             // Units on their way to the target (further from the rally than from it) go on;
             // the rest come home to gather.
-            ai.send(game, Command::GoTo { units: vec![*u], to: rally }, events);
+            ai.send(
+                game,
+                Command::GoTo {
+                    units: vec![*u],
+                    to: rally,
+                },
+                events,
+            );
         }
     }
     if force >= expected * ATTACK_RATIO + 1.0 && at_rally.len() >= 3 {
@@ -201,9 +234,7 @@ fn nearest_enemy_city(
 ) -> Option<Position> {
     game.cities()
         .into_iter()
-        .filter(|(_, c, p)| {
-            c.owner != me && game.fog.is_explored(me, p.plane, p.x, p.y)
-        })
+        .filter(|(_, c, p)| c.owner != me && game.fog.is_explored(me, p.plane, p.x, p.y))
         .filter_map(|(_, _, p)| distance(game, from, p).map(|d| (d, p)))
         .min_by_key(|&(d, p)| (d, p.y, p.x))
         .map(|(_, p)| p)
@@ -223,7 +254,14 @@ fn march(
         if game.hostile_at(spot, ai.player).is_some() || game.find_path(units, spot).is_none() {
             continue;
         }
-        if ai.send(game, Command::GoTo { units: units.to_vec(), to: spot }, events) {
+        if ai.send(
+            game,
+            Command::GoTo {
+                units: units.to_vec(),
+                to: spot,
+            },
+            events,
+        ) {
             return;
         }
     }
@@ -272,7 +310,14 @@ fn explore(ai: &mut Ai, game: &mut Game, free: &[hecs::Entity], events: &mut Vec
             }
         }
         if let Some((_, to)) = best {
-            ai.send(game, Command::GoTo { units: vec![unit], to }, events);
+            ai.send(
+                game,
+                Command::GoTo {
+                    units: vec![unit],
+                    to,
+                },
+                events,
+            );
         }
     }
 }

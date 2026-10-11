@@ -152,7 +152,10 @@ fn choose_site(
             };
             if game.can_found_city(p).is_err()
                 || game.lair_at(p).is_some()
-                || game.map.as_ref().is_some_and(|m| m.node_covering(p.plane, p.x, p.y).is_some())
+                || game
+                    .map
+                    .as_ref()
+                    .is_some_and(|m| m.node_covering(p.plane, p.x, p.y).is_some())
                 || taken
                     .iter()
                     .any(|&t| distance(game, t, p).is_some_and(|d| d < SPACING))

@@ -320,19 +320,30 @@ impl App {
                     self.game.content.rules.spells.get(spell).name,
                     self.game.player(by).map_or("a rival", |p| p.name.as_str())
                 )),
-                Event::SpellBlasted { spell, victim, mana, .. } => Some(format!(
+                Event::SpellBlasted {
+                    spell,
+                    victim,
+                    mana,
+                    ..
+                } => Some(format!(
                     "Spell Blast ends {}'s {} ({mana} mana)",
-                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game
+                        .player(victim)
+                        .map_or("a rival", |p| p.name.as_str()),
                     self.game.content.rules.spells.get(spell).name
                 )),
                 Event::GlobalSpellRemoved { victim, spell, .. } => Some(format!(
                     "{}'s {} is ended",
-                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game
+                        .player(victim)
+                        .map_or("a rival", |p| p.name.as_str()),
                     self.game.content.rules.spells.get(spell).name
                 )),
                 Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
                     "Took {}'s {}",
-                    self.game.player(victim).map_or("a rival", |p| p.name.as_str()),
+                    self.game
+                        .player(victim)
+                        .map_or("a rival", |p| p.name.as_str()),
                     self.game.content.rules.spells.get(spell).name
                 )),
                 Event::DispelFailed { spell, .. } => Some(format!(
@@ -691,7 +702,8 @@ impl App {
         }
         if is_key_pressed(KeyCode::F8) {
             let on = !self.game.player(HUMAN).is_some_and(|p| p.grand_vizier);
-            self.game.apply(Command::SetGrandVizier { player: HUMAN, on });
+            self.game
+                .apply(Command::SetGrandVizier { player: HUMAN, on });
             self.log.push(
                 if on {
                     "Grand Vizier on: your cities choose their next building"

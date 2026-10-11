@@ -195,6 +195,33 @@ impl Game {
         total
     }
 
+    /// What a city at `at` could grow to on its land alone, with no buildings, race or
+    /// enchantments: the estimate the original's new-game placement judges a home site by.
+    pub(crate) fn site_max_size(&self, at: Position) -> u32 {
+        let Some(map) = self.map.as_ref() else {
+            return 0;
+        };
+        let grid = map.plane(at.plane);
+        let (mut food_x2, mut wild_food) = (0i32, 0i32);
+        for (p, shared) in self.city_area(at) {
+            let Some(def) = grid
+                .get(p.x as i32, p.y as i32)
+                .and_then(|t| self.content.terrains.get(t))
+            else {
+                continue;
+            };
+            let food = i32::from(def.food) * 2;
+            food_x2 += if shared { food / 2 } else { food };
+            if let Some(f) = grid
+                .feature(p.x as i32, p.y as i32)
+                .and_then(|f| self.content.features.get(f))
+            {
+                wild_food += if shared { f.city.food / 2 } else { f.city.food };
+            }
+        }
+        ((food_x2 / 4 + wild_food).max(0) as u32).min(self.content.rules.config.max_city_size)
+    }
+
     /// Citizens needed on farms so the city feeds itself (all of them if it cannot).
     pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
         let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);

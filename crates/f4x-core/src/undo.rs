@@ -208,7 +208,10 @@ mod tests {
         });
         assert_eq!(g.player(P0).unwrap().tax_rate, 3);
         g.undo().unwrap();
-        assert_eq!(g.player(P0).unwrap().tax_rate, 1);
+        assert_eq!(
+            g.player(P0).unwrap().tax_rate,
+            crate::player::START_TAX_RATE
+        );
         g.undo().unwrap();
         assert_eq!(g.unit_position(walker(&g, s)), Some(at(6, 5)));
         g.undo().unwrap();

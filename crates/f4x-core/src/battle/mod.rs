@@ -153,7 +153,9 @@ impl BattleUnit {
 
     /// Teleporting and merging units go to any free square for one move.
     pub fn moves_instantly(&self) -> bool {
-        self.abilities.iter().any(|a| a == "teleport" || a == "merging")
+        self.abilities
+            .iter()
+            .any(|a| a == "teleport" || a == "merging")
     }
 
     pub fn is_active(&self) -> bool {

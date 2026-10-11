@@ -217,9 +217,9 @@ impl Console {
         let s = &self.session;
         match kind {
             Kind::Query => Ok(()),
-            Kind::Legal if s.access < Access::Play => Err(ConsoleError::NotAllowed(
-                "this console is read-only".into(),
-            )),
+            Kind::Legal if s.access < Access::Play => {
+                Err(ConsoleError::NotAllowed("this console is read-only".into()))
+            }
             Kind::Legal if s.mode == Mode::ReadOnly => Err(ConsoleError::NotAllowed(
                 "read-only mode: switch with `mode legal` to change the game".into(),
             )),
@@ -263,7 +263,8 @@ impl Console {
         let Some((name, rest)) = words.split_first() else {
             return Err(fail(ConsoleError::Empty));
         };
-        let def = find(&name.to_lowercase()).ok_or_else(|| fail(ConsoleError::Unknown(name.clone())))?;
+        let def =
+            find(&name.to_lowercase()).ok_or_else(|| fail(ConsoleError::Unknown(name.clone())))?;
         self.permitted(def.kind).map_err(fail)?;
         let mut ctx = Ctx {
             game,
@@ -316,9 +317,7 @@ impl Ctx<'_> {
                         attackers,
                         defenders,
                         ..
-                    } if attackers
-                        .first()
-                        .and_then(|&u| self.game.unit_owner(u))
+                    } if attackers.first().and_then(|&u| self.game.unit_owner(u))
                         == Some(self.session.player) =>
                     {
                         queue.push(Command::BeginBattle {

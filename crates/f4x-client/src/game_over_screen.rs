@@ -69,7 +69,11 @@ impl App {
             let seed = self.seed.wrapping_add(1);
             self.new_map(seed);
         }
-        if button(Rect::new(x + 215.0, y, 200.0, 36.0), "Look at the map", true) {
+        if button(
+            Rect::new(x + 215.0, y, 200.0, 36.0),
+            "Look at the map",
+            true,
+        ) {
             self.game_over_seen = true;
             self.screen = Screen::Map;
         }

@@ -692,7 +692,9 @@ fn a_battle_won_at_a_city_captures_it() {
         defenders: vec![defender],
     });
     assert!(
-        events.iter().any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == A)),
+        events
+            .iter()
+            .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == A)),
         "{events:?}"
     );
     assert_eq!(g.city_owner(city), Some(A));
@@ -709,7 +711,9 @@ fn an_empty_enemy_city_is_taken_by_walking_in() {
         to: at(5, 4),
     });
     assert!(
-        events.iter().any(|e| matches!(e, Event::CityCaptured { .. })),
+        events
+            .iter()
+            .any(|e| matches!(e, Event::CityCaptured { .. })),
         "{events:?}"
     );
     assert_eq!(g.city_owner(city), Some(A));
@@ -774,7 +778,11 @@ fn teleporting_and_merging_units_go_anywhere_free_for_one_move() {
             1,
         );
         let reach = b.reachable(0);
-        assert_eq!(reach.get(&(15, 3)), Some(&2), "{ability}: far away, one move");
+        assert_eq!(
+            reach.get(&(15, 3)),
+            Some(&2),
+            "{ability}: far away, one move"
+        );
         assert!(!reach.contains_key(&(10, 10)), "not into rock");
         assert!(!reach.contains_key(&(17, 10)), "not onto a unit");
         assert!(!reach.contains_key(&(3, 10)), "not where it stands");
@@ -852,7 +860,10 @@ fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
     // The defender holds a reserve of 100; only the attacker's spells face it.
     b.cast_counter_magic(Side::Defender, 100);
     assert_eq!(b.counter_magic, [0, 100]);
-    assert!(!b.counter_magic_stops(Side::Defender, 10), "the holder's own spells pass");
+    assert!(
+        !b.counter_magic_stops(Side::Defender, 10),
+        "the holder's own spells pass"
+    );
     assert_eq!(b.counter_magic, [0, 100]);
     // Against difficulty 100 the reserve of 100 stops about half, and every try costs five.
     let mut stopped = 0;

@@ -22,7 +22,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
-| 32 | Units | Starting economy tuning |
 | 35 | Combat | Immunities and resistance rolls |
 | 36 | Combat | Special attacks (low priority) |
 | 37 | Combat | Combat ability rules (low priority) |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 152 | Client | Show temporary effects on units and cities |
 | 153 | Magic | Dispelling temporary effects |
 | 154 | Meta | Raiders from neutral cities |
+| 155 | Core | Starting setup: the original's random placement and AI race rules |
 
 ## Descriptions
 
@@ -166,9 +166,6 @@ combat-level exception from B9). Warlord retort needs task 53. Low priority: onl
 **29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
 and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
-
-**32. Starting economy tuning.** After eight turns the starting army costs about 3 gold more than
-the single city earns. Tune the starting setup (units, tax, buildings) or document it as intended. A related finding: in a console game from the shared new-game setup (the same start as the client's), ending the first turn without changing farmers disbanded two of the three starting units (food upkeep, `UnitsDisbanded`), so the starting army and settlers do not fit the starting city's food either.
 
 ### Combat (paused)
 
@@ -567,7 +564,7 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame).
 
-**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food (see task 32). Today events go to a log list.
+**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list.
 
 **146. Palette cycling: the pulsing colour of index 198.** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 
@@ -592,3 +589,5 @@ Parity task, low priority.
 **153. Dispelling temporary effects.** Temporary effects (task 30) are not enchantments, so Dispel Magic, Disenchant and Disjunction cannot remove them. Decide which ones a dispel should reach (the original makes instant grants permanent; timed ones may be the exception), give those a source spell and caster so dispel difficulty and the enemy-only rule apply (task 59), and have `dispel_target` include them.
 
 **154. Raiders from neutral cities.** The original's `Make_Raiders` (once per turn, the neutral player's event): an accumulator gains `Random(difficulty + 1)` each turn; at 30 it resets and, from a random neutral city that has a garrison and shares a landmass with a wizard's city, sends out `garrison * difficulty / 6` raiders (fewer near an AI fortress, half on Myrror before turn 200, experience cap rising with the turn), and the city loses a third of its garrison. Raiders attack the nearest wizard's city. It is an event for every player alike, so it follows design.md section 8. Reference: `reference/ReMoM/doc/ComputerPlayer/AIDATA-Make_Raiders.md`. Depends on 31 (done) and the AI or a simple raider mover; related to 68 (random events) and 69 (difficulty).
+
+**155. Starting setup: the original's random placement and AI race rules.** Task 32 brought the start in line with the original's `Generate_Home_Cities` (capital of four with three farmers, spearmen and swordsmen, smithy, barracks and builders hall, tax index 2, Myrran wizards on Myrror, sites that feed eight). Left out: (1) the original picks fortress sites at random (1000 tries per distance, fortress distance 16 relaxing to 10, node/tower/lair distance 7 relaxing to 1, halved in the check) while ours takes the nearest fitting site to a spread-out anchor, and measures every distance with `Range` where the original uses the wrapping delta for fortresses, nodes and lairs; (2) AI races: up to normal difficulty any of the nine Arcanus races, above it only Klackon, High Elf, Halfling, High Men and Nomad (a bias against the AI that design.md section 8 may rule out; decide), and a High Elf capital is moved off non-forest only by accident in the original; (3) starting gold: the original gives the human `(5 - difficulty) * 25` and every AI 150, ours gives everyone 100 by decision, and the AI's flat 150 would be an AI bonus; (4) fame 10 for the Famous retort (check it is set). Low priority.

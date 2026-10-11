@@ -41,8 +41,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "content".into()
         }
     });
-    let content = f4x_data::load_content_layers(&[&dir, Path::new("content")])
-        .map_err(|e| e.to_string())?;
+    let content =
+        f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())?;
     let mut summary = Vec::new();
     for seed in first..=last {
         let mut game = new_game(
@@ -63,7 +63,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             let events = play_round(&mut game, &mut ais);
             if game.turn <= trace && trace > 0 {
                 for ai in &ais {
-                    println!("  [t{}] ai {} campaign {:?}", game.turn, ai.player.0, ai.campaign());
+                    println!(
+                        "  [t{}] ai {} campaign {:?}",
+                        game.turn,
+                        ai.player.0,
+                        ai.campaign()
+                    );
                 }
                 for (c, city, _) in game.cities() {
                     let prod = game.city_production(c);
@@ -81,7 +86,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     );
                 }
                 for e in &events {
-                    println!("  [t{}] {}", game.turn, f4x_console::describe::event(&game, e));
+                    println!(
+                        "  [t{}] {}",
+                        game.turn,
+                        f4x_console::describe::event(&game, e)
+                    );
                 }
             }
             battles += events
@@ -101,7 +110,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
         }
         let outcome = match game.game_over {
-            Some(o) => format!("won by player {} ({:?}) on turn {}", o.winner.0, o.kind, o.turn),
+            Some(o) => format!(
+                "won by player {} ({:?}) on turn {}",
+                o.winner.0, o.kind, o.turn
+            ),
             None => format!("no winner after {} turns", game.turn - 1),
         };
         println!(
@@ -125,7 +137,11 @@ fn status(game: &Game) -> String {
         .iter()
         .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {
-            let cities = game.cities().iter().filter(|(_, c, _)| c.owner == p.id).count();
+            let cities = game
+                .cities()
+                .iter()
+                .filter(|(_, c, _)| c.owner == p.id)
+                .count();
             let units = game.player_units(p.id).len();
             let tag = if p.defeated { " (defeated)" } else { "" };
             format!("p{} {cities}c/{units}u/{}g{tag}", p.id.0, p.gold)

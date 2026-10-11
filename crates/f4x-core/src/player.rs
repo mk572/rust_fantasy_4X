@@ -39,6 +39,9 @@ pub struct Player {
 /// The banner of the neutral player and of monsters.
 pub const NEUTRAL_BANNER: u8 = 5;
 
+/// The tax rate everyone starts with: a gold for each citizen.
+pub const START_TAX_RATE: u8 = 2;
+
 /// How many banners wizards can choose from.
 pub const BANNER_CHOICES: u8 = 5;
 
@@ -49,7 +52,7 @@ impl Player {
             name: name.into(),
             gold: 100,
             mana: 0,
-            tax_rate: 1,
+            tax_rate: START_TAX_RATE,
             capital_race: None,
             fame: 0,
             magic: crate::magic::Magic::default(),

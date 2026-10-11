@@ -213,7 +213,10 @@ impl Game {
         (!defenders.is_empty() || hostile_city).then_some(defenders)
     }
 
-    pub(crate) fn check_stack(&self, units: &[hecs::Entity]) -> Result<(Position, PlayerId), MoveError> {
+    pub(crate) fn check_stack(
+        &self,
+        units: &[hecs::Entity],
+    ) -> Result<(Position, PlayerId), MoveError> {
         let first = *units.first().ok_or(MoveError::NoUnits)?;
         let pos = self.unit_position(first).ok_or(MoveError::BadSelection)?;
         let owner = self.unit_owner(first).ok_or(MoveError::BadSelection)?;

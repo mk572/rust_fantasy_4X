@@ -1,7 +1,7 @@
 //! Override commands: cheating. They run only in override mode, and each use is written to
 //! the game's saved override log.
 
-use f4x_core::city::{Position, PlayerId};
+use f4x_core::city::{PlayerId, Position};
 use f4x_core::map::Plane;
 use f4x_core::units::Hurt;
 use f4x_core::Command;
@@ -74,7 +74,10 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             )))
         }
     };
-    ctx.say(format!("{} now has {now} {what}", describe::player(ctx.game, id)));
+    ctx.say(format!(
+        "{} now has {now} {what}",
+        describe::player(ctx.game, id)
+    ));
     Ok(())
 }
 
@@ -104,7 +107,10 @@ fn restore(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     for u in parse_units(ctx.game, a.need(0, "units")?)? {
         let _ = ctx.game.world.insert_one(u, Hurt(0));
         let moves = ctx.game.unit_max_moves(u);
-        let _ = ctx.game.world.insert_one(u, f4x_core::units::MovesLeft(moves));
+        let _ = ctx
+            .game
+            .world
+            .insert_one(u, f4x_core::units::MovesLeft(moves));
         let line = describe::unit(ctx.game, u);
         ctx.say(format!("restored {line}"));
     }
@@ -136,10 +142,15 @@ impl Ctx<'_> {
 fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (plain, opts) = a.split_options();
     let pos = parse_pos(
-        plain.first().ok_or(ConsoleError::Usage("missing position".into()))?,
+        plain
+            .first()
+            .ok_or(ConsoleError::Usage("missing position".into()))?,
         Plane::Arcanus,
     )?;
-    let name = plain.get(1).ok_or(ConsoleError::Usage("missing name".into()))?.to_string();
+    let name = plain
+        .get(1)
+        .ok_or(ConsoleError::Usage("missing name".into()))?
+        .to_string();
     let mut owner = ctx.session.player;
     let (mut race, mut population) = (None, 3);
     for (k, v) in opts {
@@ -166,9 +177,15 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         owner = parse_player(p)?;
     }
     if race.is_none() {
-        race = ctx.game.content.rules.races.defs().first().map(|r| r.id.clone()).and_then(|id| {
-            ctx.game.content.rules.races.id_of(&id)
-        });
+        race = ctx
+            .game
+            .content
+            .rules
+            .races
+            .defs()
+            .first()
+            .map(|r| r.id.clone())
+            .and_then(|id| ctx.game.content.rules.races.id_of(&id));
     }
     ctx.apply(Command::FoundCity {
         owner,
@@ -222,7 +239,12 @@ fn learn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         _ => (plain.join(" "), None),
     };
-    let spell = resolve(&ctx.game.content.rules.spells, &spell_text, |d| &d.name, "spell")?;
+    let spell = resolve(
+        &ctx.game.content.rules.spells,
+        &spell_text,
+        |d| &d.name,
+        "spell",
+    )?;
     let id = match who {
         Some(p) => parse_player(p)?,
         None => ctx.session.player,
@@ -284,7 +306,9 @@ fn act_as(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (plain, opts) = a.split_options();
     let pos = parse_pos(
-        plain.first().ok_or(ConsoleError::Usage("missing position".into()))?,
+        plain
+            .first()
+            .ok_or(ConsoleError::Usage("missing position".into()))?,
         Plane::Arcanus,
     )?;
     let rules = &ctx.game.content.rules;
@@ -303,7 +327,11 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let name = if plain.len() > 1 {
         plain[1..].join(" ")
     } else {
-        race_def.city_names.first().cloned().unwrap_or_else(|| "Capital".into())
+        race_def
+            .city_names
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "Capital".into())
     };
     let race = rules.races.id_of(&race_def.id);
     let player = match opts.iter().find(|(k, _)| *k == "player") {
@@ -318,4 +346,3 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         population: 3,
     })
 }
-

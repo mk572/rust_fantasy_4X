@@ -25,7 +25,9 @@ pub fn player(game: &Game, id: PlayerId) -> String {
 
 pub fn unit(game: &Game, u: hecs::Entity) -> String {
     let name = game.unit_def(u).map_or("?", |d| d.name.as_str());
-    let at = game.unit_position(u).map_or(String::new(), |p| format!(" at {}", pos(p)));
+    let at = game
+        .unit_position(u)
+        .map_or(String::new(), |p| format!(" at {}", pos(p)));
     format!("unit {} {name}{at}", game.serial_of(u).0)
 }
 
@@ -96,55 +98,95 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *from),
             player(game, *to)
         ),
-        Event::SpellLearned { player: p, spell: s } => {
+        Event::SpellLearned {
+            player: p,
+            spell: s,
+        } => {
             format!("{} learned {}", player(game, *p), spell(game, *s))
         }
-        Event::SpellCast { player: p, spell: s } => {
+        Event::SpellCast {
+            player: p,
+            spell: s,
+        } => {
             format!("{} cast {}", player(game, *p), spell(game, *s))
         }
-        Event::SpellFizzled { player: p, spell: s, city } => format!(
+        Event::SpellFizzled {
+            player: p,
+            spell: s,
+            city,
+        } => format!(
             "{}'s {} fizzles: nightshade protects {}",
             player(game, *p),
             spell(game, *s),
             city_name(game, *city)
         ),
         Event::Dispelled { player: p, removed } => {
-            format!("{}'s dispel removes {removed} enchantment(s)", player(game, *p))
+            format!(
+                "{}'s dispel removes {removed} enchantment(s)",
+                player(game, *p)
+            )
         }
-        Event::DispelFailed { player: p, spell: s } => {
+        Event::DispelFailed {
+            player: p,
+            spell: s,
+        } => {
             format!("{}'s dispel of {} fails", player(game, *p), spell(game, *s))
         }
-        Event::GlobalSpellRemoved { player: p, victim, spell: s } => format!(
+        Event::GlobalSpellRemoved {
+            player: p,
+            victim,
+            spell: s,
+        } => format!(
             "{} ends {}'s {}",
             player(game, *p),
             player(game, *victim),
             spell(game, *s)
         ),
-        Event::GlobalSpellTaken { player: p, victim, spell: s } => format!(
+        Event::GlobalSpellTaken {
+            player: p,
+            victim,
+            spell: s,
+        } => format!(
             "{} takes {}'s {}",
             player(game, *p),
             player(game, *victim),
             spell(game, *s)
         ),
-        Event::SpellBlasted { player: p, victim, spell: s, mana } => format!(
+        Event::SpellBlasted {
+            player: p,
+            victim,
+            spell: s,
+            mana,
+        } => format!(
             "{} blasts {}'s {} for {mana} mana",
             player(game, *p),
             player(game, *victim),
             spell(game, *s)
         ),
-        Event::SpellSuppressed { player: p, spell: s, by } => format!(
+        Event::SpellSuppressed {
+            player: p,
+            spell: s,
+            by,
+        } => format!(
             "{}'s {} is stopped by {}'s Suppress Magic",
             player(game, *p),
             spell(game, *s),
             player(game, *by)
         ),
         Event::SpellReady { spell: s, .. } => {
-            format!("{} is paid for: choose a target with `target`", spell(game, *s))
+            format!(
+                "{} is paid for: choose a target with `target`",
+                spell(game, *s)
+            )
         }
         Event::SpellHasNoEffectYet { spell: s } => {
             format!("{} has no effect yet", spell(game, *s))
         }
-        Event::BattleStarted { attacker, defender, site } => format!(
+        Event::BattleStarted {
+            attacker,
+            defender,
+            site,
+        } => format!(
             "Battle at {}: {} attacks {}",
             pos(*site),
             player(game, *attacker),
@@ -156,20 +198,46 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *loser)
         ),
         Event::UnitCreated { unit: u, .. } => format!("Created {}", unit(game, *u)),
-        Event::UnitsMoved { units: us, from, to } => {
-            format!("Units {} moved {} -> {}", units(game, us), pos(*from), pos(*to))
+        Event::UnitsMoved {
+            units: us,
+            from,
+            to,
+        } => {
+            format!(
+                "Units {} moved {} -> {}",
+                units(game, us),
+                pos(*from),
+                pos(*to)
+            )
         }
-        Event::AttackRequested { attackers, to, defenders, .. } => format!(
+        Event::AttackRequested {
+            attackers,
+            to,
+            defenders,
+            ..
+        } => format!(
             "Units {} attack {} (defenders {})",
             units(game, attackers),
             pos(*to),
             units(game, defenders)
         ),
         Event::SiteEncounter { units: us, to, .. } => {
-            format!("Units {} reach a guarded site at {}", units(game, us), pos(*to))
+            format!(
+                "Units {} reach a guarded site at {}",
+                units(game, us),
+                pos(*to)
+            )
         }
-        Event::SiteCleared { player: p, pos: at, loot } => {
-            format!("{} cleared the site at {} ({loot:?})", player(game, *p), pos(*at))
+        Event::SiteCleared {
+            player: p,
+            pos: at,
+            loot,
+        } => {
+            format!(
+                "{} cleared the site at {} ({loot:?})",
+                player(game, *p),
+                pos(*at)
+            )
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
         other => format!("{other:?}"),

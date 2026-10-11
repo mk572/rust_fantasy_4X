@@ -24,7 +24,9 @@ impl Default for ConsoleUi {
         Self {
             console: Console::new(HUMAN, Access::Full),
             input: String::new(),
-            lines: vec!["Console. `help` lists the commands; `mode override` allows cheats.".into()],
+            lines: vec![
+                "Console. `help` lists the commands; `mode override` allows cheats.".into(),
+            ],
             recall: None,
             back: Screen::Map,
         }
@@ -84,7 +86,10 @@ impl App {
         }
         let history = self.console.console.history.len();
         if is_key_pressed(KeyCode::Up) && history > 0 {
-            let i = self.console.recall.map_or(history - 1, |i| i.saturating_sub(1));
+            let i = self
+                .console
+                .recall
+                .map_or(history - 1, |i| i.saturating_sub(1));
             self.console.recall = Some(i);
             self.console.input = self.console.console.history[i].0.clone();
         }
@@ -122,7 +127,10 @@ impl App {
         for line in &self.console.lines[skip..] {
             let color = if line.starts_with("error:") {
                 Color::new(1.0, 0.5, 0.45, 1.0)
-            } else if line.starts_with("override>") || line.starts_with("legal>") || line.starts_with("readonly>") {
+            } else if line.starts_with("override>")
+                || line.starts_with("legal>")
+                || line.starts_with("readonly>")
+            {
                 GOLD
             } else {
                 WHITE
@@ -135,7 +143,11 @@ impl App {
             Mode::Legal => ("[legal]>", Color::new(0.5, 0.9, 0.5, 1.0)),
             Mode::ReadOnly => ("[read-only]>", Color::new(0.6, 0.75, 1.0, 1.0)),
         };
-        let blink = if (get_time() * 2.0) as i64 % 2 == 0 { "_" } else { " " };
+        let blink = if (get_time() * 2.0) as i64 % 2 == 0 {
+            "_"
+        } else {
+            " "
+        };
         draw_text(
             format!("{prompt} {}{blink}", self.console.input),
             16.0,
@@ -143,6 +155,12 @@ impl App {
             size,
             color,
         );
-        draw_text("F2 / Esc: back to the game", w - 250.0, h - 22.0, 16.0, GRAY);
+        draw_text(
+            "F2 / Esc: back to the game",
+            w - 250.0,
+            h - 22.0,
+            16.0,
+            GRAY,
+        );
     }
 }

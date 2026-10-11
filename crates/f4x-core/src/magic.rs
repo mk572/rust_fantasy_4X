@@ -1184,7 +1184,10 @@ mod tests {
             let mut host = crate::cast::tests_support::host(&mut g);
             let mut rng = rand_pcg::Pcg64Mcg::new(1);
             // An overwhelming dispel by another wizard always works.
-            assert_eq!(host.dispel(Target::Unit(unit), 100_000, PlayerId(1), &mut rng), 1);
+            assert_eq!(
+                host.dispel(Target::Unit(unit), 100_000, PlayerId(1), &mut rng),
+                1
+            );
         }
         assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
     }

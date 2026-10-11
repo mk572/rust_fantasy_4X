@@ -229,11 +229,7 @@ impl Game {
 
     /// What a battle on the overland map leaves behind: units that fled lose some of their
     /// number, and an attacker who won and cleared the square moves in and takes a city.
-    fn overland_aftermath(
-        &mut self,
-        battle: &Battle,
-        sources: &[hecs::Entity],
-    ) -> Vec<Event> {
+    fn overland_aftermath(&mut self, battle: &Battle, sources: &[hecs::Entity]) -> Vec<Event> {
         use crate::rules::UnitKind;
         let mut events = Vec::new();
         let source_of = |u: &BattleUnit| u.source.and_then(|i| sources.get(i).copied());

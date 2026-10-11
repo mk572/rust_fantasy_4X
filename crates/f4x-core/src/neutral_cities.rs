@@ -77,10 +77,6 @@ impl Game {
         if self.can_found_city(pos).is_err() {
             return false;
         }
-        let Some(map) = self.map.as_ref() else {
-            return false;
-        };
-        let grid = map.plane(pos.plane);
         let near = |x: u32, y: u32, d: u32| range(x, y, pos.x, pos.y) < d;
         if self
             .players
@@ -90,14 +86,24 @@ impl Game {
         {
             return false;
         }
+        self.clear_of_sites(pos, SITE_CLEARANCE)
+    }
+
+    /// Whether no node, tower or lair on `pos`'s plane is within `distance` (the original's
+    /// `Range`).
+    pub(crate) fn clear_of_sites(&self, pos: Position, distance: u32) -> bool {
+        let Some(map) = self.map.as_ref() else {
+            return false;
+        };
+        let near = |x: u32, y: u32| range(x, y, pos.x, pos.y) < distance;
         if map
             .nodes()
             .iter()
-            .any(|n| n.plane == pos.plane && near(n.x, n.y, SITE_CLEARANCE))
+            .any(|n| n.plane == pos.plane && near(n.x, n.y))
             || map
                 .lairs()
                 .iter()
-                .any(|l| l.plane == pos.plane && near(l.x, l.y, SITE_CLEARANCE))
+                .any(|l| l.plane == pos.plane && near(l.x, l.y))
         {
             return false;
         }
@@ -107,9 +113,8 @@ impl Game {
         // Towers stand on both planes at the same place.
         let towers = map.plane(Plane::Arcanus);
         !(0..towers.height()).any(|y| {
-            (0..towers.width()).any(|x| {
-                towers.feature(x as i32, y as i32) == Some(tower) && near(x, y, SITE_CLEARANCE)
-            })
+            (0..towers.width())
+                .any(|x| towers.feature(x as i32, y as i32) == Some(tower) && near(x, y))
         })
     }
 

@@ -201,37 +201,38 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         }
     }
     game.human = (!spec.all_ai).then_some(HUMAN);
-    // Races: player 0's choice, then the others in turn, skipping races already taken.
-    let race_ids: Vec<String> = game
-        .content
-        .rules
-        .races
-        .defs()
-        .iter()
-        .filter(|r| !r.city_names.is_empty())
-        .map(|r| r.id.clone())
-        .collect();
+    // Races: player 0's choice, then the others in turn, skipping races already taken. A
+    // Myrran wizard has a Myrror race and starts there; everyone else an Arcanus one.
+    let race_defs = game.content.rules.races.defs().to_vec();
     let mut races: Vec<String> = Vec::new();
     for k in 0..spec.wizards as usize {
-        let id = if k == 0 && spec.race.is_some() {
-            spec.race.clone().unwrap_or_default()
-        } else {
-            let free: Vec<&String> = race_ids.iter().filter(|r| !races.contains(r)).collect();
-            free.get((spec.seed as usize + k * 3) % free.len().max(1))
-                .map(|r| (*r).clone())
-                .or_else(|| race_ids.first().cloned())
-                .ok_or("no races")?
+        let myrran = is_myrran(&game, PlayerId(k as u8));
+        let on_plane = |r: &&crate::rules::RaceDef| !r.city_names.is_empty() && r.myrror == myrran;
+        let id = match spec.race.as_ref().filter(|_| k == 0) {
+            Some(want) => {
+                let ok = race_defs.iter().filter(on_plane).any(|r| &r.id == want);
+                if !ok {
+                    return Err(format!(
+                        "race {want:?} is not one of the {} races",
+                        if myrran { "Myrror" } else { "Arcanus" }
+                    ));
+                }
+                want.clone()
+            }
+            None => {
+                let all: Vec<&String> = race_defs.iter().filter(on_plane).map(|r| &r.id).collect();
+                let free: Vec<&String> =
+                    all.iter().copied().filter(|r| !races.contains(r)).collect();
+                let pool = if free.is_empty() { all } else { free };
+                pool.get((spec.seed as usize + k * 3) % pool.len().max(1))
+                    .map(|r| (*r).clone())
+                    .ok_or("no races")?
+            }
         };
         races.push(id);
     }
     for k in 0..spec.wizards {
-        start_player(
-            &mut game,
-            &params,
-            PlayerId(k),
-            spec.wizards,
-            &races[k as usize],
-        )?;
+        start_player(&mut game, PlayerId(k), spec.wizards, &races[k as usize])?;
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
@@ -241,26 +242,37 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     Ok(game)
 }
 
+/// Whether the wizard has the Myrran retort (and so starts on Myrror).
+fn is_myrran(game: &Game, player: PlayerId) -> bool {
+    game.player(player)
+        .is_some_and(|p| p.magic.has(Retort::Myrran))
+}
+
 /// Where wizard `k` of `n` starts: spread round the middle of the map.
-fn anchor(params: &GenParams, k: u8, n: u8) -> (u32, u32) {
-    let (w, h) = (params.width as f32, params.height as f32);
+fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
+    let (w, h) = (width as f32, height as f32);
     let angle = std::f32::consts::PI + std::f32::consts::TAU * f32::from(k) / f32::from(n);
     (
-        (w / 2.0 + angle.cos() * w / 4.0).round() as u32 % params.width,
+        (w / 2.0 + angle.cos() * w / 4.0).round() as u32 % width,
         (h / 2.0 + angle.sin() * h / 3.0)
             .round()
             .clamp(2.0, h - 3.0) as u32,
     )
 }
 
-/// Found a wizard's fortress near their start point and hand out two soldiers and a settler.
-fn start_player(
-    game: &mut Game,
-    params: &GenParams,
-    player: PlayerId,
-    count: u8,
-    race: &str,
-) -> Result<(), String> {
+/// The buildings a wizard's capital starts with.
+const CAPITAL_BUILDINGS: [&str; 3] = ["smithy", "barracks", "builders_hall"];
+
+/// Citizens in the capital at the start, and how many of them farm.
+const CAPITAL_FIGURES: u32 = 4;
+const CAPITAL_FARMERS: u32 = 3;
+
+/// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`
+/// does: a capital of four with the race's spearmen and swordsmen (two swordsmen for a race
+/// without spearmen), a smithy, barracks and builders hall, and three citizens on the farms.
+/// The site has to be land that can feed eight (seven for the later wizards), clear of other
+/// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
+fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Result<(), String> {
     let rules = &game.content.rules;
     let race_def = rules
         .races
@@ -272,48 +284,82 @@ fn start_player(
         .first()
         .cloned()
         .unwrap_or_else(|| "Capital".into());
-    let (mut army, mut settlers) = (Vec::new(), None);
-    for unit in &race_def.units {
-        let Some(id) = rules.units.id_of(unit) else {
-            continue;
-        };
-        let def = rules.units.get(id);
-        if def.abilities.iter().any(|a| a == "create_outpost") {
-            settlers.get_or_insert(id);
-        } else if army.len() < 2 && def.cost > 0 {
-            army.push(id);
-        }
-    }
-    let (cx, cy) = anchor(params, player.0, count);
+    let named = |what: &str| {
+        race_def
+            .units
+            .iter()
+            .filter_map(|u| rules.units.id_of(u))
+            .find(|&id| rules.units.get(id).name == what)
+    };
+    let swordsmen = named("Swordsmen");
+    let army: Vec<_> = [named("Spearmen").or(swordsmen), swordsmen]
+        .into_iter()
+        .flatten()
+        .collect();
+    let buildings: Vec<_> = CAPITAL_BUILDINGS
+        .iter()
+        .filter_map(|b| rules.buildings.id_of(b))
+        .collect();
+    let plane = if is_myrran(game, player) {
+        Plane::Myrror
+    } else {
+        Plane::Arcanus
+    };
+    let (width, height) = game
+        .map
+        .as_ref()
+        .map(|m| (m.width(), m.height()))
+        .ok_or("no map")?;
+    let (cx, cy) = anchor(width, height, player.0, count);
     let wrap = |a: u32, b: u32| {
         let d = a.abs_diff(b);
-        d.min(params.width - d)
+        d.min(width - d)
     };
-    let mut spots: Vec<(u32, u32)> = (0..params.height)
-        .flat_map(|y| (0..params.width).map(move |x| (x, y)))
+    let mut spots: Vec<(u32, u32)> = (0..height)
+        .flat_map(|y| (0..width).map(move |x| (x, y)))
         .collect();
     spots.sort_by_key(|&(x, y)| (wrap(x, cx).pow(2) + y.abs_diff(cy).pow(2), y, x));
-    for (x, y) in spots {
-        let pos = Position {
-            plane: Plane::Arcanus,
-            x,
-            y,
-        };
-        if game.can_found_city(pos).is_err() {
-            continue;
-        }
-        let events = game.apply(Command::PlaceFortress {
-            player,
-            pos,
-            name: name.clone(),
-            race: race_id,
-            population: 3,
-        });
-        if events
-            .iter()
-            .any(|e| matches!(e, crate::Event::FortressPlaced { .. }))
-        {
-            for unit in army.into_iter().chain(settlers) {
+    let fortresses: Vec<Position> = game
+        .players
+        .iter()
+        .filter_map(|p| p.fortress)
+        .filter(|f| f.plane == plane)
+        .collect();
+    let need = 8 - u32::from(player.0) / 3;
+    // Each pass relaxes the last: fortress distance, site distance, the size the land must feed.
+    for (apart, clear, size) in [(16, 3, need), (10, 3, need), (10, 1, need), (0, 0, 0)] {
+        for &(x, y) in &spots {
+            let pos = Position { plane, x, y };
+            if fortresses
+                .iter()
+                .any(|f| wrap(f.x, x).max(f.y.abs_diff(y)) < apart)
+                || game.can_found_city(pos).is_err()
+                || !game.clear_of_sites(pos, clear)
+                || game.site_max_size(pos) < size
+            {
+                continue;
+            }
+            let events = game.apply(Command::PlaceFortress {
+                player,
+                pos,
+                name: name.clone(),
+                race: race_id,
+                population: CAPITAL_FIGURES,
+            });
+            let Some(city) = events.iter().find_map(|e| match e {
+                crate::Event::FortressPlaced { .. } => None,
+                crate::Event::CityFounded { city, .. } => Some(*city),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let _ = game
+                .world
+                .insert_one(city, crate::economy::Farmers(CAPITAL_FARMERS));
+            let _ = game
+                .world
+                .insert_one(city, crate::economy::Buildings(buildings));
+            for &unit in &army {
                 game.apply(Command::CreateUnit {
                     owner: player,
                     pos,

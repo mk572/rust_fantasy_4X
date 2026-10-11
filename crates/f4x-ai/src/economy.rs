@@ -152,7 +152,14 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if busy {
             continue;
         }
-        let item = choose(game, me, city, pos, mine_count(game, me), &mut settlers_planned);
+        let item = choose(
+            game,
+            me,
+            city,
+            pos,
+            mine_count(game, me),
+            &mut settlers_planned,
+        );
         if let Some(item) = item {
             ai.send(game, Command::SetProduction { city, item }, events);
         }
@@ -234,18 +241,28 @@ fn best_fighter(game: &Game, city: hecs::Entity) -> Option<ProductionItem> {
     rules
         .units
         .iter()
-        .filter(|(_, d)| d.kind == UnitKind::Normal && !d.abilities.iter().any(|a| a == "create_outpost"))
+        .filter(|(_, d)| {
+            d.kind == UnitKind::Normal && !d.abilities.iter().any(|a| a == "create_outpost")
+        })
         .filter(|(id, d)| {
             d.cost > 0
                 && game.can_build(city, ProductionItem::Unit(*id)).is_ok()
-                && (d.stats.get(&f4x_core::rules::Stat::Melee).copied().unwrap_or(0)
-                    + d.stats.get(&f4x_core::rules::Stat::Ranged).copied().unwrap_or(0))
+                && (d
+                    .stats
+                    .get(&f4x_core::rules::Stat::Melee)
+                    .copied()
+                    .unwrap_or(0)
+                    + d.stats
+                        .get(&f4x_core::rules::Stat::Ranged)
+                        .copied()
+                        .unwrap_or(0))
                     > 0
         })
         .max_by(|(_, a), (_, b)| {
             let value = |d: &f4x_core::rules::UnitDef| {
                 let s = |k| d.stats.get(&k).copied().unwrap_or(0) as f32;
-                let power = (s(f4x_core::rules::Stat::Melee).max(s(f4x_core::rules::Stat::Ranged)) * 1.5
+                let power = (s(f4x_core::rules::Stat::Melee).max(s(f4x_core::rules::Stat::Ranged))
+                    * 1.5
                     + s(f4x_core::rules::Stat::Defense)
                     + 1.0)
                     * s(f4x_core::rules::Stat::MaxHp).max(1.0)
@@ -296,7 +313,11 @@ fn choose(
         }
     }
     // 2. Grow: settlers while there is room for more cities.
-    let all_cities = game.cities().iter().filter(|(_, c, _)| c.owner == me).count();
+    let all_cities = game
+        .cities()
+        .iter()
+        .filter(|(_, c, _)| c.owner == me)
+        .count();
     if all_cities + *settlers_planned < WANTED_CITIES
         && size >= 3
         && !broke

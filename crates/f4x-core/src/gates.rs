@@ -139,7 +139,10 @@ mod tests {
             units: vec![w],
             to: b,
         });
-        assert!(matches!(events[..], [Event::UnitsMoved { .. }]), "{events:?}");
+        assert!(
+            matches!(events[..], [Event::UnitsMoved { .. }]),
+            "{events:?}"
+        );
         assert_eq!(g.unit_position(w), Some(b));
         assert_eq!(g.unit_moves_left(w), 2, "costs one move of two");
     }

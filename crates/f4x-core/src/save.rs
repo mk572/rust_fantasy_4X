@@ -347,7 +347,9 @@ fn effects_load(world: &mut hecs::World, e: hecs::Entity, list: Vec<TempSave>) {
         .into_iter()
         .map(|t| TempEffect {
             kind: match t.kind {
-                TempKindSave::Modifier { stat, op, value } => TempKind::Modifier { stat, op, value },
+                TempKindSave::Modifier { stat, op, value } => {
+                    TempKind::Modifier { stat, op, value }
+                }
                 TempKindSave::Grant(a) => TempKind::Grant(a),
                 TempKindSave::Remove(a) => TempKind::Remove(a),
             },
