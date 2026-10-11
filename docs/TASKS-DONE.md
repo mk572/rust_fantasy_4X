@@ -18,6 +18,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 9 | Map | City founding blocked only by intact encounter sites (B17) (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 12 | Map | Gates and the Planar Seal (done) |
+| 13 | Map | Teleporting and merging movement (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
@@ -106,6 +107,12 @@ its wizard's gate cities on the same plane for one move (`Command::EarthGate`, c
 Astral Gate lets a stack in the city change plane (`shift`), blocked when the other plane has a city
 on the square or stationed enemies; the Planar Seal (`globals.rs`) and towers were already in. A gate
 works only for the wizard who cast it. The client and AI do not use Earth Gates yet (task 136).
+
+**13. Teleporting and merging movement (done).** In the original both are battle-only (`M_Teleport`,
+`M_Merging` in `Move_Battle_Unit`; nothing reads them on the overland map). `battle/mod.rs`: a unit with
+the `teleport` ability (unicorns, djinn) or `merging` (great wyrm) may move to any free, unblocked square
+of the battle map for one move (two half-moves, or what is left), with no path walked. Tests in
+`battle/tests.rs`. Open: an animation for it (task 137), and the merging power of magic items (task 49).
 
 **14. Sight radius sources (done).** `Stat::CitySight` (base 2) with `Min` modifiers: an Oracle
 makes a city see 4 squares, City Walls 3, Nature's Eye 4; the best one counts, they do not add

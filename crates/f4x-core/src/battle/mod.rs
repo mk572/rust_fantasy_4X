@@ -144,6 +144,11 @@ impl BattleUnit {
         self
     }
 
+    /// Teleporting and merging units go to any free square for one move.
+    pub fn moves_instantly(&self) -> bool {
+        self.abilities.iter().any(|a| a == "teleport" || a == "merging")
+    }
+
     pub fn is_active(&self) -> bool {
         self.status == Status::Active
     }
@@ -334,6 +339,9 @@ impl Battle {
         let Some(u) = self.units.get(unit).filter(|u| u.is_active()) else {
             return Default::default();
         };
+        if u.moves_left > 0 && u.moves_instantly() {
+            return self.instant_squares(unit);
+        }
         let occupied = |p: Pos| self.unit_at(p).is_some();
         self.map
             .reachable(u.cell, u.moves_left, u.flies, &occupied)
@@ -341,6 +349,24 @@ impl Battle {
             .filter(|&(p, _)| p != u.cell)
             .map(|(p, (c, _))| (p, c))
             .collect()
+    }
+
+    /// Where a teleporting or merging unit can appear: every free square that is not blocked,
+    /// each for one move (`Move_Battle_Unit`: no path is walked; the original takes two half-moves,
+    /// or whatever is left if that is less).
+    fn instant_squares(&self, unit: usize) -> std::collections::HashMap<Pos, u32> {
+        let cell = self.units[unit].cell;
+        let mut squares = std::collections::HashMap::new();
+        for y in 0..crate::battle::map::GRID_H {
+            for x in 0..crate::battle::map::GRID_W {
+                let p = (x, y);
+                let open = self.map.enter_cost(p, false).is_some();
+                if p != cell && open && self.unit_at(p).is_none() {
+                    squares.insert(p, crate::battle::map::OPEN_COST);
+                }
+            }
+        }
+        squares
     }
 
     fn begin_side_turn(&mut self) {
@@ -404,25 +430,40 @@ impl Battle {
                 if u.moves_left == 0 {
                     return Err(BattleError::NoMovesLeft);
                 }
-                let occupied = |p: Pos| self.unit_at(p).is_some();
-                let reach = self.map.reachable(u.cell, u.moves_left, u.flies, &occupied);
-                let (cost, _) = *reach.get(&to).ok_or(BattleError::Unreachable)?;
-                // Walk the path back from the target.
-                let mut path = vec![to];
-                let mut at = to;
-                while let Some(&(_, from)) = reach.get(&at) {
-                    if from == u.cell {
-                        break;
+                if u.moves_instantly() {
+                    let cost = *self
+                        .instant_squares(unit)
+                        .get(&to)
+                        .ok_or(BattleError::Unreachable)?;
+                    let left = u.moves_left.saturating_sub(cost);
+                    let u = &mut self.units[unit];
+                    u.cell = to;
+                    u.moves_left = left;
+                    events.push(BattleEvent::Moved {
+                        unit,
+                        path: vec![to],
+                    });
+                } else {
+                    let occupied = |p: Pos| self.unit_at(p).is_some();
+                    let reach = self.map.reachable(u.cell, u.moves_left, u.flies, &occupied);
+                    let (cost, _) = *reach.get(&to).ok_or(BattleError::Unreachable)?;
+                    // Walk the path back from the target.
+                    let mut path = vec![to];
+                    let mut at = to;
+                    while let Some(&(_, from)) = reach.get(&at) {
+                        if from == u.cell {
+                            break;
+                        }
+                        path.push(from);
+                        at = from;
                     }
-                    path.push(from);
-                    at = from;
+                    path.reverse();
+                    let left = u.moves_left.saturating_sub(cost);
+                    let u = &mut self.units[unit];
+                    u.cell = to;
+                    u.moves_left = left;
+                    events.push(BattleEvent::Moved { unit, path });
                 }
-                path.reverse();
-                let left = u.moves_left.saturating_sub(cost);
-                let u = &mut self.units[unit];
-                u.cell = to;
-                u.moves_left = left;
-                events.push(BattleEvent::Moved { unit, path });
             }
             BattleCommand::Attack { unit, target } => {
                 let u = self.check_unit(unit)?;

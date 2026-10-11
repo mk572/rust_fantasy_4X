@@ -751,3 +751,90 @@ fn auto_resolve_needs_an_adjacent_target() {
     );
     assert!(!g.in_battle());
 }
+
+fn instant_unit(side: Side, cell: Pos, ability: &str) -> BattleUnit {
+    let mut u = spearman(side, cell);
+    u.abilities = vec![ability.into()];
+    u
+}
+
+#[test]
+fn teleporting_and_merging_units_go_anywhere_free_for_one_move() {
+    for ability in ["teleport", "merging"] {
+        let mut map = BattleMap::open();
+        map.set((10, 10), Cell::Blocked);
+        let mut b = Battle::new(
+            A,
+            D,
+            map,
+            vec![
+                instant_unit(Side::Attacker, (3, 10), ability),
+                spearman(Side::Defender, (17, 10)),
+            ],
+            1,
+        );
+        let reach = b.reachable(0);
+        assert_eq!(reach.get(&(15, 3)), Some(&2), "{ability}: far away, one move");
+        assert!(!reach.contains_key(&(10, 10)), "not into rock");
+        assert!(!reach.contains_key(&(17, 10)), "not onto a unit");
+        assert!(!reach.contains_key(&(3, 10)), "not where it stands");
+        let events = b
+            .apply(BattleCommand::Move {
+                unit: 0,
+                to: (16, 10),
+            })
+            .unwrap();
+        assert!(matches!(&events[0], BattleEvent::Moved { path, .. } if path == &vec![(16, 10)]));
+        assert_eq!(b.unit(0).unwrap().cell, (16, 10));
+        assert_eq!(b.unit(0).unwrap().moves_left, 2, "one of two moves used");
+        // It may teleport again with what is left, and then has nothing left.
+        b.apply(BattleCommand::Move {
+            unit: 0,
+            to: (16, 5),
+        })
+        .unwrap();
+        assert_eq!(b.unit(0).unwrap().moves_left, 0);
+        assert_eq!(
+            b.apply(BattleCommand::Move {
+                unit: 0,
+                to: (3, 3)
+            }),
+            Err(BattleError::NoMovesLeft)
+        );
+    }
+}
+
+#[test]
+fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
+    let mut map = BattleMap::open();
+    map.set((10, 10), Cell::Blocked);
+    let mut b = Battle::new(
+        A,
+        D,
+        map,
+        vec![
+            instant_unit(Side::Attacker, (3, 10), "teleport"),
+            spearman(Side::Defender, (17, 10)),
+        ],
+        1,
+    );
+    assert_eq!(
+        b.apply(BattleCommand::Move {
+            unit: 0,
+            to: (10, 10)
+        }),
+        Err(BattleError::Unreachable)
+    );
+    let mut w = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (17, 10)),
+        1,
+    );
+    assert_eq!(
+        w.apply(BattleCommand::Move {
+            unit: 0,
+            to: (15, 3)
+        }),
+        Err(BattleError::Unreachable)
+    );
+}

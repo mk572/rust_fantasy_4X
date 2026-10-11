@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 10 | Map | Generator parity with the original and new-game settings |
-| 13 | Map | Teleporting and merging movement |
 | 16 | City | Autobuild |
 | 17 | City | Selling buildings: prerequisites beyond one level |
 | 18 | City | Weapon quality from mithril and adamantium |
@@ -122,6 +121,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI |
+| 137 | Client | Teleport and merge animation in the battle screen |
 
 ## Descriptions
 
@@ -139,9 +139,6 @@ the original's landmass growth and shore fix-up, and add the new-game settings: 
 percent, 1-4 opponents, node strength, difficulty [648-652] (difficulty and node strength are now
 inputs to `GenParams`, used for lairs and node power). Lair placement parity is task 129. Mark as a
 parity task, low priority.
-
-**13. Teleporting and merging movement.** Teleport and merge movement types [253-261] are listed
-but have no rules. Add them to `movement.rs`, including their stack and plane rules.
 
 ### City and economy
 
@@ -590,3 +587,8 @@ against. See `docs/console.md` section 6 for the matching console gaps.
 should offer the teleport when a stack in an Earth Gate city moves onto another gate city (a button
 or a prompt) and enable the plane-shift button in an Astral Gate city; the AI should use them to
 reinforce threatened cities and to cross planes.
+
+**137. Teleport and merge animation in the battle screen.** The core reports a teleport or merge as a
+`Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
+the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
+and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds.

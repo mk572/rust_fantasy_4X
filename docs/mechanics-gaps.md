@@ -13,7 +13,7 @@ Done since this list was written (each with tests; see `crates/f4x-core`):
   movement types and costs (walking, flying, swimming, sailing, forester, mountaineer,
   pathfinding, non-corporeal, wind walking), roads, stacks of nine, plane shifting by tower
   or planar travel, A* routes, standing go-to orders, fog of war and sight.
-  Not done: merging/teleport, corruption, node melding, mineral transmutation.
+  Not done: corruption, node melding, mineral transmutation.
 - **City economy (step 5):** population with farmers, workers and rebels; food with the
   farmland cap and starvation; production, gold (taxes, trade, coast, mines, markets),
   mana, research; unrest from tax rate, racial table and troops; growth; the worked area

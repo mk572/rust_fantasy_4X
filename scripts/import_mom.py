@@ -237,8 +237,8 @@ MOVE_FLAG_ABILITIES = [
     (0x0001, "cavalry", "Cavalry", "Mounted: fast on open ground."),
     (0x0020, "forester", "Forester", "Crosses forests at no extra cost."),
     (0x0040, "mountaineer", "Mountaineer", "Crosses mountains and hills at no extra cost."),
-    (0x0010, "teleport", "Teleport", "Moves instantly within a battle."),
-    (0x0080, "merging", "Merging", "Merges with other units of its kind."),
+    (0x0010, "teleport", "Teleport", "Moves to any free square in a battle, for one move."),
+    (0x0080, "merging", "Merging", "Moves instantly through the ground to any free square in a battle, for one move."),
 ]
 
 # Race traits from the original code (CITYCALC.c) and help text, by race id.

@@ -62,6 +62,8 @@ piercing and illusion, large shield, the spell shots using mana, haste, blur.
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
   units pay one move everywhere. Moves are in half-moves like the overland map; a unit with
   any move left may take a last step that costs more.
+- **Teleporting and merging** units (`teleport`: unicorns, djinn; `merging`: great wyrm) skip the path
+  search: they may go to any free, unblocked square for one move (task 13).
 - Movement is in eight directions, cannot enter an occupied square, and is found with a
   cheapest-path search (`BattleMap::reachable`, `Battle::reachable`).
 - The map is generated from the overland terrain of the defenders' square (more rough ground
