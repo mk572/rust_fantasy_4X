@@ -100,7 +100,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   (0..55) in combat, and between pale greys or blues in the spell book. The extractor bakes the
   base palette's fixed colour for index 198 into the PNGs, so those pixels do not pulse. Which
   pictures use index 198 has not been checked. To reproduce it, extract those pixels as a mask
-  (like the banner mask) and tint it with a colour that oscillates over time.
+  (like the banner mask) and tint it with a colour that oscillates over time (task 146).
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
 **If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" reference/ReMoM/MoM/src`);
