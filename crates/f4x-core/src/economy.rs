@@ -501,6 +501,11 @@ fn mods_have_enchantment_named(game: &Game, city: hecs::Entity, spell: &str) -> 
 }
 
 /// Population change for a turn, in tens of people (negative when starving or over the limit).
+///
+/// The original returns zero early for a city at its maximum size and for one at the largest
+/// size a city can have, which also stopped such cities shrinking from starvation or from being
+/// over their limit (drake178's bugs 1 to 3 in `City_Growth_Rate`). Here those cases only stop
+/// growth; shrinking always applies.
 fn growth_rate(
     game: &Game,
     figures: u32,
@@ -509,7 +514,7 @@ fn growth_rate(
     mods: &[Modifier],
     housing_percent: i32,
 ) -> i32 {
-    if figures == 0 || figures == max_size {
+    if figures == 0 {
         return 0;
     }
     if max_size == 0 {
@@ -518,12 +523,54 @@ fn growth_rate(
     if food < figures as i32 {
         return (food - figures as i32) * 5;
     }
-    if figures >= game.content.rules.config.max_city_size {
+    if figures == max_size {
         return 0;
     }
     // Half the room left, plus what the race and buildings add (a ten is ten people).
     let rate = (max_size as i32 - figures as i32 + 1) / 2;
     let rate = compute(Stat::CityGrowth, rate * 10, mods) / 10;
     let percent = compute(Stat::CityGrowthPercent, 0, mods) + housing_percent;
-    rate * (100 + percent) / 100
+    let rate = rate * (100 + percent) / 100;
+    // Never grow past the limit, whatever the bonuses add.
+    if figures > max_size || figures >= game.content.rules.config.max_city_size {
+        return rate.min(0);
+    }
+    rate
+}
+
+#[cfg(test)]
+mod growth_tests {
+    use super::*;
+
+    fn rate(figures: u32, food: i32, max_size: u32) -> i32 {
+        growth_rate(&Game::new(1), figures, food, max_size, &[], 0)
+    }
+
+    #[test]
+    fn a_city_at_its_maximum_size_does_not_grow_but_can_starve() {
+        assert_eq!(rate(8, 8, 8), 0);
+        assert_eq!(rate(8, 6, 8), -10, "two short of food: five tens each");
+    }
+
+    #[test]
+    fn a_city_over_its_limit_shrinks_even_at_the_largest_size() {
+        assert!(rate(14, 14, 10) < 0);
+        let cap = Game::new(1).content.rules.config.max_city_size;
+        assert!(
+            rate(cap, cap as i32, cap - 4) < 0,
+            "the original returned 0 here"
+        );
+        assert!(rate(cap, cap as i32, cap + 3) <= 0, "the cap stops growth");
+        assert_eq!(
+            rate(cap, cap as i32 - 2, cap + 3),
+            -10,
+            "but not starvation"
+        );
+    }
+
+    #[test]
+    fn growth_stops_at_zero_people_and_a_zero_limit_kills() {
+        assert_eq!(rate(0, 5, 5), 0);
+        assert_eq!(rate(3, 5, 0), -3);
+    }
 }

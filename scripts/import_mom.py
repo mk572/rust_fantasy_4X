@@ -986,6 +986,22 @@ HELP_CORRECTIONS = [
     (750, "between any two cities held by the wizard.",
      "between any two cities held by the wizard on the same plane.",
      "the original's code and this game only link cities on the same plane"),
+    (723, "reduces unrest by 1, allows use of nightshade, and doubles",
+     "reduces unrest by 1, and doubles",
+     "the code does not let an Animist's Guild use nightshade"),
+    (731, "reducing unrest by 2.", "reducing unrest by 2, and allows use of nightshade.",
+     "the code lets an Oracle use nightshade"),
+    (732, "magical weapons with +1 to hit.", "magical weapons with +1 to hit. It also allows use of nightshade.",
+     "the code lets an Alchemists Guild use nightshade"),
+    (734, "and +3 mana.", "and +3 mana. It also allows use of nightshade.",
+     "the code lets a Wizard's Guild use nightshade"),
+    (737, "reduces the unrest by 1.", "reduces the unrest by 1, and allows use of nightshade.",
+     "the code lets a Parthenon use nightshade"),
+    (738, "reduces the unrest level by 1.", "reduces the unrest level by 1, and allows use of nightshade.",
+     "the code lets a Cathedral use nightshade"),
+    (766, "against any bad city enchantment.",
+     "against any bad city enchantment cast on the city, so a spell aimed at the city can fizzle. Only a city with a building that allows use of nightshade counts the plants in its area.",
+     "the code checks each spell cast at the city, and only for cities with such a building"),
 ]
 
 

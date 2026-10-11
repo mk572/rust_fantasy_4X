@@ -54,7 +54,7 @@ diplomacy, AI, random events, victory and score.
   options (trade goods: 2 production to 1 gold; housing: faster growth) [305, 714-715].
 - Building prerequisites and what each unlocks; unit cost reduced by coal and iron
   mines [381]; the Animist's Guild adds food per farmer, not per city [723].
-- Nightshade: each plant adds 100 dispel strength against bad city enchantments [766].
+- Nightshade (done, task 22): each plant adds 100 dispel strength against spells cast at the city [766]; the city needs one of the original's eight buildings.
 - Cities share contested map squares, each getting half [302]. Outposts: need distance
   from other cities (four squares apart; `min_city_distance` is now 4),
   grow by tenths of a citizen into hamlets [400, 504].

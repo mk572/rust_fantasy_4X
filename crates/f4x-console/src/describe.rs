@@ -102,6 +102,12 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::SpellCast { player: p, spell: s } => {
             format!("{} cast {}", player(game, *p), spell(game, *s))
         }
+        Event::SpellFizzled { player: p, spell: s, city } => format!(
+            "{}'s {} fizzles: nightshade protects {}",
+            player(game, *p),
+            spell(game, *s),
+            city_name(game, *city)
+        ),
         Event::SpellReady { spell: s, .. } => {
             format!("{} is paid for: choose a target with `target`", spell(game, *s))
         }

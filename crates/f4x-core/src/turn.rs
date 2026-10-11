@@ -91,22 +91,23 @@ impl Game {
         (before, pop.figures)
     }
 
-    /// Outposts grow a few tens of people at a time, by chance.
-    fn grow_outpost(&mut self, city: hecs::Entity) -> bool {
+    /// The chance (percent) that an outpost gains people this turn: the land's food, the race,
+    /// the minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The
+    /// original added a difficulty modifier here and ignored wild game's food; we do neither
+    /// (no modifier for anyone, design.md section 8).
+    pub(crate) fn outpost_growth_chance(&self, city: hecs::Entity) -> i32 {
         let Some(at) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
-            return false;
+            return 0;
         };
         let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
-        let base = race.map_or(10, |r| {
+        let mut grow = race.map_or(10, |r| {
             i32::from(self.content.rules.races.get(r).outpost_growth)
         });
-        let grid = self.map.as_ref().map(|m| m.plane(at.plane).clone());
-        let mut grow = base;
-        if let Some(grid) = grid {
-            let food = self
+        if let Some(grid) = self.map.as_ref().map(|m| m.plane(at.plane)) {
+            // Food from the land, wild game included (it counts in the city's food).
+            grow += self
                 .city_economy_with(city, 0)
                 .map_or(0, |e| e.max_size as i32);
-            grow += food;
             for (p, _) in self.city_area(at) {
                 if let Some(f) = grid
                     .feature(p.x as i32, p.y as i32)
@@ -116,19 +117,30 @@ impl Game {
                 }
             }
         }
-        let enchanted = |game: &Game, name: &str| {
-            game.content.rules.spells.id_of(name).is_some_and(|id| {
-                game.world
-                    .get::<&Enchantments>(city)
-                    .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
-            })
-        };
-        if enchanted(self, "gaias_blessing") {
+        let enchanted = |name: &str| self.city_has_enchantment(city, name);
+        if enchanted("gaias_blessing") {
             grow += 20;
         }
-        if enchanted(self, "stream_of_life") {
+        if enchanted("stream_of_life") {
             grow += 10;
         }
+        grow
+    }
+
+    fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
+        self.content.rules.spells.id_of(name).is_some_and(|id| {
+            self.world
+                .get::<&Enchantments>(city)
+                .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
+        })
+    }
+
+    /// Outposts grow a few tens of people at a time, by chance.
+    fn grow_outpost(&mut self, city: hecs::Entity) -> bool {
+        if self.world.get::<&Position>(city).is_err() {
+            return false;
+        }
+        let grow = self.outpost_growth_chance(city);
         let mut shrink = 5;
         for (name, extra) in [
             ("evil_presence", 5),
@@ -136,7 +148,7 @@ impl Game {
             ("famine", 10),
             ("chaos_rift", 10),
         ] {
-            if enchanted(self, name) {
+            if self.city_has_enchantment(city, name) {
                 shrink += extra;
             }
         }
@@ -1188,6 +1200,34 @@ mod tests {
         g.world.insert_one(troll, Hurt(5)).unwrap();
         g.apply(Command::EndTurn);
         assert_eq!(g.world.get::<&Hurt>(troll).unwrap().0, 0);
+    }
+
+    #[test]
+    fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() {
+        let mut g = world();
+        // The test land feeds more than the usual largest city, which would hide the food.
+        g.content.rules.config.max_city_size = 100;
+        let outpost = found(&mut g, at(10, 6), "elf", 0);
+        let plain = g.outpost_growth_chance(outpost);
+        let game = g.content.features.id_of("game").unwrap();
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_feature(10, 8, Some(game));
+        // The special's own +10 and the 2 food it adds to what the land can feed.
+        assert_eq!(g.outpost_growth_chance(outpost), plain + 10 + 2);
+    }
+
+    #[test]
+    fn difficulty_does_not_change_outpost_growth_for_anyone() {
+        let mut g = world();
+        let outpost = found(&mut g, at(10, 6), "elf", 0);
+        let normal = g.outpost_growth_chance(outpost);
+        for difficulty in [0, 4] {
+            g.difficulty = difficulty;
+            assert_eq!(g.outpost_growth_chance(outpost), normal);
+        }
     }
 
     #[test]

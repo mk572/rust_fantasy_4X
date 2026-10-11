@@ -15,6 +15,7 @@ pub mod featuregen;
 pub mod fog;
 pub mod fortress;
 pub mod gates;
+pub mod nightshade;
 pub mod globals;
 pub mod help;
 pub mod lairs;
@@ -270,6 +271,12 @@ pub enum Event {
     SpellCast {
         player: city::PlayerId,
         spell: rules::SpellId,
+    },
+    /// A spell aimed at a city was turned away by the city's nightshade.
+    SpellFizzled {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+        city: hecs::Entity,
     },
     /// A spell has been paid for and waits for a target.
     SpellReady {

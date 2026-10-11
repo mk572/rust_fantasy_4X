@@ -23,6 +23,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 16 | City | Autobuild (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
+| 20 | City | Population growth edge rules (B19) | (done)
+| 21 | City | Outpost growth: wild game and difficulty (B20) | (done)
+| 22 | City | Nightshade dispel strength | (done)
 | 23 | City | ~~Animist's Guild food per farmer~~ (done) |
 | 26 | Units | ~~Unit abilities that need code~~ (done) |
 | 28 | Units | ~~Transport: ships carrying units~~ (done) |
@@ -132,6 +135,12 @@ section 12. What is left is split off as task 82.
 **19. Forester's Guild raises the growth cap (done).** The city's maximum size already counts the
 guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on barren land
 (`the_foresters_guilds_food_raises_the_size_limit_too`) now pins it.
+
+**20. Population growth edge rules (B19) (done).** The original (`City_Growth_Rate`) returns zero growth early for a city at its maximum size and for one at the largest city size, which also stopped such cities shrinking from starvation or from being over their limit (drake178's bugs 1 to 3). `economy::growth_rate` now only stops *growth* there: a starving city at its maximum shrinks, and a city over its limit (or at the 25 cap with a smaller limit) shrinks. Growth also never goes positive for a city over its limit. The original's discarding of surplus tens when a figure is gained stays replaced by carrying them over (design.md section 11). Neutral cities' half growth is not ported (design.md section 8). Tests in `economy.rs`.
+
+**21. Outpost growth: wild game and difficulty (B20) (done).** `Game::outpost_growth_chance` (split out of `grow_outpost`): the race's base, the food the land supports, +5 or +10 for each mineral or special in reach, Gaia's Blessing +20 and Stream of Life +10. Wild game counts both in the food (it adds 2) and with its own +10 (the original ignored its food here); no difficulty modifier applies to anyone (design.md section 8; the original applied it to the human too). Not changed: the food term is the city's maximum size, capped at 25, where the original uses the uncapped terrain food. Tests in `turn.rs`.
+
+**22. Nightshade dispel strength (done).** New `nightshade.rs`. A city with a shrine, temple, parthenon, cathedral, sage's guild, oracle, alchemists' guild or wizard's guild (the original's list, not the help's) counts the nightshade plants in its area; each adds 100 dispel strength. When another wizard casts a spell aimed at the city (a bad city enchantment), it fizzles with chance `strength / (strength + the spell's dispel difficulty)`; the mana is spent and `Event::SpellFizzled` says why. The imported help is corrected (topics 723, 731, 732, 734, 737, 738, 766). The original's use of the plants in `CTY_NightshadeDispel` (removing the city's own bad enchantments each turn) is an empty stub there and is not modelled. The general dispel code (task 59) is unchanged.
 
 **23. Animist's Guild food per farmer (done).** The importer gives the guild `FarmerFood +1`, which
 the economy adds to each farmer's harvest (not a flat bonus per city); the test

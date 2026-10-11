@@ -465,6 +465,15 @@ impl Game {
         if let Some(m) = self.player_mut(player).map(|p| &mut p.magic) {
             m.casting = None;
         }
+        if let Some(Target::City(city)) = target {
+            if self.nightshade_fizzles(player, spell, city) {
+                return vec![Event::SpellFizzled {
+                    player,
+                    spell,
+                    city,
+                }];
+            }
+        }
         let def = self.content.rules.spells.get(spell).clone();
         let this = target.unwrap_or(Target::Player(player));
         let ctx = Context {

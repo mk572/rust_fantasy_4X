@@ -310,6 +310,11 @@ impl App {
                     "Cast {}",
                     self.game.content.rules.spells.get(spell).name
                 )),
+                Event::SpellFizzled { spell, city, .. } => Some(format!(
+                    "{} fizzles: nightshade protects {}",
+                    self.game.content.rules.spells.get(spell).name,
+                    self.city_name(city)
+                )),
                 Event::SpellReady { spell, .. } => Some(format!(
                     "{} is ready: choose its target (M)",
                     self.game.content.rules.spells.get(spell).name

@@ -18,9 +18,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 |---|---|---|
 | 17 | City | Selling buildings: prerequisites beyond one level (low priority) |
 | 18 | City | Weapon quality from mithril and adamantium (low priority) |
-| 20 | City | Population growth edge rules (B19) |
-| 21 | City | Outpost growth: wild game and difficulty (B20) |
-| 22 | City | Nightshade dispel strength |
 | 24 | City | Stream of Life and Gaia's Blessing (B8) |
 | 25 | City | City enchantments with non-stat effects |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) |
@@ -151,18 +148,6 @@ direct prerequisites. Block selling where later buildings depend on it through a
 **18. Weapon quality from mithril and adamantium.** Units trained in a city with mithril or
 adamantium access get better weapons (+1 or +2 attack and to-hit bonuses in the original). Needs a
 per-unit quality attribute set at creation and saved. Low priority.
-
-**20. Population growth edge rules (B19).** Excess above the next whole figure is discarded when a
-figure is gained and growth is clamped so it cannot go negative at maximum size. (The original's
-half growth for neutral cities is not ported: neutrals get no bonus or penalty, design.md section 8.)
-Verify against `apply_growth` and add tests.
-
-**21. Outpost growth: wild game and difficulty (B20).** Follow the intent: include wild game in
-outpost growth. Apply no difficulty modifier to anyone: the AI gets no advantage or disadvantage
-(design.md section 8; the original applied its AI modifier to the human too).
-
-**22. Nightshade dispel strength.** Each nightshade plant in a city's area adds 100 dispel strength
-against bad city enchantments [766]. Hook into the dispel code (task 59).
 
 **24. Stream of Life and Gaia's Blessing (B8).** The original reads the wrong table, which looks
 like a port error. Needs the original's disassembly; until then, implement the described behaviour
