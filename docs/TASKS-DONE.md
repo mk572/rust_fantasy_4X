@@ -44,8 +44,10 @@ original task numbers. Newest work is merged in ascending order by number.
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 63 | Meta | Diplomacy (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
+| 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
+| 91 | Client | Diplomacy screen (done) |
 | 92 | Client | Spell-research dialogs (done) |
 | 93 | Client | Spell-book view of the magic screen (done) |
 | 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
@@ -291,6 +293,13 @@ original's rules are in `docs/diplomacy.md`.
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
 the cut-scenes and the hall of fame are tasks 134 and 88.
 
+**83. Wizard portraits and banner colours (done).** A wizard has a picture (`Player::portrait`, 0 to 13, kept in saves): a ready-made wizard has the one of its place in the list, which is the original's order; the creation screen has a picture choice beside the banner choice; every wizard of a new game has its own. It shows in the magic screen's gems (`lilwiz`, by picture and banner) and on the diplomacy screen (`moodwiz`, `diplomac`). The creation screen itself is not laid out like the original's (task 86 is about the other screens).
+
+Original text of the task: The original lets the player choose a portrait for a
+custom wizard and a banner colour (help topics 658 and 674); here colours come from the player
+number and there are no portraits. Add both to the creation screen and the build, using the
+extracted wizard pictures locally (`assets-local`).
+
 **86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed on the new-game options step (148); land size and opponents are there now (10).
 
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
@@ -300,6 +309,11 @@ undone, and clears the history before it; ending the turn clears it too, and ref
 leave no entry. An undo rebuilds the units, so `hecs` entities change: find them again by
 creation number (`entity_of_serial`, now public); the client does this for its selection and
 binds undo to Ctrl or Cmd with Z. Hardcore mode (`PLANNED.md` item 8) will switch undo off.
+
+**91. Diplomacy screen (done).** `diplomacy_screen.rs`, laid out from `DIPLOMAC.c`: the room (`diplomac` 0), the wizard speaking (`diplomac` 24 to 37, 25 frames) and then in his mood (`moodwiz`), the mirror (`backgrnd` 18), the gargoyles' eyes by relation level, the message and the menu (propose a treaty, threaten or break one, tribute, exchange spells) with the wizard's answer at once (`f4x_ai::answer_proposals`); opened from a gem on the magic screen, and by itself with the greeting of a wizard met, on the next turn. The wizard's lines are the game's own (`diplomacy_text.rs`; the original's `DIPLOMSG` is not used). Left: Threaten To Attack (task 167), the fade-in, the sounds and music, the wizard's sheet on a right click, the confirm box before attacking a treaty partner (still missing in the map's attack), the AI starting a talk itself (tasks 64, 65).
+
+Original text of the task: Talk to a rival wizard: attitude, treaties on offer, proposals and
+answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63. See `docs/diplomacy.md`.
 
 **92. Spell-research dialogs (done).** The dialogs of the original's research flow: the choice of the
 next spell to research when one is learned (a list of the researchable spells with costs and

@@ -29,6 +29,8 @@ pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
+    /// Talking to another wizard.
+    Diplomacy,
     /// The spell book the wizard casts from.
     Spellbook,
     /// The Apprentice's library: every spell the wizard can learn.
@@ -72,6 +74,12 @@ pub struct App {
     pub(crate) choice_scroll: usize,
     /// The magic screen's staves, locks and windows.
     pub(crate) magic_ui: crate::magic_screen::MagicUi,
+    /// The diplomacy screen's talk.
+    pub(crate) diplo_ui: crate::diplomacy_screen::DiploUi,
+    /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
+    pub(crate) greetings: std::collections::VecDeque<PlayerId>,
+    /// Wizards met since the turn began: their greeting comes with the next turn.
+    pub(crate) greetings_due: Vec<PlayerId>,
     /// The small spell book's pages.
     pub(crate) book_ui: crate::spellbook::BookUi,
     /// The big spell book: the library, the research choice, spells just learned.
@@ -142,6 +150,9 @@ impl App {
             choosing: false,
             choice_scroll: 0,
             magic_ui: Default::default(),
+            diplo_ui: Default::default(),
+            greetings: Default::default(),
+            greetings_due: Vec::new(),
             book_ui: Default::default(),
             big_ui: Default::default(),
             help: Default::default(),
@@ -367,6 +378,12 @@ impl App {
                         "Learned {}",
                         self.game.content.rules.spells.get(spell).name
                     ))
+                }
+                Event::Diplomacy(d) => self.diplomacy_line(d),
+                Event::TurnStarted { .. } => {
+                    let due = std::mem::take(&mut self.greetings_due);
+                    self.greetings.extend(due);
+                    None
                 }
                 Event::SpellCast { spell, .. } => Some(format!(
                     "Cast {}",
@@ -686,6 +703,13 @@ impl App {
         {
             return true;
         }
+        // A wizard just met greets the player on the next turn, on the diplomacy screen.
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() {
+            if let Some(w) = self.greetings.pop_front() {
+                self.open_diplomacy(w);
+                return true;
+            }
+        }
         self.maybe_ask_for_research();
         if self.game.game_over.is_some()
             && !self.game_over_seen
@@ -701,6 +725,7 @@ impl App {
                 self.city_screen(city);
             }
             Screen::Magic => self.magic_screen(),
+            Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
             Screen::Research => self.research_screen(),

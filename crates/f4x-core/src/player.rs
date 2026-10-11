@@ -29,6 +29,9 @@ pub struct Player {
     /// The banner colour: 0 blue, 1 green, 2 purple, 3 red, 4 yellow (5, brown, is the
     /// neutral player's). Flags, cities and units are drawn in it.
     pub banner: u8,
+    /// Which of the original's fourteen wizard pictures (0 to 13) shows the wizard: the
+    /// portrait of the creation screen, the gem on the magic screen and the diplomacy screen.
+    pub portrait: u8,
     /// The Grand Vizier chooses what this player's cities build next.
     pub grand_vizier: bool,
     /// An independent city's own player (task 31): it has a treasury and pays its way like a
@@ -41,6 +44,9 @@ pub const NEUTRAL_BANNER: u8 = 5;
 
 /// The tax rate everyone starts with: a gold for each citizen.
 pub const START_TAX_RATE: u8 = 2;
+
+/// How many wizard pictures there are (`wizards.lbx`, `lilwiz.lbx` and `moodwiz.lbx`).
+pub const PORTRAITS: u8 = 14;
 
 /// How many banners wizards can choose from.
 pub const BANNER_CHOICES: u8 = 5;
@@ -66,6 +72,7 @@ impl Player {
             } else {
                 id.0 % BANNER_CHOICES
             },
+            portrait: if id.0 == u8::MAX { 0 } else { id.0 % PORTRAITS },
             grand_vizier: false,
             neutral: false,
         }

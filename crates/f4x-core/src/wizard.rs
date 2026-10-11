@@ -32,6 +32,9 @@ pub struct WizardBuild {
     pub spells: Vec<SpellId>,
     /// The banner colour chosen (0 to 4); `None` keeps the player's default.
     pub banner: Option<u8>,
+    /// The wizard picture chosen (0 to 13); `None` keeps the player's default. A ready-made
+    /// wizard has the picture of its place in the rules' list, which is the original's order.
+    pub portrait: Option<u8>,
     /// A ready-made wizard: exempt from the pick budget and retort prerequisites (the
     /// original's own Lo Pan spends twelve picks).
     pub preset: bool,
@@ -308,25 +311,32 @@ impl Game {
             if let Some(b) = build.banner {
                 p.banner = b.min(crate::player::BANNER_CHOICES - 1);
             }
+            if let Some(b) = build.portrait {
+                p.portrait = b.min(crate::player::PORTRAITS - 1);
+            }
         }
         Ok(())
     }
 
     /// A ready-made wizard from the rules as a build.
     pub fn preset_build(&self, id: &str) -> Option<WizardBuild> {
-        let def = self
+        let place = self
             .content
             .rules
             .wizards
             .defs()
             .iter()
-            .find(|w| w.id == id)?;
+            .position(|w| w.id == id)?;
+        let def = &self.content.rules.wizards.defs()[place];
         Some(WizardBuild {
             name: def.name.clone(),
             books: def.books.iter().cloned().collect(),
             retorts: def.retorts.iter().copied().collect(),
             spells: Vec::new(),
             banner: None,
+            portrait: u8::try_from(place)
+                .ok()
+                .filter(|&p| p < crate::player::PORTRAITS),
             preset: true,
         })
     }
@@ -539,6 +549,18 @@ mod tests {
         assert!(b.preset);
         assert_eq!(b.picks_spent(), 12, "the original's Lo Pan is over budget");
         g.create_wizard(P0, &b).unwrap();
+        // His picture is his place in the list, as in the original.
+        let place = g
+            .content
+            .rules
+            .wizards
+            .defs()
+            .iter()
+            .position(|w| w.id == "lo_pan")
+            .unwrap();
+        assert_eq!(g.player(P0).unwrap().portrait as usize, place);
+        let restored = g.snapshot().restore(g.content.clone()).unwrap();
+        assert_eq!(restored.player(P0).unwrap().portrait as usize, place);
         assert!(g.magic(P0).unwrap().has(Retort::Channeler));
         assert!(g.preset_build("nobody").is_none());
     }

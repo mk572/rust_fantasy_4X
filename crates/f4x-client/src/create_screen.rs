@@ -231,18 +231,34 @@ impl App {
             self.create.typing = field.contains(mouse_position().into());
         }
         y += 40.0;
-        // What the preset is about.
+        // The wizard's picture, beside what the preset is about.
+        let portrait = self.create.build.portrait.unwrap_or(0);
+        if let Some(tex) = self.art_picture("wizards", usize::from(portrait), 0) {
+            let size = tex.size() * 0.55;
+            let at = vec2(x + width - size.x, y);
+            draw_texture_ex(
+                &tex,
+                at.x,
+                at.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(size),
+                    ..Default::default()
+                },
+            );
+            draw_rectangle_lines(at.x, at.y, size.x, size.y, 2.0, BLACK);
+        }
         if let Some(i) = self.create.preset {
             let text = self.game.content.rules.wizards.defs()[i]
                 .description
                 .clone();
-            for line in wrap(&text, 18.0, width) {
+            for line in wrap(&text, 18.0, width - 70.0) {
                 draw_text(&line, x, y + 14.0, 18.0, LIGHTGRAY);
                 y += 20.0;
             }
         }
         // The race.
-        y = y.max(h - 170.0);
+        y = y.max(h - 206.0);
         draw_text("Race", x, y + 16.0, 20.0, GOLD);
         let n = self.game.content.rules.races.len().max(1);
         if button(Rect::new(x + 70.0, y, 30.0, 26.0), "<", true) {
@@ -251,6 +267,18 @@ impl App {
         draw_text(self.race_name(self.race), x + 108.0, y + 19.0, 22.0, WHITE);
         if button(Rect::new(x + width - 30.0, y, 30.0, 26.0), ">", true) {
             self.race = (self.race + 1) % n;
+        }
+        // The picture: one of the original's fourteen.
+        y += 36.0;
+        draw_text("Picture", x, y + 18.0, 20.0, GOLD);
+        let pictures = f4x_core::player::PORTRAITS;
+        let current = self.create.build.portrait.unwrap_or(0);
+        if button(Rect::new(x + 70.0, y, 30.0, 26.0), "<", true) {
+            self.create.build.portrait = Some((current + pictures - 1) % pictures);
+        }
+        draw_text(format!("{}", current + 1), x + 112.0, y + 19.0, 22.0, WHITE);
+        if button(Rect::new(x + 140.0, y, 30.0, 26.0), ">", true) {
+            self.create.build.portrait = Some((current + 1) % pictures);
         }
         // The banner: five colours to choose from.
         y += 36.0;

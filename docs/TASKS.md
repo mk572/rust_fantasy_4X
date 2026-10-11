@@ -52,13 +52,11 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
 | 81 | Housekeeping | Packaging for Mac |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
-| 83 | Client | Wizard portraits and banner colours |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
 | 87 | Magic | Remaining global enchantments (low priority) |
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
-| 91 | Client | Diplomacy screen |
 | 94 | Client | Settings screen |
 | 95 | Client | Tutorial |
 | 96 | Client | City screen: enchantments list |
@@ -297,11 +295,6 @@ AI) their remaining cities neutral. An AI wizard resigns instead of casting the 
 or it has no mana. Also draw the fortress and circle as buildings in the city screen's building
 area.
 
-**83. Wizard portraits and banner colours.** The original lets the player choose a portrait for a
-custom wizard and a banner colour (help topics 658 and 674); here colours come from the player
-number and there are no portraits. Add both to the creation screen and the build, using the
-extracted wizard pictures locally (`assets-local`).
-
 **84. Analyse the original's screenshots and adjust the graphics.** Study the screenshots of the
 original game in `reference/screenshots/` (local only) and bring the client's look closer to
 them: screen layouts and proportions (map view, side panel, city screen, magic screen, creation
@@ -347,9 +340,6 @@ switches, strategic-only combat, animation and message speeds, and so on. Store 
 settings record, `serde(default)` and saved with the game where they change rules (events,
 Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
 change presentation. Reachable from the start menu (86) and in game.
-
-**91. Diplomacy screen.** Talk to a rival wizard: attitude, treaties on offer, proposals and
-answers, shown with the wizard's portrait and mood. Needs the diplomacy records of task 63. See `docs/diplomacy.md`.
 
 **94. Settings screen.** The client screen for the options of task 89: gameplay options and
 presentation options (volume, speeds, zoom), reachable from the start menu (86).

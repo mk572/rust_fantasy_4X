@@ -9,6 +9,8 @@ mod city_screen;
 mod cityscape;
 mod console_screen;
 mod create_screen;
+mod diplomacy_screen;
+mod diplomacy_text;
 mod frame;
 mod game_over_screen;
 mod magic_screen;
@@ -36,6 +38,10 @@ struct Options {
     city: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// With `--shot`, open the diplomacy screen with the first rival (`--talk MENU`, `--mood N`).
+    talk: Option<String>,
+    /// With `--talk`, make the relation about this much (-100 to 100).
+    mood: i32,
     /// With `--shot`, open the spell book, the Apprentice or the research choice first.
     spells: bool,
     apprentice: bool,
@@ -78,6 +84,8 @@ fn parse_args() -> Result<Options, String> {
         shot: None,
         city: false,
         magic: false,
+        talk: None,
+        mood: 0,
         spells: false,
         apprentice: false,
         research: false,
@@ -110,6 +118,12 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
+            "--talk" => o.talk = Some(value("--talk")?),
+            "--mood" => {
+                o.mood = value("--mood")?
+                    .parse()
+                    .map_err(|_| "--mood must be a number")?
+            }
             "--spells" => o.spells = true,
             "--apprentice" => o.apprentice = true,
             "--research" => o.research = true,
@@ -155,7 +169,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -202,6 +216,9 @@ async fn main() {
     }
     if options.magic {
         app.open_magic();
+    }
+    if let Some(menu) = &options.talk {
+        app.open_test_talk(menu, options.mood);
     }
     if options.spells {
         app.open_spellbook();

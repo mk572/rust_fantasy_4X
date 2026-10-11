@@ -131,6 +131,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         retorts: [retort].into_iter().collect(),
         spells: Vec::new(),
         banner: None,
+        portrait: None,
         preset: true,
     };
     let preset_ids: Vec<String> = game
@@ -161,6 +162,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     retorts: spec.retorts.clone(),
                     spells: Vec::new(),
                     banner: None,
+                    portrait: None,
                     preset: false,
                 }
             } else {
@@ -198,6 +200,19 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         used.insert(banner);
         if let Some(p) = game.player_mut(id) {
             p.banner = banner;
+        }
+    }
+    // And a picture of their own.
+    let mut shown = BTreeSet::new();
+    for k in 0..spec.wizards {
+        let id = PlayerId(k);
+        let mut portrait = game.player(id).map_or(0, |p| p.portrait);
+        while shown.contains(&portrait) {
+            portrait = (portrait + 1) % crate::player::PORTRAITS;
+        }
+        shown.insert(portrait);
+        if let Some(p) = game.player_mut(id) {
+            p.portrait = portrait;
         }
     }
     game.human = (!spec.all_ai).then_some(HUMAN);

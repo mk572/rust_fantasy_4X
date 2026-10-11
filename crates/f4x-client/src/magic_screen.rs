@@ -9,6 +9,7 @@
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
+use f4x_core::city::PlayerId;
 use f4x_core::magic::Retort;
 use f4x_core::rules::SpellId;
 use f4x_core::Command;
@@ -169,7 +170,7 @@ impl App {
         }
         self.magic_staves(&lay, !modal);
         self.magic_text(&lay, view);
-        self.magic_gems(&lay);
+        self.magic_gems(&lay, view, !modal);
         self.magic_enchantments(&lay, view, !modal);
 
         // The Alchemy and OK buttons.
@@ -368,22 +369,86 @@ impl App {
         let _ = lay;
     }
 
-    /// The other wizards' gems. A gem is grey until the wizard is met, and broken once the
-    /// wizard is gone; a met wizard's portrait and relations are tasks 83 and 63.
-    fn magic_gems(&mut self, lay: &Layout) {
+    /// The other wizards' gems: grey until the wizard is met, then its picture in its banner
+    /// colour with the word for how it feels about you and an icon for each treaty, and broken
+    /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen.
+    fn magic_gems(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool) {
         for i in 0..4 {
             self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
         }
-        let others: Vec<bool> = self
+        let others: Vec<(PlayerId, u8, u8, bool)> = self
             .game
             .players
             .iter()
-            .filter(|p| p.id != HUMAN && !p.neutral)
-            .map(|p| p.defeated)
+            .filter(|p| p.id != HUMAN && !p.neutral && p.id.0 != u8::MAX)
+            .map(|p| (p.id, p.portrait, p.banner, p.defeated))
             .collect();
-        for (i, gone) in others.into_iter().take(4).enumerate() {
+        let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
+        for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {
+            let x = 24.0 + 77.0 * i as f32;
             if gone {
-                self.draw_pic(lay, "magic", 51, 0, 23.0 + 77.0 * i as f32, 3.0);
+                self.draw_pic(lay, "magic", 51, 0, x - 1.0, 3.0);
+                continue;
+            }
+            if !self.game.have_met(HUMAN, id) {
+                continue;
+            }
+            let gem = self.draw_pic(
+                lay,
+                "lilwiz",
+                usize::from(portrait) * 5 + usize::from(banner),
+                0,
+                x,
+                4.0,
+            );
+            let rel = self.game.relation(HUMAN, id);
+            let word = f4x_core::diplomacy::relation_word(rel);
+            self.bm_text_set(
+                view,
+                0,
+                3,
+                word,
+                45.0 + 77.0 * i as f32,
+                53.0,
+                Align::Center,
+            );
+            // The treaty with you, then those with the other wizards shown: a scroll for a
+            // pact, a peace symbol for an alliance, crossed swords for war, in its banner colour.
+            let mut icon_y = 2.0;
+            let icon_x = 68.0 + 77.0 * i as f32;
+            let mut show = |app: &mut Self, treaty: f4x_core::diplomacy::Treaty, colour: u8| {
+                use f4x_core::diplomacy::Treaty as T;
+                let n = match treaty {
+                    T::None => return,
+                    T::Pact => 0,
+                    T::Alliance => 1,
+                    T::War => 2,
+                };
+                app.draw_pic(
+                    lay,
+                    "magic",
+                    60 + n + usize::from(colour) * 3,
+                    0,
+                    icon_x,
+                    icon_y,
+                );
+                icon_y += 12.0;
+            };
+            let mine = self.game.treaty(HUMAN, id);
+            let my_banner = self.game.player(HUMAN).map_or(0, |p| p.banner);
+            show(self, mine, my_banner);
+            for &other in gems.iter().filter(|&&o| o != id) {
+                if self.game.have_met(HUMAN, other) {
+                    let t = self.game.treaty(id, other);
+                    let colour = self.game.player(other).map_or(0, |p| p.banner);
+                    show(self, t, colour);
+                }
+            }
+            if active
+                && is_mouse_button_pressed(MouseButton::Left)
+                && gem.is_some_and(|r| r.contains(mouse_position().into()))
+            {
+                self.open_diplomacy(id);
             }
         }
     }

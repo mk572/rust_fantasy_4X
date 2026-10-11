@@ -113,6 +113,7 @@ dependencies = [
 name = "f4x-client"
 version = "0.1.0"
 dependencies = [
+ "f4x-ai",
  "f4x-console",
  "f4x-core",
  "f4x-data",

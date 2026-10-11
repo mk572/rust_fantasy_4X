@@ -8,6 +8,7 @@ license.workspace = true
 f4x-core.workspace = true
 f4x-data.workspace = true
 f4x-console.workspace = true
+f4x-ai.workspace = true
 macroquad.workspace = true
 hecs.workspace = true
 rand.workspace = true

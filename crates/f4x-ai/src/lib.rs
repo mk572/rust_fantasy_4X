@@ -76,6 +76,14 @@ impl Ai {
     }
 }
 
+/// The wizard answers the proposals made to it now (a human who has put a proposal waits for
+/// the answer on the diplomacy screen instead of until the turn ends). Returns the events.
+pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
+    let mut events = Vec::new();
+    diplomacy::answer(&Ai::new(player), game, &mut events);
+    events
+}
+
 /// Let every AI play its turn, then end the turn for everyone. Returns all the events.
 pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
     let mut events = Vec::new();

@@ -410,7 +410,7 @@ impl Game {
     }
 
     /// What the hooks raised since the last command, as events.
-    pub(crate) fn drain_diplomacy_events(&mut self) -> Vec<Event> {
+    pub fn drain_diplomacy_events(&mut self) -> Vec<Event> {
         std::mem::take(&mut self.diplomacy.queue)
             .into_iter()
             .map(Event::Diplomacy)

@@ -341,6 +341,31 @@ impl App {
         self.bm_text(view, style, WHITE, text, x, y, align);
     }
 
+    /// Like [`App::bm_text`] but in one of the font's sixteen colour sets by number (the
+    /// original's `Set_Font_Style` picks the set directly).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn bm_text_set(
+        &mut self,
+        view: (f32, f32, f32),
+        style: usize,
+        set: usize,
+        text: &str,
+        x: f32,
+        y: f32,
+        align: Align,
+    ) -> f32 {
+        let (ox, oy, s) = view;
+        let w = self.art.text_width(style, text);
+        let ax = match align {
+            Align::Left => x,
+            Align::Center => x - w / 2.0,
+            Align::Right => x - w,
+        };
+        self.art
+            .draw_bitmap_text(style, set, text, ox + ax * s, oy + y * s, s);
+        w
+    }
+
     /// Text in one of the original's bitmap fonts, placed at `(x, y)` in the original's
     /// pixels (top-left, centre or right edge by `align`) under a view of `(origin x, origin y,
     /// scale)`. Falls back to the plain font when the original fonts were not extracted.

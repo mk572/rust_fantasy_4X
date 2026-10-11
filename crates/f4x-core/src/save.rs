@@ -178,6 +178,9 @@ pub struct PlayerSave {
     /// Absent in older saves: the player's number picks a colour.
     #[serde(default)]
     pub banner: Option<u8>,
+    /// Absent in older saves: the player's number picks a picture.
+    #[serde(default)]
+    pub portrait: Option<u8>,
 }
 
 /// A wizard's books, retorts, spells and casting; spells are saved by id.
@@ -588,6 +591,7 @@ impl Game {
                 defeated: p.defeated,
                 defeated_by: p.defeated_by.map(|d| d.0),
                 banner: Some(p.banner),
+                portrait: Some(p.portrait),
             })
             .collect();
         let units = self
@@ -820,6 +824,10 @@ impl Snapshot {
                         p.id % crate::player::BANNER_CHOICES
                     })
                     .min(crate::player::NEUTRAL_BANNER),
+                portrait: p
+                    .portrait
+                    .unwrap_or(p.id % crate::player::PORTRAITS)
+                    .min(crate::player::PORTRAITS - 1),
             });
         }
 

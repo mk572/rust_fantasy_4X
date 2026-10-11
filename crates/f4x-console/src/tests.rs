@@ -1886,3 +1886,13 @@ fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
     assert!(read_only.execute(&mut g, "diplomacy").ok);
     assert!(!read_only.execute(&mut g, "propose 1 pact").ok);
 }
+
+#[test]
+fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
+    let g = game();
+    let mut seen = std::collections::BTreeSet::new();
+    for p in g.players.iter().filter(|p| !p.neutral) {
+        assert!(p.portrait < f4x_core::player::PORTRAITS);
+        assert!(seen.insert(p.portrait), "picture {} twice", p.portrait);
+    }
+}
