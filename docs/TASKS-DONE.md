@@ -14,6 +14,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 5 | Map | Land corruption and purification (done) |
 | 6 | Map | ~~Magic node ownership, melding and power~~ (done) |
 | 7 | Map | Node auras and warped nodes (done) |
+| 9 | Map | City founding blocked only by intact encounter sites (B17) (done) |
 | 11 | Map | ~~Roads built by engineers, and road enchantment~~ (done) |
 | 14 | Map | ~~Sight radius sources (Oracle, walls, Nature's Eye)~~ (done) |
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
@@ -77,6 +78,15 @@ by Node Mastery; a warped node costs five. The client tints aura squares by real
 owned nodes in the owner's colour and melds with U. Not done: node guardians (monsters) to
 beat before melding (8), conjunction events (68), the warp spell (7), a setting screen for the
 strength (10, 89).
+
+**8. Encounter sites: guardians and loot (done).** Core done (`lairs.rs`, `docs/lairs.md`): guards and hoards
+for towers, nodes and encounter sites, assault by `Command::EnterSite`, treasure and clearing. Open
+parts are split into tasks 127 to 130; the client has no confirm box yet and assaults a site at once (task 128).
+
+**9. City founding blocked only by intact encounter sites (done).** A cleared encounter site now removes
+its feature; the founding check (`city::check_site`) now follows the original's
+`Map_Square_Survey`: a tower (on either plane) or a node always blocks, an encounter site only
+while its lair record is intact. Tests in `city.rs`.
 
 **11. Roads and engineers (done).** `roads.rs`: units with the `Construction` stat (engineers: 1,
 2 for the dwarven ones; the importer now reads it) take `Command::BuildRoad` with a path; a

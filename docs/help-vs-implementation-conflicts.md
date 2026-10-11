@@ -46,7 +46,7 @@ Written in our own words; nothing here is copied from either source.
 ### Applied now
 - B17: help and code agree (cities at least four squares apart); our setting was wrong.
   `min_city_distance` is now 4 in `content/rules.ron` and the default, with the city test
-  updated. Not yet done: block only on towers, nodes and *intact* encounter sites.
+  updated. Blocking only on towers, nodes and *intact* encounter sites is done too (task 9).
 
 ### Decided: go with the game files (rows the rule did not cover)
 ReMoM states these were verified one-to-one against the original assembly, so the code and

@@ -95,13 +95,6 @@ pub enum FeatureKind {
     Node,
 }
 
-impl FeatureKind {
-    /// Cities cannot be founded on these.
-    pub fn blocks_city(self) -> bool {
-        !matches!(self, FeatureKind::Mineral)
-    }
-}
-
 /// "On these terrain classes, on these planes, spawn with this relative weight."
 /// Weights are relative among all rules matching one (terrain class, plane).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

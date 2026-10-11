@@ -16,8 +16,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 8 | Map | Encounter sites: guardians and loot (core done; client prompt, items and prisoners open) |
-| 9 | Map | City founding blocked only by intact encounter sites (B17) |
+| 8 | Map | Encounter sites: guardians and loot (done; the open parts are tasks 127 to 130) |
 | 10 | Map | Generator parity with the original and new-game settings |
 | 12 | Map | Gates and the Planar Seal |
 | 13 | Map | Teleporting and merging movement |
@@ -135,16 +134,6 @@ the worked-area food and production of cities, and spells that set it.
 
 **7. Node auras and warped nodes.** +2 attack and defence to matching creatures inside a node's
 aura [653-656], and warping by spells. Depends on 6.
-
-**8. Encounter sites: guardians and loot.** Core done (`lairs.rs`, `docs/lairs.md`): guards and hoards
-for towers, nodes and encounter sites, assault by `Command::EnterSite`, treasure and clearing. Open
-parts are split into tasks 127 to 130; the client has no confirm box yet and assaults a site at once (task 128).
-
-**9. City founding blocked only by intact encounter sites.** A cleared encounter site now removes
-its feature, so it no longer blocks; but any *intact* site still blocks, as it should. What is left:
-check the rule against the original's `Square_Has_Lair` (towers and nodes block always, lairs only
-while intact, B17) and update the founding check and its tests to read the lair record rather than
-the feature kind.
 
 **10. Generator parity and new-game settings.** Our generator is our own design. Optionally port
 the original's landmass growth and shore fix-up, and add the new-game settings: land size 15/20/25

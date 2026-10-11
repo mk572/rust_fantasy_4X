@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::content::{Content, TerrainClass};
+use crate::content::{Content, FeatureKind, TerrainClass};
 use crate::map::{Map, Plane};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -53,10 +53,20 @@ pub fn check_site(
     if terrain.class == TerrainClass::Ocean || !terrain.can_found_city {
         return Err(FoundCityError::BadTerrain);
     }
-    let blocked = grid
-        .feature(pos.x as i32, pos.y as i32)
-        .and_then(|f| content.features.get(f))
-        .is_some_and(|f| f.kind.blocks_city());
+    // As the original's `Map_Square_Survey`: a tower (on either plane) or a node always blocks,
+    // an encounter site only while its lair is intact (B17).
+    let kind_at = |plane: Plane| {
+        let g = map.plane(plane);
+        g.feature(pos.x as i32, pos.y as i32)
+            .and_then(|f| content.features.get(f))
+            .map(|f| f.kind)
+    };
+    let tower_here = [Plane::Arcanus, Plane::Myrror]
+        .into_iter()
+        .any(|pl| kind_at(pl) == Some(FeatureKind::Tower));
+    let blocked = tower_here
+        || kind_at(pos.plane) == Some(FeatureKind::Node)
+        || map.lair_at(pos.plane, pos.x, pos.y).is_some();
     if blocked {
         return Err(FoundCityError::BlockedByFeature);
     }
@@ -95,7 +105,28 @@ mod tests {
             g
         };
         let mut game = Game::new(1);
-        game.map = Some(crate::map::Map::new(build(), build()));
+        let mut map = crate::map::Map::new(build(), build());
+        // A tower stands on both planes, a node on one.
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            map.plane_mut(plane)
+                .set_feature(14, 8, c.features.id_of("tower"));
+        }
+        map.plane_mut(Plane::Arcanus)
+            .set_feature(16, 8, c.features.id_of("node"));
+        map.set_lairs(vec![crate::map::Lair {
+            plane: Plane::Arcanus,
+            x: 8,
+            y: 5,
+            site: "lair".into(),
+            intact: true,
+            guards: Vec::new(),
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+        }]);
+        game.map = Some(map);
         game.content = c;
         game
     }
@@ -149,6 +180,34 @@ mod tests {
             FoundCityError::OutOfBounds
         );
         assert_eq!(g.cities().len(), 0);
+    }
+
+    #[test]
+    fn only_intact_sites_block_but_towers_and_nodes_always_do() {
+        let mut g = game();
+        let a = Plane::Arcanus;
+        assert_eq!(
+            g.can_found_city(at(a, 8, 5)),
+            Err(FoundCityError::BlockedByFeature)
+        );
+        // Cleared: the lair is no longer intact, so the square is free (the feature stays here
+        // only because the test did not run a real assault).
+        g.map.as_mut().unwrap().lair_mut(0).unwrap().intact = false;
+        g.map.as_mut().unwrap().plane_mut(a).set_feature(8, 5, None);
+        assert_eq!(g.can_found_city(at(a, 8, 5)), Ok(()));
+        // A tower blocks on both planes, even with no intact lair record.
+        for plane in [a, Plane::Myrror] {
+            assert_eq!(
+                g.can_found_city(at(plane, 14, 8)),
+                Err(FoundCityError::BlockedByFeature)
+            );
+        }
+        assert_eq!(
+            g.can_found_city(at(a, 16, 8)),
+            Err(FoundCityError::BlockedByFeature)
+        );
+        // The node is on Arcanus only.
+        assert_eq!(g.can_found_city(at(Plane::Myrror, 16, 8)), Ok(()));
     }
 
     #[test]
