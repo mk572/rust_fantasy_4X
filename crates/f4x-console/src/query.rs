@@ -189,7 +189,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .players
         .iter()
-        .filter(|p| p.id.0 != u8::MAX)
+        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {
             let state = if p.defeated {
                 "defeated"

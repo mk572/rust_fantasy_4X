@@ -70,7 +70,7 @@ pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
 
 impl Game {
     fn is_wizard(&self, p: PlayerId) -> bool {
-        p != NEUTRAL
+        p != NEUTRAL && !self.is_neutral_player(p)
     }
 
     /// Wizards that have not been defeated.

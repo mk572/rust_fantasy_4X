@@ -214,6 +214,14 @@ impl Game {
         }
 
         let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        for &player in &players {
+            // Nobody sets an independent city's farmers, so it puts enough on the farms to
+            // feed its garrison, as a careful ruler would.
+            if self.is_neutral_player(player) {
+                self.balance_farmers(player);
+                self.balance_taxes(player);
+            }
+        }
         for player in players {
             events.extend(self.settle_treasury(player));
         }
@@ -221,6 +229,32 @@ impl Game {
         events.extend(self.process_gaias_blessing());
         self.heal_units();
         events
+    }
+
+    /// Set the tax rate to the lowest that leaves the treasury no worse off each turn, or to the
+    /// best there is when none does. How an independent city is run; wizards choose their own.
+    pub(crate) fn balance_taxes(&mut self, player: PlayerId) {
+        let rates = self.content.rules.config.tax_unrest_percent.len() as u8;
+        let Some(start) = self.player(player).map(|p| p.tax_rate) else {
+            return;
+        };
+        let mut best = (i32::MIN, start);
+        for rate in 0..rates {
+            if let Some(p) = self.player_mut(player) {
+                p.tax_rate = rate;
+            }
+            let net = self.treasury(player).net_gold();
+            if net >= 0 {
+                best = (net, rate);
+                break;
+            }
+            if net > best.0 {
+                best = (net, rate);
+            }
+        }
+        if let Some(p) = self.player_mut(player) {
+            p.tax_rate = best.1;
+        }
     }
 
     /// Put just enough citizens on farms that the player's cities feed their citizens
@@ -454,7 +488,7 @@ impl Game {
         }
         let farmers = self.city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
-        if owner != crate::units::NEUTRAL {
+        if !self.is_neutral_player(owner) {
             self.explore(owner, pos, 2);
         }
         city

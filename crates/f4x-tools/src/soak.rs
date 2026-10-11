@@ -123,7 +123,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 fn status(game: &Game) -> String {
     game.players
         .iter()
-        .filter(|p| p.id.0 != u8::MAX)
+        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {
             let cities = game.cities().iter().filter(|(_, c, _)| c.owner == p.id).count();
             let units = game.player_units(p.id).len();

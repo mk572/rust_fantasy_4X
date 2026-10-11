@@ -31,6 +31,9 @@ pub struct Player {
     pub banner: u8,
     /// The Grand Vizier chooses what this player's cities build next.
     pub grand_vizier: bool,
+    /// An independent city's own player (task 31): it has a treasury and pays its way like a
+    /// wizard, but is no wizard (no magic, no victory, no AI).
+    pub neutral: bool,
 }
 
 /// The banner of the neutral player and of monsters.
@@ -61,6 +64,17 @@ impl Player {
                 id.0 % BANNER_CHOICES
             },
             grand_vizier: false,
+            neutral: false,
+        }
+    }
+
+    /// The player of one neutral city: builds by the Grand Vizier's order, brown banner.
+    pub fn new_neutral(id: PlayerId, name: impl Into<String>) -> Self {
+        Self {
+            banner: NEUTRAL_BANNER,
+            grand_vizier: true,
+            neutral: true,
+            ..Self::new(id, name)
         }
     }
 }

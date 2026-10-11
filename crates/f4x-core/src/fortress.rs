@@ -178,7 +178,14 @@ impl Game {
         }
         if was_fortress {
             events.extend(self.banish(loser, winner));
-        } else if loser != crate::units::NEUTRAL && self.city_count(loser) == 0 {
+        } else if self.is_neutral_player(loser) {
+            // An independent city's player goes with its city: the garrison is gone or
+            // dismissed, and the treasury stays behind.
+            for u in self.player_units(loser) {
+                let _ = self.world.despawn(u);
+            }
+            self.players.retain(|p| p.id != loser);
+        } else if self.city_count(loser) == 0 {
             events.extend(self.defeat(loser, winner));
         }
         events

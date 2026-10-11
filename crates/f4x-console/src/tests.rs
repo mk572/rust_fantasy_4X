@@ -20,6 +20,11 @@ fn game() -> Game {
     .unwrap()
 }
 
+/// The wizards of a game (the independent cities have players of their own).
+fn wizards(g: &Game) -> usize {
+    g.players.iter().filter(|p| !p.neutral).count()
+}
+
 fn console() -> Console {
     Console::new(HUMAN, Access::Full)
 }
@@ -331,7 +336,7 @@ fn new_game_settings_reach_the_game() {
         ..NewGame::default()
     });
     assert_eq!((base.difficulty, base.magic_strength), (2, 1));
-    assert_eq!(base.players.len(), 2);
+    assert_eq!(wizards(&base), 2);
 
     let small = made(NewGame {
         seed: 7,
@@ -341,7 +346,7 @@ fn new_game_settings_reach_the_game() {
         magic_strength: 2,
         ..NewGame::default()
     });
-    assert_eq!(small.players.len(), 5, "four opponents");
+    assert_eq!(wizards(&small), 5, "four opponents");
     assert_eq!((small.difficulty, small.magic_strength), (4, 2));
     let land = |g: &Game| {
         let map = g.map.as_ref().unwrap();
@@ -368,7 +373,7 @@ fn the_new_command_takes_the_settings_by_name() {
     );
     assert!(r.error.is_none(), "{:?}", r.error);
     assert_eq!((game.difficulty, game.magic_strength), (3, 0));
-    assert_eq!(game.players.len(), 3);
+    assert_eq!(wizards(&game), 3);
     let r = c.execute(&mut game, "new 3 difficulty=nightmare");
     assert!(matches!(r.error, Some(ConsoleError::Parse(_))));
 }
@@ -399,7 +404,7 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
 fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::city::Position)> {
     g.cities()
         .into_iter()
-        .filter(|(_, c, _)| c.owner == f4x_core::units::NEUTRAL)
+        .filter(|(_, c, _)| g.is_neutral_player(c.owner))
         .map(|(e, _, p)| (e, p))
         .collect()
 }
@@ -427,15 +432,35 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
     for (e, p) in &cities {
         let races = &g.content.rules.races;
         let race = races.get(g.world.get::<&f4x_core::economy::CityRace>(*e).unwrap().0);
-        assert_eq!(race.myrror, p.plane == Plane::Myrror, "{} on {:?}", race.id, p.plane);
-        assert!(names.insert(g.world.get::<&f4x_core::city::City>(*e).unwrap().name.clone()));
-        let pop = g.world.get::<&f4x_core::economy::Population>(*e).unwrap().figures;
+        assert_eq!(
+            race.myrror,
+            p.plane == Plane::Myrror,
+            "{} on {:?}",
+            race.id,
+            p.plane
+        );
+        assert!(names.insert(
+            g.world
+                .get::<&f4x_core::city::City>(*e)
+                .unwrap()
+                .name
+                .clone()
+        ));
+        let pop = g
+            .world
+            .get::<&f4x_core::economy::Population>(*e)
+            .unwrap()
+            .figures;
         assert!((2..=14).contains(&pop), "population {pop}");
         // Garrison: a quarter of the population, once for each of the two kinds.
         let garrison = g.units_at(*p).len() as u32;
         assert!(garrison <= 2 * (pop / 4), "{garrison} units for {pop}");
         for u in g.units_at(*p) {
-            assert_eq!(g.unit_owner(u), Some(f4x_core::units::NEUTRAL));
+            assert_eq!(
+                g.unit_owner(u),
+                g.city_owner(*e),
+                "the garrison is the city's own"
+            );
         }
     }
     assert!(
@@ -448,8 +473,18 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
 fn neutral_worlds_follow_the_seed() {
     let content = content();
     let made = |seed| {
-        let g = new_game(&content, &NewGame { seed, ..NewGame::default() }).unwrap();
-        neutral_cities(&g).into_iter().map(|(_, p)| p).collect::<Vec<_>>()
+        let g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        neutral_cities(&g)
+            .into_iter()
+            .map(|(_, p)| p)
+            .collect::<Vec<_>>()
     };
     assert_eq!(made(3), made(3));
     assert_ne!(made(3), made(4));
@@ -463,19 +498,40 @@ fn neutral_cities_play_by_the_ordinary_rules() {
         .into_iter()
         .map(|(e, _)| {
             let pop = g.world.get::<&f4x_core::economy::Population>(e).unwrap();
-            (e, pop.figures, g.world.get::<&f4x_core::economy::Buildings>(e).unwrap().0.len())
+            (
+                e,
+                pop.figures,
+                g.world
+                    .get::<&f4x_core::economy::Buildings>(e)
+                    .unwrap()
+                    .0
+                    .len(),
+            )
         })
         .collect();
     let gold: Vec<_> = g.players.iter().map(|p| p.gold).collect();
     for _ in 0..40 {
         g.apply(Command::EndTurn);
     }
-    assert_eq!(neutral_cities(&g).len(), 30, "no neutral city is lost on its own");
+    assert_eq!(
+        neutral_cities(&g).len(),
+        30,
+        "no neutral city is lost on its own"
+    );
     let grew = before.iter().any(|&(e, pop, _)| {
-        g.world.get::<&f4x_core::economy::Population>(e).unwrap().figures > pop
+        g.world
+            .get::<&f4x_core::economy::Population>(e)
+            .unwrap()
+            .figures
+            > pop
     });
     let built = before.iter().any(|&(e, _, n)| {
-        g.world.get::<&f4x_core::economy::Buildings>(e).unwrap().0.len() > n
+        g.world
+            .get::<&f4x_core::economy::Buildings>(e)
+            .unwrap()
+            .0
+            .len()
+            > n
     });
     assert!(grew, "a neutral city grew");
     assert!(built, "a neutral city built something");
@@ -484,15 +540,71 @@ fn neutral_cities_play_by_the_ordinary_rules() {
 }
 
 #[test]
-fn taking_a_neutral_city_changes_its_owner_and_nothing_else() {
+fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     let mut g = game();
-    let (city, pos) = neutral_cities(&g)[0];
+    let cities = neutral_cities(&g);
+    let owners: std::collections::BTreeSet<_> = cities
+        .iter()
+        .filter_map(|(e, _)| g.city_owner(*e))
+        .collect();
+    assert_eq!(owners.len(), 30, "one player each");
+    for &o in &owners {
+        let p = g.player(o).unwrap();
+        assert!(p.neutral && p.grand_vizier && p.gold > 0);
+        assert!(!g.living_wizards().contains(&o), "not a wizard");
+    }
+    assert_eq!(wizards(&g), 2);
+    // Their taxes and upkeep move their own gold, and nobody else's.
+    let wizard_gold: Vec<_> = g
+        .players
+        .iter()
+        .filter(|p| !p.neutral)
+        .map(|p| p.gold)
+        .collect();
+    let before: Vec<_> = owners.iter().map(|&o| g.player(o).unwrap().gold).collect();
+    g.apply(f4x_core::Command::EndTurn);
+    let after: Vec<_> = owners.iter().map(|&o| g.player(o).unwrap().gold).collect();
+    assert_ne!(before, after, "the treasuries moved");
+    assert_eq!(
+        wizard_gold.len(),
+        g.players.iter().filter(|p| !p.neutral).count()
+    );
+}
+
+#[test]
+fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
+    let mut g = game();
+    let (city, pos) = neutral_cities(&g)
+        .into_iter()
+        .find(|(_, p)| g.units_at(*p).len() >= 2)
+        .expect("a garrisoned city");
+    let owner = g.city_owner(city).unwrap();
+    let units = g.units_at(pos).len();
+    // Buildings the city's taxes cannot carry, and an empty treasury.
+    let all: Vec<_> = (0..g.content.rules.buildings.defs().len())
+        .map(|i| g.content.rules.buildings.defs()[i].id.clone())
+        .filter_map(|id| g.content.rules.buildings.id_of(&id))
+        .collect();
+    let _ = g.world.insert_one(city, f4x_core::economy::Buildings(all));
+    g.player_mut(owner).unwrap().gold = 0;
+    g.apply(f4x_core::Command::EndTurn);
+    assert!(g.units_at(pos).len() < units, "{units} units stayed");
+}
+
+#[test]
+fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
+    let mut g = game();
+    let wizards_before = wizards(&g);
+    let (city, _) = neutral_cities(&g)[0];
+    let owner = g.city_owner(city).unwrap();
     let events = g.capture_city(city, PlayerId(0));
     assert_eq!(g.city_owner(city), Some(PlayerId(0)));
     assert!(events
         .iter()
         .all(|e| matches!(e, f4x_core::Event::CityCaptured { .. })));
-    // Even the last neutral city going does not "defeat" the neutral player.
+    assert!(g.player(owner).is_none(), "the city's player goes with it");
+    assert_eq!(g.player_units(owner).len(), 0);
+    // Even when the last one falls nobody is "defeated".
     for (c, _) in neutral_cities(&g) {
         assert!(g
             .capture_city(c, PlayerId(0))
@@ -500,7 +612,8 @@ fn taking_a_neutral_city_changes_its_owner_and_nothing_else() {
             .all(|e| matches!(e, f4x_core::Event::CityCaptured { .. })));
     }
     assert!(neutral_cities(&g).is_empty());
-    let _ = pos;
+    assert_eq!(wizards(&g), wizards_before);
+    assert!(g.players.iter().all(|p| !p.defeated));
 }
 
 #[test]
@@ -510,4 +623,29 @@ fn neutral_cities_survive_a_save() {
     let back = snap.clone().restore(g.content.clone()).unwrap();
     assert_eq!(back.snapshot(), snap);
     assert_eq!(neutral_cities(&back).len(), 30);
+}
+
+#[test]
+fn neutral_cities_keep_their_garrisons_for_sixty_turns() {
+    let content = content();
+    for seed in [1, 2] {
+        let mut g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        for turn in 0..60 {
+            for e in g.apply(f4x_core::Command::EndTurn) {
+                if let f4x_core::Event::UnitsDisbanded { player, .. } = e {
+                    assert!(
+                        !g.is_neutral_player(player),
+                        "seed {seed} turn {turn}: {player:?}"
+                    );
+                }
+            }
+        }
+    }
 }

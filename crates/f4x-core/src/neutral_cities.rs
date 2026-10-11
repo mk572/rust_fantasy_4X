@@ -7,17 +7,20 @@
 //! difficulty, like lair guards (design.md section 8), and it starts with the buildings a
 //! population brings and a garrison of the best soldiers its race can recruit. After that a
 //! neutral city plays by the ordinary rules: it grows, builds in the Grand Vizier's order and
-//! can be taken in battle. It pays no upkeep and has no treasury.
+//! can be taken in battle. Every neutral city is its own player (`Player::neutral`), with its
+//! own treasury: its taxes pay for its buildings and its garrison, and a garrison it cannot
+//! pay for is disbanded. The player goes when the city is taken. Monsters and lair guards
+//! stay with the shared `units::NEUTRAL`.
 
 use std::collections::VecDeque;
 
-use crate::city::Position;
+use crate::city::{PlayerId, Position};
 use crate::content::{FeatureKind, TerrainClass};
 use crate::economy::{Buildings, Farmers};
 use crate::map::Plane;
+use crate::player::Player;
 use crate::production::{Production, ProductionItem};
 use crate::rules::{RaceId, UnitKind};
-use crate::units::NEUTRAL;
 use crate::Game;
 
 /// Neutral cities placed on each plane.
@@ -48,7 +51,20 @@ const STARTING_BUILDINGS: [(u32, &str); 10] = [
     (12, "shrine"),
 ];
 
+/// The first number given to the players of neutral cities, well clear of the wizards.
+const FIRST_CITY_PLAYER: u8 = 100;
+
 impl Game {
+    /// A new player for one neutral city, with the lowest number not yet taken.
+    fn new_city_player(&mut self, name: &str) -> PlayerId {
+        let id = (FIRST_CITY_PLAYER..u8::MAX)
+            .map(PlayerId)
+            .find(|id| self.player(*id).is_none())
+            .unwrap_or(PlayerId(u8::MAX - 1));
+        self.players.push(Player::new_neutral(id, name));
+        id
+    }
+
     /// Whether a neutral city may stand on `pos`: any city site, clear of the wizards' fortresses
     /// and of nodes, towers and lairs.
     fn neutral_site_ok(&self, pos: Position) -> bool {
@@ -235,7 +251,8 @@ impl Game {
             population = (d + 1) / 3 + self.roll(10);
         }
         let name = self.unused_city_name(race);
-        let city = self.spawn_city(NEUTRAL, pos, name, Some(race), population);
+        let owner = self.new_city_player(&name);
+        let city = self.spawn_city(owner, pos, name, Some(race), population);
 
         let rules = &self.content.rules;
         let level = population.saturating_sub(2);
@@ -271,23 +288,31 @@ impl Game {
         }
         let _ = self.world.insert_one(city, Buildings(built));
 
+        // Taxes first: the rate decides how many citizens rebel and so how much food there is.
+        self.balance_taxes(owner);
         let (melee, ranged) = self.best_garrison_units(city);
         let count = (population / 4).min(crate::units::MAX_STACK as u32);
-        for _ in 0..count {
-            if let Some(u) = melee {
-                self.spawn_unit(NEUTRAL, pos, u);
+        // A race without a ranged soldier doubles its melee ones (and the original's dark elves,
+        // with no melee ones, get half a garrison).
+        let wanted = (0..count)
+            .filter_map(|_| melee)
+            .chain((0..count).filter_map(|_| ranged.or(melee)));
+        // The city pays its garrison like anyone, in food and in gold (it has no free upkeep), so
+        // it keeps only as many soldiers as its land and taxes support.
+        for u in wanted {
+            let soldier = self.spawn_unit(owner, pos, u);
+            self.balance_farmers(owner);
+            self.balance_taxes(owner);
+            let t = self.treasury(owner);
+            if t.food_upkeep > t.food_surplus || t.net_gold() < 0 {
+                let _ = self.world.despawn(soldier);
+                break;
             }
         }
-        for _ in 0..count {
-            // A race without a ranged soldier doubles its melee ones (and the original's dark
-            // elves, with no melee ones, get half a garrison).
-            if let Some(u) = ranged.or(melee) {
-                self.spawn_unit(NEUTRAL, pos, u);
-            }
-        }
+        self.balance_taxes(owner);
         let farmers = self.city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
-        let item = self.vizier_choice(city, NEUTRAL);
+        let item = self.vizier_choice(city, owner);
         let _ = self.world.insert_one(
             city,
             Production {

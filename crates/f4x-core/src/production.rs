@@ -299,9 +299,7 @@ impl Game {
     /// `autobuild_order` that the city can build and whose upkeep the treasury can bear.
     /// `None` when the player has not asked for the Vizier or nothing is left to build.
     pub fn vizier_choice(&self, city: hecs::Entity, owner: PlayerId) -> Option<ProductionItem> {
-        // Neutral cities always build by the Vizier's list, with no treasury to bear.
-        let neutral = owner == crate::units::NEUTRAL;
-        if !neutral && !self.player(owner)?.grand_vizier {
+        if !self.player(owner)?.grand_vizier {
             return None;
         }
         // An outpost builds nothing; housing is what makes it grow.
@@ -309,11 +307,7 @@ impl Game {
             return None;
         }
         let rules = &self.content.rules;
-        let net = if neutral {
-            i32::MAX
-        } else {
-            self.treasury(owner).net_gold()
-        };
+        let net = self.treasury(owner).net_gold();
         rules
             .config
             .autobuild_order

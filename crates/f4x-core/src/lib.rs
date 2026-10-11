@@ -547,6 +547,11 @@ impl Game {
         self.seed
     }
 
+    /// Whether `id` is the monsters' owner or an independent city's player: not a wizard.
+    pub fn is_neutral_player(&self, id: city::PlayerId) -> bool {
+        id == units::NEUTRAL || self.player(id).is_some_and(|p| p.neutral)
+    }
+
     pub fn player(&self, id: city::PlayerId) -> Option<&player::Player> {
         self.players.iter().find(|p| p.id == id)
     }

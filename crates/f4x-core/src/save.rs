@@ -154,6 +154,9 @@ pub struct PlayerSave {
     /// The Grand Vizier chooses what the cities build.
     #[serde(default)]
     pub grand_vizier: bool,
+    /// An independent city's player; absent in older saves.
+    #[serde(default)]
+    pub neutral: bool,
     pub capital_race: Option<String>,
     pub fame: i32,
     /// Absent in saves from before wizards existed.
@@ -555,6 +558,7 @@ impl Game {
                 mana: p.mana,
                 tax_rate: p.tax_rate,
                 grand_vizier: p.grand_vizier,
+                neutral: p.neutral,
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
@@ -771,6 +775,7 @@ impl Snapshot {
                 mana: p.mana,
                 tax_rate: p.tax_rate,
                 grand_vizier: p.grand_vizier,
+                neutral: p.neutral,
                 capital_race,
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
