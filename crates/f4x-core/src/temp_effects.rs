@@ -264,4 +264,22 @@ mod tests {
         assert_eq!(back.temp_effects(u).len(), 2);
         assert!(back.unit_has_ability(u, "flying"));
     }
+
+    #[test]
+    fn a_rules_effect_reaches_the_store_through_the_host() {
+        use crate::rules::exec::EffectHost;
+        let mut g = world();
+        let u = unit(&mut g, "spear");
+        let melee = g.unit_stat(u, Stat::Melee);
+        let mut host = crate::cast::tests_support::host(&mut g);
+        host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
+        host.grant_ability(Target::Unit(u), "flying");
+        drop(host);
+        assert_eq!(g.unit_stat(u, Stat::Melee), melee + 2);
+        assert!(g.unit_has_ability(u, "flying"));
+        let mut host = crate::cast::tests_support::host(&mut g);
+        host.remove_ability(Target::Unit(u), "flying");
+        drop(host);
+        assert!(!g.unit_has_ability(u, "flying"));
+    }
 }

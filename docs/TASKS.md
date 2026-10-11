@@ -127,6 +127,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 149 | Client | Show squares that are known but not currently seen (fog of war) |
 | 150 | Map | Generator parity with the original |
 | 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
+| 152 | Client | Show temporary effects on units and cities |
+| 153 | Magic | Dispelling temporary effects |
 
 ## Descriptions
 
@@ -595,3 +597,7 @@ opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair plac
 Parity task, low priority.
 
 **151. Choose an enemy global enchantment as a target.** Disjunction, Disjunction True and Spell Binding take `Target::Global(owner, spell)`. The client cannot pick one yet: casting them does nothing. Add a picker (the original's list of each rival's global enchantments by wizard, with the spell's name and cost) that opens when the spell needs it, then sends the cast with the chosen target. The console already takes `global:<player>:<spell>`.
+
+**152. Show temporary effects on units and cities.** The temporary effects store (task 30, `temp_effects.rs`) changes stats and abilities, but nothing says so. Show them on the unit info screen and the city screen (what, how much, turns left or "permanent"), and list them in the console's unit and city views.
+
+**153. Dispelling temporary effects.** Temporary effects (task 30) are not enchantments, so Dispel Magic, Disenchant and Disjunction cannot remove them. Decide which ones a dispel should reach (the original makes instant grants permanent; timed ones may be the exception), give those a source spell and caster so dispel difficulty and the enemy-only rule apply (task 59), and have `dispel_target` include them.
