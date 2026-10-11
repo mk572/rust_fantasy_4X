@@ -178,7 +178,7 @@ impl Game {
         }
         if was_fortress {
             events.extend(self.banish(loser, winner));
-        } else if self.city_count(loser) == 0 {
+        } else if loser != crate::units::NEUTRAL && self.city_count(loser) == 0 {
             events.extend(self.defeat(loser, winner));
         }
         events

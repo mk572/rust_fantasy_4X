@@ -454,7 +454,9 @@ impl Game {
         }
         let farmers = self.city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
-        self.explore(owner, pos, 2);
+        if owner != crate::units::NEUTRAL {
+            self.explore(owner, pos, 2);
+        }
         city
     }
 }

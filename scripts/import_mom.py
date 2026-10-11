@@ -253,6 +253,9 @@ RACE_TRAITS = {
     "nomad": "trade_percent: 50",
 }
 
+# The races whose neutral cities stand on Myrror (`Generate_Neutral_Cities`); the rest are Arcanus.
+MYRROR_RACES = {"beastmen", "dark_elf", "draconian", "dwarven", "troll"}
+
 # Unit-table columns, in file order.
 UNIT_COLUMNS = (
     "name melee ranged ranged_type ammo to_hit defense resist moves cost upkeep race "
@@ -1171,6 +1174,8 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
             effects = f", effects: [{_mod('CityGrowth', 'Add', race.growth_people)}]"
         traits = RACE_TRAITS.get(race.id)
         extra = f", {traits}" if traits else ""
+        if race.id in MYRROR_RACES:
+            extra += ", myrror: true"
         race_lines.append(
             f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
             f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "

@@ -167,7 +167,9 @@ impl Game {
         let moves = self.unit_max_moves(e);
         let _ = self.world.insert_one(e, MovesLeft(moves));
         let sight = self.unit_stat(e, Stat::Sight).max(1) as u32;
-        self.explore(owner, pos, sight);
+        if owner != NEUTRAL {
+            self.explore(owner, pos, sight);
+        }
         e
     }
 }

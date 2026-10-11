@@ -395,3 +395,119 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
     assert!(crate::args::parse_target(&g, "global:1").is_err());
     assert!(crate::args::parse_target(&g, "global:1:no_such_spell").is_err());
 }
+
+fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::city::Position)> {
+    g.cities()
+        .into_iter()
+        .filter(|(_, c, _)| c.owner == f4x_core::units::NEUTRAL)
+        .map(|(e, _, p)| (e, p))
+        .collect()
+}
+
+#[test]
+fn a_new_world_has_neutral_cities_on_both_planes() {
+    use f4x_core::map::Plane;
+    let g = game();
+    let cities = neutral_cities(&g);
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        let here: Vec<_> = cities.iter().filter(|(_, p)| p.plane == plane).collect();
+        assert_eq!(here.len(), 15, "{plane:?}");
+        // Cities keep their distance from each other and from every fortress.
+        let grid = g.map.as_ref().unwrap().plane(plane);
+        for (i, (_, a)) in here.iter().enumerate() {
+            for (_, b) in &here[i + 1..] {
+                assert!(grid.chebyshev((a.x, a.y), (b.x, b.y)) >= 4);
+            }
+            for f in g.players.iter().filter_map(|p| p.fortress) {
+                assert!(f.plane != plane || grid.chebyshev((a.x, a.y), (f.x, f.y)) >= 5);
+            }
+        }
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for (e, p) in &cities {
+        let races = &g.content.rules.races;
+        let race = races.get(g.world.get::<&f4x_core::economy::CityRace>(*e).unwrap().0);
+        assert_eq!(race.myrror, p.plane == Plane::Myrror, "{} on {:?}", race.id, p.plane);
+        assert!(names.insert(g.world.get::<&f4x_core::city::City>(*e).unwrap().name.clone()));
+        let pop = g.world.get::<&f4x_core::economy::Population>(*e).unwrap().figures;
+        assert!((2..=14).contains(&pop), "population {pop}");
+        // Garrison: a quarter of the population, once for each of the two kinds.
+        let garrison = g.units_at(*p).len() as u32;
+        assert!(garrison <= 2 * (pop / 4), "{garrison} units for {pop}");
+        for u in g.units_at(*p) {
+            assert_eq!(g.unit_owner(u), Some(f4x_core::units::NEUTRAL));
+        }
+    }
+    assert!(
+        cities.iter().any(|(_, p)| !g.units_at(*p).is_empty()),
+        "some city is garrisoned"
+    );
+}
+
+#[test]
+fn neutral_worlds_follow_the_seed() {
+    let content = content();
+    let made = |seed| {
+        let g = new_game(&content, &NewGame { seed, ..NewGame::default() }).unwrap();
+        neutral_cities(&g).into_iter().map(|(_, p)| p).collect::<Vec<_>>()
+    };
+    assert_eq!(made(3), made(3));
+    assert_ne!(made(3), made(4));
+}
+
+#[test]
+fn neutral_cities_play_by_the_ordinary_rules() {
+    use f4x_core::Command;
+    let mut g = game();
+    let before: Vec<_> = neutral_cities(&g)
+        .into_iter()
+        .map(|(e, _)| {
+            let pop = g.world.get::<&f4x_core::economy::Population>(e).unwrap();
+            (e, pop.figures, g.world.get::<&f4x_core::economy::Buildings>(e).unwrap().0.len())
+        })
+        .collect();
+    let gold: Vec<_> = g.players.iter().map(|p| p.gold).collect();
+    for _ in 0..40 {
+        g.apply(Command::EndTurn);
+    }
+    assert_eq!(neutral_cities(&g).len(), 30, "no neutral city is lost on its own");
+    let grew = before.iter().any(|&(e, pop, _)| {
+        g.world.get::<&f4x_core::economy::Population>(e).unwrap().figures > pop
+    });
+    let built = before.iter().any(|&(e, _, n)| {
+        g.world.get::<&f4x_core::economy::Buildings>(e).unwrap().0.len() > n
+    });
+    assert!(grew, "a neutral city grew");
+    assert!(built, "a neutral city built something");
+    assert!(g.players.iter().all(|p| !p.defeated));
+    let _ = gold;
+}
+
+#[test]
+fn taking_a_neutral_city_changes_its_owner_and_nothing_else() {
+    let mut g = game();
+    let (city, pos) = neutral_cities(&g)[0];
+    let events = g.capture_city(city, PlayerId(0));
+    assert_eq!(g.city_owner(city), Some(PlayerId(0)));
+    assert!(events
+        .iter()
+        .all(|e| matches!(e, f4x_core::Event::CityCaptured { .. })));
+    // Even the last neutral city going does not "defeat" the neutral player.
+    for (c, _) in neutral_cities(&g) {
+        assert!(g
+            .capture_city(c, PlayerId(0))
+            .iter()
+            .all(|e| matches!(e, f4x_core::Event::CityCaptured { .. })));
+    }
+    assert!(neutral_cities(&g).is_empty());
+    let _ = pos;
+}
+
+#[test]
+fn neutral_cities_survive_a_save() {
+    let g = game();
+    let snap = g.snapshot();
+    let back = snap.clone().restore(g.content.clone()).unwrap();
+    assert_eq!(back.snapshot(), snap);
+    assert_eq!(neutral_cities(&back).len(), 30);
+}

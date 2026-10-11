@@ -22,7 +22,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 25 | City | City enchantments with non-stat effects (low priority) |
 | 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
 | 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
-| 31 | Units | Neutral player and neutral cities |
 | 32 | Units | Starting economy tuning |
 | 35 | Combat | Immunities and resistance rolls |
 | 36 | Combat | Special attacks (low priority) |
@@ -129,6 +128,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
 | 152 | Client | Show temporary effects on units and cities |
 | 153 | Magic | Dispelling temporary effects |
+| 154 | Meta | Raiders from neutral cities |
 
 ## Descriptions
 
@@ -167,10 +167,6 @@ combat-level exception from B9). Warlord retort needs task 53. Low priority: onl
 **29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
 and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
-
-**31. Neutral player and neutral cities.** Neutral cities (rebels, raider cities) and the neutral
-player are not modelled. Neutral cities and units follow the ordinary rules with no bonus or
-penalty for being neutral (design.md section 8), so there is no half growth (20).
 
 **32. Starting economy tuning.** After eight turns the starting army costs about 3 gold more than
 the single city earns. Tune the starting setup (units, tax, buildings) or document it as intended. A related finding: in a console game from the shared new-game setup (the same start as the client's), ending the first turn without changing farmers disbanded two of the three starting units (food upkeep, `UnitsDisbanded`), so the starting army and settlers do not fit the starting city's food either.
@@ -510,7 +506,10 @@ on arrival without a prompt. The fight itself uses the battle screen (done); the
 sites (102 slots, three left switched off), each at least two squares from any other lair, on land,
 2 squares from the map edge, with a seven-way random site type (cave, dungeon, temple, keep, lair, ruins,
 fallen temple). We give every generated feature a lair and split strong/weak 25:32 at random. Port the
-exact placement, counts and type roll once the generator parity task (10) is taken.
+exact placement, counts and type roll once the generator parity task (10) is taken. Neutral cities
+(task 31) keep only 2 squares from a lair, node or tower instead of the original's 4, because our
+generator makes about twice as many lairs and with 4 no land is left; restore 4 with the real counts
+(`SITE_CLEARANCE` in `neutral_cities.rs`).
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
@@ -601,3 +600,5 @@ Parity task, low priority.
 **152. Show temporary effects on units and cities.** The temporary effects store (task 30, `temp_effects.rs`) changes stats and abilities, but nothing says so. Show them on the unit info screen and the city screen (what, how much, turns left or "permanent"), and list them in the console's unit and city views.
 
 **153. Dispelling temporary effects.** Temporary effects (task 30) are not enchantments, so Dispel Magic, Disenchant and Disjunction cannot remove them. Decide which ones a dispel should reach (the original makes instant grants permanent; timed ones may be the exception), give those a source spell and caster so dispel difficulty and the enemy-only rule apply (task 59), and have `dispel_target` include them.
+
+**154. Raiders from neutral cities.** The original's `Make_Raiders` (once per turn, the neutral player's event): an accumulator gains `Random(difficulty + 1)` each turn; at 30 it resets and, from a random neutral city that has a garrison and shares a landmass with a wizard's city, sends out `garrison * difficulty / 6` raiders (fewer near an AI fortress, half on Myrror before turn 200, experience cap rising with the turn), and the city loses a third of its garrison. Raiders attack the nearest wizard's city. It is an event for every player alike, so it follows design.md section 8. Reference: `reference/ReMoM/doc/ComputerPlayer/AIDATA-Make_Raiders.md`. Depends on 31 (done) and the AI or a simple raider mover; related to 68 (random events) and 69 (difficulty).

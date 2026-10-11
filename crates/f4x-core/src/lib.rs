@@ -24,6 +24,7 @@ pub mod magic;
 pub mod map;
 pub mod mapgen;
 pub mod movement;
+pub mod neutral_cities;
 pub mod nodes;
 pub mod pathing;
 pub mod player;

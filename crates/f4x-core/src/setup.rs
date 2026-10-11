@@ -233,6 +233,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             &races[k as usize],
         )?;
     }
+    // Independent cities on both planes, once the wizards' fortresses are down.
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        game.generate_neutral_cities(plane);
+    }
     game.set_undo(true);
     Ok(game)
 }

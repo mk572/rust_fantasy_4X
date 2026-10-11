@@ -52,6 +52,9 @@ pub struct RaceDef {
     /// Houses in the city picture: 0 standard, 1 tree houses, 2 mounds.
     #[serde(default)]
     pub house_type: u8,
+    /// Neutral cities of this race stand on Myrror; the others on Arcanus.
+    #[serde(default)]
+    pub myrror: bool,
 }
 
 fn two() -> u8 {

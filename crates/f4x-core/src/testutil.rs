@@ -241,6 +241,7 @@ pub fn content_with_economy() -> Content {
         trade_percent: 0,
         outpost_growth: 10,
         house_type: 0,
+        myrror: false,
     };
     let mut dwarf = race(
         "dwarf",
