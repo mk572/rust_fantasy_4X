@@ -17,8 +17,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 16 | City | Autobuild |
-| 17 | City | Selling buildings: prerequisites beyond one level |
-| 18 | City | Weapon quality from mithril and adamantium |
+| 17 | City | Selling buildings: prerequisites beyond one level (low priority) |
+| 18 | City | Weapon quality from mithril and adamantium (low priority) |
 | 20 | City | Population growth edge rules (B19) |
 | 21 | City | Outpost growth: wild game and difficulty (B20) |
 | 22 | City | Nightshade dispel strength |
@@ -150,11 +150,11 @@ aura [653-656], and warping by spells. Depends on 6.
 the next sensible building, as the original's city screen does.
 
 **17. Selling buildings: prerequisites beyond one level.** Selling a building currently checks only
-direct prerequisites. Block selling where later buildings depend on it through a chain.
+direct prerequisites. Block selling where later buildings depend on it through a chain. Low priority.
 
 **18. Weapon quality from mithril and adamantium.** Units trained in a city with mithril or
 adamantium access get better weapons (+1 or +2 attack and to-hit bonuses in the original). Needs a
-per-unit quality attribute set at creation and saved.
+per-unit quality attribute set at creation and saved. Low priority.
 
 **20. Population growth edge rules (B19).** Excess above the next whole figure is discarded when a
 figure is gained, growth is clamped so it cannot go negative at maximum size, and neutral cities
