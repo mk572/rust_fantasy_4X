@@ -38,6 +38,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("gate", "gate <units> <x,y[,plane]>", "Teleport the stack through Earth Gates to another of your cities that has one (one move).", gate),
     legal!("enter", "enter <units> <x,y[,plane]>", "Assault a guarded site (tower, node or lair) the stack stands next to.", enter),
     legal!("produce", "produce <city> <building|unit|trade|housing>", "Set what a city builds. Ids or names; `options` lists what is possible.", produce),
+    legal!("raze", "raze <city>", "Destroy the city you have just taken (before the turn ends): more fame lost, a tenth of its buildings' cost looted.", raze),
     legal!("buy", "buy <city>", "Pay gold to finish the current item at the next turn change.", buy),
     legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
@@ -52,6 +53,8 @@ pub const TABLE: &[CommandDef] = &[
     legal!("bmove", "bmove <unit> <x,y>", "In battle: walk a unit to a square (`battle` lists unit numbers and squares).", bmove),
     legal!("battack", "battack <unit> <target>", "In battle: attack an adjacent enemy in melee.", battack),
     legal!("bshoot", "bshoot <unit> <target>", "In battle: fire at an enemy at a distance.", bshoot),
+    legal!("bwall", "bwall <unit> <x,y>", "In battle: a wall crusher strikes the wall section at that square, next to it.", bwall),
+    legal!("bshootwall", "bshootwall <unit> <x,y>", "In battle: a wall crusher fires at the wall section at that square.", bshootwall),
     legal!("bdone", "bdone <unit>", "In battle: give up the rest of a unit's turn.", bdone),
     legal!("bend", "bend", "In battle: end your side's turn.", bend),
     legal!("bflee", "bflee", "In battle: leave; the other side wins.", bflee),
@@ -218,6 +221,12 @@ fn buy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.apply(Command::BuyProduction { city })
 }
 
+fn raze(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let city = ctx.my_city(a, 0)?;
+    let player = ctx.session.player;
+    ctx.apply(Command::RazeCity { player, city })
+}
+
 fn farmers(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let city = ctx.my_city(a, 0)?;
     let farmers = a.int(1, "number of farmers")?.max(0) as u32;
@@ -367,6 +376,22 @@ fn bshoot(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let order = BattleCommand::Shoot {
         unit: battle_unit(a, 0)?,
         target: battle_unit(a, 1)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bwall(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::AttackWall {
+        unit: battle_unit(a, 0)?,
+        cell: battle_pos(a.need(1, "square")?)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bshootwall(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::ShootWall {
+        unit: battle_unit(a, 0)?,
+        cell: battle_pos(a.need(1, "square")?)?,
     };
     battle_order(ctx, order)
 }

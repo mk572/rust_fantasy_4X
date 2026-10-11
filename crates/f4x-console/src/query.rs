@@ -629,6 +629,7 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             b.winner
                 .map_or(String::new(), |w| format!(", won by {w:?}"))
         ))
+        .chain(city_lines(b))
         .chain(b.units.iter().map(|u| {
             format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
@@ -641,6 +642,43 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         ctx.say(l);
     }
     Ok(())
+}
+
+/// What stands round a city fought over: its walls, standing and fallen, and the gate.
+fn city_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
+    use f4x_core::battle::map::{CITY_SIZE, CITY_X0, CITY_Y0, GATE};
+    if !b.map.is_walled() {
+        return if b.map.is_city() {
+            vec!["a city without walls".to_string()]
+        } else {
+            Vec::new()
+        };
+    }
+    let squares = |down: bool| -> String {
+        let mut out = Vec::new();
+        for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
+            for x in CITY_X0..CITY_X0 + CITY_SIZE {
+                let wall = b.map.wall((x, y));
+                let fallen = wall == f4x_core::battle::map::Wall::Broken;
+                if down == fallen && wall != f4x_core::battle::map::Wall::None {
+                    out.push(format!("{x},{y}"));
+                }
+            }
+        }
+        out.join(" ")
+    };
+    let mut lines = vec![format!(
+        "city walls stand at {} (the gate is at {},{}); damage to the city {}",
+        squares(false),
+        GATE.0,
+        GATE.1,
+        b.city_damage
+    )];
+    let fallen = squares(true);
+    if !fallen.is_empty() {
+        lines.push(format!("fallen walls at {fallen}"));
+    }
+    lines
 }
 
 fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

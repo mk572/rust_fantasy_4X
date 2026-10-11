@@ -98,6 +98,19 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *from),
             player(game, *to)
         ),
+        Event::CityLooted {
+            city,
+            gold,
+            citizens_lost,
+            buildings_lost,
+        } => format!(
+            "{} is looted of {gold} gold; {citizens_lost} citizens and {buildings_lost} buildings are lost",
+            city_name(game, *city)
+        ),
+        Event::CityRazed { player: p, gold } => format!(
+            "{} razes the city and loots {gold} gold",
+            player(game, *p)
+        ),
         Event::SpellLearned {
             player: p,
             spell: s,

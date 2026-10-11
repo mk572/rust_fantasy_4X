@@ -8,7 +8,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use f4x_core::battle::ai::next_command;
-use f4x_core::battle::map::{distance, Cell, Pos, GRID_H, GRID_W};
+use f4x_core::battle::map::{distance, Cell, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, BattleCommand, BattleEvent, BattleUnit, RangedKind, Side};
 use f4x_core::content::TerrainClass;
 use f4x_core::map::Plane;
@@ -145,6 +145,13 @@ pub(crate) fn describe(names: &[String], event: &BattleEvent) -> Option<String> 
             name(*attacker),
             name(*defender),
             kills(*k)
+        ),
+        BattleEvent::WallAttacked {
+            unit, destroyed, ..
+        } => format!(
+            "{} strikes the wall{}",
+            name(*unit),
+            if *destroyed { " and it falls" } else { "" }
         ),
         BattleEvent::UnitDied { unit } => format!("{} is destroyed", name(*unit)),
         BattleEvent::TurnStarted { turn, .. } => format!("Turn {turn}"),
@@ -510,6 +517,23 @@ impl App {
                 self.battle_order(order);
                 self.after_order(u.id);
             }
+            // A wall crusher strikes a wall section: with its blows next to it, or by shooting.
+            (None, Some(u))
+                if battle.map.has_wall(cell)
+                    && u.has("wall_crusher")
+                    && u.side == Side::Attacker
+                    && !u.attacked =>
+            {
+                let order = if distance(u.cell, cell) == 1 {
+                    BattleCommand::AttackWall { unit: u.id, cell }
+                } else if can_shoot(u) {
+                    BattleCommand::ShootWall { unit: u.id, cell }
+                } else {
+                    return;
+                };
+                self.battle_order(order);
+                self.after_order(u.id);
+            }
             (None, Some(u)) if battle.reachable(u.id).contains_key(&cell) => {
                 self.battle_order(BattleCommand::Move {
                     unit: u.id,
@@ -602,6 +626,13 @@ impl App {
                 }
             }
         }
+        for gy in 0..GRID_H {
+            for gx in 0..GRID_W {
+                if battle.map.wall((gx, gy)) != Wall::None {
+                    items.push((gx + gy, false, (gx, gy), 1));
+                }
+            }
+        }
         let mut looks: HashMap<usize, Visual> = HashMap::new();
         for u in battle.units.iter().filter(|u| u.is_active()) {
             let vis = self.visual_of(battle, u.id);
@@ -613,6 +644,8 @@ impl App {
             if is_unit {
                 let idle = self.battle_ui.selected == Some(id) && my_turn;
                 self.draw_unit(battle, id, looks[&id], idle, (ox, oy, scale), my_turn);
+            } else if id == 1 {
+                draw_wall(battle.map.wall(pos), at(pos), scale);
             } else {
                 self.draw_scenery(set, class, pos, at(pos), scale);
             }
@@ -625,6 +658,14 @@ impl App {
             let blink = (get_time() * 3.0) as i64 % 2 == 0;
             diamond(sx, sy, scale, if blink { GOLD } else { WHITE }, false);
             if my_turn {
+                if u.has("wall_crusher") && u.side == Side::Attacker && !u.attacked {
+                    for wall in battle.map.standing_walls() {
+                        if distance(u.cell, wall) == 1 || can_shoot(u) {
+                            let (wx, wy) = at(wall);
+                            diamond(wx, wy, scale, Color::new(1.0, 0.6, 0.1, 0.9), false);
+                        }
+                    }
+                }
                 for e in battle.active_units(u.side.other()) {
                     let hit = if distance(u.cell, e.cell) == 1 {
                         !u.attacked
@@ -1039,6 +1080,42 @@ impl App {
 
 /// Scale and origin (screen position of the native origin) for a grid fitted into
 /// `width` by `height`.
+/// A section of the city's wall: a block of grey stone, or a heap of rubble where it fell.
+fn draw_wall(wall: Wall, (sx, sy): (f32, f32), scale: f32) {
+    let (w, h) = (CELL_W * scale, CELL_H * scale);
+    let (top, left, right) = match wall {
+        Wall::Standing => (
+            Color::new(0.62, 0.6, 0.56, 1.0),
+            Color::new(0.4, 0.38, 0.35, 1.0),
+            Color::new(0.5, 0.48, 0.44, 1.0),
+        ),
+        _ => (
+            Color::new(0.35, 0.3, 0.26, 0.9),
+            Color::new(0.25, 0.22, 0.19, 0.9),
+            Color::new(0.3, 0.26, 0.22, 0.9),
+        ),
+    };
+    let rise = if wall == Wall::Standing {
+        h * 1.1
+    } else {
+        h * 0.25
+    };
+    let (cx, mid_y) = (sx + w / 2.0, sy + h / 2.0);
+    let (bottom, west, east, north) = (
+        vec2(cx, sy + h),
+        vec2(sx, mid_y),
+        vec2(sx + w, mid_y),
+        vec2(cx, sy),
+    );
+    let up = vec2(0.0, -rise);
+    draw_triangle(west, bottom, west + up, left);
+    draw_triangle(bottom, bottom + up, west + up, left);
+    draw_triangle(bottom, east, east + up, right);
+    draw_triangle(bottom, bottom + up, east + up, right);
+    draw_triangle(north + up, east + up, west + up, top);
+    draw_triangle(bottom + up, east + up, west + up, top);
+}
+
 pub(crate) fn grid_view(width: f32, height: f32) -> (f32, f32, f32) {
     let (gw, gh) = grid_extent();
     let scale = (width / gw).min(height / gh).max(0.5);

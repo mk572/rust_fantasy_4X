@@ -50,7 +50,25 @@ Decided with task 31; code in `neutral_cities.rs`, `player.rs`, `turn.rs`, `fort
 - **Not copied:** the neutral cities' extra rules in the original's growth and production code
   (design.md section 8).
 
-## 3. The starting setup (task 32)
+## 3. Sieges (task 41)
+
+Decided with task 41; code in `conquest.rs`, `battle/`.
+
+- **The field is mirrored:** the original has the defenders and the city at the west; ours has
+  them at the east (x 12 to 15), as our other battles do. Only the picture differs.
+- **An independent city's loot is its own treasury,** in proportion to the city's share of the
+  citizens (all of it, as each independent city has one), where the original rolls a ten-sided die for each
+  citizen. Our neutral cities have treasuries (section 2), so the wizard's formula fits.
+- **Buildings are destroyed with the chance the original's documentation gives** (the city
+  damage plus 10 percent). The ReMoM port of `Apply_Damage_To_City` reads as if the roll had to
+  beat the chance, which would destroy nine in ten; this is taken to be a port slip.
+- **Raze is always the second step** (the original's R key on the results scroll): the city is
+  taken, fame is gained, and razing then costs the further fame. The original also has an
+  immediate path (the first prompt, and the AI's `Raze_Check`) that skips the conquest fame; ours
+  has the one path. The AI does not raze.
+- **Outposts are destroyed when taken,** as in the original (a city with no citizens).
+
+## 4. The starting setup (task 32)
 
 Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
 
@@ -74,7 +92,7 @@ Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
 - **Upkeep before growth is *not* a departure:** the turn pays upkeep before cities grow, as
   the original does (`game-flow.md` section 4).
 
-## 4. Recorded elsewhere
+## 5. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

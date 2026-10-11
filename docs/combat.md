@@ -161,8 +161,8 @@ healing that skips irreversible damage.
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins.
-- Not yet (task 41, 43, 44): walls and gates, casting in battle, battlefield spells,
-  auto-resolve.
+- Not yet (task 43, 44): casting in battle, battlefield spells. City walls and gates are in
+  (section 7).
 
 ## 4. Orders and events
 
@@ -232,3 +232,49 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - No casting (43), battlefield spells (44), walls (41), experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and
   no AI-versus-AI resolution (task 133).
+
+## 7. City sieges (task 41)
+
+Code: `battle/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, the defence bonus,
+city damage), `battle/game.rs` (starting a city battle), `conquest.rs` (what a fallen city
+costs). The numbers are the original's (`Generate_Combat_Map`, `Deploy_Battle_Units`,
+`Update_Move_Map_City_Area_Restrictions`, `Battle_Unit_Attack`, `End_Of_Combat`); the field is
+mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 10 to 13.
+
+- **A fight at a city or outpost is a city battle**: the city area is open ground. A city with
+  the City Walls building has a wall of twelve sections round the edge of the area; the four
+  middle squares are inside. The gate is the section at 12,12, facing the attackers. Outposts
+  have no walls.
+- **Deployment** is the original's: defenders inside in three columns of four (the gate square
+  first), skipping the corner towers when there are walls; attackers outside in three columns.
+- **Movement:** an attacker outside cannot enter a standing wall section, except at the gate,
+  and nobody can enter a standing corner tower. A unit inside cannot leave except by the gate,
+  because the squares just outside the standing walls are shut to it. Fliers, teleporters, the
+  merging and the non-corporeal pass over the walls (but not the towers). A fallen section (`Wall::Broken`) is open
+  ground again.
+- **Wall crushers** (the attackers' units with `wall_crusher`) strike a standing section with
+  `AttackWall` from next to it (it falls half the time, and the blow uses up the unit's moves) or
+  `ShootWall` with a ranged attack (a quarter of the time, one shot). A wall crusher that hits a unit standing on
+  a wall section may bring that section down too, by the same chances.
+- **Defence:** a unit in the city, hit by an attacker outside it, has +3 defence on a standing wall
+  section and +1 elsewhere in the city. Only a city with walls gives this, and attackers that
+  have come inside get none of it.
+- **City damage:** at the start of each turn of the battle every attacking unit inside the city area adds one
+  (`Battle::city_damage`): a siege that gets into the city and stays there costs the city more when it falls.
+- **Taking the city** (`Game::conquer_city`, `conquest.rs`): an outpost is destroyed; any other city
+  changes hands with the loser losing fame equal to its size (1 to 5), the winner gaining the size less
+  two, and the winner looting the loser's gold in proportion to the city's share of their citizens.
+  The fighting kills each citizen but one with a chance of 10 percent plus twice the city
+  damage (at most 50), and destroys each building nothing else needs with a chance of the city
+  damage plus 10 percent (at most 75). The old owner's spells on the city end, production
+  starts at trade goods. A fortress city's wizard is banished (`fortress.rs`).
+- **Razing:** until the turn ends the taker may `RazeCity` (console `raze <city>`, the client asks): the size plus one more fame
+  lost, a tenth of every building's cost looted, and the city is destroyed. This is the original's
+  path when the player presses R on the results scroll. The client asks at once; an AI never razes (no
+  decision exists for it yet).
+- **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
+  `bshootwall <unit> <x,y>` strike a wall, `raze <city>` razes.
+- **Not here** (task 158): the Wall of Fire and Wall of Darkness, Wall of Stone and Disrupt (battlefield
+  spells, task 44), Flying Fortress, the AI's decision to raze, the diplomatic effects of attacking a city, and monsters
+  and raiders taking a city.
+

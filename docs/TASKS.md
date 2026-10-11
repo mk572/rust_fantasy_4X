@@ -25,7 +25,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
-| 41 | Combat | City sieges, walls and capture |
 | 42 | Combat | Fleeing and after-battle results |
 | 43 | Combat | Casting in battle |
 | 44 | Combat | Battlefield-effect spells (low priority) |
@@ -128,6 +127,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 155 | Core | Starting setup: the original's random placement and AI race rules |
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities |
 | 157 | Combat | Special attack leftovers |
+| 158 | Combat | Siege leftovers: magic walls, the AI's raze decision, diplomacy |
 
 ## Descriptions
 
@@ -177,10 +177,6 @@ leak [396-427, 491]. Low priority: only needed for specific spells, buildings, u
 shots" that use mana [542].
 
 **39. Auto-resolve.** Done: `Command::AutoResolve` (console `auto`) fights a battle to the end with the placeholder battle AI (`battle/ai.rs`) playing both sides, from an adjacent square, with the usual aftermath. Open: the strategic-combat-only option [685], a button for it on the battle screen (the Auto button is drawn greyed; task 133), and a better battle AI (46) so the result is not just whoever the placeholder favours.
-
-**41. City sieges, walls and capture.** Capture is done (a battle won at a city, or walking into an empty one, takes it; a fortress city banishes its wizard, `fortress.rs`). Open: razing a city instead of taking it, walls and gates in city battles, defenders' bonuses,
-capture or raze of the city, and the fortress rule that a wizard's capital city cannot be
-destroyed [CITYCALC notes in ReMoM].
 
 **42. Fleeing and after-battle results.** Done: fleeing units are lost (50 percent, 25 percent of heroes; `overland_aftermath`), and dead units are removed. Open: experience awarded, healing of the healer ability, summoned creatures vanishing, loot and fame,
 removal of destroyed units from the ECS.
@@ -587,3 +583,5 @@ Parity task, low priority.
 **156. Defence bonuses of enchantments and the undead's immunities.** Task 35 did immunities and resistance. Still open from the same original code: the unit enchantments that add *defence* against ranged magic of a realm (Elemental Armor +10 against chaos and nature, Resist Elements +3, Bless +3 against chaos and death), and the spells themselves, which the importer still leaves as `unimplemented`: Elemental Armor, Bless, Righteousness (their resistance part is done), Resist All and Invulnerability (-2 damage per hit). Undead should also gain cold, poison and illusion immunity (decision B10 in `help-vs-implementation-conflicts.md`), which belongs with task 29. Give `effective_defense` a realm bonus parameter and apply the spell tables in `immunity.rs`.
 
 **157. Special attack leftovers.** Task 36 did armour piercing, chaos (doom) damage, illusion, poison, life steal, stoning and death touch, destruction, dispel evil and the gazes. Left: (1) **Power drain** (the target resists or loses 2 to 20 spell points): needs battle mana, with task 43. (2) Attacks that come from an **item or spell** rather than the unit: the original gives them an extra penalty (stoning touch -1, death touch and life steal -3) and halves doom damage; the unit's own count in full. Needs the source of an ability to be known (task 30's store, items task 49). (3) **Hit points above full strength** from life steal (`Extra_Hits`). (4) The **damage types**: damage dealt by life steal, or by a create-undead attacker (`create_undead`: Ghouls), leaves the victim to return as an undead unit under the attacker's control, and stoning, death and destruction kills are irreversible (not healed afterwards); this belongs with the after-battle results of task 42 and the undead rules of task 29. (5) Cause fear and blur (task 37).
+
+**158. Siege leftovers: magic walls, the AI's raze decision, diplomacy.** Task 41 did city battles with walls and a gate, wall crushers, the defence bonus, city damage, loot, fame, losses and razing. Left: (1) the **battlefield spells** that act on the city: Wall of Fire (each figure of a non-flying unit that passes through takes a strength 5 fire attack, ranged attacks not), Wall of Darkness (no ranged attack from outside unless the attacker has illusion immunity or true sight), Wall of Stone (raises a wall in battle) and Disrupt (breaks a section), and **Flying Fortress** (the whole city shut to walkers), with task 44. (2) The **AI's decision to raze**: the original's `Raze_Check` scores the wizard's personality, how few troops it has left to garrison the city, and its units on the continent against the loser's; it needs an AI player (design.md section 8: the decision lives in `f4x-ai` and arrives as `RazeCity`). (3) **Diplomacy**: attacking a wizard's city lowers their opinion (-20, and -60 for the fortress city: `Change_Relations` in `End_Of_Combat`), see `diplomacy.md`. (4) **Monsters and raiders** taking a city: the neutral attackers' extra losses (50 percent more citizens, 50 more building chance) and the rampage that can leave ruins (with task 154). (5) The **city damage from spells** such as Magic Vortex (5 for each turn spent in the city). (6) The wizard whose fortress falls to a razed city: check the banishment and the summoning circle when the capital is razed (the original changes the owner first and then destroys the city, as here).

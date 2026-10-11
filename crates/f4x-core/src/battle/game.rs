@@ -7,7 +7,7 @@ use crate::units::Hurt;
 use crate::{Event, Game};
 
 use super::immunity::Realm;
-use super::map::{deployment, BattleMap};
+use super::map::{city_deployment, deployment, BattleMap};
 use super::{
     Battle, BattleCommand, BattleError, BattleEvent, BattleUnit, RangedKind, Side, Status,
 };
@@ -150,8 +150,15 @@ impl Game {
         }
         let mut units = Vec::new();
         let mut sources = Vec::new();
+        // A fight at a city is fought round its walls, if it has them.
+        let city = self.city_at(site);
+        let walled = city.is_some_and(|c| self.city_has_building(c, "city_walls"));
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
-            let cells = deployment(side == Side::Attacker, group.len());
+            let cells = if city.is_some() {
+                city_deployment(side == Side::Attacker, group.len(), walled)
+            } else {
+                deployment(side == Side::Attacker, group.len())
+            };
             for (&unit, cell) in group.iter().zip(cells) {
                 let index = sources.len();
                 let mut bu = self
@@ -164,7 +171,10 @@ impl Game {
         }
         let seed = self.next_u64();
         let mut map_rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed ^ 0xB477);
-        let map = BattleMap::generate(self.terrain_class_at(site), &mut map_rng);
+        let mut map = BattleMap::generate(self.terrain_class_at(site), &mut map_rng);
+        if city.is_some() {
+            map = map.with_city(walled);
+        }
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
         self.battle = Some(ActiveBattle {
@@ -311,7 +321,7 @@ impl Game {
         }
         if let Some(city) = self.city_at(pos) {
             if self.city_owner(city).is_some_and(|o| o != attacker) {
-                events.extend(self.capture_city(city, attacker));
+                events.extend(self.conquer_city(city, attacker, battle.city_damage));
             }
         }
         events

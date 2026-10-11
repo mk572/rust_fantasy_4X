@@ -7,6 +7,7 @@ pub mod battle;
 pub mod cast;
 pub mod cheat;
 pub mod city;
+pub mod conquest;
 pub mod content;
 pub mod corruption;
 pub mod dispel;
@@ -148,6 +149,11 @@ pub enum Command {
         city: hecs::Entity,
         building: rules::BuildingId,
     },
+    /// Raze a city just taken, instead of keeping it (until the end of the turn).
+    RazeCity {
+        player: city::PlayerId,
+        city: hecs::Entity,
+    },
     SetTaxRate {
         player: city::PlayerId,
         rate: u8,
@@ -254,6 +260,18 @@ pub enum Event {
     },
     CityDestroyed {
         pos: city::Position,
+    },
+    /// A city fell: what its taker looted, and the citizens and buildings the fighting cost it.
+    CityLooted {
+        city: hecs::Entity,
+        gold: i32,
+        citizens_lost: u32,
+        buildings_lost: u32,
+    },
+    /// The taker razed the city they had just won.
+    CityRazed {
+        player: city::PlayerId,
+        gold: i32,
     },
     VolcanoRaised {
         player: city::PlayerId,
@@ -424,6 +442,7 @@ pub enum Rejection {
     Road(roads::RoadError),
     Purify(corruption::PurifyError),
     BattleStart(battle::game::BattleStartError),
+    Raze(conquest::RazeError),
     Battle(battle::BattleError),
     /// The game has ended; nothing more can be done.
     GameOver,
@@ -653,6 +672,7 @@ impl Game {
                 Ok(_) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
+            Command::RazeCity { player, city } => self.raze_city(player, city),
             Command::SellBuilding { city, building } => match self.sell_building(city, building) {
                 Ok(_) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
@@ -871,12 +891,13 @@ impl Game {
             to,
         }];
         if let Some(city) = self.city_at(to) {
-            events.extend(self.capture_city(city, owner));
+            events.extend(self.conquer_city(city, owner, 0));
         }
         events
     }
 
     fn end_turn(&mut self) -> Vec<Event> {
+        self.close_raze_windows();
         let mut corruption = self.process_land_corruption();
         self.turn += 1;
         for unit in self.all_units() {

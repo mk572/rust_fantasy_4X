@@ -23,7 +23,7 @@ use crate::city::{PlayerId, Position};
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
 use immunity::{AttackNature, Immunities, Realm};
-use map::{distance, BattleMap, Pos, OPEN_COST};
+use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
 use special::{Gaze, SpecialAttacks};
 
 /// A side never fights on past this turn: the defender holds.
@@ -171,6 +171,15 @@ impl BattleUnit {
         self
     }
 
+    /// How the unit crosses the field: fliers, teleporters, the merging and the non-corporeal
+    /// pass through the walls of a city.
+    pub fn mover(&self) -> Mover {
+        Mover {
+            flying: self.flies,
+            through_walls: self.flies || self.moves_instantly() || self.has("non_corporeal"),
+        }
+    }
+
     /// Teleporting and merging units go to any free square for one move.
     pub fn moves_instantly(&self) -> bool {
         self.abilities
@@ -215,7 +224,7 @@ impl BattleUnit {
         }
     }
 
-    fn has(&self, ability: &str) -> bool {
+    pub fn has(&self, ability: &str) -> bool {
         self.abilities.iter().any(|a| a == ability)
     }
 
@@ -257,6 +266,10 @@ pub enum BattleCommand {
     Attack { unit: usize, target: usize },
     /// Fire at an enemy at a distance.
     Shoot { unit: usize, target: usize },
+    /// A wall crusher strikes a standing section of the city wall next to it.
+    AttackWall { unit: usize, cell: Pos },
+    /// A wall crusher fires at a standing section of the city wall.
+    ShootWall { unit: usize, cell: Pos },
     /// Give up the rest of the unit's turn.
     Done { unit: usize },
     /// End the side's turn.
@@ -280,6 +293,10 @@ pub enum BattleError {
     OutOfAmmo,
     /// Target on the same side, or dead.
     BadTarget,
+    /// No standing wall there.
+    NoWall,
+    /// Only the attackers' wall crushers attack walls.
+    NotWallCrusher,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -303,6 +320,12 @@ pub enum BattleEvent {
         defender: usize,
         dealt: i32,
         kills: u32,
+    },
+    /// A wall crusher struck a wall section, and it fell or did not.
+    WallAttacked {
+        unit: usize,
+        cell: Pos,
+        destroyed: bool,
     },
     UnitDied {
         unit: usize,
@@ -334,6 +357,10 @@ pub struct Battle {
     /// Each side's Counter Magic reserve, indexed by [`Side::index`]: spells the other side
     /// casts must first beat a dispel of this strength, and each attempt drains it.
     pub counter_magic: [u32; 2],
+    /// Damage to the city from the attackers inside it, one for each of their units there at
+    /// the start of each turn (`Add_City_Damage_From_Battle_Units_Within`); it kills citizens
+    /// and destroys buildings when the city falls.
+    pub city_damage: u32,
     rng: Pcg64Mcg,
 }
 
@@ -374,6 +401,7 @@ impl Battle {
             active: Side::Attacker,
             winner: None,
             counter_magic: [0, 0],
+            city_damage: 0,
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
         b.begin_side_turn();
@@ -414,7 +442,7 @@ impl Battle {
         }
         let occupied = |p: Pos| self.unit_at(p).is_some();
         self.map
-            .reachable(u.cell, u.moves_left, u.flies, &occupied)
+            .reachable_as(u.cell, u.moves_left, u.mover(), &occupied)
             .into_iter()
             .filter(|&(p, _)| p != u.cell)
             .map(|(p, (c, _))| (p, c))
@@ -430,7 +458,9 @@ impl Battle {
         for y in 0..crate::battle::map::GRID_H {
             for x in 0..crate::battle::map::GRID_W {
                 let p = (x, y);
-                let open = self.map.enter_cost(p, false).is_some();
+                // The towers at the corners of a city's wall are shut to everyone.
+                let open = self.map.enter_cost(p, false).is_some()
+                    && !(map::is_wall_corner(p) && self.map.has_wall(p));
                 if p != cell && open && self.unit_at(p).is_none() {
                     squares.insert(p, crate::battle::map::OPEN_COST);
                 }
@@ -448,6 +478,14 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
+        }
+        // A new turn begins with the attacker: each of its units inside the city hurts it.
+        if side == Side::Attacker && self.map.is_city() {
+            let inside = self
+                .active_units(Side::Attacker)
+                .filter(|u| in_city_area(u.cell))
+                .count() as u32;
+            self.city_damage += inside;
         }
     }
 
@@ -478,6 +516,84 @@ impl Battle {
             return Err(BattleError::NotYours);
         }
         Ok(u)
+    }
+
+    /// A unit that may strike the wall section at `cell`: one of the attackers' wall crushers
+    /// that has not attacked, with a standing wall there.
+    fn check_wall_attacker(&self, unit: usize, cell: Pos) -> Result<&BattleUnit, BattleError> {
+        let u = self.check_unit(unit)?;
+        if u.attacked {
+            return Err(BattleError::AlreadyAttacked);
+        }
+        if u.side != Side::Attacker || !u.has("wall_crusher") {
+            return Err(BattleError::NotWallCrusher);
+        }
+        if !self.map.has_wall(cell) {
+            return Err(BattleError::NoWall);
+        }
+        Ok(u)
+    }
+
+    /// A wall crusher strikes a wall section: it falls half the time to blows from next to it,
+    /// a quarter of the time to a ranged attack (which costs a shot).
+    fn attack_wall(&mut self, unit: usize, cell: Pos, ranged: bool) -> Vec<BattleEvent> {
+        let destroyed = self.roll_wall_falls(ranged);
+        if destroyed {
+            self.map.break_wall(cell);
+        }
+        let u = &mut self.units[unit];
+        u.attacked = true;
+        if ranged {
+            u.ammo -= 1;
+        } else {
+            u.moves_left = 0;
+        }
+        vec![BattleEvent::WallAttacked {
+            unit,
+            cell,
+            destroyed,
+        }]
+    }
+
+    fn roll_wall_falls(&mut self, ranged: bool) -> bool {
+        use rand::Rng;
+        let percent = if ranged { 25 } else { 50 };
+        self.rng.gen_range(1..=100) <= percent
+    }
+
+    /// The defence a unit being hit gains from the city's walls: against attacks from outside
+    /// the city area, +3 on a standing wall and +1 elsewhere in the city (the original's
+    /// `Battle_Unit_Process_Attack`). Only a city with walls gives it.
+    fn city_defense_bonus(&self, hit: usize, from: usize) -> i32 {
+        let (hit, from) = (&self.units[hit], &self.units[from]);
+        if !self.map.is_walled() || !in_city_area(hit.cell) || in_city_area(from.cell) {
+            return 0;
+        }
+        if self.map.has_wall(hit.cell) {
+            3
+        } else {
+            1
+        }
+    }
+
+    /// After an attack by a wall crusher on a unit standing on a wall section, the wall may
+    /// fall too.
+    fn crush_wall_under(&mut self, attacker: usize, target: usize) -> Vec<BattleEvent> {
+        let cell = self.units[target].cell;
+        let a = &self.units[attacker];
+        if a.side != Side::Attacker || !a.has("wall_crusher") || !self.map.has_wall(cell) {
+            return Vec::new();
+        }
+        let ranged = distance(a.cell, cell) > 1;
+        let destroyed = self.roll_wall_falls(ranged);
+        if destroyed {
+            self.map.break_wall(cell);
+        }
+        vec![BattleEvent::WallAttacked {
+            unit: attacker,
+            cell,
+            destroyed,
+        }]
     }
 
     fn check_target(&self, unit: usize, target: usize) -> Result<&BattleUnit, BattleError> {
@@ -515,7 +631,9 @@ impl Battle {
                     });
                 } else {
                     let occupied = |p: Pos| self.unit_at(p).is_some();
-                    let reach = self.map.reachable(u.cell, u.moves_left, u.flies, &occupied);
+                    let reach = self
+                        .map
+                        .reachable_as(u.cell, u.moves_left, u.mover(), &occupied);
                     let (cost, _) = *reach.get(&to).ok_or(BattleError::Unreachable)?;
                     // Walk the path back from the target.
                     let mut path = vec![to];
@@ -561,6 +679,25 @@ impl Battle {
                 }
                 self.check_target(unit, target)?;
                 events.extend(self.shoot(unit, target));
+            }
+            BattleCommand::AttackWall { unit, cell } => {
+                let u = self.check_wall_attacker(unit, cell)?;
+                if distance(u.cell, cell) != 1 {
+                    return Err(BattleError::NotAdjacent);
+                }
+                events.extend(self.attack_wall(unit, cell, false));
+            }
+            BattleCommand::ShootWall { unit, cell } => {
+                let u = self.check_wall_attacker(unit, cell)?;
+                if !matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
+                    || u.ranged <= 0
+                {
+                    return Err(BattleError::NoRangedAttack);
+                }
+                if u.ammo <= 0 {
+                    return Err(BattleError::OutOfAmmo);
+                }
+                events.extend(self.attack_wall(unit, cell, true));
             }
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
@@ -616,6 +753,8 @@ impl Battle {
         let reach_blocked = self.units[def].flies && !self.units[att].flies;
         let mut a = self.fighter(att, reach_blocked);
         let mut d = self.fighter(def, false);
+        a.state.defense += self.city_defense_bonus(att, def);
+        d.state.defense += self.city_defense_bonus(def, att);
         let rng: &mut dyn RngCore = &mut self.rng;
         let out = attack::melee_exchange(&mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
@@ -635,6 +774,7 @@ impl Battle {
                 events.push(BattleEvent::UnitDied { unit: id });
             }
         }
+        events.extend(self.crush_wall_under(att, def));
         events
     }
 
@@ -651,6 +791,7 @@ impl Battle {
         let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit - penalty);
         let figures = a.figures;
         let mut state = self.units[def].defender_state();
+        state.defense += self.city_defense_bonus(def, att);
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = attack::ranged_attack(&shooter, figures, &mut state, rng);
         self.units[def].set_from(&state);
@@ -671,6 +812,7 @@ impl Battle {
         if !self.units[def].is_active() {
             events.push(BattleEvent::UnitDied { unit: def });
         }
+        events.extend(self.crush_wall_under(att, def));
         events
     }
 }

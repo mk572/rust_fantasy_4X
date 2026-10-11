@@ -385,6 +385,9 @@ pub struct CitySave {
     /// Temporary modifiers.
     #[serde(default)]
     pub effects: Vec<TempSave>,
+    /// Taken this turn by this player, who may still raze it.
+    #[serde(default)]
+    pub conquered: Option<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -665,6 +668,11 @@ impl Game {
                     item: production.item.map(item_save),
                     progress: production.progress,
                     effects: effects_save(self, e),
+                    conquered: self
+                        .world
+                        .get::<&crate::conquest::Conquered>(e)
+                        .ok()
+                        .map(|c| c.0 .0),
                 })
             })
             .collect();
@@ -948,6 +956,11 @@ impl Snapshot {
                 let _ = game.world.insert_one(entity, CityRace(r));
             }
             effects_load(&mut game.world, entity, c.effects);
+            if let Some(p) = c.conquered {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::conquest::Conquered(PlayerId(p)));
+            }
         }
         for p in &game.players {
             for pos in [p.fortress, p.summon_at].into_iter().flatten() {

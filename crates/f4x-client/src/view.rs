@@ -81,6 +81,8 @@ pub struct App {
     pub(crate) menu: crate::menu_screen::MenuState,
     /// The text console's state (F2).
     pub(crate) console: crate::console_screen::ConsoleUi,
+    /// A city just taken, waiting for the player to keep or raze it.
+    pub(crate) raze_prompt: Option<hecs::Entity>,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -133,6 +135,7 @@ impl App {
             game_over_seen: false,
             menu: Default::default(),
             console: Default::default(),
+            raze_prompt: None,
         };
         app.start_game();
         Ok(app)
@@ -273,6 +276,26 @@ impl App {
                     None
                 }
                 Event::SiteCleared { loot, .. } => Some(loot_line(&loot)),
+                Event::CityLooted {
+                    city,
+                    gold,
+                    citizens_lost,
+                    buildings_lost,
+                } => {
+                    let mine = self.game.city_owner(city) == Some(HUMAN);
+                    if mine {
+                        self.raze_prompt = Some(city);
+                    }
+                    Some(format!(
+                        "{} {}: {gold} gold looted, {citizens_lost} citizens and {buildings_lost} buildings lost",
+                        self.city_name(city),
+                        if mine { "is yours" } else { "falls" },
+                    ))
+                }
+                Event::CityRazed { gold, .. } => {
+                    Some(format!("The city is razed: {gold} gold looted"))
+                }
+                Event::CityDestroyed { .. } => Some("A city is destroyed".to_string()),
                 Event::WizardBanished { player, .. } if player == HUMAN => Some(
                     "Your fortress has fallen! You are banished and cast the Spell of Return"
                         .to_string(),
@@ -606,6 +629,11 @@ impl App {
         if is_key_pressed(KeyCode::F2) {
             self.toggle_console();
         }
+        if let Some(city) = self.raze_prompt {
+            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+                return self.raze_prompt_frame(city);
+            }
+        }
         if self.game.game_over.is_some()
             && !self.game_over_seen
             && !self.game.in_battle()
@@ -639,6 +667,61 @@ impl App {
                 self.draw_bars();
             }
         }
+        true
+    }
+
+    /// The question after taking a city: keep it (Enter) or raze it (R), shown over the map.
+    fn raze_prompt_frame(&mut self, city: hecs::Entity) -> bool {
+        let gone = self.game.city_owner(city) != Some(HUMAN)
+            || self
+                .game
+                .world
+                .get::<&f4x_core::conquest::Conquered>(city)
+                .is_err();
+        if gone {
+            self.raze_prompt = None;
+            return true;
+        }
+        if is_key_pressed(KeyCode::R) {
+            self.raze_prompt = None;
+            let events = self.game.apply(Command::RazeCity {
+                player: HUMAN,
+                city,
+            });
+            self.note(events);
+        } else if is_key_pressed(KeyCode::Enter)
+            || is_key_pressed(KeyCode::N)
+            || is_key_pressed(KeyCode::Escape)
+        {
+            self.raze_prompt = None;
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let (w, h) = (screen_width(), screen_height());
+        draw_rectangle(
+            w / 2.0 - 260.0,
+            h / 2.0 - 60.0,
+            520.0,
+            120.0,
+            Color::new(0.08, 0.06, 0.04, 0.95),
+        );
+        draw_rectangle_lines(w / 2.0 - 260.0, h / 2.0 - 60.0, 520.0, 120.0, 3.0, GOLD);
+        let name = self.city_name(city);
+        crate::frame::text_centered(
+            &format!("{name} is yours. Do you wish to completely destroy this city?"),
+            w / 2.0,
+            h / 2.0 - 15.0,
+            22.0,
+            WHITE,
+        );
+        crate::frame::text_centered(
+            "R: raze it      Enter: keep it",
+            w / 2.0,
+            h / 2.0 + 30.0,
+            22.0,
+            GOLD,
+        );
         true
     }
 

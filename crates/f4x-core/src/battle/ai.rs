@@ -4,7 +4,7 @@
 //! holding positions belong to the real battle AI (task 46).
 
 use super::map::{distance, Pos};
-use super::{Battle, BattleCommand, BattleUnit, RangedKind};
+use super::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 
 /// The nearest active enemy (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -19,6 +19,60 @@ fn can_shoot(unit: &BattleUnit) -> bool {
         && unit.ammo > 0
 }
 
+/// The squares on the cheapest way from the unit to `to`, round the walls (by their gate, or a
+/// breach), ignoring other units, in order from the first step. Empty if there is no way.
+fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
+    let reach = battle
+        .map
+        .reachable_as(unit.cell, 10_000, unit.mover(), &|_| false);
+    let mut path = Vec::new();
+    let mut at = to;
+    while at != unit.cell {
+        let Some(&(_, from)) = reach.get(&at) else {
+            return Vec::new();
+        };
+        path.push(at);
+        at = from;
+    }
+    path.reverse();
+    path
+}
+
+/// A wall crusher of the attackers goes for the wall when the city has one: the standing wall
+/// section nearest the enemy it can get to, struck from next to it. `None` if it should fight as
+/// usual (no wall, a breach already, or an enemy within reach).
+fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<BattleCommand> {
+    if unit.side != Side::Attacker || !unit.has("wall_crusher") || unit.attacked {
+        return None;
+    }
+    let walls = battle.map.standing_walls();
+    if walls.is_empty() || battle.map.is_breached() || distance(unit.cell, enemy.cell) == 1 {
+        return None;
+    }
+    // Strike the nearest wall section from where the unit stands.
+    if let Some(&cell) = walls
+        .iter()
+        .filter(|&&w| distance(unit.cell, w) == 1)
+        .min_by_key(|&&w| (distance(w, enemy.cell), w))
+    {
+        return Some(BattleCommand::AttackWall {
+            unit: unit.id,
+            cell,
+        });
+    }
+    // Otherwise walk next to the wall section closest to the enemy.
+    let target = *walls
+        .iter()
+        .min_by_key(|&&w| (distance(w, enemy.cell), w))?;
+    let to = battle
+        .reachable(unit.id)
+        .into_iter()
+        .filter(|&(p, _)| distance(p, target) == 1)
+        .min_by_key(|&(p, cost)| (distance(p, enemy.cell), cost, p))
+        .map(|(p, _)| p)?;
+    (unit.moves_left > 0).then_some(BattleCommand::Move { unit: unit.id, to })
+}
+
 /// The next order for the side whose turn it is. Every order either spends something of a
 /// unit's turn or ends the side's turn, so repeating it until the side changes terminates.
 pub fn next_command(battle: &Battle) -> BattleCommand {
@@ -30,6 +84,9 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         let Some(enemy) = closest_enemy(battle, unit) else {
             return BattleCommand::EndTurn;
         };
+        if let Some(order) = wall_order(battle, unit, enemy) {
+            return order;
+        }
         if !unit.attacked {
             if distance(unit.cell, enemy.cell) == 1 {
                 return BattleCommand::Attack {
@@ -44,15 +101,28 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                 };
             }
         }
-        // Walk to the reachable square closest to the enemy, if that is closer than here.
-        let here = distance(unit.cell, enemy.cell);
-        let best: Option<(Pos, u32)> = battle
-            .reachable(unit.id)
-            .into_iter()
-            .min_by_key(|&(p, cost)| (distance(p, enemy.cell), cost, p));
-        if let Some((to, _)) = best {
-            if unit.moves_left > 0 && distance(to, enemy.cell) < here {
-                return BattleCommand::Move { unit: unit.id, to };
+        // Walk as far towards the enemy as the unit's moves go. Where a wall is in the way, "towards"
+        // is along the way round it, not as the crow flies.
+        if unit.moves_left > 0 {
+            if battle.map.is_walled() {
+                let reach = battle.reachable(unit.id);
+                let furthest = route(battle, unit, enemy.cell)
+                    .into_iter()
+                    .rfind(|p| reach.contains_key(p));
+                if let Some(to) = furthest {
+                    return BattleCommand::Move { unit: unit.id, to };
+                }
+            } else {
+                let here = distance(unit.cell, enemy.cell);
+                let best: Option<(Pos, u32)> = battle
+                    .reachable(unit.id)
+                    .into_iter()
+                    .min_by_key(|&(p, cost)| (distance(p, enemy.cell), cost, p));
+                if let Some((to, _)) = best {
+                    if distance(to, enemy.cell) < here {
+                        return BattleCommand::Move { unit: unit.id, to };
+                    }
+                }
             }
         }
         return BattleCommand::Done { unit: unit.id };

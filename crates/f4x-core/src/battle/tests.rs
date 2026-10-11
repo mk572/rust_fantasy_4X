@@ -1052,3 +1052,261 @@ fn a_life_stealing_shot_heals_the_shooter() {
     }
     assert!(healed > 0);
 }
+
+fn crusher(side: Side, cell: Pos, ranged: bool) -> BattleUnit {
+    let mut u = with_abilities(
+        BattleUnit::simple(side, "giant", 1, 20, 8, 3).at(cell),
+        &["wall_crusher"],
+    );
+    if ranged {
+        u.ranged = 6;
+        u.ammo = 4;
+        u.ranged_kind = RangedKind::Missile;
+        u.abilities.push("rock_throwing".into());
+    }
+    u
+}
+
+fn siege(units: Vec<BattleUnit>, walled: bool, seed: u64) -> Battle {
+    Battle::new(A, D, BattleMap::open().with_city(walled), units, seed)
+}
+
+fn guard(cell: Pos) -> BattleUnit {
+    BattleUnit::simple(Side::Defender, "guard", 4, 3, 3, 3).at(cell)
+}
+
+#[test]
+fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() {
+    let mut fell = 0;
+    for seed in 0..400 {
+        let mut b = siege(
+            vec![crusher(Side::Attacker, (11, 11), false), guard((14, 11))],
+            true,
+            seed,
+        );
+        let events = b
+            .apply(BattleCommand::AttackWall {
+                unit: 0,
+                cell: (12, 11),
+            })
+            .unwrap();
+        let BattleEvent::WallAttacked { destroyed, .. } = events[0] else {
+            panic!("{events:?}")
+        };
+        assert_eq!(destroyed, !b.map.has_wall((12, 11)));
+        fell += i32::from(destroyed);
+        // The blow takes the unit's turn.
+        assert!(b.unit(0).unwrap().attacked);
+        assert_eq!(b.unit(0).unwrap().moves_left, 0);
+    }
+    assert!((150..250).contains(&fell), "{fell}");
+}
+
+#[test]
+fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() {
+    let mut fell = 0;
+    for seed in 0..400 {
+        let mut b = siege(
+            vec![crusher(Side::Attacker, (8, 11), true), guard((14, 11))],
+            true,
+            seed,
+        );
+        b.apply(BattleCommand::ShootWall {
+            unit: 0,
+            cell: (12, 11),
+        })
+        .unwrap();
+        assert_eq!(b.unit(0).unwrap().ammo, 3);
+        fell += i32::from(!b.map.has_wall((12, 11)));
+    }
+    assert!((60..140).contains(&fell), "{fell}");
+}
+
+#[test]
+fn only_attacking_wall_crushers_may_strike_a_standing_wall() {
+    let mut b = siege(
+        vec![
+            BattleUnit::simple(Side::Attacker, "spearman", 3, 2, 3, 2).at((11, 11)),
+            crusher(Side::Attacker, (11, 13), false),
+            guard((14, 11)),
+        ],
+        true,
+        1,
+    );
+    let cell = (12, 11);
+    assert_eq!(
+        b.apply(BattleCommand::AttackWall { unit: 0, cell }),
+        Err(BattleError::NotWallCrusher)
+    );
+    // Not next to the wall, and no wall there.
+    assert_eq!(
+        b.apply(BattleCommand::AttackWall {
+            unit: 1,
+            cell: (12, 10)
+        }),
+        Err(BattleError::NotAdjacent)
+    );
+    assert_eq!(
+        b.apply(BattleCommand::AttackWall {
+            unit: 1,
+            cell: (11, 12)
+        }),
+        Err(BattleError::NoWall)
+    );
+    assert_eq!(
+        b.apply(BattleCommand::ShootWall {
+            unit: 1,
+            cell: (12, 12)
+        }),
+        Err(BattleError::NoRangedAttack)
+    );
+    // Once the defenders' turn comes, a defending crusher is no wall breaker.
+    b.apply(BattleCommand::EndTurn).unwrap();
+    let mut b2 = siege(
+        vec![
+            BattleUnit::simple(Side::Attacker, "x", 1, 1, 1, 1).at((3, 3)),
+            crusher(Side::Defender, (13, 11), false),
+        ],
+        true,
+        1,
+    );
+    b2.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(
+        b2.apply(BattleCommand::AttackWall {
+            unit: 1,
+            cell: (12, 11)
+        }),
+        Err(BattleError::NotWallCrusher)
+    );
+    // And a city without walls has none to strike.
+    let mut open = siege(
+        vec![crusher(Side::Attacker, (11, 11), false), guard((14, 11))],
+        false,
+        1,
+    );
+    assert_eq!(
+        open.apply(BattleCommand::AttackWall {
+            unit: 0,
+            cell: (12, 11)
+        }),
+        Err(BattleError::NoWall)
+    );
+}
+
+#[test]
+fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() {
+    let mut fell = 0;
+    for seed in 0..300 {
+        let mut b = siege(
+            vec![crusher(Side::Attacker, (11, 11), false), guard((12, 11))],
+            true,
+            seed,
+        );
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+            .unwrap();
+        fell += i32::from(!b.map.has_wall((12, 11)));
+    }
+    assert!((110..190).contains(&fell), "{fell}");
+}
+
+#[test]
+fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside() {
+    // How many hit points a target loses over many fights, with its defense of 0.
+    let lost = |target: Pos, walled: bool, from_inside: bool| {
+        let mut total = 0;
+        for seed in 0..300 {
+            let from = if from_inside {
+                (13, 11)
+            } else {
+                (11, target.1)
+            };
+            let attacker = BattleUnit::simple(Side::Attacker, "a", 6, 2, 4, 0).at(from);
+            let mut target_unit = BattleUnit::simple(Side::Defender, "d", 60, 30, 0, 0).at(target);
+            target_unit.defense = 2;
+            let mut b = siege(vec![attacker, target_unit], walled, seed);
+            if from_inside {
+                // Put the attacker beside the target and let it strike.
+                b.units[0].cell = (14, 11);
+            }
+            let _ = b.apply(BattleCommand::Attack { unit: 0, target: 1 });
+            total += b.unit(1).unwrap().max_hit_points() - b.unit(1).unwrap().hit_points();
+        }
+        total
+    };
+    let bare = lost((13, 11), false, false);
+    let behind = lost((13, 11), true, false);
+    // The target is on a wall square: (12, 11) is a ring square; the attacker is next to it.
+    let on_wall = lost((12, 11), true, false);
+    let on_open_ring = lost((12, 11), false, false);
+    // Against an attacker already inside the city area, the walls give nothing.
+    let inside_attacker = lost((13, 11), true, true);
+    // (13, 11) is two squares from (11, 11), so the first run never reached it: compare the
+    // ring squares, where the attacker is adjacent, and the inside ones fought from inside.
+    assert!(
+        on_wall * 3 < on_open_ring * 2,
+        "{on_wall} vs {on_open_ring}"
+    );
+    assert!(
+        bare == 0 && behind == 0,
+        "an attacker two squares away cannot strike"
+    );
+    assert!(inside_attacker > 0);
+}
+
+#[test]
+fn attackers_inside_the_city_hurt_it_each_turn() {
+    let mut b = siege(
+        vec![
+            BattleUnit::simple(Side::Attacker, "in", 2, 2, 2, 2).at((13, 11)),
+            BattleUnit::simple(Side::Attacker, "out", 2, 2, 2, 2).at((9, 11)),
+            guard((15, 11)),
+        ],
+        true,
+        1,
+    );
+    // The first turn counts the attacker that starts inside.
+    assert_eq!(b.city_damage, 1);
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(b.city_damage, 1, "the defenders' turn adds nothing");
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(b.city_damage, 2);
+    // A battle in the open has no city to hurt.
+    let b = duel(
+        spearman(Side::Attacker, (13, 11)),
+        spearman(Side::Defender, (15, 11)),
+        1,
+    );
+    assert_eq!(b.city_damage, 0);
+}
+
+#[test]
+fn the_battle_ai_takes_a_walled_city() {
+    // Attackers with a crusher against a few guards behind the wall: the fight ends, and the
+    // crusher has opened the walls or the army has come through the gate.
+    let mut results = (0, 0);
+    for seed in 0..12 {
+        let attackers = [
+            crusher(Side::Attacker, (6, 12), false),
+            BattleUnit::simple(Side::Attacker, "a1", 4, 4, 4, 3).at((6, 11)),
+            BattleUnit::simple(Side::Attacker, "a2", 4, 4, 4, 3).at((6, 13)),
+            BattleUnit::simple(Side::Attacker, "a3", 4, 4, 4, 3).at((5, 12)),
+        ];
+        let defenders = [guard(GATE_SPOT), guard((13, 11)), guard((13, 12))];
+        let mut b = siege(attackers.into_iter().chain(defenders).collect(), true, seed);
+        for _ in 0..5_000 {
+            if b.winner.is_some() {
+                break;
+            }
+            let c = ai::next_command(&b);
+            b.apply(c).unwrap();
+        }
+        assert!(b.winner.is_some(), "seed {seed} never ended");
+        match b.winner {
+            Some(Side::Attacker) => results.0 += 1,
+            _ => results.1 += 1,
+        }
+    }
+    assert!(results.0 > 0, "the attackers never get in: {results:?}");
+}
+
+const GATE_SPOT: Pos = (12, 12);

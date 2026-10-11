@@ -248,6 +248,12 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             f4x_core::battle::BattleCommand::Shoot { unit, target } => {
                 format!("bshoot {unit} {target}")
             }
+            f4x_core::battle::BattleCommand::AttackWall { unit, cell } => {
+                format!("bwall {unit} {},{}", cell.0, cell.1)
+            }
+            f4x_core::battle::BattleCommand::ShootWall { unit, cell } => {
+                format!("bshootwall {unit} {},{}", cell.0, cell.1)
+            }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
             f4x_core::battle::BattleCommand::Flee => "bflee".into(),
@@ -873,4 +879,317 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() {
     let (_, s, _) = special("Wraiths");
     assert!(s.life_steal);
     assert_eq!(s.penalty, 3);
+}
+
+/// A two-wizard game, the rival's capital with `citizens` citizens and the buildings given.
+fn siege_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
+    let g = game();
+    let city = capital(&g, PlayerId(1)).0;
+    g.world
+        .get::<&mut f4x_core::economy::Population>(city)
+        .unwrap()
+        .figures = citizens;
+    let ids: Vec<_> = extra
+        .iter()
+        .map(|b| g.content.rules.buildings.id_of(b).unwrap())
+        .collect();
+    g.world
+        .get::<&mut f4x_core::economy::Buildings>(city)
+        .unwrap()
+        .0
+        .extend(ids);
+    (g, city)
+}
+
+/// A game with an independent city of `citizens` citizens and the given buildings (the
+/// rival's capital is the last city of a wizard, whose fall ends the game).
+fn neutral_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
+    let g = game();
+    let city = neutral_cities(&g)[0].0;
+    g.world
+        .get::<&mut f4x_core::economy::Population>(city)
+        .unwrap()
+        .figures = citizens;
+    let ids: Vec<_> = extra
+        .iter()
+        .map(|b| g.content.rules.buildings.id_of(b).unwrap())
+        .collect();
+    g.world
+        .get::<&mut f4x_core::economy::Buildings>(city)
+        .unwrap()
+        .0
+        .extend(ids);
+    (g, city)
+}
+
+/// Put the human wizard's two units on the square next to the city and start the battle.
+fn start_siege(g: &mut Game, city: hecs::Entity) {
+    let at = *g.world.get::<&f4x_core::city::Position>(city).unwrap();
+    let from = f4x_core::city::Position { x: at.x + 1, ..at };
+    for u in g.player_units(HUMAN) {
+        let _ = g.world.insert_one(u, from);
+    }
+    let events = g.apply(f4x_core::Command::BeginBattle {
+        attackers: g.player_units(HUMAN),
+        defenders: g.units_at(at),
+    });
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, f4x_core::Event::Rejected(_))),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn a_battle_at_a_walled_city_is_fought_round_its_walls() {
+    use f4x_core::battle::map::{in_city_area, GATE};
+    let (mut g, city) = siege_world(6, &["city_walls"]);
+    start_siege(&mut g, city);
+    let b = g.battle().unwrap();
+    assert!(b.map.is_walled());
+    assert_eq!(b.map.standing_walls().len(), 12);
+    for u in &b.units {
+        let inside = in_city_area(u.cell);
+        assert_eq!(inside, u.side == f4x_core::battle::Side::Defender, "{u:?}");
+    }
+    assert_eq!(
+        b.units.iter().find(|u| u.cell == GATE).map(|u| u.side),
+        Some(f4x_core::battle::Side::Defender),
+        "a defender holds the gate"
+    );
+    // The same city without walls: a city battle, but nothing to climb.
+    let (mut g, city) = siege_world(6, &[]);
+    start_siege(&mut g, city);
+    let b = g.battle().unwrap();
+    assert!(b.map.is_city() && !b.map.is_walled());
+}
+
+#[test]
+fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
+    let (mut g, city) = siege_world(12, &["marketplace", "library"]);
+    let loser = PlayerId(1);
+    for (p, gold, fame) in [(HUMAN, 10, 0), (loser, 200, 5)] {
+        let p = g.player_mut(p).unwrap();
+        p.gold = gold;
+        p.fame = fame;
+    }
+    // The rival's other cities share the gold out by citizens: the capital is all of theirs.
+    let total: u32 = g
+        .cities()
+        .iter()
+        .filter(|(_, c, _)| c.owner == loser)
+        .map(|(e, ..)| {
+            g.world
+                .get::<&f4x_core::economy::Population>(*e)
+                .unwrap()
+                .figures
+        })
+        .sum();
+    assert_eq!(total, 12);
+    assert_eq!(g.conquest_loot(city), 200);
+    let events = g.conquer_city(city, HUMAN, 40);
+    let looted = events
+        .iter()
+        .find_map(|e| match e {
+            f4x_core::Event::CityLooted {
+                gold,
+                citizens_lost,
+                buildings_lost,
+                ..
+            } => Some((*gold, *citizens_lost, *buildings_lost)),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(looted.0, 200);
+    assert_eq!(g.player(HUMAN).unwrap().gold, 210);
+    assert_eq!(g.player(loser).unwrap().gold, 0);
+    // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
+    // wizard's fortress is worth 5 more.
+    assert_eq!(g.player(loser).unwrap().fame, 2);
+    assert_eq!(g.player(HUMAN).unwrap().fame, 6);
+    // It is the taker's, with 50 percent as the most citizens lost and the rest alive.
+    assert_eq!(g.city_owner(city), Some(HUMAN));
+    let now = g
+        .world
+        .get::<&f4x_core::economy::Population>(city)
+        .unwrap()
+        .figures;
+    assert_eq!(now, 12 - looted.1);
+    assert!(now >= 1);
+    assert!(g.world.get::<&f4x_core::conquest::Conquered>(city).is_ok());
+}
+
+#[test]
+fn more_city_damage_means_more_lost_citizens_and_buildings() {
+    let lost = |damage| {
+        let mut citizens = 0;
+        let mut buildings = 0;
+        for seed in 0..10u64 {
+            let (mut g, city) = siege_world(
+                17,
+                &[
+                    "marketplace",
+                    "library",
+                    "granary",
+                    "shrine",
+                    "sawmill",
+                    "temple",
+                ],
+            );
+            // Windows of the generator that do not overlap, so the samples are independent.
+            for _ in 0..seed * 50 {
+                g.next_u64();
+            }
+            let before = g
+                .world
+                .get::<&f4x_core::economy::Buildings>(city)
+                .unwrap()
+                .0
+                .len();
+            let events = g.conquer_city(city, HUMAN, damage);
+            for e in events {
+                if let f4x_core::Event::CityLooted {
+                    citizens_lost,
+                    buildings_lost,
+                    ..
+                } = e
+                {
+                    citizens += citizens_lost;
+                    buildings += buildings_lost;
+                    assert!(buildings_lost as usize <= before);
+                }
+            }
+        }
+        (citizens, buildings)
+    };
+    let (c0, b0) = lost(0);
+    let (c40, b40) = lost(40);
+    assert!(c40 > c0 * 2, "{c40} vs {c0}");
+    assert!(b40 > b0 * 2, "{b40} vs {b0}");
+    // Never more than half the citizens (and one stays) or three quarters of the buildings.
+    let (cmax, bmax) = lost(400);
+    assert!(cmax <= 10 * 16 / 2 + 40, "{cmax}");
+    assert!(bmax <= 10 * 6, "{bmax}");
+}
+
+#[test]
+fn an_outpost_is_destroyed_when_taken() {
+    let (mut g, city) = neutral_world(0, &[]);
+    let events = g.conquer_city(city, HUMAN, 0);
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, f4x_core::Event::CityDestroyed { .. })));
+    assert!(g.world.get::<&f4x_core::city::City>(city).is_err());
+}
+
+#[test]
+fn a_taken_city_can_be_razed_until_the_turn_ends() {
+    let (mut g, city) = neutral_world(12, &["marketplace", "library"]);
+    g.player_mut(HUMAN).unwrap().fame = 10;
+    g.player_mut(HUMAN).unwrap().gold = 0;
+    g.conquer_city(city, HUMAN, 0);
+    let fame_after_taking = g.player(HUMAN).unwrap().fame;
+    let gold_after_taking = g.player(HUMAN).unwrap().gold;
+    // Only the taker may raze it.
+    let events = g.apply(f4x_core::Command::RazeCity {
+        player: PlayerId(2),
+        city,
+    });
+    assert!(
+        matches!(events[..], [f4x_core::Event::Rejected(_)]),
+        "{events:?}"
+    );
+    // The taker razes it: size 3 costs 4 more fame, and a tenth of each building's cost is looted.
+    let events = g.apply(f4x_core::Command::RazeCity {
+        player: HUMAN,
+        city,
+    });
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, f4x_core::Event::CityRazed { .. })),
+        "{events:?}"
+    );
+    assert!(g.world.get::<&f4x_core::city::City>(city).is_err());
+    assert_eq!(
+        g.player(HUMAN).unwrap().fame,
+        (fame_after_taking - 4).max(0)
+    );
+    assert!(g.player(HUMAN).unwrap().gold > gold_after_taking);
+
+    // Wait a turn and the window is shut.
+    let (mut g, city) = neutral_world(12, &[]);
+    g.conquer_city(city, HUMAN, 0);
+    let snap = g.snapshot();
+    let mut back = snap.restore(g.content.clone()).unwrap();
+    let again = conquered_city(&back);
+    assert!(
+        back.world
+            .get::<&f4x_core::conquest::Conquered>(again)
+            .is_ok(),
+        "the chance to raze survives a save"
+    );
+    back.apply(f4x_core::Command::EndTurn);
+    let events = back.apply(f4x_core::Command::RazeCity {
+        player: HUMAN,
+        city: again,
+    });
+    assert!(
+        matches!(events[..], [f4x_core::Event::Rejected(_)]),
+        "{events:?}"
+    );
+    assert!(back.world.get::<&f4x_core::city::City>(again).is_ok());
+}
+
+/// The one city marked as just taken (found again after a save: entities change).
+fn conquered_city(g: &Game) -> hecs::Entity {
+    g.world
+        .query::<&f4x_core::conquest::Conquered>()
+        .iter()
+        .next()
+        .map(|(e, _)| e)
+        .unwrap()
+}
+
+#[test]
+fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
+    let (mut taken, mut held) = (0, 0);
+    for seed in 0..4u64 {
+        let (mut g, city) = neutral_world(8, &["city_walls", "barracks"]);
+        for _ in 0..seed * 50 {
+            g.next_u64();
+        }
+        let at = *g.world.get::<&f4x_core::city::Position>(city).unwrap();
+        let from = f4x_core::city::Position { x: at.x + 1, ..at };
+        let giant = g.content.rules.units.id_of("storm_giant").unwrap();
+        for _ in 0..3 {
+            g.apply(f4x_core::Command::CreateUnit {
+                owner: HUMAN,
+                pos: from,
+                unit: giant,
+            });
+        }
+        for u in g.player_units(HUMAN) {
+            let _ = g.world.insert_one(u, from);
+        }
+        let garrison = g.units_at(at);
+        let events = g.auto_resolve(&g.player_units(HUMAN), &garrison);
+        assert!(!g.in_battle(), "the siege ended");
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, f4x_core::Event::BattleEnded { .. })),
+            "{events:?}"
+        );
+        if g.city_owner(city) == Some(HUMAN) {
+            taken += 1;
+            assert!(events
+                .iter()
+                .any(|e| matches!(e, f4x_core::Event::CityLooted { .. })));
+        } else {
+            held += 1;
+        }
+    }
+    assert!(taken + held == 4);
 }
