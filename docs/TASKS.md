@@ -122,6 +122,14 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI |
 | 137 | Client | Teleport and merge animation in the battle screen |
+| 138 | Client | Army list screen |
+| 139 | Client | City list screen |
+| 140 | Client | Unit statistics window and the enemy stack list |
+| 141 | Client | Outpost screen, enemy city screen and the naming boxes |
+| 142 | Client | Item screen and the item pop-up |
+| 143 | Client | Offer, hire and event pop-ups |
+| 144 | Client | Turn summary and message pop-ups |
+| 145 | Client | Save and load screen with slots |
 
 ## Descriptions
 
@@ -592,3 +600,19 @@ reinforce threatened cities and to cross planes.
 `Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
 the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
 and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds.
+
+**138. Army list screen.** The original's `ArmyList_Screen`: every stack of the wizard with its units and orders; opens a unit's details (140) and the Item screen (142). Reached from the Army button of the main screen. See [`screen_list.md`](screen_list.md).
+
+**139. City list screen.** `CityList_Screen`: all cities in a table (size, gold, production, what is being built) with a small map; opens the city screen or the production menu. The Cities button of the main screen.
+
+**140. Unit statistics window and the enemy stack list.** `Unit_Statistics_Popup` (the sheet of one unit: attributes with their bonuses, abilities, enchantments, level, items, Dismiss) opened by right-clicking a unit in the stack panel, the Army list, the city garrison, the Item screen and in combat; and `Unit_List_Window`, the read-only list of another wizard's stack. The battle screen's text panel is a stopgap.
+
+**141. Outpost screen, enemy city screen and the naming boxes.** `Outpost_Screen` (a small city sheet for an outpost; also names a newly founded one), `Enemy_City_Screen` (what is known about another wizard's city) and the rename boxes for the capital (first turn) and new outposts.
+
+**142. Item screen and the item pop-up.** `Item_Screen` (move magic items between hero slots and the wizard's vault, destroy one) and `Item_View_Popup`. Needs the item rules of tasks 49 and 50.
+
+**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame).
+
+**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food (see task 32). Today events go to a log list.
+
+**145. Save and load screen with slots.** The original's Load / Save screen: slot list, Load, Save, Settings, Quit and OK; reached from a Game button on the main screen and the start menu (86). Today only a quick-save (F5) and quick-load (F9) exist.
