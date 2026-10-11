@@ -386,6 +386,85 @@ Battles have limited information and a modest branching factor, so an **AlphaZer
 (policy network guiding a tree search over `Snapshot`s, with the dice as chance nodes) may beat
 plain PPO late. Plan it only after PPO has set a baseline.
 
+### 7.7 As built (tasks 170 and 171)
+
+What `f4x-learn` does today (the numbers are in section 7.8):
+
+- **Decisions.** A battle is played as unit decisions and wizard decisions (`act.rs`). The unit
+  that decides is the one the *scripted AI would move next*; the agent chooses what it does from
+  1451 orders (a square, a target by token, a wall section, done), all masked by
+  `Battle::legal_commands`. The wizard decides once a turn: nothing, flee, or a spell with its
+  aim and its mana (least or most). The turn ends by itself when the scripted AI has nothing
+  left to move. Choosing *which* unit goes, and casting later in the turn, are left for a later
+  version (a pointer over the units).
+- **Network** (`net.rs`, Burn, about a million parameters): a trunk reads the field picture
+  (six channels), up to 32 unit tokens (the unit's numbers and a multi-hot of its abilities),
+  up to 24 spell tokens and 17 globals into a context vector; heads give the unit's order
+  (squares by a linear layer, targets by a pointer over the tokens), the wizard's choice, a
+  spell's aim (none, a unit, a square) and mana, and a value. Fleeing has a head of its own:
+  its logit rises with how much fleeing now would score above what the critic expects of
+  fighting on (a learned gain), since that comparison is what the choice is about.
+- **Advice.** The scripted AI's order for the unit is shown as a bonus to the logit of that
+  order, scaled by a learned gain, in half the training battles (`--no-advice` for the control
+  run). A short behaviour-cloning pass on the scripted AI's orders starts the network.
+- **Training** (`train.rs`, `examples/train_battle.rs`): PPO with generalised advantage
+  estimation, 16 battles at a time with one batched forward pass. Self-play (the same network
+  on both sides, both learn) and play against the scripted AI. Random briefs (stakes, mana
+  budget, whether it may flee) from task 171. The wizard's choice mixes in 10% of random
+  allowed options so fleeing and casting stay tried; the mixture is the policy that is trained.
+- **Scenarios** (`scenario.rs`, `bank.rs`): the bank holds 1200 generated scenarios whose odds
+  were *measured* by letting the scripted AI play each four times (`make_bank`), since a
+  strength estimate from the units' numbers did not predict who wins. A tenth is held out for
+  evaluation.
+- **Reward** (`reward.rs`): section 7.4, plus a mana term of at most 0.05 for the share of the
+  budget spent.
+- **In the game** (`brain.rs`): `LearnedBrain` plays a wizard's battles through the core's
+  `BattleBrain` hook (`Game::set_battle_brain`; auto-resolve and the battle screen's AI side
+  ask `Game::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with
+  `--features learned`) lets the AI wizards fight with a checkpoint; without one nothing changes.
+  `Game::set_battle_mana_budget` limits a wizard's mana in the battle in progress, in the
+  mask and in the casting rules (`BattleCaster::budget`).
+
+### 7.8 Results of the first runs (12 October 2026)
+
+All numbers are the agent as the attacker against the scripted AI on 300 battles of held-out
+scenarios (100 of each odds class, with new dice), after 20 to 40 PPO iterations of 192 battles
+(15 to 30 minutes on 4 threads of the M4, at background priority). The reward is the one of
+7.4 with stakes 0.5; a win is 1 at best.
+
+| Player | Won | Reward | Even fights won | Overwhelmed (reward) |
+|---|---|---|---|---|
+| The scripted AI as the attacker | 147 / 300 | -0.03 | 52 / 100 | 0 / 100 (-0.97) |
+| Random orders (the unit's turn is still the scripted order of units) | 168 / 300 | 0.04 | 68 / 100 | 3 / 100 (-0.92) |
+| Trained, advice and warm start (run 4, 20 iterations) | 162 / 300 | 0.11 | 68 / 100 | 2 / 100 (-0.79) |
+| Trained, no advice and no warm start (control, 25 iterations) | 170 / 300 | 0.12 | 75 / 100 | 2 / 100 (-0.86) |
+
+What this says, without dressing it up:
+
+- The learned agent scores clearly above the scripted AI (about +0.14 reward, +16 to +23 points in
+  even fights; a difference of two to three standard errors) after about twenty minutes of
+  training, and it plays through the core's hook in a whole game (`soak --battle-ai`).
+- It is **not clearly better than random orders** in this setup: the scripted opponent walks
+  at the nearest enemy and attacks, which already loses to a player that does something
+  different. The yardstick is weak, so "beats the scripted AI" is a low bar. Section 10
+  therefore asks for stronger yardsticks next (past checkpoints, a league, and Elo),
+  not only more iterations.
+- **The advice and the warm start did not help**: the control run, which starts from nothing and
+  is never shown the scripted AI's order, reached the same level as fast or faster (reward 0.09
+  after 5 iterations against 0.11 after 5 with the warm start, and equal later; the evaluations
+  differ by less than their noise of about 0.07). The scripted AI still chooses *which unit
+  moves next* in both, so the control is not wholly free of it. With a stronger teacher the
+  answer may differ; with this one the cheaper reading is that there is little to learn from it.
+- **Fleeing** was not found by plain PPO (the first run fled once in 1200 first turns, though
+  fleeing at once is worth +0.36 in an overwhelmed fight). Two fixes helped a little: the 10%
+  mix of random wizard options, and a head for fleeing whose logit follows what fleeing scores
+  above the critic's expectation of fighting on (a learned gain, started high). Overwhelmed
+  fights now average -0.8 instead of -0.94 and the agent flees in about 8% of its first turns,
+  but it also flees now and then in fights it would win (overwhelming fights 91 of 100 won
+  against 95). This is the next thing to work on.
+- Evaluations jump by about 0.07 between checkpoints a few iterations apart, so a checkpoint
+  is chosen by its score on the held-out set, not taken as the last one.
+
 ## 8. Training both: how the stages combine
 
 1. Train the battle AI alone on generated fights (section 7) until it beats the plain

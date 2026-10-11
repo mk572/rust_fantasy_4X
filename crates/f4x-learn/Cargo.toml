@@ -15,9 +15,19 @@ ron.workspace = true
 burn = { version = "0.22", optional = true, default-features = false, features = ["std", "optim", "flex", "simd", "rayon", "metal", "fusion", "autotune"] }
 
 [features]
-# The framework spike of task 169 (`examples/spike.rs`); the environment itself needs no framework.
-spike = ["dep:burn"]
+# The networks and training need the Burn framework; the environment itself does not.
+# `spike` is the framework spike of task 169 (`examples/spike.rs`).
+train = ["dep:burn"]
+spike = ["train"]
 
 [[example]]
 name = "spike"
 required-features = ["spike"]
+
+[[example]]
+name = "train_battle"
+required-features = ["train"]
+
+[[example]]
+name = "probe"
+required-features = ["train"]

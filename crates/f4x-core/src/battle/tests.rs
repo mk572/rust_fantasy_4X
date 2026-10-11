@@ -1347,6 +1347,35 @@ mod casting {
     }
 
     #[test]
+    fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() {
+        let mut near = BattleCaster::new(20, 100, 10);
+        assert_eq!(near.affordable(), 20);
+        near.budget = Some(8);
+        assert_eq!(near.affordable(), 8);
+        // Two mana for each point of skill: a budget of 8 pays for 4.
+        let mut far = BattleCaster::new(20, 100, 20);
+        far.budget = Some(8);
+        assert_eq!(far.affordable(), 4);
+        // Casting spends it.
+        let mut b = duel(
+            spearman(Side::Attacker, (3, 10)),
+            spearman(Side::Defender, (17, 10)),
+            1,
+        );
+        b.set_caster(Side::Attacker, BattleCaster::new(20, 100, 10));
+        b.set_mana_budget(Side::Attacker, Some(8));
+        assert_eq!(b.pay_for_spell(5), 5);
+        let c = b.caster(Side::Attacker).unwrap();
+        assert_eq!((c.budget, c.mana, c.skill_left), (Some(3), 95, 15));
+        assert_eq!(c.affordable(), 3);
+        // A side without a wizard has nothing to limit; no budget means no limit.
+        b.set_mana_budget(Side::Defender, Some(1));
+        assert!(b.caster(Side::Defender).is_none());
+        b.set_mana_budget(Side::Attacker, None);
+        assert_eq!(b.caster(Side::Attacker).unwrap().affordable(), 15);
+    }
+
+    #[test]
     fn what_a_wizard_can_afford_is_the_lesser_of_skill_and_what_the_reserve_pays_for() {
         let near = BattleCaster::new(20, 100, 10);
         assert_eq!(near.affordable(), 20);
@@ -2206,4 +2235,47 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
         assert!(!living.has(a), "{a}");
     }
     assert!(!living.undead && !living.is_fantastic());
+}
+
+/// A player of battles that always flees.
+struct Quitter;
+
+impl crate::battle::game::BattleBrain for Quitter {
+    fn command(&mut self, _: &Game) -> BattleCommand {
+        BattleCommand::Flee
+    }
+}
+
+#[test]
+fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a1 = g.spawn_unit(A, at(4, 4), walker);
+    let d1 = g.spawn_unit(D, at(5, 4), walker);
+    g.set_battle_brain(A, Some(Box::new(Quitter)));
+    let events = g.apply(Command::AutoResolve {
+        attackers: vec![a1],
+        defenders: vec![d1],
+    });
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::Battle(BattleEvent::Fled {
+                side: Side::Attacker
+            })
+        )),
+        "{events:?}"
+    );
+    assert!(!g.in_battle());
+    // Taken away again, the plain AI fights it out.
+    g.set_battle_brain(A, None);
+    let a2 = g.spawn_unit(A, at(4, 4), walker);
+    let d2 = g.spawn_unit(D, at(5, 4), walker);
+    let events = g.apply(Command::AutoResolve {
+        attackers: vec![a2],
+        defenders: vec![d2],
+    });
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::Fled { .. }))));
 }

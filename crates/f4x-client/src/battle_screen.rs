@@ -502,7 +502,10 @@ impl App {
             && self.game.in_battle()
         {
             self.battle_ui.ai_timer = AI_DELAY;
-            let order = next_command(&battle);
+            let order = self
+                .game
+                .next_battle_command()
+                .unwrap_or_else(|| next_command(&battle));
             self.battle_order(order);
             self.select_next(None);
             return self.draw_battle(&battle, my_turn, None);

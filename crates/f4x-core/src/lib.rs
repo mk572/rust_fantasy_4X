@@ -507,6 +507,8 @@ pub struct Game {
     pub diplomacy: diplomacy::Diplomacy,
     /// Every override (cheat) command that changed the game, oldest first.
     pub(crate) override_log: Vec<String>,
+    /// Players of battles that play for some wizards (a learned one; see `battle::game`).
+    pub(crate) battle_brains: Vec<(city::PlayerId, Box<dyn battle::game::BattleBrain>)>,
     undo_on: bool,
     undo_stack: Vec<undo::UndoEntry>,
 }
@@ -532,6 +534,7 @@ impl Game {
             human: None,
             diplomacy: diplomacy::Diplomacy::default(),
             override_log: Vec::new(),
+            battle_brains: Vec::new(),
             undo_on: false,
             undo_stack: Vec::new(),
         }

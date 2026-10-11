@@ -20,9 +20,11 @@ pub const MAX_UNITS: usize = 32;
 /// Most spell tokens.
 pub const MAX_SPELLS: usize = 24;
 /// Numbers of the global vector.
-pub const GLOBALS: usize = 16;
+pub const GLOBALS: usize = 17;
 /// Features of a unit before its abilities.
 pub const UNIT_BASE: usize = 28;
+/// The place of "what fleeing now would score" among the globals.
+pub const FLEE_VALUE: usize = 16;
 /// Features of a spell token.
 pub const SPELL_FEATURES: usize = 16;
 
@@ -204,6 +206,17 @@ impl ObsSpec {
             spell_ids.push(s.spell);
         }
         let caster = b.caster(side);
+        // What fleeing now would score (`reward.rs`): the units of both sides count.
+        let flee_value = {
+            let count = |s: Side, f: &dyn Fn(&f4x_core::battle::BattleUnit) -> bool| {
+                b.units.iter().filter(|u| u.side == s && f(u)).count() as f32
+            };
+            let mine = count(side, &|_| true);
+            let theirs = count(side.other(), &|_| true);
+            let saved = count(side, &|u| u.is_active());
+            let killed = count(side.other(), &|u| !u.is_active());
+            -1.0 + ((saved + killed) / (mine + theirs).max(1.0)).clamp(0.0, 1.0)
+        };
         let globals = [
             caster.map_or(0.0, |c| c.skill_left as f32 / 50.0),
             caster.map_or(0.0, |c| (c.mana as f32 / 500.0).min(4.0)),
@@ -217,12 +230,14 @@ impl ObsSpec {
             f32::from(b.wall_of_fire),
             f32::from(b.wall_of_darkness),
             f32::from(b.map.is_walled()),
-            brief
-                .mana_budget
+            // The mana still allowed for the wizard in this battle.
+            caster
+                .and_then(|c| c.budget)
                 .map_or(1.0, |m| (m as f32 / 500.0).min(4.0)),
-            f32::from(brief.mana_budget.is_some()),
+            f32::from(caster.is_some_and(|c| c.budget.is_some())),
             brief.stakes,
             f32::from(brief.may_flee),
+            flee_value,
         ];
         debug_assert_eq!(globals.len(), GLOBALS);
         Some(Observation {

@@ -10,3 +10,8 @@ f4x-data.workspace = true
 png.workspace = true
 f4x-console.workspace = true
 f4x-ai.workspace = true
+f4x-learn = { workspace = true, optional = true, features = ["train"] }
+
+[features]
+# `soak --battle-ai CHECKPOINT`: the AI wizards fight their battles with a trained network.
+learned = ["dep:f4x-learn"]

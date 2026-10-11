@@ -2631,6 +2631,7 @@ dependencies = [
  "f4x-console",
  "f4x-core",
  "f4x-data",
+ "f4x-learn",
  "png 0.17.16",
 ]
 

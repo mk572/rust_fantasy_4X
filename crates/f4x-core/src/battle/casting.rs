@@ -70,6 +70,9 @@ pub struct BattleCaster {
     /// What each point of skill costs from the reserve, in tenths: 10 is one for one.
     pub range: i32,
     pub cast_this_turn: bool,
+    /// The most reserve mana the wizard may still spend in this battle, if limited (the brief
+    /// of the strategic AI, `docs/learning-ai.md` section 2). `None` is no limit.
+    pub budget: Option<i32>,
 }
 
 impl BattleCaster {
@@ -79,6 +82,7 @@ impl BattleCaster {
             mana: mana.max(0),
             range: range.max(1),
             cast_this_turn: false,
+            budget: None,
         }
     }
 
@@ -89,7 +93,10 @@ impl BattleCaster {
 
     /// The most skill a spell can cost now: what is left, and what the reserve pays for.
     pub fn affordable(&self) -> i32 {
-        self.skill_left.min(self.mana * 10 / self.range)
+        let by_budget = self.budget.map_or(i32::MAX, |b| b.max(0) * 10 / self.range);
+        self.skill_left
+            .min(self.mana * 10 / self.range)
+            .min(by_budget)
     }
 }
 
@@ -147,6 +154,13 @@ impl Battle {
         self.casters[side.index()] = Some(caster);
     }
 
+    /// Limit the mana `side`'s wizard may spend from the reserve in this battle.
+    pub fn set_mana_budget(&mut self, side: Side, budget: Option<u32>) {
+        if let Some(c) = self.casters[side.index()].as_mut() {
+            c.budget = budget.map(|b| b.min(i32::MAX as u32) as i32);
+        }
+    }
+
     pub fn caster(&self, side: Side) -> Option<&BattleCaster> {
         self.casters[side.index()].as_ref()
     }
@@ -174,6 +188,9 @@ impl Battle {
         let mana = caster.mana_for(skill).min(caster.mana);
         caster.skill_left -= skill;
         caster.mana -= mana;
+        if let Some(b) = caster.budget.as_mut() {
+            *b = (*b - mana).max(0);
+        }
         caster.cast_this_turn = true;
         mana
     }

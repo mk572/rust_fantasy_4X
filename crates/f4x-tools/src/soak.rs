@@ -9,12 +9,13 @@ use f4x_core::city::PlayerId;
 use f4x_core::setup::{new_game, NewGame};
 use f4x_core::Game;
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--battle-ai CHECKPOINT]";
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let (mut first, mut last) = (1u64, 3u64);
     let (mut turns, mut players, mut every) = (200u32, 2u8, 0u32);
     let mut trace = 0u32;
+    let mut battle_ai: Option<PathBuf> = None;
     let mut dir: Option<PathBuf> = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -31,6 +32,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--trace" => trace = value("--trace")?.parse().map_err(|_| "bad turns")?,
             "--every" => every = value("--every")?.parse().map_err(|_| "bad interval")?,
             "--content" => dir = Some(value("--content")?.into()),
+            "--battle-ai" => battle_ai = Some(value("--battle-ai")?.into()),
             other => return Err(format!("unknown option {other:?}\n{USAGE}")),
         }
     }
@@ -55,6 +57,18 @@ pub fn run(args: &[String]) -> Result<(), String> {
             },
         )?;
         game.set_undo(false);
+        if let Some(path) = &battle_ai {
+            #[cfg(feature = "learned")]
+            for k in 0..players {
+                let brain = f4x_learn::brain::LearnedBrain::load(&content, path)?;
+                game.set_battle_brain(PlayerId(k), Some(Box::new(brain)));
+            }
+            #[cfg(not(feature = "learned"))]
+            return Err(format!(
+                "--battle-ai {} needs f4x-tools built with `--features learned`",
+                path.display()
+            ));
+        }
         let mut ais: Vec<Ai> = (0..players).map(|k| Ai::new(PlayerId(k))).collect();
         let started = Instant::now();
         let mut rejected = 0usize;

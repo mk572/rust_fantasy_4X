@@ -1,11 +1,21 @@
 //! The learning environment for the AIs of `docs/learning-ai.md`: battle scenarios and the
 //! battle environment (task 169), and later the networks and training.
 
+pub mod act;
+pub mod agent;
+pub mod bank;
+#[cfg(feature = "train")]
+pub mod brain;
 pub mod build;
 pub mod env;
+#[cfg(feature = "train")]
+pub mod net;
 pub mod obs;
 pub mod policy;
+pub mod reward;
 pub mod scenario;
+#[cfg(feature = "train")]
+pub mod train;
 
 pub use build::build;
 pub use env::{BattleEnv, Outcome, Step};
@@ -136,5 +146,115 @@ mod tests {
             }
         }
         assert!(over > 0 && under > 0, "{over} {under}");
+    }
+}
+
+#[cfg(test)]
+mod agent_tests {
+    use super::*;
+    use crate::act;
+    use crate::agent::{Driver, Request};
+    use crate::obs::{Brief, ObsSpec};
+    use f4x_core::battle::{BattleCommand, Side};
+    use rand::{Rng, SeedableRng};
+    use rand_pcg::Pcg64Mcg;
+    use std::path::Path;
+
+    fn pick(mask: &[bool], rng: &mut Pcg64Mcg) -> usize {
+        let ok: Vec<usize> = (0..mask.len()).filter(|&i| mask[i]).collect();
+        ok[rng.gen_range(0..ok.len())]
+    }
+
+    #[test]
+    fn a_random_agent_playing_by_the_masks_is_never_refused() {
+        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let spec = ObsSpec::new(&content);
+        let brief = Brief {
+            may_flee: true,
+            ..Brief::default()
+        };
+        let (mut wizard_asks, mut casts, mut flees, mut decisions) = (0, 0, 0, 0);
+        for seed in 0..16 {
+            let env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
+            let mut d = Driver::new(env, &spec, brief);
+            let mut rng = Pcg64Mcg::seed_from_u64(seed);
+            // Both sides are the agent, choosing at random among what the masks allow.
+            let mut none = |_: &f4x_core::battle::Battle, _: Side| BattleCommand::EndTurn;
+            while let Some(p) = d.advance([true, true], &mut none).unwrap() {
+                decisions += 1;
+                match &p.request {
+                    Request::Unit { mask, slot, .. } => {
+                        assert!(p.obs.unit_mask[*slot]);
+                        let i = pick(mask, &mut rng);
+                        d.answer_unit(&p, i)
+                            .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+                    }
+                    Request::Wizard { options, .. } => {
+                        wizard_asks += 1;
+                        // Flee is rare so battles go on.
+                        let mut m = options.choice.clone();
+                        m[act::FLEE] = m[act::FLEE] && rng.gen_bool(0.02);
+                        let c = pick(&m, &mut rng);
+                        flees += usize::from(c == act::FLEE);
+                        let (aim, bin) = if c >= act::SPELL {
+                            casts += 1;
+                            let k = c - act::SPELL;
+                            let bins = [true, options.more_mana[k]];
+                            (pick(&options.aims[k], &mut rng), pick(&bins, &mut rng))
+                        } else {
+                            (0, 0)
+                        };
+                        d.answer_wizard(&p, c, aim, bin)
+                            .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+                    }
+                }
+            }
+            assert!(d.env.outcome.winner.is_some() || d.env.steps >= env::STEP_LIMIT);
+        }
+        assert!(
+            decisions > 100 && wizard_asks > 0 && casts > 0,
+            "{decisions} {wizard_asks} {casts}"
+        );
+        let _ = flees;
+    }
+}
+
+#[cfg(all(test, feature = "train"))]
+mod brain_tests {
+    use super::*;
+    use burn::module::Module;
+    use burn::prelude::*;
+    use std::path::Path;
+
+    /// A network that was never trained, saved and loaded as a checkpoint, plays a battle of
+    /// the game through the core's hook and every command it gives is accepted.
+    #[test]
+    fn a_checkpoint_plays_battles_through_the_core_hook() {
+        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let spec = obs::ObsSpec::new(&content);
+        let dir = std::env::temp_dir().join(format!("f4x-learn-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("net");
+        net::PolicyNet::new(spec.unit_features(), &Device::flex())
+            .save_file(&file)
+            .unwrap();
+        let mut finished = 0;
+        for seed in 0..4 {
+            let mut env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
+            let brain = brain::LearnedBrain::load(&content, &file).unwrap();
+            env.game
+                .set_battle_brain(build::ATTACKER, Some(Box::new(brain)));
+            let mut steps = 0;
+            while !env.done() && steps < 4000 {
+                let c = env.game.next_battle_command().expect("a battle is on");
+                env.step(c).unwrap_or_else(|e| {
+                    panic!("seed {seed}: the brain's command was refused: {e}")
+                });
+                steps += 1;
+            }
+            finished += usize::from(env.outcome.winner.is_some());
+        }
+        assert!(finished >= 3, "{finished} of 4 battles ended");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

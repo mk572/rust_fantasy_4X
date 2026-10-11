@@ -203,3 +203,29 @@ pub fn generate(content: &Content, seed: u64) -> BattleScenario {
         defender_wizard: wizard(content, &mut rng),
     }
 }
+
+/// A random scenario with no aim at any odds: both armies are drawn freely. The odds field is
+/// a placeholder until [`crate::bank::calibrate`] measures it.
+pub fn generate_raw(content: &Content, seed: u64) -> BattleScenario {
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x7a77_b4e1_5ce2);
+    let pool = fighters(content);
+    let ground = if rng.gen_bool(0.5) {
+        Ground::Field
+    } else {
+        Ground::City {
+            walls: rng.gen_bool(0.6),
+        }
+    };
+    let max = [2usize, 4, 6, 9][rng.gen_range(0..4)];
+    let attackers = pick_army(content, &pool, rng.gen_range(1..=max), &mut rng);
+    let defenders = pick_army(content, &pool, rng.gen_range(1..=max), &mut rng);
+    BattleScenario {
+        seed,
+        odds: Odds::Even,
+        ground,
+        attackers,
+        defenders,
+        attacker_wizard: wizard(content, &mut rng),
+        defender_wizard: wizard(content, &mut rng),
+    }
+}

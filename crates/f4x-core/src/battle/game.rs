@@ -63,10 +63,52 @@ pub fn ranged_kind_of(abilities: &[String]) -> RangedKind {
     }
 }
 
+/// Something that plays a wizard's side of a battle: it is asked for one command at a time.
+/// The core's own player is [`super::ai::next_command`]; a learned one (`f4x-learn`) is plugged
+/// in with [`Game::set_battle_brain`]. The brain sees the whole game, as a player does.
+pub trait BattleBrain {
+    /// The next command for the side to play in the battle in progress.
+    fn command(&mut self, game: &Game) -> BattleCommand;
+}
+
 impl Game {
+    /// Let `brain` play the battles of `player` (an AI wizard) from now on; `None` goes back to
+    /// the plain battle AI.
+    pub fn set_battle_brain(&mut self, player: PlayerId, brain: Option<Box<dyn BattleBrain>>) {
+        self.battle_brains.retain(|(p, _)| *p != player);
+        if let Some(b) = brain {
+            self.battle_brains.push((player, b));
+        }
+    }
+
+    /// The next command for the side to play: from the brain of its wizard if it has one, else
+    /// from the plain battle AI. `None` when no battle is on.
+    pub fn next_battle_command(&mut self) -> Option<BattleCommand> {
+        let player = {
+            let b = self.battle()?;
+            b.player_of(b.active)
+        };
+        if let Some(k) = self.battle_brains.iter().position(|(p, _)| *p == player) {
+            // Take the brain out while it looks at the game.
+            let (p, mut brain) = self.battle_brains.swap_remove(k);
+            let c = brain.command(self);
+            self.battle_brains.push((p, brain));
+            return Some(c);
+        }
+        Some(super::ai::next_command(self.battle()?))
+    }
+
     /// Is a battle being fought?
     pub fn in_battle(&self) -> bool {
         self.battle.is_some()
+    }
+
+    /// Limit the mana the wizard of `side` may spend in the battle in progress (`None`: no
+    /// limit). The wizard's own casting skill and reserve still apply.
+    pub fn set_battle_mana_budget(&mut self, side: super::Side, budget: Option<u32>) {
+        if let Some(a) = self.battle.as_mut() {
+            a.battle.set_mana_budget(side, budget);
+        }
     }
 
     /// The battle in progress.
@@ -435,10 +477,9 @@ impl Game {
             Err(e) => return vec![Event::Rejected(crate::Rejection::BattleStart(e))],
         };
         for _ in 0..20_000 {
-            let Some(battle) = self.battle() else {
+            let Some(command) = self.next_battle_command() else {
                 break;
             };
-            let command = super::ai::next_command(battle);
             match self.battle_command(command) {
                 Ok(e) => events.extend(e),
                 Err(_) => break,
