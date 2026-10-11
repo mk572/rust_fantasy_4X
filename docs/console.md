@@ -98,7 +98,6 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Move a stack a step; attack a stack or city; assault a site | `move <units> <pos>` (`attack` is the same). A hostile square starts the battle and a guarded site is assaulted, as in the client. |
 | Standing order to walk somewhere; cancel it | `goto <units> <pos>`, `stop <units>` |
 | Settler founds an outpost | `outpost <unit> [name]` |
-| Place the fortress | `fortress <pos> [name] [race=<id>]` |
 | Engineers build a road; purify; meld a node; change plane | `road <units> [pos ...]`, `purify`, `meld`, `shift` |
 | Assault a lair, tower or node | `enter <units> <pos>` |
 | City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `sell <city> <building>` |
@@ -107,7 +106,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Cast; aim a spell paid over turns; give up a cast | `cast <spell> [target]`, `target <target>`, `cancelcast` |
 | Alchemy | `alchemy <amount> <gold\|mana>` (converts that much gold into mana, or mana into gold) |
 | Battle screen: move, melee, shoot, done, end turn, flee | `bmove <unit> <x,y>`, `battack <unit> <target>`, `bshoot <unit> <target>`, `bdone <unit>`, `bend`, `bflee` |
-| Save, load, new game | `save [name]`, `load [name]` (`saves/<name>.ron`), `new [seed] [wizard=<preset>] [name=] [books=life:3,nature:2] [retorts=a,b] [race=<id>]` |
+| Save, load, new game | `save [name]`, `load [name]` (`saves/<name>.ron`), `new [seed] [wizard=<preset>] [name=] [books=life:3,nature:2] [retorts=a,b] [race=<id>]`. `load` and `new` replace the whole game, so they need full access. |
 | Quit | `quit` (the front end decides what that means) |
 
 Pure view actions (camera, zoom, screens, selection, help pages) have no command: the queries
@@ -119,6 +118,7 @@ give the same information.
 |---|---|
 | `give <gold\|mana\|fame> <n> [player]` | add (or remove, with a negative number) |
 | `spawn <unit> <pos> [player]`, `kill <units>`, `restore <units>`, `teleport <units> <pos>` | make, remove, heal and refill, or move units |
+| `fortress <pos> [name] [race=] [player=]` | place a wizard's fortress and first city. A game-start action, not normal play: the game refuses it once the wizard has one |
 | `newcity <pos> <name> [player] [race=] [pop=]`, `build <city> <building>` | found a city, add a building without cost |
 | `terrain <pos> <terrain-id>` | change a square |
 | `learn <spell> [player]`, `reveal [player]` | teach a spell, explore the map |

@@ -102,6 +102,10 @@ fn access_limits_what_a_front_end_can_ever_do() {
     assert!(player.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 2);
     assert!(!player.execute(&mut g, "give gold 1").ok);
+    assert!(!player.execute(&mut g, "new 5").ok, "a player may not replace the game");
+    assert!(!player.execute(&mut g, "load quick").ok);
+    // Placing a fortress is not normal play: the legal commands do not have it.
+    assert!(!player.execute(&mut g, "fortress 5,5").ok);
     assert_eq!(player.complete("sp"), ["spells"]);
     assert!(!console().complete("sp").contains(&"spawn"));
     let mut full = console();

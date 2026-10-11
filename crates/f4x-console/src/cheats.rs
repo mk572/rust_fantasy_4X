@@ -28,6 +28,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("kill", "kill <units>", "Remove units from the game.", kill),
     cheat!("restore", "restore <units>", "Heal units fully and refill their moves.", restore),
     cheat!("teleport", "teleport <units> <x,y[,plane]>", "Put units on a square, whatever is there.", teleport),
+    cheat!("fortress", "fortress <x,y[,plane]> [name] [race=<id>] [player=<n>]", "Place a wizard's first city with the fortress and summoning circle. A game-start action: the game refuses it once the wizard has a fortress, is banished or is defeated.", fortress),
     cheat!("newcity", "newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]", "Found a city anywhere the map allows, at no cost.", newcity),
     cheat!("build", "build <city> <building>", "Give a city a building, ignoring its requirements and cost.", build),
     cheat!("terrain", "terrain <x,y[,plane]> <terrain-id>", "Change a square's terrain.", terrain),
@@ -279,3 +280,42 @@ fn act_as(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!("now playing {}", describe::player(ctx.game, id)));
     Ok(())
 }
+
+fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let (plain, opts) = a.split_options();
+    let pos = parse_pos(
+        plain.first().ok_or(ConsoleError::Usage("missing position".into()))?,
+        Plane::Arcanus,
+    )?;
+    let rules = &ctx.game.content.rules;
+    let race_def = match opts.iter().find(|(k, _)| *k == "race") {
+        Some((_, id)) => rules
+            .races
+            .by_name(id)
+            .ok_or_else(|| ConsoleError::NoSuch(format!("race {id:?}")))?,
+        None => rules
+            .races
+            .defs()
+            .iter()
+            .find(|r| !r.city_names.is_empty())
+            .ok_or(ConsoleError::NoSuch("race".into()))?,
+    };
+    let name = if plain.len() > 1 {
+        plain[1..].join(" ")
+    } else {
+        race_def.city_names.first().cloned().unwrap_or_else(|| "Capital".into())
+    };
+    let race = rules.races.id_of(&race_def.id);
+    let player = match opts.iter().find(|(k, _)| *k == "player") {
+        Some((_, p)) => parse_player(p)?,
+        None => ctx.session.player,
+    };
+    ctx.apply(Command::PlaceFortress {
+        player,
+        pos,
+        name,
+        race,
+        population: 3,
+    })
+}
+

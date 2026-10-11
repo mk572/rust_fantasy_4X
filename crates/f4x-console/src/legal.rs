@@ -32,7 +32,6 @@ pub const TABLE: &[CommandDef] = &[
     legal!("goto", "goto <units> <x,y[,plane]>", "Give a stack a standing order to walk to a square, a step each turn.", goto),
     legal!("stop", "stop <units>", "Cancel standing orders.", stop),
     legal!("outpost", "outpost <unit> [name]", "A settler founds an outpost where it stands.", outpost),
-    legal!("fortress", "fortress <x,y[,plane]> [name] [race=<id>]", "Found your first city with the fortress and summoning circle.", fortress),
     legal!("road", "road <units> [x,y ...]", "Engineers build a road where they stand, then along the squares given.", road),
     legal!("purify", "purify <units>", "Cleanse the corrupted square the stack stands on.", purify),
     legal!("meld", "meld <units>", "Meld a spirit of the stack into the magic node it stands on.", meld),
@@ -138,41 +137,6 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .unwrap_or_else(|| format!("Outpost {}", used + 1))
     };
     ctx.apply(Command::SettleOutpost { unit, name })
-}
-
-fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let (plain, opts) = a.split_options();
-    let pos = parse_pos(
-        plain.first().ok_or(ConsoleError::Usage("missing position".into()))?,
-        Plane::Arcanus,
-    )?;
-    let rules = &ctx.game.content.rules;
-    let race_def = match opts.iter().find(|(k, _)| *k == "race") {
-        Some((_, id)) => rules
-            .races
-            .by_name(id)
-            .ok_or_else(|| ConsoleError::NoSuch(format!("race {id:?}")))?,
-        None => rules
-            .races
-            .defs()
-            .iter()
-            .find(|r| !r.city_names.is_empty())
-            .ok_or(ConsoleError::NoSuch("race".into()))?,
-    };
-    let name = if plain.len() > 1 {
-        plain[1..].join(" ")
-    } else {
-        race_def.city_names.first().cloned().unwrap_or_else(|| "Capital".into())
-    };
-    let race = rules.races.id_of(&race_def.id);
-    let player = ctx.session.player;
-    ctx.apply(Command::PlaceFortress {
-        player,
-        pos,
-        name,
-        race,
-        population: 3,
-    })
 }
 
 fn road(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

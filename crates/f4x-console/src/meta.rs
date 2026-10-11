@@ -161,7 +161,18 @@ fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
+/// `new` and `load` replace the whole game: only a console with full access may.
+fn replaces_game(ctx: &Ctx) -> Result<(), ConsoleError> {
+    if ctx.session.access < crate::Access::Full {
+        return Err(ConsoleError::NotAllowed(
+            "this console may not replace the game".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    replaces_game(ctx)?;
     let path = save_path(a)?;
     let content = ctx.game.content.clone();
     let mut game = f4x_data::save::load_game(&path, content)
@@ -174,6 +185,7 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    replaces_game(ctx)?;
     let (plain, opts) = a.split_options();
     let mut spec = NewGame {
         seed: match plain.first() {
