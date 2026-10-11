@@ -5,7 +5,7 @@ and where this project stands. The original is described from the reverse-engine
 `reference/ReMoM/MoM/src` (function names in backquotes are from it; `MGC` is the start-up
 program `MAGIC.EXE`, `WZD` the game `WIZARDS.EXE`) and the original help text. Where the source
 has no comment I describe what the code does from its strings and calls and say so.
-Task numbers refer to [`TASKS.md`](TASKS.md).
+Task numbers refer to [`TASKS.md`](TASKS.md). Where each screen's pictures come from and which palette they need: [`extract-art.md`](extract-art.md).
 
 **Status:** *Done* = works as in the original (small gaps are named). *Partial* = something
 usable exists. *Missing* = nothing yet. *Own* = no counterpart in the original.

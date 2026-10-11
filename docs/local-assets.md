@@ -27,7 +27,7 @@ cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of
 Decodes every picture in the original `.lbx` files to PNG (`<lbx>/<entry>_<frame>.png`,
 index 0 transparent) plus `manifest.tsv`, and the terrain tiles (`terrain/tile_NNNN.png`,
 `terrain/types.tsv` mapping terrain type -> tile, `terrain/sheet.png` overview).
-Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`.
+Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner recolouring and where each file is used: [`extract-art.md`](extract-art.md).
 
 ## Rules data: `content/` (committed)
 

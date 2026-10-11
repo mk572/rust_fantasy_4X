@@ -23,9 +23,15 @@ fn base_palette(game_dir: &Path) -> Result<Vec<u8>, String> {
     Ok(lbx.entry(PALETTE_ENTRY)[..768].to_vec())
 }
 
-/// FONTS.LBX palette entries are selected by `Load_Palette(n)`, which reads entry `n + 2`; the
-/// main menu calls `Load_Palette(2)`, the "Magic Castle View" palette.
-const MENU_PALETTE_ENTRY: usize = 4;
+/// `Load_Palette(n)` reads FONTS.LBX entry `n + 2`. The original loads these while it shows:
+/// 0 the game, 1 the load / save screen, 2 the start menu, 3 the conquest animation, 4 the
+/// Spell of Mastery, 5 the win animation and 6 the lose animation.
+const PALETTE_LOAD_SAVE: usize = 3;
+const PALETTE_MENU: usize = 4;
+const PALETTE_CONQUEST: usize = 5;
+const PALETTE_MASTERY: usize = 6;
+const PALETTE_WIN: usize = 7;
+const PALETTE_LOSE: usize = 8;
 
 fn fonts_palette(game_dir: &Path, entry: usize) -> Result<Vec<u8>, String> {
     let path = find(game_dir, "FONTS.LBX").ok_or("FONTS.LBX not found (needed for the palette)")?;
@@ -37,20 +43,18 @@ fn fonts_palette(game_dir: &Path, entry: usize) -> Result<Vec<u8>, String> {
     Ok(lbx.entry(entry)[..768].to_vec())
 }
 
-/// The palette the original has loaded while it shows pictures of this file. Most files use
-/// the base palette (plus any colours a picture sets itself). The start menu loads its own
-/// FONTS.LBX palette, and the load screen's pictures rely on the colours its background sets.
-fn palette_for(stem: &str, lbx: &Lbx, base: &[u8], menu: &[u8]) -> Vec<u8> {
+/// The FONTS.LBX palette entry the original has loaded while it shows pictures of this file,
+/// if it is not the base palette. Pictures that carry their own colours (`Load_Palette_From_
+/// Animation`) overlay them on whichever palette this gives.
+fn palette_entry_for(stem: &str) -> Option<usize> {
     match stem {
-        "mainscrn" | "vortex" => menu.to_vec(),
-        "load" => {
-            let mut pal = base.to_vec();
-            if let Some((start, colours)) = decode(lbx.entry(0)).and_then(|p| p.palette) {
-                pal[start * 3..start * 3 + colours.len()].copy_from_slice(&colours);
-            }
-            pal
-        }
-        _ => base.to_vec(),
+        "load" => Some(PALETTE_LOAD_SAVE),
+        "mainscrn" | "vortex" => Some(PALETTE_MENU),
+        "conquest" => Some(PALETTE_CONQUEST),
+        "splmastr" => Some(PALETTE_MASTERY),
+        "win" => Some(PALETTE_WIN),
+        "lose" => Some(PALETTE_LOSE),
+        _ => None,
     }
 }
 
@@ -266,7 +270,6 @@ fn banner_mask(pixels: &[u8]) -> Vec<u8> {
 
 pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
     let base = base_palette(game_dir)?;
-    let menu_palette = fonts_palette(game_dir, MENU_PALETTE_ENTRY)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
         .map_err(|e| format!("{}: {e}", game_dir.display()))?
         .flatten()
@@ -290,7 +293,10 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
         let data = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let Ok(lbx) = Lbx::parse(&data) else { continue };
         let dir = out_dir.join(&stem);
-        let file_palette = palette_for(&stem, &lbx, &base, &menu_palette);
+        let file_palette = match palette_entry_for(&stem) {
+            Some(entry) => fonts_palette(game_dir, entry)?,
+            None => base.clone(),
+        };
         for i in 0..lbx.len() {
             let Some(pic) = decode(lbx.entry(i)) else {
                 continue;
@@ -343,6 +349,15 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screens_that_load_their_own_palette_are_listed() {
+        assert_eq!(palette_entry_for("load"), Some(3));
+        assert_eq!(palette_entry_for("mainscrn"), Some(4));
+        assert_eq!(palette_entry_for("vortex"), Some(4));
+        assert_eq!(palette_entry_for("lose"), Some(8));
+        assert_eq!(palette_entry_for("cityscap"), None);
+    }
 
     #[test]
     fn the_banner_mask_marks_only_the_five_banner_shades() {
