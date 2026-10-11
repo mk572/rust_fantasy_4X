@@ -96,7 +96,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 102 | Map | Road-building path selection in the client |
 | 103 | Units | Scouting levels and unit sight |
 | 104 | Units | Ship tiers by building and ship movement estimates |
-| 105 | Combat | Wire overland attacks to battles |
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
@@ -124,6 +123,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 133 | Client | Prompt before attacking, and battles between AI players |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
+| 135 | Client | Run the AI wizards in the client |
 
 ## Descriptions
 
@@ -209,7 +209,7 @@ and `city_modifiers`, saved by name. Prerequisite for 52 and many spells.
 player are not modelled; neutral cities grow at half rate (20).
 
 **32. Starting economy tuning.** After eight turns the starting army costs about 3 gold more than
-the single city earns. Tune the starting setup (units, tax, buildings) or document it as intended.
+the single city earns. Tune the starting setup (units, tax, buildings) or document it as intended. A related finding: in a console game from the shared new-game setup (the same start as the client's), ending the first turn without changing farmers disbanded two of the three starting units (food upkeep, `UnitsDisbanded`), so the starting army and settlers do not fit the starting city's food either.
 
 ### Combat (paused)
 
@@ -228,15 +228,13 @@ leak [396-427, 491].
 **38. Ranged ammunition and spell shots.** Quiver refill after combat, magical ranged "spell
 shots" that use mana [542].
 
-**39. Auto-resolve.** Resolve a battle without the tactical map, including the strategic-combat-only
-option [685]. First playable combat; do after 34-37.
+**39. Auto-resolve.** Done: `Command::AutoResolve` (console `auto`) fights a battle to the end with the placeholder battle AI (`battle/ai.rs`) playing both sides, from an adjacent square, with the usual aftermath. Open: the strategic-combat-only option [685], a button for it on the battle screen (the Auto button is drawn greyed; task 133), and a better battle AI (46) so the result is not just whoever the placeholder favours.
 
-**41. City sieges, walls and capture.** Walls and gates in city battles, defenders' bonuses,
+**41. City sieges, walls and capture.** Capture is done (a battle won at a city, or walking into an empty one, takes it; a fortress city banishes its wizard, `fortress.rs`). Open: razing a city instead of taking it, walls and gates in city battles, defenders' bonuses,
 capture or raze of the city, and the fortress rule that a wizard's capital city cannot be
 destroyed [CITYCALC notes in ReMoM].
 
-**42. Fleeing and after-battle results.** Fleeing (50 percent of units lost, 25 percent of heroes),
-experience awarded, healing of the healer ability, summoned creatures vanishing, loot and fame,
+**42. Fleeing and after-battle results.** Done: fleeing units are lost (50 percent, 25 percent of heroes; `overland_aftermath`), and dead units are removed. Open: experience awarded, healing of the healer ability, summoned creatures vanishing, loot and fame,
 removal of destroyed units from the ECS.
 
 **43. Casting in battle.** Battle spell lists, casting skill as the per-combat mana limit, the mana
@@ -503,8 +501,6 @@ middle of a battle continues exactly like the unsaved one.
 
 **104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's.
 
-**105. Wire overland attacks to battles.** Moving into a hostile square only emits `AttackRequested`. Connect it: the client opens a battle (`Command::BeginBattle`) for the human, the AI does so for itself, and the winner takes the square (attackers advance when the defenders are gone), with the defenders' city handled by the siege task (41). Needs the after-battle results of 42 for experience and loot.
-
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 
 **107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: Evil Omens spares the wizard who holds it; the original's own Lo Pan spends 12 picks (presets skip the budget); the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision.
@@ -586,8 +582,7 @@ pointers by action and sound. Terrain autotile edges, dirt patches, roads, river
 **133. Prompt before attacking, and battles between AI players.** A human move into an enemy
 stack or a city starts the battle at once; the original asks first (attack, or cancel). AI
 attacks (`AttackRequested` for a non-human attacker) are ignored by the client, and nothing
-resolves a fight between two AI players; the AI crate has no battle code (task 46). Auto-resolve
-for battles a player does not want to fight by hand also belongs here.
+resolves a fight between two AI players in the client. The AI crate attacks with `Command::AutoResolve` (39) and `f4x-tools soak` runs it, but the client does not run the AI (task 135). Still open here: the attack prompt, the Auto button on the battle screen (greyed) and the option to auto-resolve a battle the human does not want to fight by hand.
 
 **134. Game-end cut-scenes and the original's score screen.** The game-over screen is plain text
 and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
@@ -596,3 +591,13 @@ a conquest, a conquest animation; announces when a wizard *starts* casting the S
 portrait; and draws the score as icon rows (book, townsfolk, defeated wizards' portraits, fame,
 time, Spell of Mastery) with a running bar of `min(score / 40, 200)`. Needs the local art and
 music (task 93). See `docs/game_end.md`.
+
+**135. Run the AI wizards in the client.** The client's rival has no behaviour: only the human gets
+a fortress and units (`start_game`), and ending the turn does nothing for the rival. Connect
+`f4x-ai`: start every wizard with `f4x_core::setup::new_game` (the client keeps its own copy of the
+setup, so it should call the shared one, which also places each wizard's fortress and units), run
+`f4x_ai::play_round`-style turns for the AIs before the turn ends, show what they did (new
+cities, battles against the human, captured cities) as notes, and handle an AI attacking the
+human: the human defends in the battle screen or auto-resolves, instead of the attack being
+ignored. Needs the attack prompt and Auto button (133) and the AI tuning in 65 to be worth playing
+against. See `docs/console.md` section 6 for the matching console gaps.

@@ -29,6 +29,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
+| 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 
@@ -199,6 +200,8 @@ undone, and clears the history before it; ending the turn clears it too, and ref
 leave no entry. An undo rebuilds the units, so `hecs` entities change: find them again by
 creation number (`entity_of_serial`, now public); the client does this for its selection and
 binds undo to Ctrl or Cmd with Z. Hardcore mode (`PLANNED.md` item 8) will switch undo off.
+
+**105. Wire overland attacks to battles (done).** Done: the winner of an overland battle moves onto the square, takes a city on it (`capture_city`) and an empty enemy city is taken by walking in (`Game::hostile_entry`); the human's attack opens the battle screen (task 45) and AIs use `Command::AutoResolve` (39). Experience and loot are task 42, walls and razing task 41. Original text: Moving into a hostile square only emits `AttackRequested`. Connect it: the client opens a battle (`Command::BeginBattle`) for the human, the AI does so for itself, and the winner takes the square (attackers advance when the defenders are gone), with the defenders' city handled by the siege task (41). Needs the after-battle results of 42 for experience and loot.
 
 **113. Original bitmap fonts (done).** `f4x-tools extract-art` now decodes `FONTS.LBX` (`fonts.rs`):
 eight styles of 96 glyphs, stored by columns with skip and run bytes, drawn through 16 colour
