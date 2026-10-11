@@ -263,6 +263,39 @@ impl Game {
             .is_ok_and(|b| b.0.contains(&building))
     }
 
+    /// The weapons units trained in the city get (`Terrain.c`'s `City_Best_Weapon`): normal
+    /// without an alchemists guild (built or replaced), magic with one, mithril or adamantium
+    /// when the city works such an ore on a square not spoiled by corruption (adamantium wins).
+    pub fn city_weapon_quality(&self, city: hecs::Entity) -> u8 {
+        use crate::units::{WEAPON_ADAMANTIUM, WEAPON_MAGIC, WEAPON_MITHRIL};
+        if !self.city_has_building(city, "alchemists_guild") {
+            return 0;
+        }
+        let (Some(map), Ok(at)) = (
+            self.map.as_ref(),
+            self.world.get::<&Position>(city).map(|p| *p),
+        ) else {
+            return WEAPON_MAGIC;
+        };
+        let grid = map.plane(at.plane);
+        let mut quality = WEAPON_MAGIC;
+        for (p, _) in self.city_area(at) {
+            if self.is_corrupted(p) {
+                continue;
+            }
+            let id = grid
+                .feature(p.x as i32, p.y as i32)
+                .and_then(|f| self.content.features.get(f))
+                .map(|f| f.id.as_str());
+            match id {
+                Some("adamantium_ore") => quality = WEAPON_ADAMANTIUM,
+                Some("mithril_ore") if quality != WEAPON_ADAMANTIUM => quality = WEAPON_MITHRIL,
+                _ => {}
+            }
+        }
+        quality
+    }
+
     /// Experience a unit built in this city starts with (guilds that train recruits).
     pub fn city_starting_xp(&self, city: hecs::Entity) -> u32 {
         crate::rules::stats::compute(Stat::StartingXp, 0, &self.city_modifiers(city)).max(0) as u32
@@ -307,6 +340,20 @@ impl Game {
                 let xp = self.city_starting_xp(city);
                 let unit = self.spawn_unit(owner, at, u);
                 let _ = self.world.insert_one(unit, Experience(xp));
+                // A wizard with Alchemy gives every unit at least magic weapons.
+                let mut weapons = self.city_weapon_quality(city);
+                if weapons == 0
+                    && self
+                        .magic(owner)
+                        .is_some_and(|m| m.has(crate::magic::Retort::Alchemy))
+                {
+                    weapons = crate::units::WEAPON_MAGIC;
+                }
+                if weapons > 0 {
+                    let _ = self
+                        .world
+                        .insert_one(unit, crate::units::WeaponQuality(weapons));
+                }
                 p.progress = 0;
             }
             ProductionItem::TradeGoods | ProductionItem::Housing => {}

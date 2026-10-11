@@ -1911,3 +1911,24 @@ mod fields {
         assert!(b.units[1].is_active());
     }
 }
+
+#[test]
+fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    for (quality, extra, plus) in [(1, 0, 1), (2, 1, 1), (3, 2, 1)] {
+        let _ = g
+            .world
+            .insert_one(unit, crate::units::WeaponQuality(quality));
+        let bu = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+        assert_eq!(bu.melee, plain.melee + extra, "melee, quality {quality}");
+        assert_eq!(
+            bu.defense,
+            plain.defense + extra,
+            "defence, quality {quality}"
+        );
+        assert_eq!(bu.to_hit + bu.weapon_plus(), plain.to_hit + plus);
+    }
+}

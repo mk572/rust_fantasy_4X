@@ -287,6 +287,9 @@ pub struct UnitSave {
     pub pos: Position,
     pub hurt: u32,
     pub xp: u32,
+    /// Weapon quality (`units::WeaponQuality`); absent in older saves.
+    #[serde(default)]
+    pub weapon: u8,
     pub moves: u32,
     pub order: Option<Vec<Position>>,
     /// `(spell, caster)`; absent in older saves.
@@ -586,6 +589,7 @@ impl Game {
                     pos: self.unit_position(u)?,
                     hurt: self.world.get::<&Hurt>(u).map_or(0, |h| h.0),
                     xp: self.world.get::<&Experience>(u).map_or(0, |x| x.0),
+                    weapon: self.unit_weapon_quality(u),
                     moves: self.unit_moves_left(u),
                     order: self.world.get::<&Order>(u).ok().map(|o| {
                         let Order::GoTo(path) = &*o;
@@ -844,6 +848,11 @@ impl Snapshot {
                 MovesLeft(u.moves),
                 serial,
             ));
+            if u.weapon > 0 {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::units::WeaponQuality(u.weapon));
+            }
             if let Some(ship) = u.aboard {
                 let _ = game
                     .world
@@ -1479,6 +1488,27 @@ mod tests {
             .restore(Default::default())
             .unwrap();
         assert_eq!(back.snapshot(), snap);
+    }
+
+    #[test]
+    fn weapon_quality_survives_a_save() {
+        let mut g = game();
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let unit = g.spawn_unit(P0, at(11, 6), walker);
+        let _ = g.world.insert_one(
+            unit,
+            crate::units::WeaponQuality(crate::units::WEAPON_MITHRIL),
+        );
+        let snap = g.snapshot();
+        let back = Snapshot::from_text(&snap.to_text().unwrap())
+            .unwrap()
+            .restore(g.content.clone())
+            .unwrap();
+        let again = back.units_at(at(11, 6)).into_iter().next().unwrap();
+        assert_eq!(
+            back.unit_weapon_quality(again),
+            crate::units::WEAPON_MITHRIL
+        );
     }
 
     #[test]

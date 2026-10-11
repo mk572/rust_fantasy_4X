@@ -125,11 +125,13 @@ impl Game {
     }
 
     /// Whether the unit's normal attacks count as magical, so weapon immunity does not stop
-    /// them: heroes, fantastic and summoned creatures, and anything with the `magical_weapon`
-    /// ability (a flaming or blessed blade).
+    /// them: heroes, fantastic and summoned creatures, units trained with magic, mithril or
+    /// adamantium weapons, and anything with the `magical_weapon` ability (a flaming or blessed
+    /// blade).
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
         self.unit_def(unit)
             .is_some_and(|d| d.kind != crate::rules::UnitKind::Normal)
+            || self.unit_weapon_quality(unit) > 0
             || self
                 .unit_abilities(unit)
                 .iter()
@@ -403,6 +405,16 @@ mod tests {
         assert!(!g.unit_has_magical_weapon(u));
         enchant(&mut g, u, "flame_blade");
         assert!(g.unit_has_magical_weapon(u));
+        let trained = unit(&mut g, "spear");
+        assert!(!g.unit_has_magical_weapon(trained));
+        let _ = g.world.insert_one(
+            trained,
+            crate::units::WeaponQuality(crate::units::WEAPON_MAGIC),
+        );
+        assert!(
+            g.unit_has_magical_weapon(trained),
+            "magic weapons are magical"
+        );
         let kinds = [UnitKind::Hero, UnitKind::Fantastic, UnitKind::Summoned];
         for (i, kind) in kinds.into_iter().enumerate() {
             let mut defs = g.content.rules.units.defs().to_vec();

@@ -74,7 +74,13 @@ pub fn content() -> Content {
             Plane::ALL.to_vec(),
         ),
         feature(
-            "adamantium",
+            "mithril_ore",
+            FeatureKind::Mineral,
+            vec![TerrainClass::Hills, TerrainClass::Mountains],
+            Plane::ALL.to_vec(),
+        ),
+        feature(
+            "adamantium_ore",
             FeatureKind::Mineral,
             vec![TerrainClass::Hills, TerrainClass::Mountains],
             vec![Plane::Myrror],
@@ -285,6 +291,7 @@ pub fn content_with_economy() -> Content {
             vec![modify(Stat::StartingXp, ModOp::Min, 20)],
         ),
         building("war_college", 500, 5, &["fighters_guild"], vec![]),
+        building("alchemists_guild", 250, 3, &[], vec![]),
         building(
             "marketplace",
             100,
@@ -398,7 +405,14 @@ pub fn content_with_economy() -> Content {
                     ..Default::default()
                 }
             }
-            "adamantium" => {
+            "mithril_ore" => {
+                d.city = CityBonus {
+                    mana: 1,
+                    outpost_growth: 10,
+                    ..Default::default()
+                }
+            }
+            "adamantium_ore" => {
                 d.city = CityBonus {
                     mana: 2,
                     outpost_growth: 10,

@@ -81,8 +81,8 @@ to roll against each attack (`attack::process_attack`).
      shots and breath).
 - **Magical weapons** (`Game::unit_has_magical_weapon`) ignore weapon immunity: heroes,
   fantastic and summoned creatures, and units with the `magical_weapon` ability (Flame Blade
-  and Holy Weapon grant it). The original also uses a Chaos or Black Channels race change,
-  Eldritch Weapon, and mithril and adamantium weapons (task 18).
+  and Holy Weapon grant it) and units trained with magic, mithril or adamantium weapons (task 18).
+  The original also uses a Chaos or Black Channels race change and Eldritch Weapon.
 - **One fix from ReMoM's `OGBUG` notes is used:** thrown normal weapons *are* stopped by weapon
   immunity (the original's test for them can never match). Cold immunity is not set by any unit
   attack in the original, only by the Ice Bolt and Ice Storm spell data, so a unit's ice bolt is
@@ -102,7 +102,13 @@ to roll against each attack (`attack::process_attack`).
   Resist Magic have no flat resistance modifier any more.
 - **Not here:** the defence bonuses the same enchantments give against ranged magic (Elemental
   Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
-  gazes and touches that call a resistance check (36), mithril and adamantium weapons (18).
+  gazes and touches that call a resistance check (36).
+
+- **Weapon quality** (task 18, `units::WeaponQuality`): set where a unit is trained (an alchemists
+  guild gives magic weapons, mithril or adamantium in the city's area raises them, the Alchemy
+  retort gives at least magic) and copied into `BattleUnit::weapon_quality`. Mithril adds one and
+  adamantium two to melee, thrown and missile attacks and to defence (magic adds nothing to
+  these); all three add a plus to hit with those attacks and make the weapons magical.
 
 ### 2.2 Special attacks (task 36)
 

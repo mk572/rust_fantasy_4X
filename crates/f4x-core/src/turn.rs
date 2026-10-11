@@ -762,7 +762,7 @@ mod tests {
         let mut g = world();
         let city = found(&mut g, at(10, 6), "elf", 4);
         let gold_ore = g.content.features.id_of("gold").unwrap();
-        let adamant = g.content.features.id_of("adamantium").unwrap();
+        let adamant = g.content.features.id_of("adamantium_ore").unwrap();
         let iron = g.content.features.id_of("iron").unwrap();
         let plane = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
         plane.set_feature(10, 8, Some(gold_ore));
@@ -1165,6 +1165,60 @@ mod tests {
         let college = building(&g, "war_college");
         assert_eq!(g.sell_building(city, college), Ok(500));
         assert_eq!(g.sell_building(city, barracks), Ok(30));
+    }
+
+    fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
+        let id = g.content.features.id_of(ore).unwrap();
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_feature(x, y, Some(id));
+    }
+
+    #[test]
+    fn weapon_quality_follows_the_alchemists_guild_and_the_ore() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 4);
+        put_ore(&mut g, "mithril_ore", 11, 6);
+        assert_eq!(g.city_weapon_quality(city), 0, "ore alone does nothing");
+        add_building(&mut g, city, "alchemists_guild");
+        assert_eq!(g.city_weapon_quality(city), 2, "mithril");
+        put_ore(&mut g, "adamantium_ore", 9, 6);
+        assert_eq!(g.city_weapon_quality(city), 3, "adamantium beats mithril");
+        for x in [9, 11] {
+            g.map
+                .as_mut()
+                .unwrap()
+                .plane_mut(Plane::Arcanus)
+                .set_corrupted(x, 6, true);
+        }
+        assert_eq!(g.city_weapon_quality(city), 1, "corrupted ore is useless");
+    }
+
+    #[test]
+    fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() {
+        let mut g = world();
+        let city = found(&mut g, at(10, 6), "elf", 4);
+        add_building(&mut g, city, "barracks");
+        let spear = g.content.rules.units.id_of("spear").unwrap();
+        let train = |g: &mut Game| {
+            g.set_production(city, ProductionItem::Unit(spear)).unwrap();
+            g.apply_production(city, 100);
+            g.units_at(at(10, 6)).into_iter().last().unwrap()
+        };
+        let plain = train(&mut g);
+        assert_eq!(g.unit_weapon_quality(plain), 0);
+        g.magic_mut(P0)
+            .unwrap()
+            .retorts
+            .insert(crate::magic::Retort::Alchemy);
+        let magic = train(&mut g);
+        assert_eq!(g.unit_weapon_quality(magic), 1, "Alchemy: magic weapons");
+        put_ore(&mut g, "mithril_ore", 11, 6);
+        add_building(&mut g, city, "alchemists_guild");
+        let mithril = train(&mut g);
+        assert_eq!(g.unit_weapon_quality(mithril), 2);
     }
 
     #[test]

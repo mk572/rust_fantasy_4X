@@ -24,6 +24,17 @@ pub struct Hurt(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Experience(pub u32);
 
+/// The quality of a unit's weapons, set where it is trained (`Game::city_weapon_quality`):
+/// 0 normal, 1 magic (an alchemists guild or the Alchemy retort), 2 mithril, 3 adamantium.
+/// Mithril and adamantium add to the unit's attacks and defence in battle; every quality above
+/// normal adds a plus to hit and makes the weapons magical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WeaponQuality(pub u8);
+
+pub const WEAPON_MAGIC: u8 = 1;
+pub const WEAPON_MITHRIL: u8 = 2;
+pub const WEAPON_ADAMANTIUM: u8 = 3;
+
 /// Movement left this turn, in half-moves (a terrain cost of 1 is 2 half-moves).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MovesLeft(pub u32);
@@ -45,6 +56,11 @@ impl Game {
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&UnitDef> {
         let id = self.world.get::<&Unit>(unit).ok()?.0;
         Some(self.content.rules.units.get(id))
+    }
+
+    /// The quality of the unit's weapons (see [`WeaponQuality`]).
+    pub fn unit_weapon_quality(&self, unit: hecs::Entity) -> u8 {
+        self.world.get::<&WeaponQuality>(unit).map_or(0, |w| w.0)
     }
 
     pub fn unit_owner(&self, unit: hecs::Entity) -> Option<PlayerId> {

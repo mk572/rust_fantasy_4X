@@ -113,6 +113,9 @@ pub struct BattleUnit {
     /// Its weapons are magical, so weapon immunity does not stop its normal attacks: heroes,
     /// fantastic and summoned creatures, units with a flaming or blessed blade.
     pub magical_weapon: bool,
+    /// The quality of its weapons (`units::WeaponQuality`): above normal, its attacks have a
+    /// plus to hit (its thrown and missile attacks too, but not breath, gazes or spell shots).
+    pub weapon_quality: u8,
     /// `Stat::SpecialLevel`: poison strength, or the penalty of its gaze and touches.
     pub special_level: i32,
     /// The ids of its lasting spells, which add to resistance against some realms.
@@ -170,6 +173,7 @@ impl BattleUnit {
             negate_first_strike: false,
             long_range: false,
             magical_weapon: false,
+            weapon_quality: 0,
             special_level: 0,
             enchantments: Vec::new(),
             realm: None,
@@ -267,12 +271,24 @@ impl BattleUnit {
     }
 
     fn melee_combatant(&self) -> Combatant {
-        self.combatant(Mode::Melee, self.melee, self.to_hit)
+        self.combatant(Mode::Melee, self.melee, self.to_hit + self.weapon_plus())
+    }
+
+    /// The plus to hit the unit's weapons give.
+    fn weapon_plus(&self) -> i32 {
+        i32::from(self.weapon_quality > 0)
     }
 
     fn thrown_combatant(&self) -> Option<Combatant> {
-        (self.ranged_kind == RangedKind::Short && self.ranged > 0)
-            .then(|| self.combatant(Mode::ThrownOrBreath, self.ranged, self.to_hit))
+        (self.ranged_kind == RangedKind::Short && self.ranged > 0).then(|| {
+            // Only a thrown weapon gains the plus, not breath or a gaze.
+            let plus = if self.has("thrown") {
+                self.weapon_plus()
+            } else {
+                0
+            };
+            self.combatant(Mode::ThrownOrBreath, self.ranged, self.to_hit + plus)
+        })
     }
 }
 
@@ -922,7 +938,12 @@ impl Battle {
         };
         let a = &self.units[att];
         let penalty = penalty + self.invisibility_penalty(att, def);
-        let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit - penalty);
+        let plus = if a.ranged_kind == RangedKind::Missile {
+            a.weapon_plus()
+        } else {
+            0
+        };
+        let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit + plus - penalty);
         let figures = a.figures;
         let mut state = self.units[def].defender_state();
         state.defense += self.city_defense_bonus(def, att);

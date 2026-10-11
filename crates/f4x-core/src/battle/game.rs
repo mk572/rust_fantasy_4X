@@ -94,6 +94,13 @@ impl Game {
         let abilities = self.unit_abilities(unit);
         let flies = def.movement == MovementType::Flying || abilities.iter().any(|a| a == "flying");
         let has = |a: &str| abilities.iter().any(|x| x == a);
+        // Mithril adds one and adamantium two to the attacks and the defence.
+        let quality = self.unit_weapon_quality(unit);
+        let extra = i32::from(quality.max(1)) - 1;
+        let ranged_kind = ranged_kind_of(&abilities);
+        let physical_shot = ranged_kind == RangedKind::Missile || has("thrown");
+        let melee = self.unit_stat(unit, Stat::Melee);
+        let ranged = self.unit_stat(unit, Stat::Ranged);
         Some(BattleUnit {
             id: 0,
             side,
@@ -101,9 +108,13 @@ impl Game {
             unit_id: def.id.clone(),
             name: def.name.clone(),
             cell: (0, 0),
-            melee: self.unit_stat(unit, Stat::Melee),
-            ranged: self.unit_stat(unit, Stat::Ranged),
-            defense: self.unit_stat(unit, Stat::Defense),
+            melee: if melee > 0 { melee + extra } else { melee },
+            ranged: if ranged > 0 && physical_shot {
+                ranged + extra
+            } else {
+                ranged
+            },
+            defense: self.unit_stat(unit, Stat::Defense) + if quality > 0 { extra } else { 0 },
             resistance: self.unit_stat(unit, Stat::Resistance),
             to_hit: self.unit_stat(unit, Stat::ToHit) / 10,
             to_block: 0,
@@ -114,12 +125,13 @@ impl Game {
             moves: self.unit_max_moves(unit),
             moves_left: self.unit_max_moves(unit),
             ammo: self.unit_stat(unit, Stat::Ammo),
-            ranged_kind: ranged_kind_of(&abilities),
+            ranged_kind,
             flies,
             first_strike: has("first_strike"),
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
             magical_weapon: self.unit_has_magical_weapon(unit),
+            weapon_quality: quality,
             special_level: self.unit_stat(unit, Stat::SpecialLevel),
             enchantments: self.unit_enchantment_ids(unit),
             realm: def.realm.as_deref().and_then(Realm::from_id),

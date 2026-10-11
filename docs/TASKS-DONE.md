@@ -23,6 +23,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 15 | City | ~~Fortress and summoning circle, banishment~~ (done) |
 | 16 | City | Autobuild (done) |
 | 17 | City | Selling buildings: prerequisites beyond one level (done) |
+| 18 | City | Weapon quality from mithril and adamantium (done) |
 | 19 | City | ~~Forester's Guild raises the growth cap (B14)~~ (done) |
 | 20 | City | Population growth edge rules (B19) | (done)
 | 21 | City | Outpost growth: wild game and difficulty (B20) | (done)
@@ -137,6 +138,8 @@ section 12. What is left is split off as task 82.
 **16. Autobuild (done).** The original's Grand Vizier is a per-player switch (`grand_vizier` in its save): when a city finishes something, the game chooses what it builds next. Here: `Player::grand_vizier` (saved), `Command::SetGrandVizier`, and `Game::vizier_choice`: the first building in `rules.config.autobuild_order` (data: `content/rules.ron`, written by the importer) that the city can build and whose gold upkeep the treasury's net income can bear; outposts are left alone. When a building completes the city takes that choice instead of housing; turning the Vizier on gives cities that are idle or on housing a building at once. Units and trade goods are never chosen. The list is ours: the original's rules for the Vizier are not documented in the reference material (only its call sites), so how it chooses differs. Client: F8 toggles it (a log line; the original's yes/no window is not drawn). Console: `vizier on|off`. A smarter chooser is item 7 in PLANNED.md.
 
 **17. Selling buildings: prerequisites beyond one level (done).** `Game::has_dependants` follows the requirements down a chain, so a building cannot be sold or destroyed in a conquest while a built building needs it even through an unbuilt link. Normal play never has such a gap (every link stays built, replaced ones too), so this only guards odd states.
+
+**18. Weapon quality from mithril and adamantium (done).** Units get a `WeaponQuality` where they are trained (`Game::city_weapon_quality`, the original's `City_Best_Weapon`: an alchemists guild, built or replaced, gives magic weapons, and mithril or adamantium on an uncorrupted square of the city's area raises it, adamantium first; a wizard with Alchemy gives at least magic weapons). It is saved with the unit. In battle (`battle_unit_from`) mithril adds one and adamantium two to the melee, the thrown and missile attack (not breath, gazes or spell shots) and the defence, every quality above normal adds a plus to hit with those attacks, and the weapons are magical (weapon immunity does not stop them). The test content's ore ids are now the real `mithril_ore` and `adamantium_ore`. Display is task 162.
 
 **19. Forester's Guild raises the growth cap (done).** The city's maximum size already counts the
 guild's +2 food (`pre_cap_adds` in `economy.rs`), as decided for B14; a test on barren land
