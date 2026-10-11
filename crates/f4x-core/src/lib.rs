@@ -11,6 +11,7 @@ pub mod city_spells;
 pub mod conquest;
 pub mod content;
 pub mod corruption;
+pub mod diplomacy;
 pub mod dispel;
 pub mod economy;
 pub mod endgame;
@@ -201,6 +202,8 @@ pub enum Command {
         amount: i32,
         gold_to_mana: bool,
     },
+    /// A talk with another wizard: proposals, answers, gifts, treaties and war.
+    Diplomacy(diplomacy::DiplomacyCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -440,11 +443,14 @@ pub enum Event {
         pos: city::Position,
         loot: lairs::Loot,
     },
+    /// Something happened between wizards: a meeting, a change of relations, a treaty, war.
+    Diplomacy(diplomacy::DiplomacyEvent),
     Rejected(Rejection),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rejection {
+    Diplomacy(diplomacy::DiplomacyError),
     Site(lairs::SiteError),
     FoundCity(city::FoundCityError),
     Move(movement::MoveError),
@@ -496,6 +502,8 @@ pub struct Game {
     pub game_over: Option<endgame::GameOver>,
     /// The human wizard, whose defeat ends the game at once.
     pub human: Option<city::PlayerId>,
+    /// Contact, relations, treaties and proposals between wizards.
+    pub diplomacy: diplomacy::Diplomacy,
     /// Every override (cheat) command that changed the game, oldest first.
     pub(crate) override_log: Vec<String>,
     undo_on: bool,
@@ -521,6 +529,7 @@ impl Game {
             battle: None,
             game_over: None,
             human: None,
+            diplomacy: diplomacy::Diplomacy::default(),
             override_log: Vec::new(),
             undo_on: false,
             undo_stack: Vec::new(),
@@ -572,6 +581,7 @@ impl Game {
             self.fog = fog::Fog::new(map.width(), map.height());
         }
         self.fog.explore(player, at, radius);
+        self.contact_near(player, at, radius);
     }
 
     /// The seed this game started from.
@@ -593,6 +603,13 @@ impl Game {
     }
 
     fn execute(&mut self, cmd: Command) -> Vec<Event> {
+        let mut events = self.execute_command(cmd);
+        // What hooks in battles, spells and the turn raised between wizards comes last.
+        events.extend(self.drain_diplomacy_events());
+        events
+    }
+
+    fn execute_command(&mut self, cmd: Command) -> Vec<Event> {
         match cmd {
             Command::EndTurn => self.end_turn(),
             Command::CreateUnit { owner, pos, unit } => {
@@ -747,6 +764,7 @@ impl Game {
             Command::ResolveCast { player, target } => {
                 events_or_reject(self.finish_cast_with_target(player, target))
             }
+            Command::Diplomacy(command) => self.diplomacy_command(command),
         }
     }
 
@@ -923,6 +941,7 @@ impl Game {
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.append(&mut corruption);
         events.extend(self.process_turn());
+        self.process_diplomacy();
         events.extend(self.process_purify());
         events.extend(self.drown_stranded());
         events.extend(self.process_road_work());

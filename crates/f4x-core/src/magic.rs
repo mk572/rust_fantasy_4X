@@ -881,12 +881,14 @@ impl Game {
             if let Some(p) = self.player_mut(player) {
                 p.mana -= cost;
             }
+            self.begin_cast_relations(player, spell);
             return Ok(self.resolve_cast(player, spell, target));
         }
         m.casting = Some(Casting {
             spell,
             remaining: cost,
         });
+        self.begin_cast_relations(player, spell);
         Ok(Vec::new())
     }
 

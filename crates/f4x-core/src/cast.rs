@@ -600,6 +600,11 @@ impl Game {
         self.draws += rng.draws;
 
         let mut events = vec![Event::SpellCast { player, spell }];
+        let victim = match target {
+            Some(Target::City(c)) => self.city_owner(c).filter(|&o| o != player),
+            _ => None,
+        };
+        self.cast_relations(player, spell, victim);
         for o in &outcomes {
             if let Outcome::Dispelled { removed, .. } = o {
                 events.push(Event::Dispelled {

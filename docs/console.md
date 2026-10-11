@@ -89,6 +89,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | `cities [all]`, `city N`, `options N` | cities, one city in full, what it can build |
 | `tile x,y`, `map [x,y] [radius]` | a square, a text map (`#` unexplored, `~` water, `.` land, `^` hills, `C` city, `u` unit, `*` yours) |
 | `spells` | known and researchable spells |
+| `diplomacy [wizard]` | the wizards met: relation word and number, treaty, what may be proposed, proposals waiting |
 | `battle` | the battle being fought: units, squares, figures, moves |
 | `score [player]` | the score breakdown (`game_end.md`) |
 | `mode`, `history` | the mode; the override log |
@@ -110,6 +111,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Choose research | `research <spell>` |
 | Cast; aim a spell paid over turns; give up a cast | `cast <spell> [target]`, `target <target>`, `cancelcast` |
 | Alchemy | `alchemy <amount> <gold\|mana>` (converts that much gold into mana, or mana into gold) |
+| Talk to a wizard you have met: propose, answer, break a treaty, declare war, give tribute | `propose <wizard> <pact\|alliance\|peace\|war <third>\|break <third>\|swap <give> <get>>`, `answer <wizard> <yes\|no>`, `breaktreaty <wizard>`, `declarewar <wizard>`, `givegold <wizard> <amount>`, `givespell <wizard> <spell>` (the query `diplomacy [wizard]` shows relation, treaty and what is waiting) |
 | Battle screen: move, melee, shoot, done, end turn, flee | `bmove <unit> <x,y>`, `battack <unit> <target>`, `bshoot <unit> <target>`, `bdone <unit>`, `bend`, `bflee` |
 | Save, load, new game | `save [name]`, `load [name]` (`saves/<name>.ron`), `new [seed] [wizard=<preset>] [name=] [books=life:3,nature:2] [retorts=a,b] [race=<id>] [players=2..5] [land=small|medium|large|%] [difficulty=intro..impossible] [magic=weak|normal|powerful]`. `load` and `new` replace the whole game, so they need full access. |
 | Quit | `quit` (the front end decides what that means) |

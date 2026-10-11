@@ -42,6 +42,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
+| 63 | Meta | Diplomacy (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
@@ -273,6 +274,18 @@ conditions on a unit's kind (`Condition::KindIs`). The data marks these spells w
 `global_effect` hook so that casting does not report "no effect yet".
 
 **59. Dispel mathematics and the counter-magic family (done).** New `dispel.rs`. One formula: a dispel of strength `s` beats a spell of difficulty `d` with chance `s / (s + d)` (the original's roll of 1 to 250 at or under `250 s / (s + d)`, so even a huge strength fails one time in 250). A spell's difficulty is its cost times one plus one for its caster's mastery of its realm (nature, sorcery or chaos) and one for Archmage. Our spells have no extra mana, so a spell's dispel strength is its cost; the True spells count it three times. Built on it: Dispel Magic and Dispel Magic True (units; only enchantments cast by *other* wizards come off, and a unit under another wizard's Spell Lock can only have the lock attacked, at difficulty 150), Disenchant Area and True (new `Tile` target: the city, every unit and a warped node on the square, a warped node against Warp Node's cost), Disjunction, Disjunction True and Spell Binding (new `GlobalEnchantment` target, `Target::Global(owner, spell)`; Binding moves the spell to the caster, who pays its upkeep from then on), Spell Blast (new `EnemyWizard` target: the caster pays as much mana as the victim has put into the spell being cast, and that spell is lost), Suppress Magic (a standing strength-500 dispel against every overland spell another wizard casts) and nightshade (task 22, now with the caster's masteries). Counter Magic is state and a method on `Battle` (`cast_counter_magic`, `counter_magic_stops`: the reserve opposes the other side's spells and loses five per attempt) but nothing casts in a battle yet, so wiring it in is part of task 43. The importer sets the targets and strengths (a fix: Dispel Magic True was strength 10, not 30). Console: `global:<player>:<spell>` targets. Client: Spell Blast is aimed by clicking one of the rival's cities or units, Disenchant by clicking the square; the global-enchantment targets need a picker (task 151). The original's other code in `Cast_Disenchant` (`+ 500` in the roll and an enchantment test against the caster) looks like a disassembly artefact and was not followed; the help text's rules were. Open: dispel in battle (Dispel Magic on units in a fight and Disenchant's battle version, which also unwarps a node the caster owns) waits for 43 and 44.
+
+**63. Diplomacy (done).** Relations on an 11-step scale, pacts, alliances, war, treaty proposals
+[271, 782-794], in `diplomacy.rs`: a record per wizard pair (contact, treaty, relation, default) and per
+direction (hidden core reaction, the three patience counters, peace duration, hostility, the human's last
+deed), saved with the game. `Change_Relations` with all its rules; `Declare_War`, `Break_Treaties`,
+`Declare_Peace` and the treaties; contact (a city or visible unit seen, Nature's Awareness, a battle, a
+city taken); the proposal state machine (`Command::Diplomacy`: propose, answer, break, declare war, give gold
+or a spell, swap spells; proposals lapse at the end of the turn); the original's rating of a proposal as a
+helper (`Game::rate_proposal`); the turn's drift, growth and patience; and the hooks in battle, conquest,
+spells and fortress capture. The AI answers proposals in `f4x-ai` (`diplomacy.rs`), the console has
+`diplomacy`, `propose`, `answer` and the rest (`talk.rs`). What is left is task 167. The plan and the
+original's rules are in `docs/diplomacy.md`.
 
 **70. Victory conditions and score (done).** The game ends by conquest, by the human wizard's
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;

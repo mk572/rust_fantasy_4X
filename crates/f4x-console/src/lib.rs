@@ -20,6 +20,7 @@ mod legal;
 mod meta;
 mod query;
 pub mod setup;
+pub mod talk;
 
 use f4x_core::city::PlayerId;
 use f4x_core::{Command, Event, Game};
@@ -177,7 +178,13 @@ pub struct Console {
 /// All commands, in the order `help` lists them.
 pub fn commands() -> Vec<&'static CommandDef> {
     let mut all: Vec<&'static CommandDef> = Vec::new();
-    for table in [meta::TABLE, query::TABLE, legal::TABLE, cheats::TABLE] {
+    for table in [
+        meta::TABLE,
+        query::TABLE,
+        legal::TABLE,
+        talk::TABLE,
+        cheats::TABLE,
+    ] {
         all.extend(table.iter());
     }
     all

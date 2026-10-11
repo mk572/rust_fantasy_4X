@@ -268,6 +268,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             )
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
+        Event::Diplomacy(d) => diplomacy(game, d),
         other => format!("{other:?}"),
     }
 }
@@ -315,5 +316,97 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             format!("{side:?} raises Counter Magic {strength}")
         }
         other => format!("{other:?}"),
+    }
+}
+
+/// What a proposal asks, in words.
+pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String {
+    use f4x_core::diplomacy::ProposalKind as K;
+    match kind {
+        K::Pact => "a wizard pact".into(),
+        K::Alliance => "an alliance".into(),
+        K::Peace => "peace".into(),
+        K::WarOn(t) => format!("war on {}", player(game, t)),
+        K::BreakAllianceWith(t) => format!("breaking the alliance with {}", player(game, t)),
+        K::Exchange { give, get } => format!(
+            "a swap: their {} for {}",
+            spell(game, get),
+            spell(game, give)
+        ),
+    }
+}
+
+fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
+    use f4x_core::diplomacy::relation_word;
+    use f4x_core::diplomacy::DiplomacyEvent as D;
+    match d {
+        D::ContactMade { a, b } => format!("{} and {} meet", player(game, *a), player(game, *b)),
+        D::RelationChanged {
+            attacker,
+            defender,
+            change,
+            ..
+        } => {
+            let now = game.relation(*attacker, *defender);
+            format!(
+                "relations of {} with {} change by {change:+}: now {} ({now})",
+                player(game, *defender),
+                player(game, *attacker),
+                relation_word(now)
+            )
+        }
+        D::TreatyChanged { a, b, treaty } => format!(
+            "{} and {}: {}",
+            player(game, *a),
+            player(game, *b),
+            crate::talk::treaty_word(*treaty)
+        ),
+        D::WarDeclared { attacker, defender } => format!(
+            "{} declares war on {}",
+            player(game, *attacker),
+            player(game, *defender)
+        ),
+        D::TreatyBroken {
+            breaker,
+            victim,
+            treaty,
+        } => format!(
+            "{} breaks the {} with {}",
+            player(game, *breaker),
+            crate::talk::treaty_word(*treaty),
+            player(game, *victim)
+        ),
+        D::ProposalMade(p) => format!(
+            "{} proposes to {}: {}",
+            player(game, p.from),
+            player(game, p.to),
+            proposal(game, p.kind)
+        ),
+        D::ProposalAnswered {
+            proposal: p,
+            accepted,
+            lapsed,
+        } => format!(
+            "{} {} {}'s proposal of {}",
+            player(game, p.to),
+            match (accepted, lapsed) {
+                (true, _) => "accepts",
+                (false, true) => "does not answer",
+                (false, false) => "refuses",
+            },
+            player(game, p.from),
+            proposal(game, p.kind)
+        ),
+        D::GoldGiven { from, to, gold } => format!(
+            "{} gives {} {gold} gold",
+            player(game, *from),
+            player(game, *to)
+        ),
+        D::SpellGiven { from, to, spell: s } => format!(
+            "{} gives {} {}",
+            player(game, *from),
+            player(game, *to),
+            spell(game, *s)
+        ),
     }
 }

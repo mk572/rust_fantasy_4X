@@ -35,7 +35,7 @@ pub fn city_size_class(citizens: u32) -> u32 {
 }
 
 impl Game {
-    fn citizens(&self, city: hecs::Entity) -> u32 {
+    pub(crate) fn citizens(&self, city: hecs::Entity) -> u32 {
         self.world.get::<&Population>(city).map_or(0, |p| p.figures)
     }
 
@@ -82,6 +82,7 @@ impl Game {
             }
             return events;
         }
+        self.city_taken_relations(winner, loser);
         let size = city_size_class(citizens) as i32;
         let loot = self.conquest_loot(city);
         let loser_is_wizard = !self.is_neutral_player(loser);

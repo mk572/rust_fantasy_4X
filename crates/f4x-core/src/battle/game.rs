@@ -243,6 +243,7 @@ impl Game {
             sources,
             site: None,
         });
+        self.attack_relations(a_owner, d_owner);
         Ok(vec![Event::BattleStarted {
             attacker: a_owner,
             defender: d_owner,
@@ -303,6 +304,19 @@ impl Game {
             });
         }
         if site.is_none() {
+            // A city that held against a wizard's attack costs the attacker its owner's goodwill.
+            if let (Some(Side::Defender), Some(pos)) = (battle.winner, battle.site) {
+                if let Some(city) = self.city_at(pos) {
+                    let (attacker, defender) = (
+                        battle.player_of(Side::Attacker),
+                        battle.player_of(Side::Defender),
+                    );
+                    if self.citizens(city) > 0 && self.city_owner(city) == Some(defender) {
+                        let fortress = self.is_fortress_city(city);
+                        self.city_held_relations(attacker, defender, fortress);
+                    }
+                }
+            }
             events.extend(self.overland_aftermath(&battle, &sources));
         }
         if let Some(index) = site {

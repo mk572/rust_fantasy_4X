@@ -8,6 +8,7 @@
 //! has found, and is meant to be good enough to play whole games, not to play them well
 //! (tasks 64 to 67 add personalities, spell use and real campaign planning).
 
+mod diplomacy;
 mod economy;
 mod expand;
 mod military;
@@ -55,6 +56,7 @@ impl Ai {
         if game.game_over.is_some() || game.player(self.player).is_none_or(|p| p.defeated) {
             return events;
         }
+        diplomacy::answer(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
         economy::research(self, game, &mut events);

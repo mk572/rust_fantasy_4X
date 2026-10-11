@@ -54,6 +54,9 @@ pub struct Snapshot {
     pub game_over: Option<crate::endgame::GameOver>,
     #[serde(default)]
     pub human: Option<u8>,
+    /// Contact, relations, treaties and pending proposals between wizards.
+    #[serde(default)]
+    pub diplomacy: crate::diplomacy::DiplomacySave,
     /// Override (cheat) commands used in this game.
     #[serde(default)]
     pub override_log: Vec<String>,
@@ -700,6 +703,7 @@ impl Game {
             difficulty: self.difficulty,
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
+            diplomacy: self.diplomacy_to_save(),
             override_log: self.override_log.clone(),
             map,
             fog,
@@ -1023,6 +1027,7 @@ impl Snapshot {
                 left: t.left,
             });
         }
+        game.diplomacy_from_save(self.diplomacy);
         // Saves from before the offer was kept have none: offer some.
         let idle: Vec<PlayerId> = game
             .players

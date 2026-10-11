@@ -1,8 +1,9 @@
 # Diplomacy
 
-Plan for the diplomacy system (tasks 63, 64 and 91). Nothing of it exists in the game yet: no
-contact between wizards, no relations, no treaties, no diplomacy screen, and the AI wizards do not
-exist as decision makers (`f4x-ai` is empty, task 65). This document records the original's rules
+The diplomacy system (tasks 63, 64 and 91). **Status:** the core is built (task 63, `crates/f4x-core/src/diplomacy.rs`:
+sections 2 to 7 and the hooks of 9.3), the AI answers proposals (`crates/f4x-ai/src/diplomacy.rs`) and the console can talk
+(`crates/f4x-console/src/talk.rs`). Not built: the diplomacy screen (task 91), personalities and what the AI starts on its own
+(tasks 64 and 65) and the leftovers of task 167. This document records the original's rules
 (taken from the reverse-engineered `DIPLOMAC.c`, `INITGAME.c`, `Spells128.c`, `Combat.c`,
 `CONQUEST.c` and `Explore.c` in `reference/ReMoM`, plus quotes of the official strategy guide
 (OSG) kept in its notes), then how to build it. Numbers below were read from that code; where the
@@ -181,7 +182,8 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 | Human army too strong | `-10` when `Random(100) >= human_strength * 50 / ai_strength` and a d20 = 1 (as written this never happens once the human has twice the AI's strength, unlike the OSG text, which says the penalty is certain at double strength) | 7 | `Diplomacy_Growth` |
 | Too many cities (on even turns) | negative, grows with the surplus over `(landsize + 1) * 3`; AI-to-AI changes halved; at least -15 | 14 | `Diplomacy_Growth` |
 | Attacking a wizard you have a pact or alliance with (a confirm box "You have a treaty with X. Do you still wish to attack?"; on yes the treaty is broken, see §6) | `-40` | 5 | `Combat.c` |
-| Attacking a city of another wizard (any city with population) | `-40`, then at the end of the battle `-60` more if it is the defender's fortress city, else `-20` | 9 | `Combat.c` |
+| Taking a city of another wizard (any city with population) | `-40`, **and the attacker declares war** (`Declare_War`) | 9 | `Combat.c` |
+| Attacking a city of another wizard and failing (the defender wins) | `-60` if it is the defender's fortress city, else `-20` (only when the defender wins, as the code is written; the document had both added up) | 9 | `Combat.c` |
 | Battle against an AI wizard's units ("defensive battle losses") | `-diplomatic_value` (computed from the losses; the formula was not read), only when the defender is an AI | 8 | `Combat.c` |
 | A wizard is destroyed / a fortress is taken | `-40` / `-20` from the winner to every other wizard (two code paths in `CONQUEST.c`; the first also erases contact with the loser) | 7 | `CONQUEST.c` |
 | Bad city spell (Earthquake -9, Corruption -25, Raise Volcano -50, Chaos Rift -5, Call the Void -20, Evil Presence -5, Famine -5, Cursed Lands -5, Pestilence -8) | by spell | 13 | `Spells128.c` |
@@ -366,6 +368,12 @@ a named constant so a rule set can restore it (PLANNED item 5, rule sets):
 | Counter-offers (`IDK_Npc_Counteroffer`) | Not written; yes with 50 percent for results 1-2 | Same, until a counter-offer design exists (§11) |
 | `Find_Worst_Modifier` is documented as the lowest of the patience counters but its comparisons are muddled (it also starts from 0) | The "cold shoulder" test is unreliable | Lowest of the three (intended) |
 | "Final war" status | Never set | Left out |
+| Attacking a treaty partner calls `Break_Treaties(defender, attacker)`: the victim is the breaker | The oath-breaker penalty is the victim's | The attacker breaks the treaty and takes the penalty |
+| `Break_Treaties` lowers every other wizard's hidden relation to the victim by 5 even if no treaty existed (so each war declaration does) | As the original | As the original (tested) |
+| Gravitation to the default runs for each AI toward each wizard, then the copies are mirrored in a way that depends on the order | Each AI pair drifts about twice a turn | Once per pair, by the AI's own record (the lower number's between two AIs) |
+| `Change_Relations` after turn 200 doubles AI-to-AI friendships and softens AI-to-AI enmities by difficulty | Safeguards for the AI | Not ported (design.md section 8) |
+| The Spell of Mastery's 11 percent war is tested on Earth Lore | Cast Earth Lore: 11 percent war | On the Spell of Mastery (as in the table above), tested |
+| Gold tribute: amounts come from the AI's reserve and the human pays them | Odd | The giver chooses an amount; the share of the receiver's reserve it makes (a quarter to all) gives the choice 1 to 4, gain applied once |
 
 Anything in the table must also be written down as a test so the choice is visible.
 

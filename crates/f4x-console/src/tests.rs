@@ -1743,3 +1743,146 @@ fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     let r = cast(&mut g, "bcast call chaos");
     assert!(r.ok, "{}", r.text());
 }
+
+fn meet_all(g: &mut Game) -> Vec<PlayerId> {
+    let others: Vec<PlayerId> = g.wizards().into_iter().filter(|&w| w != HUMAN).collect();
+    for &w in &others {
+        g.make_contact(HUMAN, w);
+    }
+    others
+}
+
+#[test]
+fn diplomacy_lists_only_the_wizards_met() {
+    let (mut g, mut c) = (game(), console());
+    let none = c.execute(&mut g, "diplomacy");
+    assert!(none.ok, "{}", none.text());
+    assert!(
+        none.text().contains("met no other wizard"),
+        "{}",
+        none.text()
+    );
+    let others = meet_all(&mut g);
+    let all = c.execute(&mut g, "diplomacy");
+    assert!(all.ok, "{}", all.text());
+    assert_eq!(all.lines.len(), others.len(), "{}", all.text());
+    assert!(all.text().contains("no treaty"), "{}", all.text());
+    let one = c.execute(&mut g, &format!("diplomacy {}", others[0].0));
+    assert!(
+        one.text().contains("you may propose: pact, alliance"),
+        "{}",
+        one.text()
+    );
+    assert!(
+        c.execute(&mut g, "diplomacy 0").error.is_some(),
+        "not oneself"
+    );
+    assert!(c.execute(&mut g, "diplomacy 200").error.is_some());
+}
+
+#[test]
+fn a_proposal_waits_and_an_answer_signs_it() {
+    let (mut g, mut c) = (game(), console());
+    let other = meet_all(&mut g)[0];
+    let w = other.0;
+    let r = c.execute(&mut g, &format!("propose {w} pact"));
+    assert!(r.ok, "{}", r.text());
+    assert!(r.text().contains("proposes"), "{}", r.text());
+    let again = c.execute(&mut g, &format!("propose {w} alliance"));
+    assert!(!again.ok);
+    assert!(again.text().contains("already waiting"), "{}", again.text());
+    let list = c.execute(&mut g, "diplomacy");
+    assert!(list.text().contains("waiting"), "{}", list.text());
+    // Nothing they have proposed to us yet.
+    let none = c.execute(&mut g, &format!("answer {w} yes"));
+    assert!(none.text().contains("proposed nothing"), "{}", none.text());
+    // The other wizard proposes to us: we accept.
+    g.apply(f4x_core::Command::Diplomacy(
+        f4x_core::diplomacy::DiplomacyCommand::Propose {
+            from: other,
+            to: HUMAN,
+            kind: f4x_core::diplomacy::ProposalKind::Alliance,
+        },
+    ));
+    let ok = c.execute(&mut g, &format!("answer {w} yes"));
+    assert!(ok.ok, "{}", ok.text());
+    assert!(ok.text().contains("accepts"), "{}", ok.text());
+    assert_eq!(
+        g.treaty(HUMAN, other),
+        f4x_core::diplomacy::Treaty::Alliance
+    );
+    assert!(c
+        .execute(&mut g, &format!("answer {w} maybe"))
+        .error
+        .is_some());
+}
+
+#[test]
+fn treaties_break_and_wars_are_declared() {
+    let (mut g, mut c) = (game(), console());
+    let other = meet_all(&mut g)[0];
+    let w = other.0;
+    let not = c.execute(&mut g, &format!("breaktreaty {w}"));
+    assert!(not.text().contains("not allowed"), "{}", not.text());
+    g.start_treaty(HUMAN, other, f4x_core::diplomacy::Treaty::Pact);
+    let broken = c.execute(&mut g, &format!("breaktreaty {w}"));
+    assert!(broken.ok, "{}", broken.text());
+    assert!(broken.text().contains("breaks"), "{}", broken.text());
+    let war = c.execute(&mut g, &format!("declarewar {w}"));
+    assert!(war.ok, "{}", war.text());
+    assert!(war.text().contains("declares war"), "{}", war.text());
+    assert_eq!(g.treaty(HUMAN, other), f4x_core::diplomacy::Treaty::War);
+    assert!(!c.execute(&mut g, &format!("declarewar {w}")).ok);
+    let peace = c.execute(&mut g, &format!("propose {w} peace"));
+    assert!(peace.ok, "{}", peace.text());
+}
+
+#[test]
+fn gifts_move_gold_and_spells() {
+    let (mut g, mut c) = (game(), console());
+    let other = meet_all(&mut g)[0];
+    let w = other.0;
+    let before = g.player(HUMAN).unwrap().gold;
+    let r = c.execute(&mut g, &format!("givegold {w} 10"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.player(HUMAN).unwrap().gold, before - 10);
+    let broke = c.execute(&mut g, &format!("givegold {w} 99999"));
+    assert!(broke.text().contains("not enough gold"), "{}", broke.text());
+    let unknown = c.execute(&mut g, &format!("givespell {w} no-such-spell"));
+    assert!(!unknown.ok);
+    let me = g
+        .magic(HUMAN)
+        .unwrap()
+        .known
+        .iter()
+        .copied()
+        .next()
+        .unwrap();
+    let theirs = &mut g.player_mut(other).unwrap().magic;
+    theirs.known.remove(&me);
+    let name = g.content.rules.spells.get(me).id.clone();
+    let spell = c.execute(&mut g, &format!("givespell {w} {name}"));
+    assert!(spell.ok, "{}", spell.text());
+    assert!(g.magic(other).unwrap().known.contains(&me));
+}
+
+#[test]
+fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
+    let kind = |name: &str| crate::find(name).unwrap().kind;
+    assert_eq!(kind("diplomacy"), Kind::Query);
+    for name in [
+        "propose",
+        "answer",
+        "breaktreaty",
+        "declarewar",
+        "givegold",
+        "givespell",
+    ] {
+        assert_eq!(kind(name), Kind::Legal, "{name}");
+    }
+    let (mut g, _) = (game(), console());
+    let mut read_only = Console::new(HUMAN, Access::ReadOnly);
+    meet_all(&mut g);
+    assert!(read_only.execute(&mut g, "diplomacy").ok);
+    assert!(!read_only.execute(&mut g, "propose 1 pact").ok);
+}

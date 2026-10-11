@@ -207,6 +207,7 @@ impl Game {
         if self.city_count(loser) == 0 {
             return self.defeat(loser, winner);
         }
+        self.conquest_relations(winner, loser, false);
         let spell = self.content.rules.spells.id_of("spell_of_return");
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(p) = self.player_mut(loser) {
@@ -233,6 +234,7 @@ impl Game {
             p.magic.casting = None;
         }
         self.aftermath(loser, winner);
+        self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];
         events.extend(self.check_conquest(winner));
         events

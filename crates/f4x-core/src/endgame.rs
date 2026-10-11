@@ -14,7 +14,6 @@ use crate::{Event, Game};
 pub const SPELL_OF_MASTERY: &str = "spell_of_mastery";
 
 /// The neutral player and monsters are not wizards.
-const NEUTRAL: PlayerId = PlayerId(u8::MAX);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EndKind {
@@ -69,10 +68,6 @@ pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
 }
 
 impl Game {
-    fn is_wizard(&self, p: PlayerId) -> bool {
-        p != NEUTRAL && !self.is_neutral_player(p)
-    }
-
     /// Wizards that have not been defeated.
     pub fn living_wizards(&self) -> Vec<PlayerId> {
         self.players
