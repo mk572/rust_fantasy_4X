@@ -18,34 +18,34 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 |---|---|---|
 | 17 | City | Selling buildings: prerequisites beyond one level (low priority) |
 | 18 | City | Weapon quality from mithril and adamantium (low priority) |
-| 24 | City | Stream of Life and Gaia's Blessing (B8) |
-| 25 | City | City enchantments with non-stat effects |
-| 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) |
-| 29 | Units | Undead and fantastic-creature rules (B10) |
+| 24 | City | Stream of Life and Gaia's Blessing (B8) (low priority) |
+| 25 | City | City enchantments with non-stat effects (low priority) |
+| 27 | Units | Experience: Warlord, Crusade, Armsmaster, Heroism (B9) (low priority) |
+| 29 | Units | Undead and fantastic-creature rules (B10) (low priority) |
 | 30 | Units | Temporary effects store (instant modifiers, granted abilities) |
 | 31 | Units | Neutral player and neutral cities |
 | 32 | Units | Starting economy tuning |
 | 35 | Combat | Immunities and resistance rolls |
-| 36 | Combat | Special attacks |
-| 37 | Combat | Combat ability rules |
+| 36 | Combat | Special attacks (low priority) |
+| 37 | Combat | Combat ability rules (low priority) |
 | 38 | Combat | Ranged ammunition and spell shots |
 | 39 | Combat | Auto-resolve |
 | 41 | Combat | City sieges, walls and capture |
 | 42 | Combat | Fleeing and after-battle results |
 | 43 | Combat | Casting in battle |
-| 44 | Combat | Battlefield-effect spells |
+| 44 | Combat | Battlefield-effect spells (low priority) |
 | 46 | Combat | Battle AI |
-| 47 | Heroes | Hero abilities |
+| 47 | Heroes | Hero abilities (low priority) |
 | 48 | Heroes | Hiring, summoning, recall, resurrection and fame |
 | 49 | Heroes | Item slots, powers and data schema |
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil |
-| 51 | Heroes | Heroes' casting contribution and sage heroes |
-| 53 | Magic | Remaining retort effects |
+| 51 | Heroes | Heroes' casting contribution and sage heroes (low priority) |
+| 53 | Magic | Remaining retort effects (low priority) |
 | 55 | Magic | Importer: spell eligibility 2 and 3 |
-| 56 | Magic | Implement the 37 "special" spells |
-| 58 | Magic | Unit enchantments needing non-stat effects |
+| 56 | Magic | Implement the 37 "special" spells (low priority) |
+| 58 | Magic | Unit enchantments needing non-stat effects (low priority) |
 | 59 | Magic | Dispel mathematics and the counter-magic family |
-| 60 | Magic | Wizard-targeting, destruction and other special spell categories |
+| 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) |
 | 61 | Magic | The Spell of Mastery's research cost and the AI casting it |
 | 62 | Magic | Player-chosen losses when mana runs short |
 | 63 | Meta | Diplomacy |
@@ -69,7 +69,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 83 | Client | Wizard portraits and banner colours |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
-| 87 | Magic | Remaining global enchantments |
+| 87 | Magic | Remaining global enchantments (low priority) |
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
 | 91 | Client | Diplomacy screen |
@@ -85,7 +85,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 101 | Magic | Eleven-book realms and the full starting-spell rule |
 | 102 | Map | Road-building path selection in the client |
 | 103 | Units | Scouting levels and unit sight |
-| 104 | Units | Ship tiers by building and ship movement estimates |
+| 104 | Units | Ship tiers by building and ship movement estimates (low priority) |
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
@@ -101,21 +101,21 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 120 | Client | Overland screen details |
 | 121 | Map | Unexplored-edge pictures (corner-based exploration) |
 | 122 | Map | River mouths and shore pieces with rivers |
-| 123 | Map | Call the Void, Great Wasting and Armageddon corruption |
-| 124 | Map | Mines, lumber camps and hunter's lodges on the map |
+| 123 | Map | Call the Void, Great Wasting and Armageddon corruption (low priority) |
+| 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
 | 125 | Client | Unit stack backgrounds in banner colours |
 | 126 | Client | Bitmap font for the remaining overland text |
 | 127 | Map | Lair rewards: original spell, book and retort selection |
 | 128 | Client | Site encounter dialogs and treasure popup |
 | 129 | Map | Lair generation parity |
-| 130 | Client | Warped node and cleared site pictures |
+| 130 | Client | Warped node and cleared site pictures (low priority) |
 | 131 | Combat | Battle grid shape and deployment as in the original |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 133 | Client | Prompt before attacking, and battles between AI players |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 135 | Client | Run the AI wizards in the client |
-| 136 | Client | Earth Gate and Astral Gate in the client and the AI |
-| 137 | Client | Teleport and merge animation in the battle screen |
+| 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
+| 137 | Client | Teleport and merge animation in the battle screen (low priority) |
 | 138 | Client | Army list screen |
 | 139 | Client | City list screen |
 | 140 | Client | Unit statistics window and the enemy stack list |
@@ -151,21 +151,21 @@ per-unit quality attribute set at creation and saved. Low priority.
 
 **24. Stream of Life and Gaia's Blessing (B8).** The original reads the wrong table, which looks
 like a port error. Needs the original's disassembly; until then, implement the described behaviour
-(unrest relief and growth) and note the decision.
+(unrest relief and growth) and note the decision. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **25. City enchantments with non-stat effects.** Nine spells (walls, gates, scouting, spell ward,
 and so on) need effects that stat modifiers cannot express. Add city-state flags consumed by
-movement, vision, combat and dispel code.
+movement, vision, combat and dispel code. Low priority: only needed for specific spells, buildings, units or abilities.
 
 ### Units
 
 **27. Experience: Warlord, Crusade, Armsmaster, Heroism (B9).** Elite levels beyond 120 xp need
 Warlord or Crusade; Armsmaster doubles hero xp use; Heroism should make a unit elite (decide the
-combat-level exception from B9). Warlord retort needs task 53.
+combat-level exception from B9). Warlord retort needs task 53. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **29. Undead and fantastic-creature rules (B10).** No healing for undead, +50% upkeep for
 fantastic undead, and the full set of death-creature immunities (the original forgot cold, poison
-and illusion immunity for raised units; decision is to follow the help).
+and illusion immunity for raised units; decision is to follow the help). Low priority: only needed for specific spells, buildings, units or abilities.
 
 **30. Temporary effects store.** `GameHost::add_modifier`, `grant_ability` and `remove_ability` do
 nothing, so instant or timed spells that grant a modifier or ability have nowhere to live. Add a
@@ -187,11 +187,11 @@ illusion [412-420]; resistance rolls with spell penalties.
 
 **36. Special attacks.** Armor piercing (halves defence), illusion (ignores armour), chaos damage
 (ignores everything), life steal (turns victims undead), poison per level, stoning, cause death,
-destruction, power drain, dispel evil [429-439].
+destruction, power drain, dispel evil [429-439]. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **37. Combat ability rules.** Large shield (+2 versus ranged), wall crusher (50 percent melee, 25
 percent ranged), healer, invisibility, long range, regeneration, luck, negate first strike, mana
-leak [396-427, 491].
+leak [396-427, 491]. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **38. Ranged ammunition and spell shots.** Quiver refill after combat, magical ranged "spell
 shots" that use mana [542].
@@ -209,7 +209,7 @@ removal of destroyed units from the ECS.
 range multiplier by distance from the wizard's fortress, and Counter Magic [610].
 
 **44. Battlefield-effect spells.** 19 spells with combat-wide modifiers by realm, per-turn bolts,
-mud, entangle and counter magic; implement on top of 30 and 43.
+mud, entangle and counter magic; implement on top of 30 and 43. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **46. Battle AI.** Decision making for AI-controlled units in tactical battles and for the AI
 wizard's combat spells. After 40 and 43.
@@ -217,7 +217,7 @@ wizard's combat spells. After 40 and 43.
 ### Heroes and items
 
 **47. Hero abilities.** 13 hero abilities with levels and "super" versions [515-526]; data exists
-as imported text, the effects mostly do not.
+as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **48. Hiring, summoning, recall, resurrection and fame.** Hero availability by fame, hiring cost,
 the noble, charmed and lucky traits, Summon Hero and Summon Champion, Recall Hero, dead hero
@@ -232,7 +232,7 @@ at the anvil.
 
 **51. Heroes' casting contribution and sage heroes.** Heroes add to casting skill and sage heroes
 add research (level times 3, or 9 for the greater ability). The hooks (`Skill_Left` and the
-research income) exist; heroes do not feed them yet.
+research income) exist; heroes do not feed them yet. Low priority: only needed for specific spells, buildings, units or abilities.
 
 ### Magic (first pass done; see `magic.md`)
 
@@ -240,7 +240,7 @@ research income) exist; heroes do not feed them yet.
 (Myrror start), Divine and Infernal Power (+50 percent religious power, B3), Famous, Charismatic,
 Node Mastery and the realm masteries' power doubling for nodes. Alchemy, Archmage, Artificer,
 Conjurer, Sage Master, Runemaster, Mana Focusing and the masteries' cost and research bonuses
-already work.
+already work. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **55. Importer: spell eligibility 2 and 3.** `scripts/import_mom.py` collapses eligibility 2 and 3
 to overland-only, losing the overland ×5 cost for them; spells such as those cost less than in the
@@ -250,11 +250,11 @@ against the help text.
 **56. The 37 "special" spells.** Map reveals, terrain and mineral changes, healing a map square,
 recalls, moving the fortress, resurrect and similar [mechanics-gaps section 4]. Add the missing
 effect primitives (map reveal, teleport, grant movement type, building destruction, random-effect
-tables) and implement them in groups.
+tables) and implement them in groups. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
 conditional bonuses and regeneration. Needs conditional modifiers (by attacker realm, ranged versus
-melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks.
+melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **59. Dispel mathematics and the counter-magic family.** Dispel strength versus spell cost with
 node protection and Archmage or mastery doubling, Disenchant Area, Disjunction, Spell Blast, Counter
@@ -262,7 +262,7 @@ Magic and Spell Binding [610]. The current host dispel is a simple strength-over
 
 **60. Wizard-targeting, destruction and other special categories.** About 20 spells aimed at
 wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
-skill, fame, diplomacy) and spell ownership transfer.
+skill, fame, diplomacy) and spell ownership transfer. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **61. The Spell of Mastery's research cost and the AI casting it.** Finishing the spell wins
 the game and the Spell of Return works after banishment (tasks 70 and 15; `docs/game_end.md`).
@@ -402,7 +402,7 @@ mathematics* (Suppress Magic, Life Force, Tranquility: 59); *diplomacy and fame*
 Majesty: 63; Just Cause: 72); *movement* (Wind Mastery: doubles own ship and sky speeds and
 halves everyone else's, which needs a condition on movement type); *experience* (Crusade: one
 level more for normal units, 27); *abilities* (Holy Arms' magic weapons, Doom Mastery's
-mutation of new units: temporary effects store 30); and Time Stop's turn flow.
+mutation of new units: temporary effects store 30); and Time Stop's turn flow. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **88. Hall of fame.** The list of best finished games with wizard, race, score, turns and
 difficulty [628-641, 798], stored outside the saves (for example `saves/hall_of_fame.ron`),
@@ -461,7 +461,7 @@ middle of a battle continues exactly like the unsaved one.
 
 **103. Scouting levels and unit sight.** Units see by their `Sight` stat only; the original's scouting ability adds a level to sight [546] and Wind Walking gives its stack speed 3. Import scouting as its own ability or stat modifier, apply it in `visibility`, and give wind-walking stacks their speed.
 
-**104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's.
+**104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 
@@ -493,9 +493,9 @@ middle of a battle continues exactly like the unsaved one.
 
 **122. River mouths and shore pieces with rivers.** The original has terrain types (`_Shore..R..`) for a river reaching the sea; we lay the plain river piece over the shore. Pick the river-mouth shore pieces and check against the original's look.
 
-**123. Call the Void, Great Wasting and Armageddon corruption.** The corruption layer, Corruption, Purify, Land Corruption and Gaia's Blessing exist; the global spells that corrupt land each turn (and the Great Wasting and Armageddon looks) are still to wire to it.
+**123. Call the Void, Great Wasting and Armageddon corruption.** The corruption layer, Corruption, Purify, Land Corruption and Gaia's Blessing exist; the global spells that corrupt land each turn (and the Great Wasting and Armageddon looks) are still to wire to it. Low priority: only needed for specific spells, buildings, units or abilities.
 
-**124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4.
+**124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
 
@@ -522,7 +522,7 @@ exact placement, counts and type roll once the generator parity task (10) is tak
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
-cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared.
+cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **131. Battle grid shape and deployment as in the original.** The original draws 22 staggered rows
 of 11 cells, which covers only the band of the 21 by 22 grid with about -9 <= x - y <= 11
@@ -567,12 +567,12 @@ against. See `docs/console.md` section 6 for the matching console gaps.
 **136. Earth Gate and Astral Gate in the client and the AI.** The core has both (task 12). The client
 should offer the teleport when a stack in an Earth Gate city moves onto another gate city (a button
 or a prompt) and enable the plane-shift button in an Astral Gate city; the AI should use them to
-reinforce threatened cities and to cross planes.
+reinforce threatened cities and to cross planes. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **137. Teleport and merge animation in the battle screen.** The core reports a teleport or merge as a
 `Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
 the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
-and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds.
+and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **138. Army list screen.** The original's `ArmyList_Screen`: every stack of the wizard with its units and orders; opens a unit's details (140) and the Item screen (142). Reached from the Army button of the main screen. See [`screen_list.md`](screen_list.md).
 
