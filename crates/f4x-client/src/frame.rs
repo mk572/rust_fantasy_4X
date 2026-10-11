@@ -86,12 +86,17 @@ pub fn text_centered(text: &str, cx: f32, baseline: f32, size: f32, color: Color
 }
 
 impl App {
-    fn art_picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<Texture2D> {
+    pub(crate) fn art_picture(
+        &mut self,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+    ) -> Option<Texture2D> {
         self.art.picture(lbx, entry, frame).cloned()
     }
 
     /// Draw a picture whose top-left is at the original's `(x, y)`.
-    fn draw_pic(
+    pub(crate) fn draw_pic(
         &mut self,
         lay: &Layout,
         lbx: &str,
@@ -100,6 +105,21 @@ impl App {
         x: f32,
         y: f32,
     ) -> Option<Rect> {
+        self.draw_pic_tinted(lay, lbx, entry, frame, x, y, WHITE)
+    }
+
+    /// `draw_pic` multiplied by a colour (a faded one shows a disabled control).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_pic_tinted(
+        &mut self,
+        lay: &Layout,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        x: f32,
+        y: f32,
+        tint: Color,
+    ) -> Option<Rect> {
         let tex = self.art_picture(lbx, entry, frame)?;
         let size = tex.size() * lay.scale;
         let at = lay.point(x, y);
@@ -107,7 +127,7 @@ impl App {
             &tex,
             at.x,
             at.y,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(size),
                 ..Default::default()

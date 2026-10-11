@@ -32,10 +32,12 @@ original task numbers. Newest work is merged in ascending order by number.
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
+| 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
 | 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
+| 145 | Client | Save and load screen with slots (done) |
 
 ## Descriptions
 
@@ -218,6 +220,8 @@ conditions on a unit's kind (`Condition::KindIs`). The data marks these spells w
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
 the cut-scenes and the hall of fame are tasks 134 and 88.
 
+**86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed, land size and opponents on a new-game options step (10).
+
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
 command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness
 rules: a command that explored new squares, drew random numbers or started a battle cannot be
@@ -248,3 +252,5 @@ cell positions: ground by plane and enchantment, river or ocean overlay, hills o
 the road grid, every cell back to front, the walls; hovering shows a building's name. Not done:
 the original's road masking (the whole grid is drawn), animation of buildings and water,
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
+
+**145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.

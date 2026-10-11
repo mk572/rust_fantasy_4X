@@ -4,14 +4,15 @@
 mod art;
 mod battle_anim;
 mod battle_screen;
-mod console_screen;
-mod game_over_screen;
 mod city_screen;
 mod cityscape;
+mod console_screen;
 mod create_screen;
 mod frame;
+mod game_over_screen;
 mod magic_screen;
 mod map_draw;
+mod menu_screen;
 mod terrain_pick;
 mod ui;
 mod view;
@@ -36,8 +37,12 @@ struct Options {
     reveal: bool,
     /// With `--shot`, put the top-left of the map view at this tile.
     at: Option<(f32, f32)>,
-    /// Open the wizard creation screen (the default unless loading, shooting or `--quick`).
+    /// Open the wizard creation screen at once, skipping the start menu.
     create: bool,
+    /// With `--shot`, show the start menu.
+    menu: bool,
+    /// With `--shot`, show the save slots (as if opened from the start menu).
+    slots: bool,
     /// Skip the creation screen and play the default wizard.
     quick: bool,
     /// With `--shot`, fight a test battle first.
@@ -65,6 +70,8 @@ fn parse_args() -> Result<Options, String> {
         city: false,
         magic: false,
         create: false,
+        menu: false,
+        slots: false,
         reveal: false,
         at: None,
         quick: false,
@@ -91,6 +98,8 @@ fn parse_args() -> Result<Options, String> {
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
             "--create" => o.create = true,
+            "--menu" => o.menu = true,
+            "--slots" => o.slots = true,
             "--reveal" => o.reveal = true,
             "--at" => {
                 let v = value("--at")?;
@@ -129,7 +138,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--create] [--menu] [--slots] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -178,8 +187,12 @@ async fn main() {
     if options.battle {
         app.open_test_battle();
     }
-    if options.create || (options.shot.is_none() && options.load.is_none() && !options.quick) {
+    if options.create {
         app.open_creation();
+    } else if options.slots {
+        app.open_slots(true);
+    } else if options.menu || (options.shot.is_none() && options.load.is_none() && !options.quick) {
+        app.open_main_menu();
     }
     let mut frames = 0;
     loop {

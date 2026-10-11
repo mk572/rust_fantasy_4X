@@ -74,7 +74,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 83 | Client | Wizard portraits and banner colours |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
-| 86 | Client | Start menu: new game, load game, settings, quit |
 | 87 | Magic | Remaining global enchantments |
 | 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
@@ -129,7 +128,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 142 | Client | Item screen and the item pop-up |
 | 143 | Client | Offer, hire and event pop-ups |
 | 144 | Client | Turn summary and message pop-ups |
-| 145 | Client | Save and load screen with slots |
 
 ## Descriptions
 
@@ -414,13 +412,6 @@ in the client at start-up, skippable with any key and switchable off in the sett
 movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
 for the sound.
 
-**86. Start menu.** A title screen shown before anything else (after the opening movie, 85):
-New game (opens the wizard creation screen, with map seed, land size and opponents once the
-settings exist, T10), Load game (list the saves in `saves/` with date, turn and wizard; open
-the chosen one), Settings, and Quit. The in-game Esc menu should offer the same entries plus
-Save and Return to the game. Today the client starts straight in the creation screen
-(`--quick` skips it, `--load` loads a file); both options stay for scripting.
-
 **87. Remaining global enchantments.** The global spells still without effect, grouped by what
 they need: *combat* (Eternal Night, Zombie Mastery, Life Force and Tranquility's battle part,
 Nature's Wrath, Time Stop's combat part: 33-46); *corruption and map change* (Great Wasting,
@@ -614,5 +605,3 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 **143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame).
 
 **144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food (see task 32). Today events go to a log list.
-
-**145. Save and load screen with slots.** The original's Load / Save screen: slot list, Load, Save, Settings, Quit and OK; reached from a Game button on the main screen and the start menu (86). Today only a quick-save (F5) and quick-load (F9) exist.

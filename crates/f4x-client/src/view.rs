@@ -38,6 +38,10 @@ pub enum Screen {
     GameOver,
     /// The text console (F2).
     Console,
+    /// The start menu: Continue, Load Game, New Game, Hall of Fame, Quit.
+    MainMenu,
+    /// The save slots: load, save, and leave the game.
+    Slots,
 }
 
 pub struct App {
@@ -71,6 +75,7 @@ pub struct App {
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
+    pub(crate) menu: crate::menu_screen::MenuState,
     /// The text console's state (F2).
     pub(crate) console: crate::console_screen::ConsoleUi,
 }
@@ -121,6 +126,7 @@ impl App {
             human_build: None,
             battle_ui: Default::default(),
             game_over_seen: false,
+            menu: Default::default(),
             console: Default::default(),
         };
         app.start_game();
@@ -639,12 +645,14 @@ impl App {
             Screen::Magic => self.magic_screen(),
             Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
+            Screen::MainMenu => return self.main_menu_screen(),
+            Screen::Slots => self.slots_screen(),
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {
                         self.log.push("Cast cancelled".into());
                     } else {
-                        return false;
+                        self.open_slots(false);
                     }
                 }
                 self.overworld_input();
@@ -1026,7 +1034,7 @@ impl App {
         let click = self.draw_frame();
         // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
         match click.menu {
-            Some(0) => self.save_to(Path::new(QUICKSAVE)),
+            Some(0) => self.open_slots(false),
             Some(1) | Some(4) => self.open_magic(),
             Some(3) => self.open_first_city(),
             Some(6) => {
@@ -1093,7 +1101,7 @@ impl App {
                 "click select      right-click go      B settle / build road      U meld spirit",
                 "C city      P plane-shift      F stop      T balance farmers      M magic",
                 "Tab other plane      +/- zoom      arrows pan      Enter end turn",
-                "Ctrl-Z undo      F5 save      F9 load      N new map      R next race      Esc quit",
+                "Ctrl-Z undo      F5 quick-save      F9 quick-load      N new map      R next race      Esc game menu",
             ];
             let box_w = m.w * 0.9;
             draw_rectangle(

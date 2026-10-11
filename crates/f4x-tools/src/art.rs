@@ -23,6 +23,37 @@ fn base_palette(game_dir: &Path) -> Result<Vec<u8>, String> {
     Ok(lbx.entry(PALETTE_ENTRY)[..768].to_vec())
 }
 
+/// FONTS.LBX palette entries are selected by `Load_Palette(n)`, which reads entry `n + 2`; the
+/// main menu calls `Load_Palette(2)`, the "Magic Castle View" palette.
+const MENU_PALETTE_ENTRY: usize = 4;
+
+fn fonts_palette(game_dir: &Path, entry: usize) -> Result<Vec<u8>, String> {
+    let path = find(game_dir, "FONTS.LBX").ok_or("FONTS.LBX not found (needed for the palette)")?;
+    let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let lbx = Lbx::parse(&data).map_err(|e| format!("FONTS.LBX: {e}"))?;
+    if lbx.len() <= entry || lbx.entry(entry).len() < 768 {
+        return Err(format!("FONTS.LBX has no palette entry {entry}"));
+    }
+    Ok(lbx.entry(entry)[..768].to_vec())
+}
+
+/// The palette the original has loaded while it shows pictures of this file. Most files use
+/// the base palette (plus any colours a picture sets itself). The start menu loads its own
+/// FONTS.LBX palette, and the load screen's pictures rely on the colours its background sets.
+fn palette_for(stem: &str, lbx: &Lbx, base: &[u8], menu: &[u8]) -> Vec<u8> {
+    match stem {
+        "mainscrn" | "vortex" => menu.to_vec(),
+        "load" => {
+            let mut pal = base.to_vec();
+            if let Some((start, colours)) = decode(lbx.entry(0)).and_then(|p| p.palette) {
+                pal[start * 3..start * 3 + colours.len()].copy_from_slice(&colours);
+            }
+            pal
+        }
+        _ => base.to_vec(),
+    }
+}
+
 /// Case-insensitive file lookup, since the game files are upper case on disk.
 fn find(dir: &Path, name: &str) -> Option<std::path::PathBuf> {
     fs::read_dir(dir)
@@ -235,6 +266,7 @@ fn banner_mask(pixels: &[u8]) -> Vec<u8> {
 
 pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
     let base = base_palette(game_dir)?;
+    let menu_palette = fonts_palette(game_dir, MENU_PALETTE_ENTRY)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
         .map_err(|e| format!("{}: {e}", game_dir.display()))?
         .flatten()
@@ -258,12 +290,13 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
         let data = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let Ok(lbx) = Lbx::parse(&data) else { continue };
         let dir = out_dir.join(&stem);
+        let file_palette = palette_for(&stem, &lbx, &base, &menu_palette);
         for i in 0..lbx.len() {
             let Some(pic) = decode(lbx.entry(i)) else {
                 continue;
             };
             fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            let mut pal = base.clone();
+            let mut pal = file_palette.clone();
             if let Some((start, colours)) = &pic.palette {
                 pal[start * 3..start * 3 + colours.len()].copy_from_slice(colours);
             }

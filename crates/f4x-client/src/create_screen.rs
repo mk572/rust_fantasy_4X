@@ -270,6 +270,12 @@ impl App {
                 self.create.build.banner = Some(banner);
             }
         }
+        if button(Rect::new(12.0, 12.0, 110.0, 30.0), "Back", true)
+            || is_key_pressed(KeyCode::Escape)
+        {
+            self.open_main_menu();
+            return;
+        }
         // Begin.
         let ok =
             self.create.build.preset || self.game.check_wizard_build(&self.create.build).is_ok();

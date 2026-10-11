@@ -48,6 +48,35 @@ pub fn load_game(path: &Path, content: Content) -> Result<Game, SaveError> {
         .map_err(SaveError::Load)
 }
 
+/// What a save slot list shows about a save without rebuilding the game.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveSummary {
+    /// The human wizard's name.
+    pub wizard: String,
+    pub turn: u32,
+    /// The game had ended when it was saved.
+    pub finished: bool,
+}
+
+/// Read just enough of a save to describe it.
+pub fn summarize_save(path: &Path) -> Result<SaveSummary, SaveError> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))?;
+    let snapshot = Snapshot::from_text(&text).map_err(SaveError::Load)?;
+    let human = snapshot.human.unwrap_or(0);
+    let wizard = snapshot
+        .players
+        .iter()
+        .find(|p| p.id == human)
+        .or_else(|| snapshot.players.first())
+        .map_or_else(String::new, |p| p.name.clone());
+    Ok(SaveSummary {
+        wizard,
+        turn: snapshot.turn,
+        finished: snapshot.game_over.is_some(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +181,19 @@ mod tests {
         std::fs::write(&path, &text[..text.len() / 2]).unwrap();
         let cut = load_game(&path, content()).err().unwrap();
         assert!(matches!(cut, SaveError::Load(LoadError::Parse(_))), "{cut}");
+    }
+
+    #[test]
+    fn a_save_can_be_summarized_without_loading_it() {
+        let g = game();
+        let path = dir("summary").join("s.ron");
+        save_game(&path, &g).unwrap();
+        let s = summarize_save(&path).unwrap();
+        assert_eq!(s.wizard, "Merlin");
+        assert_eq!(s.turn, g.turn);
+        assert!(!s.finished);
+        std::fs::write(&path, "not a save").unwrap();
+        assert!(summarize_save(&path).is_err());
+        assert!(summarize_save(&dir("summary").join("missing.ron")).is_err());
     }
 }
