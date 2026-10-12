@@ -118,14 +118,14 @@ Three ways to give a domain what it needs, all in use:
   runs the rules over `&Game` as the `WorldView`, puts them back and applies the outcomes).
   The spell executor lends the generator to its host the same way (`GameHost`, task 184).
 - **A read handle over a few fields** where the domain's state lives in the ECS world (units:
-  `Units<'a>` holds `&World`, `&Content` and `&[Player]`, made by `Game::units()`; what changes
+  `Units<'a>` holds `&World`, `&Content` and `&[Player]`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map, the content and the players, made by `Game::economy()`; what changes
   units is a function over `&mut World`, such as `units::spawn`, `experience::gain_xp` and
   the `temp_effects` functions). A test builds a world and the content and no `Game`.
 
-Where this stands: diplomacy, magic and the units follow it (tasks 179, 180 and 185). The units'
-`impl Game` methods are still there as thin wrappers with the old names (`unit_stat`,
-`unit_abilities`, ...) that make a `Units` and ask it; callers move over to `game.units()` by
-area as they are touched. The economy, production and the rest of the turn code do not yet:
-tasks 186 to 188, and then movement, the lairs, conquest, the fortress and vision (189 to 193);
+Where this stands: diplomacy, magic, the units and the economy follow it (tasks 179, 180, 185
+and 186). Their `impl Game` methods are still there as thin wrappers with the old names
+(`unit_stat`, `city_economy`, ...) that make a `Units` or an `Economy` and ask it; task 198 moves
+the callers over and deletes the wrappers. Production and the rest of the turn code do not yet:
+tasks 187 and 188, and then movement, the lairs, conquest, the fortress and vision (189 to 193);
 the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
 reports the number of `impl Game` methods per file, as a guideline.

@@ -12,7 +12,7 @@
 //! - **Chaos Rift**: see [`Game::process_chaos_rifts`].
 
 use crate::city::PlayerId;
-use crate::economy::{Buildings, Enchantments};
+use crate::economy::{Buildings, Economy, Enchantments};
 use crate::production::ProductionItem;
 use crate::{Event, Game};
 
@@ -44,11 +44,7 @@ pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathe
 impl Game {
     /// Whether the city carries the named lasting spell, whoever cast it.
     pub fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
-        self.content.rules.spells.id_of(name).is_some_and(|id| {
-            self.world
-                .get::<&Enchantments>(city)
-                .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
-        })
+        self.economy().city_has_enchantment(city, name)
     }
 
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
@@ -236,6 +232,23 @@ impl Game {
         } else {
             1
         }
+    }
+
+    /// Evil Presence does nothing to a city whose owner can use death magic, and the original
+    /// refuses to cast it there.
+    pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
+        self.economy().evil_presence_is_wasted_on(city)
+    }
+}
+
+impl Economy<'_> {
+    /// Whether the city carries the named lasting spell, whoever cast it.
+    pub fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
+        self.content.rules.spells.id_of(name).is_some_and(|id| {
+            self.world
+                .get::<&Enchantments>(city)
+                .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
+        })
     }
 
     /// Evil Presence does nothing to a city whose owner can use death magic, and the original

@@ -8,7 +8,7 @@ battle/spoils.rs 1
 cast.rs 9
 cheat.rs 11
 city_growth.rs 4
-city_spells.rs 14
+city_spells.rs 13
 conquest.rs 6
 corruption.rs 11
 diplomacy.rs 29
@@ -32,7 +32,7 @@ production.rs 17
 roads.rs 10
 save.rs 1
 serial.rs 3
-temp_effects.rs 11
+temp_effects.rs 10
 terraform.rs 6
 timers.rs 5
 transport.rs 9

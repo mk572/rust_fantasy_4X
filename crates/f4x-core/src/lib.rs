@@ -570,14 +570,7 @@ impl Game {
 
     /// All cities with their positions.
     pub fn cities(&self) -> Vec<(hecs::Entity, city::City, city::Position)> {
-        let mut out: Vec<_> = self
-            .world
-            .query::<(&city::City, &city::Position)>()
-            .iter()
-            .map(|(e, (c, p))| (e, c.clone(), *p))
-            .collect();
-        out.sort_by_key(|(e, ..)| (self.serial_of(*e), e.id()));
-        out
+        self.economy().cities()
     }
 
     pub fn city_at(&self, pos: city::Position) -> Option<hecs::Entity> {

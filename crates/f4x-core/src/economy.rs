@@ -2,20 +2,28 @@
 //! (farmers and workers, the worked area, mines, trade); everything content defines
 //! (buildings, race traits, city enchantments) arrives as stat modifiers.
 //!
+//! The rules are in [`Economy`] (task 186): a read handle over the world, the map, the content
+//! and the players, made by `Game::economy()`. A city's yields are worked out from those alone,
+//! so a test needs a world, a map and the content, no `Game`. `Game` keeps thin methods with
+//! the old names that ask it.
+//!
 //! Units: population is in citizens ("figures", 1000 people each) with a fractional part
 //! in tens of people; growth is in tens of people per turn; food in whole food; production
 //! and gold in whole points.
 
 use std::collections::{HashSet, VecDeque};
 
+use hecs::World;
+
 use crate::city::{City, PlayerId, Position};
 use crate::city_spells::RELIGIOUS;
-use crate::content::TerrainClass;
+use crate::content::{Content, TerrainClass};
 use crate::magic::Retort;
-use crate::map::Plane;
+use crate::map::{Map, Plane};
+use crate::player::Player;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, Stat};
-use crate::units::Owner;
+use crate::units::{Owner, Units};
 use crate::Game;
 
 /// Citizens plus tens of people (0..100), so one citizen is 100 tens.
@@ -78,10 +86,60 @@ fn wrap_distance(width: u32, a: u32, b: u32) -> u32 {
     d.min(width - d)
 }
 
-impl Game {
+/// The economy rules' view of the game: the world, the map, the content and the players (for the
+/// owner's tax rate, capital race and retorts).
+#[derive(Clone, Copy)]
+pub struct Economy<'a> {
+    pub(crate) world: &'a World,
+    pub(crate) map: Option<&'a Map>,
+    pub(crate) content: &'a Content,
+    pub(crate) players: &'a [Player],
+}
+
+impl<'a> Economy<'a> {
+    pub fn new(
+        world: &'a World,
+        map: Option<&'a Map>,
+        content: &'a Content,
+        players: &'a [Player],
+    ) -> Self {
+        Economy {
+            world,
+            map,
+            content,
+            players,
+        }
+    }
+
+    /// The unit rules over the same pieces.
+    pub(crate) fn units(&self) -> Units<'a> {
+        Units::new(self.world, self.content, self.players)
+    }
+
+    pub(crate) fn player(&self, id: PlayerId) -> Option<&'a Player> {
+        self.players.iter().find(|p| p.id == id)
+    }
+
+    pub(crate) fn magic(&self, id: PlayerId) -> Option<&'a crate::magic::Magic> {
+        self.player(id).map(|p| &p.magic)
+    }
+
+    /// All cities with their positions, oldest first.
+    pub fn cities(&self) -> Vec<(hecs::Entity, City, Position)> {
+        let mut out: Vec<_> = self
+            .world
+            .query::<(&City, &Position)>()
+            .iter()
+            .map(|(e, (c, p))| (e, c.clone(), *p))
+            .collect();
+        let units = self.units();
+        out.sort_by_key(|(e, ..)| (units.serial_of(*e), e.id()));
+        out
+    }
+
     /// Tiles a city at `at` works, with whether another city works each too.
     pub fn city_area(&self, at: Position) -> Vec<(Position, bool)> {
-        let Some(map) = self.map.as_ref() else {
+        let Some(map) = self.map else {
             return Vec::new();
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
@@ -180,7 +238,7 @@ impl Game {
                 ));
             }
         }
-        mods.extend(self.temp_modifiers(city));
+        mods.extend(self.units().temp_modifiers(city));
         mods
     }
 
@@ -201,7 +259,7 @@ impl Game {
         at: Position,
         race: Option<crate::rules::RaceId>,
     ) -> i32 {
-        let Some(map) = self.map.as_ref() else {
+        let Some(map) = self.map else {
             return 0;
         };
         let grid = map.plane(at.plane);
@@ -240,7 +298,7 @@ impl Game {
     /// What a city at `at` could grow to on its land alone, with no buildings, race or
     /// enchantments: the estimate the original's new-game placement judges a home site by.
     pub(crate) fn site_max_size(&self, at: Position) -> u32 {
-        let Some(map) = self.map.as_ref() else {
+        let Some(map) = self.map else {
             return 0;
         };
         let grid = map.plane(at.plane);
@@ -292,7 +350,7 @@ impl Game {
         let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
         let rules = &self.content.rules;
         let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
-        let map = self.map.as_ref()?;
+        let map = self.map?;
         let grid = map.plane(at.plane);
         let mods = self.city_modifiers(city);
         let player = self.player(owner);
@@ -355,7 +413,7 @@ impl Game {
                 cost_reduction += cut;
             }
         }
-        if mods_have_enchantment_named(self, city, "gaias_blessing") {
+        if self.city_has_enchantment(city, "gaias_blessing") {
             terrain_food_x2 = terrain_food_x2 * 3 / 2;
         }
         let terrain_food = terrain_food_x2 / 4;
@@ -388,16 +446,17 @@ impl Game {
         let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
         // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text
         // does not).
-        if mods_have_enchantment_named(self, city, "gaias_blessing") {
+        if self.city_has_enchantment(city, "gaias_blessing") {
             pacify += 2;
         }
         if pacify < raw_rebels {
             let police = self
+                .units()
                 .units_at(at)
                 .into_iter()
-                .filter(|&u| self.unit_owner(u) == Some(owner))
+                .filter(|&u| self.units().unit_owner(u) == Some(owner))
                 .filter(|&u| {
-                    self.unit_def(u).is_some_and(|d| {
+                    self.units().unit_def(u).is_some_and(|d| {
                         matches!(
                             d.kind,
                             crate::rules::UnitKind::Normal | crate::rules::UnitKind::Hero
@@ -409,7 +468,7 @@ impl Game {
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
         // code reads the owner's table instead of the city's, see B8).
-        let rebels = if mods_have_enchantment_named(self, city, "stream_of_life") {
+        let rebels = if self.city_has_enchantment(city, "stream_of_life") {
             0
         } else {
             (raw_rebels - pacify).clamp(0, figures as i32) as u32
@@ -427,7 +486,7 @@ impl Game {
         let flat = compute(Stat::CityFoodFlat, 0, &mods);
         food += flat + wild_food;
         // The city feeds as many as its land, farm work and buildings allow.
-        let famine = mods_have_enchantment_named(self, city, "famine");
+        let famine = self.city_has_enchantment(city, "famine");
         let pre_cap_adds = compute(Stat::CityFood, 0, &mods);
         let mut max_size = terrain_food;
         if famine {
@@ -514,7 +573,14 @@ impl Game {
             }
             _ => 0,
         };
-        let growth_tens = growth_rate(self, figures, food, max_size, &mods, housing);
+        let growth_tens = growth_rate(
+            self.content.rules.config.max_city_size,
+            figures,
+            food,
+            max_size,
+            &mods,
+            housing,
+        );
 
         Some(CityEconomy {
             figures,
@@ -560,7 +626,8 @@ impl Game {
 
     /// Whether any unit of `owner` could be a garrison here (used by display code).
     pub fn garrison(&self, at: Position) -> Vec<hecs::Entity> {
-        self.units_at(at)
+        self.units()
+            .units_at(at)
             .into_iter()
             .filter(|&u| self.world.get::<&Owner>(u).is_ok())
             .collect()
@@ -572,13 +639,64 @@ impl Game {
     }
 }
 
-fn mods_have_enchantment_named(game: &Game, city: hecs::Entity, spell: &str) -> bool {
-    let Some(id) = game.content.rules.spells.id_of(spell) else {
-        return false;
-    };
-    game.world
-        .get::<&Enchantments>(city)
-        .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
+impl Game {
+    /// The economy rules over the world, the map, the content and the players.
+    pub fn economy(&self) -> Economy<'_> {
+        Economy::new(&self.world, self.map.as_ref(), &self.content, &self.players)
+    }
+
+    /// Tiles a city at `at` works, with whether another city works each too.
+    pub fn city_area(&self, at: Position) -> Vec<(Position, bool)> {
+        self.economy().city_area(at)
+    }
+
+    /// Modifiers from the city's race, buildings and enchantments.
+    pub fn city_modifiers(&self, city: hecs::Entity) -> Vec<Modifier> {
+        self.economy().city_modifiers(city)
+    }
+
+    pub fn city_has_building(&self, city: hecs::Entity, building: &str) -> bool {
+        self.economy().city_has_building(city, building)
+    }
+
+    /// What a city at `at` could grow to on its land alone.
+    pub(crate) fn site_max_size(&self, at: Position) -> u32 {
+        self.economy().site_max_size(at)
+    }
+
+    /// Citizens needed on farms so the city feeds itself (all of them if it cannot).
+    pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
+        self.economy().city_min_farmers(city)
+    }
+
+    pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
+        self.economy().city_economy(city)
+    }
+
+    /// Compute the city's yields as if `farmers` citizens farmed.
+    pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
+        self.economy().city_economy_with(city, farmers)
+    }
+
+    /// Gold the buildings of a city cost to maintain (replaced buildings are free).
+    pub fn city_building_upkeep(&self, city: hecs::Entity) -> u32 {
+        self.economy().city_building_upkeep(city)
+    }
+
+    /// The player owning a city.
+    pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
+        self.economy().city_owner(city)
+    }
+
+    /// The units on a square that could be a garrison (used by display code).
+    pub fn garrison(&self, at: Position) -> Vec<hecs::Entity> {
+        self.economy().garrison(at)
+    }
+
+    /// Whether `plane` has any city (used by tests and the client).
+    pub fn has_cities_on(&self, plane: Plane) -> bool {
+        self.economy().has_cities_on(plane)
+    }
 }
 
 /// Population change for a turn, in tens of people (negative when starving or over the limit).
@@ -588,7 +706,7 @@ fn mods_have_enchantment_named(game: &Game, city: hecs::Entity, spell: &str) -> 
 /// over their limit (drake178's bugs 1 to 3 in `City_Growth_Rate`). Here those cases only stop
 /// growth; shrinking always applies.
 fn growth_rate(
-    game: &Game,
+    max_city_size: u32,
     figures: u32,
     food: i32,
     max_size: u32,
@@ -613,7 +731,7 @@ fn growth_rate(
     let percent = compute(Stat::CityGrowthPercent, 0, mods) + housing_percent;
     let rate = rate * (100 + percent) / 100;
     // Never grow past the limit, whatever the bonuses add.
-    if figures > max_size || figures >= game.content.rules.config.max_city_size {
+    if figures > max_size || figures >= max_city_size {
         return rate.min(0);
     }
     rate
@@ -623,8 +741,12 @@ fn growth_rate(
 mod growth_tests {
     use super::*;
 
+    fn cap() -> u32 {
+        Content::default().rules.config.max_city_size
+    }
+
     fn rate(figures: u32, food: i32, max_size: u32) -> i32 {
-        growth_rate(&Game::new(1), figures, food, max_size, &[], 0)
+        growth_rate(cap(), figures, food, max_size, &[], 0)
     }
 
     #[test]
@@ -636,7 +758,7 @@ mod growth_tests {
     #[test]
     fn a_city_over_its_limit_shrinks_even_at_the_largest_size() {
         assert!(rate(14, 14, 10) < 0);
-        let cap = Game::new(1).content.rules.config.max_city_size;
+        let cap = cap();
         assert!(
             rate(cap, cap as i32, cap - 4) < 0,
             "the original returned 0 here"
@@ -653,5 +775,57 @@ mod growth_tests {
     fn growth_stops_at_zero_people_and_a_zero_limit_kills() {
         assert_eq!(rate(0, 5, 5), 0);
         assert_eq!(rate(3, 5, 0), -3);
+    }
+}
+
+#[cfg(test)]
+mod handle_tests {
+    use super::*;
+    use crate::map::Grid;
+    use crate::testutil::content_with_economy;
+
+    #[test]
+    fn a_cities_yields_come_from_a_world_a_map_and_the_content_alone() {
+        let content = content_with_economy();
+        let grass = content.terrains.id_of("grassland").unwrap();
+        let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
+        let at = Position {
+            plane: Plane::Arcanus,
+            x: 10,
+            y: 7,
+        };
+        let mut world = World::new();
+        let city = world.spawn((
+            City {
+                name: "Town".into(),
+                owner: PlayerId(0),
+            },
+            at,
+            Population {
+                figures: 4,
+                tens: 0,
+            },
+            Farmers(0),
+            Buildings::default(),
+            Enchantments::default(),
+        ));
+        let players = [Player::new(PlayerId(0), "Merlin")];
+        let eco = Economy::new(&world, Some(&map), &content, &players);
+
+        let now = eco.city_economy(city).unwrap();
+        assert_eq!(now.figures, 4);
+        assert_eq!(now.farmers + now.workers + now.rebels, 4);
+        let farmers = eco.city_min_farmers(city);
+        let fed = eco.city_economy_with(city, farmers).unwrap();
+        assert!(fed.food >= 4, "the minimum farmers feed the city");
+        assert_eq!(eco.city_owner(city), Some(PlayerId(0)));
+        assert_eq!(eco.cities().len(), 1);
+        assert!(eco.has_cities_on(Plane::Arcanus));
+        assert!(!eco.has_cities_on(Plane::Myrror));
+        assert_eq!(
+            eco.city_area(at).len(),
+            21,
+            "a 5x5 area without its corners"
+        );
     }
 }

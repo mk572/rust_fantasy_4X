@@ -231,10 +231,6 @@ impl Game {
         self.units().temp_effects(e)
     }
 
-    pub(crate) fn temp_modifiers(&self, e: hecs::Entity) -> Vec<Modifier> {
-        self.units().temp_modifiers(e)
-    }
-
     pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<String> {
         self.units().unit_abilities(unit)
     }
