@@ -650,6 +650,22 @@ impl Game {
     /// last cheaper spell goes on offer), drop spells that are no longer researchable, and sort
     /// the offer by the time each would take. Called each turn, when a wizard is made and
     /// when books are added.
+    /// The spell becomes known to `player`, as if researched (a gift or an exchange between
+    /// wizards, `diplomacy.rs`).
+    pub(crate) fn learn_spell(&mut self, player: PlayerId, spell: SpellId) {
+        let Some(m) = self.magic_mut(player) else {
+            return;
+        };
+        m.researchable.remove(&spell);
+        m.candidates.retain(|&s| s != spell);
+        if m.researching == Some(spell) {
+            m.researching = None;
+            m.research_remaining = 0;
+        }
+        m.known.insert(spell);
+        self.refill_research(player);
+    }
+
     pub fn refill_research(&mut self, player: PlayerId) {
         if let Some(m) = self.magic_mut(player) {
             let keep: Vec<SpellId> = m

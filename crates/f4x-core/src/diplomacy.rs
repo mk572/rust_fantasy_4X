@@ -6,12 +6,21 @@
 //! [`DiplomacyCommand::Answer`], and an AI's own initiatives (greetings, demands, war) are
 //! commands it issues itself. [`Game::rate_proposal`] is the original's rating of a proposal,
 //! offered as a helper to such an AI.
+//!
+//! Structure (task 179, `architecture-plan.md`): the rules are methods of [`Diplomacy`], which
+//! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
+//! read-only [`WorldView`], the random numbers and a list of changes it asks the game to make
+//! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
+//! (`with_diplomacy`) and keeps thin methods with the old names for the other modules and the
+//! crates around. Tests of the rules run on a [`FakeView`](crate::testutil::FakeView), without a
+//! world.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::city::{PlayerId, Position};
 use crate::magic::Retort;
+use crate::rng::GameRng;
 use crate::rules::SpellId;
 use crate::view::WorldView;
 use crate::{Event, Game};
@@ -269,7 +278,7 @@ pub struct Diplomacy {
     pairs: BTreeMap<(u8, u8), Pair>,
     stances: BTreeMap<(u8, u8), Stance>,
     personalities: BTreeMap<u8, Personality>,
-    pub(crate) proposals: Vec<Proposal>,
+    proposals: Vec<Proposal>,
     /// Events that hooks (battles, spells, the turn) raise; the next command returns them.
     queue: Vec<DiplomacyEvent>,
 }
@@ -358,90 +367,145 @@ pub fn army_strength(view: &dyn WorldView, player: PlayerId) -> i32 {
     view.units_of(player).iter().map(|u| u.cost as i32).sum()
 }
 
-impl Game {
-    /// A player that is a wizard: neither the monsters nor an independent city.
-    pub fn is_wizard(&self, id: PlayerId) -> bool {
-        id != crate::units::NEUTRAL && self.player(id).is_some_and(|p| !p.neutral)
-    }
+/// What the rules of diplomacy need from the rest of the game, for one call: the read-only
+/// view of the world, the random numbers, and the difficulty. What they must change outside
+/// diplomacy (gold, a spell learned) they leave in `out` for the game to apply.
+pub struct DiplomacyCtx<'a> {
+    pub view: &'a dyn WorldView,
+    pub rng: &'a mut GameRng,
+    pub out: Vec<Outcome>,
+}
 
-    /// Every wizard still in the game, in player order.
-    pub fn wizards(&self) -> Vec<PlayerId> {
-        let mut out = self.living_wizards();
-        out.sort();
-        out
-    }
+/// A change diplomacy asks of the rest of the game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    /// Move gold from one wizard's treasury to another's.
+    Gold {
+        from: PlayerId,
+        to: PlayerId,
+        amount: i32,
+    },
+    /// The wizard learns the spell, as if it had researched it.
+    Spell { player: PlayerId, spell: SpellId },
+}
 
-    /// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
-    fn start_relation(&self, a: PlayerId, b: PlayerId) -> i32 {
-        let books = |p: PlayerId, realm: &str| -> i32 {
-            self.magic(p)
-                .and_then(|m| m.books.get(realm))
-                .map_or(0, |&n| i32::from(n))
-        };
-        let max_death = books(a, "death").max(books(b, "death"));
-        let sum_life = books(a, "life") + books(b, "life");
-        let max_chaos = books(a, "chaos").max(books(b, "chaos"));
-        let mut score = if sum_life > 0 && max_death > 0 {
-            -(sum_life + max_death) * 5
+/// Every wizard still in the game, in player order.
+pub fn wizards(view: &dyn WorldView) -> Vec<PlayerId> {
+    let mut out = view.living_wizards();
+    out.sort();
+    out
+}
+
+/// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
+fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
+    let books = |p: PlayerId, realm: &str| -> i32 {
+        view.magic(p)
+            .and_then(|m| m.books.get(realm))
+            .map_or(0, |&n| i32::from(n))
+    };
+    let max_death = books(a, "death").max(books(b, "death"));
+    let sum_life = books(a, "life") + books(b, "life");
+    let max_chaos = books(a, "chaos").max(books(b, "chaos"));
+    let mut score = if sum_life > 0 && max_death > 0 {
+        -(sum_life + max_death) * 5
+    } else {
+        sum_life * 2 - max_death * 3
+    };
+    score -= max_chaos * 2;
+    for realm in ["sorcery", "chaos", "nature", "life"] {
+        score += books(a, realm).min(books(b, realm)) * 2;
+    }
+    score.max(-90)
+}
+
+fn charismatic(view: &dyn WorldView, wizard: PlayerId) -> bool {
+    view.magic(wizard)
+        .is_some_and(|m| m.retorts.contains(&Retort::Charismatic))
+}
+
+/// How a threat weighs: the asker's army against the judge's, as the original rates it.
+fn threat_modifier(view: &dyn WorldView, asker: PlayerId, judge: PlayerId) -> i32 {
+    let (mine, theirs) = (army_strength(view, asker), army_strength(view, judge));
+    if theirs < mine {
+        if theirs > 0 {
+            -50 + mine * 100 / theirs
         } else {
-            sum_life * 2 - max_death * 3
-        };
-        score -= max_chaos * 2;
-        for realm in ["sorcery", "chaos", "nature", "life"] {
-            score += books(a, realm).min(books(b, realm)) * 2;
+            50
         }
-        score.max(-90)
+    } else if mine > 0 {
+        -50 + theirs * 100 / mine
+    } else {
+        -50
     }
+}
 
-    fn pair_mut(&mut self, a: PlayerId, b: PlayerId) -> &mut Pair {
-        if !self.diplomacy.pairs.contains_key(&key(a, b)) {
-            let start = self.start_relation(a, b);
-            self.diplomacy.pairs.insert(
-                key(a, b),
-                Pair {
-                    contacted: false,
-                    status: Treaty::None,
-                    visible: start,
-                    default: start,
-                },
-            );
-        }
-        self.diplomacy.pairs.get_mut(&key(a, b)).expect("just made")
+/// The enchantments that sour or sweeten relations: the change, whom it touches, and the
+/// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
+/// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
+fn enchantment_reaction(
+    view: &dyn WorldView,
+    spell: &str,
+    other: PlayerId,
+) -> Option<(i32, Action)> {
+    let books = |realm: &str| {
+        view.magic(other)
+            .and_then(|m| m.books.get(realm))
+            .copied()
+            .unwrap_or(0)
+    };
+    let reaction = match spell {
+        "spell_of_mastery" => (-50, Action::SpellOfMastery),
+        "eternal_night" => (-12, Action::Enchantment),
+        "evil_omens" if books("life") > 0 || books("nature") > 0 => (-20, Action::Enchantment),
+        "zombie_mastery" => (-14, Action::Enchantment),
+        "aura_of_majesty" => (10, Action::Friendship),
+        "wind_mastery" | "suppress_magic" => (-4, Action::Enchantment),
+        "natures_wrath" if books("chaos") > 0 || books("death") > 0 => (-20, Action::Enchantment),
+        "chaos_surge" if books("chaos") == 0 => (-10, Action::Enchantment),
+        "doom_mastery" => (-8, Action::Enchantment),
+        "great_wasting" => (-20, Action::Enchantment),
+        "meteor_storms" => (-15, Action::Enchantment),
+        "armageddon" => (-25, Action::Enchantment),
+        "tranquility" if books("chaos") > 0 => (-20, Action::Enchantment),
+        "life_force" if books("death") > 0 => (-20, Action::Enchantment),
+        "crusade" => (-10, Action::Enchantment),
+        "holy_arms" => (-5, Action::Enchantment),
+        _ => return None,
+    };
+    Some(reaction)
+}
+
+impl Diplomacy {
+    fn pair_mut(&mut self, view: &dyn WorldView, a: PlayerId, b: PlayerId) -> &mut Pair {
+        self.pairs.entry(key(a, b)).or_insert_with(|| {
+            let start = start_relation(view, a, b);
+            Pair {
+                contacted: false,
+                status: Treaty::None,
+                visible: start,
+                default: start,
+            }
+        })
     }
 
     pub fn have_met(&self, a: PlayerId, b: PlayerId) -> bool {
-        self.diplomacy.pair(a, b).is_some_and(|p| p.contacted)
+        self.pair(a, b).is_some_and(|p| p.contacted)
     }
 
     /// The treaty between two wizards.
     pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
-        self.diplomacy.pair(a, b).map_or(Treaty::None, |p| p.status)
+        self.pair(a, b).map_or(Treaty::None, |p| p.status)
     }
 
     /// The relation between two wizards as the player sees it (0 before they have a record).
-    pub fn relation(&self, a: PlayerId, b: PlayerId) -> i32 {
-        self.diplomacy
-            .pair(a, b)
-            .map_or_else(|| self.start_relation(a, b), |p| p.visible)
-    }
-
-    /// The temper of a wizard.
-    pub fn personality(&self, wizard: PlayerId) -> Personality {
-        self.diplomacy.personality(wizard)
-    }
-
-    fn charismatic(&self, wizard: PlayerId) -> bool {
-        self.magic(wizard)
-            .is_some_and(|m| m.retorts.contains(&Retort::Charismatic))
-    }
-
-    fn queue_diplomacy(&mut self, event: DiplomacyEvent) {
-        self.diplomacy.queue.push(event);
+    pub fn relation(&self, view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
+        self.pair(a, b)
+            .map_or_else(|| start_relation(view, a, b), |p| p.visible)
     }
 
     /// What the hooks raised since the last command, as events.
-    pub fn drain_diplomacy_events(&mut self) -> Vec<Event> {
-        std::mem::take(&mut self.diplomacy.queue)
+    pub fn drain_events(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.queue)
             .into_iter()
             .map(Event::Diplomacy)
             .collect()
@@ -450,22 +514,22 @@ impl Game {
     // ---- contact ---------------------------------------------------------------
 
     /// The two wizards meet. Returns whether it was the first time.
-    pub fn make_contact(&mut self, a: PlayerId, b: PlayerId) -> bool {
-        if a == b || !self.is_wizard(a) || !self.is_wizard(b) {
+    pub fn make_contact(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) -> bool {
+        if a == b || !ctx.view.is_wizard(a) || !ctx.view.is_wizard(b) {
             return false;
         }
-        let pair = self.pair_mut(a, b);
+        let pair = self.pair_mut(ctx.view, a, b);
         if pair.contacted {
             return false;
         }
         pair.contacted = true;
         for (from, to) in [(a, b), (b, a)] {
-            let stance = self.diplomacy.stance_mut(from, to);
+            let stance = self.stance_mut(from, to);
             if stance.stage == Stage::Unmet {
                 stance.stage = Stage::Greeted;
             }
         }
-        self.queue_diplomacy(DiplomacyEvent::ContactMade { a, b });
+        self.queue.push(DiplomacyEvent::ContactMade { a, b });
         true
     }
 
@@ -473,31 +537,32 @@ impl Game {
     /// whose cities or visible units stand there.
     pub(crate) fn contact_near(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         player: PlayerId,
         at: crate::city::Position,
         radius: u32,
     ) {
-        if !self.is_wizard(player) {
+        if !ctx.view.is_wizard(player) {
             return;
         }
-        for other in met_near(&*self, player, at, radius) {
-            self.make_contact(player, other);
+        for other in met_near(ctx.view, player, at, radius) {
+            self.make_contact(ctx, player, other);
         }
     }
 
     /// Once a turn: whoever sees another wizard's city or visible unit meets it, and
     /// Nature's Awareness meets everyone.
-    fn contact_sweep(&mut self) {
-        let wizards = self.wizards();
+    fn contact_sweep(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        let wizards = wizards(ctx.view);
         for &player in &wizards {
-            if self.has_global(player, "nature_awareness") {
+            if ctx.view.has_global(player, "nature_awareness") {
                 for &other in &wizards {
-                    self.make_contact(player, other);
+                    self.make_contact(ctx, player, other);
                 }
                 continue;
             }
-            for other in met_in_sight(&*self, player) {
-                self.make_contact(player, other);
+            for other in met_in_sight(ctx.view, player) {
+                self.make_contact(ctx, player, other);
             }
         }
     }
@@ -508,6 +573,7 @@ impl Game {
     /// wizard is never the defender: the original does not change the human's own side.
     pub fn change_relations(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         value: i32,
         attacker: PlayerId,
         defender: PlayerId,
@@ -516,14 +582,14 @@ impl Game {
     ) {
         if value == 0
             || attacker == defender
-            || !self.is_wizard(attacker)
-            || !self.is_wizard(defender)
+            || !ctx.view.is_wizard(attacker)
+            || !ctx.view.is_wizard(defender)
             || !self.have_met(attacker, defender)
-            || self.human == Some(defender)
+            || ctx.view.human() == Some(defender)
         {
             return;
         }
-        let rel = self.relation(attacker, defender);
+        let rel = self.relation(ctx.view, attacker, defender);
         let mut v = value;
         if v > 0 {
             if rel < 0 {
@@ -546,7 +612,7 @@ impl Game {
             _ => {}
         }
         let before_charisma = v;
-        if self.charismatic(attacker) {
+        if charismatic(ctx.view, attacker) {
             if v > 0 {
                 v *= 2;
             } else if v < 0 {
@@ -558,36 +624,36 @@ impl Game {
         if at_war && action.is_reaction() && v < 0 {
             // Wars are not made worse by what one does in them; a quarter wears down the
             // peace patience of a human attacker.
-            if self.human == Some(attacker) {
-                self.diplomacy.stance_mut(defender, attacker).peace_patience += v / 4;
-                self.diplomacy.stance_mut(attacker, defender).peace_patience -= v / 4;
+            if ctx.view.human() == Some(attacker) {
+                self.stance_mut(defender, attacker).peace_patience += v / 4;
+                self.stance_mut(attacker, defender).peace_patience -= v / 4;
             }
             applied = 0;
         }
         // After turn 200 the original helps its AIs along: friendships twice as strong, enmities
         // weaker with the difficulty. This game gives its AIs no help (design.md section 8).
         if applied != 0 {
-            let pair = self.pair_mut(attacker, defender);
+            let pair = self.pair_mut(ctx.view, attacker, defender);
             pair.visible = (pair.visible + applied).clamp(-100, 100);
             // Patience moves for the defender and is copied to the attacker.
-            let d = self.diplomacy.stance_mut(defender, attacker);
+            let d = self.stance_mut(defender, attacker);
             d.treaty_patience += applied;
             d.exchange_patience += applied;
             let (t, e) = (d.treaty_patience, d.exchange_patience);
-            let a = self.diplomacy.stance_mut(attacker, defender);
+            let a = self.stance_mut(attacker, defender);
             a.treaty_patience = t;
             a.exchange_patience = e;
             if before_charisma < 0 {
-                self.diplomacy.stance_mut(attacker, defender).peace_patience -= before_charisma / 4;
-                self.diplomacy.stance_mut(defender, attacker).peace_patience += before_charisma / 4;
+                self.stance_mut(attacker, defender).peace_patience -= before_charisma / 4;
+                self.stance_mut(defender, attacker).peace_patience += before_charisma / 4;
             } else {
-                self.diplomacy.stance_mut(defender, attacker).peace_patience += before_charisma;
+                self.stance_mut(defender, attacker).peace_patience += before_charisma;
             }
-            if action == Action::SpellOfMastery && self.roll(100) < 11 {
-                self.declare_war(attacker, defender);
+            if action == Action::SpellOfMastery && ctx.rng.roll(100) < 11 {
+                self.declare_war(ctx, attacker, defender);
             }
-            if self.human == Some(attacker) && action != Action::AuraOfMajesty {
-                let stance = self.diplomacy.stance_mut(defender, attacker);
+            if ctx.view.human() == Some(attacker) && action != Action::AuraOfMajesty {
+                let stance = self.stance_mut(defender, attacker);
                 if stance
                     .last_action
                     .as_ref()
@@ -600,7 +666,7 @@ impl Game {
                     });
                 }
             }
-            self.queue_diplomacy(DiplomacyEvent::RelationChanged {
+            self.queue.push(DiplomacyEvent::RelationChanged {
                 attacker,
                 defender,
                 change: applied,
@@ -608,7 +674,7 @@ impl Game {
             });
         }
         let status = self.treaty(defender, attacker);
-        let pair = self.pair_mut(attacker, defender);
+        let pair = self.pair_mut(ctx.view, attacker, defender);
         if status == Treaty::War {
             pair.visible = pair.visible.min(-25);
         }
@@ -621,29 +687,41 @@ impl Game {
             _ => None,
         };
         if let Some(h) = hostility {
-            self.diplomacy.stance_mut(defender, attacker).hostility = h;
+            self.stance_mut(defender, attacker).hostility = h;
         }
     }
 
     // ---- treaties and war ------------------------------------------------------
 
-    fn set_status(&mut self, a: PlayerId, b: PlayerId, treaty: Treaty) {
-        self.pair_mut(a, b).status = treaty;
-        self.queue_diplomacy(DiplomacyEvent::TreatyChanged { a, b, treaty });
+    fn set_status(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId, treaty: Treaty) {
+        self.pair_mut(ctx.view, a, b).status = treaty;
+        self.queue
+            .push(DiplomacyEvent::TreatyChanged { a, b, treaty });
     }
 
     /// A pact or an alliance between two wizards (`Start_Treaty`).
-    pub fn start_treaty(&mut self, a: PlayerId, b: PlayerId, treaty: Treaty) {
-        self.set_status(a, b, treaty);
-        self.diplomacy.stance_mut(a, b).hostility = 0;
-        self.diplomacy.stance_mut(b, a).hostility = 0;
+    pub fn start_treaty(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        a: PlayerId,
+        b: PlayerId,
+        treaty: Treaty,
+    ) {
+        self.set_status(ctx, a, b, treaty);
+        self.stance_mut(a, b).hostility = 0;
+        self.stance_mut(b, a).hostility = 0;
     }
 
     /// `breaker` ends the pact or alliance with `victim` (`Break_Treaties`). Unlike the original
     /// (which subtracts a negative number and so improves the breaker's own record), the
     /// oath-breaker's penalty is a real one.
-    pub fn break_treaties(&mut self, breaker: PlayerId, victim: PlayerId) {
-        if !self.is_wizard(breaker) || !self.is_wizard(victim) {
+    pub fn break_treaties(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        breaker: PlayerId,
+        victim: PlayerId,
+    ) {
+        if !ctx.view.is_wizard(breaker) || !ctx.view.is_wizard(victim) {
             return;
         }
         let treaty = self.treaty(breaker, victim);
@@ -659,39 +737,39 @@ impl Game {
             penalty *= 2;
         }
         {
-            let h = &mut self.diplomacy.stance_mut(breaker, victim).hidden;
+            let h = &mut self.stance_mut(breaker, victim).hidden;
             *h = (*h - penalty).max(-100);
         }
-        for other in self.wizards() {
+        for other in wizards(ctx.view) {
             if other != breaker && other != victim {
-                let h = &mut self.diplomacy.stance_mut(other, victim).hidden;
+                let h = &mut self.stance_mut(other, victim).hidden;
                 *h = (*h - 5).max(-100);
             }
         }
         let broke_a_treaty = penalty != 0;
         let drop = if broke_a_treaty {
-            self.roll(20) as i32
+            ctx.rng.roll(20) as i32
         } else {
             0
         };
-        let pair = self.pair_mut(breaker, victim);
+        let pair = self.pair_mut(ctx.view, breaker, victim);
         if treaty == Treaty::Alliance {
             pair.default = (pair.default - penalty).max(-100);
         }
         pair.visible = (pair.visible - drop).max(-100);
         if broke_a_treaty {
-            self.diplomacy.stance_mut(breaker, victim).broken = Some(treaty);
-            self.diplomacy.stance_mut(victim, breaker).broken = Some(treaty);
+            self.stance_mut(breaker, victim).broken = Some(treaty);
+            self.stance_mut(victim, breaker).broken = Some(treaty);
         }
-        self.set_status(breaker, victim, Treaty::None);
+        self.set_status(ctx, breaker, victim, Treaty::None);
         for (from, to) in [(breaker, victim), (victim, breaker)] {
-            let s = self.diplomacy.stance_mut(from, to);
+            let s = self.stance_mut(from, to);
             s.treaty_patience = -200;
             s.exchange_patience = -200;
             s.peace_patience = -200;
         }
         if broke_a_treaty {
-            self.queue_diplomacy(DiplomacyEvent::TreatyBroken {
+            self.queue.push(DiplomacyEvent::TreatyBroken {
                 breaker,
                 victim,
                 treaty,
@@ -700,81 +778,64 @@ impl Game {
     }
 
     /// `attacker` declares war on `defender` (`Declare_War`).
-    pub fn declare_war(&mut self, attacker: PlayerId, defender: PlayerId) {
-        if attacker == defender || !self.is_wizard(attacker) || !self.is_wizard(defender) {
+    pub fn declare_war(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        attacker: PlayerId,
+        defender: PlayerId,
+    ) {
+        if attacker == defender || !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
             return;
         }
         // Wizards at war know each other.
-        self.make_contact(attacker, defender);
+        self.make_contact(ctx, attacker, defender);
         if self.treaty(attacker, defender) == Treaty::War {
             return;
         }
-        self.break_treaties(attacker, defender);
-        let relation = -75 - self.roll(25) as i32;
-        let pair = self.pair_mut(attacker, defender);
+        self.break_treaties(ctx, attacker, defender);
+        let relation = -75 - ctx.rng.roll(25) as i32;
+        let pair = self.pair_mut(ctx.view, attacker, defender);
         pair.default = (pair.default - 5).max(-100);
         pair.visible = relation;
-        self.set_status(attacker, defender, Treaty::War);
+        self.set_status(ctx, attacker, defender, Treaty::War);
         for (from, to) in [(attacker, defender), (defender, attacker)] {
-            let s = self.diplomacy.stance_mut(from, to);
+            let s = self.stance_mut(from, to);
             s.treaty_patience = -200;
             s.exchange_patience = -200;
             s.peace_patience = -130;
             s.hostility = 3;
         }
-        self.queue_diplomacy(DiplomacyEvent::WarDeclared { attacker, defender });
+        self.queue
+            .push(DiplomacyEvent::WarDeclared { attacker, defender });
     }
 
     /// The end of a war (`Declare_Peace`): no treaty, a better relation, and `peace_duration`
     /// turns in which a human is left alone.
-    pub fn declare_peace(&mut self, a: PlayerId, b: PlayerId) {
-        self.start_treaty(a, b, Treaty::None);
-        let pair = self.pair_mut(a, b);
+    pub fn declare_peace(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) {
+        self.start_treaty(ctx, a, b, Treaty::None);
+        let pair = self.pair_mut(ctx.view, a, b);
         pair.visible = (pair.visible + 40).min(100);
         for (human, other) in [(a, b), (b, a)] {
-            if self.human == Some(human) {
-                let turns = 7 + self.roll(6);
-                self.diplomacy.stance_mut(other, human).peace_duration = turns;
+            if ctx.view.human() == Some(human) {
+                let turns = 7 + ctx.rng.roll(6);
+                self.stance_mut(other, human).peace_duration = turns;
             }
         }
     }
 
     // ---- the rating of a proposal ----------------------------------------------
 
-    /// The total cost of a wizard's units, the original's army strength.
-    pub fn army_strength(&self, player: PlayerId) -> i32 {
-        army_strength(self, player)
-    }
-
-    /// How a threat weighs: the asker's army against the judge's, as the original rates it.
-    fn threat_modifier(&self, asker: PlayerId, judge: PlayerId) -> i32 {
-        let (mine, theirs) = (self.army_strength(asker), self.army_strength(judge));
-        if theirs < mine {
-            if theirs > 0 {
-                -50 + mine * 100 / theirs
-            } else {
-                50
-            }
-        } else if mine > 0 {
-            -50 + theirs * 100 / mine
-        } else {
-            -50
-        }
-    }
-
     /// The original's `Diplomacy_Test` of a proposal that `asker` makes to `judge`: an AI that
     /// answers proposals can use it as its starting logic. It draws on the game's random
     /// numbers and wears down the asker's patience as the original does.
     pub fn rate_proposal(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         asker: PlayerId,
         judge: PlayerId,
         kind: ProposalKind,
     ) -> Verdict {
-        let relation = self.relation(asker, judge);
-        let hold = |g: &Game, a: PlayerId, b: PlayerId| {
-            g.diplomacy.stance(a, b).cloned().unwrap_or_default()
-        };
+        let relation = self.relation(ctx.view, asker, judge);
         let (type_modifier, early) = match kind {
             ProposalKind::Pact => (75, (relation <= PACT_RELATION).then_some(Verdict::Refused)),
             ProposalKind::Alliance => (
@@ -786,7 +847,7 @@ impl Game {
                 let allied_with_both = self.treaty(asker, judge) == Treaty::Alliance
                     && self.treaty(asker, third) == Treaty::Alliance;
                 let early = if allied_with_both {
-                    Some(if self.roll(8) < 5 {
+                    Some(if ctx.rng.roll(8) < 5 {
                         Verdict::Accepted
                     } else {
                         Verdict::Refused
@@ -794,10 +855,10 @@ impl Game {
                 } else {
                     None
                 };
-                (150 + self.relation(judge, third), early)
+                (150 + self.relation(ctx.view, judge, third), early)
             }
             ProposalKind::BreakAllianceWith(third) => (
-                175 + self.relation(judge, third),
+                175 + self.relation(ctx.view, judge, third),
                 (relation <= 24).then_some(Verdict::Maybe),
             ),
             // The original swaps spells without a test: both must have one the other lacks.
@@ -806,16 +867,16 @@ impl Game {
         if let Some(v) = early {
             return v;
         }
-        let stance = hold(self, asker, judge);
+        let stance = self.stance(asker, judge).cloned().unwrap_or_default();
         let relations =
             stance.treaty_patience + stance.hidden + relation + self.personality(judge).modifier();
-        let mut final_value =
-            relations + self.roll(100) as i32 - type_modifier + self.threat_modifier(asker, judge);
+        let mut final_value = relations + ctx.rng.roll(100) as i32 - type_modifier
+            + threat_modifier(ctx.view, asker, judge);
         if self.treaty(asker, judge) == Treaty::Alliance {
             final_value += 40;
         }
-        let wear = 20 + self.roll(30) as i32;
-        let s = self.diplomacy.stance_mut(asker, judge);
+        let wear = 20 + ctx.rng.roll(30) as i32;
+        let s = self.stance_mut(asker, judge);
         s.treaty_patience -= 10 + wear;
         s.exchange_patience -= 10;
         s.peace_patience -= 10;
@@ -827,7 +888,7 @@ impl Game {
         };
         // The original has no counter-offers: a doubtful answer is a yes half the time.
         match verdict {
-            Verdict::Counter | Verdict::Maybe if self.roll(2) == 1 => Verdict::Accepted,
+            Verdict::Counter | Verdict::Maybe if ctx.rng.roll(2) == 1 => Verdict::Accepted,
             v => v,
         }
     }
@@ -837,11 +898,12 @@ impl Game {
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
     pub fn check_proposal(
         &self,
+        view: &dyn WorldView,
         from: PlayerId,
         to: PlayerId,
         kind: ProposalKind,
     ) -> Result<(), DiplomacyError> {
-        if !self.is_wizard(from) || !self.is_wizard(to) {
+        if !view.is_wizard(from) || !view.is_wizard(to) {
             return Err(DiplomacyError::NotWizards);
         }
         if from == to {
@@ -854,7 +916,7 @@ impl Game {
         let known_third = |third: PlayerId| {
             third != from
                 && third != to
-                && self.is_wizard(third)
+                && view.is_wizard(third)
                 && self.have_met(from, third)
                 && self.have_met(to, third)
         };
@@ -872,10 +934,10 @@ impl Game {
             }
             ProposalKind::Exchange { give, get } => {
                 status != Treaty::War
-                    && self.magic(from).is_some_and(|m| m.known.contains(&give))
-                    && self.magic(to).is_some_and(|m| m.known.contains(&get))
-                    && self.magic(to).is_some_and(|m| !m.known.contains(&give))
-                    && self.magic(from).is_some_and(|m| !m.known.contains(&get))
+                    && view.magic(from).is_some_and(|m| m.known.contains(&give))
+                    && view.magic(to).is_some_and(|m| m.known.contains(&get))
+                    && view.magic(to).is_some_and(|m| !m.known.contains(&give))
+                    && view.magic(from).is_some_and(|m| !m.known.contains(&get))
             }
         };
         if ok {
@@ -887,44 +949,43 @@ impl Game {
 
     fn propose(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         from: PlayerId,
         to: PlayerId,
         kind: ProposalKind,
     ) -> Result<(), DiplomacyError> {
-        self.check_proposal(from, to, kind)?;
-        if self
-            .diplomacy
-            .proposals
-            .iter()
-            .any(|p| p.from == from && p.to == to)
-        {
+        self.check_proposal(ctx.view, from, to, kind)?;
+        if self.proposals.iter().any(|p| p.from == from && p.to == to) {
             return Err(DiplomacyError::AlreadyPending);
         }
         let proposal = Proposal { from, to, kind };
-        self.diplomacy.proposals.push(proposal);
-        self.queue_diplomacy(DiplomacyEvent::ProposalMade(proposal));
+        self.proposals.push(proposal);
+        self.queue.push(DiplomacyEvent::ProposalMade(proposal));
         Ok(())
     }
 
     /// The receiver's answer: an accepted proposal takes effect.
     fn answer(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         player: PlayerId,
         from: PlayerId,
         accept: bool,
     ) -> Result<(), DiplomacyError> {
         let at = self
-            .diplomacy
             .proposals
             .iter()
             .position(|p| p.from == from && p.to == player)
             .ok_or(DiplomacyError::NothingPending)?;
-        let proposal = self.diplomacy.proposals.remove(at);
-        let accepted = accept && self.check_proposal(from, player, proposal.kind).is_ok();
+        let proposal = self.proposals.remove(at);
+        let accepted = accept
+            && self
+                .check_proposal(ctx.view, from, player, proposal.kind)
+                .is_ok();
         if accepted {
-            self.carry_out(proposal);
+            self.carry_out(ctx, proposal);
         }
-        self.queue_diplomacy(DiplomacyEvent::ProposalAnswered {
+        self.queue.push(DiplomacyEvent::ProposalAnswered {
             proposal,
             accepted,
             lapsed: false,
@@ -932,29 +993,35 @@ impl Game {
         Ok(())
     }
 
-    fn carry_out(&mut self, p: Proposal) {
+    fn carry_out(&mut self, ctx: &mut DiplomacyCtx<'_>, p: Proposal) {
         match p.kind {
-            ProposalKind::Pact => self.start_treaty(p.from, p.to, Treaty::Pact),
-            ProposalKind::Alliance => self.start_treaty(p.from, p.to, Treaty::Alliance),
+            ProposalKind::Pact => self.start_treaty(ctx, p.from, p.to, Treaty::Pact),
+            ProposalKind::Alliance => self.start_treaty(ctx, p.from, p.to, Treaty::Alliance),
             ProposalKind::Peace => {
-                self.declare_peace(p.from, p.to);
+                self.declare_peace(ctx, p.from, p.to);
                 // Asking for peace wears on the asker's patience twice more.
-                let s = self.diplomacy.stance_mut(p.from, p.to);
+                let s = self.stance_mut(p.from, p.to);
                 s.treaty_patience -= 20;
                 s.exchange_patience -= 20;
                 s.peace_patience -= 20;
             }
-            ProposalKind::WarOn(third) => self.declare_war(p.to, third),
-            ProposalKind::BreakAllianceWith(third) => self.break_treaties(p.to, third),
+            ProposalKind::WarOn(third) => self.declare_war(ctx, p.to, third),
+            ProposalKind::BreakAllianceWith(third) => self.break_treaties(ctx, p.to, third),
             ProposalKind::Exchange { give, get } => {
-                self.give_spell(p.to, give);
-                self.give_spell(p.from, get);
+                ctx.out.push(Outcome::Spell {
+                    player: p.to,
+                    spell: give,
+                });
+                ctx.out.push(Outcome::Spell {
+                    player: p.from,
+                    spell: get,
+                });
                 // Giving the better spell pleases the receiver.
-                let cost = |g: &Game, s: SpellId| g.content.rules.spells.get(s).research_cost;
-                if cost(self, give) > cost(self, get) {
-                    self.change_relations(5, p.from, p.to, Action::Friendship, None);
+                let cost = |s: SpellId| ctx.view.content().rules.spells.get(s).research_cost;
+                if cost(give) > cost(get) {
+                    self.change_relations(ctx, 5, p.from, p.to, Action::Friendship, None);
                 }
-                let s = self.diplomacy.stance_mut(p.from, p.to);
+                let s = self.stance_mut(p.from, p.to);
                 s.treaty_patience -= 20;
                 s.exchange_patience = (s.exchange_patience - 30).min(50);
                 s.peace_patience -= 20;
@@ -962,50 +1029,31 @@ impl Game {
         }
     }
 
-    /// The spell becomes known to `player`, as if researched.
-    fn give_spell(&mut self, player: PlayerId, spell: SpellId) {
-        let Some(m) = self.magic_mut(player) else {
-            return;
-        };
-        m.researchable.remove(&spell);
-        m.candidates.retain(|&s| s != spell);
-        if m.researching == Some(spell) {
-            m.researching = None;
-            m.research_remaining = 0;
-        }
-        m.known.insert(spell);
-        self.refill_research(player);
-    }
-
     fn give_gold(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         from: PlayerId,
         to: PlayerId,
         amount: i32,
     ) -> Result<(), DiplomacyError> {
-        self.check_gift(from, to)?;
-        if amount <= 0 || self.player(from).is_none_or(|p| p.gold < amount) {
+        self.check_gift(ctx.view, from, to)?;
+        if amount <= 0 || ctx.view.player(from).is_none_or(|p| p.gold < amount) {
             return Err(DiplomacyError::NotEnoughGold);
         }
         // The original offers a quarter, half, three quarters or all of the receiver's gold: the
         // larger the share, the warmer the thanks.
-        let reserve = self.player(to).map_or(0, |p| p.gold).max(1);
+        let reserve = ctx.view.player(to).map_or(0, |p| p.gold).max(1);
         let choice = ((amount * 4 + reserve - 1) / reserve).clamp(1, 4);
-        let base = if self.army_strength(to) > 0 {
+        let base = if army_strength(ctx.view, to) > 0 {
             choice * 4
         } else {
             8
         };
-        let gain = (base * self.roll(3) as i32 / 10).min(100);
-        if let Some(p) = self.player_mut(from) {
-            p.gold -= amount;
-        }
-        if let Some(p) = self.player_mut(to) {
-            p.gold += amount;
-        }
-        let pair = self.pair_mut(from, to);
+        let gain = (base * ctx.rng.roll(3) as i32 / 10).min(100);
+        ctx.out.push(Outcome::Gold { from, to, amount });
+        let pair = self.pair_mut(ctx.view, from, to);
         pair.visible = (pair.visible + gain).min(100);
-        self.queue_diplomacy(DiplomacyEvent::GoldGiven {
+        self.queue.push(DiplomacyEvent::GoldGiven {
             from,
             to,
             gold: amount,
@@ -1015,35 +1063,42 @@ impl Game {
 
     fn give_spell_as_gift(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         from: PlayerId,
         to: PlayerId,
         spell: SpellId,
     ) -> Result<(), DiplomacyError> {
-        self.check_gift(from, to)?;
-        let has = |g: &Game, p: PlayerId| g.magic(p).is_some_and(|m| m.known.contains(&spell));
-        if !has(self, from) || has(self, to) {
+        self.check_gift(ctx.view, from, to)?;
+        let has = |p: PlayerId| ctx.view.magic(p).is_some_and(|m| m.known.contains(&spell));
+        if !has(from) || has(to) {
             return Err(DiplomacyError::SpellUnavailable);
         }
-        self.give_spell(to, spell);
-        let relation = self.relation(from, to);
+        ctx.out.push(Outcome::Spell { player: to, spell });
+        let relation = self.relation(ctx.view, from, to);
         let base = if relation < 0 {
             20
         } else {
             (100 - relation) / 10
         };
-        let gain = base * (self.roll(8) as i32 + self.roll(8) as i32) / 10;
-        let hidden = 2 + self.roll(8) as i32;
-        let pair = self.pair_mut(from, to);
+        let gain = base * (ctx.rng.roll(8) as i32 + ctx.rng.roll(8) as i32) / 10;
+        let hidden = 2 + ctx.rng.roll(8) as i32;
+        let pair = self.pair_mut(ctx.view, from, to);
         pair.visible = (pair.visible + gain).min(100);
-        let s = self.diplomacy.stance_mut(to, from);
+        let s = self.stance_mut(to, from);
         s.peace_patience = (s.peace_patience + gain).min(100);
         s.hidden = (s.hidden + hidden).min(30);
-        self.queue_diplomacy(DiplomacyEvent::SpellGiven { from, to, spell });
+        self.queue
+            .push(DiplomacyEvent::SpellGiven { from, to, spell });
         Ok(())
     }
 
-    fn check_gift(&self, from: PlayerId, to: PlayerId) -> Result<(), DiplomacyError> {
-        if !self.is_wizard(from) || !self.is_wizard(to) {
+    fn check_gift(
+        &self,
+        view: &dyn WorldView,
+        from: PlayerId,
+        to: PlayerId,
+    ) -> Result<(), DiplomacyError> {
+        if !view.is_wizard(from) || !view.is_wizard(to) {
             return Err(DiplomacyError::NotWizards);
         }
         if from == to {
@@ -1056,11 +1111,15 @@ impl Game {
     }
 
     /// Carry out a diplomacy command.
-    pub(crate) fn diplomacy_command(&mut self, command: DiplomacyCommand) -> Vec<Event> {
+    pub(crate) fn command(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        command: DiplomacyCommand,
+    ) -> Vec<Event> {
         let result = match command {
             DiplomacyCommand::Greeted { player, with } => {
                 if self.have_met(player, with) {
-                    let s = self.diplomacy.stance_mut(player, with);
+                    let s = self.stance_mut(player, with);
                     if s.stage == Stage::Greeted {
                         s.stage = Stage::Established;
                     }
@@ -1069,15 +1128,15 @@ impl Game {
                     Err(DiplomacyError::NotContacted)
                 }
             }
-            DiplomacyCommand::Propose { from, to, kind } => self.propose(from, to, kind),
+            DiplomacyCommand::Propose { from, to, kind } => self.propose(ctx, from, to, kind),
             DiplomacyCommand::Answer {
                 player,
                 from,
                 accept,
-            } => self.answer(player, from, accept),
+            } => self.answer(ctx, player, from, accept),
             DiplomacyCommand::BreakTreaty { player, with } => {
                 if matches!(self.treaty(player, with), Treaty::Pact | Treaty::Alliance) {
-                    self.break_treaties(player, with);
+                    self.break_treaties(ctx, player, with);
                     Ok(())
                 } else {
                     Err(DiplomacyError::NotAllowed)
@@ -1089,13 +1148,15 @@ impl Game {
                 } else if self.treaty(player, on) == Treaty::War {
                     Err(DiplomacyError::NotAllowed)
                 } else {
-                    self.declare_war(player, on);
+                    self.declare_war(ctx, player, on);
                     Ok(())
                 }
             }
-            DiplomacyCommand::GiveGold { from, to, amount } => self.give_gold(from, to, amount),
+            DiplomacyCommand::GiveGold { from, to, amount } => {
+                self.give_gold(ctx, from, to, amount)
+            }
             DiplomacyCommand::GiveSpell { from, to, spell } => {
-                self.give_spell_as_gift(from, to, spell)
+                self.give_spell_as_gift(ctx, from, to, spell)
             }
         };
         let mut events = Vec::new();
@@ -1107,48 +1168,20 @@ impl Game {
 
     // ---- the turn --------------------------------------------------------------
 
-    /// The enchantments that sour or sweeten relations: the change, whom it touches, and the
-    /// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
-    /// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
-    fn enchantment_reaction(&self, spell: &str, other: PlayerId) -> Option<(i32, Action)> {
-        let books = |realm: &str| {
-            self.magic(other)
-                .and_then(|m| m.books.get(realm))
-                .copied()
-                .unwrap_or(0)
-        };
-        let reaction = match spell {
-            "spell_of_mastery" => (-50, Action::SpellOfMastery),
-            "eternal_night" => (-12, Action::Enchantment),
-            "evil_omens" if books("life") > 0 || books("nature") > 0 => (-20, Action::Enchantment),
-            "zombie_mastery" => (-14, Action::Enchantment),
-            "aura_of_majesty" => (10, Action::Friendship),
-            "wind_mastery" | "suppress_magic" => (-4, Action::Enchantment),
-            "natures_wrath" if books("chaos") > 0 || books("death") > 0 => {
-                (-20, Action::Enchantment)
-            }
-            "chaos_surge" if books("chaos") == 0 => (-10, Action::Enchantment),
-            "doom_mastery" => (-8, Action::Enchantment),
-            "great_wasting" => (-20, Action::Enchantment),
-            "meteor_storms" => (-15, Action::Enchantment),
-            "armageddon" => (-25, Action::Enchantment),
-            "tranquility" if books("chaos") > 0 => (-20, Action::Enchantment),
-            "life_force" if books("death") > 0 => (-20, Action::Enchantment),
-            "crusade" => (-10, Action::Enchantment),
-            "holy_arms" => (-5, Action::Enchantment),
-            _ => return None,
-        };
-        Some(reaction)
-    }
-
     /// Every other wizard reacts to `caster`'s enchantment (`Change_Relations_For_Enchantments`).
-    pub(crate) fn enchantment_relations(&mut self, caster: PlayerId, spell: &str, divisor: i32) {
-        for other in self.wizards() {
+    pub(crate) fn enchantment_relations(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        caster: PlayerId,
+        spell: &str,
+        divisor: i32,
+    ) {
+        for other in wizards(ctx.view) {
             if other == caster {
                 continue;
             }
-            if let Some((value, action)) = self.enchantment_reaction(spell, other) {
-                self.change_relations(value / divisor, caster, other, action, Some(spell));
+            if let Some((value, action)) = enchantment_reaction(ctx.view, spell, other) {
+                self.change_relations(ctx, value / divisor, caster, other, action, Some(spell));
             }
         }
     }
@@ -1172,73 +1205,91 @@ impl Game {
     /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.
     pub(crate) fn cast_relations(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         caster: PlayerId,
         spell: SpellId,
         target_owner: Option<PlayerId>,
     ) {
-        let id = self.content.rules.spells.get(spell).id.clone();
+        let id = ctx.view.content().rules.spells.get(spell).id.clone();
         if let (Some(value), Some(owner)) = (Self::bad_city_spell_value(&id), target_owner) {
-            self.change_relations(value, caster, owner, Action::BadCitySpell, Some(&id));
+            self.change_relations(ctx, value, caster, owner, Action::BadCitySpell, Some(&id));
         }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
         if id != crate::endgame::SPELL_OF_MASTERY {
-            self.enchantment_relations(caster, &id, 1);
+            self.enchantment_relations(ctx, caster, &id, 1);
         }
     }
 
     /// A wizard begins the Spell of Mastery: the others take note at once.
-    pub(crate) fn begin_cast_relations(&mut self, player: PlayerId, spell: SpellId) {
-        if self.content.rules.spells.get(spell).id == crate::endgame::SPELL_OF_MASTERY {
-            self.enchantment_relations(player, crate::endgame::SPELL_OF_MASTERY, 1);
+    pub(crate) fn begin_cast_relations(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        player: PlayerId,
+        spell: SpellId,
+    ) {
+        if ctx.view.content().rules.spells.get(spell).id == crate::endgame::SPELL_OF_MASTERY {
+            self.enchantment_relations(ctx, player, crate::endgame::SPELL_OF_MASTERY, 1);
         }
     }
 
     /// Attacking a wizard one has a treaty with breaks it first; the attacker is the breaker
     /// (the original has the victim break it, a mistake of the decompiled code).
-    pub(crate) fn attack_relations(&mut self, attacker: PlayerId, defender: PlayerId) {
-        if !self.is_wizard(attacker) || !self.is_wizard(defender) {
+    pub(crate) fn attack_relations(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        attacker: PlayerId,
+        defender: PlayerId,
+    ) {
+        if !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
             return;
         }
-        self.make_contact(attacker, defender);
+        self.make_contact(ctx, attacker, defender);
         if matches!(
             self.treaty(attacker, defender),
             Treaty::Pact | Treaty::Alliance
         ) {
-            self.change_relations(-40, attacker, defender, Action::TreatyAttack, None);
-            self.break_treaties(attacker, defender);
+            self.change_relations(ctx, -40, attacker, defender, Action::TreatyAttack, None);
+            self.break_treaties(ctx, attacker, defender);
         }
     }
 
     /// `winner` took a city of `loser` that had people in it: -40, and the war the original
     /// declares with it.
-    pub(crate) fn city_taken_relations(&mut self, winner: PlayerId, loser: PlayerId) {
-        if !self.is_wizard(winner) || !self.is_wizard(loser) {
+    pub(crate) fn city_taken_relations(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        winner: PlayerId,
+        loser: PlayerId,
+    ) {
+        if !ctx.view.is_wizard(winner) || !ctx.view.is_wizard(loser) {
             return;
         }
-        self.make_contact(winner, loser);
-        self.change_relations(-40, winner, loser, Action::AttackedCity, None);
-        self.declare_war(winner, loser);
+        self.make_contact(ctx, winner, loser);
+        self.change_relations(ctx, -40, winner, loser, Action::AttackedCity, None);
+        self.declare_war(ctx, winner, loser);
     }
 
     /// An attack on a city failed: -60 if it held the wizard's fortress, else -20.
     pub(crate) fn city_held_relations(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         attacker: PlayerId,
         defender: PlayerId,
         fortress_city: bool,
     ) {
-        if !self.is_wizard(attacker) || !self.is_wizard(defender) {
+        if !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
             return;
         }
         let value = if fortress_city { -60 } else { -20 };
-        self.change_relations(value, attacker, defender, Action::AttackedCity, None);
+        self.change_relations(ctx, value, attacker, defender, Action::AttackedCity, None);
     }
 
     /// A wizard's fortress fell (-20 with every other wizard) or the wizard was destroyed (-40,
     /// and they forget each other).
     pub(crate) fn conquest_relations(
         &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
         winner: PlayerId,
         loser: PlayerId,
         destroyed: bool,
@@ -1246,18 +1297,18 @@ impl Game {
         if winner == loser {
             return;
         }
-        for other in self.wizards() {
+        for other in wizards(ctx.view) {
             if other == loser {
                 continue;
             }
             if destroyed {
-                let pair = self.pair_mut(other, loser);
+                let pair = self.pair_mut(ctx.view, other, loser);
                 pair.status = Treaty::None;
                 pair.contacted = false;
             }
             if other != winner {
                 let value = if destroyed { -40 } else { -20 };
-                self.change_relations(value, winner, other, Action::Threat, None);
+                self.change_relations(ctx, value, winner, other, Action::Threat, None);
             }
         }
     }
@@ -1265,25 +1316,25 @@ impl Game {
     /// The part of the turn that belongs to diplomacy (`Next_Turn_Calc` order): proposals that
     /// nobody answered lapse, peace runs down, the enchantments in force sour or sweeten,
     /// relations drift, new wizards are met, and the patience comes back.
-    pub(crate) fn process_diplomacy(&mut self) {
-        let lapsed = std::mem::take(&mut self.diplomacy.proposals);
+    pub(crate) fn process_diplomacy(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        let lapsed = std::mem::take(&mut self.proposals);
         for proposal in lapsed {
-            self.queue_diplomacy(DiplomacyEvent::ProposalAnswered {
+            self.queue.push(DiplomacyEvent::ProposalAnswered {
                 proposal,
                 accepted: false,
                 lapsed: true,
             });
         }
-        for s in self.diplomacy.stances.values_mut() {
+        for s in self.stances.values_mut() {
             s.peace_duration = s.peace_duration.saturating_sub(1);
         }
-        self.enchantments_in_force();
-        self.diplomacy_growth();
-        self.contact_sweep();
+        self.enchantments_in_force(ctx);
+        self.diplomacy_growth(ctx);
+        self.contact_sweep(ctx);
         // Patience comes back, and heals by itself a little.
-        let keys: Vec<(u8, u8)> = self.diplomacy.stances.keys().copied().collect();
+        let keys: Vec<(u8, u8)> = self.stances.keys().copied().collect();
         for &(a, b) in &keys {
-            let s = self.diplomacy.stance_mut(PlayerId(a), PlayerId(b));
+            let s = self.stance_mut(PlayerId(a), PlayerId(b));
             for v in [
                 &mut s.treaty_patience,
                 &mut s.exchange_patience,
@@ -1297,9 +1348,9 @@ impl Game {
         for (a, b) in keys {
             for slot in 0..3 {
                 // Each runs twice: once while it is below zero, once while below 50.
-                let first = self.roll(5) as i32;
-                let second = self.roll(5) as i32;
-                let s = self.diplomacy.stance_mut(PlayerId(a), PlayerId(b));
+                let first = ctx.rng.roll(5) as i32;
+                let second = ctx.rng.roll(5) as i32;
+                let s = self.stance_mut(PlayerId(a), PlayerId(b));
                 let v = match slot {
                     0 => &mut s.treaty_patience,
                     1 => &mut s.exchange_patience,
@@ -1312,7 +1363,7 @@ impl Game {
                     *v += second;
                 }
             }
-            let s = self.diplomacy.stance_mut(PlayerId(a), PlayerId(b));
+            let s = self.stance_mut(PlayerId(a), PlayerId(b));
             s.peace_patience = s.peace_patience.clamp(-200, 200);
             s.last_action = None;
         }
@@ -1320,81 +1371,83 @@ impl Game {
 
     /// The enchantments wizards keep going sour or sweeten relations a little each turn
     /// (`Diplomacy_Growth_For_Enchantments`).
-    fn enchantments_in_force(&mut self) {
-        for wizard in self.wizards() {
-            let mut active: Vec<(String, i32)> = self
+    fn enchantments_in_force(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        for wizard in wizards(ctx.view) {
+            let mut active: Vec<(String, i32)> = ctx
+                .view
                 .magic(wizard)
                 .map(|m| {
                     m.global
                         .iter()
-                        .map(|&s| (self.content.rules.spells.get(s).id.clone(), 10))
+                        .map(|&s| (ctx.view.content().rules.spells.get(s).id.clone(), 10))
                         .collect()
                 })
                 .unwrap_or_default();
             // The Spell of Mastery is felt while it is being cast.
-            let casting_mastery = self.magic(wizard).and_then(|m| m.casting).is_some_and(|c| {
-                self.content.rules.spells.get(c.spell).id == crate::endgame::SPELL_OF_MASTERY
-            });
+            let casting_mastery = ctx
+                .view
+                .magic(wizard)
+                .and_then(|m| m.casting)
+                .is_some_and(|c| {
+                    ctx.view.content().rules.spells.get(c.spell).id
+                        == crate::endgame::SPELL_OF_MASTERY
+                });
             if casting_mastery {
                 active.push((crate::endgame::SPELL_OF_MASTERY.to_string(), 2));
             }
             for (spell, divisor) in active {
-                self.enchantment_relations(wizard, &spell, divisor);
+                self.enchantment_relations(ctx, wizard, &spell, divisor);
             }
         }
     }
 
     /// Relations grow in treaties, react to a human army or empire grown too large, and drift
     /// back towards where they started (`Diplomacy_Growth`).
-    fn diplomacy_growth(&mut self) {
-        let wizards = self.wizards();
+    fn diplomacy_growth(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        let wizards = wizards(ctx.view);
         for (i, &a) in wizards.iter().enumerate() {
             for &b in &wizards[i + 1..] {
-                if !self.have_met(a, b) || self.roll(2) != 1 {
+                if !self.have_met(a, b) || ctx.rng.roll(2) != 1 {
                     continue;
                 }
                 match self.treaty(a, b) {
                     Treaty::Pact => {
-                        let v = self.roll(3) as i32;
-                        self.change_relations(v, a, b, Action::Friendship, None);
+                        let v = ctx.rng.roll(3) as i32;
+                        self.change_relations(ctx, v, a, b, Action::Friendship, None);
                     }
                     Treaty::Alliance => {
-                        let v = self.roll(6) as i32;
-                        self.change_relations(v, a, b, Action::Friendship, None);
+                        let v = ctx.rng.roll(6) as i32;
+                        self.change_relations(ctx, v, a, b, Action::Friendship, None);
                     }
                     _ => {}
                 }
             }
         }
-        if let Some(human) = self.human {
-            let strength = self.army_strength(human);
+        if let Some(human) = ctx.view.human() {
+            let strength = army_strength(ctx.view, human);
             if strength > 0 {
                 for &ai in &wizards {
-                    let theirs = self.army_strength(ai);
+                    let theirs = army_strength(ctx.view, ai);
                     if ai != human && theirs > 0 && theirs < strength {
                         let threshold = strength * 50 / theirs;
-                        if self.roll(100) as i32 >= threshold && self.roll(20) == 1 {
-                            self.change_relations(-10, human, ai, Action::Threat, None);
+                        if ctx.rng.roll(100) as i32 >= threshold && ctx.rng.roll(20) == 1 {
+                            self.change_relations(ctx, -10, human, ai, Action::Threat, None);
                         }
                     }
                 }
             }
-            if self.turn.is_multiple_of(2) {
-                let cities = self
-                    .cities()
-                    .iter()
-                    .filter(|(_, c, _)| c.owner == human)
-                    .count() as i32;
+            if ctx.view.turn().is_multiple_of(2) {
+                let cities = ctx.view.city_count(human) as i32;
                 for &ai in &wizards {
-                    if ai == human || (LAND_SIZE + 1) * 3 >= cities || self.roll(4) != 1 {
+                    if ai == human || (LAND_SIZE + 1) * 3 >= cities || ctx.rng.roll(4) != 1 {
                         continue;
                     }
                     let surplus = cities - (LAND_SIZE + 1) * 3;
-                    let divisor = (LAND_SIZE + 6) - i32::from(self.difficulty);
-                    let mut value = (-surplus / divisor.max(1)) * self.roll(4) as i32 / 3 * 4;
+                    let divisor = (LAND_SIZE + 6) - i32::from(ctx.view.difficulty());
+                    let mut value = (-surplus / divisor.max(1)) * ctx.rng.roll(4) as i32 / 3 * 4;
                     value = value.min(-15);
                     if self.treaty(ai, human) != Treaty::Alliance && self.have_met(ai, human) {
-                        self.change_relations(value, human, ai, Action::Overextension, None);
+                        self.change_relations(ctx, value, human, ai, Action::Overextension, None);
                     }
                 }
             }
@@ -1406,25 +1459,25 @@ impl Game {
                 if !self.have_met(a, b) {
                     continue;
                 }
-                let (ruler, other) = if self.human == Some(a) {
+                let (ruler, other) = if ctx.view.human() == Some(a) {
                     (b, a)
                 } else {
                     (a, b)
                 };
                 if self
-                    .diplomacy
                     .stance(ruler, other)
                     .is_some_and(|s| s.last_action.is_some())
                 {
                     continue;
                 }
-                let gravitation = if self.roll(105) as i32 > self.relation(a, b).abs() {
-                    self.roll(2) as i32
+                let gravitation = if ctx.rng.roll(105) as i32 > self.relation(ctx.view, a, b).abs()
+                {
+                    ctx.rng.roll(2) as i32
                 } else {
                     0
                 };
-                let turn = self.turn;
-                let pair = self.pair_mut(a, b);
+                let turn = ctx.view.turn();
+                let pair = self.pair_mut(ctx.view, a, b);
                 if pair.visible < pair.default {
                     pair.visible = (pair.visible + gravitation).min(pair.default);
                 } else if turn.is_multiple_of(10) {
@@ -1433,6 +1486,210 @@ impl Game {
                 pair.visible = pair.visible.clamp(-100, 100);
             }
         }
+    }
+}
+
+impl Game {
+    /// Lend diplomacy out for one call: its state and the random numbers are taken out of the
+    /// game, so the rules can run over a read-only view of what is left (`design.md` section 3),
+    /// and what they ask of the rest of the game is applied afterwards.
+    fn with_diplomacy<R>(
+        &mut self,
+        f: impl FnOnce(&mut Diplomacy, &mut DiplomacyCtx<'_>) -> R,
+    ) -> R {
+        let mut diplomacy = std::mem::take(&mut self.diplomacy);
+        let mut rng = std::mem::replace(&mut self.rng, GameRng::new(0));
+        let (result, out) = {
+            let mut ctx = DiplomacyCtx {
+                view: &*self,
+                rng: &mut rng,
+                out: Vec::new(),
+            };
+            let result = f(&mut diplomacy, &mut ctx);
+            (result, ctx.out)
+        };
+        self.rng = rng;
+        self.diplomacy = diplomacy;
+        for outcome in out {
+            match outcome {
+                Outcome::Gold { from, to, amount } => {
+                    if let Some(p) = self.player_mut(from) {
+                        p.gold -= amount;
+                    }
+                    if let Some(p) = self.player_mut(to) {
+                        p.gold += amount;
+                    }
+                }
+                Outcome::Spell { player, spell } => self.learn_spell(player, spell),
+            }
+        }
+        result
+    }
+
+    /// A player that is a wizard: neither the monsters nor an independent city.
+    pub fn is_wizard(&self, id: PlayerId) -> bool {
+        WorldView::is_wizard(self, id)
+    }
+
+    /// Every wizard still in the game, in player order.
+    pub fn wizards(&self) -> Vec<PlayerId> {
+        wizards(self)
+    }
+
+    pub fn have_met(&self, a: PlayerId, b: PlayerId) -> bool {
+        self.diplomacy.have_met(a, b)
+    }
+
+    /// The treaty between two wizards.
+    pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
+        self.diplomacy.treaty(a, b)
+    }
+
+    /// The relation between two wizards as the player sees it.
+    pub fn relation(&self, a: PlayerId, b: PlayerId) -> i32 {
+        self.diplomacy.relation(self, a, b)
+    }
+
+    /// The temper of a wizard.
+    pub fn personality(&self, wizard: PlayerId) -> Personality {
+        self.diplomacy.personality(wizard)
+    }
+
+    /// What the hooks raised since the last command, as events.
+    pub fn drain_diplomacy_events(&mut self) -> Vec<Event> {
+        self.diplomacy.drain_events()
+    }
+
+    /// The two wizards meet. Returns whether it was the first time.
+    pub fn make_contact(&mut self, a: PlayerId, b: PlayerId) -> bool {
+        self.with_diplomacy(|d, ctx| d.make_contact(ctx, a, b))
+    }
+
+    /// `player` has just looked at the squares within `radius` of `at`: it meets the wizards
+    /// whose cities or visible units stand there.
+    pub(crate) fn contact_near(&mut self, player: PlayerId, at: Position, radius: u32) {
+        self.with_diplomacy(|d, ctx| d.contact_near(ctx, player, at, radius));
+    }
+
+    /// What `attacker` did moves `defender`'s feeling about it (`Change_Relations`).
+    pub fn change_relations(
+        &mut self,
+        value: i32,
+        attacker: PlayerId,
+        defender: PlayerId,
+        action: Action,
+        spell: Option<&str>,
+    ) {
+        self.with_diplomacy(|d, ctx| {
+            d.change_relations(ctx, value, attacker, defender, action, spell)
+        });
+    }
+
+    /// A pact or an alliance between two wizards (`Start_Treaty`).
+    pub fn start_treaty(&mut self, a: PlayerId, b: PlayerId, treaty: Treaty) {
+        self.with_diplomacy(|d, ctx| d.start_treaty(ctx, a, b, treaty));
+    }
+
+    /// `breaker` ends the pact or alliance with `victim` (`Break_Treaties`).
+    pub fn break_treaties(&mut self, breaker: PlayerId, victim: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.break_treaties(ctx, breaker, victim));
+    }
+
+    /// `attacker` declares war on `defender` (`Declare_War`).
+    pub fn declare_war(&mut self, attacker: PlayerId, defender: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.declare_war(ctx, attacker, defender));
+    }
+
+    /// The end of a war (`Declare_Peace`).
+    pub fn declare_peace(&mut self, a: PlayerId, b: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.declare_peace(ctx, a, b));
+    }
+
+    /// The total cost of a wizard's units, the original's army strength.
+    pub fn army_strength(&self, player: PlayerId) -> i32 {
+        army_strength(self, player)
+    }
+
+    /// The original's `Diplomacy_Test` of a proposal that `asker` makes to `judge`: an AI that
+    /// answers proposals can use it as its starting logic. It draws on the game's random
+    /// numbers and wears down the asker's patience as the original does.
+    pub fn rate_proposal(
+        &mut self,
+        asker: PlayerId,
+        judge: PlayerId,
+        kind: ProposalKind,
+    ) -> Verdict {
+        self.with_diplomacy(|d, ctx| d.rate_proposal(ctx, asker, judge, kind))
+    }
+
+    /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
+    pub fn check_proposal(
+        &self,
+        from: PlayerId,
+        to: PlayerId,
+        kind: ProposalKind,
+    ) -> Result<(), DiplomacyError> {
+        self.diplomacy.check_proposal(self, from, to, kind)
+    }
+
+    /// Carry out a diplomacy command.
+    pub(crate) fn diplomacy_command(&mut self, command: DiplomacyCommand) -> Vec<Event> {
+        self.with_diplomacy(|d, ctx| d.command(ctx, command))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enchantment_relations(&mut self, caster: PlayerId, spell: &str, divisor: i32) {
+        self.with_diplomacy(|d, ctx| d.enchantment_relations(ctx, caster, spell, divisor));
+    }
+
+    /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.
+    pub(crate) fn cast_relations(
+        &mut self,
+        caster: PlayerId,
+        spell: SpellId,
+        target_owner: Option<PlayerId>,
+    ) {
+        self.with_diplomacy(|d, ctx| d.cast_relations(ctx, caster, spell, target_owner));
+    }
+
+    /// A wizard begins the Spell of Mastery: the others take note at once.
+    pub(crate) fn begin_cast_relations(&mut self, player: PlayerId, spell: SpellId) {
+        self.with_diplomacy(|d, ctx| d.begin_cast_relations(ctx, player, spell));
+    }
+
+    /// Attacking a wizard one has a treaty with breaks it first.
+    pub(crate) fn attack_relations(&mut self, attacker: PlayerId, defender: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.attack_relations(ctx, attacker, defender));
+    }
+
+    /// `winner` took a city of `loser` that had people in it.
+    pub(crate) fn city_taken_relations(&mut self, winner: PlayerId, loser: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.city_taken_relations(ctx, winner, loser));
+    }
+
+    /// An attack on a city failed.
+    pub(crate) fn city_held_relations(
+        &mut self,
+        attacker: PlayerId,
+        defender: PlayerId,
+        fortress_city: bool,
+    ) {
+        self.with_diplomacy(|d, ctx| d.city_held_relations(ctx, attacker, defender, fortress_city));
+    }
+
+    /// A wizard's fortress fell or the wizard was destroyed.
+    pub(crate) fn conquest_relations(
+        &mut self,
+        winner: PlayerId,
+        loser: PlayerId,
+        destroyed: bool,
+    ) {
+        self.with_diplomacy(|d, ctx| d.conquest_relations(ctx, winner, loser, destroyed));
+    }
+
+    /// The part of the turn that belongs to diplomacy.
+    pub(crate) fn process_diplomacy(&mut self) {
+        self.with_diplomacy(|d, ctx| d.process_diplomacy(ctx));
     }
 }
 
@@ -1462,19 +1719,21 @@ pub enum KindSave {
     Exchange { give: String, get: String },
 }
 
-impl Game {
-    pub(crate) fn diplomacy_to_save(&self) -> DiplomacySave {
-        let name = |s: SpellId| self.content.rules.spells.get(s).id.clone();
-        let d = &self.diplomacy;
+impl Diplomacy {
+    pub(crate) fn to_save(&self, spell_id: &dyn Fn(SpellId) -> String) -> DiplomacySave {
         DiplomacySave {
-            pairs: d.pairs.iter().map(|(k, v)| (k.0, k.1, v.clone())).collect(),
-            stances: d
+            pairs: self
+                .pairs
+                .iter()
+                .map(|(k, v)| (k.0, k.1, v.clone()))
+                .collect(),
+            stances: self
                 .stances
                 .iter()
                 .map(|(k, v)| (k.0, k.1, v.clone()))
                 .collect(),
-            personalities: d.personalities.iter().map(|(&k, &v)| (k, v)).collect(),
-            proposals: d
+            personalities: self.personalities.iter().map(|(&k, &v)| (k, v)).collect(),
+            proposals: self
                 .proposals
                 .iter()
                 .map(|p| ProposalSave {
@@ -1487,8 +1746,8 @@ impl Game {
                         ProposalKind::WarOn(t) => KindSave::WarOn(t.0),
                         ProposalKind::BreakAllianceWith(t) => KindSave::BreakAllianceWith(t.0),
                         ProposalKind::Exchange { give, get } => KindSave::Exchange {
-                            give: name(give),
-                            get: name(get),
+                            give: spell_id(give),
+                            get: spell_id(get),
                         },
                     },
                 })
@@ -1496,21 +1755,23 @@ impl Game {
         }
     }
 
-    pub(crate) fn diplomacy_from_save(&mut self, save: DiplomacySave) {
-        let spells = &self.content.rules.spells;
-        let d = &mut self.diplomacy;
-        d.pairs = save
+    pub(crate) fn restore(
+        &mut self,
+        save: DiplomacySave,
+        spell_named: &dyn Fn(&str) -> Option<SpellId>,
+    ) {
+        self.pairs = save
             .pairs
             .into_iter()
             .map(|(a, b, p)| ((a, b), p))
             .collect();
-        d.stances = save
+        self.stances = save
             .stances
             .into_iter()
             .map(|(a, b, s)| ((a, b), s))
             .collect();
-        d.personalities = save.personalities.into_iter().collect();
-        d.proposals = save
+        self.personalities = save.personalities.into_iter().collect();
+        self.proposals = save
             .proposals
             .into_iter()
             .filter_map(|p| {
@@ -1521,8 +1782,8 @@ impl Game {
                     KindSave::WarOn(t) => ProposalKind::WarOn(PlayerId(t)),
                     KindSave::BreakAllianceWith(t) => ProposalKind::BreakAllianceWith(PlayerId(t)),
                     KindSave::Exchange { give, get } => ProposalKind::Exchange {
-                        give: spells.id_of(&give)?,
-                        get: spells.id_of(&get)?,
+                        give: spell_named(&give)?,
+                        get: spell_named(&get)?,
                     },
                 };
                 Some(Proposal {
@@ -1535,6 +1796,18 @@ impl Game {
     }
 }
 
+impl Game {
+    pub(crate) fn diplomacy_to_save(&self) -> DiplomacySave {
+        let spells = &self.content.rules.spells;
+        self.diplomacy.to_save(&|s| spells.get(s).id.clone())
+    }
+
+    pub(crate) fn diplomacy_from_save(&mut self, save: DiplomacySave) {
+        let spells = &self.content.rules.spells;
+        self.diplomacy.restore(save, &|name| spells.id_of(name));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1542,7 +1815,7 @@ mod tests {
     use crate::map::{Grid, Map, Plane};
     use crate::player::Player;
     use crate::save::Snapshot;
-    use crate::testutil::content_with_magic;
+    use crate::testutil::{content_with_magic, FakeView};
     use crate::{Command, Rejection};
 
     const P0: PlayerId = PlayerId(0);
@@ -1574,9 +1847,305 @@ mod tests {
         g
     }
 
-    fn met(g: &mut Game, a: PlayerId, b: PlayerId) {
-        g.make_contact(a, b);
-        g.drain_diplomacy_events();
+    /// Diplomacy on its own: its state, a fake view of the world and a generator, with the same
+    /// calls as the game's interface. Most of the rules need nothing more than this.
+    struct Rig {
+        diplomacy: Diplomacy,
+        view: FakeView,
+        rng: GameRng,
+    }
+
+    impl std::ops::Deref for Rig {
+        type Target = FakeView;
+        fn deref(&self) -> &FakeView {
+            &self.view
+        }
+    }
+
+    impl std::ops::DerefMut for Rig {
+        fn deref_mut(&mut self) -> &mut FakeView {
+            &mut self.view
+        }
+    }
+
+    // It mirrors the game's whole interface; a test uses the part it needs.
+    #[allow(dead_code)]
+    impl Rig {
+        /// Three wizards, the first of them the human, nobody met yet.
+        fn new() -> Rig {
+            let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
+            view.human = Some(P0);
+            for p in &mut view.players {
+                p.magic.books.insert("sorcery".into(), 2);
+            }
+            Rig {
+                diplomacy: Diplomacy::default(),
+                view,
+                rng: GameRng::new(11),
+            }
+        }
+
+        fn lend<R>(&mut self, f: impl FnOnce(&mut Diplomacy, &mut DiplomacyCtx<'_>) -> R) -> R {
+            let (result, out) = {
+                let mut ctx = DiplomacyCtx {
+                    view: &self.view,
+                    rng: &mut self.rng,
+                    out: Vec::new(),
+                };
+                let result = f(&mut self.diplomacy, &mut ctx);
+                (result, ctx.out)
+            };
+            for outcome in out {
+                match outcome {
+                    Outcome::Gold { from, to, amount } => {
+                        self.view
+                            .players
+                            .iter_mut()
+                            .find(|p| p.id == from)
+                            .unwrap()
+                            .gold -= amount;
+                        self.view
+                            .players
+                            .iter_mut()
+                            .find(|p| p.id == to)
+                            .unwrap()
+                            .gold += amount;
+                    }
+                    Outcome::Spell { player, spell } => {
+                        self.magic_mut_for_tests(player).known.insert(spell);
+                    }
+                }
+            }
+            result
+        }
+
+        fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut crate::magic::Magic {
+            &mut self
+                .view
+                .players
+                .iter_mut()
+                .find(|p| p.id == player)
+                .unwrap()
+                .magic
+        }
+
+        fn wizards(&self) -> Vec<PlayerId> {
+            wizards(&self.view)
+        }
+
+        fn player_mut(&mut self, id: PlayerId) -> Option<&mut crate::player::Player> {
+            self.view.players.iter_mut().find(|p| p.id == id)
+        }
+
+        /// The turn: what diplomacy does at its end, and the events it raised.
+        fn end_turn(&mut self) -> Vec<Event> {
+            self.lend(|d, ctx| d.process_diplomacy(ctx));
+            self.view.turn += 1;
+            self.drain_diplomacy_events()
+        }
+
+        pub fn have_met(&self, a: PlayerId, b: PlayerId) -> bool {
+            self.diplomacy.have_met(a, b)
+        }
+
+        /// The treaty between two wizards.
+        pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
+            self.diplomacy.treaty(a, b)
+        }
+
+        /// The relation between two wizards as the player sees it.
+        pub fn relation(&self, a: PlayerId, b: PlayerId) -> i32 {
+            self.diplomacy.relation(&self.view, a, b)
+        }
+
+        /// The temper of a wizard.
+        pub fn personality(&self, wizard: PlayerId) -> Personality {
+            self.diplomacy.personality(wizard)
+        }
+
+        /// What the hooks raised since the last command, as events.
+        pub fn drain_diplomacy_events(&mut self) -> Vec<Event> {
+            self.diplomacy.drain_events()
+        }
+
+        /// The two wizards meet. Returns whether it was the first time.
+        pub fn make_contact(&mut self, a: PlayerId, b: PlayerId) -> bool {
+            self.lend(|d, ctx| d.make_contact(ctx, a, b))
+        }
+
+        /// `player` has just looked at the squares within `radius` of `at`: it meets the wizards
+        /// whose cities or visible units stand there.
+        pub fn contact_near(&mut self, player: PlayerId, at: Position, radius: u32) {
+            self.lend(|d, ctx| d.contact_near(ctx, player, at, radius));
+        }
+
+        /// What `attacker` did moves `defender`'s feeling about it (`Change_Relations`).
+        pub fn change_relations(
+            &mut self,
+            value: i32,
+            attacker: PlayerId,
+            defender: PlayerId,
+            action: Action,
+            spell: Option<&str>,
+        ) {
+            self.lend(|d, ctx| d.change_relations(ctx, value, attacker, defender, action, spell));
+        }
+
+        /// A pact or an alliance between two wizards (`Start_Treaty`).
+        pub fn start_treaty(&mut self, a: PlayerId, b: PlayerId, treaty: Treaty) {
+            self.lend(|d, ctx| d.start_treaty(ctx, a, b, treaty));
+        }
+
+        /// `breaker` ends the pact or alliance with `victim` (`Break_Treaties`).
+        pub fn break_treaties(&mut self, breaker: PlayerId, victim: PlayerId) {
+            self.lend(|d, ctx| d.break_treaties(ctx, breaker, victim));
+        }
+
+        /// `attacker` declares war on `defender` (`Declare_War`).
+        pub fn declare_war(&mut self, attacker: PlayerId, defender: PlayerId) {
+            self.lend(|d, ctx| d.declare_war(ctx, attacker, defender));
+        }
+
+        /// The end of a war (`Declare_Peace`).
+        pub fn declare_peace(&mut self, a: PlayerId, b: PlayerId) {
+            self.lend(|d, ctx| d.declare_peace(ctx, a, b));
+        }
+
+        /// The total cost of a wizard's units, the original's army strength.
+        pub fn army_strength(&self, player: PlayerId) -> i32 {
+            army_strength(&self.view, player)
+        }
+
+        /// The original's `Diplomacy_Test` of a proposal that `asker` makes to `judge`: an AI that
+        /// answers proposals can use it as its starting logic. It draws on the game's random
+        /// numbers and wears down the asker's patience as the original does.
+        pub fn rate_proposal(
+            &mut self,
+            asker: PlayerId,
+            judge: PlayerId,
+            kind: ProposalKind,
+        ) -> Verdict {
+            self.lend(|d, ctx| d.rate_proposal(ctx, asker, judge, kind))
+        }
+
+        /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
+        pub fn check_proposal(
+            &self,
+            from: PlayerId,
+            to: PlayerId,
+            kind: ProposalKind,
+        ) -> Result<(), DiplomacyError> {
+            self.diplomacy.check_proposal(&self.view, from, to, kind)
+        }
+
+        /// Carry out a diplomacy command.
+        pub fn diplomacy_command(&mut self, command: DiplomacyCommand) -> Vec<Event> {
+            self.lend(|d, ctx| d.command(ctx, command))
+        }
+
+        pub fn enchantments_in_force(&mut self) {
+            self.lend(|d, ctx| d.enchantments_in_force(ctx));
+        }
+
+        pub fn enchantment_relations(&mut self, caster: PlayerId, spell: &str, divisor: i32) {
+            self.lend(|d, ctx| d.enchantment_relations(ctx, caster, spell, divisor));
+        }
+
+        /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.
+        pub fn cast_relations(
+            &mut self,
+            caster: PlayerId,
+            spell: SpellId,
+            target_owner: Option<PlayerId>,
+        ) {
+            self.lend(|d, ctx| d.cast_relations(ctx, caster, spell, target_owner));
+        }
+
+        /// A wizard begins the Spell of Mastery: the others take note at once.
+        pub fn begin_cast_relations(&mut self, player: PlayerId, spell: SpellId) {
+            self.lend(|d, ctx| d.begin_cast_relations(ctx, player, spell));
+        }
+
+        /// Attacking a wizard one has a treaty with breaks it first.
+        pub fn attack_relations(&mut self, attacker: PlayerId, defender: PlayerId) {
+            self.lend(|d, ctx| d.attack_relations(ctx, attacker, defender));
+        }
+
+        /// `winner` took a city of `loser` that had people in it.
+        pub fn city_taken_relations(&mut self, winner: PlayerId, loser: PlayerId) {
+            self.lend(|d, ctx| d.city_taken_relations(ctx, winner, loser));
+        }
+
+        /// An attack on a city failed.
+        pub fn city_held_relations(
+            &mut self,
+            attacker: PlayerId,
+            defender: PlayerId,
+            fortress_city: bool,
+        ) {
+            self.lend(|d, ctx| d.city_held_relations(ctx, attacker, defender, fortress_city));
+        }
+
+        /// A wizard's fortress fell or the wizard was destroyed.
+        pub fn conquest_relations(&mut self, winner: PlayerId, loser: PlayerId, destroyed: bool) {
+            self.lend(|d, ctx| d.conquest_relations(ctx, winner, loser, destroyed));
+        }
+
+        /// The part of the turn that belongs to diplomacy.
+        pub fn process_diplomacy(&mut self) {
+            self.lend(|d, ctx| d.process_diplomacy(ctx));
+        }
+    }
+
+    /// What the tests do to either, the whole game or diplomacy alone.
+    trait Harness {
+        fn met(&mut self, a: PlayerId, b: PlayerId);
+        fn set_pair(&mut self, a: PlayerId, b: PlayerId, f: impl FnOnce(&mut Pair));
+        fn command(&mut self, c: DiplomacyCommand) -> Vec<Event>;
+    }
+
+    impl Harness for Game {
+        fn met(&mut self, a: PlayerId, b: PlayerId) {
+            self.make_contact(a, b);
+            self.drain_diplomacy_events();
+        }
+        fn set_pair(&mut self, a: PlayerId, b: PlayerId, f: impl FnOnce(&mut Pair)) {
+            self.with_diplomacy(|d, ctx| f(d.pair_mut(ctx.view, a, b)));
+        }
+        fn command(&mut self, c: DiplomacyCommand) -> Vec<Event> {
+            self.apply(Command::Diplomacy(c))
+        }
+    }
+
+    impl Harness for Rig {
+        fn met(&mut self, a: PlayerId, b: PlayerId) {
+            self.make_contact(a, b);
+            self.drain_diplomacy_events();
+        }
+        fn set_pair(&mut self, a: PlayerId, b: PlayerId, f: impl FnOnce(&mut Pair)) {
+            self.lend(|d, ctx| f(d.pair_mut(ctx.view, a, b)));
+        }
+        fn command(&mut self, c: DiplomacyCommand) -> Vec<Event> {
+            let mut events = self.diplomacy_command(c);
+            events.extend(self.drain_diplomacy_events());
+            events
+        }
+    }
+
+    fn met(g: &mut impl Harness, a: PlayerId, b: PlayerId) {
+        g.met(a, b);
+    }
+
+    fn set_pair(g: &mut impl Harness, a: PlayerId, b: PlayerId, f: impl FnOnce(&mut Pair)) {
+        g.set_pair(a, b, f);
+    }
+
+    fn set_rel(g: &mut impl Harness, a: PlayerId, b: PlayerId, v: i32) {
+        g.set_pair(a, b, |p| p.visible = v);
+    }
+
+    fn command(g: &mut impl Harness, c: DiplomacyCommand) -> Vec<Event> {
+        g.command(c)
     }
 
     fn city(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
@@ -1589,14 +2158,6 @@ mod tests {
             population: 3,
         });
         g.city_at(pos).unwrap()
-    }
-
-    fn set_rel(g: &mut Game, a: PlayerId, b: PlayerId, v: i32) {
-        g.pair_mut(a, b).visible = v;
-    }
-
-    fn command(g: &mut Game, c: DiplomacyCommand) -> Vec<Event> {
-        g.apply(Command::Diplomacy(c))
     }
 
     fn rejected(events: &[Event]) -> Option<DiplomacyError> {
@@ -1683,7 +2244,7 @@ mod tests {
         let walker = g.content.rules.units.id_of("walker").unwrap();
         g.spawn_unit(P1, at(12, 10), walker);
         // Forget that they have been shown to each other already.
-        g.pair_mut(P0, P1).contacted = false;
+        set_pair(&mut g, P0, P1, |p| p.contacted = false);
         assert!(!g.have_met(P0, P1));
         let events = g.apply(Command::EndTurn);
         assert!(g.have_met(P0, P1), "{events:?}");
@@ -1711,7 +2272,7 @@ mod tests {
 
     #[test]
     fn good_deeds_count_less_the_better_the_relation() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         met(&mut g, P2, P1);
         g.human = Some(P0);
@@ -1734,7 +2295,7 @@ mod tests {
 
     #[test]
     fn bad_deeds_count_double_to_a_friend_and_less_to_an_enemy() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P2, P1);
         set_rel(&mut g, P1, P2, 20);
         g.change_relations(-10, P2, P1, Action::AttackedCity, None);
@@ -1750,7 +2311,7 @@ mod tests {
 
     #[test]
     fn temper_and_charm_change_what_a_deed_is_worth() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P2, P1);
         set_rel(&mut g, P1, P2, 0);
         g.diplomacy.set_personality(P1, Personality::Lawful);
@@ -1778,7 +2339,7 @@ mod tests {
 
     #[test]
     fn the_human_is_never_the_one_who_changes() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let before = g.relation(P0, P1);
         g.change_relations(-40, P1, P0, Action::AttackedCity, None);
@@ -1789,7 +2350,7 @@ mod tests {
 
     #[test]
     fn strangers_do_not_react_and_neither_does_a_monster() {
-        let mut g = world();
+        let mut g = Rig::new();
         let before = g.relation(P1, P2);
         g.change_relations(-40, P2, P1, Action::AttackedCity, None);
         assert_eq!(g.relation(P1, P2), before);
@@ -1800,7 +2361,7 @@ mod tests {
 
     #[test]
     fn a_relation_stays_below_65_without_an_alliance_and_below_minus_25_at_war() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P2, P1);
         set_rel(&mut g, P1, P2, 60);
         g.change_relations(100, P2, P1, Action::Friendship, None);
@@ -1809,14 +2370,14 @@ mod tests {
         g.change_relations(100, P2, P1, Action::Friendship, None);
         assert!(g.relation(P1, P2) > 65);
         g.declare_war(P1, P2);
-        g.pair_mut(P1, P2).visible = 40;
+        set_pair(&mut g, P1, P2, |p| p.visible = 40);
         g.change_relations(5, P2, P1, Action::Friendship, None);
         assert!(g.relation(P1, P2) <= -25);
     }
 
     #[test]
     fn what_a_human_does_in_a_war_does_not_worsen_it_but_wears_down_peace() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         g.declare_war(P1, P0);
         let (rel, patience) = (
@@ -1840,7 +2401,7 @@ mod tests {
 
     #[test]
     fn the_last_strongest_act_of_the_human_is_remembered() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         set_rel(&mut g, P0, P1, 0);
         g.change_relations(-5, P0, P1, Action::BadCitySpell, Some("famine"));
@@ -1859,7 +2420,7 @@ mod tests {
 
     #[test]
     fn declaring_war_sets_the_state_the_original_sets() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         let default = g.diplomacy.pair(P1, P2).unwrap().default;
         g.declare_war(P1, P2);
@@ -1889,7 +2450,7 @@ mod tests {
 
     #[test]
     fn breaking_a_treaty_costs_trust_with_everyone() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         met(&mut g, P0, P1);
         met(&mut g, P0, P2);
@@ -1917,7 +2478,7 @@ mod tests {
 
     #[test]
     fn ending_no_treaty_costs_the_breaker_nothing_of_its_own() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         g.break_treaties(P1, P2);
         assert_eq!(g.diplomacy.stance(P1, P2).map_or(0, |s| s.hidden), 0);
@@ -1928,7 +2489,7 @@ mod tests {
 
     #[test]
     fn a_pact_is_proposed_and_accepted() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let events = command(
             &mut g,
@@ -1969,7 +2530,7 @@ mod tests {
 
     #[test]
     fn a_refused_proposal_changes_nothing() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         command(
             &mut g,
@@ -2009,11 +2570,11 @@ mod tests {
 
     #[test]
     fn what_the_treaty_allows_decides_what_can_be_proposed() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         met(&mut g, P0, P2);
         met(&mut g, P1, P2);
-        let ok = |g: &Game, from, to, kind| g.check_proposal(from, to, kind).is_ok();
+        let ok = |g: &Rig, from, to, kind| g.check_proposal(from, to, kind).is_ok();
         assert!(ok(&g, P0, P1, ProposalKind::Pact));
         assert!(ok(&g, P0, P1, ProposalKind::Alliance));
         assert!(!ok(&g, P0, P1, ProposalKind::Peace));
@@ -2035,7 +2596,7 @@ mod tests {
 
     #[test]
     fn a_pact_cannot_be_offered_twice_nor_in_a_war() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         g.start_treaty(P0, P1, Treaty::Pact);
         assert!(g.check_proposal(P0, P1, ProposalKind::Pact).is_err());
@@ -2056,7 +2617,7 @@ mod tests {
 
     #[test]
     fn peace_ends_a_war_and_the_human_is_left_alone_a_while() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         g.declare_war(P1, P0);
         g.drain_diplomacy_events();
@@ -2086,7 +2647,7 @@ mod tests {
 
     #[test]
     fn a_war_on_a_third_wizard_is_declared_by_the_one_asked() {
-        let mut g = world();
+        let mut g = Rig::new();
         for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
             met(&mut g, a, b);
         }
@@ -2112,7 +2673,7 @@ mod tests {
 
     #[test]
     fn asking_an_ally_to_break_with_another_makes_it_do_so() {
-        let mut g = world();
+        let mut g = Rig::new();
         for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
             met(&mut g, a, b);
         }
@@ -2139,7 +2700,7 @@ mod tests {
 
     #[test]
     fn an_unanswered_proposal_lapses_at_the_end_of_the_turn() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         command(
             &mut g,
@@ -2149,7 +2710,7 @@ mod tests {
                 kind: ProposalKind::Pact,
             },
         );
-        let events = g.apply(Command::EndTurn);
+        let events = g.end_turn();
         assert!(events.iter().any(|e| matches!(
             e,
             Event::Diplomacy(DiplomacyEvent::ProposalAnswered {
@@ -2164,7 +2725,7 @@ mod tests {
 
     #[test]
     fn a_pact_that_stopped_being_possible_is_not_signed() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         command(
             &mut g,
@@ -2188,7 +2749,7 @@ mod tests {
 
     #[test]
     fn breaking_a_pact_by_command_needs_one() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let none = command(
             &mut g,
@@ -2212,7 +2773,7 @@ mod tests {
 
     #[test]
     fn a_wizard_can_declare_war_only_on_one_it_has_met() {
-        let mut g = world();
+        let mut g = Rig::new();
         let events = command(&mut g, DiplomacyCommand::DeclareWar { player: P1, on: P2 });
         assert_eq!(rejected(&events), Some(DiplomacyError::NotContacted));
         met(&mut g, P1, P2);
@@ -2222,7 +2783,7 @@ mod tests {
 
     #[test]
     fn gold_is_a_gift_that_warms() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         set_rel(&mut g, P0, P1, 0);
         g.player_mut(P0).unwrap().gold = 300;
@@ -2261,7 +2822,7 @@ mod tests {
 
     #[test]
     fn a_spell_given_is_known_and_wins_trust() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let famine = g.content.rules.spells.id_of("famine").unwrap();
         g.magic_mut_for_tests(P0).known.insert(famine);
@@ -2294,7 +2855,7 @@ mod tests {
 
     #[test]
     fn spells_are_exchanged_one_for_one() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let famine = g.content.rules.spells.id_of("famine").unwrap();
         let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
@@ -2334,7 +2895,7 @@ mod tests {
 
     #[test]
     fn the_rating_of_a_proposal_is_the_originals() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         // A pact below +10 is refused out of hand, and costs no patience.
         set_rel(&mut g, P0, P1, 10);
@@ -2377,23 +2938,23 @@ mod tests {
         let spear = g.content.rules.units.id_of("walker").unwrap();
         let cost = g.content.rules.units.get(spear).cost as i32;
         // Neither has an army: the asker is 'weaker', no threat to speak of.
-        assert_eq!(g.threat_modifier(P0, P1), -50);
+        assert_eq!(threat_modifier(&g, P0, P1), -50);
         for _ in 0..4 {
             g.spawn_unit(P0, at(1, 1), spear);
         }
-        assert_eq!(g.threat_modifier(P0, P1), 50, "the other has no army");
+        assert_eq!(threat_modifier(&g, P0, P1), 50, "the other has no army");
         g.spawn_unit(P1, at(5, 5), spear);
-        assert_eq!(g.threat_modifier(P0, P1), -50 + 4 * cost * 100 / cost);
+        assert_eq!(threat_modifier(&g, P0, P1), -50 + 4 * cost * 100 / cost);
     }
 
     #[test]
     fn peace_runs_down_and_patience_comes_back() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         g.diplomacy.stance_mut(P1, P0).peace_duration = 3;
         g.diplomacy.stance_mut(P1, P0).treaty_patience = -100;
         g.diplomacy.stance_mut(P1, P0).peace_patience = 100;
-        g.apply(Command::EndTurn);
+        g.end_turn();
         let s = g.diplomacy.stance(P1, P0).unwrap();
         assert_eq!(s.peace_duration, 2);
         // +10 at the end of the turn, then up to twice 1..5 while below zero (the first)
@@ -2408,13 +2969,13 @@ mod tests {
 
     #[test]
     fn a_pact_makes_friends_over_time() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         set_rel(&mut g, P1, P2, 0);
-        g.pair_mut(P1, P2).default = 0;
+        set_pair(&mut g, P1, P2, |p| p.default = 0);
         g.start_treaty(P1, P2, Treaty::Alliance);
         for _ in 0..40 {
-            g.apply(Command::EndTurn);
+            g.end_turn();
         }
         assert!(g.relation(P1, P2) > 10, "{}", g.relation(P1, P2));
         assert!(g.relation(P1, P2) <= 100);
@@ -2422,25 +2983,25 @@ mod tests {
 
     #[test]
     fn without_cause_relations_drift_back_to_the_start() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         let default = g.diplomacy.pair(P1, P2).unwrap().default;
         set_rel(&mut g, P1, P2, default - 30);
         for _ in 0..60 {
-            g.apply(Command::EndTurn);
+            g.end_turn();
         }
         assert_eq!(g.relation(P1, P2), default);
         // From above it comes down every tenth turn only.
         set_rel(&mut g, P1, P2, default + 20);
         for _ in 0..200 {
-            g.apply(Command::EndTurn);
+            g.end_turn();
         }
         assert_eq!(g.relation(P1, P2), default);
     }
 
     #[test]
     fn a_recent_deed_holds_the_drift_for_a_turn() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         let default = g.diplomacy.pair(P0, P1).unwrap().default;
         set_rel(&mut g, P0, P1, default + 30);
@@ -2449,7 +3010,7 @@ mod tests {
             strength: 5,
             spell: None,
         });
-        g.apply(Command::EndTurn);
+        g.end_turn();
         assert_eq!(g.relation(P0, P1), default + 30);
         assert!(g.diplomacy.stance(P1, P0).unwrap().last_action.is_none());
     }
@@ -2486,7 +3047,7 @@ mod tests {
 
     #[test]
     fn a_curse_on_a_city_is_noticed_by_its_owner() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P0, P1);
         set_rel(&mut g, P0, P1, 0);
         let famine = g.content.rules.spells.id_of("famine").unwrap();
@@ -2500,7 +3061,7 @@ mod tests {
 
     #[test]
     fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
-        let mut g = world();
+        let mut g = Rig::new();
         for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
             met(&mut g, a, b);
         }
@@ -2509,7 +3070,12 @@ mod tests {
         }
         let mastery = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
         g.begin_cast_relations(P0, mastery);
-        assert_eq!(g.relation(P0, P1), -50);
+        // One time in nine the original has the offended wizard declare war as well.
+        if g.treaty(P0, P1) == Treaty::War {
+            assert!(g.relation(P0, P1) <= -75);
+        } else {
+            assert_eq!(g.relation(P0, P1), -50);
+        }
         // Begun, the Spell of Mastery keeps bothering them a little each turn (half of fifty).
         g.magic_mut_for_tests(P1).casting = Some(crate::magic::Casting {
             spell: mastery,
@@ -2523,7 +3089,7 @@ mod tests {
 
     #[test]
     fn attacking_a_partner_breaks_the_treaty_and_costs_relations() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         g.start_treaty(P1, P2, Treaty::Pact);
         set_rel(&mut g, P1, P2, 30);
@@ -2570,7 +3136,7 @@ mod tests {
         let walker = g.content.rules.units.id_of("walker").unwrap();
         let a = g.spawn_unit(P1, at(5, 5), walker);
         let d = g.spawn_unit(P2, at(6, 5), walker);
-        g.pair_mut(P1, P2).contacted = false;
+        set_pair(&mut g, P1, P2, |p| p.contacted = false);
         g.apply(Command::BeginBattle {
             attackers: vec![a],
             defenders: vec![d],
@@ -2581,7 +3147,7 @@ mod tests {
 
     #[test]
     fn attacking_a_wizard_one_has_not_met_meets_it() {
-        let mut g = world();
+        let mut g = Rig::new();
         g.attack_relations(P1, P2);
         assert!(g.have_met(P1, P2));
     }
@@ -2618,7 +3184,7 @@ mod tests {
 
     #[test]
     fn a_city_that_holds_costs_the_attacker_twenty_or_sixty() {
-        let mut g = world();
+        let mut g = Rig::new();
         met(&mut g, P1, P2);
         set_rel(&mut g, P1, P2, 0);
         g.city_held_relations(P2, P1, false);
@@ -2630,7 +3196,7 @@ mod tests {
 
     #[test]
     fn a_fallen_fortress_is_held_against_the_winner_by_everyone_else() {
-        let mut g = world();
+        let mut g = Rig::new();
         for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
             met(&mut g, a, b);
         }

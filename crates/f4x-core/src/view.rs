@@ -37,6 +37,8 @@ pub trait WorldView {
     fn turn(&self) -> u32;
     /// The human wizard, if there is one.
     fn human(&self) -> Option<PlayerId>;
+    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
+    fn difficulty(&self) -> u8;
     /// The definitions of the game.
     fn content(&self) -> &Content;
     /// Every player: wizards, independent cities' players, in the order they were added.
@@ -50,6 +52,8 @@ pub trait WorldView {
     fn foreign_sightings_near(&self, viewer: PlayerId, at: Position, radius: u32) -> Vec<Sighting>;
     /// The units a player has.
     fn units_of(&self, player: PlayerId) -> Vec<UnitInfo>;
+    /// How many cities (outposts too) a player has.
+    fn city_count(&self, player: PlayerId) -> usize;
 
     fn player(&self, id: PlayerId) -> Option<&Player> {
         self.players().iter().find(|p| p.id == id)
@@ -91,6 +95,10 @@ impl WorldView for Game {
 
     fn human(&self) -> Option<PlayerId> {
         self.human
+    }
+
+    fn difficulty(&self) -> u8 {
+        self.difficulty
     }
 
     fn content(&self) -> &Content {
@@ -139,6 +147,13 @@ impl WorldView for Game {
                 })
             })
             .collect()
+    }
+
+    fn city_count(&self, player: PlayerId) -> usize {
+        self.cities()
+            .iter()
+            .filter(|(_, c, _)| c.owner == player)
+            .count()
     }
 }
 

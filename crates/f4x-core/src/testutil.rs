@@ -744,10 +744,13 @@ pub fn content_with_magic() -> Content {
 pub struct FakeView {
     pub turn: u32,
     pub human: Option<crate::city::PlayerId>,
+    pub difficulty: u8,
     pub content: Content,
     pub players: Vec<crate::player::Player>,
     pub sightings: Vec<(crate::city::PlayerId, crate::view::Sighting)>,
     pub units: Vec<(crate::city::PlayerId, crate::view::UnitInfo)>,
+    /// The owner of each city.
+    pub cities: Vec<crate::city::PlayerId>,
 }
 
 impl FakeView {
@@ -756,6 +759,7 @@ impl FakeView {
         Self {
             turn: 1,
             human: None,
+            difficulty: 2,
             content: Content::default(),
             players: ids
                 .iter()
@@ -763,6 +767,7 @@ impl FakeView {
                 .collect(),
             sightings: Vec::new(),
             units: Vec::new(),
+            cities: Vec::new(),
         }
     }
 
@@ -779,6 +784,10 @@ impl crate::view::WorldView for FakeView {
 
     fn human(&self) -> Option<crate::city::PlayerId> {
         self.human
+    }
+
+    fn difficulty(&self) -> u8 {
+        self.difficulty
     }
 
     fn content(&self) -> &Content {
@@ -820,5 +829,9 @@ impl crate::view::WorldView for FakeView {
             .filter(|(p, _)| *p == player)
             .map(|(_, u)| *u)
             .collect()
+    }
+
+    fn city_count(&self, player: crate::city::PlayerId) -> usize {
+        self.cities.iter().filter(|&&c| c == player).count()
     }
 }
