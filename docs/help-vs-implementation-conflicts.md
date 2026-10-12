@@ -38,6 +38,8 @@ Written in our own words; nothing here is copied from either source.
 | B19 Growth | The original suppresses shrinking at maximum size and at the largest size; here starvation and being over the limit still shrink (done, task 20). Surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug in the original, but we do not port it: neutrals get no bonus or penalty, design.md section 8.) |
 | B20 Outposts | Done (task 21). Outpost growth includes wild game; no AI difficulty modifier applies to anyone (no AI advantage, design.md section 8). |
 | B21 Disenchant | Dispels only other wizards' enchantments, by the usual chance (`dispel.rs`, task 59); the code's always-succeeding roll and its test against the caster are not followed. |
+| B27 Holy Word | The undead get an extra -5 to resist it, as the help says (the original has it reversed). |
+| B28 Crusade | Raises heroes as well as normal units, as the original code does; the help says "normal units". Not for the undead or creatures. |
 
 ### Decided by rule 2 (ReMoM to-do)
 | # | Decision |
@@ -127,6 +129,8 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B24 | Spell Ward [72] | total immunity from spells of one realm including combat spells; bars fantastic creatures of that realm from entering | only overland spells aimed at the city or at units in it fizzle (`Apply_Automatic_Spell_Counters`); combat and movement never read the wards | Verified | done (task 25): all three follow the help (attackers' combat spells of the realm are refused; fantastic creatures of it, the owner's too, cannot enter) | Follow the help (done). |
 | B25 | Flying Fortress [77] | only flyers may enter, attack or leave; the wizard's foot troops may use it overland; a walker that leaves in battle cannot re-enter | in battle the city area is shut to walkers outside and the ring round it to walkers inside (the gate too); the overland code never reads the spell (and a `Check_FlyingFortress_Bug` jumps past part of the restriction) | Check | done (task 25) in battle as the code does; no overland rule | Keep. |
 | B26 | Chaos Rift [110] | five strength 8 lightning bolts on each unit in the city each turn, 5% chance a building is destroyed | the turn code for it is a stub (`CTY_ChaosRift`); only the outpost shrink chance (+10) exists | Check | done (task 25) as the help says | Follow the help (done). |
+| B27 | Holy Word [spell text] | the undead have a much more difficult time resisting it | the code's extra penalty for the undead is applied the wrong way round (as a bonus to their resistance), so the undead resist better | Check | done (task 29): the undead get an extra -5, as the help says (`undead_penalty`, `battle/spells.rs`) | Follow the help. |
+| B28 | Crusade [622] | raises the levels of "normal units" | `Calc_Unit_Level` and the battle code raise every non-fantastic unit that is not undead, heroes too | Check | heroes get the extra level (task 27, `unit_level`) | Follow the code; the help's wording is loose. |
 
 ## C. The help contradicts itself
 
