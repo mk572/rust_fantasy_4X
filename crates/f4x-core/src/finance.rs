@@ -162,10 +162,11 @@ impl Game {
             let min = self.city_min_farmers(city);
             let _ = self.world.insert_one(city, Farmers(min));
         }
-        let upkeep: i32 = self
+        let units = self.units();
+        let upkeep: i32 = units
             .player_units(player)
             .iter()
-            .map(|&u| self.unit_food_upkeep(u))
+            .map(|&u| units.unit_food_upkeep(u))
             .sum();
         // Each extra farmer yields food beyond what he eats; add them where it pays most.
         loop {
@@ -197,14 +198,16 @@ impl Game {
 
     /// The figures of a player's troops that the treasury needs, in the order of `player_units`.
     fn troops(&self, player: PlayerId) -> Vec<Troop> {
-        self.player_units(player)
+        let units = self.units();
+        units
+            .player_units(player)
             .into_iter()
             .map(|id| Troop {
                 id,
-                food: self.unit_food_upkeep(id),
-                gold: self.unit_gold_upkeep(id),
-                noble_hero: self.unit_has_ability(id, "noble")
-                    && self.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
+                food: units.unit_food_upkeep(id),
+                gold: units.unit_gold_upkeep(id),
+                noble_hero: units.unit_has_ability(id, "noble")
+                    && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
             })
             .collect()
     }

@@ -3,7 +3,7 @@
 //! [`outpost_shrink_chance`]); the `Game` side reads the city and applies the result.
 
 use crate::city::{City, PlayerId, Position};
-use crate::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
+use crate::economy::{Buildings, CityRace, Economy, Enchantments, Farmers, Population};
 use crate::production::{Production, ProductionItem};
 use crate::rng::GameRng;
 use crate::Game;
@@ -81,49 +81,13 @@ impl Game {
         (pop.figures, grown.figures)
     }
 
-    /// The chance (percent) that an outpost gains people this turn: the land's food, the race,
-    /// the minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The
-    /// original added a difficulty modifier here and ignored wild game's food; we do neither
-    /// (no modifier for anyone, design.md section 8).
-    pub(crate) fn outpost_growth_chance(&self, city: hecs::Entity) -> i32 {
-        let Some(at) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
-            return 0;
-        };
-        let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
-        let mut grow = race.map_or(10, |r| {
-            i32::from(self.content.rules.races.get(r).outpost_growth)
-        });
-        if let Some(grid) = self.map.as_ref().map(|m| m.plane(at.plane)) {
-            // Food from the land, wild game included (it counts in the city's food).
-            grow += self
-                .city_economy_with(city, 0)
-                .map_or(0, |e| e.max_size as i32);
-            for (p, _) in self.city_area(at) {
-                if let Some(f) = grid
-                    .feature(p.x as i32, p.y as i32)
-                    .and_then(|f| self.content.features.get(f))
-                {
-                    grow += f.city.outpost_growth;
-                }
-            }
-        }
-        let enchanted = |name: &str| self.city_has_enchantment(city, name);
-        if enchanted("gaias_blessing") {
-            grow += 20;
-        }
-        if enchanted("stream_of_life") {
-            grow += 10;
-        }
-        grow
-    }
-
     /// Outposts grow a few tens of people at a time, by chance.
     pub(crate) fn grow_outpost(&mut self, city: hecs::Entity) -> bool {
         if self.world.get::<&Position>(city).is_err() {
             return false;
         }
-        let grow = self.outpost_growth_chance(city);
-        let shrink = outpost_shrink_chance(|name| self.city_has_enchantment(city, name));
+        let grow = self.economy().outpost_growth_chance(city);
+        let shrink = outpost_shrink_chance(|name| self.economy().city_has_enchantment(city, name));
         let pop = self
             .world
             .get::<&Population>(city)
@@ -169,6 +133,44 @@ impl Game {
             self.explore(owner, pos, 2);
         }
         city
+    }
+}
+
+impl Economy<'_> {
+    /// The chance (percent) that an outpost gains people this turn: the land's food, the race,
+    /// the minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The
+    /// original added a difficulty modifier here and ignored wild game's food; we do neither
+    /// (no modifier for anyone, design.md section 8).
+    pub(crate) fn outpost_growth_chance(&self, city: hecs::Entity) -> i32 {
+        let Some(at) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
+            return 0;
+        };
+        let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let mut grow = race.map_or(10, |r| {
+            i32::from(self.content.rules.races.get(r).outpost_growth)
+        });
+        if let Some(grid) = self.map.map(|m| m.plane(at.plane)) {
+            // Food from the land, wild game included (it counts in the city's food).
+            grow += self
+                .city_economy_with(city, 0)
+                .map_or(0, |e| e.max_size as i32);
+            for (p, _) in self.city_area(at) {
+                if let Some(f) = grid
+                    .feature(p.x as i32, p.y as i32)
+                    .and_then(|f| self.content.features.get(f))
+                {
+                    grow += f.city.outpost_growth;
+                }
+            }
+        }
+        let enchanted = |name: &str| self.city_has_enchantment(city, name);
+        if enchanted("gaias_blessing") {
+            grow += 20;
+        }
+        if enchanted("stream_of_life") {
+            grow += 10;
+        }
+        grow
     }
 }
 

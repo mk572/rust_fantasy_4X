@@ -619,6 +619,14 @@ impl<'a> Economy<'a> {
             .sum()
     }
 
+    /// The city standing at `pos`.
+    pub fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
+        self.cities()
+            .into_iter()
+            .find(|(_, _, p)| *p == pos)
+            .map(|(e, ..)| e)
+    }
+
     /// The player owning a city.
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
         self.world.get::<&City>(city).ok().map(|c| c.owner)

@@ -883,7 +883,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() {
     // The test land feeds more than the usual largest city, which would hide the food.
     g.content.rules.config.max_city_size = 100;
     let outpost = found(&mut g, at(10, 6), "elf", 0);
-    let plain = g.outpost_growth_chance(outpost);
+    let plain = g.economy().outpost_growth_chance(outpost);
     let game = g.content.features.id_of("game").unwrap();
     g.map
         .as_mut()
@@ -891,17 +891,17 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() {
         .plane_mut(Plane::Arcanus)
         .set_feature(10, 8, Some(game));
     // The special's own +10 and the 2 food it adds to what the land can feed.
-    assert_eq!(g.outpost_growth_chance(outpost), plain + 10 + 2);
+    assert_eq!(g.economy().outpost_growth_chance(outpost), plain + 10 + 2);
 }
 
 #[test]
 fn difficulty_does_not_change_outpost_growth_for_anyone() {
     let mut g = world();
     let outpost = found(&mut g, at(10, 6), "elf", 0);
-    let normal = g.outpost_growth_chance(outpost);
+    let normal = g.economy().outpost_growth_chance(outpost);
     for difficulty in [0, 4] {
         g.difficulty = difficulty;
-        assert_eq!(g.outpost_growth_chance(outpost), normal);
+        assert_eq!(g.economy().outpost_growth_chance(outpost), normal);
     }
 }
 

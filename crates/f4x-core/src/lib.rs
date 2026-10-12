@@ -24,6 +24,7 @@ pub mod fog;
 pub mod fortress;
 pub mod gates;
 pub mod globals;
+mod healing;
 pub mod help;
 pub mod lairs;
 pub mod magic;
@@ -574,10 +575,7 @@ impl Game {
     }
 
     pub fn city_at(&self, pos: city::Position) -> Option<hecs::Entity> {
-        self.cities()
-            .into_iter()
-            .find(|(_, _, p)| *p == pos)
-            .map(|(e, ..)| e)
+        self.economy().city_at(pos)
     }
 
     /// Whether a city could be founded at `pos` right now.

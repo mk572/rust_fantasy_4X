@@ -15,7 +15,7 @@ use crate::content::Content;
 use crate::magic::{Magic, Retort};
 use crate::player::Player;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
-use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId};
+use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
 use crate::serial::Serial;
 use crate::Game;
 
@@ -267,6 +267,46 @@ impl<'a> Units<'a> {
         self.sort_by_serial(&mut out);
         out
     }
+
+    /// Food a unit eats per turn.
+    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
+        if self.unit_is_undead(unit) {
+            return 0;
+        }
+        match self.unit_def(unit).map(|d| d.kind) {
+            Some(UnitKind::Normal) => 1,
+            _ => 0,
+        }
+    }
+
+    /// Gold a unit costs per turn (heroes with the noble trait cost nothing).
+    pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> i32 {
+        let Some(def) = self.unit_def(unit) else {
+            return 0;
+        };
+        if self.unit_is_undead(unit) {
+            return 0;
+        }
+        match def.kind {
+            UnitKind::Normal => def.upkeep.gold as i32,
+            UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
+            _ => 0,
+        }
+    }
+
+    /// A player's units, in the order of `all_units`.
+    pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        self.all_units()
+            .into_iter()
+            .filter(|&u| self.unit_owner(u) == Some(player))
+            .collect()
+    }
+
+    /// Whether the unit counts towards a city's garrison for keeping order.
+    pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
+        self.unit_def(unit)
+            .is_some_and(|d| matches!(d.kind, UnitKind::Normal | UnitKind::Hero))
+    }
 }
 
 /// Create a unit with full moves and health.
@@ -293,6 +333,22 @@ pub(crate) fn spawn(
 }
 
 impl Game {
+    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
+        self.units().unit_food_upkeep(unit)
+    }
+
+    pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> i32 {
+        self.units().unit_gold_upkeep(unit)
+    }
+
+    pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        self.units().player_units(player)
+    }
+
+    pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
+        self.units().is_garrison(unit)
+    }
+
     /// The unit rules' view of the game: the world, the content and the players. The methods
     /// below with the old names ask it.
     pub fn units(&self) -> Units<'_> {
