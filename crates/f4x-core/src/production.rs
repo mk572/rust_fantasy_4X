@@ -1,7 +1,15 @@
 //! What a city is building, buying it, and finishing it.
+//!
+//! The checks and the costs are methods of [`Economy`] (task 187): what a city may build, what
+//! it costs, how far it is, what a purchase or a sale would do, what finishing an item gives
+//! and what the Grand Vizier picks. They need only the world, the map, the content and the
+//! players. `Game` makes the changes that need more (the owner's gold, the new unit, the
+//! treasury for the Vizier) and keeps the old names as thin methods that ask the handle.
+
+use hecs::World;
 
 use crate::city::{City, PlayerId, Position};
-use crate::economy::{Buildings, CityRace};
+use crate::economy::{Buildings, CityRace, Economy};
 use crate::rules::{BuildingId, Stat, UnitId, UnitKind};
 use crate::units::Experience;
 use crate::Game;
@@ -37,7 +45,47 @@ pub enum ProductionError {
     NotBuilt,
 }
 
-impl Game {
+/// What buying the current item takes (`Economy::buy_plan`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BuyPlan {
+    pub cost: u32,
+    /// The production that is added, which completes the item.
+    pub remaining: u32,
+    pub owner: PlayerId,
+}
+
+/// What this turn's production did to the current item (`Economy::advance_production`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Advance {
+    /// Short of the cost: the progress to keep.
+    Waiting(Production),
+    /// Covered: what was built, with the progress as it stands, and where and for whom.
+    Done {
+        item: ProductionItem,
+        production: Production,
+        at: Position,
+        owner: PlayerId,
+    },
+}
+
+/// Take a building out of a city. Fails when the city has none or does not have this one.
+pub(crate) fn remove_building(
+    world: &World,
+    city: hecs::Entity,
+    building: BuildingId,
+) -> Result<(), ProductionError> {
+    let mut b = world
+        .get::<&mut Buildings>(city)
+        .map_err(|_| ProductionError::NotACity)?;
+    let before = b.0.len();
+    b.0.retain(|&x| x != building);
+    if b.0.len() == before {
+        return Err(ProductionError::NotBuilt);
+    }
+    Ok(())
+}
+
+impl Economy<'_> {
     /// Whether the city may start building `item`.
     pub fn can_build(
         &self,
@@ -107,10 +155,7 @@ impl Game {
     }
 
     pub fn city_is_coastal(&self, city: hecs::Entity) -> bool {
-        let (Some(map), Ok(at)) = (
-            self.map.as_ref(),
-            self.world.get::<&Position>(city).map(|p| *p),
-        ) else {
+        let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {
             return false;
         };
         let grid = map.plane(at.plane);
@@ -174,64 +219,6 @@ impl Game {
         })
     }
 
-    pub fn set_production(
-        &mut self,
-        city: hecs::Entity,
-        item: ProductionItem,
-    ) -> Result<(), ProductionError> {
-        self.can_build(city, item)?;
-        let mut p = self.city_production(city);
-        p.item = Some(item);
-        let _ = self.world.insert_one(city, p);
-        Ok(())
-    }
-
-    /// Pay to complete the current item at the next turn change.
-    pub fn buy_production(&mut self, city: hecs::Entity) -> Result<u32, ProductionError> {
-        let cost = self.buy_cost(city).ok_or(ProductionError::NothingToBuy)?;
-        let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
-        let remaining = self.production_remaining(city);
-        let player = self.player_mut(owner).ok_or(ProductionError::NotACity)?;
-        if player.gold < cost as i32 {
-            return Err(ProductionError::NotEnoughGold);
-        }
-        player.gold -= cost as i32;
-        let mut p = self.city_production(city);
-        p.progress += remaining;
-        let _ = self.world.insert_one(city, p);
-        Ok(cost)
-    }
-
-    /// Sell a building for its construction cost, unless a built building needs it (directly
-    /// or through a chain of requirements).
-    pub fn sell_building(
-        &mut self,
-        city: hecs::Entity,
-        building: BuildingId,
-    ) -> Result<u32, ProductionError> {
-        let cost = self.content.rules.buildings.get(building).cost;
-        let dependants = self.has_dependants(city, building);
-        if dependants {
-            return Err(ProductionError::MissingBuilding);
-        }
-        let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
-        {
-            let mut b = self
-                .world
-                .get::<&mut Buildings>(city)
-                .map_err(|_| ProductionError::NotACity)?;
-            let before = b.0.len();
-            b.0.retain(|&x| x != building);
-            if b.0.len() == before {
-                return Err(ProductionError::NotBuilt);
-            }
-        }
-        if let Some(p) = self.player_mut(owner) {
-            p.gold += cost as i32;
-        }
-        Ok(cost)
-    }
-
     /// Whether a building that is built in the city needs `building`, directly or down a chain
     /// of requirements (an unbuilt link in the chain does not break it).
     pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
@@ -271,16 +258,16 @@ impl Game {
         if !self.city_has_building(city, "alchemists_guild") {
             return 0;
         }
-        let (Some(map), Ok(at)) = (
-            self.map.as_ref(),
-            self.world.get::<&Position>(city).map(|p| *p),
-        ) else {
+        let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {
             return WEAPON_MAGIC;
         };
         let grid = map.plane(at.plane);
         let mut quality = WEAPON_MAGIC;
         for (p, _) in self.city_area(at) {
-            if self.is_corrupted(p) {
+            if self
+                .map
+                .is_some_and(|m| m.plane(p.plane).is_corrupted(p.x as i32, p.y as i32))
+            {
                 continue;
             }
             let id = grid
@@ -301,6 +288,198 @@ impl Game {
         crate::rules::stats::compute(Stat::StartingXp, 0, &self.city_modifiers(city)).max(0) as u32
     }
 
+    /// What buying the current item would take: the gold, the production it adds and who pays.
+    pub(crate) fn buy_plan(&self, city: hecs::Entity) -> Result<BuyPlan, ProductionError> {
+        let cost = self.buy_cost(city).ok_or(ProductionError::NothingToBuy)?;
+        let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
+        Ok(BuyPlan {
+            cost,
+            remaining: self.production_remaining(city),
+            owner,
+        })
+    }
+
+    /// Who is paid, and what, for selling a building: refused while a built building needs it.
+    pub(crate) fn sell_plan(
+        &self,
+        city: hecs::Entity,
+        building: BuildingId,
+    ) -> Result<(PlayerId, u32), ProductionError> {
+        let cost = self.content.rules.buildings.get(building).cost;
+        if self.has_dependants(city, building) {
+            return Err(ProductionError::MissingBuilding);
+        }
+        let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
+        Ok((owner, cost))
+    }
+
+    /// This turn's production added to the current item: still short of its cost, or done.
+    /// `None` when there is nothing to build (or only trade goods and housing).
+    pub(crate) fn advance_production(
+        &self,
+        city: hecs::Entity,
+        production: i32,
+    ) -> Option<Advance> {
+        let mut p = self.city_production(city);
+        let item = p.item?;
+        if matches!(item, ProductionItem::TradeGoods | ProductionItem::Housing) {
+            return None;
+        }
+        p.progress += production.max(0) as u32;
+        if p.progress < self.item_cost(city, item) {
+            return Some(Advance::Waiting(p));
+        }
+        let at = *self.world.get::<&Position>(city).ok()?;
+        let owner = self.world.get::<&City>(city).ok()?.owner;
+        Some(Advance::Done {
+            item,
+            production: p,
+            at,
+            owner,
+        })
+    }
+
+    /// What a unit finished in this city starts with: its experience and the quality of its
+    /// weapons (a wizard with Alchemy gives every unit at least magic weapons).
+    pub(crate) fn new_unit_start(&self, city: hecs::Entity, owner: PlayerId) -> (u32, u8) {
+        let mut weapons = self.city_weapon_quality(city);
+        if weapons == 0
+            && self
+                .magic(owner)
+                .is_some_and(|m| m.has(crate::magic::Retort::Alchemy))
+        {
+            weapons = crate::units::WEAPON_MAGIC;
+        }
+        (self.city_starting_xp(city), weapons)
+    }
+
+    /// What the Grand Vizier has the city build next: the first building in the rules'
+    /// `autobuild_order` that the city can build and whose upkeep the treasury can bear.
+    /// `None` when the player has not asked for the Vizier or nothing is left to build.
+    /// `net_gold` gives the treasury's net gold, asked only when it is needed.
+    pub(crate) fn vizier_choice(
+        &self,
+        city: hecs::Entity,
+        owner: PlayerId,
+        net_gold: impl FnOnce() -> i32,
+    ) -> Option<ProductionItem> {
+        if !self.player(owner)?.grand_vizier {
+            return None;
+        }
+        // An outpost builds nothing; housing is what makes it grow.
+        if self.city_economy(city).is_none_or(|e| e.figures == 0) {
+            return None;
+        }
+        let rules = &self.content.rules;
+        let net = net_gold();
+        rules
+            .config
+            .autobuild_order
+            .iter()
+            .filter_map(|name| rules.buildings.id_of(name))
+            .filter(|&b| self.can_build(city, ProductionItem::Building(b)).is_ok())
+            .find(|&b| net >= rules.buildings.get(b).upkeep_gold as i32)
+            .map(ProductionItem::Building)
+    }
+}
+
+impl Game {
+    /// Whether the city may start building `item`.
+    pub fn can_build(
+        &self,
+        city: hecs::Entity,
+        item: ProductionItem,
+    ) -> Result<(), ProductionError> {
+        self.economy().can_build(city, item)
+    }
+
+    pub fn city_is_coastal(&self, city: hecs::Entity) -> bool {
+        self.economy().city_is_coastal(city)
+    }
+
+    /// Production points the item needs in this city.
+    pub fn item_cost(&self, city: hecs::Entity, item: ProductionItem) -> u32 {
+        self.economy().item_cost(city, item)
+    }
+
+    pub fn city_production(&self, city: hecs::Entity) -> Production {
+        self.economy().city_production(city)
+    }
+
+    /// Production still needed for the current item.
+    pub fn production_remaining(&self, city: hecs::Entity) -> u32 {
+        self.economy().production_remaining(city)
+    }
+
+    /// Gold to finish the current item now: four times what is left from scratch, three
+    /// times with less than half of the remainder already done, otherwise twice.
+    pub fn buy_cost(&self, city: hecs::Entity) -> Option<u32> {
+        self.economy().buy_cost(city)
+    }
+
+    pub fn set_production(
+        &mut self,
+        city: hecs::Entity,
+        item: ProductionItem,
+    ) -> Result<(), ProductionError> {
+        self.can_build(city, item)?;
+        let mut p = self.city_production(city);
+        p.item = Some(item);
+        let _ = self.world.insert_one(city, p);
+        Ok(())
+    }
+
+    /// Pay to complete the current item at the next turn change.
+    pub fn buy_production(&mut self, city: hecs::Entity) -> Result<u32, ProductionError> {
+        let plan = self.economy().buy_plan(city)?;
+        let player = self
+            .player_mut(plan.owner)
+            .ok_or(ProductionError::NotACity)?;
+        if player.gold < plan.cost as i32 {
+            return Err(ProductionError::NotEnoughGold);
+        }
+        player.gold -= plan.cost as i32;
+        let mut p = self.city_production(city);
+        p.progress += plan.remaining;
+        let _ = self.world.insert_one(city, p);
+        Ok(plan.cost)
+    }
+
+    /// Sell a building for its construction cost, unless a built building needs it (directly
+    /// or through a chain of requirements).
+    pub fn sell_building(
+        &mut self,
+        city: hecs::Entity,
+        building: BuildingId,
+    ) -> Result<u32, ProductionError> {
+        let (owner, cost) = self.economy().sell_plan(city, building)?;
+        remove_building(&self.world, city, building)?;
+        if let Some(p) = self.player_mut(owner) {
+            p.gold += cost as i32;
+        }
+        Ok(cost)
+    }
+
+    /// Whether a building that is built in the city needs `building`, directly or down a chain
+    /// of requirements (an unbuilt link in the chain does not break it).
+    pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
+        self.economy().has_dependants(city, building)
+    }
+
+    pub fn has_building(&self, city: hecs::Entity, building: BuildingId) -> bool {
+        self.economy().has_building(city, building)
+    }
+
+    /// The weapons units trained in the city get (see `Economy::city_weapon_quality`).
+    pub fn city_weapon_quality(&self, city: hecs::Entity) -> u8 {
+        self.economy().city_weapon_quality(city)
+    }
+
+    /// Experience a unit built in this city starts with (guilds that train recruits).
+    pub fn city_starting_xp(&self, city: hecs::Entity) -> u32 {
+        self.economy().city_starting_xp(city)
+    }
+
     /// Add this turn's production and complete the item if it is covered.
     /// Returns what was completed.
     pub fn apply_production(
@@ -308,19 +487,18 @@ impl Game {
         city: hecs::Entity,
         production: i32,
     ) -> Option<ProductionItem> {
-        let mut p = self.city_production(city);
-        let item = p.item?;
-        if matches!(item, ProductionItem::TradeGoods | ProductionItem::Housing) {
-            return None;
-        }
-        p.progress += production.max(0) as u32;
-        let cost = self.item_cost(city, item);
-        if p.progress < cost {
-            let _ = self.world.insert_one(city, p);
-            return None;
-        }
-        let at = *self.world.get::<&Position>(city).ok()?;
-        let owner = self.world.get::<&City>(city).ok()?.owner;
+        let (item, mut p, at, owner) = match self.economy().advance_production(city, production)? {
+            Advance::Waiting(p) => {
+                let _ = self.world.insert_one(city, p);
+                return None;
+            }
+            Advance::Done {
+                item,
+                production,
+                at,
+                owner,
+            } => (item, production, at, owner),
+        };
         match item {
             ProductionItem::Building(b) => {
                 if let Ok(mut buildings) = self.world.get::<&mut Buildings>(city) {
@@ -337,18 +515,9 @@ impl Game {
                 };
             }
             ProductionItem::Unit(u) => {
-                let xp = self.city_starting_xp(city);
+                let (xp, weapons) = self.economy().new_unit_start(city, owner);
                 let unit = self.spawn_unit(owner, at, u);
                 let _ = self.world.insert_one(unit, Experience(xp));
-                // A wizard with Alchemy gives every unit at least magic weapons.
-                let mut weapons = self.city_weapon_quality(city);
-                if weapons == 0
-                    && self
-                        .magic(owner)
-                        .is_some_and(|m| m.has(crate::magic::Retort::Alchemy))
-                {
-                    weapons = crate::units::WEAPON_MAGIC;
-                }
                 if weapons > 0 {
                     let _ = self
                         .world
@@ -362,27 +531,11 @@ impl Game {
         Some(item)
     }
 
-    /// What the Grand Vizier has the city build next: the first building in the rules'
-    /// `autobuild_order` that the city can build and whose upkeep the treasury can bear.
-    /// `None` when the player has not asked for the Vizier or nothing is left to build.
+    /// What the Grand Vizier has the city build next (see `Economy::vizier_choice`); the
+    /// treasury is asked only when the player has the Vizier on.
     pub fn vizier_choice(&self, city: hecs::Entity, owner: PlayerId) -> Option<ProductionItem> {
-        if !self.player(owner)?.grand_vizier {
-            return None;
-        }
-        // An outpost builds nothing; housing is what makes it grow.
-        if self.city_economy(city).is_none_or(|e| e.figures == 0) {
-            return None;
-        }
-        let rules = &self.content.rules;
-        let net = self.treasury(owner).net_gold();
-        rules
-            .config
-            .autobuild_order
-            .iter()
-            .filter_map(|name| rules.buildings.id_of(name))
-            .filter(|&b| self.can_build(city, ProductionItem::Building(b)).is_ok())
-            .find(|&b| net >= rules.buildings.get(b).upkeep_gold as i32)
-            .map(ProductionItem::Building)
+        self.economy()
+            .vizier_choice(city, owner, || self.treasury(owner).net_gold())
     }
 
     /// Turning the Vizier on: cities with nothing to build (or housing) get a building now.
@@ -408,5 +561,150 @@ impl Game {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::economy::{Enchantments, Farmers, Population};
+    use crate::map::{Grid, Map, Plane};
+    use crate::player::Player;
+    use crate::testutil::content_with_economy;
+
+    /// A one-city world with the elves' content, and no `Game`.
+    struct Rig {
+        world: World,
+        map: Map,
+        content: crate::content::Content,
+        players: Vec<Player>,
+        city: hecs::Entity,
+    }
+
+    impl Rig {
+        fn new() -> Rig {
+            let content = content_with_economy();
+            let grass = content.terrains.id_of("grassland").unwrap();
+            let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
+            let mut world = World::new();
+            let at = Position {
+                plane: Plane::Arcanus,
+                x: 10,
+                y: 7,
+            };
+            let city = world.spawn((
+                City {
+                    name: "Town".into(),
+                    owner: PlayerId(0),
+                },
+                at,
+                Population {
+                    figures: 4,
+                    tens: 0,
+                },
+                Farmers(0),
+                Buildings::default(),
+                Enchantments::default(),
+                Production::default(),
+                CityRace(content.rules.races.id_of("elf").unwrap()),
+            ));
+            Rig {
+                world,
+                map,
+                content,
+                players: vec![Player::new(PlayerId(0), "Merlin")],
+                city,
+            }
+        }
+
+        fn eco(&self) -> Economy<'_> {
+            Economy::new(&self.world, Some(&self.map), &self.content, &self.players)
+        }
+
+        fn building(&self, id: &str) -> BuildingId {
+            self.content.rules.buildings.id_of(id).unwrap()
+        }
+    }
+
+    #[test]
+    fn what_a_city_may_build_follows_its_race_and_its_buildings() {
+        let rig = Rig::new();
+        let spear = ProductionItem::Unit(rig.content.rules.units.id_of("spear").unwrap());
+        let barracks = rig.building("barracks");
+        assert_eq!(
+            rig.eco().can_build(rig.city, spear),
+            Err(ProductionError::MissingBuilding)
+        );
+        rig.world
+            .get::<&mut Buildings>(rig.city)
+            .unwrap()
+            .0
+            .push(barracks);
+        assert_eq!(rig.eco().can_build(rig.city, spear), Ok(()));
+        assert_eq!(
+            rig.eco()
+                .can_build(rig.city, ProductionItem::Building(barracks)),
+            Err(ProductionError::AlreadyBuilt)
+        );
+    }
+
+    #[test]
+    fn costs_and_purchases_are_worked_out_from_the_city_alone() {
+        let rig = Rig::new();
+        let barracks = ProductionItem::Building(rig.building("barracks"));
+        rig.world.get::<&mut Production>(rig.city).unwrap().item = Some(barracks);
+        let eco = rig.eco();
+        assert_eq!(eco.item_cost(rig.city, barracks), 30);
+        assert_eq!(eco.production_remaining(rig.city), 30);
+        assert_eq!(eco.buy_cost(rig.city), Some(120), "four times from scratch");
+        rig.world.get::<&mut Production>(rig.city).unwrap().progress = 10;
+        assert_eq!(rig.eco().buy_cost(rig.city), Some(40), "twice what is left");
+        let plan = rig.eco().buy_plan(rig.city).unwrap();
+        assert_eq!(
+            (plan.cost, plan.remaining, plan.owner),
+            (40, 20, PlayerId(0))
+        );
+    }
+
+    #[test]
+    fn production_is_added_until_the_item_is_covered() {
+        let rig = Rig::new();
+        let barracks = rig.building("barracks");
+        rig.world.get::<&mut Production>(rig.city).unwrap().item =
+            Some(ProductionItem::Building(barracks));
+        match rig.eco().advance_production(rig.city, 12).unwrap() {
+            Advance::Waiting(p) => assert_eq!(p.progress, 12),
+            other => panic!("{other:?}"),
+        }
+        rig.world.get::<&mut Production>(rig.city).unwrap().progress = 25;
+        match rig.eco().advance_production(rig.city, 10).unwrap() {
+            Advance::Done { item, owner, .. } => {
+                assert_eq!(item, ProductionItem::Building(barracks));
+                assert_eq!(owner, PlayerId(0));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_building_that_another_needs_cannot_be_sold() {
+        let rig = Rig::new();
+        let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
+        let armory = rig.building("armory");
+        rig.world
+            .get::<&mut Buildings>(rig.city)
+            .unwrap()
+            .0
+            .extend([barracks, smithy, armory]);
+        assert_eq!(
+            rig.eco().sell_plan(rig.city, smithy),
+            Err(ProductionError::MissingBuilding)
+        );
+        assert_eq!(rig.eco().sell_plan(rig.city, armory), Ok((PlayerId(0), 80)));
+        assert_eq!(remove_building(&rig.world, rig.city, armory), Ok(()));
+        assert_eq!(
+            remove_building(&rig.world, rig.city, armory),
+            Err(ProductionError::NotBuilt)
+        );
     }
 }

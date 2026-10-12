@@ -122,10 +122,10 @@ Three ways to give a domain what it needs, all in use:
   units is a function over `&mut World`, such as `units::spawn`, `experience::gain_xp` and
   the `temp_effects` functions). A test builds a world and the content and no `Game`.
 
-Where this stands: diplomacy, magic, the units and the economy follow it (tasks 179, 180, 185
-and 186). Their `impl Game` methods are still there as thin wrappers with the old names
+Where this stands: diplomacy, magic, the units, the economy and production follow it (tasks 179,
+180, 185, 186 and 187; production's checks are methods of `Economy`). Their `impl Game` methods are still there as thin wrappers with the old names
 (`unit_stat`, `city_economy`, ...) that make a `Units` or an `Economy` and ask it; task 198 moves
-the callers over and deletes the wrappers. Production and the rest of the turn code do not yet:
-tasks 187 and 188, and then movement, the lairs, conquest, the fortress and vision (189 to 193);
+the callers over and deletes the wrappers. The rest of the turn code does not yet:
+task 188, and then movement, the lairs, conquest, the fortress and vision (189 to 193);
 the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
 reports the number of `impl Game` methods per file, as a guideline.
