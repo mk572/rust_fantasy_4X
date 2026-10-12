@@ -43,11 +43,6 @@ impl Game {
         self.players.iter().any(|p| self.has_global(p.id, id))
     }
 
-    /// Planar Seal closes every junction between the planes while anyone keeps it up.
-    pub fn planar_seal_active(&self) -> bool {
-        self.units().planar_seal_active()
-    }
-
     /// Is another wizard's Evil Omens making `player`'s life and nature spells dearer?
     pub(crate) fn evil_omens_against(&self, player: PlayerId) -> bool {
         self.players
@@ -251,7 +246,7 @@ mod tests {
         let u = g.spawn_unit(P0, at(5, 5), traveller);
         assert!(g.can_shift_plane(&[u]).is_ok());
         grant(&mut g, P1, "planar_seal");
-        assert!(g.planar_seal_active());
+        assert!(g.units().planar_seal_active());
         assert_eq!(
             g.can_shift_plane(&[u]),
             Err(crate::movement::MoveError::CannotShiftPlane),

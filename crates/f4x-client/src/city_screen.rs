@@ -385,7 +385,7 @@ impl App {
         {
             magic.push(cs::SUMMONING_CIRCLE);
         }
-        let class = self.game.terrain_class_at(at);
+        let class = self.game.economy().terrain_class_at(at);
         let house_type = self
             .game
             .city_race(city)

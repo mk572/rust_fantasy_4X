@@ -87,7 +87,7 @@ impl EffectHost for GameHost<'_> {
         let pos = self.position(who);
         if let Some(p) = pos {
             facts.plane = Some(p.plane);
-            facts.terrain = g.terrain_class_at(p);
+            facts.terrain = g.economy().terrain_class_at(p);
             facts.in_city = g.city_at(p).is_some();
         }
         if let Target::Unit(u) = who {
@@ -314,10 +314,6 @@ impl EffectHost for GameHost<'_> {
 }
 
 impl Game {
-    pub fn terrain_class_at(&self, at: Position) -> Option<TerrainClass> {
-        self.economy().terrain_class_at(at)
-    }
-
     /// Does the spell run the named hook?
     pub fn spell_has_hook(&self, spell: SpellId, hook: &str) -> bool {
         self.content

@@ -55,11 +55,6 @@ impl Game {
         });
     }
 
-    /// The entity with this creation number, if it is still alive.
-    pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
-        self.units().entity_of_serial(serial)
-    }
-
     /// Turns left on a timed enchantment, if it is one.
     pub fn enchantment_turns_left(&self, who: Target, spell: SpellId) -> Option<u16> {
         let target = match who {
@@ -77,12 +72,12 @@ impl Game {
     fn still_attached(&self, t: &Timer) -> bool {
         match t.target {
             TimerTarget::Wizard(p) => self.magic(p).is_some_and(|m| m.global.contains(&t.spell)),
-            TimerTarget::City(s) => self.entity_of_serial(s).is_some_and(|e| {
+            TimerTarget::City(s) => self.units().entity_of_serial(s).is_some_and(|e| {
                 self.world
                     .get::<&Enchantments>(e)
                     .is_ok_and(|l| l.0.contains(&(t.spell, t.caster)))
             }),
-            TimerTarget::Unit(s) => self.entity_of_serial(s).is_some_and(|e| {
+            TimerTarget::Unit(s) => self.units().entity_of_serial(s).is_some_and(|e| {
                 self.world
                     .get::<&UnitEnchantments>(e)
                     .is_ok_and(|l| l.0.contains(&(t.spell, t.caster)))
@@ -111,14 +106,14 @@ impl Game {
                     }
                 }
                 TimerTarget::City(s) => {
-                    if let Some(e) = self.entity_of_serial(s) {
+                    if let Some(e) = self.units().entity_of_serial(s) {
                         if let Ok(mut l) = self.world.get::<&mut Enchantments>(e) {
                             l.0.retain(|&x| x != (t.spell, t.caster));
                         }
                     }
                 }
                 TimerTarget::Unit(s) => {
-                    if let Some(e) = self.entity_of_serial(s) {
+                    if let Some(e) = self.units().entity_of_serial(s) {
                         if let Ok(mut l) = self.world.get::<&mut UnitEnchantments>(e) {
                             l.0.retain(|&x| x != (t.spell, t.caster));
                         }
@@ -222,6 +217,7 @@ mod tests {
         let content = g.content.clone();
         let loaded = g.snapshot().restore(content).unwrap();
         let unit = loaded
+            .units()
             .entity_of_serial(g.serial_of(unit))
             .expect("the unit is back");
         assert_eq!(

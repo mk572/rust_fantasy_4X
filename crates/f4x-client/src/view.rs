@@ -542,7 +542,7 @@ impl App {
             Ok(label) => {
                 self.selection = serials
                     .into_iter()
-                    .filter_map(|s| self.game.entity_of_serial(s))
+                    .filter_map(|s| self.game.units().entity_of_serial(s))
                     .collect();
                 self.targeting = None;
                 self.log.push(format!("Undid {label}"));

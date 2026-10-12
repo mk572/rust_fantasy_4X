@@ -38,7 +38,7 @@ impl Game {
     /// A volcano may rise on land that is not mountains or hills, and not on a node or any
     /// other site (minerals are fine: they are destroyed).
     pub fn can_raise_volcano(&self, at: Position) -> bool {
-        let Some(class) = self.terrain_class_at(at) else {
+        let Some(class) = self.economy().terrain_class_at(at) else {
             return false;
         };
         if matches!(
@@ -60,7 +60,7 @@ impl Game {
     /// deserts, forests, hills and swamps become grassland, grassland becomes forest,
     /// mountains become hills, and a volcano becomes plain mountains.
     pub fn change_terrain_result(&self, at: Position) -> Option<TerrainClass> {
-        let class = self.terrain_class_at(at)?;
+        let class = self.economy().terrain_class_at(at)?;
         match class {
             TerrainClass::Desert
             | TerrainClass::Forest
@@ -206,7 +206,10 @@ mod tests {
         let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
         assert_eq!(grid.volcano(4, 4), Some(0));
         assert_eq!(grid.feature(4, 4), None);
-        assert_eq!(g.terrain_class_at(at(4, 4)), Some(TerrainClass::Mountains));
+        assert_eq!(
+            g.economy().terrain_class_at(at(4, 4)),
+            Some(TerrainClass::Mountains)
+        );
         assert_eq!(g.volcano_count(P0), 1);
         assert_eq!(g.income(P0).power_base, before + 1);
     }
@@ -313,8 +316,14 @@ mod tests {
         assert_eq!(g.volcano_count(P0), 1);
         cast(&mut g, "change_terrain", at(4, 4));
         assert_eq!(g.volcano_count(P0), 0);
-        assert_eq!(g.terrain_class_at(at(4, 4)), Some(TerrainClass::Mountains));
+        assert_eq!(
+            g.economy().terrain_class_at(at(4, 4)),
+            Some(TerrainClass::Mountains)
+        );
         cast(&mut g, "change_terrain", at(4, 4));
-        assert_eq!(g.terrain_class_at(at(4, 4)), Some(TerrainClass::Hills));
+        assert_eq!(
+            g.economy().terrain_class_at(at(4, 4)),
+            Some(TerrainClass::Hills)
+        );
     }
 }

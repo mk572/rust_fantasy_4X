@@ -273,7 +273,7 @@ impl Game {
         }
         let seed = self.next_u64();
         let mut map_rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed ^ 0xB477);
-        let mut map = BattleMap::generate(self.terrain_class_at(site), &mut map_rng);
+        let mut map = BattleMap::generate(self.economy().terrain_class_at(site), &mut map_rng);
         let has = |name: &str| city.is_some_and(|c| self.city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);

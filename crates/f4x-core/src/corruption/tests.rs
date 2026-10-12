@@ -192,7 +192,10 @@ fn gaias_blessing_cleans_land_and_greens_deserts() {
         g.process_gaias_blessing();
     }
     assert!(!g.is_corrupted(at(9, 6)));
-    assert_eq!(g.terrain_class_at(at(11, 6)), Some(TerrainClass::Grassland));
+    assert_eq!(
+        g.economy().terrain_class_at(at(11, 6)),
+        Some(TerrainClass::Grassland)
+    );
     // Without the spell nothing changes.
     g.world
         .get::<&mut crate::economy::Enchantments>(city)

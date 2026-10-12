@@ -37,7 +37,8 @@ impl Game {
 
     /// Corruption works on any land square that is not already corrupted.
     pub fn can_corrupt(&self, at: Position) -> bool {
-        self.terrain_class_at(at)
+        self.economy()
+            .terrain_class_at(at)
             .is_some_and(|c| c != TerrainClass::Ocean)
             && !self.is_corrupted(at)
     }
@@ -169,7 +170,7 @@ impl Game {
                     .map
                     .as_ref()
                     .is_some_and(|m| m.plane(p.plane).volcano(p.x as i32, p.y as i32).is_some());
-                match self.terrain_class_at(p) {
+                match self.economy().terrain_class_at(p) {
                     Some(TerrainClass::Desert) if self.roll(10) == 1 => {
                         events.extend(self.set_class(p, TerrainClass::Grassland));
                     }

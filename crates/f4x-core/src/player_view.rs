@@ -234,7 +234,7 @@ impl<'a> PlayerView<'a> {
     /// The class of terrain on an explored square.
     pub fn terrain_class(&self, at: Position) -> Option<TerrainClass> {
         self.explored(at)
-            .then(|| self.game.terrain_class_at(at))
+            .then(|| self.game.economy().terrain_class_at(at))
             .flatten()
     }
 
@@ -258,7 +258,7 @@ impl<'a> PlayerView<'a> {
 
     /// Is there a guarded site on an explored square?
     pub fn has_lair(&self, at: Position) -> bool {
-        self.explored(at) && self.game.lair_at(at).is_some()
+        self.explored(at) && self.game.economy().lair_at(at).is_some()
     }
 
     /// Could the player found a city on this explored square?

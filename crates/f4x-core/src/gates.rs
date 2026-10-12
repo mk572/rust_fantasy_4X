@@ -28,11 +28,6 @@ pub const ASTRAL_GATE: &str = "astral_gate";
 const FULL_MOVE: u32 = 2;
 
 impl Game {
-    /// Whether `owner` keeps the named gate spell on the city standing at `pos`.
-    pub fn has_gate(&self, pos: Position, owner: PlayerId, gate: &str) -> bool {
-        self.economy().has_gate(pos, owner, gate)
-    }
-
     /// Whether the stack could teleport through Earth Gates to the city at `to`.
     pub fn can_use_earth_gate(
         &self,
@@ -48,8 +43,8 @@ impl Game {
         }
         if from == to
             || from.plane != to.plane
-            || !self.has_gate(from, owner, EARTH_GATE)
-            || !self.has_gate(to, owner, EARTH_GATE)
+            || !self.economy().has_gate(from, owner, EARTH_GATE)
+            || !self.economy().has_gate(to, owner, EARTH_GATE)
         {
             return Err(MoveError::NoGate);
         }

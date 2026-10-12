@@ -56,7 +56,7 @@ impl Game {
                 .map(|i| map.nodes()[i].realm.as_str());
             return Some(if realm == Some("sorcery") { 4 } else { 5 });
         }
-        Some(match self.terrain_class_at(at)? {
+        Some(match self.economy().terrain_class_at(at)? {
             TerrainClass::Ocean => return None,
             TerrainClass::Grassland => 3,
             TerrainClass::Desert => 4,

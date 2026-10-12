@@ -393,8 +393,8 @@ mod tests {
         let content = g.content.clone();
         let back = g.snapshot().restore(content).unwrap();
         let (boat2, w2) = (
-            back.entity_of_serial(g.serial_of(boat)).unwrap(),
-            back.entity_of_serial(g.serial_of(w)).unwrap(),
+            back.units().entity_of_serial(g.serial_of(boat)).unwrap(),
+            back.units().entity_of_serial(g.serial_of(w)).unwrap(),
         );
         assert_eq!(back.carrier_of(w2), Some(boat2));
         assert_eq!(back.ship_room(boat2), 1);

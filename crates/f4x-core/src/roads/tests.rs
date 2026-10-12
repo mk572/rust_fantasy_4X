@@ -255,7 +255,7 @@ fn road_work_and_enchanted_roads_survive_a_save() {
         .set_enchanted_road(2, 2, true);
     let content = g.content.clone();
     let back = g.snapshot().restore(content).unwrap();
-    let e2 = back.entity_of_serial(g.serial_of(e)).unwrap();
+    let e2 = back.units().entity_of_serial(g.serial_of(e)).unwrap();
     let work = back.world.get::<&RoadWork>(e2).unwrap();
     assert_eq!(
         *work,

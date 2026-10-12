@@ -534,11 +534,6 @@ pub(crate) fn award_special(
 }
 
 impl Game {
-    /// The intact lair on a square.
-    pub fn lair_at(&self, pos: Position) -> Option<(usize, &Lair)> {
-        self.economy().lair_at(pos)
-    }
-
     /// Fight the guards of the site on `to`, which a stack next to it has been stopped at.
     /// The guards are created as neutral units on the site for the battle.
     pub fn enter_site(
@@ -549,7 +544,7 @@ impl Game {
         if self.battle.is_some() {
             return Err(SiteError::Busy);
         }
-        let (index, lair) = self.lair_at(to).ok_or(SiteError::NoSite)?;
+        let (index, lair) = self.economy().lair_at(to).ok_or(SiteError::NoSite)?;
         if lair.guards.is_empty() {
             return Err(SiteError::NoSite);
         }
@@ -591,7 +586,7 @@ impl Game {
         let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
             return Vec::new();
         };
-        match self.lair_at(to) {
+        match self.economy().lair_at(to) {
             Some((i, l)) if l.guards.is_empty() && owner != NEUTRAL => self.claim_lair(i, owner),
             _ => Vec::new(),
         }

@@ -132,11 +132,6 @@ pub(crate) fn process(world: &mut World, content: &Content, players: &[Player]) 
 }
 
 impl Game {
-    /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
-    pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
-        self.units().armsmaster_xp(hero)
-    }
-
     /// `amount` xp for a living normal unit or hero (see [`gain_xp`]).
     pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
         gain_xp(&mut self.world, &self.content, &self.players, unit, amount);
@@ -328,9 +323,9 @@ mod tests {
         let hero = spawn(&mut g, "hardy", at(3, 3));
         let near = spawn(&mut g, "walker", at(3, 3));
         let far = spawn(&mut g, "walker", at(4, 3));
-        assert_eq!(g.armsmaster_xp(hero), 2, "level 1: 2 xp");
+        assert_eq!(g.units().armsmaster_xp(hero), 2, "level 1: 2 xp");
         set_xp(&mut g, hero, 20);
-        assert_eq!(g.armsmaster_xp(hero), 4, "level 2: 4 xp");
+        assert_eq!(g.units().armsmaster_xp(hero), 4, "level 2: 4 xp");
         // Each turn a unit also gains its own one xp.
         g.process_experience();
         assert_eq!(xp(&g, near), 1 + 4);

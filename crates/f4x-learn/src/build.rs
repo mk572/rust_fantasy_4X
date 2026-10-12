@@ -16,7 +16,7 @@ pub const DEFENDER: PlayerId = PlayerId(1);
 fn walkable(game: &Game, at: Position) -> bool {
     game.city_at(at).is_none()
         && !matches!(
-            game.terrain_class_at(at),
+            game.economy().terrain_class_at(at),
             None | Some(TerrainClass::Ocean) | Some(TerrainClass::Mountains)
         )
 }

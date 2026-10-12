@@ -578,7 +578,10 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     assert_eq!(g.unit_owner(w), Some(NEUTRAL));
     assert!(g.unit_is_undead(w));
     assert_eq!(g.units_at(at(5, 5)), vec![w]);
-    assert!(g.lair_at(at(5, 5)).is_some(), "the lair is not cleared");
+    assert!(
+        g.economy().lair_at(at(5, 5)).is_some(),
+        "the lair is not cleared"
+    );
     // It lasts, and it is an enemy to anyone who walks in.
     g.apply(Command::EndTurn);
     assert_eq!(g.unit_owner(w), Some(NEUTRAL));

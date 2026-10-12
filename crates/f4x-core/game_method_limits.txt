@@ -5,7 +5,7 @@ access.rs 25
 battle/game.rs 12
 battle/spells.rs 16
 battle/spoils.rs 1
-cast.rs 9
+cast.rs 8
 cheat.rs 11
 city_growth.rs 3
 city_spells.rs 13
@@ -15,13 +15,13 @@ diplomacy.rs 29
 dispel.rs 9
 economy.rs 12
 endgame.rs 6
-experience.rs 3
+experience.rs 2
 finance.rs 5
 fortress.rs 11
-gates.rs 3
-globals.rs 7
+gates.rs 2
+globals.rs 6
 healing.rs 1
-lairs.rs 5
+lairs.rs 4
 lib.rs 19
 magic_game.rs 13
 magic_income.rs 1
@@ -36,7 +36,7 @@ save.rs 1
 serial.rs 3
 temp_effects.rs 10
 terraform.rs 6
-timers.rs 5
+timers.rs 4
 transport.rs 8
 turn.rs 1
 undead.rs 6

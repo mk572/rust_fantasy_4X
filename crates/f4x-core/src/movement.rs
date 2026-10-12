@@ -401,7 +401,7 @@ impl Game {
         let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
             return;
         };
-        if !self.economy().is_tower(at) || self.planar_seal_active() {
+        if !self.economy().is_tower(at) || self.units().planar_seal_active() {
             return;
         }
         if let Some(m) = self.map.as_mut() {

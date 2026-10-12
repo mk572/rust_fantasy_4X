@@ -850,7 +850,7 @@ impl App {
             (ox + x * scale, oy + y * scale)
         };
         let (plane, class) = match battle.site {
-            Some(site) => (site.plane, self.game.terrain_class_at(site)),
+            Some(site) => (site.plane, self.game.economy().terrain_class_at(site)),
             None => (Plane::Arcanus, None),
         };
         let set = terrain_set(class, plane);

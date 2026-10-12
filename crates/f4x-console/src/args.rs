@@ -121,13 +121,15 @@ pub fn parse_player(text: &str) -> Result<PlayerId, ConsoleError> {
 }
 
 pub fn unit_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
-    game.entity_of_serial(Serial(serial))
+    game.units()
+        .entity_of_serial(Serial(serial))
         .filter(|&e| game.unit_position(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("unit {serial}")))
 }
 
 pub fn city_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
-    game.entity_of_serial(Serial(serial))
+    game.units()
+        .entity_of_serial(Serial(serial))
         .filter(|&e| game.city_owner(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("city {serial}")))
 }

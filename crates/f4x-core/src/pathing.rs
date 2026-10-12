@@ -98,6 +98,7 @@ impl Game {
                 if next != to
                     && owner != crate::units::NEUTRAL
                     && self
+                        .economy()
                         .lair_at(next)
                         .is_some_and(|(_, l)| !l.guards.is_empty())
                 {
@@ -161,6 +162,7 @@ impl Game {
                 }
                 if owner != crate::units::NEUTRAL
                     && self
+                        .economy()
                         .lair_at(next)
                         .is_some_and(|(_, l)| !l.guards.is_empty())
                 {

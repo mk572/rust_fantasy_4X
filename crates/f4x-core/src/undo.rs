@@ -161,7 +161,9 @@ mod tests {
     }
 
     fn walker(g: &Game, serial: crate::serial::Serial) -> hecs::Entity {
-        g.entity_of_serial(serial).expect("the walker is there")
+        g.units()
+            .entity_of_serial(serial)
+            .expect("the walker is there")
     }
 
     fn step(g: &mut Game, s: crate::serial::Serial, to: Position) {
