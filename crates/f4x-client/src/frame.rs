@@ -205,7 +205,8 @@ impl App {
 
         // Resource panels with this turn's income in each.
         let t = self.game.treasury(HUMAN);
-        let net_mana = self.game.power_split(HUMAN).mana - self.game.mana_upkeep(HUMAN);
+        let income = self.game.income(HUMAN);
+        let net_mana = income.split.mana - income.mana_upkeep;
         let (px, py) = spot::PANELS;
         self.draw_pic(&lay, "main", 34, 0, px, py);
         for (k, (value, label)) in [

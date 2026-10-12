@@ -306,7 +306,7 @@ impl App {
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
         let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        let income = self.game.power_split(HUMAN).mana;
+        let income = self.game.income(HUMAN).split.mana;
         let limit = skill.min(mana + income).max(0);
         let turns = if limit == 0 {
             40

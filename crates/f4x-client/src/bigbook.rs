@@ -324,7 +324,7 @@ impl App {
             } else {
                 def.research_cost as i32 * 100 / (100 + bonus)
             };
-            let income = self.game.research_income(HUMAN).max(0);
+            let income = self.game.income(HUMAN).research.max(0);
             let turns = if income == 0 {
                 999
             } else {
@@ -337,7 +337,7 @@ impl App {
         } else {
             let cost = self.game.casting_cost(HUMAN, spell, false);
             let limit = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill()).min(
-                self.game.player(HUMAN).map_or(0, |p| p.mana) + self.game.power_split(HUMAN).mana,
+                self.game.player(HUMAN).map_or(0, |p| p.mana) + self.game.income(HUMAN).split.mana,
             );
             let turns = if limit <= 0 {
                 999

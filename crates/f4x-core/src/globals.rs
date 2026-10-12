@@ -287,11 +287,15 @@ mod tests {
         let slow = g.content.rules.units.id_of("slow").unwrap();
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let fantastic = g.spawn_unit(P0, at(6, 5), slow);
-        assert_eq!(g.mana_upkeep(P0), 4);
+        assert_eq!(g.income(P0).mana_upkeep, 4);
         g.make_undead(fantastic);
-        assert_eq!(g.mana_upkeep(P0), 6, "half as much again");
+        assert_eq!(g.income(P0).mana_upkeep, 6, "half as much again");
         g.make_undead(normal);
-        assert_eq!(g.mana_upkeep(P0), 6, "a normal unit made undead costs none");
+        assert_eq!(
+            g.income(P0).mana_upkeep,
+            6,
+            "a normal unit made undead costs none"
+        );
         // Holy Arms passes a unit made undead by.
         let melee = g.unit_stat(normal, Stat::Melee);
         grant(&mut g, P0, "holy_arms");

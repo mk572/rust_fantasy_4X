@@ -6,7 +6,7 @@
 use crate::city::PlayerId;
 use crate::content::Content;
 use crate::magic::{
-    collect_power, pay_for_casting, upkeep_plan, CastStart, Magic, MagicError, PowerSplit, Retort,
+    collect_power, pay_for_casting, upkeep_plan, CastStart, Magic, MagicError, Retort,
 };
 use crate::rng::GameRng;
 use crate::rules::{CastContext, SpellId};
@@ -69,67 +69,6 @@ impl Game {
             .is_some_and(|c| self.spell_has_hook(c.spell, crate::fortress::RETURN))
     }
 
-    /// Magic power before the split: mana from the wizard's cities (minerals, citizens,
-    /// religious buildings) and the fortress. Owned nodes and volcanoes add to it.
-    pub fn power_base(&self, player: PlayerId) -> i32 {
-        if self.casting_return(player) {
-            return 0;
-        }
-        let total: i32 = self
-            .cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(e, ..)| self.city_economy(e))
-            .map(|eco| eco.mana)
-            .sum();
-        (total
-            + self.fortress_power(player)
-            + self.volcano_count(player)
-            + self.node_income(player))
-        .max(0)
-    }
-
-    fn fortress_power(&self, player: PlayerId) -> i32 {
-        let Some(city) = self.fortress_city(player) else {
-            return 0;
-        };
-        let books = self.magic(player).map_or(0, |m| m.total_books());
-        let myrror = self
-            .world
-            .get::<&crate::city::Position>(city)
-            .is_ok_and(|p| p.plane == crate::map::Plane::Myrror);
-        books + if myrror { 5 } else { 0 }
-    }
-
-    /// Research points the wizard's cities produce.
-    pub fn city_research(&self, player: PlayerId) -> i32 {
-        self.cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(e, ..)| self.city_economy(e))
-            .map(|eco| eco.research)
-            .sum()
-    }
-
-    /// The power base split by the wizard's percentages (`Magic::split_power`).
-    pub fn power_split(&self, player: PlayerId) -> PowerSplit {
-        if self.casting_return(player) {
-            return PowerSplit::default();
-        }
-        let Some(m) = self.magic(player) else {
-            return PowerSplit::default();
-        };
-        m.split_power(self.power_base(player), self.city_research(player))
-    }
-
-    /// Research points that will be paid next turn change, with bonuses.
-    pub fn research_income(&self, player: PlayerId) -> i32 {
-        let split = self.power_split(player);
-        self.magic(player).map_or(split.research.max(0), |m| {
-            m.research_income(&self.content, &split)
-        })
-    }
-
     /// Mana needed to cast `spell` (`Magic::casting_cost`).
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
@@ -138,16 +77,6 @@ impl Game {
             Some(m) => m.casting_cost(def, in_battle, evil_omens),
             None => Magic::default().casting_cost(def, in_battle, evil_omens),
         }
-    }
-
-    /// Mana per turn needed to keep lasting spells and summoned creatures going: a Channeler
-    /// pays half of the total.
-    pub fn mana_upkeep(&self, player: PlayerId) -> i32 {
-        self.upkeep_items(player)
-            .iter()
-            .map(|i| i.mana)
-            .sum::<i32>()
-            / self.magic(player).map_or(1, |m| m.upkeep_divisor())
     }
 
     // ---- commands ----------------------------------------------------------------
@@ -171,7 +100,7 @@ impl Game {
     /// Top the offer for research up (`Magic::refill_research`), at the income the wizard's
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
-        let income = self.research_income(player);
+        let income = self.income(player).research;
         if let Some((m, content, rng)) = self.magic_parts(player) {
             m.refill_research(content, rng, income);
         }
@@ -217,10 +146,9 @@ impl Game {
         let mut events = Vec::new();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {
-            let split = self.power_split(player);
-            let research = self.research_income(player);
+            let income = self.income(player);
             if let Some(p) = self.player_mut(player) {
-                collect_power(p, &split, research);
+                collect_power(p, &income.split, income.research);
             }
         }
         for &player in &ids {

@@ -198,7 +198,7 @@ mod tests {
             .unwrap()
             .plane_mut(Plane::Arcanus)
             .set_feature(4, 4, Some(gold));
-        let before = g.power_base(P0);
+        let before = g.income(P0).power_base;
         let events = cast(&mut g, "raise_volcano", at(4, 4));
         assert!(events
             .iter()
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(grid.feature(4, 4), None);
         assert_eq!(g.terrain_class_at(at(4, 4)), Some(TerrainClass::Mountains));
         assert_eq!(g.volcano_count(P0), 1);
-        assert_eq!(g.power_base(P0), before + 1);
+        assert_eq!(g.income(P0).power_base, before + 1);
     }
 
     #[test]

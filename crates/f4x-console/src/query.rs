@@ -153,7 +153,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         ));
         let mut lines = Vec::new();
         if let Some(m) = ctx.game.magic(me) {
-            let split = ctx.game.power_split(me);
+            let split = ctx.game.income(me).split;
             lines.push(format!(
                 "power split mana {}% research {}% skill {}% (yielding {} mana, {} research, {} skill)",
                 m.mana_pct, m.research_pct, m.skill_pct, split.mana, split.research, split.skill

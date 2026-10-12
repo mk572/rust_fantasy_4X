@@ -283,17 +283,18 @@ impl App {
     fn magic_text(&mut self, lay: &Layout, view: (f32, f32, f32)) {
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.55, 0.1, 1.0);
+        let income = self.game.income(HUMAN);
         let split = if self.magic_ui.drag.is_some() {
             // While dragging show what the staves would give.
-            let base = self.game.power_base(HUMAN);
+            let base = income.power_base;
             let [m, _, s] = self.magic_ui.pos;
-            let mut p = self.game.power_split(HUMAN);
+            let mut p = income.split;
             p.mana = base * 2 * m / 100;
             p.skill = base * 2 * s / 100;
-            p.research = base - p.mana - p.skill + self.game.city_research(HUMAN);
+            p.research = base - p.mana - p.skill + income.city_research;
             p
         } else {
-            self.game.power_split(HUMAN)
+            income.split
         };
         let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
         self.bm_text(
@@ -312,7 +313,7 @@ impl App {
                 view,
                 2,
                 gold,
-                &format!("{} RP", self.game.research_income(HUMAN)),
+                &format!("{} RP", income.research),
                 101.0,
                 160.0,
                 Align::Right,
@@ -330,7 +331,7 @@ impl App {
 
         let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
         let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
-        let base = self.game.power_base(HUMAN);
+        let base = income.power_base;
         let name = |g: &f4x_core::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
         let casting = magic
             .casting

@@ -123,16 +123,16 @@ fn the_same_seed_gives_the_same_spell_library() {
 #[test]
 fn power_comes_from_cities_and_is_split_by_percentages() {
     let mut g = world();
-    assert_eq!(g.power_split(P0), PowerSplit::default());
+    assert_eq!(g.income(P0).split, PowerSplit::default());
     let city = found(&mut g, at(10, 6), 4);
     add_building(&mut g, city, "temple");
     add_building(&mut g, city, "library");
     // Four elves make two mana, the temple two; the library makes two research.
     // Plus two books' worth from the fortress city.
-    assert_eq!(g.power_base(P0), 4 + 2);
-    assert_eq!(g.city_research(P0), 2);
+    assert_eq!(g.income(P0).power_base, 4 + 2);
+    assert_eq!(g.income(P0).city_research, 2);
     assert_eq!(
-        g.power_split(P0),
+        g.income(P0).split,
         PowerSplit {
             mana: 2,
             skill: 2,
@@ -141,7 +141,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() {
     );
     g.magic_mut(P0).unwrap().set_split(100, 0, 0).unwrap();
     assert_eq!(
-        g.power_split(P0),
+        g.income(P0).split,
         PowerSplit {
             mana: 6,
             skill: 0,
@@ -156,7 +156,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() {
         .unwrap()
         .retorts
         .insert(Retort::ManaFocusing);
-    assert_eq!(g.power_split(P0).mana, 7, "a quarter more mana");
+    assert_eq!(g.income(P0).split.mana, 7, "a quarter more mana");
 }
 
 #[test]
@@ -314,9 +314,9 @@ fn a_channeler_pays_half_the_spell_maintenance() {
         6,
     );
     g.magic_mut(P0).unwrap().global.push(dear.0);
-    assert_eq!(g.mana_upkeep(P0), dear.1);
+    assert_eq!(g.income(P0).mana_upkeep, dear.1);
     g.magic_mut(P0).unwrap().retorts.insert(Retort::Channeler);
-    assert_eq!(g.mana_upkeep(P0), dear.1 / 2);
+    assert_eq!(g.income(P0).mana_upkeep, dear.1 / 2);
     // The reserve pays the half, and the spell stays.
     g.player_mut(P0).unwrap().mana = dear.1 / 2;
     g.apply_mana_upkeep(P0);
@@ -379,7 +379,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
         spell: strength
     }));
     assert_eq!(g.unit_stat(unit, Stat::Melee), melee + 1);
-    assert_eq!(g.mana_upkeep(P0), 2);
+    assert_eq!(g.income(P0).mana_upkeep, 2);
     let mana = g.player(P0).unwrap().mana;
     g.apply(Command::EndTurn);
     assert_eq!(g.player(P0).unwrap().mana, mana - 2);
@@ -392,7 +392,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
         spell: strength
     }));
     assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
-    assert_eq!(g.mana_upkeep(P0), 0);
+    assert_eq!(g.income(P0).mana_upkeep, 0);
 }
 
 #[test]
@@ -437,7 +437,7 @@ fn a_city_enchantment_is_cast_and_paid_for() {
         target: Some(Target::City(city)),
     });
     assert!(g.city_economy(city).unwrap().food < food);
-    assert_eq!(g.mana_upkeep(P0), 1);
+    assert_eq!(g.income(P0).mana_upkeep, 1);
 }
 
 #[test]

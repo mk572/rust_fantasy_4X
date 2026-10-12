@@ -103,7 +103,7 @@ fn placing_the_fortress_founds_the_capital_once() {
         ))]
     );
     // The fortress feeds the power base: one mana per book, plus the city's own.
-    assert_eq!(g.power_base(P0), 2 + 2);
+    assert_eq!(g.income(P0).power_base, 2 + 2);
 }
 
 #[test]
@@ -176,9 +176,9 @@ fn the_fortress_spells_check_their_target_before_charging() {
         y: 3,
     };
     let far = city(&mut g, P0, myrror);
-    let before = g.power_base(P0);
+    let before = g.income(P0).power_base;
     cast(&mut g, "move_fortress", far);
-    assert_eq!(g.power_base(P0), before + 5, "plus five on Myrror");
+    assert_eq!(g.income(P0).power_base, before + 5, "plus five on Myrror");
 }
 
 #[test]
@@ -219,7 +219,7 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     // Casting the Spell of Return has begun, with no income of any kind meanwhile.
     let ret = spell(&g, "spell_of_return");
     assert_eq!(g.magic(P0).unwrap().casting.unwrap().spell, ret);
-    assert_eq!(g.power_split(P0), crate::magic::PowerSplit::default());
+    assert_eq!(g.income(P0).split, crate::magic::PowerSplit::default());
     assert_eq!(
         g.cancel_cast(P0),
         Err(crate::magic::MagicError::NotAvailable)

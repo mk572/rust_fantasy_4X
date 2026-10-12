@@ -360,9 +360,9 @@ pub(crate) mod tests {
         let s = spirit(&mut g, P0, at(6, 6), "spirit");
         g.meld(&[s]).unwrap();
         let power = i32::from(g.map.as_ref().unwrap().nodes()[0].power);
-        let base = g.power_base(P0);
+        let base = g.income(P0).power_base;
         assert_eq!(g.node_income(P0), power, "normal strength: one per square");
-        assert_eq!(g.power_base(P1), 0);
+        assert_eq!(g.income(P1).power_base, 0);
         g.magic_strength = 2;
         assert_eq!(g.node_income(P0), power * 3 / 2, "powerful: one and a half");
         g.magic_strength = 0;
@@ -370,7 +370,11 @@ pub(crate) mod tests {
         g.magic_strength = 1;
         g.magic_mut(P0).unwrap().retorts.insert(Retort::NodeMastery);
         assert_eq!(g.node_income(P0), power * 2);
-        assert_eq!(g.power_base(P0), base + power, "node mastery doubled it");
+        assert_eq!(
+            g.income(P0).power_base,
+            base + power,
+            "node mastery doubled it"
+        );
         g.map.as_mut().unwrap().node_mut(0).unwrap().warped = true;
         assert_eq!(g.node_income(P0), -5);
     }
