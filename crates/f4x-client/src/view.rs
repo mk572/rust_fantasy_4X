@@ -208,6 +208,7 @@ impl App {
     fn start_game(&mut self) {
         let fortress = self
             .game
+            .economy()
             .cities()
             .into_iter()
             .find(|(_, c, _)| c.owner == HUMAN)
@@ -248,7 +249,7 @@ impl App {
 
     fn next_city_name(&self) -> String {
         let race = &self.game.content().rules.races.defs()[self.race];
-        let used = self.game.cities().len();
+        let used = self.game.economy().cities().len();
         race.city_names
             .get(used % race.city_names.len().max(1))
             .cloned()
@@ -302,7 +303,7 @@ impl App {
                 } => {
                     if attackers
                         .first()
-                        .is_some_and(|&u| self.game.unit_owner(u) == Some(HUMAN))
+                        .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
                         follow.push(Command::BeginBattle {
                             attackers,
@@ -314,7 +315,7 @@ impl App {
                 Event::SiteEncounter { units, to, .. } => {
                     if units
                         .first()
-                        .is_some_and(|&u| self.game.unit_owner(u) == Some(HUMAN))
+                        .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
                         follow.push(Command::EnterSite { units, to });
                     }
@@ -327,7 +328,7 @@ impl App {
                     citizens_lost,
                     buildings_lost,
                 } => {
-                    let mine = self.game.city_owner(city) == Some(HUMAN);
+                    let mine = self.game.economy().city_owner(city) == Some(HUMAN);
                     if mine {
                         self.raze_prompt = Some(city);
                     }
@@ -480,7 +481,7 @@ impl App {
     }
 
     pub fn open_first_city(&mut self) {
-        if let Some((city, ..)) = self.game.cities().first() {
+        if let Some((city, ..)) = self.game.economy().cities().first() {
             self.screen = Screen::City(*city);
         }
     }
@@ -515,6 +516,7 @@ impl App {
         self.selection.clear();
         let home = self
             .game
+            .economy()
             .cities()
             .into_iter()
             .find(|(_, c, _)| c.owner == HUMAN)
@@ -574,8 +576,8 @@ impl App {
     }
 
     pub fn select_first_stack(&mut self) {
-        if let Some(&u) = self.game.player_units(HUMAN).first() {
-            if let Some(at) = self.game.unit_position(u) {
+        if let Some(&u) = self.game.units().player_units(HUMAN).first() {
+            if let Some(at) = self.game.units().unit_position(u) {
                 self.select_at(at);
             }
         }
@@ -654,7 +656,7 @@ impl App {
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self) -> bool {
         self.selection
-            .retain(|&u| self.game.unit_position(u).is_some());
+            .retain(|&u| self.game.units().unit_position(u).is_some());
         if self.game.in_battle() {
             if !self.battle_ui.ready {
                 self.init_battle_ui();
@@ -749,7 +751,7 @@ impl App {
         ];
         let open: Vec<(KeyCode, &str)> = KEYS
             .into_iter()
-            .filter(|(_, r)| !self.game.city_warded_against(city, r))
+            .filter(|(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
         if is_key_pressed(KeyCode::Escape) || open.is_empty() {
             self.ward_prompt = None;
@@ -809,7 +811,8 @@ impl App {
 
     /// The question after taking a city: keep it (Enter) or raze it (R), shown over the map.
     fn raze_prompt_frame(&mut self, city: hecs::Entity) -> bool {
-        let gone = self.game.city_owner(city) != Some(HUMAN) || !self.game.city_conquered(city);
+        let gone =
+            self.game.economy().city_owner(city) != Some(HUMAN) || !self.game.city_conquered(city);
         if gone {
             self.raze_prompt = None;
             return true;
@@ -860,9 +863,10 @@ impl App {
     fn select_at(&mut self, pos: Position) {
         let mine: Vec<_> = self
             .game
+            .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.game.unit_owner(u) == Some(HUMAN))
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect();
         self.selection = mine;
     }
@@ -870,7 +874,7 @@ impl App {
     fn selection_position(&self) -> Option<Position> {
         self.selection
             .first()
-            .and_then(|&u| self.game.unit_position(u))
+            .and_then(|&u| self.game.units().unit_position(u))
     }
 
     fn overworld_input(&mut self) {
@@ -982,7 +986,7 @@ impl App {
             let at = self
                 .selection_position()
                 .or_else(|| self.tile_at(mouse_position().into()));
-            if let Some(city) = at.and_then(|p| self.game.city_at(p)) {
+            if let Some(city) = at.and_then(|p| self.game.economy().city_at(p)) {
                 self.screen = Screen::City(city);
             }
         }
@@ -1010,14 +1014,15 @@ impl App {
         }
         let has_mine = self
             .game
+            .units()
             .units_at(pos)
             .iter()
-            .any(|&u| self.game.unit_owner(u) == Some(HUMAN));
+            .any(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
         if has_mine {
             self.select_at(pos);
-        } else if let Some(city) = self.game.city_at(pos) {
+        } else if let Some(city) = self.game.economy().city_at(pos) {
             self.selection.clear();
-            if self.game.city_owner(city) == Some(HUMAN) {
+            if self.game.economy().city_owner(city) == Some(HUMAN) {
                 self.screen = Screen::City(city);
             }
         } else {
@@ -1031,12 +1036,17 @@ impl App {
             .selection
             .iter()
             .copied()
-            .filter(|&u| self.game.unit_stat(u, f4x_core::rules::Stat::Construction) > 0)
+            .filter(|&u| {
+                self.game
+                    .units()
+                    .unit_stat(u, f4x_core::rules::Stat::Construction)
+                    > 0
+            })
             .collect();
         let has_settlers = self
             .selection
             .iter()
-            .any(|&u| self.game.unit_has_ability(u, "create_outpost"));
+            .any(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
         if !builders.is_empty() && !has_settlers {
             let events = self.game.apply(Command::BuildRoad {
                 units: self.selection.clone(),
@@ -1049,7 +1059,7 @@ impl App {
             .selection
             .iter()
             .copied()
-            .find(|&u| self.game.unit_has_ability(u, "create_outpost"));
+            .find(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
         let Some(unit) = settler else {
             self.log.push("Select settlers first".into());
             return;
@@ -1074,7 +1084,7 @@ impl App {
         );
         let width = grid.width();
         let visible = self.game.economy().visibility(HUMAN, self.plane);
-        let cities = self.game.cities();
+        let cities = self.game.economy().cities();
         let anim = (get_time() * 2.5) as usize;
 
         // Clip the map to its viewport.
@@ -1179,14 +1189,14 @@ impl App {
         t: Vec2,
     ) {
         let mut stacks: HashMap<(u32, u32), Vec<hecs::Entity>> = HashMap::new();
-        for unit in self.game.all_units() {
-            let Some(at) = self.game.unit_position(unit) else {
+        for unit in self.game.units().all_units() {
+            let Some(at) = self.game.units().unit_position(unit) else {
                 continue;
             };
             if at.plane != self.plane {
                 continue;
             }
-            let mine = self.game.unit_owner(unit) == Some(HUMAN);
+            let mine = self.game.units().unit_owner(unit) == Some(HUMAN);
             if !mine
                 && (!visible[(at.y * width + at.x) as usize]
                     || !self.game.economy().unit_visible_to(unit, HUMAN))
@@ -1202,8 +1212,8 @@ impl App {
                 .copied()
                 .find(|u| self.selection.contains(u))
                 .unwrap_or(units[0]);
-            let owner = self.game.unit_owner(top).map_or(u8::MAX, |o| o.0);
-            let art = self.game.unit_def(top).and_then(|d| d.art.clone());
+            let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
+            let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
             let at = screen_of(x, y);
             let inset = t * 0.08;
             draw_rectangle(
@@ -1357,11 +1367,11 @@ impl App {
         }
         lines.line("Selected stack", GOLD);
         for &unit in &self.selection {
-            let Some(def) = self.game.unit_def(unit) else {
+            let Some(def) = self.game.units().unit_def(unit) else {
                 continue;
             };
-            let (hp, max) = self.game.unit_hits(unit);
-            let moves = self.game.unit_moves_left(unit) as f32 / 2.0;
+            let (hp, max) = self.game.units().unit_hits(unit);
+            let moves = self.game.units().unit_moves_left(unit) as f32 / 2.0;
             let order = if self.game.unit_has_order(unit) {
                 " ->"
             } else {
@@ -1407,19 +1417,20 @@ impl App {
         {
             lines.line(&f.name, Color::new(0.6, 0.9, 1.0, 1.0));
         }
-        if let Some(city) = self.game.city_at(pos) {
+        if let Some(city) = self.game.economy().city_at(pos) {
             let name = self.city_name(city);
             let pop = self.game.city_population(city).figures;
             lines.line(&format!("{name} (size {pop})"), GOLD);
         }
         let others: Vec<_> = self
             .game
+            .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.game.unit_owner(u) != Some(HUMAN))
+            .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
             .collect();
         for u in others.into_iter().take(4) {
-            if let Some(def) = self.game.unit_def(u) {
+            if let Some(def) = self.game.units().unit_def(u) {
                 lines.line(&format!("Foreign {}", def.name), RED);
             }
         }

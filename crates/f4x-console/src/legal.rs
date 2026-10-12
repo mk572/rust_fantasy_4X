@@ -68,7 +68,10 @@ impl Ctx<'_> {
     fn my_units(&mut self, a: &Args, i: usize) -> Result<Vec<hecs::Entity>, ConsoleError> {
         let units = parse_units(self.game, a.need(i, "units")?)?;
         let me = self.session.player;
-        if units.iter().any(|&u| self.game.unit_owner(u) != Some(me)) {
+        if units
+            .iter()
+            .any(|&u| self.game.units().unit_owner(u) != Some(me))
+        {
             if !self.overriding() {
                 return Err(ConsoleError::NotAllowed("those are not your units".into()));
             }
@@ -79,7 +82,7 @@ impl Ctx<'_> {
 
     fn my_city(&mut self, a: &Args, i: usize) -> Result<hecs::Entity, ConsoleError> {
         let c = city_by_serial(self.game, a.int(i, "city number")? as u64)?;
-        if self.game.city_owner(c) != Some(self.session.player) {
+        if self.game.economy().city_owner(c) != Some(self.session.player) {
             if !self.overriding() {
                 return Err(ConsoleError::NotAllowed("that is not your city".into()));
             }
@@ -91,7 +94,7 @@ impl Ctx<'_> {
     fn plane_of(&self, units: &[hecs::Entity]) -> Plane {
         units
             .first()
-            .and_then(|&u| self.game.unit_position(u))
+            .and_then(|&u| self.game.units().unit_position(u))
             .map_or(Plane::Arcanus, |p| p.plane)
     }
 }
@@ -121,6 +124,7 @@ fn auto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let defenders = ctx
         .game
+        .economy()
         .hostile_at(at, me)
         .filter(|d| !d.is_empty())
         .ok_or_else(|| {
@@ -151,8 +155,9 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let name = if a.len() > 1 {
         a.rest(1)
     } else {
-        let used = ctx.game.cities().len();
+        let used = ctx.game.economy().cities().len();
         ctx.game
+            .units()
             .unit_def(unit)
             .and_then(|d| d.race.as_deref())
             .and_then(|r| ctx.game.content().rules.races.by_name(r))

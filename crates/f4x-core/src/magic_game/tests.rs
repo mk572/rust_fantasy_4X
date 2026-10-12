@@ -62,7 +62,7 @@ fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
             population: pop,
         });
     }
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
@@ -262,7 +262,11 @@ fn an_affordable_spell_takes_effect_at_once() {
         player: P0,
         spell: mend
     }));
-    assert_eq!(g.unit_hits(unit).0, g.unit_hits(unit).1, "healed");
+    assert_eq!(
+        g.units().unit_hits(unit).0,
+        g.units().unit_hits(unit).1,
+        "healed"
+    );
     assert_eq!(g.player(P0).unwrap().mana, mana - 10);
     assert_eq!(g.magic(P0).unwrap().skill_left, 40);
     assert_eq!(g.magic(P0).unwrap().casting, None);
@@ -294,7 +298,7 @@ fn spells_need_a_known_spell_and_a_valid_target() {
     );
     // Three damage kills a spear-sized unit with that few hit points or hurts it.
     g.start_cast(P0, zap, Some(Target::Unit(theirs))).unwrap();
-    let (left, max) = g.unit_hits(theirs);
+    let (left, max) = g.units().unit_hits(theirs);
     assert!(left < max || !g.world.contains(theirs));
 }
 
@@ -346,7 +350,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
     g.balance_farmers(P0);
     let strength = spell(&g, "giant_strength");
     g.magic_mut(P0).unwrap().known.insert(strength);
-    let melee = g.unit_stat(unit, Stat::Melee);
+    let melee = g.units().unit_stat(unit, Stat::Melee);
     // 40 mana overland; the wizard's skill is 4, so it takes many turns.
     assert_eq!(g.magic(P0).unwrap().casting_skill(), 4);
     assert_eq!(g.start_cast(P0, strength, None), Ok(vec![]));
@@ -378,7 +382,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
         player: P0,
         spell: strength
     }));
-    assert_eq!(g.unit_stat(unit, Stat::Melee), melee + 1);
+    assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
     assert_eq!(g.income(P0).mana_upkeep, 2);
     let mana = g.player(P0).unwrap().mana;
     g.apply(Command::EndTurn);
@@ -391,7 +395,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
         player: P0,
         spell: strength
     }));
-    assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
+    assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee);
     assert_eq!(g.income(P0).mana_upkeep, 0);
 }
 
@@ -420,7 +424,7 @@ fn summoning_creates_units_at_the_chosen_tile() {
         spell: call,
         target: Some(Target::Tile(at(5, 5))),
     });
-    assert_eq!(g.units_at(at(5, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(5, 5)).len(), 2);
 }
 
 #[test]
@@ -430,13 +434,13 @@ fn a_city_enchantment_is_cast_and_paid_for() {
     let famine = spell(&g, "famine");
     g.magic_mut(P0).unwrap().known.insert(famine);
     g.magic_mut(P0).unwrap().skill_left = 99;
-    let food = g.city_economy(city).unwrap().food;
+    let food = g.economy().city_economy(city).unwrap().food;
     g.apply(Command::CastSpell {
         player: P0,
         spell: famine,
         target: Some(Target::City(city)),
     });
-    assert!(g.city_economy(city).unwrap().food < food);
+    assert!(g.economy().city_economy(city).unwrap().food < food);
     assert_eq!(g.income(P0).mana_upkeep, 1);
 }
 
@@ -446,16 +450,16 @@ fn dispelling_removes_enchantments_by_strength() {
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = spell(&g, "giant_strength");
-    let melee = g.unit_stat(unit, Stat::Melee);
+    let melee = g.units().unit_stat(unit, Stat::Melee);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
-    assert_eq!(g.unit_stat(unit, Stat::Melee), melee + 1);
+    assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
     {
         use crate::rules::exec::EffectHost;
         let mut host = crate::cast::tests_support::host(&mut g);
         // An overwhelming dispel by another wizard always works.
         assert_eq!(host.dispel(Target::Unit(unit), 100_000, PlayerId(1)), 1);
     }
-    assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
+    assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee);
 }
 
 #[test]
@@ -477,10 +481,10 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() {
     let loaded = back.restore(content_with_magic()).unwrap();
     assert_eq!(loaded.magic(P0), g.magic(P0));
     assert_eq!(loaded.snapshot(), g.snapshot());
-    let unit = loaded.all_units()[0];
+    let unit = loaded.units().all_units()[0];
     assert_eq!(
-        loaded.unit_stat(unit, Stat::Melee),
-        g.unit_stat(g.all_units()[0], Stat::Melee)
+        loaded.units().unit_stat(unit, Stat::Melee),
+        g.units().unit_stat(g.units().all_units()[0], Stat::Melee)
     );
 }
 

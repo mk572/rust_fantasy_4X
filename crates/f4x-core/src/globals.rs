@@ -80,7 +80,12 @@ impl Game {
                 self.fog.explore(player, at, w.max(h));
             }
         } else if self.has_global(player, "awareness") {
-            let cities: Vec<_> = self.cities().into_iter().map(|(_, _, p)| p).collect();
+            let cities: Vec<_> = self
+                .economy()
+                .cities()
+                .into_iter()
+                .map(|(_, _, p)| p)
+                .collect();
             for at in cities {
                 self.fog.explore(player, at, 0);
             }
@@ -92,7 +97,7 @@ impl Game {
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for player in ids {
             if self.has_global(player, "herb_mastery") {
-                for unit in self.player_units(player) {
+                for unit in self.units().player_units(player) {
                     if !self.units().unit_is_death(unit) {
                         let _ = self.world.insert_one(unit, Hurt(0));
                     }
@@ -101,7 +106,7 @@ impl Game {
             self.reveal_for_globals(player);
         }
         // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
-        let cities: Vec<_> = self.cities().into_iter().collect();
+        let cities: Vec<_> = self.economy().cities().into_iter().collect();
         for (entity, city, at) in cities {
             let sight = self.economy().city_sight(entity).max(0) as u32;
             self.fog.explore(city.owner, at, sight);
@@ -244,11 +249,11 @@ mod tests {
         let mut g = world();
         let traveller = g.content.rules.units.id_of("traveller").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), traveller);
-        assert!(g.can_shift_plane(&[u]).is_ok());
+        assert!(g.economy().can_shift_plane(&[u]).is_ok());
         grant(&mut g, P1, "planar_seal");
         assert!(g.units().planar_seal_active());
         assert_eq!(
-            g.can_shift_plane(&[u]),
+            g.economy().can_shift_plane(&[u]),
             Err(crate::movement::MoveError::CannotShiftPlane),
             "even for planar travellers, and even against the caster's rival"
         );
@@ -264,7 +269,11 @@ mod tests {
         g.world.insert_one(b, Hurt(3)).unwrap();
         grant(&mut g, P0, "herb_mastery");
         g.process_globals();
-        assert_eq!(g.unit_hits(a).0, g.unit_hits(a).1, "mine is healed");
+        assert_eq!(
+            g.units().unit_hits(a).0,
+            g.units().unit_hits(a).1,
+            "mine is healed"
+        );
         assert_eq!(g.world.get::<&Hurt>(b).unwrap().0, 3, "theirs is not");
     }
 
@@ -292,9 +301,9 @@ mod tests {
             "a normal unit made undead costs none"
         );
         // Holy Arms passes a unit made undead by.
-        let melee = g.unit_stat(normal, Stat::Melee);
+        let melee = g.units().unit_stat(normal, Stat::Melee);
         grant(&mut g, P0, "holy_arms");
-        assert_eq!(g.unit_stat(normal, Stat::Melee), melee);
+        assert_eq!(g.units().unit_stat(normal, Stat::Melee), melee);
         // Herb Mastery does not heal it either.
         g.world.insert_one(normal, Hurt(3)).unwrap();
         grant(&mut g, P0, "herb_mastery");
@@ -310,7 +319,7 @@ mod tests {
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
         let rival = g.spawn_unit(P1, at(9, 5), walker);
-        let melee = |g: &Game, u| g.unit_stat(u, Stat::Melee);
+        let melee = |g: &Game, u| g.units().unit_stat(u, Stat::Melee);
         let (m0, m1) = (melee(&g, normal), melee(&g, chaos));
         grant(&mut g, P0, "holy_arms");
         assert_eq!(melee(&g, normal), m0 + 1);
@@ -330,9 +339,12 @@ mod tests {
         let mut g = world();
         let walker = g.content.rules.units.id_of("walker").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), walker);
-        let before = g.unit_stat(u, Stat::MaxHp);
+        let before = g.units().unit_stat(u, Stat::MaxHp);
         grant(&mut g, P0, "charm_of_life");
-        assert_eq!(g.unit_stat(u, Stat::MaxHp), before + (before / 4).max(1));
+        assert_eq!(
+            g.units().unit_stat(u, Stat::MaxHp),
+            before + (before / 4).max(1)
+        );
     }
 
     #[test]

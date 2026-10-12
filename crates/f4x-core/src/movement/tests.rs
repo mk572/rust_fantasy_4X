@@ -49,7 +49,8 @@ fn unit(game: &mut Game, owner: PlayerId, name: &str, pos: Position) -> hecs::En
 }
 
 fn cost(game: &Game, u: hecs::Entity, from: Position, to: Position) -> Result<u32, MoveError> {
-    game.step_cost(u, from, to, StackTraits::default())
+    game.economy()
+        .step_cost(u, from, to, StackTraits::default())
 }
 
 #[test]
@@ -140,11 +141,15 @@ fn roads_halve_the_cost_between_road_tiles() {
 fn moving_spends_moves_and_explores() {
     let mut g = world();
     let w = unit(&mut g, P0, "walker", at(1, 2));
-    assert_eq!(g.unit_moves_left(w), 4);
+    assert_eq!(g.units().unit_moves_left(w), 4);
     let before = g.fog.explored_count(P0, Plane::Arcanus);
     assert_eq!(g.move_stack(&[w], at(2, 2)), Ok(Entry::Free));
-    assert_eq!(g.unit_position(w), Some(at(2, 2)));
-    assert_eq!(g.unit_moves_left(w), 0, "forest used all four half-moves");
+    assert_eq!(g.units().unit_position(w), Some(at(2, 2)));
+    assert_eq!(
+        g.units().unit_moves_left(w),
+        0,
+        "forest used all four half-moves"
+    );
     assert!(g.fog.explored_count(P0, Plane::Arcanus) > before);
     assert_eq!(g.move_stack(&[w], at(2, 1)), Err(MoveError::NoMovesLeft));
 }
@@ -153,13 +158,13 @@ fn moving_spends_moves_and_explores() {
 fn a_unit_may_always_take_a_step_it_cannot_fully_afford() {
     let mut g = world();
     let slow = unit(&mut g, P0, "slow", at(3, 2));
-    assert_eq!(g.unit_moves_left(slow), 2);
+    assert_eq!(g.units().unit_moves_left(slow), 2);
     assert_eq!(
         g.move_stack(&[slow], at(4, 2)),
         Ok(Entry::Free),
         "mountains cost 6, it has 2"
     );
-    assert_eq!(g.unit_moves_left(slow), 0);
+    assert_eq!(g.units().unit_moves_left(slow), 0);
 }
 
 #[test]
@@ -200,8 +205,12 @@ fn enemies_block_and_ask_for_a_fight() {
             defenders: vec![theirs]
         }]
     );
-    assert_eq!(g.unit_position(mine), Some(at(1, 1)), "nobody moved");
-    assert_eq!(g.unit_moves_left(mine), 4, "and nothing was spent");
+    assert_eq!(
+        g.units().unit_position(mine),
+        Some(at(1, 1)),
+        "nobody moved"
+    );
+    assert_eq!(g.units().unit_moves_left(mine), 4, "and nothing was spent");
 }
 
 #[test]
@@ -225,7 +234,7 @@ fn wind_walking_carries_the_whole_stack_over_water() {
         "alone it cannot"
     );
     assert_eq!(g.move_stack(&[mage, walker], at(7, 2)), Ok(Entry::Free));
-    assert_eq!(g.unit_position(walker), Some(at(7, 2)));
+    assert_eq!(g.units().unit_position(walker), Some(at(7, 2)));
 }
 
 #[test]
@@ -238,14 +247,14 @@ fn shifting_planes_needs_a_tower_or_planar_travel() {
         ..at(1, 4)
     };
     assert_eq!(g.shift_plane(&[on_tower]), Ok(myrror));
-    assert_eq!(g.unit_moves_left(on_tower), 2, "costs one move");
+    assert_eq!(g.units().unit_moves_left(on_tower), 2, "costs one move");
     assert_eq!(
         g.shift_plane(&[off_tower]),
         Err(MoveError::CannotShiftPlane)
     );
     let t = unit(&mut g, P0, "traveller", at(3, 4));
     assert!(g.shift_plane(&[t]).is_ok(), "planar travel works anywhere");
-    assert_eq!(g.unit_position(t).unwrap().plane, Plane::Myrror);
+    assert_eq!(g.units().unit_position(t).unwrap().plane, Plane::Myrror);
 }
 
 #[test]
@@ -333,15 +342,15 @@ fn goto_orders_continue_over_turns() {
         .filter(|e| matches!(e, Event::UnitsMoved { .. }))
         .count();
     assert_eq!(moved, 2, "two grass tiles with four half-moves");
-    assert_eq!(g.unit_position(w).unwrap().x, 2);
+    assert_eq!(g.units().unit_position(w).unwrap().x, 2);
     assert!(
         g.world.get::<&crate::units::Order>(w).is_ok(),
         "order remains"
     );
     g.apply(Command::EndTurn);
-    assert_eq!(g.unit_position(w).unwrap().x, 4);
+    assert_eq!(g.units().unit_position(w).unwrap().x, 4);
     g.apply(Command::EndTurn);
-    assert_eq!(g.unit_position(w), Some(at(5, 1)));
+    assert_eq!(g.units().unit_position(w), Some(at(5, 1)));
     assert!(
         g.world.get::<&crate::units::Order>(w).is_err(),
         "arrived: order cleared"
@@ -354,7 +363,7 @@ fn end_turn_refills_moves() {
     let w = unit(&mut g, P0, "walker", at(1, 1));
     g.world.insert_one(w, MovesLeft(0)).unwrap();
     g.apply(Command::EndTurn);
-    assert_eq!(g.unit_moves_left(w), 4);
+    assert_eq!(g.units().unit_moves_left(w), 4);
 }
 
 #[test]
@@ -376,17 +385,17 @@ fn stats_include_abilities_and_levels() {
     let mut g = world();
     let hardy = unit(&mut g, P0, "hardy", at(1, 1));
     let plain = unit(&mut g, P0, "walker", at(2, 1));
-    assert_eq!(g.unit_stat(hardy, Stat::Defense), 4, "tough adds 2");
-    assert_eq!(g.unit_stat(plain, Stat::Defense), 2);
-    assert_eq!(g.unit_stat(plain, Stat::Melee), 3);
+    assert_eq!(g.units().unit_stat(hardy, Stat::Defense), 4, "tough adds 2");
+    assert_eq!(g.units().unit_stat(plain, Stat::Defense), 2);
+    assert_eq!(g.units().unit_stat(plain, Stat::Melee), 3);
     g.world
         .insert_one(plain, crate::units::Experience(25))
         .unwrap();
-    assert_eq!(g.unit_level(plain), 1);
-    assert_eq!(g.unit_stat(plain, Stat::Melee), 4, "veteran adds 1");
-    assert_eq!(g.unit_hits(plain), (6, 6));
+    assert_eq!(g.units().unit_level(plain), 1);
+    assert_eq!(g.units().unit_stat(plain, Stat::Melee), 4, "veteran adds 1");
+    assert_eq!(g.units().unit_hits(plain), (6, 6));
     g.world.insert_one(plain, crate::units::Hurt(2)).unwrap();
-    assert_eq!(g.unit_hits(plain), (4, 6));
+    assert_eq!(g.units().unit_hits(plain), (4, 6));
     let _ = TerrainId(0);
 }
 
@@ -398,16 +407,25 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() {
     let player = PlayerId(0);
     let alone = g.spawn_unit(player, at(1, 2), walker);
     let plain = g
+        .economy()
         .step_cost(alone, at(1, 2), at(2, 2), StackTraits::default())
         .unwrap();
     assert_eq!(plain, 4, "forest costs two moves");
     let guide = g.spawn_unit(player, at(1, 2), pathfinder);
-    let traits = g.stack_traits(&[alone, guide]);
+    let traits = g.economy().stack_traits(&[alone, guide]);
     assert!(traits.pathfinding);
-    assert_eq!(g.step_cost(alone, at(1, 2), at(2, 2), traits), Ok(1));
+    assert_eq!(
+        g.economy().step_cost(alone, at(1, 2), at(2, 2), traits),
+        Ok(1)
+    );
     // The ability only counts for the stack it is in.
     assert_eq!(
-        g.step_cost(alone, at(1, 2), at(2, 2), g.stack_traits(&[alone])),
+        g.economy().step_cost(
+            alone,
+            at(1, 2),
+            at(2, 2),
+            g.economy().stack_traits(&[alone])
+        ),
         Ok(4)
     );
 }

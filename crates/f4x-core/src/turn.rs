@@ -10,7 +10,12 @@ use crate::{Event, Game};
 impl Game {
     pub(crate) fn process_turn(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let mut cities: Vec<_> = self.cities().into_iter().map(|(e, ..)| e).collect();
+        let mut cities: Vec<_> = self
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(e, ..)| e)
+            .collect();
         self.sort_by_serial(&mut cities);
 
         // Keep enough hands on the farms to feed everyone.
@@ -18,7 +23,7 @@ impl Game {
             if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
                 continue;
             }
-            let min = self.city_min_farmers(city);
+            let min = self.economy().city_min_farmers(city);
             let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
             if farmers < min {
                 let _ = self.world.insert_one(city, Farmers(min));
@@ -45,13 +50,13 @@ impl Game {
             let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
             if figures == 0 {
                 if self.grow_outpost(city) {
-                    let farmers = self.city_min_farmers(city);
+                    let farmers = self.economy().city_min_farmers(city);
                     let _ = self.world.insert_one(city, Farmers(farmers));
                     events.push(Event::CityGrew { city, figures: 1 });
                 }
                 continue;
             }
-            let Some(eco) = self.city_economy(city) else {
+            let Some(eco) = self.economy().city_economy(city) else {
                 continue;
             };
             if let Some(item) = self.apply_production(city, eco.production) {

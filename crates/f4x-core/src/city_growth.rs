@@ -127,7 +127,7 @@ impl Game {
                 p.capital_race.get_or_insert(r);
             }
         }
-        let farmers = self.city_min_farmers(city);
+        let farmers = self.economy().city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, 2);

@@ -384,46 +384,13 @@ impl Economy<'_> {
 }
 
 impl Game {
-    /// Whether the city may start building `item`.
-    pub fn can_build(
-        &self,
-        city: hecs::Entity,
-        item: ProductionItem,
-    ) -> Result<(), ProductionError> {
-        self.economy().can_build(city, item)
-    }
-
-    pub fn city_is_coastal(&self, city: hecs::Entity) -> bool {
-        self.economy().city_is_coastal(city)
-    }
-
-    /// Production points the item needs in this city.
-    pub fn item_cost(&self, city: hecs::Entity, item: ProductionItem) -> u32 {
-        self.economy().item_cost(city, item)
-    }
-
-    pub fn city_production(&self, city: hecs::Entity) -> Production {
-        self.economy().city_production(city)
-    }
-
-    /// Production still needed for the current item.
-    pub fn production_remaining(&self, city: hecs::Entity) -> u32 {
-        self.economy().production_remaining(city)
-    }
-
-    /// Gold to finish the current item now: four times what is left from scratch, three
-    /// times with less than half of the remainder already done, otherwise twice.
-    pub fn buy_cost(&self, city: hecs::Entity) -> Option<u32> {
-        self.economy().buy_cost(city)
-    }
-
     pub fn set_production(
         &mut self,
         city: hecs::Entity,
         item: ProductionItem,
     ) -> Result<(), ProductionError> {
-        self.can_build(city, item)?;
-        let mut p = self.city_production(city);
+        self.economy().can_build(city, item)?;
+        let mut p = self.economy().city_production(city);
         p.item = Some(item);
         let _ = self.world.insert_one(city, p);
         Ok(())
@@ -439,7 +406,7 @@ impl Game {
             return Err(ProductionError::NotEnoughGold);
         }
         player.gold -= plan.cost as i32;
-        let mut p = self.city_production(city);
+        let mut p = self.economy().city_production(city);
         p.progress += plan.remaining;
         let _ = self.world.insert_one(city, p);
         Ok(plan.cost)
@@ -458,26 +425,6 @@ impl Game {
             p.gold += cost as i32;
         }
         Ok(cost)
-    }
-
-    /// Whether a building that is built in the city needs `building`, directly or down a chain
-    /// of requirements (an unbuilt link in the chain does not break it).
-    pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
-        self.economy().has_dependants(city, building)
-    }
-
-    pub fn has_building(&self, city: hecs::Entity, building: BuildingId) -> bool {
-        self.economy().has_building(city, building)
-    }
-
-    /// The weapons units trained in the city get (see `Economy::city_weapon_quality`).
-    pub fn city_weapon_quality(&self, city: hecs::Entity) -> u8 {
-        self.economy().city_weapon_quality(city)
-    }
-
-    /// Experience a unit built in this city starts with (guilds that train recruits).
-    pub fn city_starting_xp(&self, city: hecs::Entity) -> u32 {
-        self.economy().city_starting_xp(city)
     }
 
     /// Add this turn's production and complete the item if it is covered.
@@ -540,12 +487,12 @@ impl Game {
 
     /// Turning the Vizier on: cities with nothing to build (or housing) get a building now.
     pub(crate) fn vizier_fills_idle_cities(&mut self, player: PlayerId) {
-        for (city, c, _) in self.cities() {
+        for (city, c, _) in self.economy().cities() {
             if c.owner != player {
                 continue;
             }
             let idle = matches!(
-                self.city_production(city).item,
+                self.economy().city_production(city).item,
                 None | Some(ProductionItem::Housing)
             );
             if !idle {

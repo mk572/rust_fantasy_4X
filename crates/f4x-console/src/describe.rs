@@ -24,8 +24,9 @@ pub fn player(game: &Game, id: PlayerId) -> String {
 }
 
 pub fn unit(game: &Game, u: hecs::Entity) -> String {
-    let name = game.unit_def(u).map_or("?", |d| d.name.as_str());
+    let name = game.units().unit_def(u).map_or("?", |d| d.name.as_str());
     let at = game
+        .units()
         .unit_position(u)
         .map_or(String::new(), |p| format!(" at {}", pos(p)));
     format!("unit {} {name}{at}", game.serial_of(u).0)
@@ -33,6 +34,7 @@ pub fn unit(game: &Game, u: hecs::Entity) -> String {
 
 pub fn city_name(game: &Game, c: hecs::Entity) -> String {
     let name = game
+        .economy()
         .cities()
         .into_iter()
         .find(|(e, ..)| *e == c)

@@ -125,7 +125,7 @@ fn teleport(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let units = parse_units(ctx.game, a.need(0, "units")?)?;
     let first = units
         .first()
-        .and_then(|&u| ctx.game.unit_position(u))
+        .and_then(|&u| ctx.game.units().unit_position(u))
         .map_or(Plane::Arcanus, |p| p.plane);
     let to = parse_pos(a.need(1, "position")?, first)?;
     for u in units {

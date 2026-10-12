@@ -153,7 +153,7 @@ impl Game {
         winner: PlayerId,
         city_damage: u32,
     ) -> Vec<Event> {
-        let Some(loser) = self.city_owner(city) else {
+        let Some(loser) = self.economy().city_owner(city) else {
             return Vec::new();
         };
         if loser == winner {
@@ -226,7 +226,7 @@ impl Game {
                 progress: 0,
             },
         );
-        let farmers = self.city_min_farmers(city);
+        let farmers = self.economy().city_min_farmers(city);
         let _ = self
             .world
             .insert_one(city, crate::economy::Farmers(farmers));
@@ -254,7 +254,7 @@ impl Game {
                 RazeError::NotJustTaken,
             ))];
         };
-        if by != player || self.city_owner(city) != Some(player) {
+        if by != player || self.economy().city_owner(city) != Some(player) {
             return vec![Event::Rejected(crate::Rejection::Raze(
                 RazeError::NotJustTaken,
             ))];

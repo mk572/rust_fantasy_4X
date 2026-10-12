@@ -152,6 +152,7 @@ impl Game {
     /// is not enough land: those cities farm with everyone.
     pub fn balance_farmers(&mut self, player: PlayerId) {
         let mut mine: Vec<hecs::Entity> = self
+            .economy()
             .cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
@@ -159,7 +160,7 @@ impl Game {
             .collect();
         self.sort_by_serial(&mut mine);
         for &city in &mine {
-            let min = self.city_min_farmers(city);
+            let min = self.economy().city_min_farmers(city);
             let _ = self.world.insert_one(city, Farmers(min));
         }
         let units = self.units();
@@ -183,8 +184,8 @@ impl Game {
                     if farmers >= figures {
                         return None;
                     }
-                    let now = self.city_economy_with(c, farmers)?;
-                    let more = self.city_economy_with(c, farmers + 1)?;
+                    let now = self.economy().city_economy_with(c, farmers)?;
+                    let more = self.economy().city_economy_with(c, farmers + 1)?;
                     Some((more.food - now.food, c, farmers))
                 })
                 .filter(|(gain, ..)| *gain > 0)
@@ -215,10 +216,11 @@ impl Game {
     /// What a player will take in and pay out at the next turn change.
     pub fn treasury(&self, player: PlayerId) -> Treasury {
         let cities: Vec<CityYield> = self
+            .economy()
             .cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(city, ..)| self.city_economy(city))
+            .filter_map(|(city, ..)| self.economy().city_economy(city))
             .map(|eco| CityYield {
                 gold: eco.gold,
                 gold_upkeep: eco.gold_upkeep,

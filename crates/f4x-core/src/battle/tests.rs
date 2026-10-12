@@ -513,7 +513,7 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     // Statistics come from the overland unit: melee 3, defence 2, 2 hit points a figure, 3 figures.
     let u = b.unit(0).unwrap();
     assert_eq!((u.melee, u.defense, u.hits, u.figures), (3, 2, 2, 3));
-    assert_eq!(u.moves, g.unit_max_moves(a1));
+    assert_eq!(u.moves, g.units().unit_max_moves(a1));
     assert_eq!(u.cell, (3, 11));
     assert_eq!(b.unit(2).unwrap().cell, (GRID_W - 4, 11));
     // A second battle is refused while this one runs.
@@ -572,7 +572,7 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     assert!(alive(d1) != (alive(a1) || alive(a2)) || (alive(d1) && (alive(a1) || alive(a2))));
     for u in [a1, a2, d1] {
         if alive(u) {
-            let (hp, max) = g.unit_hits(u);
+            let (hp, max) = g.units().unit_hits(u);
             assert!(hp >= 1 && hp <= max, "hit points {hp}/{max}");
         }
     }
@@ -626,7 +626,7 @@ fn wounded_units_enter_a_battle_wounded() {
     assert!(ev
         .iter()
         .any(|e| matches!(e, Event::BattleEnded { winner, .. } if *winner == D)));
-    assert!(!g.world.contains(a) || g.unit_hits(a).0 == 1);
+    assert!(!g.world.contains(a) || g.units().unit_hits(a).0 == 1);
 }
 
 #[test]
@@ -653,7 +653,7 @@ fn found(g: &mut Game, owner: PlayerId, pos: crate::city::Position) -> hecs::Ent
         race,
         population: 3,
     });
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 #[test]
@@ -674,7 +674,11 @@ fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
     let survivors: Vec<_> = attackers.iter().filter(|&&u| g.world.contains(u)).collect();
     assert!(!survivors.is_empty());
     for &&u in &survivors {
-        assert_eq!(g.unit_position(u), Some(at(5, 4)), "moved onto the square");
+        assert_eq!(
+            g.units().unit_position(u),
+            Some(at(5, 4)),
+            "moved onto the square"
+        );
     }
     // Another battle can start afterwards.
     assert!(g.battle().is_none());
@@ -697,7 +701,7 @@ fn a_battle_won_at_a_city_captures_it() {
             .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == A)),
         "{events:?}"
     );
-    assert_eq!(g.city_owner(city), Some(A));
+    assert_eq!(g.economy().city_owner(city), Some(A));
 }
 
 #[test]
@@ -716,8 +720,8 @@ fn an_empty_enemy_city_is_taken_by_walking_in() {
             .any(|e| matches!(e, Event::CityCaptured { .. })),
         "{events:?}"
     );
-    assert_eq!(g.city_owner(city), Some(A));
-    assert_eq!(g.unit_position(unit), Some(at(5, 4)));
+    assert_eq!(g.economy().city_owner(city), Some(A));
+    assert_eq!(g.units().unit_position(unit), Some(at(5, 4)));
 }
 
 #[test]
@@ -733,7 +737,7 @@ fn a_losing_attacker_stays_where_it_was() {
     assert!(!g.world.contains(attacker));
     assert!(defenders.iter().any(|&d| g.world.contains(d)));
     for &d in defenders.iter().filter(|&&d| g.world.contains(d)) {
-        assert_eq!(g.unit_position(d), Some(at(5, 4)));
+        assert_eq!(g.units().unit_position(d), Some(at(5, 4)));
     }
 }
 
@@ -2457,7 +2461,11 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
         0
     );
     assert_eq!(g.world.get::<&crate::units::Hurt>(hurt_troll).unwrap().0, 0);
-    assert_eq!(g.unit_position(slain_troll), Some(at(5, 4)), "and moves in");
+    assert_eq!(
+        g.units().unit_position(slain_troll),
+        Some(at(5, 4)),
+        "and moves in"
+    );
 }
 
 #[test]

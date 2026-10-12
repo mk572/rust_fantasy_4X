@@ -350,7 +350,7 @@ fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Res
                 .any(|f| wrap(f.x, x).max(f.y.abs_diff(y)) < apart)
                 || game.can_found_city(pos).is_err()
                 || !game.clear_of_sites(pos, clear)
-                || game.site_max_size(pos) < size
+                || game.economy().site_max_size(pos) < size
             {
                 continue;
             }

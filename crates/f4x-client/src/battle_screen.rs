@@ -280,8 +280,11 @@ impl App {
 
     /// Pit the human's units against monsters on the same square (for screenshots and tests).
     pub fn open_test_battle(&mut self) {
-        let mine = self.game.player_units(HUMAN);
-        let Some(pos) = mine.first().and_then(|&u| self.game.unit_position(u)) else {
+        let mine = self.game.units().player_units(HUMAN);
+        let Some(pos) = mine
+            .first()
+            .and_then(|&u| self.game.units().unit_position(u))
+        else {
             return;
         };
         let rules = &self.game.content().rules;
@@ -300,7 +303,7 @@ impl App {
         self.begin_battle(Command::BeginBattle {
             attackers: mine
                 .into_iter()
-                .filter(|&u| self.game.unit_position(u) == Some(pos))
+                .filter(|&u| self.game.units().unit_position(u) == Some(pos))
                 .collect(),
             defenders,
         });

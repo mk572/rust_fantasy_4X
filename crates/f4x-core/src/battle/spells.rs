@@ -584,6 +584,7 @@ impl Game {
             && u.status == super::Status::Dead
             && u.fate() != super::Fate::Gone
             && self
+                .units()
                 .unit_def(entity)
                 .is_some_and(|d| d.kind != UnitKind::Hero)
     }

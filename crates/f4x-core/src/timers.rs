@@ -171,7 +171,7 @@ mod tests {
             spell: call,
             target: Some(Target::Tile(pos)),
         });
-        let unit = g.units_at(pos)[0];
+        let unit = g.units().units_at(pos)[0];
         g.apply(Command::CastSpell {
             player: P0,
             spell: brief,
@@ -184,7 +184,7 @@ mod tests {
     fn a_timed_spell_ends_after_its_turns() {
         let mut g = world();
         let (unit, brief) = timed_unit(&mut g);
-        let melee = g.unit_stat(unit, Stat::Melee);
+        let melee = g.units().unit_stat(unit, Stat::Melee);
         assert_eq!(g.enchantment_turns_left(Target::Unit(unit), brief), Some(2));
         g.tick_timers();
         assert_eq!(g.enchantment_turns_left(Target::Unit(unit), brief), Some(1));
@@ -193,7 +193,7 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Event::EnchantmentExpired { .. })));
         assert_eq!(g.enchantment_turns_left(Target::Unit(unit), brief), None);
-        assert_eq!(g.unit_stat(unit, Stat::Melee), melee - 1);
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee - 1);
     }
 
     #[test]

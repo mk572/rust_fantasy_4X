@@ -175,34 +175,6 @@ pub(crate) fn update_aboard(
 }
 
 impl Game {
-    pub fn is_ship(&self, unit: hecs::Entity) -> bool {
-        self.economy().is_ship(unit)
-    }
-
-    pub fn needs_ship(&self, unit: hecs::Entity, stack_flies: bool) -> bool {
-        self.economy().needs_ship(unit, stack_flies)
-    }
-
-    pub fn carrier_of(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
-        self.economy().carrier_of(unit)
-    }
-
-    pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
-        self.economy().passengers_of(ship)
-    }
-
-    pub fn ship_room(&self, ship: hecs::Entity) -> u32 {
-        self.economy().ship_room(ship)
-    }
-
-    pub fn ships_at(&self, at: Position, owner: PlayerId) -> Vec<hecs::Entity> {
-        self.economy().ships_at(at, owner)
-    }
-
-    pub fn ship_room_at(&self, at: Position, owner: PlayerId) -> bool {
-        self.economy().ship_room_at(at, owner)
-    }
-
     /// Land units at sea with no ship under them are lost.
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
@@ -282,18 +254,18 @@ mod tests {
         let boat = unit(&mut g, "boat", at(5, 4));
         let w = unit(&mut g, "walker", at(4, 4));
         assert_eq!(g.move_stack(&[w], at(5, 4)), Ok(Entry::Free));
-        assert_eq!(g.carrier_of(w), Some(boat));
-        assert_eq!(g.ship_room(boat), 1);
-        let moves = g.unit_moves_left(w);
+        assert_eq!(g.economy().carrier_of(w), Some(boat));
+        assert_eq!(g.economy().ship_room(boat), 1);
+        let moves = g.units().unit_moves_left(w);
         // The ship sails alone; its passenger comes along at no cost.
         g.move_stack(&[boat], at(6, 4)).unwrap();
-        assert_eq!(g.unit_position(w), Some(at(6, 4)));
-        assert_eq!(g.unit_moves_left(w), moves);
-        assert_eq!(g.carrier_of(w), Some(boat));
+        assert_eq!(g.units().unit_position(w), Some(at(6, 4)));
+        assert_eq!(g.units().unit_moves_left(w), moves);
+        assert_eq!(g.economy().carrier_of(w), Some(boat));
         // Selected together, they sail as one stack too.
         g.move_stack(&[boat, w], at(7, 4)).unwrap();
-        assert_eq!(g.unit_position(w), Some(at(7, 4)));
-        assert_eq!(g.unit_moves_left(w), moves, "riding is free");
+        assert_eq!(g.units().unit_position(w), Some(at(7, 4)));
+        assert_eq!(g.units().unit_moves_left(w), moves, "riding is free");
     }
 
     #[test]
@@ -303,7 +275,7 @@ mod tests {
         let three: Vec<_> = (0..3).map(|_| unit(&mut g, "walker", at(4, 4))).collect();
         assert_eq!(g.move_stack(&three, at(5, 4)), Err(MoveError::NoRoom));
         g.move_stack(&three[..2], at(5, 4)).unwrap();
-        assert_eq!(g.ship_room(boat), 0);
+        assert_eq!(g.economy().ship_room(boat), 0);
         assert_eq!(
             g.move_stack(&three[2..], at(5, 4)),
             Err(MoveError::Impassable),
@@ -325,21 +297,25 @@ mod tests {
         let w = unit(&mut g, "walker", at(4, 4));
         // The stack sails out of the port: the walker boards for free.
         g.move_stack(&[boat, w], at(5, 4)).unwrap();
-        assert_eq!(g.carrier_of(w), Some(boat));
+        assert_eq!(g.economy().carrier_of(w), Some(boat));
         g.move_stack(&[boat], at(6, 4)).unwrap();
         g.move_stack(&[boat], at(7, 4)).unwrap();
         g.move_stack(&[boat], at(8, 4)).unwrap();
         let _ = g.world.insert_one(boat, MovesLeft(8));
         g.move_stack(&[boat], at(9, 4)).unwrap();
-        assert_eq!(g.unit_position(w), Some(at(9, 4)));
+        assert_eq!(g.units().unit_position(w), Some(at(9, 4)));
         // Stepping ashore is an ordinary move.
         let _ = g.world.insert_one(w, MovesLeft(2));
         g.move_stack(&[w], at(10, 4)).unwrap();
-        assert_eq!(g.carrier_of(w), None, "no longer aboard");
-        assert_eq!(g.unit_position(w), Some(at(10, 4)));
-        assert_eq!(g.unit_moves_left(w), 0, "grassland costs a whole move");
+        assert_eq!(g.economy().carrier_of(w), None, "no longer aboard");
+        assert_eq!(g.units().unit_position(w), Some(at(10, 4)));
+        assert_eq!(
+            g.units().unit_moves_left(w),
+            0,
+            "grassland costs a whole move"
+        );
         // The ship stays; its place is free again.
-        assert_eq!(g.ship_room(boat), 2);
+        assert_eq!(g.economy().ship_room(boat), 2);
     }
 
     #[test]
@@ -355,10 +331,10 @@ mod tests {
         let boat = unit(&mut g, "boat", at(9, 4));
         let w = unit(&mut g, "walker", at(10, 4));
         g.move_stack(&[w], at(9, 4)).unwrap();
-        assert_eq!(g.carrier_of(w), Some(boat));
+        assert_eq!(g.economy().carrier_of(w), Some(boat));
         g.move_stack(&[boat, w], at(10, 3)).unwrap();
-        assert_eq!(g.carrier_of(w), None, "ashore in the port");
-        assert_eq!(g.unit_position(w), Some(at(10, 3)));
+        assert_eq!(g.economy().carrier_of(w), None, "ashore in the port");
+        assert_eq!(g.units().unit_position(w), Some(at(10, 3)));
     }
 
     #[test]
@@ -381,7 +357,9 @@ mod tests {
         let flier = unit(&mut g, "scout", at(6, 4));
         let other = unit(&mut g, "boat", at(7, 4));
         assert!(g.drown_stranded().is_empty());
-        assert!(g.unit_position(flier).is_some() && g.unit_position(other).is_some());
+        assert!(
+            g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
+        );
     }
 
     #[test]
@@ -396,7 +374,7 @@ mod tests {
             back.units().entity_of_serial(g.serial_of(boat)).unwrap(),
             back.units().entity_of_serial(g.serial_of(w)).unwrap(),
         );
-        assert_eq!(back.carrier_of(w2), Some(boat2));
-        assert_eq!(back.ship_room(boat2), 1);
+        assert_eq!(back.economy().carrier_of(w2), Some(boat2));
+        assert_eq!(back.economy().ship_room(boat2), 1);
     }
 }

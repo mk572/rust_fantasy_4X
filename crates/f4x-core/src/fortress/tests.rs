@@ -47,7 +47,7 @@ fn place(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
             .any(|e| matches!(e, Event::FortressPlaced { .. })),
         "{events:?}"
     );
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 fn city(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
@@ -59,7 +59,7 @@ fn city(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
         race,
         population: 3,
     });
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 fn spell(g: &Game, id: &str) -> crate::rules::SpellId {
@@ -121,7 +121,7 @@ fn summoned_creatures_appear_at_the_circle() {
         spell: call,
         target: None,
     });
-    assert_eq!(g.units_at(at(5, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(5, 5)).len(), 2);
     // Move the circle with the spell, and they come there instead.
     let events = cast(&mut g, "summoning_circle", town);
     assert!(events.contains(&Event::SummoningCircleMoved {
@@ -140,7 +140,7 @@ fn summoned_creatures_appear_at_the_circle() {
         spell: call,
         target: None,
     });
-    assert_eq!(g.units_at(at(15, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(15, 5)).len(), 2);
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn taking_an_ordinary_city_changes_its_owner_only() {
             to: P1
         }]
     );
-    assert_eq!(g.city_owner(town), Some(P1));
+    assert_eq!(g.economy().city_owner(town), Some(P1));
     assert!(!g.player(P0).unwrap().banished);
 }
 
@@ -290,7 +290,7 @@ fn a_fortress_city_cannot_be_destroyed() {
     g.move_summoning_circle(P0, town).unwrap();
     let events = g.destroy_city(town).unwrap();
     assert_eq!(events, vec![Event::CityDestroyed { pos: at(15, 5) }]);
-    assert!(g.city_at(at(15, 5)).is_none());
+    assert!(g.economy().city_at(at(15, 5)).is_none());
     assert_eq!(g.player(P0).unwrap().summon_at, Some(at(5, 5)));
 }
 

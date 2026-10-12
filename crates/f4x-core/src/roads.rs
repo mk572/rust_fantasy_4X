@@ -71,7 +71,7 @@ impl Game {
         units
             .iter()
             .map(|&u| {
-                let base = self.unit_stat(u, Stat::Construction).max(0) as u32;
+                let base = self.units().unit_stat(u, Stat::Construction).max(0) as u32;
                 if base == 0 {
                     return 0;
                 }
@@ -100,18 +100,23 @@ impl Game {
         mut path: Vec<Position>,
     ) -> Result<Vec<Event>, RoadError> {
         let first = *units.first().ok_or(RoadError::BadSelection)?;
-        let here = self.unit_position(first).ok_or(RoadError::BadSelection)?;
-        let owner = self.unit_owner(first).ok_or(RoadError::BadSelection)?;
-        if units
-            .iter()
-            .any(|&u| self.unit_position(u) != Some(here) || self.unit_owner(u) != Some(owner))
-        {
+        let here = self
+            .units()
+            .unit_position(first)
+            .ok_or(RoadError::BadSelection)?;
+        let owner = self
+            .units()
+            .unit_owner(first)
+            .ok_or(RoadError::BadSelection)?;
+        if units.iter().any(|&u| {
+            self.units().unit_position(u) != Some(here) || self.units().unit_owner(u) != Some(owner)
+        }) {
             return Err(RoadError::BadSelection);
         }
         let builders: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.unit_stat(u, Stat::Construction) > 0)
+            .filter(|&u| self.units().unit_stat(u, Stat::Construction) > 0)
             .collect();
         if builders.is_empty() {
             return Err(RoadError::NoBuilders);
@@ -164,7 +169,7 @@ impl Game {
                 .iter()
                 .copied()
                 .filter(|&w| {
-                    self.unit_position(w) == self.unit_position(u)
+                    self.units().unit_position(w) == self.units().unit_position(u)
                         && self.world.get::<&RoadWork>(w).ok().map(|x| (*x).clone())
                             == self.world.get::<&RoadWork>(u).ok().map(|x| (*x).clone())
                 })
@@ -188,7 +193,7 @@ impl Game {
         let Some(mut work) = self.world.get::<&RoadWork>(lead).ok().map(|w| (*w).clone()) else {
             return events;
         };
-        let pos = self.unit_position(lead);
+        let pos = self.units().unit_position(lead);
         if pos != Some(work.at) {
             // Moved away by hand: the job is off.
             for &u in group {

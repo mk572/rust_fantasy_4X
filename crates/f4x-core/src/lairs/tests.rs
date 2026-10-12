@@ -284,8 +284,8 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
             lair: 0
         }]
     );
-    assert_eq!(g.unit_position(w), Some(at(4, 5)));
-    assert_eq!(g.unit_moves_left(w), 4, "no moves spent");
+    assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
+    assert_eq!(g.units().unit_moves_left(w), 4, "no moves spent");
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
     assert!(matches!(events[0], Event::BattleStarted { defender, .. } if defender == NEUTRAL));
     assert!(g.in_battle());
     assert_eq!(
-        g.units_at(at(5, 5)).len(),
+        g.units().units_at(at(5, 5)).len(),
         1,
         "one guard stands on the site"
     );
@@ -471,11 +471,16 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
         None
     );
     assert_eq!(g.player(P0).unwrap().gold, 220);
-    assert_eq!(g.unit_position(w), Some(at(5, 5)), "the victors moved in");
+    assert_eq!(
+        g.units().unit_position(w),
+        Some(at(5, 5)),
+        "the victors moved in"
+    );
     assert!(
-        g.units_at(at(5, 5))
+        g.units()
+            .units_at(at(5, 5))
             .iter()
-            .all(|&u| g.unit_owner(u) == Some(P0)),
+            .all(|&u| g.units().unit_owner(u) == Some(P0)),
         "no guard is left"
     );
 }
@@ -530,11 +535,15 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == P0)));
-    assert_eq!(g.unit_owner(drained.1), Some(P0));
+    assert_eq!(g.units().unit_owner(drained.1), Some(P0));
     assert!(g.units().unit_is_undead(drained.1));
-    assert_eq!(g.unit_position(drained.1), Some(at(5, 5)));
+    assert_eq!(g.units().unit_position(drained.1), Some(at(5, 5)));
     assert!(!g.world.contains(slain.1), "the other guard is gone");
-    assert_eq!(g.unit_position(w), Some(at(5, 5)), "the victors moved in");
+    assert_eq!(
+        g.units().unit_position(w),
+        Some(at(5, 5)),
+        "the victors moved in"
+    );
 }
 
 #[test]
@@ -575,17 +584,17 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     // The drained unit stays on the site for the monsters; the guard made for the fight and
     // the other attacker are gone.
     assert!(g.world.contains(w) && !g.world.contains(bystander));
-    assert_eq!(g.unit_owner(w), Some(NEUTRAL));
+    assert_eq!(g.units().unit_owner(w), Some(NEUTRAL));
     assert!(g.units().unit_is_undead(w));
-    assert_eq!(g.units_at(at(5, 5)), vec![w]);
+    assert_eq!(g.units().units_at(at(5, 5)), vec![w]);
     assert!(
         g.economy().lair_at(at(5, 5)).is_some(),
         "the lair is not cleared"
     );
     // It lasts, and it is an enemy to anyone who walks in.
     g.apply(Command::EndTurn);
-    assert_eq!(g.unit_owner(w), Some(NEUTRAL));
-    assert!(g.hostile_at(at(5, 5), P0).is_some());
+    assert_eq!(g.units().unit_owner(w), Some(NEUTRAL));
+    assert!(g.economy().hostile_at(at(5, 5), P0).is_some());
 }
 
 #[test]
@@ -602,7 +611,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
         units: vec![w],
         to: at(5, 5),
     });
-    assert_eq!(g.units_at(at(5, 5)).len(), 3);
+    assert_eq!(g.units().units_at(at(5, 5)).len(), 3);
     g.apply(Command::Battle(BattleCommand::Flee));
     assert!(!g.in_battle());
     assert!(g
@@ -612,11 +621,11 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
         .lair_at(Plane::Arcanus, 5, 5)
         .is_some());
     assert!(
-        g.units_at(at(5, 5)).is_empty(),
+        g.units().units_at(at(5, 5)).is_empty(),
         "the guards are made anew on each visit"
     );
     assert_eq!(g.player(P0).unwrap().gold, 100, "no treasure");
-    assert_eq!(g.unit_position(w), Some(at(4, 5)));
+    assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
 }
 
 #[test]

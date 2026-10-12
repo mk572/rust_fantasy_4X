@@ -142,10 +142,10 @@ impl Game {
             }
             Target::Tile(at) => {
                 let mut removed = self.dispel_node(at, strength, rng);
-                if let Some(c) = self.city_at(at) {
+                if let Some(c) = self.economy().city_at(at) {
                     removed += self.dispel_target(Target::City(c), strength, by, rng);
                 }
-                for u in self.units_at(at) {
+                for u in self.units().units_at(at) {
                     removed += self.dispel_target(Target::Unit(u), strength, by, rng);
                 }
                 removed

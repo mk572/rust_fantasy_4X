@@ -123,9 +123,9 @@ impl Game {
         side: Side,
         index: usize,
     ) -> Option<BattleUnit> {
-        let def = self.unit_def(unit)?;
-        let hits = self.unit_stat(unit, Stat::MaxHp).max(1);
-        let figures = self.unit_stat(unit, Stat::Figures).max(1) as u32;
+        let def = self.units().unit_def(unit)?;
+        let hits = self.units().unit_stat(unit, Stat::MaxHp).max(1);
+        let figures = self.units().unit_stat(unit, Stat::Figures).max(1) as u32;
         let total = hits * figures as i32;
         let hurt = self
             .world
@@ -134,16 +134,16 @@ impl Game {
             .min(total - 1);
         let current = total - hurt;
         let alive = ((current + hits - 1) / hits) as u32;
-        let abilities = self.unit_abilities(unit);
+        let abilities = self.units().unit_abilities(unit);
         let flies = def.movement == MovementType::Flying || abilities.iter().any(|a| a == "flying");
         let has = |a: &str| abilities.iter().any(|x| x == a);
         // Mithril adds one and adamantium two to the attacks and the defence.
-        let quality = self.unit_weapon_quality(unit);
+        let quality = self.units().unit_weapon_quality(unit);
         let extra = i32::from(quality.max(1)) - 1;
         let ranged_kind = ranged_kind_of(&abilities);
         let physical_shot = ranged_kind == RangedKind::Missile || has("thrown");
-        let melee = self.unit_stat(unit, Stat::Melee);
-        let ranged = self.unit_stat(unit, Stat::Ranged);
+        let melee = self.units().unit_stat(unit, Stat::Melee);
+        let ranged = self.units().unit_stat(unit, Stat::Ranged);
         // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
         let mana = if has("spellcaster_major") {
             40
@@ -153,7 +153,7 @@ impl Game {
             0
         };
         let lucky = i32::from(has("lucky"));
-        let mut ammo = self.unit_stat(unit, Stat::Ammo);
+        let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
         if ranged_kind == RangedKind::Magic && mana > 0 {
             ammo = mana / super::SHOT_MANA;
         }
@@ -170,16 +170,17 @@ impl Game {
             } else {
                 ranged
             },
-            defense: self.unit_stat(unit, Stat::Defense) + if quality > 0 { extra } else { 0 },
-            resistance: self.unit_stat(unit, Stat::Resistance) + lucky,
-            to_hit: self.unit_stat(unit, Stat::ToHit) / 10 + lucky,
+            defense: self.units().unit_stat(unit, Stat::Defense)
+                + if quality > 0 { extra } else { 0 },
+            resistance: self.units().unit_stat(unit, Stat::Resistance) + lucky,
+            to_hit: self.units().unit_stat(unit, Stat::ToHit) / 10 + lucky,
             to_block: lucky,
             hits,
             figures_start: figures,
             figures: alive,
             front_damage: alive as i32 * hits - current,
-            moves: self.unit_max_moves(unit),
-            moves_left: self.unit_max_moves(unit),
+            moves: self.units().unit_max_moves(unit),
+            moves_left: self.units().unit_max_moves(unit),
             ammo,
             mana,
             ranged_kind,
@@ -187,10 +188,10 @@ impl Game {
             first_strike: has("first_strike"),
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
-            magical_weapon: self.unit_has_magical_weapon(unit),
+            magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
-            special_level: self.unit_stat(unit, Stat::SpecialLevel),
-            enchantments: self.unit_enchantment_ids(unit),
+            special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
+            enchantments: self.units().unit_enchantment_ids(unit),
             realm: self
                 .units()
                 .unit_realm(unit)
@@ -242,11 +243,14 @@ impl Game {
         }
         let side_info = |game: &Game, units: &[hecs::Entity]| -> Option<(PlayerId, Position)> {
             let first = *units.first()?;
-            let pos = game.unit_position(first)?;
-            let owner = game.unit_owner(first)?;
+            let pos = game.units().unit_position(first)?;
+            let owner = game.units().unit_owner(first)?;
             units
                 .iter()
-                .all(|&u| game.unit_position(u) == Some(pos) && game.unit_owner(u) == Some(owner))
+                .all(|&u| {
+                    game.units().unit_position(u) == Some(pos)
+                        && game.units().unit_owner(u) == Some(owner)
+                })
                 .then_some((owner, pos))
         };
         let (a_owner, _) = side_info(self, attackers).ok_or(BattleStartError::BadSides)?;
@@ -257,8 +261,8 @@ impl Game {
         let mut units = Vec::new();
         let mut sources = Vec::new();
         // A fight at a city is fought round its walls, if it has them.
-        let city = self.city_at(site);
-        let walled = city.is_some_and(|c| self.city_has_building(c, "city_walls"));
+        let city = self.economy().city_at(site);
+        let walled = city.is_some_and(|c| self.economy().city_has_building(c, "city_walls"));
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
             let cells = if city.is_some() {
                 city_deployment(side == Side::Attacker, group.len(), walled)
@@ -278,7 +282,7 @@ impl Game {
         let seed = self.next_u64();
         let mut map_rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed ^ 0xB477);
         let mut map = BattleMap::generate(self.economy().terrain_class_at(site), &mut map_rng);
-        let has = |name: &str| city.is_some_and(|c| self.city_has_enchantment(c, name));
+        let has = |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);
             if has("flying_fortress") {
@@ -290,7 +294,7 @@ impl Game {
         battle.wall_of_fire = has("wall_of_fire");
         battle.wall_of_darkness = has("wall_of_darkness");
         if let Some(c) = city {
-            battle.warded_realms = self.city_wards(c);
+            battle.warded_realms = self.economy().city_wards(c);
         }
         // A Cloud of Shadow treats every fight at the city as if its owner had cast Darkness.
         if let Some(cloud) = self.content.rules.spells.id_of("cloud_of_shadow") {
@@ -390,12 +394,13 @@ impl Game {
         if site.is_none() {
             // A city that held against a wizard's attack costs the attacker its owner's goodwill.
             if let (Some(Side::Defender), Some(pos)) = (battle.winner, battle.site) {
-                if let Some(city) = self.city_at(pos) {
+                if let Some(city) = self.economy().city_at(pos) {
                     let (attacker, defender) = (
                         battle.player_of(Side::Attacker),
                         battle.player_of(Side::Defender),
                     );
-                    if self.economy().citizens(city) > 0 && self.city_owner(city) == Some(defender)
+                    if self.economy().citizens(city) > 0
+                        && self.economy().city_owner(city) == Some(defender)
                     {
                         let fortress = self.economy().is_fortress_city(city);
                         self.city_held_relations(attacker, defender, fortress);
@@ -437,6 +442,7 @@ impl Game {
             && u.fate() == super::Fate::Drained
             && u.realm != Some(Realm::Death)
             && self
+                .units()
                 .unit_def(entity)
                 .is_some_and(|d| d.kind != crate::rules::UnitKind::Hero)
     }
@@ -500,7 +506,7 @@ impl Game {
             self.sort_by_serial(&mut fled);
             let mut lost = 0;
             for unit in fled {
-                let percent = match self.unit_def(unit).map(|d| d.kind) {
+                let percent = match self.units().unit_def(unit).map(|d| d.kind) {
                     Some(UnitKind::Hero) => 25,
                     _ => 50,
                 };
@@ -523,9 +529,10 @@ impl Game {
         };
         let attacker = battle.player_of(Side::Attacker);
         let hostile_left = self
+            .units()
             .units_at(pos)
             .into_iter()
-            .any(|u| self.unit_owner(u).is_some_and(|o| o != attacker));
+            .any(|u| self.units().unit_owner(u).is_some_and(|o| o != attacker));
         if hostile_left {
             return events;
         }
@@ -536,10 +543,10 @@ impl Game {
                 u.side == Side::Attacker && (u.status == Status::Active || revived(battle, u))
             })
             .filter_map(source_of)
-            .filter(|&u| self.unit_position(u).is_some())
+            .filter(|&u| self.units().unit_position(u).is_some())
             .collect();
         if let Some(&first) = movers.first() {
-            let from = self.unit_position(first).unwrap_or(pos);
+            let from = self.units().unit_position(first).unwrap_or(pos);
             for &u in &movers {
                 let _ = self.world.insert_one(u, pos);
             }
@@ -550,8 +557,12 @@ impl Game {
                 to: pos,
             });
         }
-        if let Some(city) = self.city_at(pos) {
-            if self.city_owner(city).is_some_and(|o| o != attacker) {
+        if let Some(city) = self.economy().city_at(pos) {
+            if self
+                .economy()
+                .city_owner(city)
+                .is_some_and(|o| o != attacker)
+            {
                 events.extend(self.conquer_city(city, attacker, battle.city_damage));
             }
         }
@@ -566,8 +577,8 @@ impl Game {
         defenders: &[hecs::Entity],
     ) -> Vec<Event> {
         let near = |game: &Game| -> Option<bool> {
-            let a = game.unit_position(*attackers.first()?)?;
-            let d = game.unit_position(*defenders.first()?)?;
+            let a = game.units().unit_position(*attackers.first()?)?;
+            let d = game.units().unit_position(*defenders.first()?)?;
             let map = game.map.as_ref()?;
             Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
         };

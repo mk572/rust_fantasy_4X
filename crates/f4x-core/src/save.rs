@@ -339,7 +339,8 @@ pub enum TempKindSave {
 
 fn effects_save(game: &Game, e: hecs::Entity) -> Vec<TempSave> {
     use crate::temp_effects::TempKind;
-    game.temp_effects(e)
+    game.units()
+        .temp_effects(e)
         .into_iter()
         .map(|t| TempSave {
             kind: match t.kind {
@@ -596,18 +597,19 @@ impl Game {
             })
             .collect();
         let units = self
+            .units()
             .all_units()
             .into_iter()
             .filter_map(|u| {
                 Some(UnitSave {
                     serial: self.serial_of(u).0,
-                    unit: self.unit_def(u)?.id.clone(),
-                    owner: self.unit_owner(u)?.0,
-                    pos: self.unit_position(u)?,
+                    unit: self.units().unit_def(u)?.id.clone(),
+                    owner: self.units().unit_owner(u)?.0,
+                    pos: self.units().unit_position(u)?,
                     hurt: self.world.get::<&Hurt>(u).map_or(0, |h| h.0),
                     xp: self.world.get::<&Experience>(u).map_or(0, |x| x.0),
-                    weapon: self.unit_weapon_quality(u),
-                    moves: self.unit_moves_left(u),
+                    weapon: self.units().unit_weapon_quality(u),
+                    moves: self.units().unit_moves_left(u),
                     order: self.world.get::<&Order>(u).ok().map(|o| {
                         let Order::GoTo(path) = &*o;
                         path.clone()
@@ -642,8 +644,12 @@ impl Game {
             ProductionItem::TradeGoods => ItemSave::TradeGoods,
             ProductionItem::Housing => ItemSave::Housing,
         };
-        let mut city_entities: Vec<hecs::Entity> =
-            self.cities().into_iter().map(|(e, ..)| e).collect();
+        let mut city_entities: Vec<hecs::Entity> = self
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(e, ..)| e)
+            .collect();
         self.sort_by_serial(&mut city_entities);
         let cities = city_entities
             .into_iter()
@@ -655,7 +661,7 @@ impl Game {
                     .get::<&Population>(e)
                     .map(|p| *p)
                     .unwrap_or_default();
-                let production = self.city_production(e);
+                let production = self.economy().city_production(e);
                 Some(CitySave {
                     serial: self.serial_of(e).0,
                     name: city.name.clone(),
@@ -687,7 +693,7 @@ impl Game {
                                 .collect()
                         })
                         .unwrap_or_default(),
-                    wards: self.city_wards(e),
+                    wards: self.economy().city_wards(e),
                     item: production.item.map(item_save),
                     progress: production.progress,
                     effects: effects_save(self, e),
@@ -1001,8 +1007,9 @@ impl Snapshot {
         for p in &game.players {
             for pos in [p.fortress, p.summon_at].into_iter().flatten() {
                 let ok = game
+                    .economy()
                     .city_at(pos)
-                    .is_some_and(|c| game.city_owner(c) == Some(p.id));
+                    .is_some_and(|c| game.economy().city_owner(c) == Some(p.id));
                 if !ok {
                     return Err(LoadError::Inconsistent(format!(
                         "player {} has a fortress or summoning circle where they have no city",

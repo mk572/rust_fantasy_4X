@@ -84,10 +84,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         ai.campaign()
                     );
                 }
-                for (c, city, _) in game.cities() {
-                    let prod = game.city_production(c);
+                for (c, city, _) in game.economy().cities() {
+                    let prod = game.economy().city_production(c);
                     let item = prod.item.map(|i| f4x_console::describe::item(&game, i));
-                    let eco = game.city_economy(c);
+                    let eco = game.economy().city_economy(c);
                     println!(
                         "  [t{}] {} (p{}): {:?} {}/{} eco {:?}",
                         game.turn,
@@ -95,7 +95,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                         city.owner.0,
                         item,
                         prod.progress,
-                        prod.item.map_or(0, |i| game.item_cost(c, i)),
+                        prod.item.map_or(0, |i| game.economy().item_cost(c, i)),
                         eco.map(|e| (e.figures, e.farmers, e.production, e.food))
                     );
                 }
@@ -152,11 +152,12 @@ fn status(game: &Game) -> String {
         .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {
             let cities = game
+                .economy()
                 .cities()
                 .iter()
                 .filter(|(_, c, _)| c.owner == p.id)
                 .count();
-            let units = game.player_units(p.id).len();
+            let units = game.units().player_units(p.id).len();
             let tag = if p.defeated { " (defeated)" } else { "" };
             format!("p{} {cities}c/{units}u/{}g{tag}", p.id.0, p.gold)
         })

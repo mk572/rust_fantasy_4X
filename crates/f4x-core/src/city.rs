@@ -151,8 +151,8 @@ mod tests {
         let pos = at(Plane::Arcanus, 3, 3);
         let events = found(&mut g, pos);
         assert!(matches!(events[..], [Event::CityFounded { pos: p, .. }] if p == pos));
-        assert!(g.city_at(pos).is_some());
-        assert_eq!(g.cities().len(), 1);
+        assert!(g.economy().city_at(pos).is_some());
+        assert_eq!(g.economy().cities().len(), 1);
     }
 
     #[test]
@@ -179,7 +179,7 @@ mod tests {
             rejected(found(&mut g, at(a, 99, 3))),
             FoundCityError::OutOfBounds
         );
-        assert_eq!(g.cities().len(), 0);
+        assert_eq!(g.economy().cities().len(), 0);
     }
 
     #[test]

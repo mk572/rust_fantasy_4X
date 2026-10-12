@@ -184,6 +184,7 @@ impl Game {
     fn unused_city_name(&self, race: RaceId) -> String {
         let def = self.content.rules.races.get(race);
         let used: Vec<String> = self
+            .economy()
             .cities()
             .into_iter()
             .map(|(_, c, _)| c.name.clone())
@@ -321,7 +322,7 @@ impl Game {
             }
         }
         self.balance_taxes(owner);
-        let farmers = self.city_min_farmers(city);
+        let farmers = self.economy().city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
         let item = self.vizier_choice(city, owner);
         let _ = self.world.insert_one(
@@ -358,7 +359,12 @@ impl Game {
                 && def.cost > 0
                 && def.movement != crate::rules::MovementType::Sailing
                 && !def.abilities.iter().any(|a| a == "create_outpost");
-            if !plain || self.can_build(city, ProductionItem::Unit(id)).is_err() {
+            if !plain
+                || self
+                    .economy()
+                    .can_build(city, ProductionItem::Unit(id))
+                    .is_err()
+            {
                 continue;
             }
             let shoots = def

@@ -87,6 +87,7 @@ impl Game {
             .filter(|g| g.kind == EndKind::SpellOfMastery)
             .map(|g| g.winner);
         let townsfolk: u32 = self
+            .economy()
             .cities()
             .iter()
             .filter(|(_, c, _)| c.owner == player)
@@ -170,16 +171,16 @@ impl Game {
     pub(crate) fn aftermath(&mut self, loser: PlayerId, winner: PlayerId) {
         // A defeated wizard has no city left, so none of their units is garrisoned: they are
         // all dismissed (the original turns garrisoned normal units neutral first).
-        for u in self.player_units(loser) {
+        for u in self.units().player_units(loser) {
             let _ = self.world.despawn(u);
         }
         // Their enchantments on other wizards' cities and units.
-        for (city, ..) in self.cities() {
+        for (city, ..) in self.economy().cities() {
             if let Ok(mut list) = self.world.get::<&mut crate::economy::Enchantments>(city) {
                 list.0.retain(|&(_, caster)| caster != loser);
             }
         }
-        for u in self.all_units() {
+        for u in self.units().all_units() {
             if let Ok(mut list) = self.world.get::<&mut crate::units::UnitEnchantments>(u) {
                 list.0.retain(|&(_, caster)| caster != loser);
             }

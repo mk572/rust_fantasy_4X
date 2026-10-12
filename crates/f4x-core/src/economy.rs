@@ -666,59 +666,6 @@ impl Game {
     pub fn economy(&self) -> Economy<'_> {
         Economy::new(&self.world, self.map.as_ref(), &self.content, &self.players)
     }
-
-    /// Tiles a city at `at` works, with whether another city works each too.
-    pub fn city_area(&self, at: Position) -> Vec<(Position, bool)> {
-        self.economy().city_area(at)
-    }
-
-    /// Modifiers from the city's race, buildings and enchantments.
-    pub fn city_modifiers(&self, city: hecs::Entity) -> Vec<Modifier> {
-        self.economy().city_modifiers(city)
-    }
-
-    pub fn city_has_building(&self, city: hecs::Entity, building: &str) -> bool {
-        self.economy().city_has_building(city, building)
-    }
-
-    /// What a city at `at` could grow to on its land alone.
-    pub(crate) fn site_max_size(&self, at: Position) -> u32 {
-        self.economy().site_max_size(at)
-    }
-
-    /// Citizens needed on farms so the city feeds itself (all of them if it cannot).
-    pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
-        self.economy().city_min_farmers(city)
-    }
-
-    pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
-        self.economy().city_economy(city)
-    }
-
-    /// Compute the city's yields as if `farmers` citizens farmed.
-    pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
-        self.economy().city_economy_with(city, farmers)
-    }
-
-    /// Gold the buildings of a city cost to maintain (replaced buildings are free).
-    pub fn city_building_upkeep(&self, city: hecs::Entity) -> u32 {
-        self.economy().city_building_upkeep(city)
-    }
-
-    /// The player owning a city.
-    pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
-        self.economy().city_owner(city)
-    }
-
-    /// The units on a square that could be a garrison (used by display code).
-    pub fn garrison(&self, at: Position) -> Vec<hecs::Entity> {
-        self.economy().garrison(at)
-    }
-
-    /// Whether `plane` has any city (used by tests and the client).
-    pub fn has_cities_on(&self, plane: Plane) -> bool {
-        self.economy().has_cities_on(plane)
-    }
 }
 
 /// Population change for a turn, in tens of people (negative when starving or over the limit).

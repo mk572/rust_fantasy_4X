@@ -123,14 +123,14 @@ pub fn parse_player(text: &str) -> Result<PlayerId, ConsoleError> {
 pub fn unit_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
     game.units()
         .entity_of_serial(Serial(serial))
-        .filter(|&e| game.unit_position(e).is_some())
+        .filter(|&e| game.units().unit_position(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("unit {serial}")))
 }
 
 pub fn city_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
     game.units()
         .entity_of_serial(Serial(serial))
-        .filter(|&e| game.city_owner(e).is_some())
+        .filter(|&e| game.economy().city_owner(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("city {serial}")))
 }
 
@@ -139,7 +139,7 @@ pub fn city_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleE
 pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, ConsoleError> {
     if let Some(at) = text.strip_prefix('@') {
         let pos = parse_pos(at, Plane::Arcanus)?;
-        let mut units = game.units_at(pos);
+        let mut units = game.units().units_at(pos);
         game.sort_by_serial(&mut units);
         if units.is_empty() {
             return Err(ConsoleError::NoSuch(format!("units at {at}")));

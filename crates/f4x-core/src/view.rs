@@ -138,19 +138,21 @@ impl WorldView for Game {
     }
 
     fn units_of(&self, player: PlayerId) -> Vec<UnitInfo> {
-        self.player_units(player)
+        self.units()
+            .player_units(player)
             .into_iter()
             .filter_map(|u| {
                 Some(UnitInfo {
-                    pos: self.unit_position(u)?,
-                    cost: self.unit_def(u)?.cost,
+                    pos: self.units().unit_position(u)?,
+                    cost: self.units().unit_def(u)?.cost,
                 })
             })
             .collect()
     }
 
     fn city_count(&self, player: PlayerId) -> usize {
-        self.cities()
+        self.economy()
+            .cities()
             .iter()
             .filter(|(_, c, _)| c.owner == player)
             .count()
@@ -161,7 +163,7 @@ impl Game {
     /// The cities and visible units of other players on the squares `keep` accepts.
     fn sightings_where(&self, viewer: PlayerId, keep: impl Fn(Position) -> bool) -> Vec<Sighting> {
         let mut out = Vec::new();
-        for (_, city, pos) in self.cities() {
+        for (_, city, pos) in self.economy().cities() {
             if city.owner != viewer && keep(pos) {
                 out.push(Sighting {
                     owner: city.owner,
@@ -169,8 +171,11 @@ impl Game {
                 });
             }
         }
-        for unit in self.all_units() {
-            let (Some(owner), Some(pos)) = (self.unit_owner(unit), self.unit_position(unit)) else {
+        for unit in self.units().all_units() {
+            let (Some(owner), Some(pos)) = (
+                self.units().unit_owner(unit),
+                self.units().unit_position(unit),
+            ) else {
                 continue;
             };
             if owner != viewer && keep(pos) && self.economy().unit_visible_to(unit, viewer) {
@@ -292,7 +297,7 @@ mod tests {
         g.spawn_unit(P1, at(11, 10), walker);
         g.spawn_unit(P2, at(25, 15), walker);
         let mine = g.spawn_unit(P0, at(10, 10), walker);
-        let cost = g.unit_def(mine).unwrap().cost;
+        let cost = g.units().unit_def(mine).unwrap().cost;
         // Within two squares of (10, 10), whether or not it is in sight.
         let around = g.foreign_sightings_near(P0, at(10, 10), 2);
         assert_eq!(

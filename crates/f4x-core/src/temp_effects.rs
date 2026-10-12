@@ -227,30 +227,6 @@ impl<'a> Units<'a> {
 }
 
 impl Game {
-    pub fn temp_effects(&self, e: hecs::Entity) -> Vec<TempEffect> {
-        self.units().temp_effects(e)
-    }
-
-    pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<String> {
-        self.units().unit_abilities(unit)
-    }
-
-    pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_has_magical_weapon(unit)
-    }
-
-    pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
-        self.units().unit_enchantment_ids(unit)
-    }
-
-    pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
-        self.units().unit_resistance_against(unit, realm)
-    }
-
-    pub fn unit_protected_from(&self, unit: hecs::Entity, realm: Option<Realm>) -> bool {
-        self.units().unit_protected_from(unit, realm)
-    }
-
     /// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
     pub fn add_temp_modifier(&mut self, who: Target, m: Modifier, turns: Option<u16>) {
         add_modifier(&mut self.world, who, m, turns);
@@ -312,53 +288,53 @@ mod tests {
     fn a_modifier_changes_the_stat_until_it_runs_out() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        let base = g.unit_stat(u, Stat::Melee);
+        let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(2));
-        assert_eq!(g.unit_stat(u, Stat::Melee), base + 3);
+        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
         g.tick_temp_effects();
-        assert_eq!(g.unit_stat(u, Stat::Melee), base + 3);
+        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
         g.tick_temp_effects();
-        assert_eq!(g.unit_stat(u, Stat::Melee), base);
-        assert!(g.temp_effects(u).is_empty());
+        assert_eq!(g.units().unit_stat(u, Stat::Melee), base);
+        assert!(g.units().temp_effects(u).is_empty());
     }
 
     #[test]
     fn an_untimed_effect_stays() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        let base = g.unit_stat(u, Stat::Melee);
+        let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 1), None);
         for _ in 0..50 {
             g.tick_temp_effects();
         }
-        assert_eq!(g.unit_stat(u, Stat::Melee), base + 1);
+        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 1);
     }
 
     #[test]
     fn a_granted_ability_counts_and_brings_its_modifiers() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        let base = g.unit_stat(u, Stat::Defense);
-        assert!(!g.unit_has_ability(u, "tough"));
+        let base = g.units().unit_stat(u, Stat::Defense);
+        assert!(!g.units().unit_has_ability(u, "tough"));
         g.grant_temp_ability(Target::Unit(u), "tough", Some(1));
-        assert!(g.unit_has_ability(u, "tough"));
-        assert_eq!(g.unit_stat(u, Stat::Defense), base + 2);
+        assert!(g.units().unit_has_ability(u, "tough"));
+        assert_eq!(g.units().unit_stat(u, Stat::Defense), base + 2);
         g.tick_temp_effects();
-        assert!(!g.unit_has_ability(u, "tough"));
-        assert_eq!(g.unit_stat(u, Stat::Defense), base);
+        assert!(!g.units().unit_has_ability(u, "tough"));
+        assert_eq!(g.units().unit_stat(u, Stat::Defense), base);
     }
 
     #[test]
     fn a_removed_ability_is_gone_with_its_modifiers() {
         let mut g = world();
         let u = unit(&mut g, "hardy");
-        let base = g.unit_stat(u, Stat::Defense);
+        let base = g.units().unit_stat(u, Stat::Defense);
         g.remove_temp_ability(Target::Unit(u), "tough", None);
-        assert!(!g.unit_has_ability(u, "tough"));
-        assert_eq!(g.unit_stat(u, Stat::Defense), base - 2);
+        assert!(!g.units().unit_has_ability(u, "tough"));
+        assert_eq!(g.units().unit_stat(u, Stat::Defense), base - 2);
         g.grant_temp_ability(Target::Unit(u), "tough", None);
-        assert!(g.unit_has_ability(u, "tough"), "a later grant wins");
-        assert_eq!(g.unit_stat(u, Stat::Defense), base);
+        assert!(g.units().unit_has_ability(u, "tough"), "a later grant wins");
+        assert_eq!(g.units().unit_stat(u, Stat::Defense), base);
     }
 
     #[test]
@@ -367,8 +343,9 @@ mod tests {
         let city = g.world.spawn((crate::serial::Serial(900),));
         g.add_temp_modifier(Target::City(city), plus(Stat::CityGold, 4), Some(3));
         g.grant_temp_ability(Target::City(city), "flying", None);
-        assert_eq!(g.temp_effects(city).len(), 1);
+        assert_eq!(g.units().temp_effects(city).len(), 1);
         assert!(g
+            .economy()
             .city_modifiers(city)
             .iter()
             .any(|m| m.stat == Stat::CityGold && m.value == 4));
@@ -383,9 +360,9 @@ mod tests {
         let snap = g.snapshot();
         let back = snap.clone().restore(g.content.clone()).unwrap();
         assert_eq!(back.snapshot(), snap);
-        let u = back.units_at(AT)[0];
-        assert_eq!(back.temp_effects(u).len(), 2);
-        assert!(back.unit_has_ability(u, "flying"));
+        let u = back.units().units_at(AT)[0];
+        assert_eq!(back.units().temp_effects(u).len(), 2);
+        assert!(back.units().unit_has_ability(u, "flying"));
     }
 
     #[test]
@@ -393,17 +370,17 @@ mod tests {
         use crate::rules::exec::EffectHost;
         let mut g = world();
         let u = unit(&mut g, "spear");
-        let melee = g.unit_stat(u, Stat::Melee);
+        let melee = g.units().unit_stat(u, Stat::Melee);
         let mut host = crate::cast::tests_support::host(&mut g);
         host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
         host.grant_ability(Target::Unit(u), "flying");
         drop(host);
-        assert_eq!(g.unit_stat(u, Stat::Melee), melee + 2);
-        assert!(g.unit_has_ability(u, "flying"));
+        assert_eq!(g.units().unit_stat(u, Stat::Melee), melee + 2);
+        assert!(g.units().unit_has_ability(u, "flying"));
         let mut host = crate::cast::tests_support::host(&mut g);
         host.remove_ability(Target::Unit(u), "flying");
         drop(host);
-        assert!(!g.unit_has_ability(u, "flying"));
+        assert!(!g.units().unit_has_ability(u, "flying"));
     }
 
     fn enchant(g: &mut Game, u: hecs::Entity, spell: &str) {
@@ -415,28 +392,58 @@ mod tests {
     fn a_lasting_spell_can_grant_an_ability() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        assert!(!g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+        assert!(!g
+            .units()
+            .unit_abilities(u)
+            .iter()
+            .any(|a| a == "magic_immunity"));
         enchant(&mut g, u, "magic_immunity");
-        assert!(g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+        assert!(g
+            .units()
+            .unit_abilities(u)
+            .iter()
+            .any(|a| a == "magic_immunity"));
         // A temporary removal still takes it away again.
         g.remove_temp_ability(Target::Unit(u), "magic_immunity", None);
-        assert!(!g.unit_abilities(u).iter().any(|a| a == "magic_immunity"));
+        assert!(!g
+            .units()
+            .unit_abilities(u)
+            .iter()
+            .any(|a| a == "magic_immunity"));
     }
 
     #[test]
     fn resistance_against_a_realm_counts_immunity_and_enchantments() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        let base = g.unit_stat(u, Stat::Resistance);
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base);
+        let base = g.units().unit_stat(u, Stat::Resistance);
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Chaos)),
+            base
+        );
         enchant(&mut g, u, "resist_elements");
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base + 3);
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Nature)), base + 3);
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Life)), base);
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Chaos)),
+            base + 3
+        );
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Nature)),
+            base + 3
+        );
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Life)),
+            base
+        );
         enchant(&mut g, u, "magic_immunity");
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Life)), base + 30);
-        assert_eq!(g.unit_resistance_against(u, Some(Realm::Chaos)), base + 33);
-        assert_eq!(g.unit_resistance_against(u, None), base);
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Life)),
+            base + 30
+        );
+        assert_eq!(
+            g.units().unit_resistance_against(u, Some(Realm::Chaos)),
+            base + 33
+        );
+        assert_eq!(g.units().unit_resistance_against(u, None), base);
     }
 
     #[test]
@@ -444,30 +451,30 @@ mod tests {
         let mut g = world();
         let u = unit(&mut g, "spear");
         for realm in [Realm::Chaos, Realm::Death, Realm::Nature] {
-            assert!(!g.unit_protected_from(u, Some(realm)));
+            assert!(!g.units().unit_protected_from(u, Some(realm)));
         }
         enchant(&mut g, u, "righteousness");
-        assert!(g.unit_protected_from(u, Some(Realm::Chaos)));
-        assert!(g.unit_protected_from(u, Some(Realm::Death)));
-        assert!(!g.unit_protected_from(u, Some(Realm::Nature)));
-        assert!(!g.unit_protected_from(u, None));
+        assert!(g.units().unit_protected_from(u, Some(Realm::Chaos)));
+        assert!(g.units().unit_protected_from(u, Some(Realm::Death)));
+        assert!(!g.units().unit_protected_from(u, Some(Realm::Nature)));
+        assert!(!g.units().unit_protected_from(u, None));
     }
 
     #[test]
     fn heroes_fantastic_creatures_and_flaming_blades_have_magical_weapons() {
         let mut g = world();
         let u = unit(&mut g, "spear");
-        assert!(!g.unit_has_magical_weapon(u));
+        assert!(!g.units().unit_has_magical_weapon(u));
         enchant(&mut g, u, "flame_blade");
-        assert!(g.unit_has_magical_weapon(u));
+        assert!(g.units().unit_has_magical_weapon(u));
         let trained = unit(&mut g, "spear");
-        assert!(!g.unit_has_magical_weapon(trained));
+        assert!(!g.units().unit_has_magical_weapon(trained));
         let _ = g.world.insert_one(
             trained,
             crate::units::WeaponQuality(crate::units::WEAPON_MAGIC),
         );
         assert!(
-            g.unit_has_magical_weapon(trained),
+            g.units().unit_has_magical_weapon(trained),
             "magic weapons are magical"
         );
         let kinds = [UnitKind::Hero, UnitKind::Fantastic, UnitKind::Summoned];
@@ -479,7 +486,7 @@ mod tests {
             defs.push(def);
             g.content.rules.units = crate::rules::Registry::new(defs);
             let w = unit(&mut g, &format!("special{i}"));
-            assert!(g.unit_has_magical_weapon(w), "{kind:?}");
+            assert!(g.units().unit_has_magical_weapon(w), "{kind:?}");
         }
     }
 }

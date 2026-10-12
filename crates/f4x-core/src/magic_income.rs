@@ -100,10 +100,11 @@ impl IncomeView for GameIncome<'_> {
 
     fn city_yield(&self, player: PlayerId) -> (i32, i32) {
         self.0
+            .economy()
             .cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(e, ..)| self.0.city_economy(e))
+            .filter_map(|(e, ..)| self.0.economy().city_economy(e))
             .fold((0, 0), |(mana, research), eco| {
                 (mana + eco.mana, research + eco.research)
             })

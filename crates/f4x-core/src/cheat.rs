@@ -29,7 +29,7 @@ impl Game {
 
     /// Heal a unit completely and give it all its moves back.
     pub fn cheat_restore_unit(&mut self, unit: hecs::Entity) {
-        let moves = self.unit_max_moves(unit);
+        let moves = self.units().unit_max_moves(unit);
         let _ = self.world.insert_one(unit, crate::units::Hurt(0));
         let _ = self.world.insert_one(unit, crate::units::MovesLeft(moves));
     }
@@ -74,7 +74,7 @@ impl Game {
 
     /// Give a city a building at no cost and without its requirements.
     pub fn cheat_add_building(&mut self, city: hecs::Entity, building: BuildingId) -> bool {
-        if self.city_owner(city).is_none() {
+        if self.economy().city_owner(city).is_none() {
             return false;
         }
         let mut list = self
@@ -123,7 +123,7 @@ impl Game {
         if self.player(player).is_none_or(|p| p.defeated) {
             return Vec::new();
         }
-        for (city, c, _) in self.cities() {
+        for (city, c, _) in self.economy().cities() {
             if c.owner == player {
                 if let Ok(mut c) = self.world.get::<&mut crate::city::City>(city) {
                     c.owner = NEUTRAL;

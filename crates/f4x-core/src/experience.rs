@@ -252,23 +252,23 @@ mod tests {
         let mut g = world();
         let unit = spawn(&mut g, "walker", at(3, 3));
         set_xp(&mut g, unit, 120);
-        assert_eq!(g.unit_level(unit), 3, "experience stops at elite");
-        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 3);
+        assert_eq!(g.units().unit_level(unit), 3, "experience stops at elite");
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 3);
         g.player_mut(P0)
             .unwrap()
             .magic
             .retorts
             .insert(Retort::Warlord);
-        assert_eq!(g.unit_level(unit), 4, "warlord: ultra-elite");
-        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 4);
+        assert_eq!(g.units().unit_level(unit), 4, "warlord: ultra-elite");
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 4);
         enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
-        assert_eq!(g.unit_level(unit), 5, "both: champion");
-        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 5);
+        assert_eq!(g.units().unit_level(unit), 5, "both: champion");
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 5);
         // A recruit gets the two levels too, and nothing lifts anyone past champion.
         let recruit = spawn(&mut g, "walker", at(4, 3));
-        assert_eq!(g.unit_level(recruit), 2);
+        assert_eq!(g.units().unit_level(recruit), 2);
         set_xp(&mut g, recruit, 1000);
-        assert_eq!(g.unit_level(recruit), 5);
+        assert_eq!(g.units().unit_level(recruit), 5);
     }
 
     #[test]
@@ -279,15 +279,15 @@ mod tests {
         let undead = spawn(&mut g, "walker", at(5, 3));
         g.make_undead(undead);
         enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
-        assert_eq!(g.unit_level(normal), 1);
-        assert_eq!(g.unit_level(undead), 0, "not for the undead");
-        assert_eq!(g.unit_level(creature), 0, "nor for creatures");
+        assert_eq!(g.units().unit_level(normal), 1);
+        assert_eq!(g.units().unit_level(undead), 0, "not for the undead");
+        assert_eq!(g.units().unit_level(creature), 0, "nor for creatures");
         g.player_mut(P0)
             .unwrap()
             .magic
             .retorts
             .insert(Retort::Warlord);
-        assert_eq!(g.unit_level(undead), 1, "warlord is for every unit");
+        assert_eq!(g.units().unit_level(undead), 1, "warlord is for every unit");
     }
 
     #[test]
@@ -295,26 +295,26 @@ mod tests {
         let mut g = world();
         let unit = spawn(&mut g, "walker", at(3, 3));
         enchant(&mut g, "heroism", crate::rules::exec::Target::Unit(unit));
-        assert!(g.unit_has_heroism(unit));
-        assert_eq!(g.unit_level(unit), 3);
-        assert_eq!(g.unit_stat(unit, Stat::Melee), 3 + 3);
+        assert!(g.units().unit_has_heroism(unit));
+        assert_eq!(g.units().unit_level(unit), 3);
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 3);
         // Warlord goes on top of the floor.
         g.player_mut(P0)
             .unwrap()
             .magic
             .retorts
             .insert(Retort::Warlord);
-        assert_eq!(g.unit_level(unit), 4);
+        assert_eq!(g.units().unit_level(unit), 4);
         g.player_mut(P0).unwrap().magic.retorts.clear();
         // Enough experience for a veteran: the spell stays.
         set_xp(&mut g, unit, 60);
         g.process_experience();
-        assert!(g.unit_has_heroism(unit));
+        assert!(g.units().unit_has_heroism(unit));
         // An elite by experience no longer needs it.
         set_xp(&mut g, unit, 120);
         g.process_experience();
-        assert!(!g.unit_has_heroism(unit));
-        assert_eq!(g.unit_level(unit), 3);
+        assert!(!g.units().unit_has_heroism(unit));
+        assert_eq!(g.units().unit_level(unit), 3);
     }
 
     #[test]

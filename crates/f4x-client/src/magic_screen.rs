@@ -343,7 +343,7 @@ impl App {
             .game
             .player(HUMAN)
             .and_then(|p| p.summon_at)
-            .and_then(|at| self.game.city_at(at))
+            .and_then(|at| self.game.economy().city_at(at))
             .map_or("None".to_string(), |c| self.city_name(c));
         let rows = [
             (

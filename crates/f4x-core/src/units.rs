@@ -352,86 +352,10 @@ pub(crate) fn spawn(
 }
 
 impl Game {
-    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        self.units().unit_food_upkeep(unit)
-    }
-
-    pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> i32 {
-        self.units().unit_gold_upkeep(unit)
-    }
-
-    pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        self.units().player_units(player)
-    }
-
-    pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
-        self.units().is_garrison(unit)
-    }
-
     /// The unit rules' view of the game: the world, the content and the players. The methods
     /// below with the old names ask it.
     pub fn units(&self) -> Units<'_> {
         Units::new(&self.world, &self.content, &self.players)
-    }
-
-    pub fn unit_def(&self, unit: hecs::Entity) -> Option<&UnitDef> {
-        self.units().unit_def(unit)
-    }
-
-    pub fn unit_weapon_quality(&self, unit: hecs::Entity) -> u8 {
-        self.units().unit_weapon_quality(unit)
-    }
-
-    pub fn unit_owner(&self, unit: hecs::Entity) -> Option<PlayerId> {
-        self.units().unit_owner(unit)
-    }
-
-    pub fn unit_position(&self, unit: hecs::Entity) -> Option<Position> {
-        self.units().unit_position(unit)
-    }
-
-    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
-        self.units().unit_has_ability(unit, ability)
-    }
-
-    pub fn unit_xp_level(&self, unit: hecs::Entity) -> usize {
-        self.units().unit_xp_level(unit)
-    }
-
-    pub fn unit_has_heroism(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_has_heroism(unit)
-    }
-
-    pub fn unit_level(&self, unit: hecs::Entity) -> usize {
-        self.units().unit_level(unit)
-    }
-
-    pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
-        self.units().unit_modifiers(unit)
-    }
-
-    pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
-        self.units().unit_stat(unit, stat)
-    }
-
-    pub fn unit_max_moves(&self, unit: hecs::Entity) -> u32 {
-        self.units().unit_max_moves(unit)
-    }
-
-    pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
-        self.units().unit_moves_left(unit)
-    }
-
-    pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
-        self.units().unit_hits(unit)
-    }
-
-    pub fn units_at(&self, pos: Position) -> Vec<hecs::Entity> {
-        self.units().units_at(pos)
-    }
-
-    pub fn all_units(&self) -> Vec<hecs::Entity> {
-        self.units().all_units()
     }
 
     /// Create a unit with full moves and health, and let its owner see around it.
@@ -446,7 +370,7 @@ impl Game {
             pos,
             unit,
         );
-        let sight = self.unit_stat(e, Stat::Sight).max(1) as u32;
+        let sight = self.units().unit_stat(e, Stat::Sight).max(1) as u32;
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
         }

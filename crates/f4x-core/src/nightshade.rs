@@ -51,7 +51,7 @@ impl Game {
         let allowed = NIGHTSHADE_BUILDINGS
             .iter()
             .filter_map(|b| rules.buildings.id_of(b))
-            .any(|b| self.has_building(city, b));
+            .any(|b| self.economy().has_building(city, b));
         let Some(plant) = self.content.features.id_of("nightshade") else {
             return 0;
         };
@@ -59,7 +59,8 @@ impl Game {
             return 0;
         }
         let grid = map.plane(at.plane);
-        self.city_area(at)
+        self.economy()
+            .city_area(at)
             .iter()
             .filter(|(p, _)| grid.feature(p.x as i32, p.y as i32) == Some(plant))
             .count() as u32
@@ -75,7 +76,7 @@ impl Game {
         city: hecs::Entity,
     ) -> bool {
         let def = self.content.rules.spells.get(spell);
-        if def.target != SpellTarget::EnemyCity || self.city_owner(city) == Some(player) {
+        if def.target != SpellTarget::EnemyCity || self.economy().city_owner(city) == Some(player) {
             return false;
         }
         let strength = self.nightshade_count(city) * STRENGTH_PER_PLANT;
@@ -151,7 +152,7 @@ mod tests {
             race,
             population: 4,
         });
-        let city = game.city_at(at(10, 6)).unwrap();
+        let city = game.economy().city_at(at(10, 6)).unwrap();
         let spell = game.content.rules.spells.id_of("famine").unwrap();
         (game, city, spell)
     }

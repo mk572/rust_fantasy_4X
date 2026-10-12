@@ -34,11 +34,12 @@ impl Game {
         units: &[hecs::Entity],
         to: Position,
     ) -> Result<(), MoveError> {
-        let (from, owner) = self.check_stack(units)?;
-        if self
-            .city_at(to)
-            .is_some_and(|c| units.iter().any(|&u| self.ward_bars_creature(c, u)))
-        {
+        let (from, owner) = self.economy().check_stack(units)?;
+        if self.economy().city_at(to).is_some_and(|c| {
+            units
+                .iter()
+                .any(|&u| self.economy().ward_bars_creature(c, u))
+        }) {
             return Err(MoveError::Warded);
         }
         if from == to
@@ -48,10 +49,10 @@ impl Game {
         {
             return Err(MoveError::NoGate);
         }
-        if units.iter().any(|&u| self.unit_moves_left(u) == 0) {
+        if units.iter().any(|&u| self.units().unit_moves_left(u) == 0) {
             return Err(MoveError::NoMovesLeft);
         }
-        if self.units_at(to).len() + units.len() > MAX_STACK {
+        if self.units().units_at(to).len() + units.len() > MAX_STACK {
             return Err(MoveError::StackFull);
         }
         Ok(())
@@ -64,9 +65,9 @@ impl Game {
         to: Position,
     ) -> Result<Vec<Event>, MoveError> {
         self.can_use_earth_gate(units, to)?;
-        let (from, owner) = self.check_stack(units)?;
+        let (from, owner) = self.economy().check_stack(units)?;
         for &u in units {
-            let left = self.unit_moves_left(u).saturating_sub(FULL_MOVE);
+            let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
         }
@@ -151,8 +152,8 @@ mod tests {
             matches!(events[..], [Event::UnitsMoved { .. }]),
             "{events:?}"
         );
-        assert_eq!(g.unit_position(w), Some(b));
-        assert_eq!(g.unit_moves_left(w), 2, "costs one move of two");
+        assert_eq!(g.units().unit_position(w), Some(b));
+        assert_eq!(g.units().unit_moves_left(w), 2, "costs one move of two");
     }
 
     #[test]
@@ -237,9 +238,12 @@ mod tests {
         let guard = walker(&mut g, P1, at(Plane::Myrror, 1, 1));
         assert_eq!(g.shift_plane(&[w]), Err(MoveError::CannotShiftPlane));
         let _ = g.world.despawn(guard);
-        assert!(g.can_shift_plane(&[w]).is_ok());
+        assert!(g.economy().can_shift_plane(&[w]).is_ok());
         let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
         g.attach_enchantment(Target::Player(P1), seal, P1);
-        assert_eq!(g.can_shift_plane(&[w]), Err(MoveError::CannotShiftPlane));
+        assert_eq!(
+            g.economy().can_shift_plane(&[w]),
+            Err(MoveError::CannotShiftPlane)
+        );
     }
 }

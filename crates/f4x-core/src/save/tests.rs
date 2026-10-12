@@ -93,7 +93,7 @@ fn game() -> Game {
         to: at(22, 2),
     });
     let hall = g.content.rules.buildings.id_of("builders_hall").unwrap();
-    let home = g.city_at(at(10, 6)).unwrap();
+    let home = g.economy().city_at(at(10, 6)).unwrap();
     g.apply(Command::SetProduction {
         city: home,
         item: ProductionItem::Building(hall),
@@ -105,7 +105,8 @@ fn game() -> Game {
 }
 
 fn city_named(g: &Game, name: &str) -> hecs::Entity {
-    g.cities()
+    g.economy()
+        .cities()
         .into_iter()
         .find(|(_, c, _)| c.name == name)
         .unwrap()
@@ -130,8 +131,8 @@ fn restoring_gives_the_same_game() {
         .unwrap();
     assert_eq!(back.snapshot(), snap);
     assert_eq!(back.turn, g.turn);
-    assert_eq!(back.cities().len(), 3);
-    assert_eq!(back.all_units().len(), g.all_units().len());
+    assert_eq!(back.economy().cities().len(), 3);
+    assert_eq!(back.units().all_units().len(), g.units().all_units().len());
     assert_eq!(back.player(P0).unwrap().gold, g.player(P0).unwrap().gold);
     assert!(back.player(P0).unwrap().grand_vizier);
     // Details that are easy to lose: roads, features, exploration, orders, the outpost.
@@ -154,6 +155,7 @@ fn restoring_gives_the_same_game() {
         g.fog.explored_count(P0, Plane::Arcanus)
     );
     let walkers_with_orders = back
+        .units()
         .all_units()
         .into_iter()
         .filter(|&u| back.world.get::<&Order>(u).is_ok())
@@ -181,7 +183,7 @@ fn a_loaded_game_continues_exactly_like_the_original() {
     let mut original = game();
     // Make entity ids get reused: remove a unit, then create another.
     let spear = original.content.rules.units.id_of("spear").unwrap();
-    let victim = original.units_at(at(10, 6))[0];
+    let victim = original.units().units_at(at(10, 6))[0];
     original.world.despawn(victim).unwrap();
     original.spawn_unit(P0, at(11, 6), spear);
     let mut loaded = original
@@ -349,9 +351,9 @@ fn weapon_quality_survives_a_save() {
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
-    let again = back.units_at(at(11, 6)).into_iter().next().unwrap();
+    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
     assert_eq!(
-        back.unit_weapon_quality(again),
+        back.units().unit_weapon_quality(again),
         crate::units::WEAPON_MITHRIL
     );
 }
@@ -367,7 +369,7 @@ fn an_undead_unit_stays_undead_through_a_save() {
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
-    let again = back.units_at(at(11, 6)).into_iter().next().unwrap();
+    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
     assert!(back.units().unit_is_undead(again));
     assert_eq!(back.snapshot(), snap);
 }

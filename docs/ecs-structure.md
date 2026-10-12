@@ -129,8 +129,7 @@ which is the world over the map), the turn (`process_turn` only sequences the st
 transport (plans on `Economy`; the moves themselves stay on `Game` because they change the fog), the
 lairs (clearing and loot as functions over the map and the wizard's magic), conquest (the loss, the
 loot and the razing as plain functions), the fortress (its rules as functions over the player) and
-vision. The battle engine, the rules layer, the map and the fog already did. The old `impl Game`
-methods are still there as thin wrappers with the old names (`unit_stat`, `city_economy`,
-`plan_step`, ...) that make a handle and ask it; task 198 moves the callers over and deletes the
-wrappers, and only then do the per-file counts fall. Task 183's test reports the number of
-`impl Game` methods per file, as a guideline.
+vision. The battle engine, the rules layer, the map and the fog already did. The old thin
+`impl Game` wrappers (`unit_stat`, `city_economy`, `plan_step`, ...) are gone: callers ask
+`game.units()` or `game.economy()` (task 198). Task 183's test reports the number of `impl Game`
+methods per file, as a guideline.

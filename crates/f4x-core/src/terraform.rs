@@ -106,7 +106,7 @@ impl Game {
             player: owner,
             pos: at,
         });
-        if let Some(city) = self.city_at(at) {
+        if let Some(city) = self.economy().city_at(at) {
             let mut lost = 0;
             if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
                 let before = b.0.len();
@@ -256,7 +256,7 @@ mod tests {
             race: g.content.rules.races.id_of("elf"),
             population: 3,
         });
-        let city = g.city_at(at(8, 8)).unwrap();
+        let city = g.economy().city_at(at(8, 8)).unwrap();
         let ids: Vec<_> = (0..g.content.rules.buildings.defs().len().min(8))
             .map(|i| crate::rules::BuildingId::new(i as u16))
             .collect();

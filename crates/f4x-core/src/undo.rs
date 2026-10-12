@@ -187,14 +187,18 @@ mod tests {
     #[test]
     fn a_move_can_be_taken_back() {
         let (mut g, s) = world();
-        let moves_before = g.unit_moves_left(walker(&g, s));
+        let moves_before = g.units().unit_moves_left(walker(&g, s));
         step(&mut g, s, at(6, 5));
         assert_eq!(g.undo_label(), Some("MoveStack"));
-        assert_eq!(g.unit_position(walker(&g, s)), Some(at(6, 5)));
+        assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(6, 5)));
         assert_eq!(g.undo(), Ok("MoveStack".to_string()));
         let u = walker(&g, s);
-        assert_eq!(g.unit_position(u), Some(at(5, 5)));
-        assert_eq!(g.unit_moves_left(u), moves_before, "the moves are back too");
+        assert_eq!(g.units().unit_position(u), Some(at(5, 5)));
+        assert_eq!(
+            g.units().unit_moves_left(u),
+            moves_before,
+            "the moves are back too"
+        );
         assert!(!g.can_undo());
         assert!(g.undo_on, "undo stays on");
     }
@@ -215,9 +219,9 @@ mod tests {
             crate::player::START_TAX_RATE
         );
         g.undo().unwrap();
-        assert_eq!(g.unit_position(walker(&g, s)), Some(at(6, 5)));
+        assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(6, 5)));
         g.undo().unwrap();
-        assert_eq!(g.unit_position(walker(&g, s)), Some(at(5, 5)));
+        assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(5, 5)));
         assert_eq!(g.undo(), Err(UndoError::NothingToUndo));
     }
 
@@ -285,9 +289,13 @@ mod tests {
         assert_eq!(g.map.as_ref().unwrap().nodes()[0].owner, None);
         // Guard it again, then a rival tries: the one-in-four roll cannot be re-rolled.
         let guard = {
-            let ids: Vec<_> = g.all_units();
+            let ids: Vec<_> = g.units().all_units();
             ids.into_iter()
-                .find(|&u| g.unit_def(u).is_some_and(|d| d.id == "guardian_spirit"))
+                .find(|&u| {
+                    g.units()
+                        .unit_def(u)
+                        .is_some_and(|d| d.id == "guardian_spirit")
+                })
                 .unwrap()
         };
         g.apply(Command::Meld { units: vec![guard] });

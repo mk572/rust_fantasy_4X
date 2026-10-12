@@ -291,7 +291,7 @@ impl App {
                 );
             }
         }
-        for (_, city, at) in self.game.cities() {
+        for (_, city, at) in self.game.economy().cities() {
             if at.plane == self.plane && self.game.is_explored(HUMAN, at) {
                 let PlayerId(owner) = city.owner;
                 draw_rectangle(

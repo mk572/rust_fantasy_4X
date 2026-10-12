@@ -354,51 +354,10 @@ impl Economy<'_> {
 }
 
 impl Game {
-    pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
-        self.economy().stack_traits(units)
-    }
-
-    pub fn step_cost(
-        &self,
-        unit: hecs::Entity,
-        from: Position,
-        to: Position,
-        traits: StackTraits,
-    ) -> Result<u32, MoveError> {
-        self.economy().step_cost(unit, from, to, traits)
-    }
-
-    pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
-        self.economy().stack_flies(units)
-    }
-
-    pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
-        self.economy().hostile_at(pos, mover)
-    }
-
-    pub(crate) fn check_stack(
-        &self,
-        units: &[hecs::Entity],
-    ) -> Result<(Position, PlayerId), MoveError> {
-        self.economy().check_stack(units)
-    }
-
-    pub fn plan_step(
-        &self,
-        units: &[hecs::Entity],
-        to: Position,
-    ) -> Result<(Vec<u32>, Entry), MoveError> {
-        self.economy().plan_step(units, to)
-    }
-
-    pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
-        self.economy().can_shift_plane(units)
-    }
-
     /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
     /// square on both planes (the original's `Units_In_Tower`).
     pub(crate) fn claim_tower(&mut self, units: &[hecs::Entity], at: Position) {
-        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+        let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return;
         };
         if !self.economy().is_tower(at) || self.units().planar_seal_active() {
@@ -418,21 +377,21 @@ impl Game {
         if matches!(entry, Entry::Hostile(_) | Entry::Site(_)) {
             return Ok(entry);
         }
-        let owner = self.unit_owner(units[0]).expect("checked");
-        let from = self.unit_position(units[0]).expect("checked");
+        let owner = self.units().unit_owner(units[0]).expect("checked");
+        let from = self.units().unit_position(units[0]).expect("checked");
         for (&u, cost) in units.iter().zip(costs) {
-            let left = self.unit_moves_left(u).saturating_sub(cost);
+            let left = self.units().unit_moves_left(u).saturating_sub(cost);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
+            let sight = self.units().unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
             self.explore(owner, to, sight);
         }
         self.claim_tower(units, to);
         // Passengers follow a ship that sails on without them being selected.
         let mut carried: Vec<hecs::Entity> = Vec::new();
-        for &ship in units.iter().filter(|&&u| self.is_ship(u)) {
-            for p in self.passengers_of(ship) {
-                if !units.contains(&p) && self.unit_position(p) == Some(from) {
+        for &ship in units.iter().filter(|&&u| self.economy().is_ship(u)) {
+            for p in self.economy().passengers_of(ship) {
+                if !units.contains(&p) && self.units().unit_position(p) == Some(from) {
                     carried.push(p);
                 }
             }
@@ -457,18 +416,18 @@ impl Game {
     /// Move the stack to the same tile on the other plane, costing one full move.
     pub fn shift_plane(&mut self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
         let to = self.economy().can_shift_plane(units)?;
-        let (_, owner) = self.check_stack(units)?;
-        if self.hostile_at(to, owner).is_some() {
+        let (_, owner) = self.economy().check_stack(units)?;
+        if self.economy().hostile_at(to, owner).is_some() {
             return Err(MoveError::CannotShiftPlane);
         }
-        if self.units_at(to).len() + units.len() > MAX_STACK {
+        if self.units().units_at(to).len() + units.len() > MAX_STACK {
             return Err(MoveError::StackFull);
         }
         for &u in units {
-            let left = self.unit_moves_left(u).saturating_sub(FULL_MOVE);
+            let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
+            let sight = self.units().unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
             self.explore(owner, to, sight);
         }
         Ok(to)

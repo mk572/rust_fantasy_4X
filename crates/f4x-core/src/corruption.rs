@@ -63,11 +63,14 @@ impl Game {
     /// Order a stack with a purifying unit to cleanse the corrupted square it stands on.
     pub fn purify(&mut self, units: &[hecs::Entity]) -> Result<Vec<Event>, PurifyError> {
         let first = *units.first().ok_or(PurifyError::NoUnits)?;
-        let at = self.unit_position(first).ok_or(PurifyError::NoUnits)?;
+        let at = self
+            .units()
+            .unit_position(first)
+            .ok_or(PurifyError::NoUnits)?;
         let workers: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.unit_has_ability(u, "purify"))
+            .filter(|&u| self.units().unit_has_ability(u, "purify"))
             .collect();
         if workers.is_empty() {
             return Err(PurifyError::CannotPurify);
@@ -103,7 +106,7 @@ impl Game {
                 continue;
             };
             // Moved away, or someone else cleaned it already: the job is off.
-            if self.unit_position(u) != Some(work.at) || !self.is_corrupted(work.at) {
+            if self.units().unit_position(u) != Some(work.at) || !self.is_corrupted(work.at) {
                 let _ = self.world.remove_one::<PurifyWork>(u);
                 continue;
             }
@@ -127,14 +130,14 @@ impl Game {
     /// before the moves are refilled.
     pub(crate) fn process_land_corruption(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        for u in self.all_units() {
-            if !self.unit_has_ability(u, "land_corruption") {
+        for u in self.units().all_units() {
+            if !self.units().unit_has_ability(u, "land_corruption") {
                 continue;
             }
-            let Some(at) = self.unit_position(u) else {
+            let Some(at) = self.units().unit_position(u) else {
                 continue;
             };
-            if self.unit_moves_left(u) >= self.unit_max_moves(u) {
+            if self.units().unit_moves_left(u) >= self.units().unit_max_moves(u) {
                 events.extend(self.corrupt(at));
             }
         }
@@ -145,7 +148,12 @@ impl Game {
     /// hills (a tenth each) and its corrupted squares come clean (a fifth).
     pub(crate) fn process_gaias_blessing(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let mut cities: Vec<_> = self.cities().into_iter().map(|(e, ..)| e).collect();
+        let mut cities: Vec<_> = self
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(e, ..)| e)
+            .collect();
         self.sort_by_serial(&mut cities);
         for city in cities {
             let blessed = self
@@ -161,7 +169,12 @@ impl Game {
             let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
                 continue;
             };
-            let area: Vec<Position> = self.city_area(at).into_iter().map(|(p, _)| p).collect();
+            let area: Vec<Position> = self
+                .economy()
+                .city_area(at)
+                .into_iter()
+                .map(|(p, _)| p)
+                .collect();
             for p in area {
                 if self.is_corrupted(p) && self.roll(5) == 1 {
                     events.extend(self.purify_square(p));

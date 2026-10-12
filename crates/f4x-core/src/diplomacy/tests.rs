@@ -345,7 +345,7 @@ fn city(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
         race,
         population: 3,
     });
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 fn rejected(events: &[Event]) -> Option<DiplomacyError> {

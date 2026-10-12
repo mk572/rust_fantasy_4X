@@ -139,7 +139,7 @@ mod tests {
             race: None,
             population: 3,
         });
-        let city = g.city_at(at).unwrap();
+        let city = g.economy().city_at(at).unwrap();
         assert_eq!(g.economy().city_sight(city), 2);
         let seen = |g: &Game| {
             g.economy()

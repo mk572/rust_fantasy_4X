@@ -253,7 +253,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
         race,
         population: 3,
     });
-    let city = g.city_at(at(6, 6)).unwrap();
+    let city = g.economy().city_at(at(6, 6)).unwrap();
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(6, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(9, 9), spear);

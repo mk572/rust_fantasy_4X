@@ -64,10 +64,11 @@ impl Game {
                 continue;
             };
             if self
+                .units()
                 .unit_def(entity)
                 .is_some_and(|d| d.kind == UnitKind::Hero)
             {
-                out.loser_fame -= (self.unit_xp_level(entity) as i32 + 1) / 2;
+                out.loser_fame -= (self.units().unit_xp_level(entity) as i32 + 1) / 2;
             }
         }
         out

@@ -549,7 +549,10 @@ impl Game {
             return Err(SiteError::NoSite);
         }
         // The stack must be able to make the step (adjacent, moves left, and so on).
-        let (_, entry) = self.plan_step(units, to).map_err(SiteError::Move)?;
+        let (_, entry) = self
+            .economy()
+            .plan_step(units, to)
+            .map_err(SiteError::Move)?;
         if !matches!(entry, crate::movement::Entry::Site(i) if i == index) {
             return Err(SiteError::NoSite);
         }
@@ -583,7 +586,7 @@ impl Game {
 
     /// A stack that has just arrived on a square with an unguarded site takes the treasure.
     pub(crate) fn collect_site(&mut self, units: &[hecs::Entity], to: Position) -> Vec<Event> {
-        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+        let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return Vec::new();
         };
         match self.economy().lair_at(to) {
@@ -664,7 +667,7 @@ impl Game {
         // The guards were made for the fight and go with it. Other neutral units on the site
         // (the undead raised for the monsters) stay, as do guards the victors took as undead.
         for &u in guards {
-            if self.unit_owner(u) == Some(NEUTRAL) {
+            if self.units().unit_owner(u) == Some(NEUTRAL) {
                 let _ = self.world.despawn(u);
             }
         }
@@ -678,7 +681,7 @@ impl Game {
             .collect();
         let mut events = self.claim_lair(index, winner);
         if !survivors.is_empty() {
-            let from = self.unit_position(survivors[0]);
+            let from = self.units().unit_position(survivors[0]);
             if self.move_stack(&survivors, pos).is_ok() {
                 if let Some(from) = from {
                     events.push(Event::UnitsMoved {

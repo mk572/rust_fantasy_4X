@@ -144,6 +144,7 @@ fn legal_commands_check_ownership() {
     c.execute(&mut g, "mode legal");
     // The rival's unit is the newest one.
     let newest = g
+        .units()
         .all_units()
         .into_iter()
         .map(|u| g.serial_of(u).0)
@@ -411,7 +412,8 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
 }
 
 fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::city::Position)> {
-    g.cities()
+    g.economy()
+        .cities()
         .into_iter()
         .filter(|(_, c, _)| g.is_neutral_player(c.owner))
         .map(|(e, _, p)| (e, p))
@@ -460,18 +462,20 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
             .figures;
         assert!((2..=14).contains(&pop), "population {pop}");
         // Garrison: a quarter of the population, once for each of the two kinds.
-        let garrison = g.units_at(*p).len() as u32;
+        let garrison = g.units().units_at(*p).len() as u32;
         assert!(garrison <= 2 * (pop / 4), "{garrison} units for {pop}");
-        for u in g.units_at(*p) {
+        for u in g.units().units_at(*p) {
             assert_eq!(
-                g.unit_owner(u),
-                g.city_owner(*e),
+                g.units().unit_owner(u),
+                g.economy().city_owner(*e),
                 "the garrison is the city's own"
             );
         }
     }
     assert!(
-        cities.iter().any(|(_, p)| !g.units_at(*p).is_empty()),
+        cities
+            .iter()
+            .any(|(_, p)| !g.units().units_at(*p).is_empty()),
         "some city is garrisoned"
     );
 }
@@ -549,7 +553,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     let cities = neutral_cities(&g);
     let owners: std::collections::BTreeSet<_> = cities
         .iter()
-        .filter_map(|(e, _)| g.city_owner(*e))
+        .filter_map(|(e, _)| g.economy().city_owner(*e))
         .collect();
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
@@ -580,10 +584,10 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     let mut g = game();
     let (city, pos) = neutral_cities(&g)
         .into_iter()
-        .find(|(_, p)| g.units_at(*p).len() >= 2)
+        .find(|(_, p)| g.units().units_at(*p).len() >= 2)
         .expect("a garrisoned city");
-    let owner = g.city_owner(city).unwrap();
-    let units = g.units_at(pos).len();
+    let owner = g.economy().city_owner(city).unwrap();
+    let units = g.units().units_at(pos).len();
     // Buildings the city's taxes cannot carry, and an empty treasury.
     let all: Vec<_> = (0..g.content().rules.buildings.defs().len())
         .map(|i| g.content().rules.buildings.defs()[i].id.clone())
@@ -594,7 +598,10 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     }
     g.player_mut(owner).unwrap().gold = 0;
     g.apply(f4x_core::Command::EndTurn);
-    assert!(g.units_at(pos).len() < units, "{units} units stayed");
+    assert!(
+        g.units().units_at(pos).len() < units,
+        "{units} units stayed"
+    );
 }
 
 #[test]
@@ -602,14 +609,14 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
     let mut g = game();
     let wizards_before = wizards(&g);
     let (city, _) = neutral_cities(&g)[0];
-    let owner = g.city_owner(city).unwrap();
+    let owner = g.economy().city_owner(city).unwrap();
     let events = g.capture_city(city, PlayerId(0));
-    assert_eq!(g.city_owner(city), Some(PlayerId(0)));
+    assert_eq!(g.economy().city_owner(city), Some(PlayerId(0)));
     assert!(events
         .iter()
         .all(|e| matches!(e, f4x_core::Event::CityCaptured { .. })));
     assert!(g.player(owner).is_none(), "the city's player goes with it");
-    assert_eq!(g.player_units(owner).len(), 0);
+    assert_eq!(g.units().player_units(owner).len(), 0);
     // Even when the last one falls nobody is "defeated".
     for (c, _) in neutral_cities(&g) {
         assert!(g
@@ -686,15 +693,17 @@ fn a_world_has_the_originals_number_of_lairs() {
 
 /// The units, in the order they were made, of a player's starting army.
 fn start_army(g: &Game, p: PlayerId) -> Vec<String> {
-    g.player_units(p)
+    g.units()
+        .player_units(p)
         .iter()
-        .filter_map(|&u| g.unit_def(u).map(|d| d.name.clone()))
+        .filter_map(|&u| g.units().unit_def(u).map(|d| d.name.clone()))
         .collect()
 }
 
 /// A wizard's capital and what is in it.
 fn capital(g: &Game, p: PlayerId) -> (hecs::Entity, f4x_core::city::Position) {
-    g.cities()
+    g.economy()
+        .cities()
         .into_iter()
         .find(|(_, c, _)| c.owner == p)
         .map(|(e, _, at)| (e, at))
@@ -720,13 +729,16 @@ fn a_wizard_starts_as_in_the_original() {
             let mut army = start_army(&g, p);
             army.sort();
             assert_eq!(army, ["Spearmen", "Swordsmen"], "seed {seed} wizard {k}");
-            let eco = g.city_economy(city).unwrap();
+            let eco = g.economy().city_economy(city).unwrap();
             assert_eq!(
                 (eco.figures, eco.farmers, g.player(p).unwrap().tax_rate),
                 (4, 3, 2)
             );
             for b in ["smithy", "barracks", "builders_hall"] {
-                assert!(g.city_has_building(city, b), "seed {seed} wizard {k}: {b}");
+                assert!(
+                    g.economy().city_has_building(city, b),
+                    "seed {seed} wizard {k}: {b}"
+                );
             }
             // Land that feeds eight (seven for later wizards), so the farmers feed the army.
             assert!(
@@ -783,7 +795,7 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() {
     assert_eq!(at.plane, Plane::Myrror);
     // Dwarves have no spearmen: two swordsmen.
     assert_eq!(start_army(&g, HUMAN), ["Swordsmen", "Swordsmen"]);
-    assert!(g.city_economy(city).unwrap().max_size >= 7);
+    assert!(g.economy().city_economy(city).unwrap().max_size >= 7);
     // The rival is no Myrran and starts on Arcanus.
     assert_eq!(capital(&g, PlayerId(1)).1.plane, Plane::Arcanus);
     // Nobody picks an Arcanus race for a Myrran wizard.
@@ -811,8 +823,8 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
         unit: werewolves,
     });
     let events = g.apply(f4x_core::Command::BeginBattle {
-        attackers: g.player_units(HUMAN),
-        defenders: g.player_units(PlayerId(1)),
+        attackers: g.units().player_units(HUMAN),
+        defenders: g.units().player_units(PlayerId(1)),
     });
     assert!(
         !events
@@ -855,8 +867,8 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() {
         });
     }
     g.apply(f4x_core::Command::BeginBattle {
-        attackers: g.player_units(HUMAN),
-        defenders: g.player_units(PlayerId(1)),
+        attackers: g.units().player_units(HUMAN),
+        defenders: g.units().player_units(PlayerId(1)),
     });
     let battle = g.battle().unwrap();
     let special = |name: &str| {
@@ -916,12 +928,12 @@ fn neutral_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
 fn start_siege(g: &mut Game, city: hecs::Entity) {
     let at = *g.component::<f4x_core::city::Position>(city).unwrap();
     let from = f4x_core::city::Position { x: at.x + 1, ..at };
-    for u in g.player_units(HUMAN) {
+    for u in g.units().player_units(HUMAN) {
         g.cheat_move_unit(u, from);
     }
     let events = g.apply(f4x_core::Command::BeginBattle {
-        attackers: g.player_units(HUMAN),
-        defenders: g.units_at(at),
+        attackers: g.units().player_units(HUMAN),
+        defenders: g.units().units_at(at),
     });
     assert!(
         !events
@@ -966,6 +978,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     }
     // The rival's other cities share the gold out by citizens: the capital is all of theirs.
     let total: u32 = g
+        .economy()
         .cities()
         .iter()
         .filter(|(_, c, _)| c.owner == loser)
@@ -998,7 +1011,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     assert_eq!(g.player(loser).unwrap().fame, 2);
     assert_eq!(g.player(HUMAN).unwrap().fame, 6);
     // It is the taker's, with 50 percent as the most citizens lost and the rest alive.
-    assert_eq!(g.city_owner(city), Some(HUMAN));
+    assert_eq!(g.economy().city_owner(city), Some(HUMAN));
     let now = g
         .component::<f4x_core::economy::Population>(city)
         .unwrap()
@@ -1136,7 +1149,8 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
 
 /// The one city marked as just taken (found again after a save: entities change).
 fn conquered_city(g: &Game) -> hecs::Entity {
-    g.cities()
+    g.economy()
+        .cities()
         .into_iter()
         .map(|(e, ..)| e)
         .find(|&e| g.city_conquered(e))
@@ -1161,11 +1175,11 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
                 unit: giant,
             });
         }
-        for u in g.player_units(HUMAN) {
+        for u in g.units().player_units(HUMAN) {
             g.cheat_move_unit(u, from);
         }
-        let garrison = g.units_at(at);
-        let events = g.auto_resolve(&g.player_units(HUMAN), &garrison);
+        let garrison = g.units().units_at(at);
+        let events = g.auto_resolve(&g.units().player_units(HUMAN), &garrison);
         assert!(!g.in_battle(), "the siege ended");
         assert!(
             events
@@ -1173,7 +1187,7 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
                 .any(|e| matches!(e, f4x_core::Event::BattleEnded { .. })),
             "{events:?}"
         );
-        if g.city_owner(city) == Some(HUMAN) {
+        if g.economy().city_owner(city) == Some(HUMAN) {
             taken += 1;
             assert!(events
                 .iter()
@@ -1459,11 +1473,11 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     let (mut g, city) = siege_world(6, &[]);
     let rival = PlayerId(1);
     let at = *g.component::<f4x_core::city::Position>(city).unwrap();
-    let defender = g.units_at(at)[0];
+    let defender = g.units().units_at(at)[0];
     let spell = g.content().rules.spells.id_of("giant_strength").unwrap();
     let dispel = g.content().rules.spells.id_of("dispel_magic").unwrap();
     g.scenario_enchant_unit(defender, spell, rival);
-    let plain = g.unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
+    let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
     {
         let p = g.player_mut(HUMAN).unwrap();
         p.mana = 5000;
@@ -1569,7 +1583,7 @@ fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
     }
     assert!(cast(&mut g, "bflee").ok);
     assert!(!g.in_battle());
-    let (left, max) = g.unit_hits(entity);
+    let (left, max) = g.units().unit_hits(entity);
     assert!(left >= 1 && left <= max, "{left} of {max}");
 }
 
@@ -1970,9 +1984,10 @@ fn healing_does_not_work_on_a_death_creature() {
 fn the_undead_cheat_needs_override_and_makes_units_undead() {
     let (mut g, _) = siege_world(6, &[]);
     let unit = g
+        .units()
         .all_units()
         .into_iter()
-        .find(|&u| g.unit_owner(u) == Some(HUMAN))
+        .find(|&u| g.units().unit_owner(u) == Some(HUMAN))
         .unwrap();
     let serial = g.serial_of(unit).0;
     let mut play = Console::new(HUMAN, Access::Play);
@@ -2096,7 +2111,7 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
         ),
         "{r:?}"
     );
-    assert_eq!(g.unit_owner(drained_unit), Some(rival));
+    assert_eq!(g.units().unit_owner(drained_unit), Some(rival));
     assert!(g.units().unit_is_undead(drained_unit));
     assert!(g.entity_exists(drained_unit) && !g.entity_exists(slain_unit));
 }

@@ -43,17 +43,17 @@ impl Game {
     /// Returns `None` if there is no way there.
     pub fn find_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
         let first = *units.first()?;
-        let start = self.unit_position(first)?;
-        let owner = self.unit_owner(first)?;
+        let start = self.units().unit_position(first)?;
+        let owner = self.units().unit_owner(first)?;
         let width = self.map.as_ref()?.width();
         if start.plane != to.plane || start == to {
             return None;
         }
-        let flies = self.stack_traits(units);
+        let flies = self.economy().stack_traits(units);
         let step_cost = |from: Position, next: Position| -> Option<u32> {
             let mut worst = 0;
             for &u in units {
-                worst = worst.max(self.step_cost(u, from, next, flies).ok()?);
+                worst = worst.max(self.economy().step_cost(u, from, next, flies).ok()?);
             }
             Some(worst)
         };
@@ -91,7 +91,7 @@ impl Game {
                 continue;
             }
             for next in neighbours(self, here) {
-                if next != to && self.hostile_at(next, owner).is_some() {
+                if next != to && self.economy().hostile_at(next, owner).is_some() {
                     continue;
                 }
                 // A guarded site stops the stack: go round unless it is the destination.
@@ -131,14 +131,17 @@ impl Game {
         let (Some(&first), true) = (units.first(), self.map.is_some()) else {
             return seen;
         };
-        let (Some(start), Some(owner)) = (self.unit_position(first), self.unit_owner(first)) else {
+        let (Some(start), Some(owner)) = (
+            self.units().unit_position(first),
+            self.units().unit_owner(first),
+        ) else {
             return seen;
         };
-        let flies = self.stack_traits(units);
+        let flies = self.economy().stack_traits(units);
         let step_cost = |from: Position, next: Position| -> Option<u32> {
             let mut worst = 0;
             for &u in units {
-                worst = worst.max(self.step_cost(u, from, next, flies).ok()?);
+                worst = worst.max(self.economy().step_cost(u, from, next, flies).ok()?);
             }
             Some(worst)
         };
@@ -157,7 +160,7 @@ impl Game {
             }
             seen.insert(here);
             for next in neighbours(self, here) {
-                if self.hostile_at(next, owner).is_some() {
+                if self.economy().hostile_at(next, owner).is_some() {
                     continue;
                 }
                 if owner != crate::units::NEUTRAL
@@ -186,19 +189,19 @@ impl Game {
         let Some(&first) = units.first() else {
             return 0;
         };
-        let Some(mut at) = self.unit_position(first) else {
+        let Some(mut at) = self.units().unit_position(first) else {
             return 0;
         };
-        let flies = self.stack_traits(units);
+        let flies = self.economy().stack_traits(units);
         let allowance = units
             .iter()
-            .map(|&u| self.unit_max_moves(u))
+            .map(|&u| self.units().unit_max_moves(u))
             .min()
             .unwrap_or(2)
             .max(1);
         let mut left = units
             .iter()
-            .map(|&u| self.unit_moves_left(u))
+            .map(|&u| self.units().unit_moves_left(u))
             .min()
             .unwrap_or(0);
         let mut turns = 0;
@@ -209,7 +212,7 @@ impl Game {
             }
             let cost = units
                 .iter()
-                .filter_map(|&u| self.step_cost(u, at, next, flies).ok())
+                .filter_map(|&u| self.economy().step_cost(u, at, next, flies).ok())
                 .max()
                 .unwrap_or(2);
             left = left.saturating_sub(cost);

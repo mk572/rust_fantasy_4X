@@ -347,9 +347,9 @@ impl App {
         let def = self.game.content().rules.spells.get(t.spell);
         let target = match def.target {
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
-                let units = self.game.units_at(pos);
+                let units = self.game.units().units_at(pos);
                 let wanted = units.into_iter().find(|&u| {
-                    let mine = self.game.unit_owner(u) == Some(HUMAN);
+                    let mine = self.game.units().unit_owner(u) == Some(HUMAN);
                     match def.target {
                         SpellTarget::OwnUnit => mine,
                         SpellTarget::EnemyUnit => !mine,
@@ -359,18 +359,20 @@ impl App {
                 wanted.map(Target::Unit)
             }
             SpellTarget::OwnCity | SpellTarget::EnemyCity => {
-                self.game.city_at(pos).map(Target::City)
+                self.game.economy().city_at(pos).map(Target::City)
             }
             // Another wizard, by clicking one of their cities or units.
             SpellTarget::EnemyWizard => self
                 .game
+                .economy()
                 .city_at(pos)
-                .and_then(|c| self.game.city_owner(c))
+                .and_then(|c| self.game.economy().city_owner(c))
                 .or_else(|| {
                     self.game
+                        .units()
                         .units_at(pos)
                         .into_iter()
-                        .find_map(|u| self.game.unit_owner(u))
+                        .find_map(|u| self.game.units().unit_owner(u))
                 })
                 .filter(|&o| o != HUMAN)
                 .map(Target::Player),
@@ -383,7 +385,7 @@ impl App {
         {
             match target {
                 Some(Target::City(city))
-                    if self.game.city_owner(city) == Some(HUMAN)
+                    if self.game.economy().city_owner(city) == Some(HUMAN)
                         && !self.game.fully_warded(city) =>
                 {
                     self.ward_prompt = Some((t.spell, city, t.resolve));

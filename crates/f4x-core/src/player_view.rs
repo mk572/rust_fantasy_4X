@@ -98,12 +98,13 @@ impl<'a> PlayerView<'a> {
     // ---- its own units and cities --------------------------------------------------
 
     pub fn my_units(&self) -> Vec<hecs::Entity> {
-        self.game.player_units(self.me)
+        self.game.units().player_units(self.me)
     }
 
     /// The player's cities (outposts too) and where they stand, oldest first.
     pub fn my_cities(&self) -> Vec<(hecs::Entity, Position)> {
         self.game
+            .economy()
             .cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == self.me)
@@ -120,24 +121,24 @@ impl<'a> PlayerView<'a> {
     }
 
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
-        self.game.unit_def(unit)
+        self.game.units().unit_def(unit)
     }
 
     pub fn unit_position(&self, unit: hecs::Entity) -> Option<Position> {
-        self.game.unit_position(unit)
+        self.game.units().unit_position(unit)
     }
 
     pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
-        self.game.unit_stat(unit, stat)
+        self.game.units().unit_stat(unit, stat)
     }
 
     /// `(current, maximum)` hit points over all figures.
     pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
-        self.game.unit_hits(unit)
+        self.game.units().unit_hits(unit)
     }
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
-        self.game.unit_has_ability(unit, ability)
+        self.game.units().unit_has_ability(unit, ability)
     }
 
     /// Is the unit walking a path it was ordered to?
@@ -146,11 +147,11 @@ impl<'a> PlayerView<'a> {
     }
 
     pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        self.game.unit_food_upkeep(unit)
+        self.game.units().unit_food_upkeep(unit)
     }
 
     pub fn city_production(&self, city: hecs::Entity) -> Production {
-        self.game.city_production(city)
+        self.game.economy().city_production(city)
     }
 
     pub fn can_build(
@@ -158,20 +159,20 @@ impl<'a> PlayerView<'a> {
         city: hecs::Entity,
         item: ProductionItem,
     ) -> Result<(), ProductionError> {
-        self.game.can_build(city, item)
+        self.game.economy().can_build(city, item)
     }
 
     pub fn buy_cost(&self, city: hecs::Entity) -> Option<u32> {
-        self.game.buy_cost(city)
+        self.game.economy().buy_cost(city)
     }
 
     pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
-        self.game.city_economy(city)
+        self.game.economy().city_economy(city)
     }
 
     /// The units standing in a city or on a square.
     pub fn garrison(&self, at: Position) -> Vec<hecs::Entity> {
-        self.game.garrison(at)
+        self.game.economy().garrison(at)
     }
 
     // ---- what it knows of the world ------------------------------------------------
@@ -199,6 +200,7 @@ impl<'a> PlayerView<'a> {
     /// The cities of other players on squares the player has explored.
     pub fn known_cities(&self) -> Vec<(hecs::Entity, PlayerId, Position)> {
         self.game
+            .economy()
             .cities()
             .into_iter()
             .filter(|(_, c, p)| c.owner != self.me && self.explored(*p))
@@ -208,11 +210,13 @@ impl<'a> PlayerView<'a> {
 
     /// The city on a square the player has explored.
     pub fn city_at(&self, at: Position) -> Option<hecs::Entity> {
-        self.explored(at).then(|| self.game.city_at(at)).flatten()
+        self.explored(at)
+            .then(|| self.game.economy().city_at(at))
+            .flatten()
     }
 
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
-        self.game.city_owner(city)
+        self.game.economy().city_owner(city)
     }
 
     /// Hostile units or a hostile city on a square the player sees now (`None` if there is
@@ -222,7 +226,7 @@ impl<'a> PlayerView<'a> {
         if !self.sees(at) {
             return None;
         }
-        let units = self.game.hostile_at(at, self.me)?;
+        let units = self.game.economy().hostile_at(at, self.me)?;
         Some(
             units
                 .into_iter()

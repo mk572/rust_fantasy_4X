@@ -324,7 +324,9 @@ impl Ctx<'_> {
                         attackers,
                         defenders,
                         ..
-                    } if attackers.first().and_then(|&u| self.game.unit_owner(u))
+                    } if attackers
+                        .first()
+                        .and_then(|&u| self.game.units().unit_owner(u))
                         == Some(self.session.player) =>
                     {
                         queue.push(Command::BeginBattle {
@@ -333,7 +335,7 @@ impl Ctx<'_> {
                         });
                     }
                     Event::SiteEncounter { units, to, .. }
-                        if units.first().and_then(|&u| self.game.unit_owner(u))
+                        if units.first().and_then(|&u| self.game.units().unit_owner(u))
                             == Some(self.session.player) =>
                     {
                         queue.push(Command::EnterSite {

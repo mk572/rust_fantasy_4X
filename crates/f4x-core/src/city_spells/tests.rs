@@ -119,7 +119,7 @@ fn found(g: &mut Game, owner: PlayerId, pos: Position, pop: u32) -> hecs::Entity
         race,
         population: pop,
     });
-    g.city_at(pos).unwrap()
+    g.economy().city_at(pos).unwrap()
 }
 
 fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
@@ -143,7 +143,7 @@ fn wall_of_stone_builds_walls_once() {
     let spell = g.content.rules.spells.id_of("wall_of_stone").unwrap();
     g.magic_mut(P0).unwrap().known.insert(spell);
     g.magic_mut(P0).unwrap().skill_left = 500;
-    assert!(!g.city_has_building(city, "city_walls"));
+    assert!(!g.economy().city_has_building(city, "city_walls"));
     let cast = |g: &mut Game| {
         g.apply(Command::CastSpell {
             player: P0,
@@ -155,7 +155,7 @@ fn wall_of_stone_builds_walls_once() {
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::ProductionCompleted { .. })));
-    assert!(g.city_has_building(city, "city_walls"));
+    assert!(g.economy().city_has_building(city, "city_walls"));
     assert_eq!(
         g.check_target(P0, spell, Some(Target::City(city))),
         Err(crate::magic::MagicError::NoSuchTarget),
@@ -173,8 +173,8 @@ fn wall_of_stone_builds_walls_once() {
 fn evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic() {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 10);
-    let mana = |g: &Game| g.city_economy(city).unwrap().mana;
-    let rebels = |g: &Game| g.city_economy(city).unwrap().rebels;
+    let mana = |g: &Game| g.economy().city_economy(city).unwrap().mana;
+    let rebels = |g: &Game| g.economy().city_economy(city).unwrap().rebels;
     let bare = mana(&g);
     add_building(&mut g, city, "shrine");
     add_building(&mut g, city, "temple");
@@ -200,7 +200,7 @@ fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() {
             add_building(&mut g, city, b);
         }
         let totals = |g: &Game| {
-            let mods = g.city_modifiers(city);
+            let mods = g.economy().city_modifiers(city);
             (
                 compute(Stat::CityMana, 0, &mods),
                 -compute(Stat::CityUnrest, 0, &mods),
@@ -278,7 +278,7 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() {
         });
     }
     assert!(fell, "a building fell");
-    assert!(!g.city_has_building(city, "shrine"));
+    assert!(!g.economy().city_has_building(city, "shrine"));
 }
 
 #[test]
@@ -350,7 +350,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() {
         "a city alone is not enough"
     );
     cast_ward(&mut g, city, "death");
-    assert_eq!(g.city_wards(city), vec!["death".to_string()]);
+    assert_eq!(g.economy().city_wards(city), vec!["death".to_string()]);
     let upkeep = |g: &Game| {
         g.upkeep_items(P0)
             .iter()
@@ -367,15 +367,15 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() {
     );
     cast_ward(&mut g, city, "chaos");
     assert_eq!(
-        g.city_wards(city),
+        g.economy().city_wards(city),
         vec!["death".to_string(), "chaos".into()]
     );
     assert_eq!(upkeep(&g), 10, "five for each ward");
     // Lose the spell and the wards go with it; a new one starts afresh.
     g.world.get::<&mut Enchantments>(city).unwrap().0.clear();
-    assert!(g.city_wards(city).is_empty());
+    assert!(g.economy().city_wards(city).is_empty());
     cast_ward(&mut g, city, "life");
-    assert_eq!(g.city_wards(city), vec!["life".to_string()]);
+    assert_eq!(g.economy().city_wards(city), vec!["life".to_string()]);
 }
 
 #[test]
@@ -400,7 +400,11 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() {
             fizzles,
             "{name}"
         );
-        assert_eq!(g.city_has_enchantment(city, name), !fizzles, "{name}");
+        assert_eq!(
+            g.economy().city_has_enchantment(city, name),
+            !fizzles,
+            "{name}"
+        );
     }
     // A death creature cannot step into the city; a chaos one can.
     let mut units = g.content.rules.units.defs().to_vec();
@@ -439,9 +443,9 @@ fn wards_survive_a_save() {
     cast_ward(&mut g, city, "life");
     let content = g.content.clone();
     let back = g.snapshot().restore(content).unwrap();
-    let again = back.city_at(at(10, 6)).unwrap();
+    let again = back.economy().city_at(at(10, 6)).unwrap();
     assert_eq!(
-        back.city_wards(again),
+        back.economy().city_wards(again),
         vec!["death".to_string(), "life".to_string()]
     );
 }

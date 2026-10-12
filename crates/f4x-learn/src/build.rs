@@ -14,7 +14,7 @@ pub const ATTACKER: PlayerId = PlayerId(0);
 pub const DEFENDER: PlayerId = PlayerId(1);
 
 fn walkable(game: &Game, at: Position) -> bool {
-    game.city_at(at).is_none()
+    game.economy().city_at(at).is_none()
         && !matches!(
             game.economy().terrain_class_at(at),
             None | Some(TerrainClass::Ocean) | Some(TerrainClass::Mountains)
@@ -130,12 +130,13 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
         },
     )?;
     game.set_undo(false);
-    for u in game.all_units() {
+    for u in game.units().all_units() {
         game.scenario_remove_unit(u);
     }
     set_wizard(&mut game, ATTACKER, &s.attacker_wizard);
     set_wizard(&mut game, DEFENDER, &s.defender_wizard);
     let capital = game
+        .economy()
         .cities()
         .into_iter()
         .find(|(_, c, _)| c.owner == DEFENDER)

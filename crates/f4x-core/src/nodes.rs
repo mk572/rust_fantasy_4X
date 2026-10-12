@@ -154,12 +154,17 @@ impl Game {
     /// meld succeeds one time in four, and the spirit dies either way.
     pub fn meld(&mut self, units: &[hecs::Entity]) -> Result<Vec<Event>, MeldError> {
         let first = *units.first().ok_or(MeldError::BadSelection)?;
-        let at = self.unit_position(first).ok_or(MeldError::BadSelection)?;
-        let owner = self.unit_owner(first).ok_or(MeldError::BadSelection)?;
-        if units
-            .iter()
-            .any(|&u| self.unit_position(u) != Some(at) || self.unit_owner(u) != Some(owner))
-        {
+        let at = self
+            .units()
+            .unit_position(first)
+            .ok_or(MeldError::BadSelection)?;
+        let owner = self
+            .units()
+            .unit_owner(first)
+            .ok_or(MeldError::BadSelection)?;
+        if units.iter().any(|&u| {
+            self.units().unit_position(u) != Some(at) || self.units().unit_owner(u) != Some(owner)
+        }) {
             return Err(MeldError::BadSelection);
         }
         let index = {
@@ -177,12 +182,13 @@ impl Game {
         let melders: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.unit_has_ability(u, "meld"))
+            .filter(|&u| self.units().unit_has_ability(u, "meld"))
             .collect();
-        let guardian = melders
-            .iter()
-            .copied()
-            .find(|&u| self.unit_def(u).is_some_and(|d| d.id == "guardian_spirit"));
+        let guardian = melders.iter().copied().find(|&u| {
+            self.units()
+                .unit_def(u)
+                .is_some_and(|d| d.id == "guardian_spirit")
+        });
         let melder = guardian
             .or(melders.last().copied())
             .ok_or(MeldError::NoMelder)?;

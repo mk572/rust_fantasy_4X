@@ -95,10 +95,15 @@ fn corrupted_squares_give_a_city_nothing() {
         race: g.content.rules.races.id_of("elf"),
         population: 4,
     });
-    let city = g.city_at(at(10, 6)).unwrap();
-    let before = g.city_economy(city).unwrap();
+    let city = g.economy().city_at(at(10, 6)).unwrap();
+    let before = g.economy().city_economy(city).unwrap();
     assert!(before.gold >= 3, "the gold ore pays");
-    let area: Vec<Position> = g.city_area(at(10, 6)).into_iter().map(|(p, _)| p).collect();
+    let area: Vec<Position> = g
+        .economy()
+        .city_area(at(10, 6))
+        .into_iter()
+        .map(|(p, _)| p)
+        .collect();
     for p in area {
         g.map
             .as_mut()
@@ -106,7 +111,7 @@ fn corrupted_squares_give_a_city_nothing() {
             .plane_mut(Plane::Arcanus)
             .set_corrupted(p.x, p.y, true);
     }
-    let after = g.city_economy(city).unwrap();
+    let after = g.economy().city_economy(city).unwrap();
     assert!(after.gold < before.gold, "no ore bonus from spoiled land");
     assert!(after.max_size < before.max_size, "less food from the land");
 }
@@ -171,7 +176,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() {
         race: g.content.rules.races.id_of("elf"),
         population: 3,
     });
-    let city = g.city_at(at(10, 6)).unwrap();
+    let city = g.economy().city_at(at(10, 6)).unwrap();
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
     g.world
         .get::<&mut crate::economy::Enchantments>(city)

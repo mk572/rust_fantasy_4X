@@ -54,7 +54,12 @@ impl Layout {
 
 impl App {
     pub(crate) fn city_screen(&mut self, city: hecs::Entity) {
-        if self.game.city_at(self.city_position(city)).is_none() {
+        if self
+            .game
+            .economy()
+            .city_at(self.city_position(city))
+            .is_none()
+        {
             self.screen = Screen::Map;
             return;
         }
@@ -155,7 +160,7 @@ impl App {
                 )
             })
             .unwrap_or_default();
-        let Some(eco) = self.game.city_economy(city) else {
+        let Some(eco) = self.game.economy().city_economy(city) else {
             return;
         };
         let pop = self.game.city_population(city);
@@ -261,7 +266,7 @@ impl App {
     }
 
     fn draw_city_resources(&mut self, city: hecs::Entity, lay: Layout) {
-        let Some(eco) = self.game.city_economy(city) else {
+        let Some(eco) = self.game.economy().city_economy(city) else {
             return;
         };
         let view = Self::view(lay);
@@ -301,7 +306,7 @@ impl App {
         let list: Vec<_> = self.game.city_enchantments(city);
         // The fortress and the summoning circle head the list, in gold.
         let here = self.game.city_position(city);
-        let owner = self.game.city_owner(city);
+        let owner = self.game.economy().city_owner(city);
         let mut tags = Vec::new();
         if self.game.economy().is_fortress_city(city) {
             tags.push("Fortress");
@@ -331,7 +336,10 @@ impl App {
             let def = self.game.content().rules.spells.get(*spell);
             let mut name = def.name.clone();
             if def.id == "spell_ward" {
-                name = format!("{name} ({})", self.game.city_wards(city).join(", "));
+                name = format!(
+                    "{name} ({})",
+                    self.game.economy().city_wards(city).join(", ")
+                );
             }
             let color = self.banner_color(caster.0);
             self.bm_text(
@@ -377,7 +385,7 @@ impl App {
                 magic.push(idx);
             }
         }
-        let owner = self.game.city_owner(city);
+        let owner = self.game.economy().city_owner(city);
         if owner
             .and_then(|o| self.game.player(o))
             .and_then(|p| p.summon_at)
@@ -571,7 +579,7 @@ impl App {
         } else {
             0
         };
-        let area: Vec<_> = self.game.city_area(at);
+        let area: Vec<_> = self.game.economy().city_area(at);
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
                 if dx.abs() == 2 && dy.abs() == 2 {
@@ -638,8 +646,15 @@ impl App {
     fn draw_city_garrison(&mut self, city: hecs::Entity, lay: Layout) {
         let at = self.city_position(city);
         let view = Self::view(lay);
-        let owner = self.game.city_owner(city).map_or(0, |o| o.0);
-        for (i, u) in self.game.units_at(at).into_iter().take(9).enumerate() {
+        let owner = self.game.economy().city_owner(city).map_or(0, |o| o.0);
+        for (i, u) in self
+            .game
+            .units()
+            .units_at(at)
+            .into_iter()
+            .take(9)
+            .enumerate()
+        {
             let (col, row) = ((i % 5) as f32, (i / 5) as f32);
             let (x, y) = (216.0 + col * 19.0, 105.0 + row * 17.0);
             let frame = lay.rect(x - 1.0, y - 1.0, 18.0, 16.0);
@@ -647,7 +662,7 @@ impl App {
                 let c = self.banner_color(owner);
                 Color::new(c.r * 0.5, c.g * 0.3, c.b * 0.3, 1.0)
             });
-            let art = self.game.unit_def(u).and_then(|d| d.art.clone());
+            let art = self.game.units().unit_def(u).and_then(|d| d.art.clone());
             let drawn = art.is_some_and(|(lbx, entry)| {
                 self.art
                     .picture(&lbx, entry as usize, 0)
@@ -667,12 +682,12 @@ impl App {
                     .is_some()
             });
             if !drawn {
-                if let Some(def) = self.game.unit_def(u) {
+                if let Some(def) = self.game.units().unit_def(u) {
                     let short: String = def.name.chars().take(4).collect();
                     self.bm_text(view, 1, WHITE, &short, x, y + 4.0, Align::Left);
                 }
             }
-            let (hp, max) = self.game.unit_hits(u);
+            let (hp, max) = self.game.units().unit_hits(u);
             if hp < max {
                 let bar_r = lay.rect(x, y + 13.0, 16.0 * hp as f32 / max as f32, 1.0);
                 draw_rectangle(bar_r.x, bar_r.y, bar_r.w, bar_r.h, RED);
@@ -681,15 +696,15 @@ impl App {
     }
 
     fn draw_city_production(&mut self, city: hecs::Entity, lay: Layout) {
-        let prod = self.game.city_production(city);
-        let eco = self.game.city_economy(city).unwrap_or_default();
+        let prod = self.game.economy().city_production(city);
+        let eco = self.game.economy().city_economy(city).unwrap_or_default();
         let view = Self::view(lay);
         let white = WHITE;
         match prod.item {
             Some(item) => {
                 let name = self.item_name(item);
                 self.bm_text(view, 3, white, &name, 246.0, 177.0, Align::Center);
-                let cost = self.game.item_cost(city, item);
+                let cost = self.game.economy().item_cost(city, item);
                 if cost > 0 {
                     let remaining = cost.saturating_sub(prod.progress);
                     if eco.production > 0 {
@@ -768,7 +783,7 @@ impl App {
             }
         }
         let gold = self.game.player(crate::view::HUMAN).map_or(0, |p| p.gold);
-        let price = self.game.buy_cost(city);
+        let price = self.game.economy().buy_cost(city);
         let can_buy = price.is_some_and(|p| p as i32 <= gold);
         if self.pic_button(lay, 7, 214.0, 190.0, can_buy && !self.choosing) {
             let events = self.game.apply(Command::BuyProduction { city });
@@ -852,7 +867,7 @@ impl App {
             self.choice_scroll = (self.choice_scroll as i32 - wheel.signum() as i32 * 2)
                 .clamp(0, max as i32) as usize;
         }
-        let eco = self.game.city_economy(city).unwrap_or_default();
+        let eco = self.game.economy().city_economy(city).unwrap_or_default();
         if is_mouse_button_pressed(MouseButton::Right) {
             self.choosing = false;
             return;
@@ -864,7 +879,7 @@ impl App {
             if hover {
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.4, 0.3, 0.15, 1.0));
             }
-            let cost = self.game.item_cost(city, *item);
+            let cost = self.game.economy().item_cost(city, *item);
             let detail = match item {
                 ProductionItem::TradeGoods => "gold".to_string(),
                 ProductionItem::Housing => "growth".to_string(),
@@ -908,13 +923,13 @@ impl App {
         let mut items = Vec::new();
         for (id, _) in rules.buildings.iter() {
             let item = ProductionItem::Building(id);
-            if self.game.can_build(city, item).is_ok() {
+            if self.game.economy().can_build(city, item).is_ok() {
                 items.push(item);
             }
         }
         for (id, _) in rules.units.iter() {
             let item = ProductionItem::Unit(id);
-            if self.game.can_build(city, item).is_ok() {
+            if self.game.economy().can_build(city, item).is_ok() {
                 items.push(item);
             }
         }

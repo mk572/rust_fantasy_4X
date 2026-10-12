@@ -88,11 +88,11 @@ impl EffectHost for GameHost<'_> {
         if let Some(p) = pos {
             facts.plane = Some(p.plane);
             facts.terrain = g.economy().terrain_class_at(p);
-            facts.in_city = g.city_at(p).is_some();
+            facts.in_city = g.economy().city_at(p).is_some();
         }
         if let Target::Unit(u) = who {
-            if let Some(def) = g.unit_def(u) {
-                facts.abilities = g.unit_abilities(u);
+            if let Some(def) = g.units().unit_def(u) {
+                facts.abilities = g.units().unit_abilities(u);
                 facts.race = def.race.clone();
                 facts.realm = g.units().unit_realm(u);
                 facts.kind = Some(if g.units().unit_is_undead(u) {
@@ -107,7 +107,7 @@ impl EffectHost for GameHost<'_> {
 
     fn position(&self, who: Target) -> Option<Position> {
         match who {
-            Target::Unit(u) => self.game.unit_position(u),
+            Target::Unit(u) => self.game.units().unit_position(u),
             Target::City(c) | Target::CityRealm(c, _) => {
                 self.game.world.get::<&Position>(c).ok().map(|p| *p)
             }
@@ -120,7 +120,7 @@ impl EffectHost for GameHost<'_> {
 
     fn owner_of(&self, who: Target) -> Option<PlayerId> {
         match who {
-            Target::Unit(u) => self.game.unit_owner(u),
+            Target::Unit(u) => self.game.units().unit_owner(u),
             Target::City(c) | Target::CityRealm(c, _) => self
                 .game
                 .world
@@ -133,30 +133,30 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn units(&self) -> Vec<hecs::Entity> {
-        self.game.all_units()
+        self.game.units().all_units()
     }
 
     fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
-        self.game.city_at(pos)
+        self.game.economy().city_at(pos)
     }
 
     fn stat(&self, who: Target, stat: Stat) -> i32 {
         match who {
-            Target::Unit(u) => self.game.unit_stat(u, stat),
+            Target::Unit(u) => self.game.units().unit_stat(u, stat),
             _ => 0,
         }
     }
 
     fn resistance_against(&self, who: Target, realm: Option<Realm>) -> i32 {
         match who {
-            Target::Unit(u) => self.game.unit_resistance_against(u, realm),
+            Target::Unit(u) => self.game.units().unit_resistance_against(u, realm),
             _ => 0,
         }
     }
 
     fn protected_from(&self, who: Target, realm: Option<Realm>) -> bool {
         match who {
-            Target::Unit(u) => self.game.unit_protected_from(u, realm),
+            Target::Unit(u) => self.game.units().unit_protected_from(u, realm),
             _ => false,
         }
     }
@@ -179,7 +179,7 @@ impl EffectHost for GameHost<'_> {
         let Target::Unit(u) = who else {
             return 0;
         };
-        let (left, _) = self.game.unit_hits(u);
+        let (left, _) = self.game.units().unit_hits(u);
         let dealt = amount.max(0).min(left as i32);
         let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
         let _ = self.game.world.insert_one(u, Hurt(hurt + dealt as u32));
@@ -371,7 +371,7 @@ impl Game {
             let Some(Target::City(c)) = target else {
                 return Err(MagicError::NeedsTarget);
             };
-            if self.city_owner(c) != Some(player) {
+            if self.economy().city_owner(c) != Some(player) {
                 return Err(MagicError::NoSuchTarget);
             }
             let here = self.world.get::<&Position>(c).ok().map(|x| *x);
@@ -385,7 +385,7 @@ impl Game {
         if self.spell_has_hook(spell, crate::city_spells::SPELL_WARD) {
             return match target {
                 Some(Target::CityRealm(c, r))
-                    if self.city_owner(c) == Some(player) && self.can_ward(c, r) =>
+                    if self.economy().city_owner(c) == Some(player) && self.can_ward(c, r) =>
                 {
                     Ok(())
                 }
@@ -395,7 +395,7 @@ impl Game {
         }
         if self.content.rules.spells.get(spell).id == "evil_presence" {
             if let Some(Target::City(c)) = target {
-                if self.evil_presence_is_wasted_on(c) {
+                if self.economy().evil_presence_is_wasted_on(c) {
                     return Err(MagicError::NoSuchTarget);
                 }
             }
@@ -403,7 +403,8 @@ impl Game {
         if self.spell_has_hook(spell, crate::city_spells::WALL_OF_STONE) {
             return match target {
                 Some(Target::City(c))
-                    if self.city_owner(c) == Some(player) && self.can_raise_wall_of_stone(c) =>
+                    if self.economy().city_owner(c) == Some(player)
+                        && self.can_raise_wall_of_stone(c) =>
                 {
                     Ok(())
                 }
@@ -449,14 +450,14 @@ impl Game {
         let ok = match (wanted, target) {
             (SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield, _) => true,
             (_, None) => return Err(MagicError::NeedsTarget),
-            (SpellTarget::OwnUnit, Some(Target::Unit(u))) => mine(self.unit_owner(u)),
+            (SpellTarget::OwnUnit, Some(Target::Unit(u))) => mine(self.units().unit_owner(u)),
             (SpellTarget::EnemyUnit, Some(Target::Unit(u))) => {
-                self.unit_owner(u).is_some_and(|o| o != player)
+                self.units().unit_owner(u).is_some_and(|o| o != player)
             }
-            (SpellTarget::AnyUnit, Some(Target::Unit(u))) => self.unit_owner(u).is_some(),
-            (SpellTarget::OwnCity, Some(Target::City(c))) => mine(self.city_owner(c)),
+            (SpellTarget::AnyUnit, Some(Target::Unit(u))) => self.units().unit_owner(u).is_some(),
+            (SpellTarget::OwnCity, Some(Target::City(c))) => mine(self.economy().city_owner(c)),
             (SpellTarget::EnemyCity, Some(Target::City(c))) => {
-                self.city_owner(c).is_some_and(|o| o != player)
+                self.economy().city_owner(c).is_some_and(|o| o != player)
             }
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
                 p != player
@@ -581,7 +582,7 @@ impl Game {
 
         let mut events = vec![Event::SpellCast { player, spell }];
         let victim = match target {
-            Some(Target::City(c)) => self.city_owner(c).filter(|&o| o != player),
+            Some(Target::City(c)) => self.economy().city_owner(c).filter(|&o| o != player),
             _ => None,
         };
         self.cast_relations(player, spell, victim);
@@ -621,7 +622,7 @@ impl Game {
             }
         }
         // Every city: the caster pays for what they put on somebody else's city too.
-        for (city, _, _) in self.cities() {
+        for (city, _, _) in self.economy().cities() {
             if let Ok(list) = self.world.get::<&Enchantments>(city) {
                 for &(s, caster) in &list.0 {
                     if caster == player {
@@ -633,7 +634,7 @@ impl Game {
                 }
             }
         }
-        for unit in self.all_units() {
+        for unit in self.units().all_units() {
             if let Ok(list) = self.world.get::<&UnitEnchantments>(unit) {
                 for &(s, caster) in &list.0 {
                     if caster == player {
@@ -645,11 +646,14 @@ impl Game {
                 }
             }
         }
-        for unit in self.player_units(player) {
-            let mut mana = self.unit_def(unit).map_or(0, |d| d.upkeep.mana as i32);
+        for unit in self.units().player_units(player) {
+            let mut mana = self
+                .units()
+                .unit_def(unit)
+                .map_or(0, |d| d.upkeep.mana as i32);
             // A fantastic creature made undead costs half as much again.
             if self.units().unit_is_undead(unit)
-                && self.unit_def(unit).is_some_and(|d| {
+                && self.units().unit_def(unit).is_some_and(|d| {
                     matches!(
                         d.kind,
                         crate::rules::UnitKind::Summoned | crate::rules::UnitKind::Fantastic

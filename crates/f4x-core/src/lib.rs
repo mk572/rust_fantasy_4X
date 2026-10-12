@@ -571,18 +571,9 @@ impl Game {
         Ok(game)
     }
 
-    /// All cities with their positions.
-    pub fn cities(&self) -> Vec<(hecs::Entity, city::City, city::Position)> {
-        self.economy().cities()
-    }
-
-    pub fn city_at(&self, pos: city::Position) -> Option<hecs::Entity> {
-        self.economy().city_at(pos)
-    }
-
     /// Whether a city could be founded at `pos` right now.
     pub fn can_found_city(&self, pos: city::Position) -> Result<(), city::FoundCityError> {
-        let existing = self.cities().into_iter().map(|(_, _, p)| p);
+        let existing = self.economy().cities().into_iter().map(|(_, _, p)| p);
         city::check_site(self.map.as_ref(), &self.content, pos, existing)
     }
 
@@ -672,7 +663,7 @@ impl Game {
                 .meld(&units)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Meld(e))]),
             Command::ShiftPlane { units } => {
-                let from = units.first().and_then(|&u| self.unit_position(u));
+                let from = units.first().and_then(|&u| self.units().unit_position(u));
                 match (self.shift_plane(&units), from) {
                     (Ok(to), Some(from)) => vec![Event::UnitsMoved { units, from, to }],
                     (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
@@ -723,7 +714,7 @@ impl Game {
                     .world
                     .get::<&economy::Population>(city)
                     .map_or(0, |p| p.figures);
-                let min = self.city_min_farmers(city);
+                let min = self.economy().city_min_farmers(city);
                 let _ = self
                     .world
                     .insert_one(city, economy::Farmers(farmers.clamp(min, figures)));
@@ -797,12 +788,15 @@ impl Game {
     }
 
     fn settle_outpost(&mut self, unit: hecs::Entity, name: String) -> Vec<Event> {
-        let (Some(pos), Some(owner)) = (self.unit_position(unit), self.unit_owner(unit)) else {
+        let (Some(pos), Some(owner)) = (
+            self.units().unit_position(unit),
+            self.units().unit_owner(unit),
+        ) else {
             return vec![Event::Rejected(Rejection::Move(
                 movement::MoveError::BadSelection,
             ))];
         };
-        if !self.unit_has_ability(unit, "create_outpost") {
+        if !self.units().unit_has_ability(unit, "create_outpost") {
             return vec![Event::Rejected(Rejection::Production(
                 production::ProductionError::WrongRace,
             ))];
@@ -811,6 +805,7 @@ impl Game {
             return vec![Event::Rejected(Rejection::FoundCity(e))];
         }
         let race = self
+            .units()
             .unit_def(unit)
             .and_then(|d| d.race.as_deref())
             .and_then(|r| self.content.rules.races.id_of(r));
@@ -820,7 +815,7 @@ impl Game {
     }
 
     fn do_move(&mut self, units: &[hecs::Entity], to: city::Position) -> Vec<Event> {
-        let from = units.first().and_then(|&u| self.unit_position(u));
+        let from = units.first().and_then(|&u| self.units().unit_position(u));
         match (self.move_stack(units, to), from) {
             (Ok(movement::Entry::Free), Some(from)) => {
                 let mut events = vec![Event::UnitsMoved {
@@ -851,7 +846,7 @@ impl Game {
         // Units sharing a tile and an order walk together.
         let mut groups: Vec<Vec<hecs::Entity>> = Vec::new();
         for &u in units {
-            let Some(pos) = self.unit_position(u) else {
+            let Some(pos) = self.units().unit_position(u) else {
                 continue;
             };
             let order = self
@@ -862,7 +857,7 @@ impl Game {
             let Some(order) = order else { continue };
             match groups.iter_mut().find(|g| {
                 let f = g[0];
-                self.unit_position(f) == Some(pos)
+                self.units().unit_position(f) == Some(pos)
                     && self
                         .world
                         .get::<&units::Order>(f)
@@ -881,7 +876,7 @@ impl Game {
                 .map(|o| (*o).clone())
                 .expect("grouped by order");
             while let Some(&next) = path.first() {
-                let from = self.unit_position(group[0]).expect("on map");
+                let from = self.units().unit_position(group[0]).expect("on map");
                 match self.move_stack(&group, next) {
                     Ok(movement::Entry::Free) => {
                         path.remove(0);
@@ -939,7 +934,7 @@ impl Game {
                 defenders,
             }];
         }
-        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+        let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return Vec::new();
         };
         for &u in units {
@@ -952,7 +947,7 @@ impl Game {
             from,
             to,
         }];
-        if let Some(city) = self.city_at(to) {
+        if let Some(city) = self.economy().city_at(to) {
             events.extend(self.conquer_city(city, owner, 0));
         }
         events
@@ -962,8 +957,8 @@ impl Game {
         self.close_raze_windows();
         let mut corruption = self.process_land_corruption();
         self.turn += 1;
-        for unit in self.all_units() {
-            let moves = self.unit_max_moves(unit);
+        for unit in self.units().all_units() {
+            let moves = self.units().unit_max_moves(unit);
             let _ = self.world.insert_one(unit, units::MovesLeft(moves));
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];

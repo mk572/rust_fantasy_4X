@@ -229,28 +229,32 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 fn unit_line(ctx: &Ctx, u: hecs::Entity) -> String {
-    let (hits, max) = ctx.game.unit_hits(u);
-    let owner = ctx.game.unit_owner(u).map_or(0, |o| o.0);
+    let (hits, max) = ctx.game.units().unit_hits(u);
+    let owner = ctx.game.units().unit_owner(u).map_or(0, |o| o.0);
     format!(
         "{} owner {owner} hits {hits}/{max} moves {}/{}",
         describe::unit(ctx.game, u),
-        ctx.game.unit_moves_left(u),
-        ctx.game.unit_max_moves(u)
+        ctx.game.units().unit_moves_left(u),
+        ctx.game.units().unit_max_moves(u)
     )
 }
 
 fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let mut list = match a.get(0) {
-        None | Some("mine") => ctx.game.player_units(me),
-        Some("all") => ctx.game.all_units(),
-        Some(p) => ctx.game.units_at(parse_pos(p, Plane::Arcanus)?),
+        None | Some("mine") => ctx.game.units().player_units(me),
+        Some("all") => ctx.game.units().all_units(),
+        Some(p) => ctx.game.units().units_at(parse_pos(p, Plane::Arcanus)?),
     };
     ctx.game.sort_by_serial(&mut list);
     let mut shown = 0;
     for u in list {
-        let visible = ctx.game.unit_owner(u) == Some(me)
-            || (ctx.game.unit_position(u).is_some_and(|p| ctx.sees(p))
+        let visible = ctx.game.units().unit_owner(u) == Some(me)
+            || (ctx
+                .game
+                .units()
+                .unit_position(u)
+                .is_some_and(|p| ctx.sees(p))
                 && ctx.game.economy().unit_visible_to(u, me))
             || ctx.overriding();
         if visible {
@@ -270,9 +274,10 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let at = ctx
         .game
+        .units()
         .unit_position(u)
         .ok_or(ConsoleError::NoSuch("unit".into()))?;
-    if ctx.game.unit_owner(u) != Some(me)
+    if ctx.game.units().unit_owner(u) != Some(me)
         && !(ctx.sees(at) && ctx.game.economy().unit_visible_to(u, me))
         && !ctx.overriding()
     {
@@ -290,14 +295,14 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ("resistance", Stat::Resistance),
     ]
     .iter()
-    .map(|(n, s)| format!("{n} {}", ctx.game.unit_stat(u, *s)))
+    .map(|(n, s)| format!("{n} {}", ctx.game.units().unit_stat(u, *s)))
     .collect();
     ctx.say(format!(
         "{}, level {}",
         stats.join(", "),
-        ctx.game.unit_level(u)
+        ctx.game.units().unit_level(u)
     ));
-    let abilities = ctx.game.unit_abilities(u);
+    let abilities = ctx.game.units().unit_abilities(u);
     if !abilities.is_empty() {
         ctx.say(format!("abilities: {}", abilities.join(", ")));
     }
@@ -311,7 +316,7 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let all = a.get(0) == Some("all");
     let me = ctx.session.player;
     let mut rows = Vec::new();
-    for (e, c, p) in ctx.game.cities() {
+    for (e, c, p) in ctx.game.economy().cities() {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
             let pop = ctx.game.economy().citizens(e);
             rows.push((
@@ -337,9 +342,10 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
-    let owner = ctx.game.city_owner(c);
+    let owner = ctx.game.economy().city_owner(c);
     let at = ctx
         .game
+        .economy()
         .cities()
         .into_iter()
         .find(|(e, ..)| *e == c)
@@ -360,7 +366,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if owner != Some(ctx.session.player) && !ctx.overriding() {
         return Ok(()); // a rival's city: only what shows from outside
     }
-    if let Some(eco) = ctx.game.city_economy(c) {
+    if let Some(eco) = ctx.game.economy().city_economy(c) {
         ctx.say(format!(
             "size {} (max {}), farmers {}, workers {}, rebels {}",
             eco.figures, eco.max_size, eco.farmers, eco.workers, eco.rebels
@@ -384,12 +390,13 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             built.join(", ")
         }
     ));
-    let prod = ctx.game.city_production(c);
+    let prod = ctx.game.economy().city_production(c);
     match prod.item {
         Some(item) => {
-            let left = ctx.game.production_remaining(c);
+            let left = ctx.game.economy().production_remaining(c);
             let buy = ctx
                 .game
+                .economy()
                 .buy_cost(c)
                 .map_or(String::new(), |g| format!(", buy for {g} gold"));
             ctx.say(format!(
@@ -399,7 +406,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         None => ctx.say("producing nothing"),
     }
-    let mut garrison = ctx.game.garrison(at);
+    let mut garrison = ctx.game.economy().garrison(at);
     ctx.game.sort_by_serial(&mut garrison);
     for u in garrison {
         let line = unit_line(ctx, u);
@@ -411,7 +418,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::production::ProductionItem;
     let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
-    if ctx.game.city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
+    if ctx.game.economy().city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed("not your city".into()));
     }
     let rules = &ctx.game.content().rules;
@@ -422,7 +429,7 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .chain(rules.units.iter().map(|(id, _)| ProductionItem::Unit(id)))
         .chain([ProductionItem::TradeGoods, ProductionItem::Housing])
         .collect();
-    items.retain(|&i| ctx.game.can_build(c, i).is_ok());
+    items.retain(|&i| ctx.game.economy().can_build(c, i).is_ok());
     for i in items {
         let (name, id) = match i {
             ProductionItem::Building(b) => {
@@ -436,7 +443,7 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             ProductionItem::TradeGoods => ("Trade Goods".into(), "trade".into()),
             ProductionItem::Housing => ("Housing".into(), "housing".into()),
         };
-        let cost = ctx.game.item_cost(c, i);
+        let cost = ctx.game.economy().item_cost(c, i);
         ctx.say(format!("{id:<24} {name} ({cost})"));
     }
     Ok(())
@@ -471,12 +478,12 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     }
     ctx.say(line);
-    if let Some(c) = ctx.game.city_at(p) {
+    if let Some(c) = ctx.game.economy().city_at(p) {
         let line = describe::city_name(ctx.game, c);
         ctx.say(format!("  {line}"));
     }
     if ctx.sees(p) {
-        let mut here = ctx.game.units_at(p);
+        let mut here = ctx.game.units().units_at(p);
         ctx.game.sort_by_serial(&mut here);
         for u in here {
             if ctx.game.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
@@ -493,6 +500,7 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (centre, radius) = {
         let mut centre = ctx
             .game
+            .economy()
             .cities()
             .into_iter()
             .find(|(_, c, _)| c.owner == me)
@@ -551,17 +559,18 @@ fn map_char(ctx: &Ctx, p: Position) -> char {
     if ctx.sees(p) {
         let mine = ctx
             .game
+            .units()
             .units_at(p)
             .into_iter()
-            .any(|u| ctx.game.unit_owner(u) == Some(ctx.session.player));
+            .any(|u| ctx.game.units().unit_owner(u) == Some(ctx.session.player));
         if mine {
             return '*';
         }
-        if !ctx.game.units_at(p).is_empty() {
+        if !ctx.game.units().units_at(p).is_empty() {
             return 'u';
         }
     }
-    if ctx.game.city_at(p).is_some() {
+    if ctx.game.economy().city_at(p).is_some() {
         return 'C';
     }
     use f4x_core::content::TerrainClass as C;

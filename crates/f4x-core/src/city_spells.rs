@@ -42,16 +42,11 @@ pub struct SpellWards(pub Vec<String>);
 pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathedral"];
 
 impl Game {
-    /// Whether the city carries the named lasting spell, whoever cast it.
-    pub fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
-        self.economy().city_has_enchantment(city, name)
-    }
-
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
     /// built or replaced is refused).
     pub fn can_raise_wall_of_stone(&self, city: hecs::Entity) -> bool {
         self.content.rules.buildings.id_of("city_walls").is_some()
-            && !self.city_has_building(city, "city_walls")
+            && !self.economy().city_has_building(city, "city_walls")
     }
 
     /// Wall of Stone: the city gets City Walls.
@@ -81,10 +76,11 @@ impl Game {
         use rand::SeedableRng;
         let mut events = Vec::new();
         let rifts: Vec<hecs::Entity> = self
+            .economy()
             .cities()
             .into_iter()
             .map(|(city, _, _)| city)
-            .filter(|&c| self.city_has_enchantment(c, "chaos_rift"))
+            .filter(|&c| self.economy().city_has_enchantment(c, "chaos_rift"))
             .collect();
         for city in rifts {
             let Ok(at) = self.world.get::<&crate::city::Position>(city).map(|p| *p) else {
@@ -104,7 +100,7 @@ impl Game {
             };
             let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC4A0);
             let mut units_lost = 0;
-            for unit in self.units_at(at) {
+            for unit in self.units().units_at(at) {
                 for _ in 0..CHAOS_RIFT_BOLTS {
                     if self.spell_hit_overland_unit(
                         unit,
@@ -126,7 +122,7 @@ impl Game {
                     .map(|b| b.0.clone())
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|&b| !self.has_dependants(city, b))
+                    .filter(|&b| !self.economy().has_dependants(city, b))
                     .collect();
                 if !candidates.is_empty() {
                     let pick = candidates[self.roll(candidates.len() as u32) as usize - 1];
@@ -144,42 +140,25 @@ impl Game {
         events
     }
 
-    /// The realms the city is warded against.
-    pub fn city_wards(&self, city: hecs::Entity) -> Vec<String> {
-        self.economy().city_wards(city)
-    }
-
-    /// Whether the city is warded against spells of `realm` (a realm's id).
-    pub fn city_warded_against(&self, city: hecs::Entity, realm: &str) -> bool {
-        self.economy().city_warded_against(city, realm)
-    }
-
     /// Whether a Spell Ward against `realm` can be put on the city: it is one of the five realms
     /// and not warded yet.
     pub fn can_ward(&self, city: hecs::Entity, realm: crate::rules::RealmId) -> bool {
         let id = &self.content.rules.realms.get(realm).id;
-        WARD_REALMS.contains(&id.as_str()) && !self.city_warded_against(city, id)
-    }
-
-    /// Whether a Spell Ward on the city keeps the unit out: it is a fantastic creature (or a
-    /// summoned one) of a realm the city is warded against. The help says "any": the owner's own
-    /// creatures too. (Not in the original's code, which never reads the wards for movement.)
-    pub fn ward_bars_creature(&self, city: hecs::Entity, unit: hecs::Entity) -> bool {
-        self.economy().ward_bars_creature(city, unit)
+        WARD_REALMS.contains(&id.as_str()) && !self.economy().city_warded_against(city, id)
     }
 
     /// Whether every realm a Spell Ward can name is warded already.
     pub fn fully_warded(&self, city: hecs::Entity) -> bool {
         WARD_REALMS
             .iter()
-            .all(|r| self.city_warded_against(city, r))
+            .all(|r| self.economy().city_warded_against(city, r))
     }
 
     /// Set a Spell Ward against `realm` on the city. The first ward of a city starts its list
     /// afresh, so wards left over from a spell that was dispelled or lost with the city are gone.
     pub(crate) fn add_spell_ward(&mut self, city: hecs::Entity, realm: crate::rules::RealmId) {
         let id = self.content.rules.realms.get(realm).id.clone();
-        let mut wards = self.city_wards(city);
+        let mut wards = self.economy().city_wards(city);
         if !wards.contains(&id) {
             wards.push(id);
         }
@@ -199,31 +178,32 @@ impl Game {
         use crate::rules::SpellTarget;
         let def = self.content.rules.spells.get(spell);
         let city = match (def.target, target?) {
-            (SpellTarget::EnemyCity, Target::City(c)) if self.city_owner(c) != Some(player) => c,
+            (SpellTarget::EnemyCity, Target::City(c))
+                if self.economy().city_owner(c) != Some(player) =>
+            {
+                c
+            }
             (SpellTarget::EnemyUnit, Target::Unit(u)) => {
-                let at = self.unit_position(u)?;
-                self.city_at(at)
-                    .filter(|&c| self.city_owner(c) != Some(player))?
+                let at = self.units().unit_position(u)?;
+                self.economy()
+                    .city_at(at)
+                    .filter(|&c| self.economy().city_owner(c) != Some(player))?
             }
             _ => return None,
         };
-        self.city_warded_against(city, &def.realm).then_some(city)
+        self.economy()
+            .city_warded_against(city, &def.realm)
+            .then_some(city)
     }
 
     /// How many times the city's enchantment `spell` is paid for each turn: a Spell Ward costs
     /// its upkeep for every realm it guards.
     pub(crate) fn upkeep_count(&self, city: hecs::Entity, spell: crate::rules::SpellId) -> i32 {
         if self.content.rules.spells.get(spell).id == "spell_ward" {
-            (self.city_wards(city).len() as i32).max(1)
+            (self.economy().city_wards(city).len() as i32).max(1)
         } else {
             1
         }
-    }
-
-    /// Evil Presence does nothing to a city whose owner can use death magic, and the original
-    /// refuses to cast it there.
-    pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
-        self.economy().evil_presence_is_wasted_on(city)
     }
 }
 

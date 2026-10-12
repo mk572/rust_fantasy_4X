@@ -152,7 +152,7 @@ fn engineers_work_along_a_path() {
     for x in 5..=7 {
         assert!(has_road(&g, at(x, 5)), "x = {x}");
     }
-    assert_eq!(g.unit_position(e), Some(at(7, 5)));
+    assert_eq!(g.units().unit_position(e), Some(at(7, 5)));
 }
 
 #[test]
@@ -205,12 +205,12 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     let _ = g.world.insert_one(boot, MovesLeft(2));
     g.move_stack(&[boot], at(6, 5)).unwrap();
     assert_eq!(
-        g.unit_moves_left(boot),
+        g.units().unit_moves_left(boot),
         2,
         "an enchanted road costs nothing"
     );
     g.move_stack(&[boot], at(7, 5)).unwrap();
-    assert_eq!(g.unit_moves_left(boot), 2);
+    assert_eq!(g.units().unit_moves_left(boot), 2);
     // Plain roads cost half a move; Myrror's are enchanted already.
     let plain = engineer(&mut g, "hardy", at(10, 8));
     {
@@ -220,7 +220,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     }
     let _ = g.world.insert_one(plain, MovesLeft(2));
     g.move_stack(&[plain], at(11, 8)).unwrap();
-    assert_eq!(g.unit_moves_left(plain), 1);
+    assert_eq!(g.units().unit_moves_left(plain), 1);
     let on_myrror = Position {
         plane: Plane::Myrror,
         x: 10,
@@ -234,7 +234,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     }
     let _ = g.world.insert_one(m, MovesLeft(2));
     g.move_stack(&[m], Position { x: 11, ..on_myrror }).unwrap();
-    assert_eq!(g.unit_moves_left(m), 2);
+    assert_eq!(g.units().unit_moves_left(m), 2);
 }
 
 #[test]

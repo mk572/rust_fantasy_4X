@@ -243,7 +243,7 @@ impl Game {
     /// A city changes hands (the combat layer calls this when a city is taken). Taking a
     /// wizard's fortress city banishes them; taking their last city defeats them.
     pub fn capture_city(&mut self, city: hecs::Entity, winner: PlayerId) -> Vec<Event> {
-        let Some(loser) = self.city_owner(city) else {
+        let Some(loser) = self.economy().city_owner(city) else {
             return Vec::new();
         };
         if loser == winner {
@@ -267,7 +267,7 @@ impl Game {
         } else if self.is_neutral_player(loser) {
             // An independent city's player goes with its city: the garrison is gone or
             // dismissed, and the treasury stays behind.
-            for u in self.player_units(loser) {
+            for u in self.units().player_units(loser) {
                 let _ = self.world.despawn(u);
             }
             self.players.retain(|p| p.id != loser);
@@ -313,7 +313,10 @@ impl Game {
     /// Raze a city. A fortress city cannot be destroyed: it survives with at least one
     /// citizen, as in the original.
     pub fn destroy_city(&mut self, city: hecs::Entity) -> Result<Vec<Event>, FortressError> {
-        let owner = self.city_owner(city).ok_or(FortressError::NotYourCity)?;
+        let owner = self
+            .economy()
+            .city_owner(city)
+            .ok_or(FortressError::NotYourCity)?;
         if self.economy().is_fortress_city(city) {
             if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
                 pop.figures = pop.figures.max(1);
