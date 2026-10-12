@@ -1,0 +1,43 @@
+# Methods in `impl Game` blocks per source file of f4x-core at the last baseline (task 183).
+# A measurement, read by tests/game_methods.rs, which reports growth and files over the guideline.
+# Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test game_methods
+access.rs 25
+battle/game.rs 12
+battle/spells.rs 16
+battle/spoils.rs 1
+cast.rs 9
+cheat.rs 11
+city_spells.rs 14
+conquest.rs 6
+corruption.rs 11
+diplomacy.rs 29
+dispel.rs 9
+economy.rs 12
+endgame.rs 6
+experience.rs 3
+fortress.rs 13
+gates.rs 3
+globals.rs 8
+lairs.rs 7
+lib.rs 18
+magic_game.rs 35
+movement.rs 10
+neutral_cities.rs 9
+nightshade.rs 2
+nodes.rs 4
+pathing.rs 3
+production.rs 17
+roads.rs 10
+save.rs 1
+serial.rs 3
+temp_effects.rs 13
+terraform.rs 6
+timers.rs 5
+transport.rs 9
+turn.rs 15
+undead.rs 6
+undo.rs 6
+units.rs 17
+view.rs 10
+vision.rs 3
+wizard.rs 7
