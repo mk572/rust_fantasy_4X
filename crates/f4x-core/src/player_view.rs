@@ -185,8 +185,8 @@ impl<'a> PlayerView<'a> {
     pub fn sees(&self, at: Position) -> bool {
         let seen = self.seen.get_or_init(|| {
             [
-                self.game.visibility(self.me, Plane::Arcanus),
-                self.game.visibility(self.me, Plane::Myrror),
+                self.game.economy().visibility(self.me, Plane::Arcanus),
+                self.game.economy().visibility(self.me, Plane::Myrror),
             ]
         });
         let width = self.game.map().map_or(0, |m| m.width());
@@ -226,7 +226,7 @@ impl<'a> PlayerView<'a> {
         Some(
             units
                 .into_iter()
-                .filter(|&u| self.game.unit_visible_to(u, self.me))
+                .filter(|&u| self.game.economy().unit_visible_to(u, self.me))
                 .collect(),
         )
     }

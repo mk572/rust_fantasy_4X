@@ -122,6 +122,7 @@ impl Ctx<'_> {
             return false;
         }
         self.game
+            .economy()
             .visibility(self.session.player, p.plane)
             .get((p.y * map.width() + p.x) as usize)
             .copied()
@@ -250,7 +251,7 @@ fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     for u in list {
         let visible = ctx.game.unit_owner(u) == Some(me)
             || (ctx.game.unit_position(u).is_some_and(|p| ctx.sees(p))
-                && ctx.game.unit_visible_to(u, me))
+                && ctx.game.economy().unit_visible_to(u, me))
             || ctx.overriding();
         if visible {
             let line = unit_line(ctx, u);
@@ -272,7 +273,7 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .unit_position(u)
         .ok_or(ConsoleError::NoSuch("unit".into()))?;
     if ctx.game.unit_owner(u) != Some(me)
-        && !(ctx.sees(at) && ctx.game.unit_visible_to(u, me))
+        && !(ctx.sees(at) && ctx.game.economy().unit_visible_to(u, me))
         && !ctx.overriding()
     {
         return Err(ConsoleError::NoSuch(format!(
@@ -478,7 +479,7 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let mut here = ctx.game.units_at(p);
         ctx.game.sort_by_serial(&mut here);
         for u in here {
-            if ctx.game.unit_visible_to(u, ctx.session.player) || ctx.overriding() {
+            if ctx.game.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
                 let line = unit_line(ctx, u);
                 ctx.say(format!("  {line}"));
             }

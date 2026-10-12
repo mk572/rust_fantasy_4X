@@ -6,7 +6,6 @@ use crate::economy::Economy;
 use crate::map::Plane;
 use crate::rules::stats::compute;
 use crate::rules::Stat;
-use crate::Game;
 
 /// Sight radius of a city before walls, an Oracle or Nature's Eye raise it.
 const CITY_SIGHT: i32 = 2;
@@ -82,25 +81,12 @@ impl Economy<'_> {
     }
 }
 
-impl Game {
-    pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
-        self.economy().unit_visible_to(unit, viewer)
-    }
-
-    pub fn city_sight(&self, city: hecs::Entity) -> i32 {
-        self.economy().city_sight(city)
-    }
-
-    pub fn visibility(&self, player: PlayerId, plane: Plane) -> Vec<bool> {
-        self.economy().visibility(player, plane)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::map::{Grid, Map};
     use crate::testutil::content_with_units;
+    use crate::Game;
 
     #[test]
     fn units_and_cities_see_around_them() {
@@ -121,11 +107,12 @@ mod tests {
             },
             walker,
         );
-        let seen = g.visibility(p, Plane::Arcanus);
+        let seen = g.economy().visibility(p, Plane::Arcanus);
         // Sight 1 at the corner: columns 9, 0, 1 and rows 0, 1.
         assert_eq!(seen.iter().filter(|&&s| s).count(), 6);
-        assert!(g.visibility(p, Plane::Myrror).iter().all(|&s| !s));
+        assert!(g.economy().visibility(p, Plane::Myrror).iter().all(|&s| !s));
         assert!(g
+            .economy()
             .visibility(PlayerId(1), Plane::Arcanus)
             .iter()
             .all(|&s| !s));
@@ -153,9 +140,10 @@ mod tests {
             population: 3,
         });
         let city = g.city_at(at).unwrap();
-        assert_eq!(g.city_sight(city), 2);
+        assert_eq!(g.economy().city_sight(city), 2);
         let seen = |g: &Game| {
-            g.visibility(PlayerId(0), Plane::Arcanus)
+            g.economy()
+                .visibility(PlayerId(0), Plane::Arcanus)
                 .iter()
                 .filter(|&&v| v)
                 .count()
@@ -190,7 +178,7 @@ mod tests {
             .unwrap()
             .0
             .push(id);
-        assert_eq!(g.city_sight(city), 4);
+        assert_eq!(g.economy().city_sight(city), 4);
         assert_eq!(seen(&g), 81);
         g.process_globals();
         assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));
@@ -221,13 +209,19 @@ mod tests {
         let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).unwrap();
         let (spirit, mage) = (id(&g, "spirit"), id(&g, "mage"));
         let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
-        assert!(g.unit_visible_to(ghost, PlayerId(0)), "its owner sees it");
-        assert!(!g.unit_visible_to(ghost, PlayerId(1)));
+        assert!(
+            g.economy().unit_visible_to(ghost, PlayerId(0)),
+            "its owner sees it"
+        );
+        assert!(!g.economy().unit_visible_to(ghost, PlayerId(1)));
         let _far = g.spawn_unit(PlayerId(1), at(15), mage);
-        assert!(!g.unit_visible_to(ghost, PlayerId(1)), "too far away");
+        assert!(
+            !g.economy().unit_visible_to(ghost, PlayerId(1)),
+            "too far away"
+        );
         let _near = g.spawn_unit(PlayerId(1), at(6), mage);
         assert!(
-            g.unit_visible_to(ghost, PlayerId(1)),
+            g.economy().unit_visible_to(ghost, PlayerId(1)),
             "an illusion-immune unit is close"
         );
     }

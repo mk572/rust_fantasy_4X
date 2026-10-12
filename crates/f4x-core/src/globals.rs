@@ -103,7 +103,7 @@ impl Game {
         // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
         let cities: Vec<_> = self.cities().into_iter().collect();
         for (entity, city, at) in cities {
-            let sight = self.city_sight(entity).max(0) as u32;
+            let sight = self.economy().city_sight(entity).max(0) as u32;
             self.fog.explore(city.owner, at, sight);
         }
     }
@@ -358,8 +358,16 @@ mod tests {
         );
         grant(&mut g, P0, "nature_awareness");
         assert!(g.fog.is_explored(P0, Plane::Myrror, 3, 3));
-        assert!(g.visibility(P0, Plane::Arcanus).iter().all(|&v| v));
-        assert!(g.visibility(P1, Plane::Arcanus).iter().any(|&v| !v));
+        assert!(g
+            .economy()
+            .visibility(P0, Plane::Arcanus)
+            .iter()
+            .all(|&v| v));
+        assert!(g
+            .economy()
+            .visibility(P1, Plane::Arcanus)
+            .iter()
+            .any(|&v| !v));
     }
 
     #[test]

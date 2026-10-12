@@ -43,5 +43,4 @@ undead.rs 6
 undo.rs 6
 units.rs 21
 view.rs 10
-vision.rs 3
 wizard.rs 7

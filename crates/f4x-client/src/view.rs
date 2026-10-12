@@ -1073,7 +1073,7 @@ impl App {
             (self.cam.y - y0 as f32) * t.y,
         );
         let width = grid.width();
-        let visible = self.game.visibility(HUMAN, self.plane);
+        let visible = self.game.economy().visibility(HUMAN, self.plane);
         let cities = self.game.cities();
         let anim = (get_time() * 2.5) as usize;
 
@@ -1189,7 +1189,7 @@ impl App {
             let mine = self.game.unit_owner(unit) == Some(HUMAN);
             if !mine
                 && (!visible[(at.y * width + at.x) as usize]
-                    || !self.game.unit_visible_to(unit, HUMAN))
+                    || !self.game.economy().unit_visible_to(unit, HUMAN))
             {
                 continue;
             }

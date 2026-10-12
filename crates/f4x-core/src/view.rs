@@ -116,7 +116,7 @@ impl WorldView for Game {
         let width = map.width() as usize;
         let seen: Vec<Vec<bool>> = crate::map::Plane::ALL
             .iter()
-            .map(|&plane| self.visibility(viewer, plane))
+            .map(|&plane| self.economy().visibility(viewer, plane))
             .collect();
         let sees = |p: Position| {
             seen.get(p.plane.index())
@@ -173,7 +173,7 @@ impl Game {
             let (Some(owner), Some(pos)) = (self.unit_owner(unit), self.unit_position(unit)) else {
                 continue;
             };
-            if owner != viewer && keep(pos) && self.unit_visible_to(unit, viewer) {
+            if owner != viewer && keep(pos) && self.economy().unit_visible_to(unit, viewer) {
                 out.push(Sighting { owner, pos });
             }
         }
