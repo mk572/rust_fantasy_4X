@@ -531,7 +531,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
         .iter()
         .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == P0)));
     assert_eq!(g.unit_owner(drained.1), Some(P0));
-    assert!(g.unit_is_undead(drained.1));
+    assert!(g.units().unit_is_undead(drained.1));
     assert_eq!(g.unit_position(drained.1), Some(at(5, 5)));
     assert!(!g.world.contains(slain.1), "the other guard is gone");
     assert_eq!(g.unit_position(w), Some(at(5, 5)), "the victors moved in");
@@ -576,7 +576,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     // the other attacker are gone.
     assert!(g.world.contains(w) && !g.world.contains(bystander));
     assert_eq!(g.unit_owner(w), Some(NEUTRAL));
-    assert!(g.unit_is_undead(w));
+    assert!(g.units().unit_is_undead(w));
     assert_eq!(g.units_at(at(5, 5)), vec![w]);
     assert!(
         g.economy().lair_at(at(5, 5)).is_some(),

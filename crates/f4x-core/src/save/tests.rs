@@ -368,7 +368,7 @@ fn an_undead_unit_stays_undead_through_a_save() {
         .restore(g.content.clone())
         .unwrap();
     let again = back.units_at(at(11, 6)).into_iter().next().unwrap();
-    assert!(back.unit_is_undead(again));
+    assert!(back.units().unit_is_undead(again));
     assert_eq!(back.snapshot(), snap);
 }
 

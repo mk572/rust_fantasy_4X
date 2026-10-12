@@ -191,8 +191,12 @@ impl Game {
             weapon_quality: quality,
             special_level: self.unit_stat(unit, Stat::SpecialLevel),
             enchantments: self.unit_enchantment_ids(unit),
-            realm: self.unit_realm(unit).as_deref().and_then(Realm::from_id),
-            undead: self.unit_counts_as_undead(unit),
+            realm: self
+                .units()
+                .unit_realm(unit)
+                .as_deref()
+                .and_then(Realm::from_id),
+            undead: self.units().unit_counts_as_undead(unit),
             abilities: abilities.clone(),
             status: Status::Active,
             damage_kinds: [0; 3],

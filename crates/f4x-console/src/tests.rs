@@ -1978,12 +1978,12 @@ fn the_undead_cheat_needs_override_and_makes_units_undead() {
     let mut play = Console::new(HUMAN, Access::Play);
     let refused = play.execute(&mut g, &format!("undead {serial}"));
     assert!(!refused.ok);
-    assert!(!g.unit_is_undead(unit));
+    assert!(!g.units().unit_is_undead(unit));
     let mut full = Console::new(HUMAN, Access::Full);
     assert!(full.execute(&mut g, "mode override").ok);
     let r = full.execute(&mut g, &format!("undead {serial}"));
     assert!(r.ok, "{}", r.text());
-    assert!(g.unit_is_undead(unit));
+    assert!(g.units().unit_is_undead(unit));
     let info = full.execute(&mut g, &format!("unit {serial}"));
     assert!(info.text().contains("undead"), "{}", info.text());
 }
@@ -2057,7 +2057,7 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
     assert!(u.has("death_immunity") && u.has("cold_immunity"));
     assert_eq!(u.side, Side::Attacker);
     let entity = g.battle.as_ref().unwrap().sources[u.source.unwrap()];
-    assert!(g.unit_is_undead(entity), "undead for good");
+    assert!(g.units().unit_is_undead(entity), "undead for good");
 }
 
 #[test]
@@ -2097,7 +2097,7 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
         "{r:?}"
     );
     assert_eq!(g.unit_owner(drained_unit), Some(rival));
-    assert!(g.unit_is_undead(drained_unit));
+    assert!(g.units().unit_is_undead(drained_unit));
     assert!(g.entity_exists(drained_unit) && !g.entity_exists(slain_unit));
 }
 

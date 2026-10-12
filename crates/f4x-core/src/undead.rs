@@ -92,26 +92,6 @@ pub(crate) fn make_undead(world: &mut World, unit: hecs::Entity) -> bool {
 }
 
 impl Game {
-    pub fn unit_is_undead(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_is_undead(unit)
-    }
-
-    pub fn unit_is_black_channeled(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_is_black_channeled(unit)
-    }
-
-    pub fn unit_counts_as_undead(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_counts_as_undead(unit)
-    }
-
-    pub fn unit_realm(&self, unit: hecs::Entity) -> Option<String> {
-        self.units().unit_realm(unit)
-    }
-
-    pub fn unit_is_death(&self, unit: hecs::Entity) -> bool {
-        self.units().unit_is_death(unit)
-    }
-
     /// Make a unit undead (see [`make_undead`]).
     pub fn make_undead(&mut self, unit: hecs::Entity) -> bool {
         make_undead(&mut self.world, unit)

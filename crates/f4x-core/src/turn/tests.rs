@@ -369,9 +369,9 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() {
     assert_eq!(g.unit_food_upkeep(living), 1);
     assert_eq!(g.unit_food_upkeep(raised), 0);
     assert_eq!(g.unit_gold_upkeep(raised), 0);
-    assert_eq!(g.unit_realm(raised).as_deref(), Some("death"));
-    assert_eq!(g.unit_realm(living), None);
-    assert!(g.unit_is_death(raised) && !g.unit_is_death(living));
+    assert_eq!(g.units().unit_realm(raised).as_deref(), Some("death"));
+    assert_eq!(g.units().unit_realm(living), None);
+    assert!(g.units().unit_is_death(raised) && !g.units().unit_is_death(living));
     for a in [
         "death_immunity",
         "cold_immunity",

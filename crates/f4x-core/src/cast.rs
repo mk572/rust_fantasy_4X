@@ -94,8 +94,8 @@ impl EffectHost for GameHost<'_> {
             if let Some(def) = g.unit_def(u) {
                 facts.abilities = g.unit_abilities(u);
                 facts.race = def.race.clone();
-                facts.realm = g.unit_realm(u);
-                facts.kind = Some(if g.unit_is_undead(u) {
+                facts.realm = g.units().unit_realm(u);
+                facts.kind = Some(if g.units().unit_is_undead(u) {
                     crate::rules::UnitKind::Summoned
                 } else {
                     def.kind
@@ -648,7 +648,7 @@ impl Game {
         for unit in self.player_units(player) {
             let mut mana = self.unit_def(unit).map_or(0, |d| d.upkeep.mana as i32);
             // A fantastic creature made undead costs half as much again.
-            if self.unit_is_undead(unit)
+            if self.units().unit_is_undead(unit)
                 && self.unit_def(unit).is_some_and(|d| {
                     matches!(
                         d.kind,

@@ -93,7 +93,7 @@ impl Game {
         for player in ids {
             if self.has_global(player, "herb_mastery") {
                 for unit in self.player_units(player) {
-                    if !self.unit_is_death(unit) {
+                    if !self.units().unit_is_death(unit) {
                         let _ = self.world.insert_one(unit, Hurt(0));
                     }
                 }

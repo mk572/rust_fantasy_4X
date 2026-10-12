@@ -632,7 +632,7 @@ impl Game {
                         .ok()
                         .map(|w| (w.at, w.left, w.rest.clone())),
                     effects: effects_save(self, u),
-                    undead: self.unit_is_undead(u),
+                    undead: self.units().unit_is_undead(u),
                 })
             })
             .collect();

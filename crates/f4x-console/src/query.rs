@@ -301,7 +301,7 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if !abilities.is_empty() {
         ctx.say(format!("abilities: {}", abilities.join(", ")));
     }
-    if ctx.game.unit_is_undead(u) {
+    if ctx.game.units().unit_is_undead(u) {
         ctx.say("undead: a Death creature, not healed".to_string());
     }
     Ok(())
