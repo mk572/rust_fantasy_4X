@@ -7,6 +7,7 @@ use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
 use crate::economy::Enchantments;
 use crate::magic::MagicError;
+use crate::rng::GameRng;
 use crate::rules::effects::{DamageKind, Trigger};
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
 use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat};
@@ -31,19 +32,16 @@ pub(crate) struct UpkeepItem {
 /// The real world, as the effect executor sees it.
 struct GameHost<'a> {
     game: &'a mut Game,
+    /// The game's generator, lent to the host for the resolution (`Game::resolve_cast`), so the
+    /// executor and the hooks draw from one stream.
+    rng: GameRng,
     /// What hooks and other changes report back to the event log.
     events: Vec<Event>,
 }
 
 impl GameHost<'_> {
     /// Disjunction, Spell Binding and Spell Blast; `None` for any other hook.
-    fn dispel_hook(
-        &mut self,
-        hook: &str,
-        who: Target,
-        ctx: &Context,
-        rng: &mut dyn RngCore,
-    ) -> Option<Vec<Event>> {
+    fn dispel_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
         use crate::dispel::{
             global_attack_events, DISJUNCTION, DISJUNCTION_TRUE, SPELL_BINDING, SPELL_BLAST,
         };
@@ -75,9 +73,9 @@ impl GameHost<'_> {
         let Target::Global(victim, spell) = who else {
             return Some(Vec::new());
         };
-        let result = self
-            .game
-            .attack_global(by, victim, spell, cost * factor, steal, rng);
+        let result =
+            self.game
+                .attack_global(by, victim, spell, cost * factor, steal, &mut self.rng);
         Some(global_attack_events(by, victim, spell, result, steal))
     }
 }
@@ -252,11 +250,15 @@ impl EffectHost for GameHost<'_> {
 
     /// Other wizards' enchantments on the target are removed with chance
     /// `strength / (strength + difficulty)` (see `dispel.rs`).
-    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId, rng: &mut dyn RngCore) -> u32 {
-        self.game.dispel_target(who, strength, by, rng)
+    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
+        self.game.dispel_target(who, strength, by, &mut self.rng)
     }
 
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore) {
+    fn rng(&mut self) -> &mut dyn RngCore {
+        &mut self.rng
+    }
+
+    fn custom(&mut self, hook: &str, who: Target, ctx: &Context) {
         if hook == crate::globals::GLOBAL_EFFECT
             || hook == crate::gates::CITY_GATE
             || hook == crate::city_spells::CITY_FLAG
@@ -264,7 +266,7 @@ impl EffectHost for GameHost<'_> {
             // Carried out by the engine wherever the wizard's global spells are consulted.
             return;
         }
-        if let Some(events) = self.dispel_hook(hook, who, ctx, rng) {
+        if let Some(events) = self.dispel_hook(hook, who, ctx) {
             self.events.extend(events);
             return;
         }
@@ -275,7 +277,9 @@ impl EffectHost for GameHost<'_> {
         }
         if let Target::Tile(at) = who {
             let events = match hook {
-                crate::terraform::RAISE_VOLCANO => self.game.raise_volcano(ctx.owner, at, rng),
+                crate::terraform::RAISE_VOLCANO => {
+                    self.game.raise_volcano(ctx.owner, at, &mut self.rng)
+                }
                 crate::terraform::CHANGE_TERRAIN => self.game.change_terrain_spell(at),
                 crate::roads::ENCHANT_ROAD => self.game.enchant_roads(at),
                 crate::corruption::CORRUPT_LAND => self.game.corrupt(at),
@@ -565,15 +569,20 @@ impl Game {
             chosen: target.or(Some(this)),
             source: Source::Spell(spell),
         };
-        // The executor and the host both need the game, so the spell draws from a copy of the
-        // generator, which the game takes back afterwards.
-        let mut rng = self.rng.clone();
+        // The host needs the game and the generator at once, so the generator is lent to it for
+        // the resolution (`GameRng::lent` stands in the game meanwhile) and taken back after.
+        let rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let mut host = GameHost {
             game: self,
+            rng,
             events: Vec::new(),
         };
-        let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host, &mut rng);
-        let hook_events = std::mem::take(&mut host.events);
+        let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
+        let GameHost {
+            rng,
+            events: hook_events,
+            ..
+        } = host;
         self.rng = rng;
 
         let mut events = vec![Event::SpellCast { player, spell }];
@@ -700,8 +709,11 @@ pub(crate) mod tests_support {
     use super::*;
 
     pub(crate) fn host(game: &mut Game) -> impl EffectHost + '_ {
+        // A copy of the generator: tests of single effects need no stream of their own.
+        let rng = game.rng.clone();
         GameHost {
             game,
+            rng,
             events: Vec::new(),
         }
     }

@@ -15,6 +15,10 @@ pub struct GameRng {
     /// Values drawn so far.
     draws: u64,
     inner: Pcg64Mcg,
+    /// Stands in the game while the real generator is lent out for a call (spell resolution,
+    /// diplomacy): drawing from it would be a draw that is not part of the game's stream, so a
+    /// debug build stops at it.
+    lent: bool,
 }
 
 impl GameRng {
@@ -23,6 +27,15 @@ impl GameRng {
             seed,
             draws: 0,
             inner: Pcg64Mcg::seed_from_u64(seed),
+            lent: false,
+        }
+    }
+
+    /// A stand-in for the generator while it is lent out (see the `lent` field).
+    pub(crate) fn lent() -> Self {
+        Self {
+            lent: true,
+            ..Self::new(0)
         }
     }
 
@@ -46,6 +59,13 @@ impl GameRng {
         self.draws
     }
 
+    fn check_not_lent(&self) {
+        debug_assert!(
+            !self.lent,
+            "the game's generator is lent out: draw from the one the call was given"
+        );
+    }
+
     /// Uniform random integer in `1..=n`.
     pub fn roll(&mut self, n: u32) -> u32 {
         (self.next_u64() % u64::from(n.max(1))) as u32 + 1
@@ -54,21 +74,25 @@ impl GameRng {
 
 impl RngCore for GameRng {
     fn next_u32(&mut self) -> u32 {
+        self.check_not_lent();
         self.draws += 1;
         self.inner.next_u32()
     }
 
     fn next_u64(&mut self) -> u64 {
+        self.check_not_lent();
         self.draws += 1;
         self.inner.next_u64()
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.check_not_lent();
         self.draws += 1;
         self.inner.fill_bytes(dest)
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
+        self.check_not_lent();
         self.draws += 1;
         self.inner.try_fill_bytes(dest)
     }
@@ -111,5 +135,12 @@ mod tests {
             assert_eq!(r, copy.roll(6));
         }
         assert_eq!(rng.roll(0), 1, "a die with no sides rolls 1, as before");
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "lent out")]
+    fn a_lent_generator_cannot_be_drawn_from() {
+        GameRng::lent().roll(6);
     }
 }

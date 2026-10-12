@@ -26,6 +26,16 @@ struct MockHost {
     customs: Vec<String>,
     ids: hecs::World,
     next: u32,
+    rng: SeededRng,
+}
+
+/// The mock host's generator: the same seed every test starts from.
+struct SeededRng(Pcg64Mcg);
+
+impl Default for SeededRng {
+    fn default() -> Self {
+        SeededRng(Pcg64Mcg::seed_from_u64(7))
+    }
 }
 
 impl MockHost {
@@ -139,7 +149,7 @@ impl EffectHost for MockHost {
             u.enchants.push(spell.to_string());
         }
     }
-    fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId, _rng: &mut dyn RngCore) -> u32 {
+    fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId) -> u32 {
         let u = self.unit_mut(who).unwrap();
         let n = if strength > 0 {
             u.enchants.len() as u32
@@ -149,8 +159,11 @@ impl EffectHost for MockHost {
         u.enchants.clear();
         n
     }
-    fn custom(&mut self, hook: &str, _w: Target, _c: &Context, _r: &mut dyn RngCore) {
+    fn custom(&mut self, hook: &str, _w: Target, _c: &Context) {
         self.customs.push(hook.to_string());
+    }
+    fn rng(&mut self) -> &mut dyn RngCore {
+        &mut self.rng.0
     }
 }
 
@@ -272,7 +285,7 @@ fn modify_is_tagged_with_the_source() {
         TargetSel::This,
         add(Stat::Melee, 2),
     )];
-    let out = run_rules(&rules, Trigger::Passive, &cx, &mut h, &mut rng());
+    let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
         out,
         vec![Outcome::Modified {
@@ -306,9 +319,9 @@ fn only_matching_trigger_and_condition_run() {
             add(Stat::Defense, 1),
         ),
     ];
-    assert!(run_rules(&rules, Trigger::Passive, &cx, &mut h, &mut rng()).is_empty());
+    assert!(run_rules(&rules, Trigger::Passive, &cx, &mut h).is_empty());
     h.grant_ability(Target::Unit(a), "blessed");
-    let out = run_rules(&rules, Trigger::Passive, &cx, &mut h, &mut rng());
+    let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
         out,
         vec![Outcome::Modified {
@@ -341,7 +354,7 @@ fn damage_respects_hp_and_resistance() {
         )]
     };
     let cx = ctx(Target::Unit(caster), 0);
-    let out = run_rules(&dmg(true), Trigger::OnCast, &cx, &mut h, &mut rng());
+    let out = run_rules(&dmg(true), Trigger::OnCast, &cx, &mut h);
     assert_eq!(
         out,
         vec![
@@ -358,7 +371,7 @@ fn damage_respects_hp_and_resistance() {
     assert_eq!(h.unit(soft).hp, 0);
     assert_eq!(h.unit(immune).hp, 4);
     // Not resistible: the immune unit takes it.
-    run_rules(&dmg(false), Trigger::OnCast, &cx, &mut h, &mut rng());
+    run_rules(&dmg(false), Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.unit(immune).hp, 0);
 }
 
@@ -390,13 +403,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
         )]
     };
     let cx = ctx(Target::Unit(caster), 0);
-    let out = run_rules(
-        &bolt(&["fire_immunity"], 0),
-        Trigger::OnCast,
-        &cx,
-        &mut h,
-        &mut rng(),
-    );
+    let out = run_rules(&bolt(&["fire_immunity"], 0), Trigger::OnCast, &cx, &mut h);
     assert_eq!(
         out,
         vec![
@@ -418,13 +425,12 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
                 let mut h = MockHost::default();
                 let c = h.spawn(0, pos(0, 0), 5, 0);
                 h.spawn(1, pos(1, 0), 9, 5);
-                let mut r = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed);
+                h.rng = SeededRng(Pcg64Mcg::seed_from_u64(seed));
                 let out = run_rules(
                     &bolt(&[], modifier),
                     Trigger::OnCast,
                     &ctx(Target::Unit(c), 0),
                     &mut h,
-                    &mut r,
                 );
                 matches!(out[0], Outcome::Resisted { .. })
             })
@@ -494,7 +500,7 @@ fn world_changing_effects_reach_the_host() {
             Effect::Custom("hook".into()),
         ),
     ];
-    run_rules(&rules, Trigger::OnCast, &cx, &mut h, &mut rng());
+    run_rules(&rules, Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.terrain, vec![(pos(3, 4), TerrainClass::Forest)]);
     assert_eq!(h.features, vec![(pos(3, 4), "ruin".to_string())]);
     assert_eq!(h.summoned, vec![("wolf".to_string(), 2, pos(3, 4))]);
@@ -514,7 +520,6 @@ fn grant_remove_heal_and_dispel() {
         Trigger::OnCast,
         &cx,
         &mut h,
-        &mut rng(),
     );
     assert_eq!(h.unit(a).facts.abilities, vec!["flying".to_string()]);
     run_rules(
@@ -522,30 +527,21 @@ fn grant_remove_heal_and_dispel() {
         Trigger::OnCast,
         &cx,
         &mut h,
-        &mut rng(),
     );
     assert!(h.unit(a).facts.abilities.is_empty());
-    run_rules(
-        &on_cast(Effect::Heal(3)),
-        Trigger::OnCast,
-        &cx,
-        &mut h,
-        &mut rng(),
-    );
+    run_rules(&on_cast(Effect::Heal(3)), Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.unit(a).hp, 5);
     run_rules(
         &on_cast(Effect::ApplyEnchantment("x".into())),
         Trigger::OnCast,
         &cx,
         &mut h,
-        &mut rng(),
     );
     let out = run_rules(
         &on_cast(Effect::Dispel { strength: 50 }),
         Trigger::OnCast,
         &cx,
         &mut h,
-        &mut rng(),
     );
     assert_eq!(
         out,
@@ -578,16 +574,10 @@ fn same_seed_same_outcomes() {
                 traits: Default::default(),
             },
         )];
-        run_rules(
-            &rules,
-            Trigger::OnCast,
-            &ctx(Target::Unit(c), 0),
-            &mut h,
-            &mut rng(),
-        )
-        .iter()
-        .map(|o| matches!(o, Outcome::Resisted { .. }))
-        .collect::<Vec<_>>()
+        run_rules(&rules, Trigger::OnCast, &ctx(Target::Unit(c), 0), &mut h)
+            .iter()
+            .map(|o| matches!(o, Outcome::Resisted { .. }))
+            .collect::<Vec<_>>()
     };
     assert_eq!(run(), run());
 }

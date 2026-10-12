@@ -1498,7 +1498,7 @@ impl Game {
         f: impl FnOnce(&mut Diplomacy, &mut DiplomacyCtx<'_>) -> R,
     ) -> R {
         let mut diplomacy = std::mem::take(&mut self.diplomacy);
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::new(0));
+        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let (result, out) = {
             let mut ctx = DiplomacyCtx {
                 view: &*self,

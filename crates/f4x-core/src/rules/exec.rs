@@ -88,8 +88,11 @@ pub trait EffectHost {
     fn apply_enchantment(&mut self, who: Target, spell: &str, caster: PlayerId);
     /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
     /// returns how many were removed.
-    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId, rng: &mut dyn RngCore) -> u32;
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context, rng: &mut dyn RngCore);
+    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32;
+    fn custom(&mut self, hook: &str, who: Target, ctx: &Context);
+    /// The random numbers of the rules being run. The host owns the stream (the game's own, in
+    /// play), so the executor and the hooks it calls draw from one generator.
+    fn rng(&mut self) -> &mut dyn RngCore;
 }
 
 /// What happened when a rule ran, for the event log and tests.
@@ -233,7 +236,6 @@ fn run_effect(
     who: Target,
     ctx: &Context,
     host: &mut dyn EffectHost,
-    rng: &mut dyn RngCore,
     out: &mut Vec<Outcome>,
 ) {
     match effect {
@@ -268,10 +270,10 @@ fn run_effect(
             let abilities = host.facts(who).abilities;
             if immune.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
                 out.push(Outcome::Immune { who });
-            } else if *resistible
-                && resistance_failure(host.resistance_against(who, realm), *resist_modifier, rng)
-                    == 0
-            {
+            } else if *resistible && {
+                let resistance = host.resistance_against(who, realm);
+                resistance_failure(resistance, *resist_modifier, host.rng()) == 0
+            } {
                 out.push(Outcome::Resisted { who });
             } else {
                 let dealt = host.damage(who, *amount, *kind);
@@ -332,11 +334,11 @@ fn run_effect(
             });
         }
         Effect::Dispel { strength } => {
-            let removed = host.dispel(who, *strength, ctx.owner, rng);
+            let removed = host.dispel(who, *strength, ctx.owner);
             out.push(Outcome::Dispelled { who, removed });
         }
         Effect::Custom(hook) => {
-            host.custom(hook, who, ctx, rng);
+            host.custom(hook, who, ctx);
             out.push(Outcome::Custom { hook: hook.clone() });
         }
     }
@@ -353,13 +355,12 @@ pub fn run_rules(
     when: Trigger,
     ctx: &Context,
     host: &mut dyn EffectHost,
-    rng: &mut dyn RngCore,
 ) -> Vec<Outcome> {
     let mut out = Vec::new();
     for rule in rules.iter().filter(|r| r.when == when) {
         for who in resolve_targets(rule.target, ctx, host) {
             if eval(&rule.condition, &host.facts(who)) {
-                run_effect(&rule.effect, who, ctx, host, rng, &mut out);
+                run_effect(&rule.effect, who, ctx, host, &mut out);
             }
         }
     }
