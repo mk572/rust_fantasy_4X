@@ -24,6 +24,23 @@ Decided October 2026, `design.md` section 8.
   city population and the final score, and may later set how well the AI plays.
 - **No hard-coded AI decisions in the core.** What an AI decides lives in `f4x-ai` and reaches
   the core only as ordinary commands.
+- **The AI sees only what a human player would (task 181).** What the original does (as
+  `design.md` section 8 has it): its computer wizards use knowledge a human does not have;
+  the section lists "AI knowledge of hidden information" among what we skip.
+  **Not checked:** we have not looked at what the original's AI can actually see, so this is
+  design.md's claim, not a finding; check it in the original's AI code (ReMoM) before relying on
+  it. What we do: the AI reads the game only through `PlayerView` (`player_view.rs`): its own units and
+  cities, the cities of others on squares it has explored, the units on squares it sees now,
+  and the terrain, rivers, nodes and lairs of explored squares. Why: the decision of October
+  2026 that the AI has no advantage; our first AI broke it (it chose city sites on terrain it had
+  never explored, counted every city for names and asked what stood on squares out of sight).
+  Effect on play: settlers whose explored land has no site walk to unexplored land first
+  (`nearest_unexplored`), so the AI expands more slowly at the start than the first version did;
+  in a 3-seed, 200-turn soak the first wizard ends with 7, 2 and 5 cities and the second with
+  5, 9 and 8 (the first version: 10, 2, 9 and 6, 6, 8). Two things still pass for what a player
+  would know and are looser: a square the AI has explored shows its current city, not what it
+  last saw, and the path search (`can_reach`, `reachable`) knows the real terrain, as the
+  order to walk somewhere does. Built October 2026, task 181 in `TASKS-DONE.md`.
 - **Neutral cities and units get no special rules either:** no half growth, no half production,
   no population cap, no free upkeep (next section).
 
