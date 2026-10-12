@@ -108,19 +108,32 @@ impl ObsSpec {
         let mut units = vec![0.0f32; MAX_UNITS * uf];
         let mut unit_mask = vec![false; MAX_UNITS];
         let mut unit_ids = vec![0usize; MAX_UNITS];
+        // The units on the field first, then the dead of this side that Animate Dead could raise
+        // (their `figures` is 0, which tells them apart; they have no square and no moves).
+        // The wizard aims the spell at one of them like at any other token.
+        let fallen = |u: &&f4x_core::battle::BattleUnit| {
+            u.side == side
+                && u.status == f4x_core::battle::Status::Dead
+                && u.source.is_some()
+                && u.fate() != f4x_core::battle::Fate::Gone
+        };
         for (token, u) in b
             .units
             .iter()
             .filter(|u| u.is_active())
+            .chain(b.units.iter().filter(fallen))
             .take(MAX_UNITS)
             .enumerate()
         {
+            let on_field = u.is_active();
             let own = u.side == side;
             let frac = u.figures as f32 / u.figures_start.max(1) as f32;
-            grid[at(if own { 3 } else { 4 }, u.cell)] = frac;
-            if own {
-                for cell in b.reachable(u.id).into_keys() {
-                    grid[at(5, cell)] = 1.0;
+            if on_field {
+                grid[at(if own { 3 } else { 4 }, u.cell)] = frac;
+                if own {
+                    for cell in b.reachable(u.id).into_keys() {
+                        grid[at(5, cell)] = 1.0;
+                    }
                 }
             }
             let row = &mut units[token * uf..(token + 1) * uf];
@@ -134,8 +147,16 @@ impl ObsSpec {
             let f = [
                 f32::from(own),
                 f32::from(u.side == b.active),
-                u.cell.0 as f32 / GRID_W as f32,
-                u.cell.1 as f32 / GRID_H as f32,
+                if on_field {
+                    u.cell.0 as f32 / GRID_W as f32
+                } else {
+                    0.0
+                },
+                if on_field {
+                    u.cell.1 as f32 / GRID_H as f32
+                } else {
+                    0.0
+                },
                 u.melee as f32 / 20.0,
                 u.ranged as f32 / 20.0,
                 u.defense as f32 / 20.0,

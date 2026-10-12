@@ -110,6 +110,7 @@ mod tests {
                 .expect("a battle is on");
             let b = env.battle().unwrap();
             let active = b.units.iter().filter(|u| u.is_active()).count();
+            // No unit has fallen yet, so the tokens are the units on the field.
             assert_eq!(o.unit_mask.iter().filter(|&&m| m).count(), active);
             assert_eq!(o.units.len(), MAX_UNITS * spec.unit_features());
             assert_eq!(o.spells.len(), MAX_SPELLS * obs::SPELL_FEATURES);
@@ -131,6 +132,81 @@ mod tests {
             with_spell += i32::from(o.spell_mask.iter().any(|&m| m));
         }
         assert!(with_spell > 0, "no scenario gave a wizard a spell");
+    }
+
+    #[test]
+    fn the_fallen_have_tokens_so_animate_dead_can_be_aimed() {
+        use crate::obs::{Brief, ObsSpec};
+        use f4x_core::battle::Status;
+        let content = content();
+        let spec = ObsSpec::new(&content);
+        let spell = content.rules.spells.id_of("animate_dead").unwrap();
+        // A scenario with a wizard on the side to play.
+        let mut env = (0..40)
+            .map(|seed| BattleEnv::new(&content, generate(&content, seed)).unwrap())
+            .find(|e| {
+                let b = e.battle().unwrap();
+                b.caster(e.to_play().unwrap()).is_some()
+            })
+            .expect("a scenario with a wizard");
+        let side = env.to_play().unwrap();
+        let player = env.battle().unwrap().player_of(side);
+        env.game
+            .player_mut(player)
+            .unwrap()
+            .magic
+            .known
+            .insert(spell);
+        // Skill and mana enough for it.
+        env.game
+            .battle
+            .as_mut()
+            .unwrap()
+            .battle
+            .set_caster(side, f4x_core::battle::BattleCaster::new(100, 1000, 10));
+        let before = spec
+            .observe(&env.game, side, Brief::default())
+            .unwrap()
+            .unit_mask
+            .iter()
+            .filter(|&&m| m)
+            .count();
+        // One of its units falls, struck down.
+        let fallen = env
+            .battle()
+            .unwrap()
+            .units
+            .iter()
+            .find(|u| u.side == side && u.is_active() && u.source.is_some())
+            .map(|u| u.id)
+            .unwrap();
+        {
+            let u = &mut env.game.battle.as_mut().unwrap().battle.units[fallen];
+            u.status = Status::Dead;
+            u.figures = 0;
+            u.damage_kinds = [3, 0, 0];
+        }
+        let o = spec.observe(&env.game, side, Brief::default()).unwrap();
+        let now = o.unit_mask.iter().filter(|&&m| m).count();
+        assert_eq!(now, before, "the dead unit's token replaces its live one");
+        let slot = (0..obs::MAX_UNITS)
+            .find(|&t| o.unit_mask[t] && o.unit_ids[t] == fallen)
+            .expect("the fallen unit has a token");
+        assert_eq!(
+            o.units[slot * spec.unit_features() + 9],
+            0.0,
+            "a fallen unit shows no figures"
+        );
+        // The spell may be aimed at it, and the aim is in the vocabulary.
+        let casts = env.game.legal_battle_casts();
+        let cast = casts.iter().find(|c| c.spell == spell);
+        let aim = cast.and_then(|c| {
+            c.aims
+                .iter()
+                .find(|a| **a == f4x_core::battle::SpellAim::Unit(fallen))
+        });
+        let aim = *aim.expect("animate dead may be aimed at the fallen unit");
+        assert!(act::aim_index(aim, &o).is_some());
     }
 
     #[test]

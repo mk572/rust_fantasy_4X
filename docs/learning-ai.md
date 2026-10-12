@@ -1,9 +1,12 @@
 # A self-learning AI
 
 Design for AI players that learn the game by playing it, instead of following hand-written
-rules (`crates/f4x-ai`, `battle/ai.rs`) or loading weights somebody else trained. Status:
-**design only, nothing is built.** Related tasks: 46 (battle AI), 64 to 67 (personalities,
-AI v1, spells, attack), 77 (soak runs).
+rules (`crates/f4x-ai`, `battle/ai.rs`) or loading weights somebody else trained. Status
+(13 October 2026): **phases 0 to 2 are built and tested (the battle AI); the strategic AI is
+still design only** and waits for the review after phase 2 (section 13). The battle agent beats
+the scripted battle AI but is not clearly better than random orders, so it is **not the default**
+(section 7.8). Related tasks: 46 (battle AI), 64 to 67 (personalities, AI v1, spells, attack),
+77 (soak runs), 169 to 171 (done: phases 0 to 2), 172 (follow-ups).
 
 ## 1. Goals and limits
 
@@ -76,6 +79,20 @@ f4x-tools        gains `train` and `evaluate` subcommands
 models-local/    NEW, gitignored: checkpoints (section 11)
 f4x-ai           gains LearnedAi next to Ai: same entry point, loads a checkpoint
 ```
+
+**As built (phases 0 to 2).** The plan above changed in three places:
+
+- `f4x-learn` is in place (3,100 lines): `scenario.rs`, `build.rs`, `bank.rs` (scenarios),
+  `env.rs`, `policy.rs`, `reward.rs`, `obs.rs`, `act.rs`, `agent.rs` (the environment and the
+  decisions), `net.rs`, `train.rs` (Burn: the network, PPO, evaluation) and `brain.rs` (the
+  learned player for the game). Burn is optional: the environment builds without it, and the
+  networks need `--features train`.
+- Training is run from **examples of f4x-learn** (section 7.9), not from `f4x-tools train` and
+  `evaluate` subcommands. `f4x-tools` has only `soak --battle-ai CHECKPOINT` (feature
+  `learned`).
+- There is no `LearnedAi` in `f4x-ai` (that is the strategic AI of phase 6). The battle AI
+  plugs into the core through the `BattleBrain` hook (`Game::set_battle_brain`), so the core
+  stays free of ML.
 
 **Rust, not Python.** The choice was "whichever is less resource-intensive". A Rust trainer
 runs in the same process as the sim: no interpreter, no copying observations into numpy
@@ -361,7 +378,12 @@ sees and does):
   extra mana, such as bolts, dispels and Counter Magic). The wizard has no square on the field
   and no unit token; "skip casting" is simply not casting that turn.
 - **Spells not in the game yet are not offered** and so not trained on. More arrive with task
-  159 and its neighbours. A checkpoint records which spells and unit abilities the rules
+  159 and its neighbours. Animate Dead (13 October, after the first runs) is in the game and
+  the agent can aim it: its aim is a *dead* unit of the wizard's own side, so the observation
+  gives the dead that could be raised (not the destroyed) a unit token after the live ones. A
+  fallen unit is told apart by having no figures, no square and no moves (`obs.rs`); the token
+  shapes did not change, so older checkpoints still load, but they have never seen such a token
+  and have not learned to use it. A checkpoint records which spells and unit abilities the rules
   supported when it was trained (a version of the rules); when the set grows, training resumes
   from that checkpoint on the new set rather than starting over, and spells the network has
   never seen as tokens are the reason spells are encoded from stats.
@@ -432,12 +454,25 @@ scenarios (100 of each odds class, with new dice), after 20 to 40 PPO iterations
 (15 to 30 minutes on 4 threads of the M4, at background priority). The reward is the one of
 7.4 with stakes 0.5; a win is 1 at best.
 
+The two trained rows are the **best checkpoints** of their runs (iteration 20 and 25); the
+final results after 40 iterations are below the table.
+
 | Player | Won | Reward | Even fights won | Overwhelmed (reward) |
 |---|---|---|---|---|
 | The scripted AI as the attacker | 147 / 300 | -0.03 | 52 / 100 | 0 / 100 (-0.97) |
 | Random orders (the unit's turn is still the scripted order of units) | 168 / 300 | 0.04 | 68 / 100 | 3 / 100 (-0.92) |
 | Trained, advice and warm start (run 4, 20 iterations) | 162 / 300 | 0.11 | 68 / 100 | 2 / 100 (-0.79) |
 | Trained, no advice and no warm start (control, 25 iterations) | 170 / 300 | 0.12 | 75 / 100 | 2 / 100 (-0.86) |
+
+**After 40 iterations** (the last evaluation of each run, same 300 battles; the logs are in
+`models-local/run4/log.txt` and `models-local/control/log.txt`): run 4 scored 0.045 (148 / 300
+won; its best was 0.112 at iteration 20) and the control 0.079 (157 / 300; best 0.119 at
+iteration 25). Neither run improved after about iteration 20 to 25, and the scores between
+evaluations wander by 0.05 to 0.08 (the control's iteration 35 was 0.043 and iteration 30 was
+0.119). So more of the same iterations does not help; the limit is the yardstick and the setup
+(section 7.7's list, task 172), not the run length. The warm start alone plays badly (run 4: reward -0.35
+before any PPO), the control starts near the random baseline (0.03 against 0.04); both are
+clearly above it within five iterations.
 
 What this says, without dressing it up:
 
@@ -464,6 +499,46 @@ What this says, without dressing it up:
   against 95). This is the next thing to work on.
 - Evaluations jump by about 0.07 between checkpoints a few iterations apart, so a checkpoint
   is chosen by its score on the held-out set, not taken as the last one.
+
+### 7.9 The harness and how to run it
+
+Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit is
+`RAYON_NUM_THREADS=4`. Paths are relative to the repository, outputs go to `models-local/`
+(gitignored).
+
+| Step | Command | What it does |
+|---|---|---|
+| Speed | `cool_run.sh cargo run --release -p f4x-learn --example bench` | Battles built and played per second (section 3) |
+| Framework | `... --features spike --example spike -- flex\|metal` | The Burn spike of task 169 |
+| Generator | `... --example calibrate [N]` | How well the generator's idea of odds predicts who wins |
+| Bank | `... --example make_bank models-local/bank.ron [count] [first_seed]` | 1200 scenarios with odds measured by the scripted AI, three threads |
+| Training | `RAYON_NUM_THREADS=4 ... --features train --example train_battle OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--no-briefs] [--seed N]` | Warm start, then PPO; writes `log.txt` and `net_NNNN.bpk` every 5 iterations; `BANK=` picks the bank |
+| Probe | `... --features train --example probe CHECKPOINT [BANK]` | How often a checkpoint flees at its first decision, by odds |
+| In a game | `cargo run --release -p f4x-tools --features learned -- soak --battle-ai CHECKPOINT ...` | AI wizards fight their battles with the checkpoint |
+
+What exists on disk after the first runs: the bank (1.3 MB), six run directories (`run0` to
+`run4` and `control`) with their logs and checkpoints, and `battle-v1.bpk`. A checkpoint is
+a Burn record of about a million parameters, 4.8 MB. Runs 0 to 3 were earlier versions of the
+code and their settings are not recorded in the logs, so they cannot be reproduced. Run 4 is the
+configuration of section 7.7 with advice and warm start; the control is the same without them.
+
+**How the first runs happened.** The timer for 2 am was cancelled when the user said the tokens
+were refreshed, and the work was done by hand on 12 October: the legal-action functions, the
+environment and the Burn spike (task 169, with the 27-minute first Burn build), then the agent,
+PPO and the bank (170), then the brief, the mana budget and the hook (171); the undead rules
+(task 29) were done in between at the user's request. All runs used `cool_run.sh` and four threads.
+The tests: 10 in `f4x-learn` (9 without the `train` feature): the reward, scenarios replaying
+the same battle and following their odds, the observation, a random agent playing by the masks
+and never being refused, and a checkpoint playing through the core's hook; plus the core's test that every legal command is accepted by
+`apply` and the console's `blegal` query.
+
+**What changed in the game since the runs**, which the trained checkpoints have not seen: Animate Dead (above; the agent can aim it, no run has used it yet);
+damage is now sorted by what dealt it (`BattleUnit::damage_kinds`, `fate`), so units drained to
+death join the winner as undead and the scripted and learned players fight in a world where that
+happens; units gain experience each turn and have Warlord, Crusade and Heroism levels (task 27),
+so a unit's numbers in a long game differ from those in the generated scenarios (which fix the
+experience). None of this is in the reward. Retraining on the current rules is a command, not
+work, but the scenario bank should be remade (`make_bank`) because the odds were measured before.
 
 ## 8. Training both: how the stages combine
 
@@ -525,6 +600,13 @@ battles the advice is dropped more often and the warm start is short.
   checkpoint can ship with the game as the starting point; the game keeps adjusting its own
   copy (section 9 says how it starts). Whether a checkpoint is committed to the repository is
   decided when there is one worth shipping.
+- **What the model is, and the licence.** There is no pretrained or third-party model. The network
+  (about a million parameters: a trunk over the field, unit and spell tokens and several heads,
+  section 7.7) starts from random weights and is trained by our own PPO on games generated by
+  our own simulator, so the weights are the project's own product with no third-party terms.
+  The framework is **Burn 0.22, licensed MIT or Apache-2.0** (checked in the crate's `Cargo.toml`;
+  the licences of the rest of its dependency tree have not been audited, and should be before a
+  release that bundles a trained network). Checkpoints are not committed.
 - Training uses the rules in `content/`, which are committed and carry no art, so a network
   holds no protected material; if training ever uses `content-local/`, keep its networks local.
 - Continuing to learn **during normal play** (adjusting weights after real games) is possible
@@ -554,9 +636,9 @@ The plan is to build the battle AI first and decide on the rest after seeing how
 
 | Phase | Work | Done when |
 |---|---|---|
-| 0 | Shared legal-action functions and the alignment test (section 4); `f4x-learn` env for battles; the Burn spike; measure battles per second | a random policy plays battles without a rules error, and numbers for speed and for the M4 exist |
-| 1 | Battle generator; PPO for the battle AI with the scripted battle AI's advice and a warm start (section 9), the control run, the league | beats `battle/ai.rs` in the evaluation suite; advice versus control compared |
-| 2 | Battle brief (`mana_budget`, `stakes`); casting; wiring into the game as the battle AI of AI wizards (closes task 46) | spends no more than the budget, trades losses for the win as `stakes` changes, and plays in the real game |
+| 0 (done) | Shared legal-action functions and the alignment test (section 4); `f4x-learn` env for battles; the Burn spike; measure battles per second | a random policy plays battles without a rules error, and numbers for speed and for the M4 exist |
+| 1 (done, review open) | Battle generator; PPO for the battle AI with the scripted battle AI's advice and a warm start (section 9), the control run, the league | beats `battle/ai.rs` in the evaluation suite; advice versus control compared |
+| 2 (done) | Battle brief (`mana_budget`, `stakes`); casting; wiring into the game as the battle AI of AI wizards (closes task 46) | spends no more than the budget, trades losses for the win as `stakes` changes, and plays in the real game |
 | **Review** | Look at what phases 0 to 2 cost and gave, then decide whether to go on | a decision |
 | 3 | (if go) Strategic env, factored actions on the console's families, reward shaping, curriculum stages 1 to 4 | agent founds and grows cities, builds an economy, takes a neutral city |
 | 4 | Strategic self-play with the battle AI frozen: stages 5 and 6, league | wins more than half its games against the scripted AI on small maps |
