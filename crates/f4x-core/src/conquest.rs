@@ -20,8 +20,10 @@
 //! [`Command::RazeCity`]: crate::Command::RazeCity
 
 use crate::city::{City, PlayerId, Position};
-use crate::economy::{Buildings, Enchantments, Population};
+use crate::economy::{Buildings, Economy, Enchantments, Population};
 use crate::production::{Production, ProductionItem};
+use crate::rng::GameRng;
+use crate::rules::BuildingId;
 use crate::{Event, Game};
 
 /// Marks a city taken this turn by the player it holds, who may still raze it.
@@ -34,7 +36,94 @@ pub fn city_size_class(citizens: u32) -> u32 {
     citizens.div_ceil(4).min(5)
 }
 
-impl Game {
+/// The fame the loser loses and the winner gains when a city of size class `size` is kept:
+/// the size, and the size less two (not below nothing).
+pub(crate) fn fame_change(size: i32) -> (i32, i32) {
+    (size, (size - 2).max(0))
+}
+
+/// The share of the loser's gold that a city loots: the treasury (not below nothing) times this
+/// city's citizens over all the loser's citizens.
+pub(crate) fn loot_share(gold: i32, citizens: u32, all_citizens: u32) -> i32 {
+    if all_citizens == 0 {
+        return 0;
+    }
+    (i64::from(gold.max(0)) * i64::from(citizens) / i64::from(all_citizens)) as i32
+}
+
+/// What the fighting cost a city.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Toll {
+    pub citizens_lost: u32,
+    pub buildings_lost: u32,
+}
+
+/// The fighting kills citizens and wrecks buildings: every citizen but one dies with a chance of
+/// 10 percent plus twice the city damage (at most 50), and every building dies with a chance of
+/// the damage plus 10 percent (at most 75) unless `destroy` says another building needs it. One
+/// draw per citizen but one, then one per building, in that order.
+pub(crate) fn fighting_toll(
+    citizens: u32,
+    city_damage: u32,
+    built: &[BuildingId],
+    rng: &mut GameRng,
+    mut destroy: impl FnMut(BuildingId) -> bool,
+) -> Toll {
+    let damage = city_damage as i32;
+    let percent = (damage * 2 + 10).min(50);
+    let mut citizens_lost = 0;
+    for _ in 0..citizens.saturating_sub(1) {
+        if rng.roll(100) as i32 <= percent {
+            citizens_lost += 1;
+        }
+    }
+    let chance = (damage + 10).min(75);
+    let mut buildings_lost = 0;
+    for &b in built {
+        if rng.roll(100) as i32 <= chance && destroy(b) {
+            buildings_lost += 1;
+        }
+    }
+    Toll {
+        citizens_lost,
+        buildings_lost,
+    }
+}
+
+/// The gold razing a city brings: a tenth of the cost of each building.
+pub(crate) fn razing_loot(costs: impl IntoIterator<Item = u32>) -> i32 {
+    costs.into_iter().map(|c| (c / 10) as i32).sum()
+}
+
+/// The fame razing a city costs: the size class plus one.
+pub(crate) fn razing_fame_loss(size: i32) -> i32 {
+    size + 1
+}
+
+/// Destroy a building, unless another that is built needs it (also down a chain). Returns
+/// whether it went.
+pub(crate) fn destroy_building(
+    world: &mut hecs::World,
+    map: Option<&crate::map::Map>,
+    content: &crate::content::Content,
+    players: &[crate::player::Player],
+    city: hecs::Entity,
+    building: BuildingId,
+) -> bool {
+    if Economy::new(world, map, content, players).has_dependants(city, building) {
+        return false;
+    }
+    match world.get::<&mut Buildings>(city) {
+        Ok(mut b) => {
+            let before = b.0.len();
+            b.0.retain(|&x| x != building);
+            b.0.len() < before
+        }
+        Err(_) => false,
+    }
+}
+
+impl Economy<'_> {
     pub fn citizens(&self, city: hecs::Entity) -> u32 {
         self.world.get::<&Population>(city).map_or(0, |p| p.figures)
     }
@@ -51,11 +140,18 @@ impl Game {
             .filter(|(_, c, _)| c.owner == owner)
             .map(|(e, ..)| self.citizens(e))
             .sum();
-        let gold = self.player(owner).map_or(0, |p| p.gold).max(0);
-        if all == 0 {
-            return 0;
-        }
-        (i64::from(gold) * i64::from(self.citizens(city)) / i64::from(all)) as i32
+        let gold = self.player(owner).map_or(0, |p| p.gold);
+        loot_share(gold, self.citizens(city), all)
+    }
+}
+
+impl Game {
+    pub fn citizens(&self, city: hecs::Entity) -> u32 {
+        self.economy().citizens(city)
+    }
+
+    pub fn conquest_loot(&self, city: hecs::Entity) -> i32 {
+        self.economy().conquest_loot(city)
     }
 
     /// `winner` takes `city` after the fighting, which did `city_damage` to it.
@@ -84,15 +180,16 @@ impl Game {
         }
         self.city_taken_relations(winner, loser);
         let size = city_size_class(citizens) as i32;
+        let (fame_lost, fame_gained) = fame_change(size);
         let loot = self.conquest_loot(city);
         let loser_is_wizard = !self.is_neutral_player(loser);
         if loser_is_wizard {
             if let Some(p) = self.player_mut(loser) {
-                p.fame = (p.fame - size).max(0);
+                p.fame = (p.fame - fame_lost).max(0);
             }
         }
         if let Some(p) = self.player_mut(winner) {
-            p.fame += (size - 2).max(0);
+            p.fame += fame_gained;
             p.gold += loot;
         }
         if let Some(p) = self.player_mut(loser) {
@@ -100,35 +197,30 @@ impl Game {
         }
 
         // The fighting kills citizens and wrecks buildings.
-        let damage = city_damage as i32;
-        let percent = (damage * 2 + 10).min(50);
-        let mut lost = 0;
-        for _ in 0..citizens.saturating_sub(1) {
-            if self.roll(100) as i32 <= percent {
-                lost += 1;
-            }
-        }
-        if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
-            pop.figures -= lost;
-        }
-        let chance = (damage + 10).min(75);
-        let mut destroyed = 0;
         let built: Vec<_> = self
             .world
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
-        for b in built {
-            if self.roll(100) as i32 <= chance && self.destroy_building(city, b) {
-                destroyed += 1;
-            }
+        let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
+            destroy_building(
+                &mut self.world,
+                self.map.as_ref(),
+                &self.content,
+                &self.players,
+                city,
+                b,
+            )
+        });
+        if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
+            pop.figures -= toll.citizens_lost;
         }
 
         let mut events = vec![Event::CityLooted {
             city,
             gold: loot,
-            citizens_lost: lost,
-            buildings_lost: destroyed,
+            citizens_lost: toll.citizens_lost,
+            buildings_lost: toll.buildings_lost,
         }];
         events.extend(self.capture_city(city, winner));
         // The old owner's spells on the city end, and the new owner starts afresh.
@@ -151,23 +243,15 @@ impl Game {
     }
 
     /// Destroy a building, unless another that is built needs it (also down a chain).
-    pub(crate) fn destroy_building(
-        &mut self,
-        city: hecs::Entity,
-        building: crate::rules::BuildingId,
-    ) -> bool {
-        let needed = self.has_dependants(city, building);
-        if needed {
-            return false;
-        }
-        match self.world.get::<&mut Buildings>(city) {
-            Ok(mut b) => {
-                let before = b.0.len();
-                b.0.retain(|&x| x != building);
-                b.0.len() < before
-            }
-            Err(_) => false,
-        }
+    pub(crate) fn destroy_building(&mut self, city: hecs::Entity, building: BuildingId) -> bool {
+        destroy_building(
+            &mut self.world,
+            self.map.as_ref(),
+            &self.content,
+            &self.players,
+            city,
+            building,
+        )
     }
 
     /// The winner razes the city they have just taken: more fame lost, a tenth of the
@@ -185,18 +269,14 @@ impl Game {
         }
         let size = city_size_class(self.citizens(city)) as i32;
         let rules = &self.content.rules;
-        let loot: i32 = self
+        let loot = self
             .world
             .get::<&Buildings>(city)
-            .map(|b| {
-                b.0.iter()
-                    .map(|&b| (rules.buildings.get(b).cost / 10) as i32)
-                    .sum()
-            })
+            .map(|b| razing_loot(b.0.iter().map(|&b| rules.buildings.get(b).cost)))
             .unwrap_or(0);
         let pos: Option<Position> = self.world.get::<&Position>(city).map(|p| *p).ok();
         if let Some(p) = self.player_mut(player) {
-            p.fame = (p.fame - (size + 1)).max(0);
+            p.fame = (p.fame - razing_fame_loss(size)).max(0);
             p.gold += loot;
         }
         let mut events = Vec::new();
@@ -233,3 +313,6 @@ pub enum RazeError {
     /// The city was not taken by this player this turn.
     NotJustTaken,
 }
+
+#[cfg(test)]
+mod tests;
