@@ -109,7 +109,22 @@ Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
 - **Upkeep before growth is *not* a departure:** the turn pays upkeep before cities grow, as
   the original does (`game-flow.md` section 4).
 
-## 5. Recorded elsewhere
+## 5. Special spells (task 56)
+
+Decided October 2026, `special_spells.rs`.
+
+- **Word of Recall into a full circle.** The original sends the unit anyway and then evicts the
+  weakest unit of the stack (`Evict_Weakest_Unit`, lowest upkeep plus level). We make the spell
+  unavailable while the summoning circle holds a full stack, so nothing is lost without the
+  player choosing it. Revisit when evicting units has an interface.
+- **Plane Shift's water rules.** The original has its own check (`Cast_Plane_Shift_Check`) for a
+  destination square that is water. We use the normal movement rule: the shift is refused if
+  any unit of the stack could not stand on the destination square. Not yet compared case by case
+  with the original's check.
+- **Earth Lore's block.** The original explores the map window on screen (12 by 10 squares).
+  We explore a block of that size centred on the tile the wizard picks.
+
+## 6. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

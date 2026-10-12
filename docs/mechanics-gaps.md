@@ -119,7 +119,7 @@ still open.
   Spell of Mastery as a victory condition [749, 753, 804].
 - Item creation (Enchant Item, Create Artifact) [713 and spell text].
 
-### Spells still on the `unimplemented` placeholder: 134 of 214
+### Spells still on the `unimplemented` placeholder: 60 of 214 (the table below is the original breakdown of 134)
 | Count | Why |
 |---|---|
 | 37 | "Special" spells: map reveals, terrain/mineral changes, healing a map square, recalls, moving the fortress, resurrect... |

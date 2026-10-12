@@ -81,6 +81,29 @@ impl Fog {
         }
     }
 
+    /// Mark a `width` by `height` block of tiles, centred as nearly as it can on `at`
+    /// (wrapping horizontally, clipped vertically), as explored.
+    pub fn explore_block(&mut self, player: PlayerId, at: Position, width: u32, height: u32) {
+        if self.width == 0 {
+            return;
+        }
+        let (w, h) = (self.width as i32, self.height as i32);
+        let layer = self.layer(player, at.plane);
+        let (left, top) = (
+            at.x as i32 - width as i32 / 2,
+            at.y as i32 - height as i32 / 2,
+        );
+        for dy in 0..height as i32 {
+            let y = top + dy;
+            if !(0..h).contains(&y) {
+                continue;
+            }
+            for dx in 0..width as i32 {
+                layer[(y * w + (left + dx).rem_euclid(w)) as usize] = true;
+            }
+        }
+    }
+
     pub fn is_explored(&self, player: PlayerId, plane: Plane, x: u32, y: u32) -> bool {
         self.explored
             .get(&player)

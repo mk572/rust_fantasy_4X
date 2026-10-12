@@ -165,6 +165,15 @@ research income) exist; heroes do not feed them yet. A hero's mana in battle (`(
 recalls, moving the fortress, resurrect and similar [mechanics-gaps section 4]. Add the missing
 effect primitives (map reveal, teleport, grant movement type, building destruction, random-effect
 tables) and implement them in groups. Low priority: only needed for specific spells, buildings, units or abilities.
+First group done in `special_spells.rs`: Transmute (iron and gold, coal and gems, silver and mithril swap), Earth Lore
+(explores a 12 by 10 block around the target tile; the original reveals the visible map window), Nature's Cures (heals the
+whole stack on the unit's tile, except Death-realm and undead units), Word of Recall (to the summoning circle) and Plane
+Shift (the whole stack to the other plane). Two known differences (recorded in `divergences.md` section 5): the original's Word of Recall evicts the weakest unit of
+a full circle (`Evict_Weakest_Unit`), here a full circle makes the spell unavailable; and Plane Shift refuses a square
+where any unit could not stand (the original has separate water rules, `Cast_Plane_Shift_Check`). Still open: Stasis,
+Earthquake, Great Unsummoning, Death Wish, Lycanthropy, Call the Void, Chaos Channels, Black Wind, Drain Power,
+Subversion, Cruel Unminding, Resurrection, Incarnation (these need dead-unit tracking or wizard-state changes),
+Fire Storm and Ice Storm, plus Enchant Item, Create Artifact and the summon spells (heroes tasks, 218 onward).
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
 conditional bonuses and regeneration. Needs conditional modifiers (by attacker realm, ranged versus

@@ -724,6 +724,38 @@ pub fn content_with_magic() -> Content {
         s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
         spells.push(s);
     }
+    // The special spells (`special_spells.rs`).
+    for (id, hook, target) in [
+        (
+            "transmute",
+            crate::special_spells::TRANSMUTE,
+            SpellTarget::Tile,
+        ),
+        (
+            "earth_lore",
+            crate::special_spells::EARTH_LORE,
+            SpellTarget::Tile,
+        ),
+        (
+            "natures_cures",
+            crate::special_spells::NATURES_CURES,
+            SpellTarget::OwnUnit,
+        ),
+        (
+            "word_of_recall",
+            crate::special_spells::WORD_OF_RECALL,
+            SpellTarget::OwnUnit,
+        ),
+        (
+            "plane_shift",
+            crate::special_spells::PLANE_SHIFT,
+            SpellTarget::OwnUnit,
+        ),
+    ] {
+        let mut s = base(id, "arcane", Rarity::Uncommon, 20, 100, target);
+        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
+        spells.push(s);
+    }
     c.rules.spells = Registry::new(spells);
     c.rules.realms = Registry::new(
         ["life", "chaos", "nature"]

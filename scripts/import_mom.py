@@ -753,6 +753,15 @@ TILE_HOOKS = {
     "Enchant Road": "enchant_road",
     "Corruption": "corrupt_land",
     "Warp Node": "warp_node",
+    "Transmute": "transmute",
+    "Earth Lore": "earth_lore",
+}
+
+# Special spells aimed at a friendly unit and its stack (`special_spells.rs`).
+UNIT_HOOKS = {
+    "Nature's Cures": "natures_cures",
+    "Word of Recall": "word_of_recall",
+    "Plane Shift": "plane_shift",
 }
 
 
@@ -839,6 +848,9 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in TILE_HOOKS:
         hook = TILE_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"
+    if name in UNIT_HOOKS:
+        hook = UNIT_HOOKS[name]
+        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnUnit", "instant"
     if name in DISPEL_FAMILY:
         target, effect, factor = DISPEL_FAMILY[name]
         if effect == "Dispel":

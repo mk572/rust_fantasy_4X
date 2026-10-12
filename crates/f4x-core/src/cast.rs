@@ -284,9 +284,17 @@ impl EffectHost for GameHost<'_> {
                 crate::roads::ENCHANT_ROAD => self.game.enchant_roads(at),
                 crate::corruption::CORRUPT_LAND => self.game.corrupt(at),
                 crate::corruption::WARP_NODE => self.game.warp_node(at),
+                crate::special_spells::TRANSMUTE => self.game.transmute(at),
+                crate::special_spells::EARTH_LORE => {
+                    self.game.earth_lore(ctx.owner, at);
+                    return;
+                }
                 _ => return,
             };
             self.events.extend(events);
+            return;
+        }
+        if self.game.run_unit_special(hook, ctx.owner, who) {
             return;
         }
         let Target::City(city) = who else {
@@ -443,6 +451,39 @@ impl Game {
         if self.spell_has_hook(spell, crate::terraform::CHANGE_TERRAIN) {
             return match target {
                 Some(Target::Tile(p)) if self.change_terrain_result(p).is_some() => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::special_spells::TRANSMUTE) {
+            return match target {
+                Some(Target::Tile(p)) if self.transmute_result(p).is_some() => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        let unit_ok = |u: hecs::Entity| match target {
+            Some(Target::Unit(t)) if t == u => mine(self.units().unit_owner(u)),
+            _ => false,
+        };
+        if self.spell_has_hook(spell, crate::special_spells::WORD_OF_RECALL) {
+            return match target {
+                Some(Target::Unit(u))
+                    if unit_ok(u) && self.recall_destination(player, u).is_some() =>
+                {
+                    Ok(())
+                }
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::special_spells::PLANE_SHIFT) {
+            return match target {
+                Some(Target::Unit(u))
+                    if unit_ok(u) && self.plane_shift_destination(u).is_some() =>
+                {
+                    Ok(())
+                }
                 Some(_) => Err(MagicError::NoSuchTarget),
                 None => Err(MagicError::NeedsTarget),
             };
