@@ -17,7 +17,7 @@ economy.rs 12
 endgame.rs 6
 experience.rs 3
 finance.rs 5
-fortress.rs 13
+fortress.rs 11
 gates.rs 3
 globals.rs 7
 healing.rs 1

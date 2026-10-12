@@ -427,3 +427,104 @@ fn the_end_of_the_game_is_saved() {
     assert_eq!(loaded.human, Some(P0));
     assert_eq!(loaded.player(P0).unwrap().defeated_by, Some(P1));
 }
+
+// ---- the rules over a player, with no game ------------------------------------------------
+
+fn wizard() -> Player {
+    Player::new(P0, "Merlin")
+}
+
+fn square(x: u32) -> Position {
+    Position {
+        plane: crate::map::Plane::Arcanus,
+        x,
+        y: 3,
+    }
+}
+
+#[test]
+fn a_wizard_may_found_a_fortress_once_and_never_banished_or_defeated() {
+    let mut p = wizard();
+    assert_eq!(can_place(&p), Ok(()));
+    place_at(&mut p, square(1), None);
+    assert_eq!(
+        (p.fortress, p.summon_at),
+        (Some(square(1)), Some(square(1)))
+    );
+    assert_eq!(can_place(&p), Err(FortressError::NotAllowed));
+    let mut q = wizard();
+    q.banished = true;
+    assert_eq!(can_place(&q), Err(FortressError::NotAllowed));
+    let mut r = wizard();
+    r.defeated = true;
+    assert_eq!(can_place(&r), Err(FortressError::NotAllowed));
+}
+
+#[test]
+fn moving_the_fortress_needs_one_and_takes_the_circle_with_it() {
+    let mut p = wizard();
+    assert_eq!(
+        move_fortress_to(&mut p, square(2)),
+        Err(FortressError::WrongState)
+    );
+    place_at(&mut p, square(1), None);
+    p.summon_at = Some(square(5));
+    move_fortress_to(&mut p, square(2)).unwrap();
+    assert_eq!(
+        (p.fortress, p.summon_at),
+        (Some(square(2)), Some(square(2)))
+    );
+}
+
+#[test]
+fn a_banished_wizard_returns_and_takes_the_cities_race() {
+    let mut p = wizard();
+    place_at(&mut p, square(1), None);
+    assert_eq!(
+        return_to(&mut p, square(4), None),
+        Err(FortressError::WrongState)
+    );
+    let half = fortress_falls(&mut p);
+    assert_eq!((p.fortress, p.summon_at, half), (None, None, 0));
+    p.mana = 11;
+    p.fortress = Some(square(1));
+    assert_eq!(fortress_falls(&mut p), 5);
+    assert_eq!(p.mana, 6, "the odd point stays");
+    banish_player(&mut p, None);
+    assert!(p.banished && p.magic.casting.is_none());
+    return_to(&mut p, square(4), None).unwrap();
+    assert!(!p.banished);
+    assert_eq!(
+        (p.fortress, p.summon_at),
+        (Some(square(4)), Some(square(4)))
+    );
+}
+
+#[test]
+fn the_circle_falls_back_to_the_fortress_when_its_city_is_lost() {
+    let mut p = wizard();
+    place_at(&mut p, square(1), None);
+    p.summon_at = Some(square(7));
+    circle_lost_to_capture(&mut p, square(7));
+    assert_eq!(p.summon_at, Some(square(1)));
+    // Losing the fortress city itself leaves the circle nowhere when it stood there.
+    circle_lost_to_capture(&mut p, square(1));
+    assert_eq!(p.summon_at, None);
+    p.summon_at = Some(square(7));
+    circle_lost_to_destruction(&mut p, square(7));
+    assert_eq!(p.summon_at, Some(square(1)));
+}
+
+#[test]
+fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() {
+    let mut p = wizard();
+    place_at(&mut p, square(1), None);
+    p.banished = true;
+    defeat_player(&mut p);
+    assert!(p.defeated && !p.banished);
+    assert_eq!((p.fortress, p.summon_at), (None, None));
+    let mut w = Player::new(P1, "Rival");
+    fortress_prize(&mut w, 7);
+    assert_eq!((w.fame, w.mana), (5, 7));
+    assert_eq!(summon_point(&wizard()), None);
+}

@@ -122,10 +122,15 @@ Three ways to give a domain what it needs, all in use:
   units is a function over `&mut World`, such as `units::spawn`, `experience::gain_xp` and
   the `temp_effects` functions). A test builds a world and the content and no `Game`.
 
-Where this stands: diplomacy, magic (income in `magic_income.rs` over a small view; the commands that need no world in `magic_commands.rs`), the units, the economy and production follow it (tasks 179,
-180, 185, 186 and 187; production's checks are methods of `Economy`). Their `impl Game` methods are still there as thin wrappers with the old names
-(`unit_stat`, `city_economy`, ...) that make a `Units` or an `Economy` and ask it; task 198 moves
-the callers over and deletes the wrappers. The turn code does too (task 188: `process_turn` only sequences
-the steps). Movement and transport (task 189: plans on `Economy`, the moves themselves on `Game` because they change the fog) and vision (193) do too. The lairs (task 190: clearing and loot as functions over the map and the wizard's magic) too. Conquest (191: the loss, the loot and the razing as plain functions) too. What does not yet: the fortress (192);
-the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
-reports the number of `impl Game` methods per file, as a guideline.
+Where this stands: every domain of the game follows it (tasks 179, 180, 185 to 193 and 196, 197):
+diplomacy, magic (income in `magic_income.rs` over a small view; the commands that need no world in
+`magic_commands.rs`), the units, the economy and production (the checks are methods of `Economy`,
+which is the world over the map), the turn (`process_turn` only sequences the steps), movement and
+transport (plans on `Economy`; the moves themselves stay on `Game` because they change the fog), the
+lairs (clearing and loot as functions over the map and the wizard's magic), conquest (the loss, the
+loot and the razing as plain functions), the fortress (its rules as functions over the player) and
+vision. The battle engine, the rules layer, the map and the fog already did. The old `impl Game`
+methods are still there as thin wrappers with the old names (`unit_stat`, `city_economy`,
+`plan_step`, ...) that make a handle and ask it; task 198 moves the callers over and deletes the
+wrappers, and only then do the per-file counts fall. Task 183's test reports the number of
+`impl Game` methods per file, as a guideline.
