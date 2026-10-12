@@ -3,16 +3,24 @@
 //! Formulas follow the original game's code (see `docs/magic.md` for the list and for where
 //! this differs). The wizard is not an entity: it is a [`Magic`] record on the [`Player`].
 //!
+//! This file is the wizard's own side (task 180, `architecture-plan.md`): [`Magic`] holds the
+//! state and the rules that need nothing but the content and the random numbers, as methods
+//! that take what they use (`&Content`, `&mut GameRng`, numbers the game worked out). What
+//! needs the world (power from the cities, the upkeep items, resolving a spell, the turn
+//! change) is in `magic_game.rs`, which calls these.
+//!
 //! [`Player`]: crate::player::Player
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::city::PlayerId;
+use crate::cast::UpkeepItem;
+
+use crate::content::Content;
+use crate::rng::GameRng;
 use crate::rules::effects::Effect;
-use crate::rules::{CastContext, Rarity, SpellDef, SpellId};
-use crate::{Event, Game};
+use crate::rules::{Rarity, SpellDef, SpellId};
 
 /// Special abilities a wizard can pick ("retorts" in the original's manual).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -183,39 +191,67 @@ fn is_crafting(def: &SpellDef) -> bool {
     matches!(def.id.as_str(), "enchant_item" | "create_artifact")
 }
 
-impl Game {
-    pub fn magic(&self, player: PlayerId) -> Option<&Magic> {
-        self.player(player).map(|p| &p.magic)
-    }
+/// Spells of one realm and rarity in file order (the order the data lists them in).
+pub fn spells_of(content: &Content, realm: &str, rarity: Rarity) -> Vec<SpellId> {
+    content
+        .rules
+        .spells
+        .iter()
+        .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
+        .map(|(id, _)| id)
+        .collect()
+}
 
-    #[cfg(test)]
-    pub(crate) fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut Magic {
-        self.magic_mut(player).unwrap()
+/// Pick `count` distinct spells from `pool` at random, skipping any in `have`.
+fn pick_spells(
+    rng: &mut GameRng,
+    pool: &[SpellId],
+    have: &BTreeSet<SpellId>,
+    count: usize,
+) -> Vec<SpellId> {
+    let mut left: Vec<SpellId> = pool.iter().copied().filter(|s| !have.contains(s)).collect();
+    let mut out = Vec::new();
+    while out.len() < count && !left.is_empty() {
+        let i = rng.roll(left.len() as u32) as usize - 1;
+        out.push(left.remove(i));
     }
+    out
+}
 
-    pub(crate) fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
-        self.player_mut(player).map(|p| &mut p.magic)
+/// What to do about the mana upkeep: the items to give up (newest first) so that the reserve
+/// can pay the rest, and what is then owed. A Channeler's items count half (`divisor` 2).
+pub(crate) fn upkeep_plan(
+    items: &[UpkeepItem],
+    divisor: i32,
+    reserve: i32,
+) -> (Vec<UpkeepItem>, i32) {
+    let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() / divisor;
+    let mut rest = items.to_vec();
+    let mut dropped = Vec::new();
+    while owed > reserve {
+        let Some(item) = rest.pop() else {
+            break;
+        };
+        owed -= item.mana / divisor;
+        dropped.push(item);
     }
+    (dropped, owed)
+}
 
-    /// Set up a new wizard: books and retorts, starting casting skill, and the spell
-    /// library (what is known and what can be researched) from the number of books.
-    pub fn init_wizard(
-        &mut self,
-        player: PlayerId,
-        books: &[(&str, u8)],
-        retorts: &[Retort],
-    ) -> Result<(), MagicError> {
-        self.init_wizard_with(player, books, retorts, None)
-    }
+/// How a spell cast on the overland map begins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CastStart {
+    /// The skill and mana on hand pay for all of it: it takes effect now.
+    Now,
+    /// It is paid over turns.
+    Paid,
+}
 
-    /// Like [`Game::init_wizard`], with the starting spells given instead of drawn at random.
-    pub fn init_wizard_with(
-        &mut self,
-        player: PlayerId,
-        books: &[(&str, u8)],
-        retorts: &[Retort],
-        start_spells: Option<&[SpellId]>,
-    ) -> Result<(), MagicError> {
+impl Magic {
+    /// A new wizard's record: books and retorts, and the starting casting skill (twice the books,
+    /// plus 5 books' worth for an archmage), found by growing the invested total until the skill
+    /// reaches it. The spell library comes with [`Magic::init_library`].
+    pub fn new(books: &[(&str, u8)], retorts: &[Retort]) -> Magic {
         let mut magic = Magic::default();
         for &(realm, n) in books {
             if n > 0 {
@@ -223,67 +259,35 @@ impl Game {
             }
         }
         magic.retorts = retorts.iter().copied().collect();
-        // Starting skill: twice the books (plus 5 for an archmage), found by growing the
-        // invested total until the skill reaches it.
         let archmage = magic.has(Retort::Archmage);
         let target = 2 * (magic.total_books() + if archmage { 5 } else { 0 });
         magic.skill_points = skill_points_for(target, archmage);
         magic.skill_left = base_casting_skill(magic.skill_points, archmage);
-        // A famous wizard starts with 10 fame, any other with none.
-        let fame = if magic.has(Retort::Famous) { 10 } else { 0 };
-        let p = self.player_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        p.magic = magic;
-        p.fame = fame;
-        self.init_spell_library(player, start_spells);
-        Ok(())
-    }
-
-    /// Spells of one realm and rarity in file order (the order the data lists them in).
-    pub(crate) fn spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
-        self.content
-            .rules
-            .spells
-            .iter()
-            .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
-            .map(|(id, _)| id)
-            .collect()
-    }
-
-    /// Pick `count` distinct spells from `pool` at random, skipping any in `have`.
-    fn pick_spells(
-        &mut self,
-        pool: &[SpellId],
-        have: &BTreeSet<SpellId>,
-        count: usize,
-    ) -> Vec<SpellId> {
-        let mut left: Vec<SpellId> = pool.iter().copied().filter(|s| !have.contains(s)).collect();
-        let mut out = Vec::new();
-        while out.len() < count && !left.is_empty() {
-            let i = self.roll(left.len() as u32) as usize - 1;
-            out.push(left.remove(i));
-        }
-        out
+        magic
     }
 
     /// Known and researchable spells from books: with `n` books in a realm the wizard
     /// starts knowing `n - 1` common spells and may research a growing share of every
-    /// rarity (all uncommon from 8 books, all rare and very rare from 10).
-    fn init_spell_library(&mut self, player: PlayerId, start_spells: Option<&[SpellId]>) {
-        let books: Vec<(String, u8)> = self
-            .magic(player)
-            .map(|m| m.books.iter().map(|(r, &n)| (r.clone(), n)).collect())
-            .unwrap_or_default();
+    /// rarity (all uncommon from 8 books, all rare and very rare from 10). The offer for
+    /// research is emptied; fill it with [`Magic::refill_research`].
+    pub fn init_library(
+        &mut self,
+        content: &Content,
+        rng: &mut GameRng,
+        start_spells: Option<&[SpellId]>,
+    ) {
+        let books: Vec<(String, u8)> = self.books.iter().map(|(r, &n)| (r.clone(), n)).collect();
         let mut known = BTreeSet::new();
         let mut available = BTreeSet::new();
         for (realm, n) in books {
             let n = usize::from(n).clamp(1, 11);
-            let common = self.spells_of(&realm, Rarity::Common);
+            let common = spells_of(content, &realm, Rarity::Common);
             if n == 11 {
                 // Everything is open; all the common spells are known, and so are the two
                 // uncommon and the one rare spell the wizard picked.
                 known.extend(common.iter().copied());
                 for (rarity, count) in [(Rarity::Uncommon, 2), (Rarity::Rare, 1)] {
-                    let pool = self.spells_of(&realm, rarity);
+                    let pool = spells_of(content, &realm, rarity);
                     let picked: Vec<SpellId> = match start_spells {
                         Some(chosen) => chosen
                             .iter()
@@ -291,7 +295,7 @@ impl Game {
                             .filter(|s| pool.contains(s))
                             .take(count)
                             .collect(),
-                        None => self.pick_spells(&pool, &known, count),
+                        None => pick_spells(rng, &pool, &known, count),
                     };
                     known.extend(picked);
                 }
@@ -301,7 +305,7 @@ impl Game {
                     Rarity::Rare,
                     Rarity::VeryRare,
                 ] {
-                    available.extend(self.spells_of(&realm, rarity));
+                    available.extend(spells_of(content, &realm, rarity));
                 }
                 continue;
             }
@@ -312,13 +316,13 @@ impl Game {
                     .filter(|s| common.contains(s))
                     .take(n - 1)
                     .collect(),
-                None => self.pick_spells(&common, &known, n - 1),
+                None => pick_spells(rng, &common, &known, n - 1),
             };
             known.extend(start.iter().copied());
             available.extend(start);
             let limit = COMMON_LIMIT[n - 1].min(common.len());
             let have_common = common.iter().filter(|s| available.contains(s)).count();
-            let more = self.pick_spells(&common, &available, limit.saturating_sub(have_common));
+            let more = pick_spells(rng, &common, &available, limit.saturating_sub(have_common));
             available.extend(more);
             let tiers = [
                 (Rarity::Uncommon, n > 7, UNCOMMON_LIMIT[(n - 1).min(6)]),
@@ -326,18 +330,17 @@ impl Game {
                 (Rarity::VeryRare, n > 9, VERY_RARE_LIMIT[(n - 1).min(8)]),
             ];
             for (rarity, all, limit) in tiers {
-                let pool = self.spells_of(&realm, rarity);
+                let pool = spells_of(content, &realm, rarity);
                 if all {
                     available.extend(pool);
                 } else {
-                    let picked = self.pick_spells(&pool, &available, limit);
+                    let picked = pick_spells(rng, &pool, &available, limit);
                     available.extend(picked);
                 }
             }
         }
         // Arcane spells are open to everyone.
-        let arcane: Vec<SpellId> = self
-            .content
+        let arcane: Vec<SpellId> = content
             .rules
             .spells
             .iter()
@@ -345,265 +348,152 @@ impl Game {
             .map(|(id, _)| id)
             .collect();
         available.extend(arcane);
-        if let Some(m) = self.magic_mut(player) {
-            m.researchable = available.difference(&known).copied().collect();
-            m.known = known;
-            m.candidates.clear();
+        self.researchable = available.difference(&known).copied().collect();
+        self.known = known;
+        self.candidates.clear();
+    }
+
+    /// Casting skill now.
+    pub fn casting_skill(&self) -> i32 {
+        base_casting_skill(self.skill_points, self.has(Retort::Archmage))
+    }
+
+    /// Mana needed to cast `def`. Overland casting of a spell that can also be cast in battle
+    /// costs five times the battle price; reductions come from books beyond seven, masteries,
+    /// artificer, conjurer and runemaster. `evil_omens`: life and nature spells cost half as
+    /// much again (the help does not say; the caster is assumed to be spared, so the game says
+    /// whether Evil Omens is against this wizard).
+    pub fn casting_cost(&self, def: &SpellDef, in_battle: bool, evil_omens: bool) -> i32 {
+        let mut cost = def.cost as i32;
+        if !in_battle && def.overland_x5 {
+            cost *= 5;
         }
-        self.refill_research(player);
-    }
-
-    // ---- power -------------------------------------------------------------------
-
-    /// Is the wizard casting the Spell of Return? Then they get no income of any kind.
-    pub fn casting_return(&self, player: PlayerId) -> bool {
-        self.magic(player)
-            .and_then(|m| m.casting)
-            .is_some_and(|c| self.spell_has_hook(c.spell, crate::fortress::RETURN))
-    }
-
-    /// Magic power before the split: mana from the wizard's cities (minerals, citizens,
-    /// religious buildings) and the fortress. Owned nodes and volcanoes add to it.
-    pub fn power_base(&self, player: PlayerId) -> i32 {
-        if self.casting_return(player) {
-            return 0;
+        cost -= cost * self.cost_reduction(def) / 100;
+        if matches!(def.realm.as_str(), "life" | "nature") && evil_omens {
+            cost += cost / 2;
         }
-        let total: i32 = self
-            .cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(e, ..)| self.city_economy(e))
-            .map(|eco| eco.mana)
-            .sum();
-        (total
-            + self.fortress_power(player)
-            + self.volcano_count(player)
-            + self.node_income(player))
-        .max(0)
+        cost
     }
 
-    fn fortress_power(&self, player: PlayerId) -> i32 {
-        let Some(city) = self.fortress_city(player) else {
-            return 0;
-        };
-        let books = self.magic(player).map_or(0, |m| m.total_books());
-        let myrror = self
-            .world
-            .get::<&crate::city::Position>(city)
-            .is_ok_and(|p| p.plane == crate::map::Plane::Myrror);
-        books + if myrror { 5 } else { 0 }
+    /// Percent off the cost of `def`.
+    pub fn cost_reduction(&self, def: &SpellDef) -> i32 {
+        let mut cut = 0;
+        if def.realm == "arcane" {
+            if self.has(Retort::Runemaster) {
+                cut += 25;
+            }
+        } else {
+            cut += (self.books_in(&def.realm) - 7).max(0) * 10;
+        }
+        if self.has_mastery(&def.realm) {
+            cut += 15;
+        }
+        if self.has(Retort::Artificer) && is_crafting(def) {
+            cut += 50;
+        }
+        if self.has(Retort::Conjurer) && is_summoning(def) {
+            cut += 25;
+        }
+        cut
     }
 
-    /// Research points the wizard's cities produce.
-    pub fn city_research(&self, player: PlayerId) -> i32 {
-        self.cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(e, ..)| self.city_economy(e))
-            .map(|eco| eco.research)
-            .sum()
+    /// Whether the wizard has the mastery of this realm.
+    fn has_mastery(&self, realm: &str) -> bool {
+        match realm {
+            "nature" => self.has(Retort::NatureMastery),
+            "sorcery" => self.has(Retort::SorceryMastery),
+            "chaos" => self.has(Retort::ChaosMastery),
+            _ => false,
+        }
+    }
+
+    /// Percent added to research of `def`: sage master, conjurer for summoning, realm
+    /// masteries, books beyond seven in the realm, runemaster for arcane.
+    pub fn research_bonus(&self, def: &SpellDef) -> i32 {
+        let mut bonus = 0;
+        if self.has(Retort::SageMaster) {
+            bonus += 25;
+        }
+        if self.has(Retort::Conjurer) && is_summoning(def) {
+            bonus += 25;
+        }
+        if self.has_mastery(&def.realm) {
+            bonus += 15;
+        }
+        if def.realm == "arcane" {
+            if self.has(Retort::Runemaster) {
+                bonus += 25;
+            }
+        } else {
+            bonus += (self.books_in(&def.realm) - 7).max(0) * 10;
+        }
+        bonus
     }
 
     /// The power base split by the wizard's percentages. Rounding goes to research; if the
     /// research share is switched off, what it would have been goes to skill (or to mana
-    /// when skill is off too). Mana Focusing adds a quarter to mana.
-    pub fn power_split(&self, player: PlayerId) -> PowerSplit {
-        if self.casting_return(player) {
-            return PowerSplit::default();
-        }
-        let Some(m) = self.magic(player) else {
-            return PowerSplit::default();
-        };
-        let power = self.power_base(player);
-        let mut mana = (power * i32::from(m.mana_pct) + 50) / 100;
-        let mut skill = (power * i32::from(m.skill_pct) + 50) / 100;
+    /// when skill is off too). Mana Focusing adds a quarter to mana. `city_research` is what
+    /// the wizard's cities produce, added to the research share.
+    pub fn split_power(&self, power: i32, city_research: i32) -> PowerSplit {
+        let mut mana = (power * i32::from(self.mana_pct) + 50) / 100;
+        let mut skill = (power * i32::from(self.skill_pct) + 50) / 100;
         let mut research = power - mana - skill;
-        if m.research_pct == 0 && research > 0 {
-            if m.skill_pct == 0 {
+        if self.research_pct == 0 && research > 0 {
+            if self.skill_pct == 0 {
                 mana += research;
             } else {
                 skill += research;
             }
             research = 0;
         }
-        if m.has(Retort::ManaFocusing) {
+        if self.has(Retort::ManaFocusing) {
             mana += mana / 4;
         }
         PowerSplit {
             mana,
             skill,
-            research: research + self.city_research(player),
+            research: research + city_research,
         }
-    }
-
-    /// Percent added to research of `spell`: sage master, conjurer for summoning, realm
-    /// masteries, books beyond seven in the realm, runemaster for arcane.
-    pub fn research_bonus(&self, player: PlayerId, spell: SpellId) -> i32 {
-        let (Some(m), def) = (self.magic(player), self.content.rules.spells.get(spell)) else {
-            return 0;
-        };
-        let mut bonus = 0;
-        if m.has(Retort::SageMaster) {
-            bonus += 25;
-        }
-        if m.has(Retort::Conjurer) && is_summoning(def) {
-            bonus += 25;
-        }
-        let mastery = match def.realm.as_str() {
-            "nature" => m.has(Retort::NatureMastery),
-            "sorcery" => m.has(Retort::SorceryMastery),
-            "chaos" => m.has(Retort::ChaosMastery),
-            _ => false,
-        };
-        if mastery {
-            bonus += 15;
-        }
-        if def.realm == "arcane" {
-            if m.has(Retort::Runemaster) {
-                bonus += 25;
-            }
-        } else {
-            bonus += (m.books_in(&def.realm) - 7).max(0) * 10;
-        }
-        bonus
     }
 
     /// Research points that will be paid next turn change, with bonuses.
-    pub fn research_income(&self, player: PlayerId) -> i32 {
-        let split = self.power_split(player);
+    pub fn research_income(&self, content: &Content, split: &PowerSplit) -> i32 {
         let bonus = self
-            .magic(player)
-            .and_then(|m| m.researching)
-            .map_or(0, |s| self.research_bonus(player, s));
+            .researching
+            .map_or(0, |s| self.research_bonus(content.rules.spells.get(s)));
         let research = split.research.max(0);
         research + research * bonus / 100
     }
 
-    /// Mana needed to cast `spell`. Overland casting of a spell that can also be cast in
-    /// battle costs five times the battle price; reductions come from books beyond seven,
-    /// masteries, artificer, conjurer and runemaster.
-    pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
-        let def = self.content.rules.spells.get(spell);
-        let mut cost = def.cost as i32;
-        if !in_battle && def.overland_x5 {
-            cost *= 5;
-        }
-        cost -= cost * self.casting_cost_reduction(player, spell) / 100;
-        // Evil Omens: life and nature spells cost half as much again for every wizard who does
-        // not hold the spell (the help does not say; the caster is assumed to be spared).
-        if matches!(def.realm.as_str(), "life" | "nature") && self.evil_omens_against(player) {
-            cost += cost / 2;
-        }
-        cost
-    }
-
-    pub(crate) fn casting_cost_reduction(&self, player: PlayerId, spell: SpellId) -> i32 {
-        let (Some(m), def) = (self.magic(player), self.content.rules.spells.get(spell)) else {
-            return 0;
-        };
-        let mut cut = 0;
-
-        if def.realm == "arcane" {
-            if m.has(Retort::Runemaster) {
-                cut += 25;
-            }
-        } else {
-            cut += (m.books_in(&def.realm) - 7).max(0) * 10;
-        }
-        let mastery = match def.realm.as_str() {
-            "nature" => m.has(Retort::NatureMastery),
-            "sorcery" => m.has(Retort::SorceryMastery),
-            "chaos" => m.has(Retort::ChaosMastery),
-            _ => false,
-        };
-        if mastery {
-            cut += 15;
-        }
-        if m.has(Retort::Artificer) && is_crafting(def) {
-            cut += 50;
-        }
-        if m.has(Retort::Conjurer) && is_summoning(def) {
-            cut += 25;
-        }
-        cut
-    }
-
-    /// Casting skill now.
-    pub fn casting_skill(&self, player: PlayerId) -> i32 {
-        self.magic(player).map_or(0, |m| {
-            base_casting_skill(m.skill_points, m.has(Retort::Archmage))
-        })
-    }
-
-    /// Mana per turn needed to keep lasting spells and summoned creatures going: a Channeler
-    /// pays half of the total.
-    pub fn mana_upkeep(&self, player: PlayerId) -> i32 {
-        self.upkeep_items(player)
-            .iter()
-            .map(|i| i.mana)
-            .sum::<i32>()
-            / self.upkeep_divisor(player)
-    }
-
-    /// 2 for a Channeler (half the spell maintenance), else 1.
-    pub(crate) fn upkeep_divisor(&self, player: PlayerId) -> i32 {
-        if self.magic(player).is_some_and(|m| m.has(Retort::Channeler)) {
-            2
-        } else {
-            1
-        }
-    }
-
-    // ---- commands ----------------------------------------------------------------
-
     /// Change how power is split. The three shares must add up to 100.
-    pub fn set_power_split(
-        &mut self,
-        player: PlayerId,
-        mana: u8,
-        research: u8,
-        skill: u8,
-    ) -> Result<(), MagicError> {
+    pub fn set_split(&mut self, mana: u8, research: u8, skill: u8) -> Result<(), MagicError> {
         if u32::from(mana) + u32::from(research) + u32::from(skill) != 100 {
             return Err(MagicError::BadSplit);
         }
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        (m.mana_pct, m.research_pct, m.skill_pct) = (mana, research, skill);
+        (self.mana_pct, self.research_pct, self.skill_pct) = (mana, research, skill);
         Ok(())
     }
 
     /// Choose what to research. The choice stands until the spell is learned.
-    pub fn set_research(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
-        let cost = self.content.rules.spells.get(spell).research_cost as i32;
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        if m.researching.is_some() {
+    pub fn choose_research(&mut self, content: &Content, spell: SpellId) -> Result<(), MagicError> {
+        if self.researching.is_some() {
             return Err(MagicError::AlreadyResearching);
         }
-        if !m.researchable.contains(&spell) || !m.candidates.contains(&spell) {
+        if !self.researchable.contains(&spell) || !self.candidates.contains(&spell) {
             return Err(MagicError::NotAvailable);
         }
-        m.researching = Some(spell);
-        m.research_remaining = cost;
+        self.researching = Some(spell);
+        self.research_remaining = content.rules.spells.get(spell).research_cost as i32;
         Ok(())
-    }
-
-    /// The spells on offer for research now, fastest first.
-    pub fn research_choices(&self, player: PlayerId) -> Vec<SpellId> {
-        self.magic(player)
-            .map(|m| m.candidates.clone())
-            .unwrap_or_default()
     }
 
     /// The spells the books would let the wizard add to the offer next (the original's
     /// `Build_Research_List`): in each realm every researchable spell of the lowest rarity that
     /// still has one, so a realm's commons are offered before its uncommons. Arcane spells go
     /// in three steps (the first three, the next five, then the rest).
-    fn research_pool(&self, player: PlayerId) -> Vec<SpellId> {
-        let Some(m) = self.magic(player) else {
-            return Vec::new();
-        };
-        let rules = &self.content.rules;
-        let open = |s: &SpellId| m.researchable.contains(s) && !m.candidates.contains(s);
+    fn research_pool(&self, content: &Content) -> Vec<SpellId> {
+        let rules = &content.rules;
+        let open = |s: &SpellId| self.researchable.contains(s) && !self.candidates.contains(s);
         let mut pool = Vec::new();
         for realm in ["nature", "sorcery", "chaos", "life", "death"] {
             let mut of: Vec<(Rarity, SpellId)> = rules
@@ -645,815 +535,353 @@ impl Game {
         pool
     }
 
-    /// Top the offer for research up to [`RESEARCH_SLOTS`] spells from [`Game::research_pool`]
-    /// (the pool is worked out afresh after each pick, so a realm's next rarity opens as its
-    /// last cheaper spell goes on offer), drop spells that are no longer researchable, and sort
-    /// the offer by the time each would take. Called each turn, when a wizard is made and
-    /// when books are added.
-    /// The spell becomes known to `player`, as if researched (a gift or an exchange between
-    /// wizards, `diplomacy.rs`).
-    pub(crate) fn learn_spell(&mut self, player: PlayerId, spell: SpellId) {
-        let Some(m) = self.magic_mut(player) else {
-            return;
-        };
-        m.researchable.remove(&spell);
-        m.candidates.retain(|&s| s != spell);
-        if m.researching == Some(spell) {
-            m.researching = None;
-            m.research_remaining = 0;
-        }
-        m.known.insert(spell);
-        self.refill_research(player);
-    }
-
-    pub fn refill_research(&mut self, player: PlayerId) {
-        if let Some(m) = self.magic_mut(player) {
-            let keep: Vec<SpellId> = m
-                .candidates
-                .iter()
-                .copied()
-                .filter(|s| m.researchable.contains(s))
-                .collect();
-            m.candidates = keep;
-        }
-        while self
-            .magic(player)
-            .is_some_and(|m| m.candidates.len() < RESEARCH_SLOTS)
-        {
-            let pool = self.research_pool(player);
+    /// Top the offer for research up to [`RESEARCH_SLOTS`] spells from the pool (the pool is
+    /// worked out afresh after each pick, so a realm's next rarity opens as its last cheaper
+    /// spell goes on offer), drop spells that are no longer researchable, and sort the offer by
+    /// the time each would take at `income` research points a turn. Called each turn, when a
+    /// wizard is made and when books are added.
+    pub fn refill_research(&mut self, content: &Content, rng: &mut GameRng, income: i32) {
+        let keep: Vec<SpellId> = self
+            .candidates
+            .iter()
+            .copied()
+            .filter(|s| self.researchable.contains(s))
+            .collect();
+        self.candidates = keep;
+        while self.candidates.len() < RESEARCH_SLOTS {
+            let pool = self.research_pool(content);
             if pool.is_empty() {
                 break;
             }
-            let pick = pool[self.roll(pool.len() as u32) as usize - 1];
-            if let Some(m) = self.magic_mut(player) {
-                m.candidates.push(pick);
-            }
+            let pick = pool[rng.roll(pool.len() as u32) as usize - 1];
+            self.candidates.push(pick);
         }
-        let income = self.research_income(player).max(0);
-        let Some(offer) = self.magic(player).map(|m| m.candidates.clone()) else {
-            return;
-        };
-        let time = |game: &Game, s: SpellId| {
-            let cost = game.content.rules.spells.get(s).research_cost as i32;
-            let bonus = game.research_bonus(player, s);
-            let cost = cost * 100 / (100 + bonus);
+        let income = income.max(0);
+        let time = |s: SpellId| {
+            let def = content.rules.spells.get(s);
+            let bonus = self.research_bonus(def);
+            let cost = def.research_cost as i32 * 100 / (100 + bonus);
             if income == 0 {
                 cost
             } else {
                 cost / income
             }
         };
-        let mut sorted = offer;
-        sorted.sort_by_key(|&s| time(self, s));
-        if let Some(m) = self.magic_mut(player) {
-            m.candidates = sorted;
-        }
+        let mut sorted = self.candidates.clone();
+        sorted.sort_by_key(|&s| time(s));
+        self.candidates = sorted;
     }
 
-    /// Convert gold to mana or mana to gold (alchemy): one for one with the retort, two for
-    /// one without. `gold_to_mana` converts that much gold; negative converts mana to gold.
-    pub fn alchemy(
-        &mut self,
-        player: PlayerId,
-        amount: i32,
-        gold_to_mana: bool,
-    ) -> Result<(), MagicError> {
-        let skilled = self
-            .magic(player)
-            .ok_or(MagicError::UnknownPlayer)?
-            .has(Retort::Alchemy);
-        let p = self.player_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        let amount = amount.max(0);
-        if gold_to_mana {
-            if p.gold < amount {
-                return Err(MagicError::NotEnoughGold);
-            }
-            p.gold -= amount;
-            p.mana += if skilled { amount } else { amount / 2 };
-        } else {
-            if p.mana < amount {
-                return Err(MagicError::NotEnoughMana);
-            }
-            p.mana -= amount;
-            p.gold += if skilled { amount } else { amount / 2 };
+    /// The spell becomes known, as if researched (a gift or an exchange between wizards).
+    /// The offer is refilled by the caller.
+    pub fn learn(&mut self, spell: SpellId) {
+        self.researchable.remove(&spell);
+        self.candidates.retain(|&s| s != spell);
+        if self.researching == Some(spell) {
+            self.researching = None;
+            self.research_remaining = 0;
         }
-        Ok(())
+        self.known.insert(spell);
     }
 
-    // ---- turn change -------------------------------------------------------------
-
-    /// All wizards' magic at the turn change: income, research, upkeep, casting.
-    pub(crate) fn process_magic(&mut self) -> Vec<Event> {
-        let mut events = self.tick_timers();
-        self.tick_temp_effects();
-        self.process_globals();
-        self.process_experience();
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
-        for &player in &ids {
-            self.apply_magic_power(player);
-        }
-        for &player in &ids {
-            events.extend(self.check_research(player));
-        }
-        for &player in &ids {
-            self.refill_research(player);
-        }
-        for &player in &ids {
-            events.extend(self.apply_mana_upkeep(player));
-        }
-        for &player in &ids {
-            self.apply_casting(player);
-        }
-        for &player in &ids {
-            events.extend(self.finish_casting(player));
-        }
-        events
-    }
-
-    /// Mana goes to the reserve, research to the spell, skill points to casting skill
-    /// (an archmage gets half as much again).
-    fn apply_magic_power(&mut self, player: PlayerId) {
-        let split = self.power_split(player);
-        let research = self.research_income(player);
-        let Some(p) = self.player_mut(player) else {
-            return;
-        };
-        p.mana = p.mana.saturating_add(split.mana.max(0));
-        let m = &mut p.magic;
-        if m.researching.is_some() {
-            m.research_remaining = (m.research_remaining - research).max(0);
+    /// The turn's income of research and skill: research goes to the spell, skill points to
+    /// casting skill (an archmage gets half as much again). Returns the mana for the reserve.
+    pub fn take_power(&mut self, split: &PowerSplit, research: i32) -> i32 {
+        if self.researching.is_some() {
+            self.research_remaining = (self.research_remaining - research).max(0);
         }
         let skill = split.skill.max(0);
-        m.skill_points += if m.has(Retort::Archmage) {
+        self.skill_points += if self.has(Retort::Archmage) {
             skill * 3 / 2
         } else {
             skill
         };
+        split.mana.max(0)
     }
 
-    fn check_research(&mut self, player: PlayerId) -> Vec<Event> {
-        let Some(m) = self.magic_mut(player) else {
-            return Vec::new();
-        };
-        match m.researching {
-            Some(spell) if m.research_remaining == 0 => {
-                m.researching = None;
-                m.researchable.remove(&spell);
-                m.candidates.retain(|&s| s != spell);
-                m.known.insert(spell);
-                vec![Event::SpellLearned { player, spell }]
+    /// The spell being researched is learned if its research is paid for.
+    pub fn finish_research(&mut self) -> Option<SpellId> {
+        match self.researching {
+            Some(spell) if self.research_remaining == 0 => {
+                self.researching = None;
+                self.researchable.remove(&spell);
+                self.candidates.retain(|&s| s != spell);
+                self.known.insert(spell);
+                Some(spell)
             }
-            _ => Vec::new(),
+            _ => None,
         }
     }
 
-    /// Pay the mana upkeep. If the reserve cannot cover it, the newest lasting spells and
-    /// summoned creatures are given up until it can.
-    fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
-        let mut events = Vec::new();
-        let mut items = self.upkeep_items(player);
-        let divisor = self.upkeep_divisor(player);
-        let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() / divisor;
-        let reserve = self.player(player).map_or(0, |p| p.mana);
-        while owed > reserve {
-            let Some(item) = items.pop() else {
-                break;
-            };
-            owed -= item.mana / divisor;
-            events.extend(self.drop_upkeep_item(player, item));
+    /// 2 for a Channeler (half the spell maintenance), else 1.
+    pub fn upkeep_divisor(&self) -> i32 {
+        if self.has(Retort::Channeler) {
+            2
+        } else {
+            1
         }
-        if let Some(p) = self.player_mut(player) {
-            p.mana = (p.mana - owed).max(0);
-        }
-        events
     }
 
-    /// Spend casting skill and mana on the spell being cast.
-    fn apply_casting(&mut self, player: PlayerId) {
-        let nominal = self.casting_skill(player);
-        let reserve = self.player(player).map_or(0, |p| p.mana);
-        let Some(m) = self.magic_mut(player) else {
-            return;
-        };
+    /// Spend casting skill and mana on the spell being cast. Returns the reserve left.
+    pub fn pay_casting(&mut self, reserve: i32) -> i32 {
+        let nominal = self.casting_skill();
         let mut reserve = reserve;
-        if let Some(c) = m.casting.as_mut() {
-            let units = m.skill_left.min(reserve).min(c.remaining).max(0);
+        if let Some(c) = self.casting.as_mut() {
+            let units = self.skill_left.min(reserve).min(c.remaining).max(0);
             c.remaining -= units;
             reserve -= units;
-            m.skill_left = 0;
+            self.skill_left = 0;
             if c.remaining > 0 {
                 let units = nominal.min(reserve).min(c.remaining).max(0);
                 if c.remaining - units == 0 {
                     c.remaining = 0;
                     reserve -= units;
-                    m.skill_left = -units;
+                    self.skill_left = -units;
                 }
             }
         }
-        if m.skill_left < 0 {
-            m.skill_left += nominal;
+        if self.skill_left < 0 {
+            self.skill_left += nominal;
         } else {
-            m.skill_left = nominal;
+            self.skill_left = nominal;
         }
-        if let Some(p) = self.player_mut(player) {
-            p.mana = reserve;
-        }
+        reserve
     }
 
-    /// A spell that has been paid for takes effect: at once if it needs no target, else
-    /// the wizard is asked for one.
-    fn finish_casting(&mut self, player: PlayerId) -> Vec<Event> {
-        let Some(c) = self.magic(player).and_then(|m| m.casting) else {
-            return Vec::new();
-        };
-        if c.remaining > 0 {
-            return Vec::new();
-        }
-        if self.spell_needs_target(player, c.spell) {
-            return vec![Event::SpellReady {
-                player,
-                spell: c.spell,
-            }];
-        }
-        self.resolve_cast(player, c.spell, None)
+    /// The spell that has been paid for, if there is one.
+    pub fn casting_paid(&self) -> Option<SpellId> {
+        self.casting.filter(|c| c.remaining <= 0).map(|c| c.spell)
     }
 
-    /// Start casting `spell` overland. If the skill and mana on hand pay for all of it, it
-    /// takes effect now (and needs its target now); otherwise it is paid over turns.
-    pub fn start_cast(
-        &mut self,
-        player: PlayerId,
-        spell: SpellId,
-        target: Option<crate::rules::exec::Target>,
-    ) -> Result<Vec<Event>, MagicError> {
-        let cost = self.casting_cost(player, spell, false);
-        let reserve = self.player(player).ok_or(MagicError::UnknownPlayer)?.mana;
-        let def = self.content.rules.spells.get(spell);
-        if !def.contexts.contains(&CastContext::Overland) {
-            return Err(MagicError::NotOverland);
-        }
-        let needs_target = self.spell_needs_target(player, spell);
-        if self.spell_has_hook(spell, crate::fortress::RETURN) {
-            // Cast only through banishment, never chosen.
+    /// May the wizard begin casting `spell` now?
+    pub fn check_can_cast(&self, spell: SpellId) -> Result<(), MagicError> {
+        if !self.known.contains(&spell) {
             return Err(MagicError::NotAvailable);
         }
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        if !m.known.contains(&spell) {
-            return Err(MagicError::NotAvailable);
-        }
-        if m.casting.is_some() {
+        if self.casting.is_some() {
             return Err(MagicError::AlreadyCasting);
         }
-        let instant = m.skill_left.min(reserve).max(0);
-        if cost <= instant {
-            if needs_target && target.is_none() {
-                return Err(MagicError::NeedsTarget);
-            }
-            self.check_target(player, spell, target)?;
-            let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-            m.skill_left -= cost;
-            if let Some(p) = self.player_mut(player) {
-                p.mana -= cost;
-            }
-            self.begin_cast_relations(player, spell);
-            return Ok(self.resolve_cast(player, spell, target));
-        }
-        m.casting = Some(Casting {
-            spell,
-            remaining: cost,
-        });
-        self.begin_cast_relations(player, spell);
-        Ok(Vec::new())
-    }
-
-    /// Give up the spell being cast; the mana already paid is lost.
-    pub fn cancel_cast(&mut self, player: PlayerId) -> Result<(), MagicError> {
-        if self.casting_return(player) {
-            return Err(MagicError::NotAvailable);
-        }
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        m.casting = None;
         Ok(())
     }
 
-    /// Turn off one of the wizard's own global enchantments.
-    pub fn turn_off_spell(
-        &mut self,
-        player: PlayerId,
-        spell: SpellId,
-    ) -> Result<Vec<Event>, MagicError> {
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        if !m.global.contains(&spell) {
-            return Err(MagicError::NotAvailable);
-        }
-        m.global.retain(|&s| s != spell);
-        Ok(vec![Event::EnchantmentLapsed { player, spell }])
+    /// Skill and mana the wizard can put into a spell at once.
+    pub fn instant_budget(&self, reserve: i32) -> i32 {
+        self.skill_left.min(reserve).max(0)
     }
 
-    /// Choose the target of a spell that has been fully paid for.
-    pub fn finish_cast_with_target(
-        &mut self,
-        player: PlayerId,
-        target: crate::rules::exec::Target,
-    ) -> Result<Vec<Event>, MagicError> {
-        let c = self
-            .magic(player)
-            .and_then(|m| m.casting)
-            .filter(|c| c.remaining <= 0)
-            .ok_or(MagicError::NothingToResolve)?;
-        self.check_target(player, c.spell, Some(target))?;
-        Ok(self.resolve_cast(player, c.spell, Some(target)))
+    /// Pay for a spell cast at once out of this turn's skill.
+    pub fn spend_skill(&mut self, cost: i32) {
+        self.skill_left -= cost;
+    }
+
+    /// Begin paying for `spell` over turns.
+    pub fn begin_casting(&mut self, spell: SpellId, cost: i32) {
+        self.casting = Some(Casting {
+            spell,
+            remaining: cost,
+        });
+    }
+
+    /// Give up the spell being cast; the mana already paid is lost.
+    pub fn cancel_casting(&mut self) {
+        self.casting = None;
+    }
+
+    /// Turn off one of the wizard's own global enchantments.
+    pub fn turn_off(&mut self, spell: SpellId) -> Result<(), MagicError> {
+        if !self.global.contains(&spell) {
+            return Err(MagicError::NotAvailable);
+        }
+        self.global.retain(|&s| s != spell);
+        Ok(())
     }
 }
 
+/// `Magic` without a game: only the content and a generator.
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::city::Position;
-    use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
-    use crate::rules::exec::Target;
-    use crate::rules::Stat;
-    use crate::save::Snapshot;
     use crate::testutil::content_with_magic;
-    use crate::Command;
 
-    const P0: PlayerId = PlayerId(0);
-
-    fn at(x: u32, y: u32) -> Position {
-        Position {
-            plane: Plane::Arcanus,
-            x,
-            y,
-        }
+    fn spell(c: &Content, id: &str) -> SpellId {
+        c.rules.spells.id_of(id).unwrap()
     }
 
-    fn spell(g: &Game, id: &str) -> SpellId {
-        g.content.rules.spells.id_of(id).unwrap()
+    #[test]
+    fn a_new_wizard_has_skill_from_books_and_an_archmage_more() {
+        let plain = Magic::new(&[("life", 3), ("chaos", 2)], &[]);
+        assert_eq!(plain.total_books(), 5);
+        // Twice the books: ten points of target, reached by the triangular steps.
+        assert_eq!(plain.casting_skill(), 10);
+        assert_eq!(plain.skill_left, 10);
+        let arch = Magic::new(&[("life", 3)], &[Retort::Archmage]);
+        assert_eq!(arch.casting_skill(), 2 * (3 + 5));
+        let capped = Magic::new(&[("life", 15)], &[]);
+        assert_eq!(capped.books_in("life"), 11, "no more than eleven");
     }
 
-    /// 24x14 grassland, one wizard with 2 life books and 100 mana.
-    fn world() -> Game {
+    #[test]
+    fn the_library_depends_on_the_seed_and_the_books_alone() {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
-        let mut game = Game::new(7);
-        game.content = c;
-        game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
-        game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        let mut p = Player::new(P0, "Merlin");
-        p.gold = 500;
-        p.tax_rate = 2;
-        p.mana = 100;
-        game.players.push(p);
-        game.init_wizard(P0, &[("life", 2)], &[]).unwrap();
-        game
-    }
-
-    /// The first city is the wizard's fortress, later ones are ordinary cities.
-    fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
-        let race = g.content.rules.races.id_of("elf");
-        let name = "Town".into();
-        if g.player(P0).unwrap().fortress.is_none() {
-            g.apply(Command::PlaceFortress {
-                player: P0,
-                pos,
-                name,
-                race,
-                population: pop,
-            });
-        } else {
-            g.apply(Command::FoundCity {
-                owner: P0,
-                pos,
-                name,
-                race,
-                population: pop,
-            });
-        }
-        g.city_at(pos).unwrap()
-    }
-
-    fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
-        let b = g.content.rules.buildings.id_of(id).unwrap();
-        g.world
-            .get::<&mut crate::economy::Buildings>(city)
-            .unwrap()
-            .0
-            .push(b);
-    }
-
-    #[test]
-    fn casting_skill_follows_triangular_numbers() {
-        // Skill k needs more than (k-1)*k points: 2, 6, 12, 20...
-        assert_eq!(base_casting_skill(0, false), 0);
-        assert_eq!(base_casting_skill(1, false), 1);
-        assert_eq!(base_casting_skill(2, false), 1);
-        assert_eq!(base_casting_skill(3, false), 2);
-        assert_eq!(base_casting_skill(56, false), 7);
-        assert_eq!(base_casting_skill(57, false), 8);
-        assert_eq!(base_casting_skill(0, true), 10, "archmage adds ten");
-        assert_eq!(skill_points_for(8, false), 57);
-        assert_eq!(base_casting_skill(skill_points_for(14, true), true), 14);
-    }
-
-    #[test]
-    fn a_new_wizard_starts_with_books_spells_and_skill() {
-        let mut g = world();
-        g.init_wizard(P0, &[("life", 3), ("chaos", 2)], &[Retort::Archmage])
-            .unwrap();
-        let m = g.magic(P0).unwrap();
-        // Three books and two books: 2 + 1 common spells known.
-        assert_eq!(m.known.len(), 3);
-        assert!(m.known.is_disjoint(&m.researchable));
-        let in_realm = |set: &BTreeSet<SpellId>, realm: &str| {
-            set.iter()
-                .filter(|&&s| g.content.rules.spells.get(s).realm == realm)
-                .count()
+        let library = |seed| {
+            let mut m = Magic::new(&[("life", 4), ("chaos", 2)], &[]);
+            let mut rng = GameRng::new(seed);
+            m.init_library(&c, &mut rng, None);
+            m.refill_research(&c, &mut rng, 1);
+            m
         };
-        // Life, 3 books: 6 common + 3 uncommon + 2 rare + 1 very rare, of which 2 known.
-        assert_eq!(in_realm(&m.known, "life"), 2);
-        assert_eq!(in_realm(&m.researchable, "life"), 12 - 2);
-        // Chaos, 2 books: 5 + 2 + 1 + 0, of which 1 known.
-        assert_eq!(in_realm(&m.researchable, "chaos"), 8 - 1);
-        // Arcane is open to everyone, except the Spell of Mastery.
-        assert!(m.researchable.contains(&spell(&g, "magic_spirit")));
-        assert!(!m.researchable.contains(&spell(&g, "spell_of_mastery")));
-        // 5 books + 5 for the archmage, doubled.
-        assert_eq!(g.casting_skill(P0), 20);
+        let (a, b) = (library(5), library(5));
+        assert_eq!(a, b);
+        assert_eq!(a.known.len(), 3 + 1, "n - 1 commons in each realm");
+        assert!(a.candidates.len() <= RESEARCH_SLOTS);
+        assert!(a.candidates.iter().all(|s| a.researchable.contains(s)));
+        assert!(a.known.is_disjoint(&a.researchable));
     }
 
     #[test]
-    fn the_same_seed_gives_the_same_spell_library() {
-        let (a, b) = (world(), world());
-        assert_eq!(a.magic(P0), b.magic(P0));
-    }
-
-    #[test]
-    fn power_comes_from_cities_and_is_split_by_percentages() {
-        let mut g = world();
-        assert_eq!(g.power_split(P0), PowerSplit::default());
-        let city = found(&mut g, at(10, 6), 4);
-        add_building(&mut g, city, "temple");
-        add_building(&mut g, city, "library");
-        // Four elves make two mana, the temple two; the library makes two research.
-        // Plus two books' worth from the fortress city.
-        assert_eq!(g.power_base(P0), 4 + 2);
-        assert_eq!(g.city_research(P0), 2);
+    fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() {
+        let c = content_with_magic();
+        let strength = c.rules.spells.get(spell(&c, "giant_strength"));
+        let bare = Magic::new(&[("nature", 1)], &[]);
+        let base = strength.cost as i32;
+        assert_eq!(bare.casting_cost(strength, true, false), base);
         assert_eq!(
-            g.power_split(P0),
-            PowerSplit {
-                mana: 2,
-                skill: 2,
-                research: 2 + 2
-            }
+            bare.casting_cost(strength, false, false),
+            base * 5,
+            "five times as much away from a battle"
         );
-        g.set_power_split(P0, 100, 0, 0).unwrap();
-        assert_eq!(
-            g.power_split(P0),
-            PowerSplit {
-                mana: 6,
-                skill: 0,
-                research: 2
-            }
-        );
-        assert_eq!(g.set_power_split(P0, 50, 40, 20), Err(MagicError::BadSplit));
-        g.magic_mut(P0)
-            .unwrap()
-            .retorts
-            .insert(Retort::ManaFocusing);
-        assert_eq!(g.power_split(P0).mana, 7, "a quarter more mana");
+        // Nine books of its realm: two steps of ten percent; the mastery adds fifteen.
+        let deep = Magic::new(&[("nature", 9)], &[Retort::NatureMastery]);
+        assert_eq!(deep.cost_reduction(strength), 20 + 15);
+        let cost = deep.casting_cost(strength, true, false);
+        assert_eq!(cost, base - base * 35 / 100);
+        // Evil Omens: half as much again for life and nature.
+        assert_eq!(deep.casting_cost(strength, true, true), cost + cost / 2);
     }
 
     #[test]
-    fn retorts_and_extra_books_change_research_and_cost() {
-        let mut g = world();
-        g.init_wizard(P0, &[("life", 9)], &[Retort::SageMaster])
-            .unwrap();
-        let mend = spell(&g, "mend");
-        // Sage master 25 plus two books over seven, 10 each.
-        assert_eq!(g.research_bonus(P0, mend), 45);
-        // Two books over seven take a fifth off the cost.
-        assert_eq!(g.casting_cost(P0, mend, false), 8);
-        let runes = spell(&g, "magic_spirit");
-        assert_eq!(g.research_bonus(P0, runes), 25, "arcane gets no book bonus");
-        assert_eq!(g.casting_cost(P0, runes, false), 30);
-        // A spell that can also be cast in battle costs five times as much overland.
-        let strength = spell(&g, "giant_strength");
-        assert_eq!(g.casting_cost(P0, strength, true), 8);
-        assert_eq!(g.casting_cost(P0, strength, false), 40);
+    fn the_power_is_split_by_the_percentages() {
+        let mut m = Magic::new(&[("life", 3)], &[]);
+        m.set_split(40, 30, 30).unwrap();
+        let split = m.split_power(100, 6);
+        assert_eq!((split.mana, split.skill, split.research), (40, 30, 30 + 6));
+        assert_eq!(m.set_split(50, 50, 50), Err(MagicError::BadSplit));
+        // With research off its share goes to skill, with Mana Focusing mana grows a quarter.
+        m.set_split(50, 0, 50).unwrap();
+        m.retorts.insert(Retort::ManaFocusing);
+        let split = m.split_power(10, 0);
+        assert_eq!((split.mana, split.skill, split.research), (5 + 1, 5, 0));
     }
 
     #[test]
-    fn research_takes_turns_and_ends_with_a_new_spell() {
-        let mut g = world();
-        let target = spell(&g, "magic_spirit");
-        let other = spell(&g, "dispel_magic");
-        found(&mut g, at(10, 6), 4);
-        g.set_power_split(P0, 0, 100, 0).unwrap();
+    fn research_runs_from_choice_to_a_known_spell() {
+        let c = content_with_magic();
+        let mut rng = GameRng::new(3);
+        let mut m = Magic::new(&[("life", 3)], &[Retort::SageMaster]);
+        m.init_library(&c, &mut rng, None);
+        m.refill_research(&c, &mut rng, 5);
+        let pick = *m.candidates.first().expect("something on offer");
         assert_eq!(
-            g.set_research(P0, spell(&g, "spell_of_mastery")),
-            Err(MagicError::NotAvailable)
+            m.choose_research(&c, spell(&c, "mend")).is_ok(),
+            m.candidates.contains(&spell(&c, "mend"))
         );
-        g.set_research(P0, target).unwrap();
-        assert_eq!(g.magic(P0).unwrap().research_remaining, 20);
+        m = {
+            let mut fresh = m.clone();
+            fresh.researching = None;
+            fresh
+        };
+        m.choose_research(&c, pick).unwrap();
         assert_eq!(
-            g.set_research(P0, other),
+            m.choose_research(&c, pick),
             Err(MagicError::AlreadyResearching)
         );
-        // A 4-citizen city makes 2 mana (elves) and the fortress 2: all of it research.
-        let mut learned = None;
-        for turn in 1..=30 {
-            let events = g.apply(Command::EndTurn);
-            if events
-                .iter()
-                .any(|e| matches!(e, Event::SpellLearned { spell, .. } if *spell == target))
-            {
-                learned = Some(turn);
-                break;
-            }
+        let cost = c.rules.spells.get(pick).research_cost as i32;
+        assert_eq!(m.research_remaining, cost);
+        // A sage master's research goes a quarter further.
+        let split = PowerSplit {
+            mana: 0,
+            skill: 0,
+            research: 100,
+        };
+        assert!(m.research_income(&c, &split) >= 125);
+        let mut turns = 0;
+        while m.finish_research().is_none() {
+            m.take_power(&split, m.research_income(&c, &split));
+            turns += 1;
+            assert!(turns < 100);
         }
-        let turns = learned.expect("the spell is learned");
-        assert!(
-            (3..=8).contains(&turns),
-            "20 points at about 6 a turn: {turns}"
-        );
-        let m = g.magic(P0).unwrap();
-        assert!(m.known.contains(&target));
-        assert!(!m.researchable.contains(&target));
-        assert_eq!(m.researching, None);
-        g.set_research(P0, other).unwrap();
+        assert!(m.known.contains(&pick));
+        assert!(!m.researchable.contains(&pick) && !m.candidates.contains(&pick));
+        assert!(m.researching.is_none());
     }
 
     #[test]
-    fn mana_income_fills_the_reserve() {
-        let mut g = world();
-        let city = found(&mut g, at(10, 6), 4);
-        add_building(&mut g, city, "temple");
-        g.set_power_split(P0, 100, 0, 0).unwrap();
-        let before = g.player(P0).unwrap().mana;
-        g.apply(Command::EndTurn);
-        assert_eq!(g.player(P0).unwrap().mana, before + 6);
-    }
-
-    #[test]
-    fn an_affordable_spell_takes_effect_at_once() {
-        let mut g = world();
-        let spear = g.content.rules.units.id_of("spear").unwrap();
-        let unit = g.spawn_unit(P0, at(3, 3), spear);
-        g.world.insert_one(unit, crate::units::Hurt(3)).unwrap();
-        let mend = spell(&g, "mend");
-        g.magic_mut(P0).unwrap().known.insert(mend);
-        g.magic_mut(P0).unwrap().skill_left = 50;
-        let mana = g.player(P0).unwrap().mana;
-        // A spell with a target needs one.
-        assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
-        let events = g.apply(Command::CastSpell {
-            player: P0,
-            spell: mend,
-            target: Some(Target::Unit(unit)),
-        });
-        assert!(events.contains(&Event::SpellCast {
-            player: P0,
-            spell: mend
-        }));
-        assert_eq!(g.unit_hits(unit).0, g.unit_hits(unit).1, "healed");
-        assert_eq!(g.player(P0).unwrap().mana, mana - 10);
-        assert_eq!(g.magic(P0).unwrap().skill_left, 40);
-        assert_eq!(g.magic(P0).unwrap().casting, None);
-    }
-
-    #[test]
-    fn spells_need_a_known_spell_and_a_valid_target() {
-        let mut g = world();
-        let spear = g.content.rules.units.id_of("spear").unwrap();
-        let mine = g.spawn_unit(P0, at(3, 3), spear);
-        let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
-        let (mend, zap) = (spell(&g, "mend"), spell(&g, "zap"));
-        g.magic_mut(P0).unwrap().skill_left = 50;
+    fn casting_is_paid_over_turns_and_cancelled_without_a_refund() {
+        let c = content_with_magic();
+        let strength = spell(&c, "giant_strength");
+        let mut m = Magic::new(&[("life", 3)], &[]);
+        assert_eq!(m.check_can_cast(strength), Err(MagicError::NotAvailable));
+        m.known.insert(strength);
+        assert_eq!(m.check_can_cast(strength), Ok(()));
+        assert_eq!(m.instant_budget(100), m.skill_left);
+        assert_eq!(m.instant_budget(2), 2, "the reserve limits it");
+        m.begin_casting(strength, 40);
+        assert_eq!(m.check_can_cast(strength), Err(MagicError::AlreadyCasting));
+        let skill = m.casting_skill();
+        // The skill left from last turn pays first; the nominal skill pays only if it finishes the
+        // spell, which it cannot here. What is paid comes out of the reserve.
+        let reserve = m.pay_casting(1000);
+        assert_eq!(m.casting.unwrap().remaining, 40 - skill);
+        assert_eq!(reserve, 1000 - skill);
         assert_eq!(
-            g.start_cast(P0, mend, Some(Target::Unit(mine))),
-            Err(MagicError::NotAvailable),
-            "not known yet"
+            m.skill_left, skill,
+            "the nominal skill is there for next turn"
         );
-        g.magic_mut(P0).unwrap().known.extend([mend, zap]);
+        assert_eq!(m.casting_paid(), None);
+        // With one turn's skill to go the second part finishes it, borrowed from the next turn.
+        m.casting.as_mut().unwrap().remaining = skill;
+        m.skill_left = 0;
+        let reserve = m.pay_casting(1000);
+        assert_eq!(m.casting_paid(), Some(strength));
+        assert_eq!(reserve, 1000 - skill);
+        assert_eq!(m.skill_left, 0, "borrowed and paid back at once");
+        m.cancel_casting();
+        assert!(m.casting.is_none());
+    }
+
+    #[test]
+    fn upkeep_gives_up_the_newest_items_until_the_reserve_pays() {
+        use crate::cast::UpkeepKind;
+        let c = content_with_magic();
+        let any = spell(&c, "giant_strength");
+        let item = |mana| UpkeepItem {
+            kind: UpkeepKind::Global(any),
+            mana,
+        };
+        let items = [item(10), item(6), item(4)];
+        assert_eq!(upkeep_plan(&items, 1, 20), (vec![], 20));
+        let (dropped, owed) = upkeep_plan(&items, 1, 15);
         assert_eq!(
-            g.check_target(P0, mend, Some(Target::Unit(theirs))),
-            Err(MagicError::NoSuchTarget),
-            "healing is for your own units"
+            dropped,
+            vec![item(4), item(6)],
+            "the newest first, until it fits"
         );
-        assert_eq!(g.check_target(P0, zap, Some(Target::Unit(theirs))), Ok(()));
-        assert_eq!(
-            g.check_target(P0, zap, Some(Target::Unit(mine))),
-            Err(MagicError::NoSuchTarget)
-        );
-        // Three damage kills a spear-sized unit with that few hit points or hurts it.
-        g.start_cast(P0, zap, Some(Target::Unit(theirs))).unwrap();
-        let (left, max) = g.unit_hits(theirs);
-        assert!(left < max || !g.world.contains(theirs));
+        assert_eq!(owed, 10);
+        assert_eq!(upkeep_plan(&items, 1, 16).0, vec![item(4)]);
+        // A channeler pays half, so the same reserve covers the lot.
+        assert_eq!(upkeep_plan(&items, 2, 15), (vec![], 10));
+        assert_eq!(Magic::new(&[], &[Retort::Channeler]).upkeep_divisor(), 2);
+        assert_eq!(Magic::default().upkeep_divisor(), 1);
     }
 
     #[test]
-    fn a_channeler_pays_half_the_spell_maintenance() {
-        let mut g = world();
-        found(&mut g, at(10, 6), 4);
-        let mut defs = g.content.rules.spells.defs().to_vec();
-        defs[0].upkeep = 6;
-        g.content.rules.spells = crate::rules::Registry::new(defs);
-        let dear = (
-            g.content
-                .rules
-                .spells
-                .id_of(&g.content.rules.spells.defs()[0].id)
-                .unwrap(),
-            6,
-        );
-        g.magic_mut(P0).unwrap().global.push(dear.0);
-        assert_eq!(g.mana_upkeep(P0), dear.1);
-        g.magic_mut(P0).unwrap().retorts.insert(Retort::Channeler);
-        assert_eq!(g.mana_upkeep(P0), dear.1 / 2);
-        // The reserve pays the half, and the spell stays.
-        g.player_mut(P0).unwrap().mana = dear.1 / 2;
-        g.apply_mana_upkeep(P0);
-        assert_eq!(g.player(P0).unwrap().mana, 0);
-        assert!(g.magic(P0).unwrap().global.contains(&dear.0));
-    }
-
-    #[test]
-    fn a_famous_wizard_starts_with_ten_fame() {
-        let mut g = world();
-        g.init_wizard(P0, &[("life", 3)], &[Retort::Famous])
-            .unwrap();
-        assert_eq!(g.player(P0).unwrap().fame, 10);
-        g.init_wizard(P0, &[("life", 3)], &[]).unwrap();
-        assert_eq!(g.player(P0).unwrap().fame, 0);
-    }
-
-    #[test]
-    fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
-        let mut g = world();
-        // A galley eats no food and costs no gold, so it outlives the long wait.
-        let spear = g.content.rules.units.id_of("galley").unwrap();
-        found(&mut g, at(10, 6), 8);
-        // All power to research, so the mana reserve only moves by what is spent.
-        g.set_power_split(P0, 0, 100, 0).unwrap();
-        let unit = g.spawn_unit(P0, at(3, 3), spear);
-        g.balance_farmers(P0);
-        let strength = spell(&g, "giant_strength");
-        g.magic_mut(P0).unwrap().known.insert(strength);
-        let melee = g.unit_stat(unit, Stat::Melee);
-        // 40 mana overland; the wizard's skill is 4, so it takes many turns.
-        assert_eq!(g.casting_skill(P0), 4);
-        assert_eq!(g.start_cast(P0, strength, None), Ok(vec![]));
-        assert_eq!(g.magic(P0).unwrap().casting.unwrap().remaining, 40);
-        assert_eq!(
-            g.start_cast(P0, strength, None),
-            Err(MagicError::AlreadyCasting)
-        );
-        let mut ready_after = None;
-        for turn in 1..=20 {
-            let events = g.apply(Command::EndTurn);
-            if events.contains(&Event::SpellReady {
-                player: P0,
-                spell: strength,
-            }) {
-                ready_after = Some(turn);
-                break;
-            }
-        }
-        // Forty mana at four a turn is ten payments, but the last is borrowed from the next
-        // turn's skill, as in the original.
-        assert_eq!(ready_after, Some(9));
-        assert_eq!(g.player(P0).unwrap().mana, 60, "the 40 mana was paid");
-        let events = g.apply(Command::ResolveCast {
-            player: P0,
-            target: Target::Unit(unit),
-        });
-        assert!(events.contains(&Event::SpellCast {
-            player: P0,
-            spell: strength
-        }));
-        assert_eq!(g.unit_stat(unit, Stat::Melee), melee + 1);
-        assert_eq!(g.mana_upkeep(P0), 2);
-        let mana = g.player(P0).unwrap().mana;
-        g.apply(Command::EndTurn);
-        assert_eq!(g.player(P0).unwrap().mana, mana - 2);
-
-        // With no mana left the enchantment lapses.
-        g.player_mut(P0).unwrap().mana = 1;
-        let events = g.apply(Command::EndTurn);
-        assert!(events.contains(&Event::EnchantmentLapsed {
-            player: P0,
-            spell: strength
-        }));
-        assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
-        assert_eq!(g.mana_upkeep(P0), 0);
-    }
-
-    #[test]
-    fn cancelling_loses_what_was_paid() {
-        let mut g = world();
-        let strength = spell(&g, "giant_strength");
-        g.magic_mut(P0).unwrap().known.insert(strength);
-        g.start_cast(P0, strength, None).unwrap();
-        g.apply(Command::EndTurn);
-        let mana = g.player(P0).unwrap().mana;
-        assert!(mana < 100);
-        g.apply(Command::CancelCast { player: P0 });
-        assert_eq!(g.magic(P0).unwrap().casting, None);
-        assert_eq!(g.player(P0).unwrap().mana, mana, "no refund");
-    }
-
-    #[test]
-    fn summoning_creates_units_at_the_chosen_tile() {
-        let mut g = world();
-        let call = spell(&g, "call_spears");
-        g.magic_mut(P0).unwrap().known.insert(call);
-        g.magic_mut(P0).unwrap().skill_left = 99;
-        g.apply(Command::CastSpell {
-            player: P0,
-            spell: call,
-            target: Some(Target::Tile(at(5, 5))),
-        });
-        assert_eq!(g.units_at(at(5, 5)).len(), 2);
-    }
-
-    #[test]
-    fn a_city_enchantment_is_cast_and_paid_for() {
-        let mut g = world();
-        let city = found(&mut g, at(10, 6), 4);
-        let famine = spell(&g, "famine");
-        g.magic_mut(P0).unwrap().known.insert(famine);
-        g.magic_mut(P0).unwrap().skill_left = 99;
-        let food = g.city_economy(city).unwrap().food;
-        g.apply(Command::CastSpell {
-            player: P0,
-            spell: famine,
-            target: Some(Target::City(city)),
-        });
-        assert!(g.city_economy(city).unwrap().food < food);
-        assert_eq!(g.mana_upkeep(P0), 1);
-    }
-
-    #[test]
-    fn dispelling_removes_enchantments_by_strength() {
-        let mut g = world();
-        let spear = g.content.rules.units.id_of("spear").unwrap();
-        let unit = g.spawn_unit(P0, at(3, 3), spear);
-        let strength = spell(&g, "giant_strength");
-        let melee = g.unit_stat(unit, Stat::Melee);
-        g.attach_enchantment(Target::Unit(unit), strength, P0);
-        assert_eq!(g.unit_stat(unit, Stat::Melee), melee + 1);
-        {
-            use crate::rules::exec::EffectHost;
-            let mut host = crate::cast::tests_support::host(&mut g);
-            let mut rng = rand_pcg::Pcg64Mcg::new(1);
-            // An overwhelming dispel by another wizard always works.
-            assert_eq!(
-                host.dispel(Target::Unit(unit), 100_000, PlayerId(1), &mut rng),
-                1
-            );
-        }
-        assert_eq!(g.unit_stat(unit, Stat::Melee), melee);
-    }
-
-    #[test]
-    fn saves_keep_the_wizard_the_casting_and_unit_spells() {
-        let mut g = world();
-        let spear = g.content.rules.units.id_of("spear").unwrap();
-        found(&mut g, at(10, 6), 8);
-        g.balance_farmers(P0);
-        let unit = g.spawn_unit(P0, at(3, 3), spear);
-        let strength = spell(&g, "giant_strength");
-        g.attach_enchantment(Target::Unit(unit), strength, P0);
-        g.set_research(P0, spell(&g, "magic_spirit")).unwrap();
-        g.set_power_split(P0, 20, 70, 10).unwrap();
-        g.magic_mut(P0).unwrap().known.insert(strength);
-        g.start_cast(P0, strength, None).unwrap();
-        g.apply(Command::EndTurn);
-        let text = g.snapshot().to_text().unwrap();
-        let back = Snapshot::from_text(&text).unwrap();
-        let loaded = back.restore(content_with_magic()).unwrap();
-        assert_eq!(loaded.magic(P0), g.magic(P0));
-        assert_eq!(loaded.snapshot(), g.snapshot());
-        let unit = loaded.all_units()[0];
-        assert_eq!(
-            loaded.unit_stat(unit, Stat::Melee),
-            g.unit_stat(g.all_units()[0], Stat::Melee)
-        );
-    }
-
-    #[test]
-    fn old_saves_without_wizards_still_load() {
-        let mut g = world();
-        g.players[0].magic = Magic::default();
-        let text = g.snapshot().to_text().unwrap();
-        // Take the wizard out of the text the way an old save would lack it.
-        let start = text.find("magic:").unwrap();
-        let end = text[start..].find("skill_left").unwrap();
-        let close = text[start + end..].find("),").unwrap();
-        let old = format!("{}{}", &text[..start], &text[start + end + close + 2..]);
-        let back = Snapshot::from_text(&old).unwrap();
-        let loaded = back.restore(content_with_magic()).unwrap();
-        assert_eq!(loaded.magic(P0), Some(&Magic::default()));
+    fn global_spells_can_be_turned_off_only_if_they_are_on() {
+        let c = content_with_magic();
+        let s = spell(&c, "giant_strength");
+        let mut m = Magic::default();
+        assert_eq!(m.turn_off(s), Err(MagicError::NotAvailable));
+        m.global.push(s);
+        assert_eq!(m.turn_off(s), Ok(()));
+        assert!(m.global.is_empty());
     }
 }

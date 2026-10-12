@@ -1,6 +1,6 @@
 # Wizards, mana, research and spells
 
-How the magic layer works. Code: `crates/f4x-core/src/{magic,cast}.rs`; screen:
+How the magic layer works. Code: `crates/f4x-core/src/{magic,magic_game,cast}.rs` (`magic.rs` is the wizard's own state and rules, `magic_game.rs` what needs the world: power, upkeep, commands, the turn; `architecture-plan.md`); screen:
 `crates/f4x-client/src/magic_screen.rs`. Formulas follow the original game's code (read from the
 ReMoM source) unless noted. For where wizard state sits in the game, see
 [`ecs-structure.md`](ecs-structure.md); for the turn order, [`game-flow.md`](game-flow.md) §4.

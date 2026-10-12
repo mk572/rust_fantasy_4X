@@ -102,9 +102,12 @@ Rules that keep it from growing back:
    was done, which magic can follow: the domain's state and the generator are taken out of `Game`
    for the call so the rules run over `&Game` as the view, and what they ask of the rest comes
    back as a list of outcomes.
-3. **Magic (180):** split the wizard's logic (research, skill, costs, upkeep, power split) from
+3. **Magic (180, done):** split the wizard's logic (research, skill, costs, upkeep, power split) from
    spell resolution. `Magic` gets the methods; the resolution layer (`cast`, `dispel`,
    `city_spells`...) stays on `Game` and calls into `Magic` for the wizard-side questions.
+   Magic did not need the take-out trick: the wizard is a field of a `Player` in a `Vec`, so the
+   game borrows the wizard, the content and the generator apart (`magic_parts`) and the rules
+   of `Magic` take them as arguments.
 4. **Read-only view for the AI and client (181)**, replacing direct use of `game.world`,
    `game.map` and `game.content` outside the core where a query would do.
 5. **Docs and guard (182, 183):** bring `ecs-structure.md` up to date, write the rules above

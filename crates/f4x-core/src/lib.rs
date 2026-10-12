@@ -24,6 +24,7 @@ pub mod globals;
 pub mod help;
 pub mod lairs;
 pub mod magic;
+mod magic_game;
 pub mod map;
 pub mod mapgen;
 pub mod movement;
