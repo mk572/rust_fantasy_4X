@@ -391,8 +391,9 @@ impl Game {
                         battle.player_of(Side::Attacker),
                         battle.player_of(Side::Defender),
                     );
-                    if self.citizens(city) > 0 && self.city_owner(city) == Some(defender) {
-                        let fortress = self.is_fortress_city(city);
+                    if self.economy().citizens(city) > 0 && self.city_owner(city) == Some(defender)
+                    {
+                        let fortress = self.economy().is_fortress_city(city);
                         self.city_held_relations(attacker, defender, fortress);
                     }
                 }

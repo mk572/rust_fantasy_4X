@@ -146,14 +146,6 @@ impl Economy<'_> {
 }
 
 impl Game {
-    pub fn citizens(&self, city: hecs::Entity) -> u32 {
-        self.economy().citizens(city)
-    }
-
-    pub fn conquest_loot(&self, city: hecs::Entity) -> i32 {
-        self.economy().conquest_loot(city)
-    }
-
     /// `winner` takes `city` after the fighting, which did `city_damage` to it.
     pub fn conquer_city(
         &mut self,
@@ -167,7 +159,7 @@ impl Game {
         if loser == winner {
             return Vec::new();
         }
-        let citizens = self.citizens(city);
+        let citizens = self.economy().citizens(city);
         if citizens == 0 {
             // An outpost is destroyed, not held.
             let mut events = self.capture_city(city, winner);
@@ -181,7 +173,7 @@ impl Game {
         self.city_taken_relations(winner, loser);
         let size = city_size_class(citizens) as i32;
         let (fame_lost, fame_gained) = fame_change(size);
-        let loot = self.conquest_loot(city);
+        let loot = self.economy().conquest_loot(city);
         let loser_is_wizard = !self.is_neutral_player(loser);
         if loser_is_wizard {
             if let Some(p) = self.player_mut(loser) {
@@ -267,7 +259,7 @@ impl Game {
                 RazeError::NotJustTaken,
             ))];
         }
-        let size = city_size_class(self.citizens(city)) as i32;
+        let size = city_size_class(self.economy().citizens(city)) as i32;
         let rules = &self.content.rules;
         let loot = self
             .world

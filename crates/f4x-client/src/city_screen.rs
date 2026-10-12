@@ -167,7 +167,7 @@ impl App {
                 [(eco.figures.div_ceil(4).clamp(1, 5) - 1) as usize]
         };
         let mut title = format!("{size} of {name}");
-        if self.game.is_fortress_city(city) && size != "Capital" {
+        if self.game.economy().is_fortress_city(city) && size != "Capital" {
             title = format!("Capital of {name}");
         }
         let view = Self::view(lay);
@@ -303,7 +303,7 @@ impl App {
         let here = self.game.city_position(city);
         let owner = self.game.city_owner(city);
         let mut tags = Vec::new();
-        if self.game.is_fortress_city(city) {
+        if self.game.economy().is_fortress_city(city) {
             tags.push("Fortress");
         }
         if here.is_some()
@@ -395,7 +395,7 @@ impl App {
             population: pop,
             buildings,
             magic,
-            fortress: self.game.is_fortress_city(city),
+            fortress: self.game.economy().is_fortress_city(city),
             many_trees: class == Some(f4x_core::content::TerrainClass::Forest) || house_type == 1,
             many_rocks: matches!(
                 class,

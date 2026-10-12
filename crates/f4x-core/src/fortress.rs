@@ -170,14 +170,6 @@ impl Economy<'_> {
 }
 
 impl Game {
-    pub fn fortress_city(&self, player: PlayerId) -> Option<hecs::Entity> {
-        self.economy().fortress_city(player)
-    }
-
-    pub fn is_fortress_city(&self, city: hecs::Entity) -> bool {
-        self.economy().is_fortress_city(city)
-    }
-
     /// Where summoned creatures appear.
     pub fn summon_point(&self, player: PlayerId) -> Option<Position> {
         self.player(player).and_then(summon_point)
@@ -257,7 +249,7 @@ impl Game {
         if loser == winner {
             return Vec::new();
         }
-        let was_fortress = self.is_fortress_city(city);
+        let was_fortress = self.economy().is_fortress_city(city);
         let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
         if let Ok(mut c) = self.world.get::<&mut City>(city) {
             c.owner = winner;
@@ -322,7 +314,7 @@ impl Game {
     /// citizen, as in the original.
     pub fn destroy_city(&mut self, city: hecs::Entity) -> Result<Vec<Event>, FortressError> {
         let owner = self.city_owner(city).ok_or(FortressError::NotYourCity)?;
-        if self.is_fortress_city(city) {
+        if self.economy().is_fortress_city(city) {
             if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
                 pop.figures = pop.figures.max(1);
             }

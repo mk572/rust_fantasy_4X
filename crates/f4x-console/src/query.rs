@@ -312,7 +312,7 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let mut rows = Vec::new();
     for (e, c, p) in ctx.game.cities() {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
-            let pop = ctx.game.citizens(e);
+            let pop = ctx.game.economy().citizens(e);
             rows.push((
                 ctx.game.serial_of(e),
                 format!(

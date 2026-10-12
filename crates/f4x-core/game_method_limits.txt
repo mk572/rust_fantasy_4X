@@ -9,7 +9,7 @@ cast.rs 8
 cheat.rs 11
 city_growth.rs 3
 city_spells.rs 13
-conquest.rs 6
+conquest.rs 4
 corruption.rs 11
 diplomacy.rs 29
 dispel.rs 9
@@ -17,7 +17,7 @@ economy.rs 12
 endgame.rs 6
 experience.rs 2
 finance.rs 5
-fortress.rs 11
+fortress.rs 9
 gates.rs 2
 globals.rs 6
 healing.rs 1

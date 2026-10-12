@@ -976,7 +976,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
         })
         .sum();
     assert_eq!(total, 12);
-    assert_eq!(g.conquest_loot(city), 200);
+    assert_eq!(g.economy().conquest_loot(city), 200);
     let events = g.conquer_city(city, HUMAN, 40);
     let looted = events
         .iter()

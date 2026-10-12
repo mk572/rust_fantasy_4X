@@ -110,7 +110,7 @@ impl IncomeView for GameIncome<'_> {
     }
 
     fn fortress_plane(&self, player: PlayerId) -> Option<Plane> {
-        let city = self.0.fortress_city(player)?;
+        let city = self.0.economy().fortress_city(player)?;
         self.0
             .world
             .get::<&crate::city::Position>(city)

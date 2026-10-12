@@ -86,8 +86,8 @@ fn placing_the_fortress_founds_the_capital_once() {
     assert_eq!(p.fortress, Some(at(5, 5)));
     assert_eq!(p.summon_at, Some(at(5, 5)));
     assert_eq!(p.capital_race, g.content.rules.races.id_of("elf"));
-    assert_eq!(g.fortress_city(P0), Some(capital));
-    assert!(g.is_fortress_city(capital));
+    assert_eq!(g.economy().fortress_city(P0), Some(capital));
+    assert!(g.economy().is_fortress_city(capital));
     // A second fortress, or one on a bad site, is refused.
     let again = g.apply(Command::PlaceFortress {
         player: P0,
@@ -168,7 +168,7 @@ fn the_fortress_spells_check_their_target_before_charging() {
         player: P0,
         pos: at(10, 9)
     }));
-    assert_eq!(g.fortress_city(P0), Some(town));
+    assert_eq!(g.economy().fortress_city(P0), Some(town));
     assert_eq!(g.player(P0).unwrap().summon_at, Some(at(10, 9)));
     let myrror = Position {
         plane: Plane::Myrror,
