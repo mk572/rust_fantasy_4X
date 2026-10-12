@@ -112,7 +112,11 @@ impl App {
 
     /// The two pages that list the spells on offer for research.
     fn research_pages(&self) -> Vec<BookPage> {
-        let offer = self.game.research_choices(HUMAN);
+        let offer = self
+            .game
+            .magic(HUMAN)
+            .map(|m| m.candidates.clone())
+            .unwrap_or_default();
         let page = |i: usize, title: &str| BookPage {
             title: title.to_string(),
             spells: offer
@@ -196,7 +200,11 @@ impl App {
                     .rect((x, y, 110.0, 33.0))
                     .contains(mouse_position().into())
                 {
-                    let Some(&spell) = self.game.research_choices(HUMAN).get(slot) else {
+                    let Some(spell) = self
+                        .game
+                        .magic(HUMAN)
+                        .and_then(|m| m.candidates.get(slot).copied())
+                    else {
                         continue;
                     };
                     let events = self.game.apply(Command::SetResearch {
@@ -308,7 +316,9 @@ impl App {
         };
         self.bm_text(view, 4, color, &def.name, x, y, Align::Left);
         let line = if research_page {
-            let bonus = self.game.research_bonus(HUMAN, spell);
+            let bonus = self.game.magic(HUMAN).map_or(0, |m| {
+                m.research_bonus(self.game.content().rules.spells.get(spell))
+            });
             let cost = if current {
                 magic.research_remaining
             } else {
@@ -326,7 +336,7 @@ impl App {
             )
         } else {
             let cost = self.game.casting_cost(HUMAN, spell, false);
-            let limit = self.game.casting_skill(HUMAN).min(
+            let limit = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill()).min(
                 self.game.player(HUMAN).map_or(0, |p| p.mana) + self.game.power_split(HUMAN).mana,
             );
             let turns = if limit <= 0 {

@@ -73,7 +73,10 @@ impl<'a> PlayerView<'a> {
 
     /// The spells on offer for research.
     pub fn research_choices(&self) -> Vec<SpellId> {
-        self.game.research_choices(self.me)
+        self.game
+            .magic(self.me)
+            .map(|m| m.candidates.clone())
+            .unwrap_or_default()
     }
 
     /// What casting a spell overland costs the player.

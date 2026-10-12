@@ -328,7 +328,7 @@ impl App {
             Align::Right,
         );
 
-        let skill = self.game.casting_skill(HUMAN);
+        let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
         let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let base = self.game.power_base(HUMAN);
         let name = |g: &f4x_core::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();

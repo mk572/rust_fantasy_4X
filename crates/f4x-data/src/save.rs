@@ -112,7 +112,7 @@ mod tests {
             &[f4x_core::magic::Retort::Alchemy],
         )
         .unwrap();
-        let first = g.research_choices(PlayerId(0))[0];
+        let first = g.magic(PlayerId(0)).unwrap().candidates[0];
         g.set_research(PlayerId(0), first).unwrap();
         let pos = (0..40u32)
             .flat_map(|y| {

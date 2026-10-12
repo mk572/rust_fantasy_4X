@@ -172,9 +172,9 @@ mod tests {
         };
         let call = g.content.rules.spells.id_of("call_spears").unwrap();
         let brief = g.content.rules.spells.id_of("brief_strength").unwrap();
-        g.magic_mut_for_tests(P0).known.insert(call);
-        g.magic_mut_for_tests(P0).known.insert(brief);
-        g.magic_mut_for_tests(P0).skill_left = 500;
+        g.magic_mut(P0).unwrap().known.insert(call);
+        g.magic_mut(P0).unwrap().known.insert(brief);
+        g.magic_mut(P0).unwrap().skill_left = 500;
         g.apply(Command::CastSpell {
             player: P0,
             spell: call,

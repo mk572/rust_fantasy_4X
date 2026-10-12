@@ -343,8 +343,8 @@ mod tests {
 
     fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
         let s = spell(g, id);
-        g.magic_mut_for_tests(P0).known.insert(s);
-        g.magic_mut_for_tests(P0).skill_left = 500;
+        g.magic_mut(P0).unwrap().known.insert(s);
+        g.magic_mut(P0).unwrap().skill_left = 500;
         g.player_mut(P0).unwrap().mana = 500;
         g.apply(Command::CastSpell {
             player: P0,
@@ -387,8 +387,8 @@ mod tests {
         place(&mut g, P0, at(5, 5));
         let town = city(&mut g, P0, at(15, 5));
         let call = spell(&g, "call_spears");
-        g.magic_mut_for_tests(P0).known.insert(call);
-        g.magic_mut_for_tests(P0).skill_left = 99;
+        g.magic_mut(P0).unwrap().known.insert(call);
+        g.magic_mut(P0).unwrap().skill_left = 99;
         // No target is needed: the creatures come to the circle.
         assert!(!g.spell_needs_target(P0, call));
         g.apply(Command::CastSpell {
@@ -408,7 +408,7 @@ mod tests {
             Some(at(5, 5)),
             "fortress stays"
         );
-        g.magic_mut_for_tests(P0).skill_left = 99;
+        g.magic_mut(P0).unwrap().skill_left = 99;
         g.player_mut(P0).unwrap().mana = 500;
         g.apply(Command::CastSpell {
             player: P0,
@@ -636,8 +636,8 @@ mod tests {
         let capital = place(&mut g, P0, at(5, 5));
         g.player_mut(P0).unwrap().fame = 10;
         let s = spell(&g, "spell_of_mastery");
-        g.magic_mut_for_tests(P0).known.insert(s);
-        g.magic_mut_for_tests(P0).skill_left = 9000;
+        g.magic_mut(P0).unwrap().known.insert(s);
+        g.magic_mut(P0).unwrap().skill_left = 9000;
         g.player_mut(P0).unwrap().mana = 9000;
         let _ = capital;
         let events = g.apply(Command::CastSpell {

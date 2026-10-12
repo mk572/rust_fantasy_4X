@@ -20,7 +20,7 @@ gates.rs 3
 globals.rs 8
 lairs.rs 7
 lib.rs 18
-magic_game.rs 35
+magic_game.rs 27
 movement.rs 10
 neutral_cities.rs 9
 nightshade.rs 2

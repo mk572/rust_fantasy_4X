@@ -761,7 +761,10 @@ impl Game {
                 mana,
                 research,
                 skill,
-            } => reject(self.set_power_split(player, mana, research, skill)),
+            } => reject(match self.magic_mut(player) {
+                Some(m) => m.set_split(mana, research, skill),
+                None => Err(magic::MagicError::UnknownPlayer),
+            }),
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
             Command::CancelCast { player } => reject(self.cancel_cast(player)),
             Command::TurnOffSpell { player, spell } => {

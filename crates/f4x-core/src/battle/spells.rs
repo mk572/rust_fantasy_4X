@@ -298,7 +298,9 @@ impl Game {
         if pool < def.cost as i32 {
             return Err(SpellError::TooLittle);
         }
-        let cut = self.casting_cost_reduction(player, spell);
+        let cut = self.magic(player).map_or(0, |m| {
+            m.cost_reduction(self.content.rules.spells.get(spell))
+        });
         Ok((least + (pool - def.cost as i32) * (100 - cut) / 100, pool))
     }
 
@@ -333,7 +335,7 @@ impl Game {
             let skill = if self.casting_return(player) {
                 0
             } else {
-                self.casting_skill(player)
+                self.magic(player).map_or(0, |m| m.casting_skill())
             };
             let distance = p.fortress.filter(|f| f.plane == site.plane).and_then(|f| {
                 let map = self.map.as_ref()?;

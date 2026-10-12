@@ -7,17 +7,12 @@ use crate::city::PlayerId;
 use crate::content::Content;
 use crate::magic::{upkeep_plan, CastStart, Magic, MagicError, PowerSplit, Retort};
 use crate::rng::GameRng;
-use crate::rules::{CastContext, Rarity, SpellId};
+use crate::rules::{CastContext, SpellId};
 use crate::{Event, Game};
 
 impl Game {
     pub fn magic(&self, player: PlayerId) -> Option<&Magic> {
         self.player(player).map(|p| &p.magic)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut Magic {
-        self.magic_mut(player).unwrap()
     }
 
     pub(crate) fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
@@ -61,11 +56,6 @@ impl Game {
         }
         self.refill_research(player);
         Ok(())
-    }
-
-    /// Spells of one realm and rarity in file order (the order the data lists them in).
-    pub(crate) fn spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
-        crate::magic::spells_of(&self.content, realm, rarity)
     }
 
     // ---- power -------------------------------------------------------------------
@@ -130,13 +120,6 @@ impl Game {
         m.split_power(self.power_base(player), self.city_research(player))
     }
 
-    /// Percent added to research of `spell` (`Magic::research_bonus`).
-    pub fn research_bonus(&self, player: PlayerId, spell: SpellId) -> i32 {
-        self.magic(player).map_or(0, |m| {
-            m.research_bonus(self.content.rules.spells.get(spell))
-        })
-    }
-
     /// Research points that will be paid next turn change, with bonuses.
     pub fn research_income(&self, player: PlayerId) -> i32 {
         let split = self.power_split(player);
@@ -155,16 +138,6 @@ impl Game {
         }
     }
 
-    pub(crate) fn casting_cost_reduction(&self, player: PlayerId, spell: SpellId) -> i32 {
-        let def = self.content.rules.spells.get(spell);
-        self.magic(player).map_or(0, |m| m.cost_reduction(def))
-    }
-
-    /// Casting skill now.
-    pub fn casting_skill(&self, player: PlayerId) -> i32 {
-        self.magic(player).map_or(0, |m| m.casting_skill())
-    }
-
     /// Mana per turn needed to keep lasting spells and summoned creatures going: a Channeler
     /// pays half of the total.
     pub fn mana_upkeep(&self, player: PlayerId) -> i32 {
@@ -172,39 +145,15 @@ impl Game {
             .iter()
             .map(|i| i.mana)
             .sum::<i32>()
-            / self.upkeep_divisor(player)
-    }
-
-    /// 2 for a Channeler (half the spell maintenance), else 1.
-    pub(crate) fn upkeep_divisor(&self, player: PlayerId) -> i32 {
-        self.magic(player).map_or(1, |m| m.upkeep_divisor())
+            / self.magic(player).map_or(1, |m| m.upkeep_divisor())
     }
 
     // ---- commands ----------------------------------------------------------------
-
-    /// Change how power is split. The three shares must add up to 100.
-    pub fn set_power_split(
-        &mut self,
-        player: PlayerId,
-        mana: u8,
-        research: u8,
-        skill: u8,
-    ) -> Result<(), MagicError> {
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        m.set_split(mana, research, skill)
-    }
 
     /// Choose what to research. The choice stands until the spell is learned.
     pub fn set_research(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
         let (m, content, _) = self.magic_parts(player).ok_or(MagicError::UnknownPlayer)?;
         m.choose_research(content, spell)
-    }
-
-    /// The spells on offer for research now, fastest first.
-    pub fn research_choices(&self, player: PlayerId) -> Vec<SpellId> {
-        self.magic(player)
-            .map(|m| m.candidates.clone())
-            .unwrap_or_default()
     }
 
     /// The spell becomes known to `player`, as if researched (a gift or an exchange between
@@ -309,7 +258,11 @@ impl Game {
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let items = self.upkeep_items(player);
         let reserve = self.player(player).map_or(0, |p| p.mana);
-        let (dropped, owed) = upkeep_plan(&items, self.upkeep_divisor(player), reserve);
+        let (dropped, owed) = upkeep_plan(
+            &items,
+            self.magic(player).map_or(1, |m| m.upkeep_divisor()),
+            reserve,
+        );
         let mut events = Vec::new();
         for item in dropped {
             events.extend(self.drop_upkeep_item(player, item));
@@ -540,7 +493,7 @@ mod tests {
         assert!(m.researchable.contains(&spell(&g, "magic_spirit")));
         assert!(!m.researchable.contains(&spell(&g, "spell_of_mastery")));
         // 5 books + 5 for the archmage, doubled.
-        assert_eq!(g.casting_skill(P0), 20);
+        assert_eq!(g.magic(P0).unwrap().casting_skill(), 20);
     }
 
     #[test]
@@ -568,7 +521,7 @@ mod tests {
                 research: 2 + 2
             }
         );
-        g.set_power_split(P0, 100, 0, 0).unwrap();
+        g.magic_mut(P0).unwrap().set_split(100, 0, 0).unwrap();
         assert_eq!(
             g.power_split(P0),
             PowerSplit {
@@ -577,7 +530,10 @@ mod tests {
                 research: 2
             }
         );
-        assert_eq!(g.set_power_split(P0, 50, 40, 20), Err(MagicError::BadSplit));
+        assert_eq!(
+            g.magic_mut(P0).unwrap().set_split(50, 40, 20),
+            Err(MagicError::BadSplit)
+        );
         g.magic_mut(P0)
             .unwrap()
             .retorts
@@ -592,11 +548,22 @@ mod tests {
             .unwrap();
         let mend = spell(&g, "mend");
         // Sage master 25 plus two books over seven, 10 each.
-        assert_eq!(g.research_bonus(P0, mend), 45);
+        assert_eq!(
+            g.magic(P0)
+                .unwrap()
+                .research_bonus(g.content().rules.spells.get(mend)),
+            45
+        );
         // Two books over seven take a fifth off the cost.
         assert_eq!(g.casting_cost(P0, mend, false), 8);
         let runes = spell(&g, "magic_spirit");
-        assert_eq!(g.research_bonus(P0, runes), 25, "arcane gets no book bonus");
+        assert_eq!(
+            g.magic(P0)
+                .unwrap()
+                .research_bonus(g.content().rules.spells.get(runes)),
+            25,
+            "arcane gets no book bonus"
+        );
         assert_eq!(g.casting_cost(P0, runes, false), 30);
         // A spell that can also be cast in battle costs five times as much overland.
         let strength = spell(&g, "giant_strength");
@@ -610,7 +577,7 @@ mod tests {
         let target = spell(&g, "magic_spirit");
         let other = spell(&g, "dispel_magic");
         found(&mut g, at(10, 6), 4);
-        g.set_power_split(P0, 0, 100, 0).unwrap();
+        g.magic_mut(P0).unwrap().set_split(0, 100, 0).unwrap();
         assert_eq!(
             g.set_research(P0, spell(&g, "spell_of_mastery")),
             Err(MagicError::NotAvailable)
@@ -650,7 +617,7 @@ mod tests {
         let mut g = world();
         let city = found(&mut g, at(10, 6), 4);
         add_building(&mut g, city, "temple");
-        g.set_power_split(P0, 100, 0, 0).unwrap();
+        g.magic_mut(P0).unwrap().set_split(100, 0, 0).unwrap();
         let before = g.player(P0).unwrap().mana;
         g.apply(Command::EndTurn);
         assert_eq!(g.player(P0).unwrap().mana, before + 6);
@@ -756,14 +723,14 @@ mod tests {
         let spear = g.content.rules.units.id_of("galley").unwrap();
         found(&mut g, at(10, 6), 8);
         // All power to research, so the mana reserve only moves by what is spent.
-        g.set_power_split(P0, 0, 100, 0).unwrap();
+        g.magic_mut(P0).unwrap().set_split(0, 100, 0).unwrap();
         let unit = g.spawn_unit(P0, at(3, 3), spear);
         g.balance_farmers(P0);
         let strength = spell(&g, "giant_strength");
         g.magic_mut(P0).unwrap().known.insert(strength);
         let melee = g.unit_stat(unit, Stat::Melee);
         // 40 mana overland; the wizard's skill is 4, so it takes many turns.
-        assert_eq!(g.casting_skill(P0), 4);
+        assert_eq!(g.magic(P0).unwrap().casting_skill(), 4);
         assert_eq!(g.start_cast(P0, strength, None), Ok(vec![]));
         assert_eq!(g.magic(P0).unwrap().casting.unwrap().remaining, 40);
         assert_eq!(
@@ -887,7 +854,7 @@ mod tests {
         let strength = spell(&g, "giant_strength");
         g.attach_enchantment(Target::Unit(unit), strength, P0);
         g.set_research(P0, spell(&g, "magic_spirit")).unwrap();
-        g.set_power_split(P0, 20, 70, 10).unwrap();
+        g.magic_mut(P0).unwrap().set_split(20, 70, 10).unwrap();
         g.magic_mut(P0).unwrap().known.insert(strength);
         g.start_cast(P0, strength, None).unwrap();
         g.apply(Command::EndTurn);

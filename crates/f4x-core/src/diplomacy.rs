@@ -2264,7 +2264,7 @@ mod tests {
         city(&mut g, P2, at(15, 8));
         let spell = g.content.rules.spells.id_of("nature_awareness");
         if let Some(spell) = spell {
-            g.magic_mut_for_tests(P0).global.push(spell);
+            g.magic_mut(P0).unwrap().global.push(spell);
             g.apply(Command::EndTurn);
             assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
         }

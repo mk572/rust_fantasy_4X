@@ -356,7 +356,7 @@ mod tests {
     fn detect_magic_shows_what_others_are_casting() {
         let mut g = world();
         let s = spell(&g, "life_c5");
-        g.magic_mut_for_tests(P1).casting = Some(crate::magic::Casting {
+        g.magic_mut(P1).unwrap().casting = Some(crate::magic::Casting {
             spell: s,
             remaining: 10,
         });

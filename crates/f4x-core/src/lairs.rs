@@ -572,8 +572,7 @@ impl Game {
                     _ => Rarity::VeryRare,
                 };
                 let known = self.magic(player)?.known.clone();
-                let pool: Vec<SpellId> = self
-                    .spells_of(&realm, level)
+                let pool: Vec<SpellId> = crate::magic::spells_of(&self.content, &realm, level)
                     .into_iter()
                     .filter(|s| !known.contains(s))
                     .filter(|s| {

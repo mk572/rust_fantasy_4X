@@ -1241,7 +1241,7 @@ fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
     let g = casting_siege(&["fire_bolt"]);
     let b = g.battle().unwrap();
     let mine = b.caster(Side::Attacker).expect("the human wizard casts");
-    assert_eq!(mine.skill_left, g.casting_skill(HUMAN));
+    assert_eq!(mine.skill_left, g.magic(HUMAN).unwrap().casting_skill());
     assert_eq!(mine.mana, 5000);
     assert!(mine.range >= 5 && mine.range <= 30 && mine.range % 5 == 0);
     assert!(b.caster(Side::Defender).is_some(), "so does the rival");

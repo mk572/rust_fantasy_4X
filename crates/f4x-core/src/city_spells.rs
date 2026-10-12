@@ -398,8 +398,8 @@ mod tests {
         let mut g = world();
         let city = found(&mut g, P0, at(10, 6), 4);
         let spell = g.content.rules.spells.id_of("wall_of_stone").unwrap();
-        g.magic_mut_for_tests(P0).known.insert(spell);
-        g.magic_mut_for_tests(P0).skill_left = 500;
+        g.magic_mut(P0).unwrap().known.insert(spell);
+        g.magic_mut(P0).unwrap().skill_left = 500;
         assert!(!g.city_has_building(city, "city_walls"));
         let cast = |g: &mut Game| {
             g.apply(Command::CastSpell {
@@ -441,7 +441,7 @@ mod tests {
         enchant(&mut g, city, "evil_presence", P1);
         assert_eq!(mana(&g), bare, "Evil Presence destroys it");
         assert_eq!(rebels(&g), calm, "but they still pacify");
-        g.magic_mut_for_tests(P0).books.insert("death".into(), 1);
+        g.magic_mut(P0).unwrap().books.insert("death".into(), 1);
         assert_eq!(mana(&g), blessed, "a wizard with death magic is unharmed");
     }
 
@@ -465,7 +465,7 @@ mod tests {
             };
             let (power, pacify) = totals(&g);
             assert!(power >= 6 && pacify >= 3, "{power} {pacify}");
-            g.magic_mut_for_tests(P0).retorts.insert(retort);
+            g.magic_mut(P0).unwrap().retorts.insert(retort);
             assert_eq!(totals(&g), (power * 3 / 2, pacify + pacify / 2));
         }
     }
@@ -577,8 +577,8 @@ mod tests {
 
     fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
         let spell = g.content.rules.spells.id_of("spell_ward").unwrap();
-        g.magic_mut_for_tests(P0).known.insert(spell);
-        g.magic_mut_for_tests(P0).skill_left = 500;
+        g.magic_mut(P0).unwrap().known.insert(spell);
+        g.magic_mut(P0).unwrap().skill_left = 500;
         let realm = realm(g, id);
         g.apply(Command::CastSpell {
             player: P0,
@@ -643,8 +643,8 @@ mod tests {
         // P1's Evil Presence is a death spell; Chaos Rift is chaos and gets through.
         for (name, fizzles) in [("evil_presence", true), ("chaos_rift", false)] {
             let spell = g.content.rules.spells.id_of(name).unwrap();
-            g.magic_mut_for_tests(P1).known.insert(spell);
-            g.magic_mut_for_tests(P1).skill_left = 500;
+            g.magic_mut(P1).unwrap().known.insert(spell);
+            g.magic_mut(P1).unwrap().skill_left = 500;
             let events = g.apply(Command::CastSpell {
                 player: P1,
                 spell,
@@ -709,7 +709,7 @@ mod tests {
         let city = found(&mut g, P0, at(10, 6), 4);
         let spell = g.content.rules.spells.id_of("evil_presence").unwrap();
         assert_eq!(g.check_target(P1, spell, Some(Target::City(city))), Ok(()));
-        g.magic_mut_for_tests(P0).books.insert("death".into(), 1);
+        g.magic_mut(P0).unwrap().books.insert("death".into(), 1);
         assert_eq!(
             g.check_target(P1, spell, Some(Target::City(city))),
             Err(crate::magic::MagicError::NoSuchTarget)

@@ -368,9 +368,7 @@ pub(crate) mod tests {
         g.magic_strength = 0;
         assert_eq!(g.node_income(P0), power / 2, "weak: half");
         g.magic_strength = 1;
-        g.magic_mut_for_tests(P0)
-            .retorts
-            .insert(Retort::NodeMastery);
+        g.magic_mut(P0).unwrap().retorts.insert(Retort::NodeMastery);
         assert_eq!(g.node_income(P0), power * 2);
         assert_eq!(g.power_base(P0), base + power, "node mastery doubled it");
         g.map.as_mut().unwrap().node_mut(0).unwrap().warped = true;
