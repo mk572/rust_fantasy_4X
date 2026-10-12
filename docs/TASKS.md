@@ -122,6 +122,12 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 174 | Units | Level bonuses of the original (the level path has our simpler pattern) |
 | 175 | Combat | Animate Dead: a list of the fallen to choose from in the client |
 | 176 | Housekeeping | Mac installer: asks for the original files, extracts, builds a local app |
+| 218 | Heroes | Import the hero and item data (all 250 items with their powers, the power table, hero types, portraits, the ability roll table) |
+| 219 | Heroes | Hero roster and the hero component: per-wizard ability rolls, hire, die, six slots, save |
+| 220 | Heroes | Turn-start offers: hero, mercenaries and merchant item |
+| 221 | Heroes | Item loot and loss: fallen heroes' items, removal spells, lair items and prisoners |
+| 222 | Heroes | AI and console for heroes and items |
+| 223 | Heroes | Hero and item help conflicts: record H1 to H25 and settle the Check rows |
 
 ## Descriptions
 
@@ -135,23 +141,23 @@ wizard's combat spells. After 40 and 43.
 ### Heroes and items
 
 **47. Hero abilities.** 13 hero abilities with levels and "super" versions [515-526]; data exists
-as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities. Armsmaster itself is in the engine (task 27): give the heroes the `armsmaster` and `super_armsmaster` ability ids.
+as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities. Armsmaster itself is in the engine (task 27): give the heroes the `armsmaster` and `super_armsmaster` ability ids. Design: [`heroes-items-design.md`](heroes-items-design.md) section 2.3 (the formulas) and 3.6; step 5 of its section 9. The abilities are rolled per wizard and hero type (task 219) and carried by the hero, not by unit definitions.
 
 **48. Hiring, summoning, recall, resurrection and fame.** Hero availability by fame, hiring cost,
 the noble, charmed and lucky traits, Summon Hero and Summon Champion, Recall Hero, dead hero
-tracking and resurrection [577-588, 240, 246]. Also: a Charismatic wizard pays half for hiring heroes and mercenaries and for buying items, and a Famous one has twice the chance of heroes and mercenaries offering themselves (task 53 left these here).
+tracking and resurrection [577-588, 240, 246]. Also: a Charismatic wizard pays half for hiring heroes and mercenaries and for buying items, and a Famous one has twice the chance of heroes and mercenaries offering themselves (task 53 left these here). Design: [`heroes-items-design.md`](heroes-items-design.md) sections 3.5 and 3.9, steps 4 and 6 (roster, hire, dismiss, Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero). The offers each turn are task 220; the roster and the hero component are task 219.
 
 **49. Item slots, powers and data schema.** Slots by hero type (sword, bow, staff, armor, misc),
 item powers, charges, and how this is expressed in data (open question in `design.md` section 13).
-Also: a hero's shield gives the hero a large shield in battle (the ability exists, `battle/game.rs`), and the items of a fallen hero are loot for the winner (the original lists them after the battle; `battle/spoils.rs` leaves them out).
+Also: a hero's shield gives the hero a large shield in battle (the ability exists, `battle/game.rs`), and the items of a fallen hero are loot for the winner (the original lists them after the battle; `battle/spoils.rs` leaves them out). Design: [`heroes-items-design.md`](heroes-items-design.md) sections 3.1 to 3.4 and 5, steps 2 and 3: `items`, `item_powers`, `armory`, the six slot kinds and the item rules in the stat engine and the battle. The data import is task 218; the loot of fallen heroes is task 221.
 
 **50. Enchant Item, Create Artifact, the vault and the anvil.** Crafting UI and rules (power budget
 per book, mana cost, Artificer discount already in costs), the player's item vault, scrapping items
-at the anvil.
+at the anvil. Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.3, step 8 (cost formula, Enchant Item and Create Artifact, the pending item in `Magic`, random and prefab items, the anvil).
 
 **51. Heroes' casting contribution and sage heroes.** Heroes add to casting skill and sage heroes
 add research (level times 3, or 9 for the greater ability). The hooks (`Skill_Left` and the
-research income) exist; heroes do not feed them yet. A hero's mana in battle (`(skill + 1) * (level + 1) * 5 / 2`, `BattleUnit::mana`) and so its spell shots (3 mana a shot) and own spells come with this. Low priority: only needed for specific spells, buildings, units or abilities.
+research income) exist; heroes do not feed them yet. A hero's mana in battle (`(skill + 1) * (level + 1) * 5 / 2`, `BattleUnit::mana`) and so its spell shots (3 mana a shot) and own spells come with this. Low priority: only needed for specific spells, buildings, units or abilities. Design: [`heroes-items-design.md`](heroes-items-design.md) sections 3.6 and 5, step 10.
 
 ### Magic (first pass done; see `magic.md`)
 
@@ -214,7 +220,7 @@ the player's progress and surroundings [764, 216, 221]. Add an advisor menu and 
 available).
 
 **72. Fame effects.** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
-and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12).
+and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.7: `fame::total` (earned fame, Legendary heroes, Just Cause) replaces the plain `Player.fame` in `finance.rs` and the offers.
 
 **73. Save-format migration.** Version 1 is the only format; add a conversion step before
 `restore` when the layout changes incompatibly. Only needed at the first breaking change.
@@ -386,7 +392,7 @@ middle of a battle continues exactly like the unsaved one.
 from a realm without books, then a book (75%) or retort. Compare against the original's results over
 many rolls and adopt its exact odds where they differ. Also: Famous gives +10 fame; Alchemy or
 Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroes and magic items need
-tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits.
+tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
 
 **128. Site encounter dialogs and treasure popup.** The client should answer `SiteEncounter` with the
 original's confirm box ("You have found a ruins.  Scouts have spotted 4 Skeletons within the ruins.
@@ -456,9 +462,9 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **141. Outpost screen, enemy city screen and the naming boxes.** `Outpost_Screen` (a small city sheet for an outpost; also names a newly founded one), `Enemy_City_Screen` (what is known about another wizard's city) and the rename boxes for the capital (first turn) and new outposts.
 
-**142. Item screen and the item pop-up.** `Item_Screen` (move magic items between hero slots and the wizard's vault, destroy one) and `Item_View_Popup`. Needs the item rules of tasks 49 and 50.
+**142. Item screen and the item pop-up.** `Item_Screen` (move magic items between hero slots and the wizard's vault, destroy one) and `Item_View_Popup`. Needs the item rules of tasks 49 and 50. Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.4 (the `armory` API this screen drives).
 
-**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame).
+**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.8 (task 220 makes the offers; this task shows them). Hero names are placeholders until the original's are imported (task 218): the hire box names the hero, with the unit's own name as the default.
 
 **144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list.
 
@@ -512,8 +518,20 @@ Parity task, low priority.
 
 **172. Learning AI: battle AI follow-ups.** What tasks 170 and 171 left (`learning-ai.md` 7.7 and 7.8): (1) stronger yardsticks than the scripted AI, which random orders already beat: past checkpoints as opponents (the league of 6.4), Elo, and an evaluation as the defender; (2) the agent chooses **which unit** moves (a pointer over the units) and can cast later in the turn, not only at its start; (3) fleeing: it is found only with the help of a head that compares the value of fleeing with the critic's, and it still flees in fights it would win; (4) longer runs and a checkpoint chosen by its held-out score; (5) the AI wizards' real battles as training data (task 8.3), difficulty levels from checkpoints, and a client setting for `--battle-ai` (the client needs the `learned` feature and a checkpoint file); (6) the battle outcome model for the strategic AI (8.4); (7) a gap the first runs show: the odds classes were measured with the scripted AI, so a better player makes them easy. (8) The bank was made before the undead, experience and neutral-unit changes of 13 October, and no run has trained on **Animate Dead** (the agent can now aim it: the fallen have tokens); remake the bank and train again. Remaking the bank also picks up the 11 spells of eligibility 2 and 3 that are castable in battle now (task 55).
 
-**174. Level bonuses of the original.** The `standard_xp` and `hero_xp` level paths give every level +1 resistance and, from the third, +10 to hit (`level_path_ron` in `import_mom.py`): a simple stand-in. The original's battle code (`Battle_Unit_Level_Stats`, `COMBINIT.c`) gives normal units: level 1 resistance +1 and melee/ranged +1; level 2 resistance +1 and defence +1; level 3 to hit +1, resistance +1, attacks +1; level 4 to hit, resistance, defence; level 5 to hit, resistance, attacks (attacks only when the unit has them). Heroes differ. Port them, including Ultra-Elite and Champion, and check the figures against the help text.
+**174. Level bonuses of the original.** The `standard_xp` and `hero_xp` level paths give every level +1 resistance and, from the third, +10 to hit (`level_path_ron` in `import_mom.py`): a simple stand-in. The original's battle code (`Battle_Unit_Level_Stats`, `COMBINIT.c`) gives normal units: level 1 resistance +1 and melee/ranged +1; level 2 resistance +1 and defence +1; level 3 to hit +1, resistance +1, attacks +1; level 4 to hit, resistance, defence; level 5 to hit, resistance, attacks (attacks only when the unit has them). Heroes differ. Port them, including Ultra-Elite and Champion, and check the figures against the help text. The hero branch (a different table from the normal units, hit points +1 for each of levels 1 to 8) is written out in [`heroes-items-design.md`](heroes-items-design.md) section 2.2; port it with the rest.
 
 **175. Animate Dead: choosing the unit.** The original lists the wizard's fallen units and lets the player pick one (`Cast_Animate_Dead`); the client raises the strongest at once, since the fallen are not on the field to click. Add a list popup (name, figures, how it fell) opened by the spell. The original also leaves out units that fled or were never in the fight; we offer only dead units of the wizard's army, not heroes, summoned creatures or the destroyed (`Fate::Gone`).
 
 **176. Mac installer.** One program (a script, or a small installer app) that sets the game up on a Mac from the player's own copy of the original: it asks for the path to the original files, runs the extraction (the art with `f4x-tools extract-art`, and the importer `scripts/import_mom.py` for the help text, wizards and city names into `assets-local/` and `content-local/`; `docs/local-assets.md`), checks that the files are the right ones and says what is missing, and then builds the local app (`scripts/make_app.sh` makes `target/Fantasy4X.app`). It should also say what it needs first (the Rust toolchain through rustup, the system Python) and offer to stop there instead of installing anything itself, report progress and errors in plain words, and leave the app and its data where the player can find them (perhaps copying the app to Applications). Nothing from the original is ever uploaded or committed; the result is for play on that machine only. Builds on task 81 (packaging for distribution, which carries no original files).
+
+**218. Import the hero and item data.** Step 1 of [`heroes-items-design.md`](heroes-items-design.md) (section 6 lists the files). In `scripts/import_mom.py`: (1) all 250 `ITEMDATA.LBX` records with every field (type and slot type, attack, to hit, defence, movement, resistance, spell skill, spell save, embedded spell and charges, power mask, the books needed and the grade flag), none skipped; (2) `content/item_powers.ron` from `ITEMPOW.LBX` (66 powers: group, cost, item kinds allowed, realm, books, what it does); (3) for the 35 hero rows of the unit table, the hero type (`bld2`: warrior, bow, sword-or-staff, mage) and portrait (`bld1`) into `HeroDef`, replacing the fixed `[Weapon, Armor, Misc]`; (4) `content/heroes.ron` from `NewGame.c:_hero_premade_table` (picks count and type, fixed abilities, casting skill, four innate spells, with the importer's spell index map); (5) hero names: **placeholders** in `content/` (the unit's own name, "Dwarf"), the original's `NAMES.LBX` (200 names, `player * 35 + type`) to `content-local/hero_names.ron` the way the city names are, replacing them when present; (6) validators in `f4x-data` for the new tables. Also find out what `HERODATA.LBX` holds (ReMoM does not read it). No game change: the soak stays identical.
+
+**219. Hero roster and the hero component.** Step 4 of [`heroes-items-design.md`](heroes-items-design.md) (sections 3.5 and 3.6). `roster` (one record per hero type per wizard on `Player`: availability Free, Serving, Dead or Gone, the abilities rolled at game start by `Init_Heroes` with the draw order kept, casting skill, innate spells, xp), the `Hero` component (kind, name, abilities, items), `hire_cost`, `pick` (`Pick_Random_Hero`: fame, the life and death book rules), six slots at most, Noble (no upkeep, +10 gold), Torin's upkeep, `on_dead` and `on_hired`; the save of all of it. First list every place a unit is removed (after a battle, the banishing spells, dismissal) and hook `on_dead` into each. The new draws at game creation change every seed once: regenerate the soak baseline and say so. Tests with a bare world and a fake roster.
+
+**220. Offers each turn.** Step 9 of [`heroes-items-design.md`](heroes-items-design.md) (section 3.8): `Determine_Offer` as a plan over plain data with an `OfferView` trait (fame, Famous, Charismatic, gold, hero count, roster, books) and a fake for tests. Hero offers (`(3 + fame / 25)` percent, doubled with Famous, capped at 10, plus 10 for computer wizards, divided by `(heroes + 1) / 2 + 1`), mercenaries (`1 + fame / 20`; level, count and price as in `Generate_Mercenaries`; the repeated "above 90" test is in the design doc) and merchant items (three times the cost, half for Charismatic). Commands `AcceptOffer` and `RejectOffer`; events; the computer wizards accept by the original's `AI_Accept_Hero`. Where in the turn change it runs against upkeep is to be checked in `NEXTTURN.c`. The pop-ups are task 143.
+
+**221. Item loot and loss.** Step 7 of [`heroes-items-design.md`](heroes-items-design.md) (sections 4 and 5). `Spoils` gains the loser's fallen heroes' items and hero losses and the winner's armory takes them (`armory::place`: vault, then the award list of six, then lost); dismissed heroes' items are destroyed; Banish, Cracks Call, Disintegrate, Dispel Evil, Holy Word and Unsummon destroy the hero and its items, and Disintegrate and its kin make the hero Gone for good. Lair loot: `Loot.items` becomes real items made on the claim from the lair's value (`random_item`), and the prisoner a real hero offered for free (hire type 2). Needs tasks 49 and 219; the treasure dialog is task 128.
+
+**222. The AI and the console for heroes and items.** Section 4 of [`heroes-items-design.md`](heroes-items-design.md). `f4x-ai`: accept hero offers (`AI_Accept_Hero`), equip items by fit (`AI_ProcessItems`: best attack in the weapon slot, armour in the armour slot), keep heroes with the army, craft nothing at first. `PlayerView` shows a wizard its own heroes and items only. `f4x-console`: commands and queries for the roster, the vault, equip, scrap, craft, accept and reject an offer, so the whole feature can be played and tested without the client. Soak: computer wizards must hire and equip heroes without refused orders.
+
+**223. Hero and item help conflicts.** Section 7 of [`heroes-items-design.md`](heroes-items-design.md) lists 25 places where the help, the original's code and ReMoM disagree (Leadership per two or three levels, Constitution's defence, Agility without a help topic, Sage's super factor, Famous's cap, Lucky, item attack by kind, and more). Add them to `help-vs-implementation-conflicts.md` with the next B numbers, read the code again for each row marked Check (Leadership, Legendary's price cut, Sage, Lucky, Charismatic's order, Recall Hero overland, the number of powers in Enchant Item, hero 24's name, whether a slain hero can be resurrected, where offers fall in the turn), record the decision, and write `HELP_CORRECTIONS` notes where we deviate from the help. Do this before the steps that depend on each row.

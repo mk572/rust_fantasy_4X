@@ -191,7 +191,7 @@ Each stage should end with something runnable and tested.
 - Multiplayer: in scope for v1, or only keep the command log compatible?
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
-- How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema).
+- How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema): proposed in [`heroes-items-design.md`](heroes-items-design.md).
 - Replays: a command log cannot cross a load because entity ids change; if replays or networked play are wanted, commands need stable references (creation numbers instead of entities).
 
 ## 14. Later considerations
