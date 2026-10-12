@@ -66,6 +66,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 169 | Meta | Learning AI phase 0: shared legal actions, battle environment, framework spike (done) |
 | 170 | Meta | Learning AI phase 1: the battle AI by self-play (done) |
 | 171 | Meta | Learning AI phase 2: battle brief, casting and the game's battle AI (done) |
+| 178 | Architecture | A read-only world view trait for the domains (done) |
 
 ## Descriptions
 
@@ -388,3 +389,5 @@ the ward and enchantment icons along the bottom, rubble, and selling by clicking
 **171. Learning AI phase 2: battle brief, casting and the game's battle AI (done).** The brief (`mana_budget`, `stakes`, `may_flee`) is a battle setting and a network input and is sampled at random in training; `BattleCaster::budget` and `Game::set_battle_mana_budget` limit the wizard's mana in the casting rules and the masks; the reward has the mana term; the wizard's spells, aims and mana are decisions of the agent (`learning-ai.md` 7.7). `LearnedBrain` plays a wizard's battles through the core's `BattleBrain` hook (`Game::set_battle_brain`, used by auto-resolve and the battle screen's AI side) and `f4x-tools soak --battle-ai CHECKPOINT` (feature `learned`) runs games with it; without a checkpoint nothing changes. Task 46 stays open for the game without a checkpoint (the plain battle AI casts nothing).
 
 *Running tasks 169 to 171:* every long run goes through `scripts/cool_run.sh` and uses at most 4 threads (`docs/learning-ai.md` section 3), because an overheated laptop slows to a crawl.
+
+**178. A read-only world view trait (done).** `view.rs`: `WorldView` with the turn, the human, the content and the players as the required basics, three questions the domains put to the world with plain-data answers (`foreign_sightings`: another player's cities and units a wizard sees now; `foreign_sightings_near`: the same within a radius of a square; `units_of`: a player's units with position and cost), and provided ones built on them (`player`, `magic`, `is_wizard`, `living_wizards`, `has_global`). It has no entity or component in its signatures. `Game` implements it, and `testutil::FakeView` answers from lists. First users, as pure functions over `&dyn WorldView` in `diplomacy.rs`: `met_near`, `met_in_sight` (the contact rules, which `contact_near` and the turn's sweep now call) and `army_strength`. The list grows only with a question two domains need; diplomacy's other needs (the RNG, the players' gold, the wizards' known spells and research) are for task 179 as the context and returned outcomes, not view questions.

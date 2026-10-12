@@ -48,6 +48,7 @@ pub mod turn;
 pub mod undead;
 pub mod undo;
 pub mod units;
+pub mod view;
 pub mod vision;
 pub mod wizard;
 

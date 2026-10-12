@@ -10,9 +10,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::city::PlayerId;
+use crate::city::{PlayerId, Position};
 use crate::magic::Retort;
 use crate::rules::SpellId;
+use crate::view::WorldView;
 use crate::{Event, Game};
 
 /// What a wizard is bound to with another.
@@ -328,6 +329,35 @@ impl Diplomacy {
     }
 }
 
+/// The wizards `player` meets by looking at the squares within `radius` of `at`: the owners of
+/// the cities and of the units it can make out there, in player order.
+pub fn met_near(
+    view: &dyn WorldView,
+    player: PlayerId,
+    at: Position,
+    radius: u32,
+) -> Vec<PlayerId> {
+    owners(view.foreign_sightings_near(player, at, radius))
+}
+
+/// The wizards `player` meets by what it sees now: the owners of the cities and of the units it
+/// can make out on the squares in its sight, in player order.
+pub fn met_in_sight(view: &dyn WorldView, player: PlayerId) -> Vec<PlayerId> {
+    owners(view.foreign_sightings(player))
+}
+
+fn owners(sightings: Vec<crate::view::Sighting>) -> Vec<PlayerId> {
+    let mut met: Vec<PlayerId> = sightings.into_iter().map(|s| s.owner).collect();
+    met.sort();
+    met.dedup();
+    met
+}
+
+/// The total cost of a wizard's units, the original's army strength.
+pub fn army_strength(view: &dyn WorldView, player: PlayerId) -> i32 {
+    view.units_of(player).iter().map(|u| u.cost as i32).sum()
+}
+
 impl Game {
     /// A player that is a wizard: neither the monsters nor an independent city.
     pub fn is_wizard(&self, id: PlayerId) -> bool {
@@ -450,30 +480,7 @@ impl Game {
         if !self.is_wizard(player) {
             return;
         }
-        let Some(map) = self.map.as_ref() else {
-            return;
-        };
-        let grid = map.plane(at.plane);
-        let near = |p: crate::city::Position| {
-            p.plane == at.plane && grid.chebyshev((p.x, p.y), (at.x, at.y)) <= radius
-        };
-        let mut met: Vec<PlayerId> = Vec::new();
-        for (_, city, pos) in self.cities() {
-            if city.owner != player && near(pos) {
-                met.push(city.owner);
-            }
-        }
-        for unit in self.all_units() {
-            let (Some(owner), Some(pos)) = (self.unit_owner(unit), self.unit_position(unit)) else {
-                continue;
-            };
-            if owner != player && near(pos) && self.unit_visible_to(unit, player) {
-                met.push(owner);
-            }
-        }
-        met.sort();
-        met.dedup();
-        for other in met {
+        for other in met_near(&*self, player, at, radius) {
             self.make_contact(player, other);
         }
     }
@@ -489,38 +496,7 @@ impl Game {
                 }
                 continue;
             }
-            let Some(map) = self.map.as_ref() else {
-                return;
-            };
-            let width = map.width() as usize;
-            let mut seen = std::collections::BTreeMap::new();
-            for plane in crate::map::Plane::ALL {
-                seen.insert(plane as u8, self.visibility(player, plane));
-            }
-            let sees = |p: crate::city::Position| {
-                seen.get(&(p.plane as u8))
-                    .and_then(|grid| grid.get(p.y as usize * width + p.x as usize))
-                    .copied()
-                    .unwrap_or(false)
-            };
-            let mut met: Vec<PlayerId> = Vec::new();
-            for (_, city, pos) in self.cities() {
-                if city.owner != player && sees(pos) {
-                    met.push(city.owner);
-                }
-            }
-            for unit in self.all_units() {
-                let (Some(owner), Some(pos)) = (self.unit_owner(unit), self.unit_position(unit))
-                else {
-                    continue;
-                };
-                if owner != player && sees(pos) && self.unit_visible_to(unit, player) {
-                    met.push(owner);
-                }
-            }
-            met.sort();
-            met.dedup();
-            for other in met {
+            for other in met_in_sight(&*self, player) {
                 self.make_contact(player, other);
             }
         }
@@ -767,11 +743,7 @@ impl Game {
 
     /// The total cost of a wizard's units, the original's army strength.
     pub fn army_strength(&self, player: PlayerId) -> i32 {
-        self.player_units(player)
-            .into_iter()
-            .filter_map(|u| self.unit_def(u))
-            .map(|d| d.cost as i32)
-            .sum()
+        army_strength(self, player)
     }
 
     /// How a threat weighs: the asker's army against the judge's, as the original rates it.

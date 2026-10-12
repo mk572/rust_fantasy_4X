@@ -738,3 +738,87 @@ pub fn content_with_magic() -> Content {
     );
     c
 }
+
+/// A [`crate::view::WorldView`] answered from lists, so a domain's rules can be tested with no
+/// world, map or fog. `sightings` holds what each viewer sees; `units` what each player has.
+pub struct FakeView {
+    pub turn: u32,
+    pub human: Option<crate::city::PlayerId>,
+    pub content: Content,
+    pub players: Vec<crate::player::Player>,
+    pub sightings: Vec<(crate::city::PlayerId, crate::view::Sighting)>,
+    pub units: Vec<(crate::city::PlayerId, crate::view::UnitInfo)>,
+}
+
+impl FakeView {
+    /// A view with a wizard for each id (and no content: use `with_content` for spells).
+    pub fn new(ids: &[crate::city::PlayerId]) -> Self {
+        Self {
+            turn: 1,
+            human: None,
+            content: Content::default(),
+            players: ids
+                .iter()
+                .map(|&id| crate::player::Player::new(id, "W"))
+                .collect(),
+            sightings: Vec::new(),
+            units: Vec::new(),
+        }
+    }
+
+    pub fn with_content(mut self, content: Content) -> Self {
+        self.content = content;
+        self
+    }
+}
+
+impl crate::view::WorldView for FakeView {
+    fn turn(&self) -> u32 {
+        self.turn
+    }
+
+    fn human(&self) -> Option<crate::city::PlayerId> {
+        self.human
+    }
+
+    fn content(&self) -> &Content {
+        &self.content
+    }
+
+    fn players(&self) -> &[crate::player::Player] {
+        &self.players
+    }
+
+    fn foreign_sightings(&self, viewer: crate::city::PlayerId) -> Vec<crate::view::Sighting> {
+        self.sightings
+            .iter()
+            .filter(|(v, s)| *v == viewer && s.owner != viewer)
+            .map(|(_, s)| *s)
+            .collect()
+    }
+
+    fn foreign_sightings_near(
+        &self,
+        viewer: crate::city::PlayerId,
+        at: crate::city::Position,
+        radius: u32,
+    ) -> Vec<crate::view::Sighting> {
+        self.sightings
+            .iter()
+            .filter(|(v, s)| *v == viewer && s.owner != viewer)
+            .map(|(_, s)| *s)
+            .filter(|s| {
+                s.pos.plane == at.plane
+                    && s.pos.x.abs_diff(at.x).max(s.pos.y.abs_diff(at.y)) <= radius
+            })
+            .collect()
+    }
+
+    fn units_of(&self, player: crate::city::PlayerId) -> Vec<crate::view::UnitInfo> {
+        self.units
+            .iter()
+            .filter(|(p, _)| *p == player)
+            .map(|(_, u)| *u)
+            .collect()
+    }
+}
