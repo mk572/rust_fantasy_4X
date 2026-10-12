@@ -33,6 +33,7 @@ pub mod nodes;
 pub mod pathing;
 pub mod player;
 pub mod production;
+pub mod rng;
 pub mod roads;
 pub mod rules;
 pub mod save;
@@ -52,8 +53,7 @@ pub mod view;
 pub mod vision;
 pub mod wizard;
 
-use rand::{RngCore, SeedableRng};
-use rand_pcg::Pcg64Mcg;
+use rand::RngCore;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -499,11 +499,9 @@ pub struct Game {
     pub content: content::Content,
     pub players: Vec<player::Player>,
     pub fog: fog::Fog,
-    seed: u64,
-    /// Values drawn from the RNG so far; a save replays this many to resume the stream.
-    draws: u64,
     pub(crate) next_serial: u64,
-    rng: Pcg64Mcg,
+    /// The seeded generator all randomness comes from; it counts its draws (see `rng.rs`).
+    pub(crate) rng: rng::GameRng,
     /// Countdowns for timed spells.
     pub(crate) timers: Vec<timers::Timer>,
     /// The game's node setting: 0 weak, 1 normal, 2 powerful.
@@ -535,10 +533,8 @@ impl Game {
             content: content::Content::default(),
             players: Vec::new(),
             fog: fog::Fog::default(),
-            seed,
-            draws: 0,
             next_serial: 1,
-            rng: Pcg64Mcg::seed_from_u64(seed),
+            rng: rng::GameRng::new(seed),
             timers: Vec::new(),
             magic_strength: 1,
             difficulty: 2,
@@ -603,7 +599,7 @@ impl Game {
 
     /// The seed this game started from.
     pub fn seed(&self) -> u64 {
-        self.seed
+        self.rng.seed()
     }
 
     /// Whether `id` is the monsters' owner or an independent city's player: not a wizard.
@@ -976,7 +972,6 @@ impl Game {
 
     /// Next value from the game's seeded RNG (all randomness must come from here).
     pub fn next_u64(&mut self) -> u64 {
-        self.draws += 1;
         self.rng.next_u64()
     }
 }

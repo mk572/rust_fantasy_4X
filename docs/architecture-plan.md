@@ -94,8 +94,8 @@ Rules that keep it from growing back:
 ## 3. Order of work
 
 1. **Groundwork (177, 178):** the RNG as its own struct, and the `WorldView` trait with
-   `Game`'s implementation. 178 is done (`view.rs`, with the contact rules and the army
-   strength of diplomacy as the first users); 177 is next.
+   `Game`'s implementation. 177 and 178 are done (`rng.rs`; `view.rs`, with the contact
+   rules and the army strength of diplomacy as the first users).
 2. **Diplomacy (179):** move its 46 methods onto `Diplomacy` with a context; callers in other
    files go through `Game` wrappers that build the context. Move its tests to a fake view so they
    no longer need a map and three wizards. The result is checked by the existing 51 tests

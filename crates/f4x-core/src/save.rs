@@ -15,8 +15,6 @@
 
 use std::collections::BTreeMap;
 
-use rand::{RngCore, SeedableRng};
-use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
 use crate::city::{City, PlayerId, Position};
@@ -703,8 +701,8 @@ impl Game {
             .collect();
         Snapshot {
             version: SAVE_VERSION,
-            seed: self.seed,
-            draws: self.draws,
+            seed: self.rng.seed(),
+            draws: self.rng.draws(),
             turn: self.turn,
             next_serial: self.next_serial,
             magic_strength: self.magic_strength,
@@ -775,12 +773,7 @@ impl Snapshot {
         game.override_log = self.override_log;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
-        let mut rng = Pcg64Mcg::seed_from_u64(self.seed);
-        for _ in 0..self.draws {
-            rng.next_u64();
-        }
-        game.rng = rng;
-        game.draws = self.draws;
+        game.rng = crate::rng::GameRng::resume(self.seed, self.draws);
 
         game.map = self
             .map
@@ -1367,7 +1360,7 @@ mod tests {
     fn the_random_stream_resumes_where_it_stopped() {
         let mut g = game();
         assert!(
-            g.draws > 0,
+            g.rng.draws() > 0,
             "the world used random numbers (outposts, healing)"
         );
         let mut back = g.snapshot().restore(g.content.clone()).unwrap();

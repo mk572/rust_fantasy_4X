@@ -80,11 +80,11 @@ impl Game {
         );
         let label = label_of(&command);
         let before = (!ends_history).then(|| self.snapshot());
-        let (draws, explored) = (self.draws, self.explored_total());
+        let (draws, explored) = (self.rng.draws(), self.explored_total());
         let events = self.execute(command);
         let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
         let irreversible = ends_history
-            || self.draws != draws
+            || self.rng.draws() != draws
             || self.explored_total() != explored
             || self.battle.is_some()
             || events

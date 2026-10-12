@@ -1,6 +1,6 @@
 //! Casting overland spells: targets, the effect host over the ECS, and lasting spells.
 
-use rand::{Error, RngCore};
+use rand::RngCore;
 
 use crate::battle::immunity::Realm;
 use crate::city::{PlayerId, Position};
@@ -26,31 +26,6 @@ pub(crate) enum UpkeepKind {
 pub(crate) struct UpkeepItem {
     pub kind: UpkeepKind,
     pub mana: i32,
-}
-
-/// Counts how many values the game's generator hands out, so the save can resume it.
-struct CountingRng {
-    inner: rand_pcg::Pcg64Mcg,
-    draws: u64,
-}
-
-impl RngCore for CountingRng {
-    fn next_u32(&mut self) -> u32 {
-        self.draws += 1;
-        self.inner.next_u32()
-    }
-    fn next_u64(&mut self) -> u64 {
-        self.draws += 1;
-        self.inner.next_u64()
-    }
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.draws += 1;
-        self.inner.fill_bytes(dest)
-    }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
-        self.draws += 1;
-        self.inner.try_fill_bytes(dest)
-    }
 }
 
 /// The real world, as the effect executor sees it.
@@ -590,18 +565,16 @@ impl Game {
             chosen: target.or(Some(this)),
             source: Source::Spell(spell),
         };
-        let mut rng = CountingRng {
-            inner: self.rng.clone(),
-            draws: 0,
-        };
+        // The executor and the host both need the game, so the spell draws from a copy of the
+        // generator, which the game takes back afterwards.
+        let mut rng = self.rng.clone();
         let mut host = GameHost {
             game: self,
             events: Vec::new(),
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host, &mut rng);
         let hook_events = std::mem::take(&mut host.events);
-        self.rng = rng.inner;
-        self.draws += rng.draws;
+        self.rng = rng;
 
         let mut events = vec![Event::SpellCast { player, spell }];
         let victim = match target {

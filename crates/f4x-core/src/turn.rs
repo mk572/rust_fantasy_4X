@@ -32,7 +32,7 @@ impl Treasury {
 impl Game {
     /// Uniform random integer in `1..=n`.
     pub fn roll(&mut self, n: u32) -> u32 {
-        (self.next_u64() % u64::from(n.max(1))) as u32 + 1
+        self.rng.roll(n)
     }
 
     /// Food a unit eats per turn.
