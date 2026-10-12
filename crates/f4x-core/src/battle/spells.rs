@@ -33,6 +33,9 @@ use crate::rules::SpellId;
 use crate::units::UnitEnchantments;
 use crate::{Event, Game};
 
+/// The hook of the Animate Dead spell.
+pub const ANIMATE_DEAD: &str = "animate_dead";
+
 /// What a spell does in a battle, from its effects.
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
@@ -74,6 +77,8 @@ enum Kind {
     /// A battlefield enchantment.
     Field(Field),
     CallChaos,
+    /// Raise one of the wizard's own dead units as undead (Animate Dead).
+    Animate,
 }
 
 impl Kind {
@@ -228,6 +233,7 @@ impl Game {
             Effect::Custom(h) if h == crate::dispel::COUNTER_MAGIC => Some(Kind::CounterMagic),
             Effect::Custom(h) if h == BATTLEFIELD => Field::of(&def.id).map(Kind::Field),
             Effect::Custom(h) if h == CALL_CHAOS => Some(Kind::CallChaos),
+            Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
             _ => None,
         }
     }
@@ -510,6 +516,18 @@ impl Game {
                 }
                 Ok(())
             }
+            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Animate) => {
+                if battle.active_units(side).count() >= MAX_SIDE_UNITS
+                    || battle.first_summon_square(side).is_none()
+                {
+                    return Err(SpellError::NoRoom);
+                }
+                if self.can_animate(battle, side, id) {
+                    Ok(())
+                } else {
+                    Err(SpellError::BadTarget)
+                }
+            }
             (
                 target @ (SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit),
                 SpellAim::Unit(id),
@@ -548,6 +566,59 @@ impl Game {
             }
             _ => Err(SpellError::BadTarget),
         }
+    }
+
+    /// Whether `id` is a dead unit of `side` that Animate Dead can raise: a unit of the wizard's
+    /// army (not one summoned in the battle, and not a hero) that was not destroyed outright.
+    fn can_animate(&self, battle: &Battle, side: Side, id: usize) -> bool {
+        use crate::rules::UnitKind;
+        let Some(u) = battle.unit(id) else {
+            return false;
+        };
+        let Some(entity) = u.source.and_then(|i| self.battle_source(i)) else {
+            return false;
+        };
+        u.side == side
+            && u.status == super::Status::Dead
+            && u.fate() != super::Fate::Gone
+            && self
+                .unit_def(entity)
+                .is_some_and(|d| d.kind != UnitKind::Hero)
+    }
+
+    /// The overland unit a battle unit was copied from, by its index in the battle's list.
+    pub(super) fn battle_source(&self, index: usize) -> Option<hecs::Entity> {
+        self.battle.as_ref()?.sources.get(index).copied()
+    }
+
+    /// Animate Dead: the dead unit rises as an undead unit of full strength on a free square
+    /// of its side's half of the field, ready to act. Overland it is undead for good (its
+    /// lasting spells fall away).
+    fn animate_dead(&mut self, side: Side, id: usize) -> Vec<BattleEvent> {
+        let Some(active) = self.battle.as_ref() else {
+            return Vec::new();
+        };
+        let Some(cell) = active.battle.first_summon_square(side) else {
+            return Vec::new();
+        };
+        let Some(source) = active.battle.unit(id).and_then(|u| u.source) else {
+            return Vec::new();
+        };
+        let Some(entity) = self.battle_source(source) else {
+            return Vec::new();
+        };
+        self.make_undead(entity);
+        self.world.remove_one::<crate::units::Hurt>(entity).ok();
+        let Some(mut unit) = self.battle_unit_from(entity, side, source) else {
+            return Vec::new();
+        };
+        let Some(active) = self.battle.as_mut() else {
+            return Vec::new();
+        };
+        unit.id = id;
+        unit.cell = cell;
+        active.battle.units[id] = unit;
+        vec![BattleEvent::Raised { unit: id }]
     }
 
     /// The active enemy units of a side, by id.
@@ -675,6 +746,7 @@ impl Game {
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
             (Kind::CallChaos, _) => self.call_chaos(side),
+            (Kind::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
             (Kind::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();

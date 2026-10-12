@@ -654,6 +654,7 @@ impl Game {
         index: usize,
         winner: Option<PlayerId>,
         attackers: &[hecs::Entity],
+        guards: &[hecs::Entity],
     ) -> Vec<Event> {
         let Some(lair) = self
             .map
@@ -668,7 +669,9 @@ impl Game {
             x: lair.x,
             y: lair.y,
         };
-        for u in self.units_at(pos) {
+        // The guards were made for the fight and go with it. Other neutral units on the site
+        // (the undead raised for the monsters) stay, as do guards the victors took as undead.
+        for &u in guards {
             if self.unit_owner(u) == Some(NEUTRAL) {
                 let _ = self.world.despawn(u);
             }
@@ -1178,6 +1181,111 @@ mod tests {
                 .all(|&u| g.unit_owner(u) == Some(P0)),
             "no guard is left"
         );
+    }
+
+    #[test]
+    fn a_guard_drained_to_death_joins_the_victors_as_undead() {
+        use crate::battle::Status;
+        let mut g = world(5);
+        put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
+        g.map
+            .as_mut()
+            .unwrap()
+            .set_lairs(vec![lair(5, 5, vec![("skeletons", 2)])]);
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let w = g.spawn_unit(P0, at(4, 5), walker);
+        g.apply(Command::EnterSite {
+            units: vec![w],
+            to: at(5, 5),
+        });
+        let (drained, slain) = {
+            let a = g.battle.as_ref().unwrap();
+            let guards: Vec<usize> = a
+                .battle
+                .units
+                .iter()
+                .filter(|u| u.side == Side::Defender)
+                .map(|u| u.id)
+                .collect();
+            assert_eq!(guards.len(), 2);
+            (
+                (
+                    guards[0],
+                    a.sources[a.battle.units[guards[0]].source.unwrap()],
+                ),
+                (
+                    guards[1],
+                    a.sources[a.battle.units[guards[1]].source.unwrap()],
+                ),
+            )
+        };
+        {
+            let b = &mut g.battle.as_mut().unwrap().battle;
+            for (id, kinds) in [(drained.0, [1, 5, 0]), (slain.0, [4, 0, 0])] {
+                b.units[id].status = Status::Dead;
+                b.units[id].figures = 0;
+                b.units[id].damage_kinds = kinds;
+            }
+            // The test guards are skeletons, creatures of the Death realm, which are not raised.
+            b.units[drained.0].realm = None;
+        }
+        let events = g.apply(Command::Battle(BattleCommand::EndTurn));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == P0)));
+        assert_eq!(g.unit_owner(drained.1), Some(P0));
+        assert!(g.unit_is_undead(drained.1));
+        assert_eq!(g.unit_position(drained.1), Some(at(5, 5)));
+        assert!(!g.world.contains(slain.1), "the other guard is gone");
+        assert_eq!(g.unit_position(w), Some(at(5, 5)), "the victors moved in");
+    }
+
+    #[test]
+    fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
+        use crate::battle::Status;
+        let mut g = world(5);
+        put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
+        g.map
+            .as_mut()
+            .unwrap()
+            .set_lairs(vec![lair(5, 5, vec![("skeletons", 1)])]);
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let (w, bystander) = (
+            g.spawn_unit(P0, at(4, 5), walker),
+            g.spawn_unit(P0, at(4, 5), walker),
+        );
+        g.apply(Command::EnterSite {
+            units: vec![w, bystander],
+            to: at(5, 5),
+        });
+        {
+            let b = &mut g.battle.as_mut().unwrap().battle;
+            for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
+                u.status = Status::Dead;
+                u.figures = 0;
+                u.damage_kinds = if u.source == Some(0) {
+                    [1, 5, 0]
+                } else {
+                    [4, 0, 0]
+                };
+                u.realm = None;
+            }
+        }
+        let events = g.apply(Command::Battle(BattleCommand::EndTurn));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == NEUTRAL)));
+        // The drained unit stays on the site for the monsters; the guard made for the fight and
+        // the other attacker are gone.
+        assert!(g.world.contains(w) && !g.world.contains(bystander));
+        assert_eq!(g.unit_owner(w), Some(NEUTRAL));
+        assert!(g.unit_is_undead(w));
+        assert_eq!(g.units_at(at(5, 5)), vec![w]);
+        assert!(g.lair_at(at(5, 5)).is_some(), "the lair is not cleared");
+        // It lasts, and it is an enemy to anyone who walks in.
+        g.apply(Command::EndTurn);
+        assert_eq!(g.unit_owner(w), Some(NEUTRAL));
+        assert!(g.hostile_at(at(5, 5), P0).is_some());
     }
 
     #[test]

@@ -10,8 +10,9 @@
 //!   ability share a square, the best of them counts. (Heroes' abilities are task 47; until it
 //!   hands them out, the ability is only there when a unit's definition lists it.)
 //!
-//! The original also gives every living normal unit 1 xp each turn; the rule is not in the game
-//! yet (task 173).
+//! Every living normal unit and hero also gains 1 xp each turn, up to the last level experience
+//! gives (Elite; a hero's Demi-god): `Do_All_Units_XP_Check` in the original. Creatures and the
+//! undead gain none. Battle experience is not in the game yet (task 42).
 
 use crate::city::{PlayerId, Position};
 use crate::rules::UnitKind;
@@ -35,8 +36,34 @@ impl Game {
         (self.unit_level(hero) as u32 + 1) * per_level
     }
 
+    /// One xp for a living normal unit or hero, up to what experience can give.
+    fn gain_turn_xp(&mut self, unit: hecs::Entity) {
+        let Some(def) = self.unit_def(unit) else {
+            return;
+        };
+        if !matches!(def.kind, UnitKind::Normal | UnitKind::Hero) || self.unit_is_undead(unit) {
+            return;
+        }
+        let Some(cap) = def
+            .level_path
+            .as_deref()
+            .and_then(|p| self.content.rules.level_paths.by_name(p))
+            .and_then(|p| p.levels.last())
+            .map(|l| l.xp)
+        else {
+            return;
+        };
+        let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+        if xp < cap {
+            let _ = self.world.insert_one(unit, Experience(xp + 1));
+        }
+    }
+
     pub(crate) fn process_experience(&mut self) {
         let units = self.all_units();
+        for &unit in &units {
+            self.gain_turn_xp(unit);
+        }
         if let Some(heroism) = self.content.rules.spells.id_of(HEROISM) {
             for &unit in &units {
                 if self.unit_has_heroism(unit) && self.unit_xp_level(unit) >= HEROISM_LEVEL {
@@ -263,20 +290,44 @@ mod tests {
         assert_eq!(g.armsmaster_xp(hero), 2, "level 1: 2 xp");
         set_xp(&mut g, hero, 20);
         assert_eq!(g.armsmaster_xp(hero), 4, "level 2: 4 xp");
+        // Each turn a unit also gains its own one xp.
         g.process_experience();
-        assert_eq!(xp(&g, near), 4);
-        assert_eq!(xp(&g, far), 0);
-        assert_eq!(xp(&g, hero), 20, "not the hero itself");
+        assert_eq!(xp(&g, near), 1 + 4);
+        assert_eq!(xp(&g, far), 1);
+        assert_eq!(
+            xp(&g, hero),
+            21,
+            "the hero trains no one but itself, by the turn"
+        );
         // Another hero with the better ability on the same square: the best counts, not the sum.
         let _super = spawn(&mut g, "scout", at(3, 3));
         g.process_experience();
         assert_eq!(
             xp(&g, near),
-            4 + 4,
+            5 + 1 + 4,
             "super at level 1 gives 3, the first hero's 4 wins"
         );
         set_xp(&mut g, hero, 120);
         g.process_experience();
-        assert_eq!(xp(&g, near), 8 + 8, "level 4: 8 xp");
+        assert_eq!(xp(&g, near), 10 + 1 + 8, "level 4: 8 xp");
+    }
+
+    #[test]
+    fn living_normal_units_and_heroes_gain_one_xp_a_turn_up_to_their_cap() {
+        let mut g = world();
+        let normal = spawn(&mut g, "walker", at(3, 3));
+        let creature = spawn(&mut g, "slow", at(4, 3));
+        let undead = spawn(&mut g, "walker", at(5, 3));
+        g.make_undead(undead);
+        let hero = spawn(&mut g, "hardy", at(6, 3));
+        g.process_experience();
+        assert_eq!(xp(&g, normal), 1);
+        assert_eq!(xp(&g, hero), 1);
+        assert_eq!(xp(&g, creature), 0, "creatures gain none");
+        assert_eq!(xp(&g, undead), 0, "nor the undead");
+        set_xp(&mut g, normal, 119);
+        g.process_experience();
+        g.process_experience();
+        assert_eq!(xp(&g, normal), 120, "elite is where experience stops");
     }
 }

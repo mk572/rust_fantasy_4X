@@ -57,6 +57,7 @@ pub(crate) fn damage_unit_with_spell(
     };
     let dmg = spell_attack(&spell, volley, &mut state, rng);
     unit.set_from(&state);
+    unit.record(dmg);
     Some(dmg)
 }
 
@@ -295,6 +296,9 @@ impl Battle {
             total
         };
         self.units[target].set_from(&state);
+        // What severs or burns leaves nothing to raise.
+        let dmg = dmg.all_gone();
+        self.units[target].record(dmg);
         Some(dmg)
     }
 

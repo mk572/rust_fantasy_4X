@@ -81,6 +81,19 @@ pub enum Status {
     Fled,
 }
 
+/// How a unit that died was brought down, by the kind of damage that did most of it (the
+/// original's `bus_Dead`, `bus_Drained` and `bus_Gone`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fate {
+    /// Struck down: Animate Dead can raise it.
+    Slain,
+    /// Drained by life steal or a creator of undead: Animate Dead can raise it, and the
+    /// winner takes it as an undead unit after the battle.
+    Drained,
+    /// Destroyed or severed: nothing brings it back.
+    Gone,
+}
+
 /// One unit in a battle, with the statistics it fights with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleUnit {
@@ -130,6 +143,8 @@ pub struct BattleUnit {
     pub undead: bool,
     pub abilities: Vec<String>,
     pub status: Status,
+    /// The damage it has taken, by kind: ordinary, drained, and the kind that destroys.
+    pub damage_kinds: [i32; 3],
     /// Has attacked or shot this turn.
     pub attacked: bool,
     /// Lasting spells cast on it in this battle, and who cast them. They last until the battle
@@ -184,10 +199,31 @@ impl BattleUnit {
             undead: false,
             abilities: Vec::new(),
             status: Status::Active,
+            damage_kinds: [0; 3],
             attacked: false,
             combat_spells: Vec::new(),
             base: None,
             field: FieldBonus::default(),
+        }
+    }
+
+    /// Note the damage the unit took, by its kind.
+    pub fn record(&mut self, d: attack::Damage) {
+        self.damage_kinds[0] += d.points - d.drained - d.gone;
+        self.damage_kinds[1] += d.drained;
+        self.damage_kinds[2] += d.gone;
+    }
+
+    /// How the unit died, by the kind of damage that did most of it (as the original does:
+    /// ties go to the kind that destroys, then to drain). Meaningful once the unit is dead.
+    pub fn fate(&self) -> Fate {
+        let [normal, drained, gone] = self.damage_kinds;
+        if gone > 0 && gone >= drained && gone >= normal {
+            Fate::Gone
+        } else if drained > gone && drained >= normal {
+            Fate::Drained
+        } else {
+            Fate::Slain
         }
     }
 
@@ -352,6 +388,10 @@ pub enum BattleError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BattleEvent {
+    /// A dead unit rose again as undead (Animate Dead).
+    Raised {
+        unit: usize,
+    },
     Moved {
         unit: usize,
         path: Vec<Pos>,
@@ -1015,6 +1055,8 @@ impl Battle {
         }];
         self.units[att].set_from(&a.state);
         self.units[def].set_from(&d.state);
+        self.units[def].record(out.dealt);
+        self.units[att].record(out.taken);
         self.units[att].attacked = true;
         self.units[att].moves_left = 0;
         for id in [att, def] {
@@ -1049,6 +1091,7 @@ impl Battle {
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = attack::ranged_attack(&shooter, figures, &mut state, rng);
         self.units[def].set_from(&state);
+        self.units[def].record(dmg);
         let a = &mut self.units[att];
         if dmg.healed > 0 {
             let mut mine = a.defender_state();

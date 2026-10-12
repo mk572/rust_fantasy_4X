@@ -37,6 +37,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::battle::field::BATTLEFIELD,
     crate::battle::field::CALL_CHAOS,
     crate::battle::field::DISINTEGRATE,
+    crate::battle::spells::ANIMATE_DEAD,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

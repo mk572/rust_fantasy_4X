@@ -9,8 +9,8 @@
 //! neutral city plays by the ordinary rules: it grows, builds in the Grand Vizier's order and
 //! can be taken in battle. Every neutral city is its own player (`Player::neutral`), with its
 //! own treasury: its taxes pay for its buildings and its garrison, and a garrison it cannot
-//! pay for is disbanded. The player goes when the city is taken. Monsters and lair guards
-//! stay with the shared `units::NEUTRAL`.
+//! pay for is disbanded. The player goes when the city is taken. Monsters, lair guards and
+//! the undead raised for them stay with the shared `units::NEUTRAL`.
 
 use std::collections::VecDeque;
 

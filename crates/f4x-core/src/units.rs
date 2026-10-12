@@ -52,7 +52,8 @@ pub enum Order {
     GoTo(Vec<Position>),
 }
 
-/// Owner of monsters and unclaimed sites.
+/// Owner of monsters and unclaimed sites. Its units last until someone kills them (the lair
+/// guards are made for a fight and removed after it; undead raised for the monsters stay).
 pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);
 
 /// Most units that may share one tile.

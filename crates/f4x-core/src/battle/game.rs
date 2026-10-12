@@ -181,6 +181,7 @@ impl Game {
             undead: self.unit_counts_as_undead(unit),
             abilities: abilities.clone(),
             status: Status::Active,
+            damage_kinds: [0; 3],
             attacked: false,
             combat_spells: Vec::new(),
             base: None,
@@ -323,12 +324,19 @@ impl Game {
             site,
         } = active;
         let mut events = Vec::new();
+        // Units drained to death on the losing side join the winner as undead, in a fight at a
+        // lair as on the map.
+        let mut drained = Vec::new();
         for u in &battle.units {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
             };
             if u.status == Status::Dead {
-                let _ = self.world.despawn(entity);
+                if self.is_raised_by(&battle, u, entity) {
+                    drained.push(entity);
+                } else {
+                    let _ = self.world.despawn(entity);
+                }
             } else {
                 let mut hurt = (u.max_hit_points() - u.hit_points()).max(0);
                 // Hit points a lasting spell added (Lionheart) are gone with it: the unit
@@ -360,6 +368,10 @@ impl Game {
                 }
             }
             events.extend(self.overland_aftermath(&battle, &sources));
+            events.extend(self.raise_drained(&battle, drained));
+        } else {
+            // They stand on the site when the winner's survivors move in.
+            events.extend(self.raise_drained(&battle, drained));
         }
         if let Some(index) = site {
             let attackers: Vec<hecs::Entity> = battle
@@ -372,9 +384,64 @@ impl Game {
                 .winner
                 .filter(|&s| s == Side::Attacker)
                 .map(|s| battle.player_of(s));
-            events.extend(self.finish_site_battle(index, winner, &attackers));
+            let guards: Vec<hecs::Entity> = battle
+                .units
+                .iter()
+                .filter(|u| u.side == Side::Defender)
+                .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
+                .collect();
+            events.extend(self.finish_site_battle(index, winner, &attackers, &guards));
         }
         events
+    }
+
+    /// Whether the winner takes this dead unit as an undead one: the loser's, drained to death
+    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero.
+    fn is_raised_by(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
+        battle.winner.is_some_and(|w| w != u.side)
+            && u.fate() == super::Fate::Drained
+            && u.realm != Some(Realm::Death)
+            && self
+                .unit_def(entity)
+                .is_some_and(|d| d.kind != crate::rules::UnitKind::Hero)
+    }
+
+    /// Put the drained dead on the winner's square as undead units, as many as it has room for.
+    fn raise_drained(&mut self, battle: &Battle, mut dead: Vec<hecs::Entity>) -> Vec<Event> {
+        let winner = battle.winner.map(|side| (side, battle.player_of(side)));
+        let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
+            for u in dead {
+                let _ = self.world.despawn(u);
+            }
+            return Vec::new();
+        };
+        self.sort_by_serial(&mut dead);
+        // As in the original, the winner's units that stand count against the stack's nine.
+        let mut room = crate::units::MAX_STACK.saturating_sub(battle.active_units(side).count());
+        let mut raised = 0;
+        for unit in dead {
+            if room == 0 {
+                let _ = self.world.despawn(unit);
+                continue;
+            }
+            room -= 1;
+            self.make_undead(unit);
+            let _ = self.world.remove_one::<Hurt>(unit);
+            let _ = self.world.remove_one::<crate::units::Order>(unit);
+            let _ = self.world.insert(
+                unit,
+                (crate::units::Owner(player), pos, crate::units::MovesLeft(0)),
+            );
+            raised += 1;
+        }
+        if raised > 0 {
+            vec![Event::UndeadRaised {
+                player,
+                units: raised,
+            }]
+        } else {
+            Vec::new()
+        }
     }
 
     /// What a battle on the overland map leaves behind: units that fled lose some of their

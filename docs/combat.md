@@ -147,8 +147,17 @@ then brings dead figures back, and nothing over full strength is kept.
 
 Not here (task 157): power drain (it needs battle mana: now there, see section 8), the extra penalty and half
 strength of touches and doom damage granted by items and spells, hit points above full
-strength from life steal, the undead that life steal and create undead leave behind, and
-healing that skips irreversible damage.
+strength from life steal, and healing that skips irreversible damage.
+
+Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit in
+`BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a
+creator of undead (a victim with magic immunity is spared), has fallen `Fate::Drained`: the
+winner takes it after the battle as an undead unit, full strength, unless it was a
+creature of the Death realm or a hero (`raise_drained`, `battle/game.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `units::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
+attack or a severing spell (Disintegrate, Dispel Evil, Petrify and the other slaying spells)
+kills is `Fate::Gone`. Animate Dead raises one of the casting wizard's own dead (not a hero,
+not summoned in the battle, not gone) on a free square of their half of the field, undead for
+good.
 
 ## 3. The tactical map and the turn (task 40)
 

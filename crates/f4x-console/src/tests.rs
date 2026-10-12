@@ -2043,3 +2043,81 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
     let refused = play.execute(&mut g, "blegal");
     assert!(!refused.ok, "{}", refused.text());
 }
+
+// ---- Animate Dead and the drained dead (tasks 157 and 159) ------------------------------
+
+/// Strike one of the human side's units down by the given kinds of damage.
+fn fell(g: &mut Game, id: usize, kinds: [i32; 3]) {
+    let u = &mut g.battle.as_mut().unwrap().battle.units[id];
+    u.figures = 0;
+    u.status = f4x_core::battle::Status::Dead;
+    u.damage_kinds = kinds;
+}
+
+#[test]
+fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
+    use f4x_core::battle::{Side, Status};
+    let mut g = casting_siege(&["animate_dead"]);
+    let mine = battle_units_of(&g, Side::Attacker);
+    let (fallen, standing) = (mine[0], mine[1]);
+    // Nobody has fallen yet.
+    assert!(!cast(&mut g, &format!("bcast animate dead unit:{fallen}")).ok);
+    fell(&mut g, fallen, [4, 0, 0]);
+    // Not a unit that stands, nor an enemy's dead.
+    assert!(!cast(&mut g, &format!("bcast animate dead unit:{standing}")).ok);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    fell(&mut g, enemy, [4, 0, 0]);
+    assert!(!cast(&mut g, &format!("bcast animate dead unit:{enemy}")).ok);
+    let r = cast(&mut g, &format!("bcast animate dead unit:{fallen}"));
+    assert!(r.ok, "{}", r.text());
+    let b = g.battle().unwrap();
+    let u = b.unit(fallen).unwrap();
+    assert_eq!(u.status, Status::Active);
+    assert_eq!(u.figures, u.figures_start);
+    assert!(u.undead && u.realm == Some(f4x_core::battle::immunity::Realm::Death));
+    assert!(u.has("death_immunity") && u.has("cold_immunity"));
+    assert_eq!(u.side, Side::Attacker);
+    let entity = g.battle.as_ref().unwrap().sources[u.source.unwrap()];
+    assert!(g.unit_is_undead(entity), "undead for good");
+}
+
+#[test]
+fn animate_dead_cannot_raise_what_was_destroyed_outright() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["animate_dead"]);
+    let fallen = battle_units_of(&g, Side::Attacker)[0];
+    fell(&mut g, fallen, [1, 0, 6]);
+    assert!(!cast(&mut g, &format!("bcast animate dead unit:{fallen}")).ok);
+    // Drained to death is another matter.
+    fell(&mut g, fallen, [1, 6, 0]);
+    let r = cast(&mut g, &format!("bcast animate dead unit:{fallen}"));
+    assert!(r.ok, "{}", r.text());
+}
+
+#[test]
+fn the_units_drained_to_death_join_the_winner_as_undead() {
+    use f4x_core::battle::{BattleCommand, Side};
+    let mut g = casting_siege(&[]);
+    let mine = battle_units_of(&g, Side::Attacker);
+    let (drained, slain) = (mine[0], mine[1]);
+    let entity_of = |g: &Game, id: usize| {
+        let b = g.battle.as_ref().unwrap();
+        b.sources[b.battle.unit(id).unwrap().source.unwrap()]
+    };
+    let (drained_unit, slain_unit) = (entity_of(&g, drained), entity_of(&g, slain));
+    for &id in &mine {
+        fell(&mut g, id, [3, 0, 0]);
+    }
+    g.battle.as_mut().unwrap().battle.units[drained].damage_kinds = [1, 4, 0];
+    let rival = PlayerId(1);
+    let r = g.apply(f4x_core::Command::Battle(BattleCommand::EndTurn));
+    assert!(
+        r.iter().any(
+            |e| matches!(e, f4x_core::Event::UndeadRaised { player, units: 1 } if *player == rival)
+        ),
+        "{r:?}"
+    );
+    assert_eq!(g.unit_owner(drained_unit), Some(rival));
+    assert!(g.unit_is_undead(drained_unit));
+    assert!(g.world.contains(drained_unit) && !g.world.contains(slain_unit));
+}

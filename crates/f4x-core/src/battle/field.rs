@@ -345,6 +345,7 @@ impl Battle {
             }
             if lost.points > 0 {
                 self.units[id].set_from(&state);
+                self.units[id].record(lost);
                 events.push(BattleEvent::FieldStruck {
                     unit: id,
                     dealt: lost.points,

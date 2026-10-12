@@ -199,6 +199,7 @@ pub(crate) fn describe(
             format!("Dispel on {}: {removed} removed", name(*unit))
         }
         BattleEvent::Summoned { unit } => format!("{} appears", name(*unit)),
+        BattleEvent::Raised { unit } => format!("{} rises again as undead", name(*unit)),
         BattleEvent::FieldRaised { spell: s, .. } => format!("{} covers the field", spell(*s)),
         BattleEvent::SpellResisted { unit } => format!("{} resists", name(*unit)),
         BattleEvent::SpellSlew { unit, kills } => {
@@ -639,6 +640,37 @@ impl App {
                 mana: 0,
             });
             self.battle_ui.selected = None;
+            return;
+        }
+        // Animate Dead raises the strongest of the fallen (the fallen are not on the field to
+        // click; a list to choose from is task 175).
+        if self
+            .game
+            .spell_has_hook(spell.spell, f4x_core::battle::spells::ANIMATE_DEAD)
+        {
+            let fallen = self
+                .game
+                .legal_battle_casts()
+                .into_iter()
+                .find(|c| c.spell == spell.spell)
+                .and_then(|c| {
+                    let battle = self.game.battle()?;
+                    c.aims
+                        .into_iter()
+                        .filter_map(|a| match a {
+                            SpellAim::Unit(id) => Some(id),
+                            _ => None,
+                        })
+                        .max_by_key(|&id| battle.unit(id).map_or(0, |u| u.max_hit_points()))
+                });
+            if let Some(id) = fallen {
+                self.battle_order(BattleCommand::Cast {
+                    spell: spell.spell,
+                    aim: SpellAim::Unit(id),
+                    mana: 0,
+                });
+                self.battle_ui.selected = None;
+            }
             return;
         }
         let most = self

@@ -851,6 +851,8 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
             rules.append(f"(condition: {cond}, effect: Modify(stat: {stat}, op: {op}, value: {value}))")
         return rules, "None", "lasting"
     unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
+    if name == "Animate Dead":  # raises one of the wizard's own dead units (`battle/spells.rs`)
+        return ['(when: OnCast, target: Chosen, effect: Custom("animate_dead"))'], "AnyUnit", "instant"
     if name == "Wall of Stone":  # builds City Walls in a friendly city (`Cast_Wall_Of_Stone`)
         return ['(when: OnCast, target: Chosen, effect: Custom("wall_of_stone"))'], "OwnCity", "instant"
     if name == "Spell Ward":  # the realm is picked when casting

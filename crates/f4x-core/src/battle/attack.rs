@@ -192,6 +192,32 @@ pub struct Damage {
     pub kills: u32,
     /// Hit points the attacker heals from what it stole (life steal).
     pub healed: i32,
+    /// Of `points`, the damage of a life steal or a create-undead blow: a unit that dies of
+    /// it can be raised as undead (`Fate`).
+    pub drained: i32,
+    /// Of `points`, the damage of a destruction or of a spell that severs or burns: a unit
+    /// that dies of it is gone for good.
+    pub gone: i32,
+}
+
+impl Damage {
+    /// All of this damage counted as `gone`.
+    pub fn all_gone(self) -> Damage {
+        Damage {
+            gone: self.points,
+            drained: 0,
+            ..self
+        }
+    }
+
+    /// All of this damage counted as `drained`.
+    pub fn all_drained(self) -> Damage {
+        Damage {
+            drained: self.points,
+            gone: 0,
+            ..self
+        }
+    }
 }
 
 impl std::ops::AddAssign for Damage {
@@ -199,6 +225,8 @@ impl std::ops::AddAssign for Damage {
         self.points += other.points;
         self.kills += other.kills;
         self.healed += other.healed;
+        self.drained += other.drained;
+        self.gone += other.gone;
     }
 }
 
@@ -267,11 +295,11 @@ pub fn process_attack(
             }
             if sp.life_steal && !def.immunities.death {
                 let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
-                total += unblockable(def, stolen);
+                total += unblockable(def, stolen).all_drained();
                 total.healed += stolen;
             }
             if sp.destruction && def.resistance_failure(Some(Realm::Chaos), 0, rng) > 0 {
-                total += kill_figure(def);
+                total += kill_figure(def).all_gone();
             }
         }
         if def.figures == 0 {
@@ -313,6 +341,10 @@ pub fn process_attack(
                 }
             }
         }
+    }
+    // What a creator of undead deals, apart from what the touches destroy, can raise the dead.
+    if sp.create_undead && !def.immunities.magic {
+        total.drained = total.points - total.gone;
     }
     total
 }
@@ -548,7 +580,8 @@ mod tests {
             Damage {
                 points: 5,
                 kills: 2,
-                healed: 0
+                healed: 0,
+                ..Damage::default()
             }
         );
         assert_eq!((d.figures, d.front_damage), (1, 1));
@@ -560,7 +593,8 @@ mod tests {
             Damage {
                 points: 1,
                 kills: 1,
-                healed: 0
+                healed: 0,
+                ..Damage::default()
             }
         );
         assert_eq!(d.figures, 0);
@@ -935,6 +969,67 @@ mod tests {
         };
         let d = process_attack(&wraith, 1, &mut proof.clone(), &mut r);
         assert_eq!((d.points, d.healed), (0, 0));
+    }
+
+    #[test]
+    fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
+        let target = || DefenderState {
+            defense: 0,
+            ..soft(200, 100, 4)
+        };
+        let mut r = rng(11);
+        // Life steal and the blows of a creator of undead drain; destruction destroys.
+        let wraith = special(
+            SpecialAttacks {
+                life_steal: true,
+                penalty: 3,
+                ..SpecialAttacks::default()
+            },
+            Mode::Melee,
+        );
+        let d = process_attack(&wraith, 3, &mut target(), &mut r);
+        assert!(d.points > 0 && d.drained > 0 && d.drained <= d.points);
+        let ghoul = Combatant {
+            strength: 4,
+            to_hit: 3,
+            ..special(
+                SpecialAttacks {
+                    create_undead: true,
+                    ..SpecialAttacks::default()
+                },
+                Mode::Melee,
+            )
+        };
+        let d = process_attack(&ghoul, 4, &mut target(), &mut r);
+        assert!(d.points > 0, "{d:?}");
+        assert_eq!((d.drained, d.gone), (d.points, 0));
+        // Magic immunity keeps the victim from being raised.
+        let warded = DefenderState {
+            immunities: Immunities {
+                magic: true,
+                ..Immunities::default()
+            },
+            ..target()
+        };
+        let d = process_attack(&ghoul, 4, &mut warded.clone(), &mut r);
+        assert_eq!(d.drained, 0);
+        let destroyer = special(
+            SpecialAttacks {
+                destruction: true,
+                ..SpecialAttacks::default()
+            },
+            Mode::Melee,
+        );
+        let d = process_attack(
+            &destroyer,
+            4,
+            &mut DefenderState {
+                resistance: 0,
+                ..target()
+            },
+            &mut r,
+        );
+        assert!(d.gone > 0 && d.drained == 0, "{d:?}");
     }
 
     #[test]

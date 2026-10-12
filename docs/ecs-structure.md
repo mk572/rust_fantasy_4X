@@ -63,7 +63,7 @@ a field of `Game`.
 |---|---|
 | `Serial(u64)` | Creation number from a counter in `Game`; never reused. The stable order of units and cities, and what a save records instead of the entity id. |
 | `Unit(UnitId)` | Marker and definition: which `UnitDef` this is. Also what makes the entity a unit. |
-| `Owner(PlayerId)` | Who controls it. `NEUTRAL` is the owner of monsters and lair guards. Each independent (neutral) city is owned by a `Player` of its own with `neutral` set (numbers from 100): a treasury, no fog, no magic. |
+| `Owner(PlayerId)` | Who controls it. `NEUTRAL` is the owner of monsters and lair guards: the guards are made for a fight and go with it, but a neutral unit can also last (undead raised for the monsters stay on the site). Each independent (neutral) city is owned by a `Player` of its own with `neutral` set (numbers from 100): a treasury, no fog, no magic. |
 | `Position` | Plane, x, y. Shared with cities. |
 | `Hurt(u32)` | Hit points lost, over all figures. Current hit points are derived. |
 | `Experience(u32)` | Experience points. The level is derived from the level path. |

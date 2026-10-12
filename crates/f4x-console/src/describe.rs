@@ -302,6 +302,7 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             format!("Dispel takes {removed} spells off unit {unit}")
         }
         B::Summoned { unit } => format!("Unit {unit} is summoned"),
+        B::Raised { unit } => format!("Unit {unit} rises again as undead"),
         B::FieldRaised { side, spell: s } => {
             format!("{side:?} raises {} over the field", spell(game, *s))
         }

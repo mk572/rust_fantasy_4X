@@ -43,6 +43,9 @@ pub struct SpecialAttacks {
     pub death_touch: bool,
     pub destruction: bool,
     pub dispel_evil: bool,
+    /// Its victims can be raised as undead (Ghouls); with life steal, which does so too, this
+    /// is not an attack of its own.
+    pub create_undead: bool,
     /// The penalty to the target's resistance for gazes, stoning and death touches and life
     /// steal.
     pub penalty: i32,
@@ -61,6 +64,7 @@ impl SpecialAttacks {
             death_touch: has("death_touch"),
             destruction: has("destruction"),
             dispel_evil: has("dispel_evil"),
+            create_undead: has("create_undead"),
             penalty: level,
             gaze: if has("multi_gaze") {
                 Gaze::Multi
@@ -82,6 +86,7 @@ impl SpecialAttacks {
             && !self.death_touch
             && !self.destruction
             && !self.dispel_evil
+            && !self.create_undead
             && self.gaze == Gaze::None
     }
 }

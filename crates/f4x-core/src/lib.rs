@@ -378,6 +378,11 @@ pub enum Event {
         player: city::PlayerId,
         units: u32,
     },
+    /// Units drained to death in a battle rose again as undead for the winner.
+    UndeadRaised {
+        player: city::PlayerId,
+        units: u32,
+    },
     BattleEnded {
         winner: city::PlayerId,
         loser: city::PlayerId,
