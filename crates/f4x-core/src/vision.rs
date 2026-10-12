@@ -1,6 +1,8 @@
-//! What a player can see right now (as opposed to merely having explored).
+//! What a player can see right now (as opposed to merely having explored), worked out by the
+//! `Economy` handle (world, map, content, players) without a `Game` (task 193).
 
 use crate::city::{PlayerId, Position};
+use crate::economy::Economy;
 use crate::map::Plane;
 use crate::rules::stats::compute;
 use crate::rules::Stat;
@@ -9,26 +11,27 @@ use crate::Game;
 /// Sight radius of a city before walls, an Oracle or Nature's Eye raise it.
 const CITY_SIGHT: i32 = 2;
 
-impl Game {
+impl Economy<'_> {
     /// Can `viewer` make out `unit`? One's own units always, others unless invisible; an
     /// invisible unit shows to a viewer who has a unit immune to illusions in sight of it.
     pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
-        if self.unit_owner(unit) == Some(viewer) || !self.unit_has_ability(unit, "invisibility") {
+        let units = self.units();
+        if units.unit_owner(unit) == Some(viewer) || !units.unit_has_ability(unit, "invisibility") {
             return true;
         }
-        let Some(at) = self.unit_position(unit) else {
+        let Some(at) = units.unit_position(unit) else {
             return true;
         };
-        let Some(map) = self.map.as_ref() else {
+        let Some(map) = self.map else {
             return true;
         };
         let grid = map.plane(at.plane);
-        self.player_units(viewer).into_iter().any(|u| {
-            self.unit_has_ability(u, "illusion_immunity")
-                && self.unit_position(u).is_some_and(|p| {
+        units.player_units(viewer).into_iter().any(|u| {
+            units.unit_has_ability(u, "illusion_immunity")
+                && units.unit_position(u).is_some_and(|p| {
                     p.plane == at.plane
                         && grid.chebyshev((p.x, p.y), (at.x, at.y))
-                            <= self.unit_stat(u, Stat::Sight).max(1) as u32
+                            <= units.unit_stat(u, Stat::Sight).max(1) as u32
                 })
         })
     }
@@ -41,11 +44,11 @@ impl Game {
     /// Visible tiles on one plane as a row-major grid of `width * height` flags: the
     /// squares around each of the player's units and cities.
     pub fn visibility(&self, player: PlayerId, plane: Plane) -> Vec<bool> {
-        let Some(map) = self.map.as_ref() else {
+        let Some(map) = self.map else {
             return Vec::new();
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
-        if self.has_global(player, "nature_awareness") {
+        if self.units().has_global(player, "nature_awareness") {
             return vec![true; (w * h) as usize];
         }
         let mut seen = vec![false; (w * h) as usize];
@@ -64,9 +67,10 @@ impl Game {
                 }
             }
         };
-        for unit in self.player_units(player) {
-            if let Some(at) = self.unit_position(unit) {
-                reveal(at, self.unit_stat(unit, Stat::Sight).max(1));
+        let units = self.units();
+        for unit in units.player_units(player) {
+            if let Some(at) = units.unit_position(unit) {
+                reveal(at, units.unit_stat(unit, Stat::Sight).max(1));
             }
         }
         for (entity, city, at) in self.cities() {
@@ -75,6 +79,20 @@ impl Game {
             }
         }
         seen
+    }
+}
+
+impl Game {
+    pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
+        self.economy().unit_visible_to(unit, viewer)
+    }
+
+    pub fn city_sight(&self, city: hecs::Entity) -> i32 {
+        self.economy().city_sight(city)
+    }
+
+    pub fn visibility(&self, player: PlayerId, plane: Plane) -> Vec<bool> {
+        self.economy().visibility(player, plane)
     }
 }
 
@@ -212,5 +230,34 @@ mod tests {
             g.unit_visible_to(ghost, PlayerId(1)),
             "an illusion-immune unit is close"
         );
+    }
+
+    #[test]
+    fn the_handle_sees_without_a_game() {
+        let c = content_with_units();
+        let grass = c.terrains.id_of("grassland").unwrap();
+        let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
+        let walker = c.rules.units.id_of("walker").unwrap();
+        let mut world = hecs::World::new();
+        crate::units::spawn(
+            &mut world,
+            &c,
+            &[],
+            crate::serial::Serial(1),
+            PlayerId(0),
+            Position {
+                plane: Plane::Arcanus,
+                x: 5,
+                y: 4,
+            },
+            walker,
+        );
+        let economy = Economy::new(&world, Some(&map), &c, &[]);
+        let seen = economy.visibility(PlayerId(0), Plane::Arcanus);
+        assert_eq!(seen.iter().filter(|&&s| s).count(), 9);
+        assert!(economy
+            .visibility(PlayerId(1), Plane::Arcanus)
+            .iter()
+            .all(|&s| !s));
     }
 }

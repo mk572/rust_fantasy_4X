@@ -126,6 +126,6 @@ Where this stands: diplomacy, magic, the units, the economy and production follo
 180, 185, 186 and 187; production's checks are methods of `Economy`). Their `impl Game` methods are still there as thin wrappers with the old names
 (`unit_stat`, `city_economy`, ...) that make a `Units` or an `Economy` and ask it; task 198 moves
 the callers over and deletes the wrappers. The turn code does too (task 188: `process_turn` only sequences
-the steps). What does not yet: movement, the lairs, conquest, the fortress and vision (189 to 193);
+the steps). What does not yet: movement, the lairs, conquest and the fortress (189 to 192; vision is done, task 193);
 the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
 reports the number of `impl Game` methods per file, as a guideline.
