@@ -272,7 +272,7 @@ where the help changes.
 user agrees. The user still needs to delete the old `~/reference` folder (the earlier ReMoM clone
 and steamcmd home) themselves; the safety hook blocks it for Claude.
 
-**81. Packaging for Mac.** A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
+**81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
 per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the
 author has a developer account (otherwise documented right-click-open steps), a disk image or
 zip, and the local-assets workflow documented for players who supply their own original files

@@ -60,3 +60,11 @@ is in `docs/mechanics-gaps.md`.
 
 The small invented sample rule set (sunfolk, ironclans, spearman, fireball) that `content/` used
 to hold is now `crates/f4x-data/testdata/`, the fixture for the data loader's tests.
+
+## Local Mac app
+
+`scripts/make_app.sh [--open]` builds `target/Fantasy4X.app`: the release client plus copies of
+`content/`, `content-local/` and `assets-local/art`. A launcher script links them into
+`~/Library/Application Support/Fantasy4X/` and runs the game from there, so saves land in
+`~/Library/Application Support/Fantasy4X/saves/`. It contains the local-only original art and
+text: for play on this machine, not for sharing. No icon, signing or universal binary yet (task 81).
