@@ -10,7 +10,9 @@ use crate::rules::effects::{Condition, Effect, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::stats::passive_modifiers;
 use crate::rules::{ModOp, Modifier, Source, Stat};
+use crate::units::Units;
 use crate::Game;
+use hecs::World;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TempKind {
@@ -30,43 +32,70 @@ pub struct TempEffect {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TempEffects(pub Vec<TempEffect>);
 
-impl Game {
-    fn push_temp(&mut self, who: Target, kind: TempKind, turns: Option<u16>) {
-        let e = match who {
-            Target::Unit(e) | Target::City(e) if self.world.contains(e) => e,
-            _ => return,
+/// Put an effect on a unit or city (cities take only modifiers).
+fn push_temp(world: &mut World, who: Target, kind: TempKind, turns: Option<u16>) {
+    let e = match who {
+        Target::Unit(e) | Target::City(e) if world.contains(e) => e,
+        _ => return,
+    };
+    if matches!(who, Target::City(_)) && !matches!(kind, TempKind::Modifier { .. }) {
+        return;
+    }
+    let effect = TempEffect { kind, turns };
+    if let Ok(mut list) = world.get::<&mut TempEffects>(e) {
+        list.0.push(effect);
+        return;
+    }
+    let _ = world.insert_one(e, TempEffects(vec![effect]));
+}
+
+/// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
+pub(crate) fn add_modifier(world: &mut World, who: Target, m: Modifier, turns: Option<u16>) {
+    let kind = TempKind::Modifier {
+        stat: m.stat,
+        op: m.op,
+        value: m.value,
+    };
+    push_temp(world, who, kind, turns);
+}
+
+/// Give a unit an ability it does not have for `turns` turns (`None`: for good).
+pub(crate) fn grant_ability(world: &mut World, who: Target, ability: &str, turns: Option<u16>) {
+    push_temp(world, who, TempKind::Grant(ability.into()), turns);
+}
+
+/// Take an ability away from a unit for `turns` turns (`None`: for good).
+pub(crate) fn remove_ability(world: &mut World, who: Target, ability: &str, turns: Option<u16>) {
+    push_temp(world, who, TempKind::Remove(ability.into()), turns);
+}
+
+/// Count every timed effect down; drop the ones that ran out.
+pub(crate) fn tick(world: &mut World) {
+    let holders: Vec<hecs::Entity> = world
+        .query::<&TempEffects>()
+        .iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in holders {
+        let empty = {
+            let Ok(mut list) = world.get::<&mut TempEffects>(e) else {
+                continue;
+            };
+            for t in &mut list.0 {
+                if let Some(n) = t.turns.as_mut() {
+                    *n = n.saturating_sub(1);
+                }
+            }
+            list.0.retain(|t| t.turns != Some(0));
+            list.0.is_empty()
         };
-        if matches!(who, Target::City(_)) && !matches!(kind, TempKind::Modifier { .. }) {
-            return;
+        if empty {
+            let _ = world.remove_one::<TempEffects>(e);
         }
-        let effect = TempEffect { kind, turns };
-        if let Ok(mut list) = self.world.get::<&mut TempEffects>(e) {
-            list.0.push(effect);
-            return;
-        }
-        let _ = self.world.insert_one(e, TempEffects(vec![effect]));
     }
+}
 
-    /// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
-    pub fn add_temp_modifier(&mut self, who: Target, m: Modifier, turns: Option<u16>) {
-        let kind = TempKind::Modifier {
-            stat: m.stat,
-            op: m.op,
-            value: m.value,
-        };
-        self.push_temp(who, kind, turns);
-    }
-
-    /// Give a unit an ability it does not have for `turns` turns (`None`: for good).
-    pub fn grant_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
-        self.push_temp(who, TempKind::Grant(ability.into()), turns);
-    }
-
-    /// Take an ability away from a unit for `turns` turns (`None`: for good).
-    pub fn remove_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
-        self.push_temp(who, TempKind::Remove(ability.into()), turns);
-    }
-
+impl<'a> Units<'a> {
     /// The temporary effects on a unit or city.
     pub fn temp_effects(&self, e: hecs::Entity) -> Vec<TempEffect> {
         self.world
@@ -195,32 +224,55 @@ impl Game {
         }
         mods
     }
+}
+
+impl Game {
+    pub fn temp_effects(&self, e: hecs::Entity) -> Vec<TempEffect> {
+        self.units().temp_effects(e)
+    }
+
+    pub(crate) fn temp_modifiers(&self, e: hecs::Entity) -> Vec<Modifier> {
+        self.units().temp_modifiers(e)
+    }
+
+    pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<String> {
+        self.units().unit_abilities(unit)
+    }
+
+    pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_has_magical_weapon(unit)
+    }
+
+    pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
+        self.units().unit_enchantment_ids(unit)
+    }
+
+    pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
+        self.units().unit_resistance_against(unit, realm)
+    }
+
+    pub fn unit_protected_from(&self, unit: hecs::Entity, realm: Option<Realm>) -> bool {
+        self.units().unit_protected_from(unit, realm)
+    }
+
+    /// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
+    pub fn add_temp_modifier(&mut self, who: Target, m: Modifier, turns: Option<u16>) {
+        add_modifier(&mut self.world, who, m, turns);
+    }
+
+    /// Give a unit an ability it does not have for `turns` turns (`None`: for good).
+    pub fn grant_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
+        grant_ability(&mut self.world, who, ability, turns);
+    }
+
+    /// Take an ability away from a unit for `turns` turns (`None`: for good).
+    pub fn remove_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
+        remove_ability(&mut self.world, who, ability, turns);
+    }
 
     /// Count every timed effect down; drop the ones that ran out.
     pub(crate) fn tick_temp_effects(&mut self) {
-        let holders: Vec<hecs::Entity> = self
-            .world
-            .query::<&TempEffects>()
-            .iter()
-            .map(|(e, _)| e)
-            .collect();
-        for e in holders {
-            let empty = {
-                let Ok(mut list) = self.world.get::<&mut TempEffects>(e) else {
-                    continue;
-                };
-                for t in &mut list.0 {
-                    if let Some(n) = t.turns.as_mut() {
-                        *n = n.saturating_sub(1);
-                    }
-                }
-                list.0.retain(|t| t.turns != Some(0));
-                list.0.is_empty()
-            };
-            if empty {
-                let _ = self.world.remove_one::<TempEffects>(e);
-            }
-        }
+        tick(&mut self.world);
     }
 }
 

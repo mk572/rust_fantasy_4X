@@ -21,8 +21,9 @@
 //! suffers Holy Word and Dispel Evil as the undead do. It is not a unit made undead for the
 //! upkeep (it keeps its gold and food cost, as in the original) or Holy Arms and Crusade.
 
-use crate::units::UnitEnchantments;
+use crate::units::{Unit, UnitEnchantments, Units};
 use crate::Game;
+use hecs::World;
 
 /// Marks a unit that was made undead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -42,7 +43,7 @@ pub const UNDEAD_IMMUNITIES: [&str; 4] = [
     "illusion_immunity",
 ];
 
-impl Game {
+impl Units<'_> {
     /// Whether the unit was made undead (not merely black channeled).
     pub fn unit_is_undead(&self, unit: hecs::Entity) -> bool {
         self.world.get::<&Undead>(unit).is_ok()
@@ -77,15 +78,42 @@ impl Game {
     pub fn unit_is_death(&self, unit: hecs::Entity) -> bool {
         self.unit_realm(unit).as_deref() == Some(DEATH)
     }
+}
 
-    /// Make a unit undead. Its lasting spells fall away, as they do for the dead raised in a
-    /// battle. Returns false for a unit that is gone.
+/// Make a unit undead. Its lasting spells fall away, as they do for the dead raised in a
+/// battle. Returns false for a unit that is gone.
+pub(crate) fn make_undead(world: &mut World, unit: hecs::Entity) -> bool {
+    if world.get::<&Unit>(unit).is_err() {
+        return false;
+    }
+    let _ = world.insert_one(unit, Undead);
+    let _ = world.remove_one::<UnitEnchantments>(unit);
+    true
+}
+
+impl Game {
+    pub fn unit_is_undead(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_is_undead(unit)
+    }
+
+    pub fn unit_is_black_channeled(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_is_black_channeled(unit)
+    }
+
+    pub fn unit_counts_as_undead(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_counts_as_undead(unit)
+    }
+
+    pub fn unit_realm(&self, unit: hecs::Entity) -> Option<String> {
+        self.units().unit_realm(unit)
+    }
+
+    pub fn unit_is_death(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_is_death(unit)
+    }
+
+    /// Make a unit undead (see [`make_undead`]).
     pub fn make_undead(&mut self, unit: hecs::Entity) -> bool {
-        if self.unit_def(unit).is_none() {
-            return false;
-        }
-        let _ = self.world.insert_one(unit, Undead);
-        let _ = self.world.remove_one::<UnitEnchantments>(unit);
-        true
+        make_undead(&mut self.world, unit)
     }
 }

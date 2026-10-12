@@ -1,10 +1,22 @@
 //! Unit instances: components on map entities, and stats computed from their
 //! definition, abilities and experience level through the modifier engine.
+//!
+//! The rules of units are in [`Units`] (task 185): a read handle that borrows only the world,
+//! the content and the players (for the owner's retorts and global spells), with the queries as
+//! its methods. They are spread over the files of the unit rules (`temp_effects.rs`,
+//! `undead.rs`, `experience.rs`, `globals.rs`), each an `impl Units` block. What changes units
+//! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
+//! `Game` keeps thin methods with the old names that make a handle and ask it (`Game::units`).
+
+use hecs::World;
 
 use crate::city::{PlayerId, Position};
-use crate::magic::Retort;
+use crate::content::Content;
+use crate::magic::{Magic, Retort};
+use crate::player::Player;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
-use crate::rules::{Stat, UnitDef, UnitId};
+use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId};
+use crate::serial::Serial;
 use crate::Game;
 
 /// Marks an entity as a unit of this definition.
@@ -59,8 +71,48 @@ pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);
 /// Most units that may share one tile.
 pub const MAX_STACK: usize = 9;
 
-impl Game {
-    pub fn unit_def(&self, unit: hecs::Entity) -> Option<&UnitDef> {
+/// The unit rules' view of the game: the world, the content and the players.
+#[derive(Clone, Copy)]
+pub struct Units<'a> {
+    pub(crate) world: &'a World,
+    pub(crate) content: &'a Content,
+    pub(crate) players: &'a [Player],
+}
+
+impl<'a> Units<'a> {
+    pub fn new(world: &'a World, content: &'a Content, players: &'a [Player]) -> Self {
+        Units {
+            world,
+            content,
+            players,
+        }
+    }
+
+    /// A player's magic (retorts and global spells), for what the owner adds to its units.
+    pub(crate) fn magic(&self, player: PlayerId) -> Option<&'a Magic> {
+        self.players
+            .iter()
+            .find(|p| p.id == player)
+            .map(|p| &p.magic)
+    }
+
+    /// Does `player` keep the global spell with this id going?
+    pub(crate) fn has_global(&self, player: PlayerId, id: &str) -> bool {
+        self.magic(player)
+            .is_some_and(|m| crate::globals::magic_has_global(m, self.content, id))
+    }
+
+    /// An entity's creation number (entities without one sort first, by id).
+    pub(crate) fn serial_of(&self, entity: hecs::Entity) -> Serial {
+        self.world.get::<&Serial>(entity).map_or(Serial(0), |s| *s)
+    }
+
+    /// Sort entities oldest first.
+    pub(crate) fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
+        entities.sort_by_key(|&e| (self.serial_of(e), e.id()));
+    }
+
+    pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
         let id = self.world.get::<&Unit>(unit).ok()?.0;
         Some(self.content.rules.units.get(id))
     }
@@ -82,7 +134,7 @@ impl Game {
         self.unit_def(unit).is_some() && self.unit_abilities(unit).iter().any(|a| a == ability)
     }
 
-    fn unit_level_path(&self, unit: hecs::Entity) -> Option<&crate::rules::LevelPathDef> {
+    pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
         self.unit_def(unit)?
             .level_path
             .as_deref()
@@ -215,24 +267,157 @@ impl Game {
         self.sort_by_serial(&mut out);
         out
     }
+}
+
+/// Create a unit with full moves and health.
+pub(crate) fn spawn(
+    world: &mut World,
+    content: &Content,
+    players: &[Player],
+    serial: Serial,
+    owner: PlayerId,
+    pos: Position,
+    unit: UnitId,
+) -> hecs::Entity {
+    let e = world.spawn((
+        serial,
+        Unit(unit),
+        Owner(owner),
+        pos,
+        Hurt(0),
+        Experience(0),
+    ));
+    let moves = Units::new(world, content, players).unit_max_moves(e);
+    let _ = world.insert_one(e, MovesLeft(moves));
+    e
+}
+
+impl Game {
+    /// The unit rules' view of the game: the world, the content and the players. The methods
+    /// below with the old names ask it.
+    pub fn units(&self) -> Units<'_> {
+        Units::new(&self.world, &self.content, &self.players)
+    }
+
+    pub fn unit_def(&self, unit: hecs::Entity) -> Option<&UnitDef> {
+        self.units().unit_def(unit)
+    }
+
+    pub fn unit_weapon_quality(&self, unit: hecs::Entity) -> u8 {
+        self.units().unit_weapon_quality(unit)
+    }
+
+    pub fn unit_owner(&self, unit: hecs::Entity) -> Option<PlayerId> {
+        self.units().unit_owner(unit)
+    }
+
+    pub fn unit_position(&self, unit: hecs::Entity) -> Option<Position> {
+        self.units().unit_position(unit)
+    }
+
+    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
+        self.units().unit_has_ability(unit, ability)
+    }
+
+    pub fn unit_xp_level(&self, unit: hecs::Entity) -> usize {
+        self.units().unit_xp_level(unit)
+    }
+
+    pub fn unit_has_heroism(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_has_heroism(unit)
+    }
+
+    pub fn unit_level(&self, unit: hecs::Entity) -> usize {
+        self.units().unit_level(unit)
+    }
+
+    pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        self.units().unit_modifiers(unit)
+    }
+
+    pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
+        self.units().unit_stat(unit, stat)
+    }
+
+    pub fn unit_max_moves(&self, unit: hecs::Entity) -> u32 {
+        self.units().unit_max_moves(unit)
+    }
+
+    pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
+        self.units().unit_moves_left(unit)
+    }
+
+    pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
+        self.units().unit_hits(unit)
+    }
+
+    pub fn units_at(&self, pos: Position) -> Vec<hecs::Entity> {
+        self.units().units_at(pos)
+    }
+
+    pub fn all_units(&self) -> Vec<hecs::Entity> {
+        self.units().all_units()
+    }
 
     /// Create a unit with full moves and health, and let its owner see around it.
     pub fn spawn_unit(&mut self, owner: PlayerId, pos: Position, unit: UnitId) -> hecs::Entity {
         let serial = self.take_serial();
-        let e = self.world.spawn((
+        let e = spawn(
+            &mut self.world,
+            &self.content,
+            &self.players,
             serial,
-            Unit(unit),
-            Owner(owner),
+            owner,
             pos,
-            Hurt(0),
-            Experience(0),
-        ));
-        let moves = self.unit_max_moves(e);
-        let _ = self.world.insert_one(e, MovesLeft(moves));
+            unit,
+        );
         let sight = self.unit_stat(e, Stat::Sight).max(1) as u32;
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
         }
         e
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::Plane;
+    use crate::testutil::content_with_magic;
+
+    const AT: Position = Position {
+        plane: Plane::Arcanus,
+        x: 2,
+        y: 2,
+    };
+
+    #[test]
+    fn a_units_figures_come_from_a_world_and_content_alone() {
+        let content = content_with_magic();
+        let spear = content.rules.units.id_of("spear").unwrap();
+        let mut world = World::new();
+        let e = spawn(&mut world, &content, &[], Serial(1), PlayerId(0), AT, spear);
+        let units = Units::new(&world, &content, &[]);
+        assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
+        assert_eq!(units.unit_position(e), Some(AT));
+        assert_eq!(units.unit_max_moves(e), 2, "one move is two half-moves");
+        assert_eq!(units.unit_moves_left(e), 2);
+        let (left, max) = units.unit_hits(e);
+        assert!(max > 0 && left == max);
+        assert_eq!(units.unit_level(e), 0);
+        assert!(!units.unit_has_ability(e, "flying"));
+        assert_eq!(units.units_at(AT), vec![e]);
+    }
+
+    #[test]
+    fn units_come_in_the_order_they_were_made() {
+        let content = content_with_magic();
+        let spear = content.rules.units.id_of("spear").unwrap();
+        let mut world = World::new();
+        let second = spawn(&mut world, &content, &[], Serial(2), PlayerId(0), AT, spear);
+        let first = spawn(&mut world, &content, &[], Serial(1), PlayerId(0), AT, spear);
+        let units = Units::new(&world, &content, &[]);
+        assert_eq!(units.all_units(), vec![first, second]);
+        assert_eq!(units.units_at(AT), vec![first, second]);
     }
 }

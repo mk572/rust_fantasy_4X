@@ -19,7 +19,7 @@ experience.rs 3
 finance.rs 5
 fortress.rs 13
 gates.rs 3
-globals.rs 8
+globals.rs 7
 lairs.rs 7
 lib.rs 19
 magic_game.rs 24
@@ -32,7 +32,7 @@ production.rs 17
 roads.rs 10
 save.rs 1
 serial.rs 3
-temp_effects.rs 13
+temp_effects.rs 11
 terraform.rs 6
 timers.rs 5
 transport.rs 9

@@ -12,8 +12,20 @@ use crate::city::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
 use crate::rules::{Modifier, Source, SpellId, Stat};
-use crate::units::Hurt;
+use crate::units::{Hurt, Units};
 use crate::Game;
+
+/// Does this wizard keep the global spell with this id going?
+pub(crate) fn magic_has_global(
+    magic: &crate::magic::Magic,
+    content: &crate::content::Content,
+    id: &str,
+) -> bool {
+    magic
+        .global
+        .iter()
+        .any(|&s| content.rules.spells.get(s).id == id)
+}
 
 /// The hook global spells carry when the engine reads them from the wizard's list instead of
 /// running anything when they are cast.
@@ -22,11 +34,8 @@ pub const GLOBAL_EFFECT: &str = "global_effect";
 impl Game {
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
-        self.magic(player).is_some_and(|m| {
-            m.global
-                .iter()
-                .any(|&s| self.content.rules.spells.get(s).id == id)
-        })
+        self.magic(player)
+            .is_some_and(|m| magic_has_global(m, &self.content, id))
     }
 
     /// Does any wizard keep the global spell with this id going?
@@ -59,6 +68,53 @@ impl Game {
             .collect()
     }
 
+    /// Explore what Awareness and Nature's Awareness show `player`.
+    pub(crate) fn reveal_for_globals(&mut self, player: PlayerId) {
+        let Some(map) = self.map.as_ref() else {
+            return;
+        };
+        let (w, h) = (map.width(), map.height());
+        if self.has_global(player, "nature_awareness") {
+            for plane in crate::map::Plane::ALL {
+                // One square large enough to cover the whole plane.
+                let at = crate::city::Position {
+                    plane,
+                    x: w / 2,
+                    y: h / 2,
+                };
+                self.fog.explore(player, at, w.max(h));
+            }
+        } else if self.has_global(player, "awareness") {
+            let cities: Vec<_> = self.cities().into_iter().map(|(_, _, p)| p).collect();
+            for at in cities {
+                self.fog.explore(player, at, 0);
+            }
+        }
+    }
+
+    /// Once a turn: Herb Mastery heals every unit, and the revealing spells look again.
+    pub(crate) fn process_globals(&mut self) {
+        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        for player in ids {
+            if self.has_global(player, "herb_mastery") {
+                for unit in self.player_units(player) {
+                    if !self.unit_is_death(unit) {
+                        let _ = self.world.insert_one(unit, Hurt(0));
+                    }
+                }
+            }
+            self.reveal_for_globals(player);
+        }
+        // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
+        let cities: Vec<_> = self.cities().into_iter().collect();
+        for (entity, city, at) in cities {
+            let sight = self.city_sight(entity).max(0) as u32;
+            self.fog.explore(city.owner, at, sight);
+        }
+    }
+}
+
+impl Units<'_> {
     /// Modifiers a unit gets from its owner's global spells: rules with a condition are
     /// checked against the unit, and Charm of Life adds a quarter of its hit points.
     pub(crate) fn global_unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
@@ -107,51 +163,6 @@ impl Game {
             }
         }
         mods
-    }
-
-    /// Explore what Awareness and Nature's Awareness show `player`.
-    pub(crate) fn reveal_for_globals(&mut self, player: PlayerId) {
-        let Some(map) = self.map.as_ref() else {
-            return;
-        };
-        let (w, h) = (map.width(), map.height());
-        if self.has_global(player, "nature_awareness") {
-            for plane in crate::map::Plane::ALL {
-                // One square large enough to cover the whole plane.
-                let at = crate::city::Position {
-                    plane,
-                    x: w / 2,
-                    y: h / 2,
-                };
-                self.fog.explore(player, at, w.max(h));
-            }
-        } else if self.has_global(player, "awareness") {
-            let cities: Vec<_> = self.cities().into_iter().map(|(_, _, p)| p).collect();
-            for at in cities {
-                self.fog.explore(player, at, 0);
-            }
-        }
-    }
-
-    /// Once a turn: Herb Mastery heals every unit, and the revealing spells look again.
-    pub(crate) fn process_globals(&mut self) {
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
-        for player in ids {
-            if self.has_global(player, "herb_mastery") {
-                for unit in self.player_units(player) {
-                    if !self.unit_is_death(unit) {
-                        let _ = self.world.insert_one(unit, Hurt(0));
-                    }
-                }
-            }
-            self.reveal_for_globals(player);
-        }
-        // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
-        let cities: Vec<_> = self.cities().into_iter().collect();
-        for (entity, city, at) in cities {
-            let sight = self.city_sight(entity).max(0) as u32;
-            self.fog.explore(city.owner, at, sight);
-        }
     }
 }
 

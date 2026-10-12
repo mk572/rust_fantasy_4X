@@ -15,15 +15,18 @@
 //! undead gain none. A won battle gives xp too (`battle/spoils.rs`).
 
 use crate::city::{PlayerId, Position};
+use crate::content::Content;
+use crate::player::Player;
 use crate::rules::UnitKind;
-use crate::units::{Experience, UnitEnchantments, HEROISM, HEROISM_LEVEL};
+use crate::units::{Experience, UnitEnchantments, Units, HEROISM, HEROISM_LEVEL};
 use crate::Game;
+use hecs::World;
 
 /// A hero's ability ids (task 47 adds the rest).
 pub const ARMSMASTER: &str = "armsmaster";
 pub const SUPER_ARMSMASTER: &str = "super_armsmaster";
 
-impl Game {
+impl Units<'_> {
     /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
     pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
         let per_level = if self.unit_has_ability(hero, SUPER_ARMSMASTER) {
@@ -36,76 +39,111 @@ impl Game {
         (self.unit_level(hero) as u32 + 1) * per_level
     }
 
-    /// `amount` xp for a living normal unit or hero (not the undead, not creatures), up to what
-    /// experience can give: the turn's one point, or a won battle's share (`battle/spoils.rs`).
-    pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
-        let Some(def) = self.unit_def(unit) else {
-            return;
-        };
+    /// The experience a unit has after `amount` more: only a living normal unit or hero (not
+    /// the undead, not creatures) gains, and only up to what experience can give. `None` when
+    /// nothing changes.
+    pub(crate) fn xp_after(&self, unit: hecs::Entity, amount: u32) -> Option<u32> {
+        let def = self.unit_def(unit)?;
         if !matches!(def.kind, UnitKind::Normal | UnitKind::Hero) || self.unit_is_undead(unit) {
-            return;
+            return None;
         }
-        let Some(cap) = def
+        let cap = def
             .level_path
             .as_deref()
             .and_then(|p| self.content.rules.level_paths.by_name(p))
             .and_then(|p| p.levels.last())
-            .map(|l| l.xp)
-        else {
-            return;
-        };
+            .map(|l| l.xp)?;
         let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
-        if xp < cap {
-            let _ = self
-                .world
-                .insert_one(unit, Experience((xp + amount).min(cap)));
+        (xp < cap).then(|| (xp + amount).min(cap))
+    }
+}
+
+/// `amount` xp for a living normal unit or hero, up to what experience can give: the turn's
+/// one point, or a won battle's share (`battle/spoils.rs`).
+pub(crate) fn gain_xp(
+    world: &mut World,
+    content: &Content,
+    players: &[Player],
+    unit: hecs::Entity,
+    amount: u32,
+) {
+    if let Some(xp) = Units::new(world, content, players).xp_after(unit, amount) {
+        let _ = world.insert_one(unit, Experience(xp));
+    }
+}
+
+/// The turn change for experience: a point for everyone, Heroism ending where it has done its
+/// work, and the Armsmasters training their squares.
+pub(crate) fn process(world: &mut World, content: &Content, players: &[Player]) {
+    let units = Units::new(world, content, players).all_units();
+    for &unit in &units {
+        gain_xp(world, content, players, unit, 1);
+    }
+    if let Some(heroism) = content.rules.spells.id_of(HEROISM) {
+        for &unit in &units {
+            let done = {
+                let view = Units::new(world, content, players);
+                view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
+            };
+            if done {
+                if let Ok(mut list) = world.get::<&mut UnitEnchantments>(unit) {
+                    list.0.retain(|&(s, _)| s != heroism);
+                }
+            }
         }
+    }
+    let view = Units::new(world, content, players);
+    let mut best: Vec<(Position, PlayerId, u32)> = Vec::new();
+    for &unit in &units {
+        let gain = view.armsmaster_xp(unit);
+        let (Some(at), Some(owner)) = (view.unit_position(unit), view.unit_owner(unit)) else {
+            continue;
+        };
+        if gain == 0
+            || !view
+                .unit_def(unit)
+                .is_some_and(|d| d.kind == UnitKind::Hero)
+        {
+            continue;
+        }
+        match best.iter_mut().find(|b| b.0 == at && b.1 == owner) {
+            Some(b) => b.2 = b.2.max(gain),
+            None => best.push((at, owner, gain)),
+        }
+    }
+    let mut trained = Vec::new();
+    for (at, owner, gain) in best {
+        for unit in view.units_at(at) {
+            let trainee = view.unit_owner(unit) == Some(owner)
+                && view
+                    .unit_def(unit)
+                    .is_some_and(|d| d.kind != UnitKind::Hero && d.level_path.is_some());
+            if trainee {
+                let xp = view.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+                trained.push((unit, xp + gain));
+            }
+        }
+    }
+    // Several squares are worked out before any is paid, so the same unit is never trained
+    // twice from a stale reading: each unit stands on one square and belongs to one owner.
+    for (unit, xp) in trained {
+        let _ = world.insert_one(unit, Experience(xp));
+    }
+}
+
+impl Game {
+    /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
+    pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
+        self.units().armsmaster_xp(hero)
+    }
+
+    /// `amount` xp for a living normal unit or hero (see [`gain_xp`]).
+    pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
+        gain_xp(&mut self.world, &self.content, &self.players, unit, amount);
     }
 
     pub(crate) fn process_experience(&mut self) {
-        let units = self.all_units();
-        for &unit in &units {
-            self.gain_xp(unit, 1);
-        }
-        if let Some(heroism) = self.content.rules.spells.id_of(HEROISM) {
-            for &unit in &units {
-                if self.unit_has_heroism(unit) && self.unit_xp_level(unit) >= HEROISM_LEVEL {
-                    if let Ok(mut list) = self.world.get::<&mut UnitEnchantments>(unit) {
-                        list.0.retain(|&(s, _)| s != heroism);
-                    }
-                }
-            }
-        }
-        let mut best: Vec<(Position, PlayerId, u32)> = Vec::new();
-        for &unit in &units {
-            let gain = self.armsmaster_xp(unit);
-            let (Some(at), Some(owner)) = (self.unit_position(unit), self.unit_owner(unit)) else {
-                continue;
-            };
-            if gain == 0
-                || !self
-                    .unit_def(unit)
-                    .is_some_and(|d| d.kind == UnitKind::Hero)
-            {
-                continue;
-            }
-            match best.iter_mut().find(|b| b.0 == at && b.1 == owner) {
-                Some(b) => b.2 = b.2.max(gain),
-                None => best.push((at, owner, gain)),
-            }
-        }
-        for (at, owner, gain) in best {
-            for unit in self.units_at(at) {
-                let trainee = self.unit_owner(unit) == Some(owner)
-                    && self
-                        .unit_def(unit)
-                        .is_some_and(|d| d.kind != UnitKind::Hero && d.level_path.is_some());
-                if trainee {
-                    let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
-                    let _ = self.world.insert_one(unit, Experience(xp + gain));
-                }
-            }
-        }
+        process(&mut self.world, &self.content, &self.players);
     }
 }
 

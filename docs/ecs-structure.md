@@ -109,173 +109,23 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
 6. **Random numbers come from a `GameRng`** that the caller passes in (`rng.rs`). It is a field
    of `Game`, so a domain can take `&mut GameRng` next to other borrows.
 
-Two ways to give a domain what it needs, both in use:
+Three ways to give a domain what it needs, all in use:
 
 - **Borrowing the fields apart**, where the domain's state is a field of something `Game` can
   borrow beside the content and the generator (`Magic`: `Game::magic_parts`).
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
   view (`Diplomacy`: `Game::with_diplomacy` takes the state and the generator out of the game,
   runs the rules over `&Game` as the `WorldView`, puts them back and applies the outcomes).
+  The spell executor lends the generator to its host the same way (`GameHost`, task 184).
+- **A read handle over a few fields** where the domain's state lives in the ECS world (units:
+  `Units<'a>` holds `&World`, `&Content` and `&[Player]`, made by `Game::units()`; what changes
+  units is a function over `&mut World`, such as `units::spawn`, `experience::gain_xp` and
+  the `temp_effects` functions). A test builds a world and the content and no `Game`.
 
-Where this stands: diplomacy and magic follow it (tasks 179 and 180). The units, economy,
-production and turn code (the next largest groups of `impl Game` methods) do not yet: tasks
-185 to 188, in that order, and then movement, the lairs, conquest, the fortress and vision
-(189 to 193); the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
-keeps the number of `impl Game` methods per file from growing.
-
-## 3. Components today
-
-### Unit entity
-| Component | Meaning |
-|---|---|
-| `Serial(u64)` | Creation number from a counter in `Game`; never reused. The stable order of units and cities, and what a save records instead of the entity id. |
-| `Unit(UnitId)` | Marker and definition: which `UnitDef` this is. Also what makes the entity a unit. |
-| `Owner(PlayerId)` | Who controls it. `NEUTRAL` is the owner of monsters and lair guards: the guards are made for a fight and go with it, but a neutral unit can also last (undead raised for the monsters stay on the site). Each independent (neutral) city is owned by a `Player` of its own with `neutral` set (numbers from 100): a treasury, no fog, no magic. |
-| `Position` | Plane, x, y. Shared with cities. |
-| `Hurt(u32)` | Hit points lost, over all figures. Current hit points are derived. |
-| `Experience(u32)` | Experience points. The level is derived from the level path. |
-| `MovesLeft(u32)` | Movement left this turn, in half-moves. Refilled at turn start. |
-| `Order::GoTo(path)` | Optional. A standing order, removed when the path is finished or blocked. |
-
-Not stored: attack, defence, resistance, hit points per figure, number of figures, moves
-per turn, sight. All come from `Game::unit_stat(unit, stat)`: the definition's base value
-plus modifiers from its abilities and its level.
-
-### City entity
-| Component | Meaning |
-|---|---|
-| `Serial(u64)` | Creation number, as for units. |
-| `City { name, owner }` | Marker, name and owner. |
-| `Position` | Where it stands. Cities are entities, not map tiles. |
-| `Population { figures, tens }` | Citizens (1000 people each) and tens of people toward the next. Zero figures is an outpost. |
-| `Farmers(u32)` | How many citizens farm. The rest work, minus rebels. |
-| `Buildings(Vec<BuildingId>)` | What is built, in build order. "Replaced" is not stored: it follows from a building's `replaces` field. |
-| `CityRace(RaceId)` | Race of the citizens; picks what the city can build and its traits. |
-| `Enchantments(Vec<(SpellId, PlayerId)>)` | City enchantments with the caster. |
-| `Production { item, progress }` | What is being built and how much is done. `item` is a typed `ProductionItem`, not an index range. |
-
-Not stored: food, production, gold, mana, research, rebels, growth, maximum size. All come
-from `Game::city_economy(city)`, which recomputes them from the land the city works, its
-people, race, buildings and enchantments. Nothing is cached, so nothing can go stale.
-
-### Not components yet
-- Heroes and their items (tasks 47 to 51): a hero is a unit with a hero definition today; the
-  abilities, items and hiring need more per-unit state.
-- Wizards are `Player` records, not entities; the wizard's state is `Player::magic` and
-  `Game::diplomacy`.
-- Battle units are not in the `hecs` world: a battle copies the overland units into plain
-  `BattleUnit` values and writes the results back (`combat.md`).
-
-## 4. Where the original's data went
-
-| Original | Here | Why it differs |
-|---|---|---|
-| `_UNITS[1009]`, index = unit id | Unit entities, `hecs::Entity` | No limit on count; a stale handle is detected (the entity's generation) instead of pointing at a reused slot. |
-| Unit type index into a table | `Unit(UnitId)`: an index wrapped in a type that only fits `UnitDef` | You cannot pass a building id where a unit id is expected. |
-| Unit enchantment bit flags | Planned: modifiers (stat, op, value, source) with caster and duration | Flags need code per flag; modifiers are data, show where a bonus came from, and can be removed by source. |
-| Stack: units sharing a square | The same: `units_at(position)` | Unchanged, but capped at nine by `MAX_STACK` in `units.rs`. |
-| `_CITIES[100]`, cached yields | City entities, yields computed | Cache invalidation bugs cannot happen; the cost (recomputing per query) is irrelevant at this scale. |
-| `bldg_status[36]` (unbuilt / replaced / built) | `Buildings` list plus `BuildingDef::replaces` | One source of truth; the status is derived. |
-| `enchantments[26]`, player + 1 | `Enchantments` list of `(spell, caster)` | Any number of enchantments; the spell is an id into the same table as spells cast any other way. |
-| `construction` integer, < 100 building, ≥ 100 unit | `ProductionItem` enum | Meaning is in the type, not in a numeric range. |
-| `_players[6]` big record | `Player` struct (gold, mana, tax, capital race, fame, fortress...) with a `Magic` record, plus `Game::diplomacy` for what passes between wizards | Only what exists is stored; more players are possible; the wizard's magic and the diplomacy are structures of their own. |
-| `_world_maps`: 762 terrain-type numbers incl. shores | Two grids: base terrain class + feature overlay + road flag (see `map-layers.md`) | Shore and river variants are a rendering decision, not game state. Minerals, nodes, lairs and towers are features instead of separate arrays and flag bits. |
-| `_LAIRS`, `_NODES`, `_TOWERS` arrays | Features on tiles (kind: encounter, node, tower) | One mechanism; lairs' guards and loot will become components of the site entity when encounters are built. |
-| Compiled-in constants (`bt_Barracks`) | String ids in data files, resolved to typed ids at load | New content needs no code; every reference is validated once at load. |
-| Per-unit and per-city fixed record order | Entities visited in creation order (`Serial`) | Deterministic, independent of slot reuse, and the same after a save and load. |
-
-## 5. Identity, references and ordering
-
-- **Entities** are referenced by `hecs::Entity`. Commands and events carry them. Because an
-  entity can be despawned (a settler founding an outpost, a disbanded unit), code that
-  holds one must tolerate `world.get` failing; the code does this with `.ok()` and
-  `map_or`.
-- **Definitions** are referenced by typed ids (`Id<T>`). In data files they are strings;
-  `f4x-data` checks that every string resolves before the game starts.
-- **Order**: ECS iteration order is not a game rule. Anything in game logic that iterates
-  entities sorts by creation number first (`all_units`, `cities`, `units_at`, `sort_by_serial`). Hash maps are never
-  iterated in logic. This is what keeps a seed plus a command log reproducible.
-- **Creation numbers.** `hecs` reuses the id of a despawned entity, so ids do not give creation
-  order and differ after a load. Every unit and city gets a `Serial` at spawn; sorting,
-  "newest first" rules and saves use it. Spawning code must call `take_serial`.
-- **Randomness** comes only from the game's `GameRng` (`Game::roll` / `next_u64` are wrappers,
-  and a domain takes `&mut GameRng`); the seed plus its count of draws is enough to resume the
-  stream after a load.
-
-## 6. Derived values and the modifier engine
-
-Every number about a unit or city is computed:
-
-```
-base value (from the definition, or from a formula for cities)
-  + modifiers from: race, abilities, buildings, enchantments, level effects, items (later)
-  = result      (Add, then Percent, then Min/Max, then Set, then the stat's own floor)
-```
-`unit_stat`, `unit_modifiers` and `city_economy` are the entry points. A building does not
-add 2 to a stored research number; it declares `Modify(CityResearch, Add, 2)` and the
-economy sums whatever modifiers apply. Removing a building removes exactly its effect.
-
-The effect executor (`rules::exec`) runs spell and ability effects against an
-`EffectHost` trait, so the same rules run on the real world or a synthetic test world.
-The real host over `hecs` is part of the wizards and spells step.
-
-## 7. Systems
-
-The full command list, the order of a turn and the movement and treasury rules are in
-[`game-flow.md`](game-flow.md); this section is only about how they relate to the ECS.
-
-There is no scheduler. A "system" is a call made from a fixed place (a method on `Game` that
-routes to a domain, or to the older rules still written as `Game` methods):
-
-- `apply(Command)` validates and changes state, returning events.
-- `end_turn` refills moves, runs `process_turn` (cities, then each player's treasury, then
-  healing), then follows standing orders.
-- Pure queries (`city_economy`, `visibility`, `find_path`, `treasury`, `can_build`) take
-  `&self` and change nothing; the client calls them freely each frame.
-
-This is deliberate. The game is turn-based, so there is no parallelism to gain, and an
-explicit call order is easier to read, test and keep deterministic than a scheduler.
-
-## 8. Working with `hecs` here
-
-- `world.query::<(&A, &B)>()` borrows the world; collect what you need into a `Vec`
-  before calling anything that mutates (the code does this everywhere).
-- `world.insert_one(entity, component)` **replaces** an existing component of that type,
-  which is how updates are done. It is not an error.
-- `world.get::<&T>(entity)` returns a guard; drop it before mutating the same entity.
-- Spawn with a tuple of components; add optional ones with `insert_one`.
-
-### Saving
-A save is a snapshot written by name (see `game-flow.md` section 8): it records units and
-cities with their components, not `hecs` entities, and refers to content by string id. The
-component tables above are therefore also the list of what a save must carry: **a new
-component on units or cities needs a field in the snapshot and a test that it survives a
-round trip.**
-
-## 9. What this buys and costs
-
-Gains: no hard limits except the game's own (nine per stack, 25 citizens per city);
-modifiers instead of flags; no cache invalidation; typed ids; tests that build a
-hand-made world in a few lines (`testutil.rs`) without any shipped data.
-
-Costs: more indirection than a flat array; a recomputed economy per query (cheap here);
-a loaded game gets new `hecs` entity ids, so entity ids never appear in saves and logic never
-relies on them (see the creation number below).
-
-## 10. Adding to the model
-
-1. **A new per-entity fact** (say a hero's equipment): a component struct in the module
-   that owns the concept, inserted where the entity is created, with a test that builds a
-   synthetic world.
-2. **A new number that rules can change**: add a variant to `Stat`, give it a floor in
-   `Stat::floor` if it cannot go negative, and read it through `compute` where it is used.
-   Content then changes it with `Modify` effects, no code needed.
-3. **A new kind of content**: a definition struct in `rules/defs.rs`, a registry on
-   `Rules`, a loader line and cross-reference checks in `f4x-data`, with a test that a
-   broken reference is reported.
-4. **A new mechanic**: add a `Command` and the `Event`s it produces, apply it in
-   `Game::apply`, and keep the check ("can this happen?") as a `&self` method the client
-   can also call.
-   The rules themselves go on the domain they belong to (see the domains section above), not
-   in `Game`; `Game::apply` only routes to them.
-5. Do not store anything that can be computed from existing state.
+Where this stands: diplomacy, magic and the units follow it (tasks 179, 180 and 185). The units'
+`impl Game` methods are still there as thin wrappers with the old names (`unit_stat`,
+`unit_abilities`, ...) that make a `Units` and ask it; callers move over to `game.units()` by
+area as they are touched. The economy, production and the rest of the turn code do not yet:
+tasks 186 to 188, and then movement, the lairs, conquest, the fortress and vision (189 to 193);
+the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
+reports the number of `impl Game` methods per file, as a guideline.
