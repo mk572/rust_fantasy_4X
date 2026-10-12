@@ -248,6 +248,11 @@ pub struct SpellDef {
     pub cost: u32,
     pub research_cost: u32,
     pub contexts: Vec<CastContext>,
+    /// A spell that can also be cast in battle costs five times as much on the map (the
+    /// original's eligibility 0, 2 and 3; the spells it sells only for the map, or for
+    /// battle, are not dearer).
+    #[serde(default)]
+    pub overland_x5: bool,
     pub target: SpellTarget,
     pub duration: Duration,
     /// Mana per turn to keep a lasting spell going.

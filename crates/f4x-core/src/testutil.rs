@@ -374,6 +374,7 @@ pub fn content_with_economy() -> Content {
         cost: 10,
         research_cost: 10,
         contexts: vec![CastContext::Overland],
+        overland_x5: false,
         target: SpellTarget::OwnCity,
         duration: Duration::Permanent,
         upkeep: 1,
@@ -471,6 +472,7 @@ pub fn content_with_magic() -> Content {
         cost,
         research_cost: research,
         contexts: vec![CastContext::Overland],
+        overland_x5: false,
         target,
         duration: Duration::Instant,
         upkeep: 0,
@@ -543,6 +545,7 @@ pub fn content_with_magic() -> Content {
     strength.upkeep = 2;
     strength.dispel_difficulty = 8;
     strength.contexts = vec![CastContext::Battle, CastContext::Overland];
+    strength.overland_x5 = true;
     strength.effects = vec![EffectRule {
         when: Trigger::Passive,
         condition: Condition::Always,

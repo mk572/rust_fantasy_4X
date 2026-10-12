@@ -2139,3 +2139,33 @@ fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
     let after = g.battle().unwrap().unit(mine).unwrap().hit_points();
     assert_eq!(after, before + 1);
 }
+
+#[test]
+fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
+    let g = casting_siege(&["flight", "wall_of_stone", "giant_strength", "ice_bolt"]);
+    let cost = |name: &str, in_battle: bool| {
+        let id = g.content.rules.spells.id_of(name).unwrap();
+        (
+            g.content.rules.spells.get(id).cost as i32,
+            g.casting_cost(HUMAN, id, in_battle),
+        )
+    };
+    // Eligibility 2 (Flight) and 0 (Giant Strength): five times as much away from a battle.
+    for name in ["flight", "giant_strength"] {
+        let (base, battle) = cost(name, true);
+        let (_, map) = cost(name, false);
+        assert!(
+            battle <= base && map == battle * 5,
+            "{name}: {base} {battle} {map}"
+        );
+    }
+    // Overland-only (Wall of Stone) and battle-only (Ice Bolt) spells are not dearer.
+    for name in ["wall_of_stone", "ice_bolt"] {
+        let (_, battle) = cost(name, true);
+        let (_, map) = cost(name, false);
+        assert_eq!(battle, map, "{name}");
+    }
+    // Flight can now be cast in a battle.
+    let flight = g.content.rules.spells.id_of("flight").unwrap();
+    assert!(g.battle_spells(HUMAN).iter().any(|s| s.spell == flight));
+}

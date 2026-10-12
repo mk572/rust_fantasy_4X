@@ -446,6 +446,31 @@ mod tests {
     }
 
     #[test]
+    fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() {
+        use crate::magic::Retort;
+        use crate::rules::stats::compute;
+        use crate::rules::Stat;
+        for retort in [Retort::DivinePower, Retort::InfernalPower] {
+            let mut g = world();
+            let city = found(&mut g, P0, at(10, 6), 10);
+            for b in ["shrine", "temple", "parthenon"] {
+                add_building(&mut g, city, b);
+            }
+            let totals = |g: &Game| {
+                let mods = g.city_modifiers(city);
+                (
+                    compute(Stat::CityMana, 0, &mods),
+                    -compute(Stat::CityUnrest, 0, &mods),
+                )
+            };
+            let (power, pacify) = totals(&g);
+            assert!(power >= 6 && pacify >= 3, "{power} {pacify}");
+            g.magic_mut_for_tests(P0).retorts.insert(retort);
+            assert_eq!(totals(&g), (power * 3 / 2, pacify + pacify / 2));
+        }
+    }
+
+    #[test]
     fn the_caster_pays_upkeep_for_enchantments_on_enemy_cities() {
         let mut g = world();
         let city = found(&mut g, P0, at(10, 6), 4);

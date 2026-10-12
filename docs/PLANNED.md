@@ -32,6 +32,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 19 | Meta | Asynchronous multiplayer |
 | 20 | Rules | Early-game speed-up options |
 | 21 | Rules | Faster outpost growth |
+| 22 | Rules | Alternative effect for the Charismatic retort |
 
 ## Descriptions
 
@@ -228,3 +229,13 @@ number of turns to grow into a city. Housing production in an outpost (it alread
 production item) could add to it. Keep it a rules setting in the saved game settings, so a game
 remembers which rate it used. First check the soak numbers against the original's real rate
 (`TASKS.md` 21), in case the engine's rate is the part that is wrong rather than the original's.
+
+**22. Alternative effect for the Charismatic retort.** The retort's effect in the original is on
+diplomacy: the wizard's positive diplomatic effects are doubled and its negative ones halved, and
+it pays half for hiring heroes and mercenaries and buying items (`diplomacy.md`; the hiring part
+is in tasks 48 and 49). Our AI will behave differently from the original's, so a retort that
+rests on how the AI's attitude moves may do little or nothing there. Give it an alternative
+effect that does not depend on the AI's behaviour, as an option beside the original's effect
+(the original's stays the default while parity is the goal). What the effect should be is open;
+decide it when the AI's diplomacy is settled (tasks 64 to 66), and keep the retort's pick cost
+and the help text in step with whatever is chosen (`HELP_CORRECTIONS`).

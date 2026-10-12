@@ -11,6 +11,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::city::{City, PlayerId, Position};
 use crate::city_spells::RELIGIOUS;
 use crate::content::TerrainClass;
+use crate::magic::Retort;
 use crate::map::Plane;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, Stat};
@@ -125,6 +126,13 @@ impl Game {
         }
         if let Ok(buildings) = self.world.get::<&Buildings>(city) {
             let evil = self.evil_presence_active(city);
+            // Divine and Infernal Power add half again to the power and the pacifying of the
+            // religious buildings: the original adds the buildings up, then takes 150 percent.
+            let owner = self.world.get::<&City>(city).ok().map(|c| c.owner);
+            let devout = owner
+                .and_then(|o| self.magic(o))
+                .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
+            let (mut power, mut pacify) = (0, 0);
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
@@ -133,7 +141,35 @@ impl Game {
                 if evil && RELIGIOUS.contains(&def.id.as_str()) {
                     found.retain(|m| m.stat != Stat::CityMana);
                 }
+                if RELIGIOUS.contains(&def.id.as_str()) {
+                    for m in &found {
+                        match m.stat {
+                            Stat::CityMana => power += m.value,
+                            Stat::CityUnrest => pacify -= m.value,
+                            _ => {}
+                        }
+                    }
+                }
                 mods.extend(found);
+            }
+            if devout {
+                let more = |total: i32| total * 150 / 100 - total;
+                if power > 0 {
+                    mods.push(Modifier::new(
+                        Stat::CityMana,
+                        crate::rules::ModOp::Add,
+                        more(power),
+                        Source::Other,
+                    ));
+                }
+                if pacify > 0 {
+                    mods.push(Modifier::new(
+                        Stat::CityUnrest,
+                        crate::rules::ModOp::Add,
+                        -more(pacify),
+                        Source::Other,
+                    ));
+                }
             }
         }
         if let Ok(enchantments) = self.world.get::<&Enchantments>(city) {

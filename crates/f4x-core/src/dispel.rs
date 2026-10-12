@@ -321,6 +321,7 @@ mod tests {
             cost,
             research_cost: 10,
             contexts: vec![CastContext::Overland],
+            overland_x5: false,
             target,
             duration: if lasting {
                 Duration::Permanent

@@ -229,9 +229,11 @@ impl Game {
         let target = 2 * (magic.total_books() + if archmage { 5 } else { 0 });
         magic.skill_points = skill_points_for(target, archmage);
         magic.skill_left = base_casting_skill(magic.skill_points, archmage);
-        self.player_mut(player)
-            .ok_or(MagicError::UnknownPlayer)?
-            .magic = magic;
+        // A famous wizard starts with 10 fame, any other with none.
+        let fame = if magic.has(Retort::Famous) { 10 } else { 0 };
+        let p = self.player_mut(player).ok_or(MagicError::UnknownPlayer)?;
+        p.magic = magic;
+        p.fame = fame;
         self.init_spell_library(player, start_spells);
         Ok(())
     }
@@ -483,7 +485,7 @@ impl Game {
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
         let mut cost = def.cost as i32;
-        if !in_battle && def.contexts.contains(&CastContext::Battle) {
+        if !in_battle && def.overland_x5 {
             cost *= 5;
         }
         cost -= cost * self.casting_cost_reduction(player, spell) / 100;
@@ -533,9 +535,23 @@ impl Game {
         })
     }
 
-    /// Mana per turn needed to keep lasting spells and summoned creatures going.
+    /// Mana per turn needed to keep lasting spells and summoned creatures going: a Channeler
+    /// pays half of the total.
     pub fn mana_upkeep(&self, player: PlayerId) -> i32 {
-        self.upkeep_items(player).iter().map(|i| i.mana).sum()
+        self.upkeep_items(player)
+            .iter()
+            .map(|i| i.mana)
+            .sum::<i32>()
+            / self.upkeep_divisor(player)
+    }
+
+    /// 2 for a Channeler (half the spell maintenance), else 1.
+    pub(crate) fn upkeep_divisor(&self, player: PlayerId) -> i32 {
+        if self.magic(player).is_some_and(|m| m.has(Retort::Channeler)) {
+            2
+        } else {
+            1
+        }
     }
 
     // ---- commands ----------------------------------------------------------------
@@ -780,13 +796,14 @@ impl Game {
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
         let mut items = self.upkeep_items(player);
-        let mut owed: i32 = items.iter().map(|i| i.mana).sum();
+        let divisor = self.upkeep_divisor(player);
+        let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() / divisor;
         let reserve = self.player(player).map_or(0, |p| p.mana);
         while owed > reserve {
             let Some(item) = items.pop() else {
                 break;
             };
-            owed -= item.mana;
+            owed -= item.mana / divisor;
             events.extend(self.drop_upkeep_item(player, item));
         }
         if let Some(p) = self.player_mut(player) {
@@ -1217,6 +1234,42 @@ mod tests {
         g.start_cast(P0, zap, Some(Target::Unit(theirs))).unwrap();
         let (left, max) = g.unit_hits(theirs);
         assert!(left < max || !g.world.contains(theirs));
+    }
+
+    #[test]
+    fn a_channeler_pays_half_the_spell_maintenance() {
+        let mut g = world();
+        found(&mut g, at(10, 6), 4);
+        let mut defs = g.content.rules.spells.defs().to_vec();
+        defs[0].upkeep = 6;
+        g.content.rules.spells = crate::rules::Registry::new(defs);
+        let dear = (
+            g.content
+                .rules
+                .spells
+                .id_of(&g.content.rules.spells.defs()[0].id)
+                .unwrap(),
+            6,
+        );
+        g.magic_mut(P0).unwrap().global.push(dear.0);
+        assert_eq!(g.mana_upkeep(P0), dear.1);
+        g.magic_mut(P0).unwrap().retorts.insert(Retort::Channeler);
+        assert_eq!(g.mana_upkeep(P0), dear.1 / 2);
+        // The reserve pays the half, and the spell stays.
+        g.player_mut(P0).unwrap().mana = dear.1 / 2;
+        g.apply_mana_upkeep(P0);
+        assert_eq!(g.player(P0).unwrap().mana, 0);
+        assert!(g.magic(P0).unwrap().global.contains(&dear.0));
+    }
+
+    #[test]
+    fn a_famous_wizard_starts_with_ten_fame() {
+        let mut g = world();
+        g.init_wizard(P0, &[("life", 3)], &[Retort::Famous])
+            .unwrap();
+        assert_eq!(g.player(P0).unwrap().fame, 10);
+        g.init_wizard(P0, &[("life", 3)], &[]).unwrap();
+        assert_eq!(g.player(P0).unwrap().fame, 0);
     }
 
     #[test]

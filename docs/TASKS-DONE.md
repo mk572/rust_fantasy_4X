@@ -44,7 +44,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
 | 42 | Combat | Fleeing and after-battle results (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
+| 53 | Magic | Remaining retort effects (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
+| 55 | Magic | Importer: spell eligibility 2 and 3 (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 63 | Meta | Diplomacy (done) |
@@ -269,6 +271,8 @@ turn's magic step counts it down and removes the enchantment with `Event::Enchan
 Timers whose enchantment was dispelled or whose bearer died are dropped silently. No imported
 spell uses `Turns` (the original has none), so this is for mods and the community patch.
 
+**53. Remaining retort effects (done).** Every retort now has its effect. Done in this task: Channeler pays half the spell and creature maintenance (the total is halved, `Game::mana_upkeep`; its combat range cost was in already), Divine and Infernal Power add half again to the religious buildings' power and pacifying (`city_modifiers`: the buildings are added up, then 150 percent, as in the original), Famous starts with 10 fame. Already in: Warlord (task 27), Myrran (the Myrror start, and the fortress's +5 power on Myrror, which the original gives any wizard whose fortress is there), Charismatic's diplomacy, Node Mastery and the realm masteries' power doubling (`nodes.rs`). Left, with the heroes: Charismatic's half price and Famous's doubled chance for hiring heroes, mercenaries and buying items (tasks 48, 49), and Node Mastery's spells being immune to a node's dispelling (task 160).
+
 **54. Wizard creation screen and named wizards (done).** `wizard.rs` holds the pick rules of the
 original's custom-wizard screen (eleven picks; books one each; retorts one, two for Warlord,
 Channeler, Divine Power, Famous and Infernal Power, three for Myrran; at most six retorts;
@@ -281,6 +285,8 @@ The client's creation screen (`create_screen.rs`, shown at start unless `--quick
 `--shot`; `--create` forces it) offers the presets, a custom build, a name, starting spells and
 a race. The rival gets another preset by seed. Not done: portraits and banner colours (83), the
 Myrran start on Myrror and the race it controls (53), and eleven-book realms.
+
+**55. Importer: spell eligibility 2 and 3 (done).** The importer kept only overland-only for eligibility 1 to 5, so Flight, Bless, Resist Elements, Wall of Fire and the other 11 spells of eligibility 2 and 3 (9 and 2) cost too little on the map and could not be cast in a battle. It now follows the original (`Casting_Cost`, the spell lists in `Spellbook.c` and `Combat.c`): eligibility 0, 2 and 3 are castable in both and cost five times as much on the map (`SpellDef::overland_x5`, which replaces the old test on the Battle context). Left: eligibility 4 (Word of Recall, Disenchant True, Disenchant Area) is also in the original's battle list but stays overland-only until their battle effects exist (task 159); the learning AI's scenario bank was made before this and draws its spells from the old list (remake it with task 172).
 
 **57. Global enchantments and wizard-level state (done).** `globals.rs` reads the wizard's
 global spells where they matter: Evil Omens (life and nature spells cost half as much again for

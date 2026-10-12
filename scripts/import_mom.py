@@ -928,10 +928,19 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     return unimplemented, target, lasting
 
 
+# The spell data's eligibility byte (`Spellbook.c`, `Combat.c`, `Casting_Cost` in ReMoM):
+#   -2, -1  battle only                      0, 2, 3  both; overland costs five times as much
+#   1       overland only (not in battle)    4        listed for both, but see below
+#   5       the Spell of Return, in neither list
+# 4 (Word of Recall, Disenchant True and Area) is in the original's battle list too, but their
+# battle effects are not built (task 159), so they stay overland-only here.
+BOTH_CONTEXTS = (0, 2, 3)
+
+
 def spell_contexts(row: SpellRow) -> str:
     if row.eligibility < 0:
         return "[Battle]"
-    if row.eligibility == 0:
+    if row.eligibility in BOTH_CONTEXTS:
         return "[Battle, Overland]"
     return "[Overland]"
 
@@ -961,6 +970,8 @@ def build_spells(rows: list[SpellRow], help_: dict[str, SpellHelp], unit_ids: di
             f"cost: {max(row.cost, 1)}", f"research_cost: {max(row.research, 1)}",
             f"contexts: {spell_contexts(row)}", f"target: {target}", f"duration: {duration}",
         ]
+        if row.eligibility in BOTH_CONTEXTS:
+            parts.append("overland_x5: true")
         if upkeep:
             parts.append(f"upkeep: {upkeep}")
         if lasting == "lasting":

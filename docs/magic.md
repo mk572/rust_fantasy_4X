@@ -142,9 +142,12 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 - No heroes' casting contribution or sage heroes, no node power, no Evil Omens or other global
   modifiers on cost, no Spell of Return handling, no spell research cost for the Spell of Mastery
   (placeholder data). Casting in battle is in `combat.md` section 8.
-- Imported eligibility 2 and 3 (overland-only spells that the original still costs ×5) are
-  collapsed to overland-only here, so those spells cost less than in the original. To be fixed in
-  the importer.
+- The importer keeps the original's eligibility (`spell_contexts` in `import_mom.py`): 0, 2 and
+  3 are castable in a battle and on the map, and `SpellDef::overland_x5` makes the map cost five
+  times as much (Flight, Bless, Resist Elements, Wall of Fire and the like, as well as the
+  spells of eligibility 0). Eligibility 4 (Word of Recall, Disenchant True and Area) is in the
+  original's battle list too, but stays overland-only here until their battle effects exist
+  (task 159).
 - Starting known spells are random; the original takes them from a fixed table per named wizard,
   or lets a custom wizard pick.
 
