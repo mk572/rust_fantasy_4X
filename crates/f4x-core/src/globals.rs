@@ -45,7 +45,7 @@ impl Game {
 
     /// Planar Seal closes every junction between the planes while anyone keeps it up.
     pub fn planar_seal_active(&self) -> bool {
-        self.any_global("planar_seal")
+        self.units().planar_seal_active()
     }
 
     /// Is another wizard's Evil Omens making `player`'s life and nature spells dearer?

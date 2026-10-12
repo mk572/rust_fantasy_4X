@@ -619,6 +619,20 @@ impl<'a> Economy<'a> {
             .sum()
     }
 
+    /// The terrain class of a square.
+    pub fn terrain_class_at(&self, at: Position) -> Option<crate::content::TerrainClass> {
+        let map = self.map?;
+        let id = map.plane(at.plane).get(at.x as i32, at.y as i32)?;
+        self.content.terrains.get(id).map(|d| d.class)
+    }
+
+    /// The intact lair on a square, with its index.
+    pub fn lair_at(&self, pos: Position) -> Option<(usize, &'a crate::map::Lair)> {
+        let map = self.map?;
+        let i = map.lair_at(pos.plane, pos.x, pos.y)?;
+        Some((i, &map.lairs()[i]))
+    }
+
     /// The city standing at `pos`.
     pub fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
         self.cities()

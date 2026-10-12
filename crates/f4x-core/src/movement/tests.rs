@@ -411,3 +411,42 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() {
         Ok(4)
     );
 }
+
+#[test]
+fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
+    let c = content_with_units();
+    let (grass, forest) = (
+        c.terrains.id_of("grassland").unwrap(),
+        c.terrains.id_of("forest").unwrap(),
+    );
+    let build = || {
+        let mut g = Grid::new(12, 6, grass);
+        g.set(3, 2, forest);
+        g
+    };
+    let map = Map::new(build(), build());
+    let walker = c.rules.units.id_of("walker").unwrap();
+    let mut world = hecs::World::new();
+    let unit = crate::units::spawn(
+        &mut world,
+        &c,
+        &[],
+        crate::serial::Serial(1),
+        P0,
+        at(2, 2),
+        walker,
+    );
+    let economy = Economy::new(&world, Some(&map), &c, &[]);
+    let (costs, entry) = economy.plan_step(&[unit], at(3, 2)).unwrap();
+    assert_eq!(
+        (costs, entry),
+        (vec![4], Entry::Free),
+        "a forest costs two moves"
+    );
+    let (costs, _) = economy.plan_step(&[unit], at(1, 2)).unwrap();
+    assert_eq!(costs, vec![2], "grassland costs one");
+    assert_eq!(
+        economy.plan_step(&[unit], at(5, 2)),
+        Err(MoveError::NotAdjacent)
+    );
+}

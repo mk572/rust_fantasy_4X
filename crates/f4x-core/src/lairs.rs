@@ -412,9 +412,7 @@ pub enum SiteError {
 impl Game {
     /// The intact lair on a square.
     pub fn lair_at(&self, pos: Position) -> Option<(usize, &Lair)> {
-        let map = self.map.as_ref()?;
-        let i = map.lair_at(pos.plane, pos.x, pos.y)?;
-        Some((i, &map.lairs()[i]))
+        self.economy().lair_at(pos)
     }
 
     /// Fight the guards of the site on `to`, which a stack next to it has been stopped at.

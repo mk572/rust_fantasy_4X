@@ -102,6 +102,25 @@ impl<'a> Units<'a> {
             .is_some_and(|m| crate::globals::magic_has_global(m, self.content, id))
     }
 
+    /// The entity with this creation number, if it is still alive.
+    pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
+        self.world
+            .query::<&Serial>()
+            .iter()
+            .find(|(_, s)| **s == serial)
+            .map(|(e, _)| e)
+    }
+
+    /// Does any wizard keep the global spell with this id going?
+    pub(crate) fn any_global(&self, id: &str) -> bool {
+        self.players.iter().any(|p| self.has_global(p.id, id))
+    }
+
+    /// Planar Seal closes every junction between the planes while anyone keeps it up.
+    pub fn planar_seal_active(&self) -> bool {
+        self.any_global("planar_seal")
+    }
+
     /// An entity's creation number (entities without one sort first, by id).
     pub(crate) fn serial_of(&self, entity: hecs::Entity) -> Serial {
         self.world.get::<&Serial>(entity).map_or(Serial(0), |s| *s)

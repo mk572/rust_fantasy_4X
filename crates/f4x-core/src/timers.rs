@@ -57,11 +57,7 @@ impl Game {
 
     /// The entity with this creation number, if it is still alive.
     pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
-        self.world
-            .query::<&Serial>()
-            .iter()
-            .find(|(_, s)| **s == serial)
-            .map(|(e, _)| e)
+        self.units().entity_of_serial(serial)
     }
 
     /// Turns left on a timed enchantment, if it is one.

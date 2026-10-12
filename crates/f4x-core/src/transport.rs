@@ -8,6 +8,7 @@
 
 use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
+use crate::economy::Economy;
 use crate::rules::{MovementType, Stat};
 use crate::serial::Serial;
 use crate::{Event, Game};
@@ -16,11 +17,12 @@ use crate::{Event, Game};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Aboard(pub Serial);
 
-impl Game {
+impl Economy<'_> {
     /// A unit that carries others: it sails and has room.
     pub fn is_ship(&self, unit: hecs::Entity) -> bool {
-        self.unit_stat(unit, Stat::Transport) > 0
-            && self
+        let units = self.units();
+        units.unit_stat(unit, Stat::Transport) > 0
+            && units
                 .unit_def(unit)
                 .is_some_and(|d| d.movement == MovementType::Sailing)
     }
@@ -28,10 +30,11 @@ impl Game {
     /// Whether the unit cannot cross the sea by itself: it walks and neither flies nor is
     /// carried through the air nor is non-corporeal.
     pub fn needs_ship(&self, unit: hecs::Entity, stack_flies: bool) -> bool {
+        let units = self.units();
         !stack_flies
-            && self.unit_def(unit).is_some_and(|d| {
+            && units.unit_def(unit).is_some_and(|d| {
                 d.movement == MovementType::Walking
-                    && !self
+                    && !units
                         .unit_abilities(unit)
                         .iter()
                         .any(|a| a == "flying" || a == "non_corporeal")
@@ -41,12 +44,13 @@ impl Game {
     /// The ship `unit` is aboard, if it still exists.
     pub fn carrier_of(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
         let serial = self.world.get::<&Aboard>(unit).ok()?.0;
-        self.entity_of_serial(serial)
+        self.units().entity_of_serial(serial)
     }
 
     /// Units aboard `ship`.
     pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
-        let serial = self.serial_of(ship);
+        let units = self.units();
+        let serial = units.serial_of(ship);
         let mut out: Vec<_> = self
             .world
             .query::<&Aboard>()
@@ -54,21 +58,23 @@ impl Game {
             .filter(|(_, a)| a.0 == serial)
             .map(|(e, _)| e)
             .collect();
-        self.sort_by_serial(&mut out);
+        units.sort_by_serial(&mut out);
         out
     }
 
     /// Free places on a ship.
     pub fn ship_room(&self, ship: hecs::Entity) -> u32 {
-        let cap = self.unit_stat(ship, Stat::Transport).max(0) as u32;
+        let cap = self.units().unit_stat(ship, Stat::Transport).max(0) as u32;
         cap.saturating_sub(self.passengers_of(ship).len() as u32)
     }
 
     /// `owner`'s ships standing on `at`, oldest first.
     pub fn ships_at(&self, at: Position, owner: PlayerId) -> Vec<hecs::Entity> {
-        self.units_at(at)
+        let units = self.units();
+        units
+            .units_at(at)
             .into_iter()
-            .filter(|&u| self.unit_owner(u) == Some(owner) && self.is_ship(u))
+            .filter(|&u| units.unit_owner(u) == Some(owner) && self.is_ship(u))
             .collect()
     }
 
@@ -83,11 +89,13 @@ impl Game {
         self.terrain_class_at(at) == Some(TerrainClass::Ocean)
     }
 
-    /// Land units at sea with no ship under them are lost.
-    pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
-        let mut lost: Vec<(PlayerId, hecs::Entity)> = Vec::new();
-        for unit in self.all_units() {
-            let (Some(at), Some(owner)) = (self.unit_position(unit), self.unit_owner(unit)) else {
+    /// Land units at sea with no ship under them: they are lost (`Game::drown_stranded`).
+    pub(crate) fn stranded(&self) -> Vec<(PlayerId, hecs::Entity)> {
+        let units = self.units();
+        let mut lost = Vec::new();
+        for unit in units.all_units() {
+            let (Some(at), Some(owner)) = (units.unit_position(unit), units.unit_owner(unit))
+            else {
                 continue;
             };
             if !self.is_sea(at) || !self.needs_ship(unit, false) {
@@ -96,13 +104,109 @@ impl Game {
             // Under a ship, or held by one standing on this square.
             let held = self
                 .carrier_of(unit)
-                .is_some_and(|s| self.unit_position(s) == Some(at));
+                .is_some_and(|s| units.unit_position(s) == Some(at));
             if !held {
                 lost.push((owner, unit));
             }
         }
+        lost
+    }
+}
+
+/// Where a stack's land units ride after it has moved to `to`: those that need a ship and are
+/// not carried by one of the stack go aboard a ship of the stack, else one waiting there, if it
+/// has room; on land nobody is aboard. One unit at a time, as each boarding fills a place.
+pub(crate) fn update_aboard(
+    world: &mut hecs::World,
+    map: Option<&crate::map::Map>,
+    content: &crate::content::Content,
+    players: &[crate::player::Player],
+    stack: &[hecs::Entity],
+    to: Position,
+    stack_flies: bool,
+) {
+    fn economy<'a>(
+        world: &'a hecs::World,
+        map: Option<&'a crate::map::Map>,
+        content: &'a crate::content::Content,
+        players: &'a [crate::player::Player],
+    ) -> Economy<'a> {
+        Economy::new(world, map, content, players)
+    }
+    let e = economy(world, map, content, players);
+    let (to_sea, owner) = (e.is_sea(to), e.units().unit_owner(stack[0]));
+    let Some(owner) = owner else {
+        return;
+    };
+    for &u in stack {
+        let board = {
+            let e = economy(world, map, content, players);
+            if !e.needs_ship(u, stack_flies) {
+                continue;
+            }
+            if !to_sea {
+                None
+            } else if e.carrier_of(u).is_some_and(|c| stack.contains(&c)) {
+                continue;
+            } else {
+                let mut ships: Vec<hecs::Entity> =
+                    stack.iter().copied().filter(|&s| e.is_ship(s)).collect();
+                ships.extend(
+                    e.ships_at(to, owner)
+                        .into_iter()
+                        .filter(|s| !stack.contains(s)),
+                );
+                let ship = ships.into_iter().find(|&s| e.ship_room(s) > 0);
+                match ship {
+                    Some(ship) => Some(Aboard(e.units().serial_of(ship))),
+                    None => continue,
+                }
+            }
+        };
+        match board {
+            Some(aboard) => {
+                let _ = world.insert_one(u, aboard);
+            }
+            None => {
+                let _ = world.remove_one::<Aboard>(u);
+            }
+        }
+    }
+}
+
+impl Game {
+    pub fn is_ship(&self, unit: hecs::Entity) -> bool {
+        self.economy().is_ship(unit)
+    }
+
+    pub fn needs_ship(&self, unit: hecs::Entity, stack_flies: bool) -> bool {
+        self.economy().needs_ship(unit, stack_flies)
+    }
+
+    pub fn carrier_of(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
+        self.economy().carrier_of(unit)
+    }
+
+    pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
+        self.economy().passengers_of(ship)
+    }
+
+    pub fn ship_room(&self, ship: hecs::Entity) -> u32 {
+        self.economy().ship_room(ship)
+    }
+
+    pub fn ships_at(&self, at: Position, owner: PlayerId) -> Vec<hecs::Entity> {
+        self.economy().ships_at(at, owner)
+    }
+
+    pub fn ship_room_at(&self, at: Position, owner: PlayerId) -> bool {
+        self.economy().ship_room_at(at, owner)
+    }
+
+    /// Land units at sea with no ship under them are lost.
+    pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        for (owner, unit) in lost {
+        for (owner, unit) in self.economy().stranded() {
             let _ = self.world.despawn(unit);
             events.push(Event::UnitsDrowned {
                 player: owner,

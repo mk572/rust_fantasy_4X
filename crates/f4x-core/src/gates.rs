@@ -13,7 +13,7 @@
 //! city does nothing for the city's new owner.
 
 use crate::city::{PlayerId, Position};
-use crate::economy::Enchantments;
+use crate::economy::{Economy, Enchantments};
 use crate::movement::MoveError;
 use crate::units::{MovesLeft, MAX_STACK};
 use crate::{Event, Game};
@@ -30,16 +30,7 @@ const FULL_MOVE: u32 = 2;
 impl Game {
     /// Whether `owner` keeps the named gate spell on the city standing at `pos`.
     pub fn has_gate(&self, pos: Position, owner: PlayerId, gate: &str) -> bool {
-        let Some(city) = self.city_at(pos) else {
-            return false;
-        };
-        let Some(spell) = self.content.rules.spells.id_of(gate) else {
-            return false;
-        };
-        self.world
-            .get::<&Enchantments>(city)
-            .is_ok_and(|e| e.0.contains(&(spell, owner)))
-            && self.city_owner(city) == Some(owner)
+        self.economy().has_gate(pos, owner, gate)
     }
 
     /// Whether the stack could teleport through Earth Gates to the city at `to`.
@@ -90,6 +81,22 @@ impl Game {
             from,
             to,
         }])
+    }
+}
+
+impl Economy<'_> {
+    /// Whether `owner` keeps the named gate spell on the city standing at `pos`.
+    pub fn has_gate(&self, pos: Position, owner: PlayerId, gate: &str) -> bool {
+        let Some(city) = self.city_at(pos) else {
+            return false;
+        };
+        let Some(spell) = self.content.rules.spells.id_of(gate) else {
+            return false;
+        };
+        self.world
+            .get::<&Enchantments>(city)
+            .is_ok_and(|e| e.0.contains(&(spell, owner)))
+            && self.city_owner(city) == Some(owner)
     }
 }
 

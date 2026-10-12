@@ -5,6 +5,7 @@
 
 use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
+use crate::economy::Economy;
 use crate::map::Plane;
 use crate::rules::MovementType;
 use crate::units::{MovesLeft, MAX_STACK};
@@ -70,33 +71,10 @@ pub struct StackTraits {
     pub sea_lift: bool,
 }
 
-impl Game {
-    /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
-    /// square on both planes (the original's `Units_In_Tower`).
-    pub(crate) fn claim_tower(&mut self, units: &[hecs::Entity], at: Position) {
-        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
-            return;
-        };
-        let on_tower = self.map.as_ref().is_some_and(|m| {
-            m.plane(at.plane)
-                .feature(at.x as i32, at.y as i32)
-                .and_then(|f| self.content.features.get(f))
-                .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower)
-        });
-        if !on_tower || self.planar_seal_active() {
-            return;
-        }
-        if let Some(m) = self.map.as_mut() {
-            m.set_tower_owner(at.x, at.y, owner.0);
-        }
-        for plane in Plane::ALL {
-            self.fog.explore(owner, Position { plane, ..at }, 1);
-        }
-    }
-
+impl Economy<'_> {
     /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
     pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
-        let any = |a: &str| units.iter().any(|&u| self.unit_has_ability(u, a));
+        let any = |a: &str| units.iter().any(|&u| self.units().unit_has_ability(u, a));
         StackTraits {
             flies: any("wind_walking"),
             pathfinding: any("pathfinding"),
@@ -116,17 +94,17 @@ impl Game {
         traits: StackTraits,
     ) -> Result<u32, MoveError> {
         let stack_flies = traits.flies;
-        let map = self.map.as_ref().ok_or(MoveError::NoMap)?;
+        let map = self.map.ok_or(MoveError::NoMap)?;
         let grid = map.plane(to.plane);
         if to.y >= grid.height() || to.x >= grid.width() {
             return Err(MoveError::OffMap);
         }
-        let def = self.unit_def(unit).ok_or(MoveError::BadSelection)?;
+        let def = self.units().unit_def(unit).ok_or(MoveError::BadSelection)?;
         let terrain = grid
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
             .ok_or(MoveError::OffMap)?;
-        let abilities = self.unit_abilities(unit);
+        let abilities = self.units().unit_abilities(unit);
         let has = |a: &str| abilities.iter().any(|x| x == a);
         let is_water = terrain.class == TerrainClass::Ocean;
 
@@ -141,7 +119,7 @@ impl Game {
                 let own_city_here = self.city_at(to).is_some_and(|c| {
                     self.world
                         .get::<&crate::city::City>(c)
-                        .is_ok_and(|c| Some(c.owner) == self.unit_owner(unit))
+                        .is_ok_and(|c| Some(c.owner) == self.units().unit_owner(unit))
                 });
                 return if is_water || own_city_here {
                     Ok(FULL_MOVE)
@@ -157,7 +135,7 @@ impl Game {
             if traits.sea_lift {
                 return Ok(0);
             }
-            let owner = self.unit_owner(unit);
+            let owner = self.units().unit_owner(unit);
             return if owner.is_some_and(|o| self.ship_room_at(to, o)) {
                 Ok(FULL_MOVE)
             } else {
@@ -197,15 +175,16 @@ impl Game {
     pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
         units
             .iter()
-            .any(|&u| self.unit_has_ability(u, "wind_walking"))
+            .any(|&u| self.units().unit_has_ability(u, "wind_walking"))
     }
 
     /// Hostile units or city on `pos` from the point of view of `mover`.
     pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
         let defenders: Vec<_> = self
+            .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.unit_owner(u).is_some_and(|o| o != mover))
+            .filter(|&u| self.units().unit_owner(u).is_some_and(|o| o != mover))
             .collect();
         let hostile_city = self.city_at(pos).is_some_and(|c| {
             self.world
@@ -220,10 +199,18 @@ impl Game {
         units: &[hecs::Entity],
     ) -> Result<(Position, PlayerId), MoveError> {
         let first = *units.first().ok_or(MoveError::NoUnits)?;
-        let pos = self.unit_position(first).ok_or(MoveError::BadSelection)?;
-        let owner = self.unit_owner(first).ok_or(MoveError::BadSelection)?;
+        let pos = self
+            .units()
+            .unit_position(first)
+            .ok_or(MoveError::BadSelection)?;
+        let owner = self
+            .units()
+            .unit_owner(first)
+            .ok_or(MoveError::BadSelection)?;
         for &u in units {
-            if self.unit_position(u) != Some(pos) || self.unit_owner(u) != Some(owner) {
+            if self.units().unit_position(u) != Some(pos)
+                || self.units().unit_owner(u) != Some(owner)
+            {
                 return Err(MoveError::BadSelection);
             }
         }
@@ -238,7 +225,7 @@ impl Game {
         to: Position,
     ) -> Result<(Vec<u32>, Entry), MoveError> {
         let (from, owner) = self.check_stack(units)?;
-        let map = self.map.as_ref().ok_or(MoveError::NoMap)?;
+        let map = self.map.ok_or(MoveError::NoMap)?;
         if !adjacent(map.width(), from, to) {
             return Err(MoveError::NotAdjacent);
         }
@@ -258,7 +245,7 @@ impl Game {
                 costs.push(0);
                 continue;
             }
-            if self.unit_moves_left(u) == 0 {
+            if self.units().unit_moves_left(u) == 0 {
                 return Err(MoveError::NoMovesLeft);
             }
             costs.push(self.step_cost(u, from, to, flies)?);
@@ -303,23 +290,136 @@ impl Game {
                 }
             }
         }
-        let present = self.units_at(to).len();
+        let present = self.units().units_at(to).len();
         if present + units.len() > MAX_STACK {
             return Err(MoveError::StackFull);
         }
         Ok((costs, Entry::Free))
     }
 
+    /// Whether the stack could change plane where it stands: the tile holds a tower,
+    /// or every unit can travel between planes at will.
+    pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
+        let (from, _) = self.check_stack(units)?;
+        if self.units().planar_seal_active() {
+            return Err(MoveError::CannotShiftPlane);
+        }
+        let map = self.map.ok_or(MoveError::NoMap)?;
+        let on_tower = map
+            .plane(from.plane)
+            .feature(from.x as i32, from.y as i32)
+            .and_then(|f| self.content.features.get(f))
+            .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower);
+        let all_travel = units
+            .iter()
+            .all(|&u| self.units().unit_has_ability(u, "planar_travel"));
+        let (_, owner) = self.check_stack(units)?;
+        let on_gate = self.has_gate(from, owner, crate::gates::ASTRAL_GATE);
+        if !on_tower && !all_travel && !on_gate {
+            return Err(MoveError::CannotShiftPlane);
+        }
+        let other = match from.plane {
+            Plane::Arcanus => Plane::Myrror,
+            Plane::Myrror => Plane::Arcanus,
+        };
+        let to = Position {
+            plane: other,
+            ..from
+        };
+        // An Astral Gate only works while it does not lead into another city.
+        if !on_tower && !all_travel && self.city_at(to).is_some() {
+            return Err(MoveError::CannotShiftPlane);
+        }
+        // Every unit must be able to stand on the other plane's tile.
+        let flies = self.stack_traits(units);
+        for &u in units {
+            if self.units().unit_moves_left(u) == 0 {
+                return Err(MoveError::NoMovesLeft);
+            }
+            self.step_cost(u, to, to, flies)
+                .map_err(|_| MoveError::CannotShiftPlane)?;
+        }
+        Ok(to)
+    }
+
+    /// Whether the square holds a tower.
+    pub(crate) fn is_tower(&self, at: Position) -> bool {
+        self.map.is_some_and(|m| {
+            m.plane(at.plane)
+                .feature(at.x as i32, at.y as i32)
+                .and_then(|f| self.content.features.get(f))
+                .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower)
+        })
+    }
+}
+
+impl Game {
+    pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
+        self.economy().stack_traits(units)
+    }
+
+    pub fn step_cost(
+        &self,
+        unit: hecs::Entity,
+        from: Position,
+        to: Position,
+        traits: StackTraits,
+    ) -> Result<u32, MoveError> {
+        self.economy().step_cost(unit, from, to, traits)
+    }
+
+    pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
+        self.economy().stack_flies(units)
+    }
+
+    pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
+        self.economy().hostile_at(pos, mover)
+    }
+
+    pub(crate) fn check_stack(
+        &self,
+        units: &[hecs::Entity],
+    ) -> Result<(Position, PlayerId), MoveError> {
+        self.economy().check_stack(units)
+    }
+
+    pub fn plan_step(
+        &self,
+        units: &[hecs::Entity],
+        to: Position,
+    ) -> Result<(Vec<u32>, Entry), MoveError> {
+        self.economy().plan_step(units, to)
+    }
+
+    pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
+        self.economy().can_shift_plane(units)
+    }
+
+    /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
+    /// square on both planes (the original's `Units_In_Tower`).
+    pub(crate) fn claim_tower(&mut self, units: &[hecs::Entity], at: Position) {
+        let Some(owner) = units.first().and_then(|&u| self.unit_owner(u)) else {
+            return;
+        };
+        if !self.economy().is_tower(at) || self.planar_seal_active() {
+            return;
+        }
+        if let Some(m) = self.map.as_mut() {
+            m.set_tower_owner(at.x, at.y, owner.0);
+        }
+        for plane in Plane::ALL {
+            self.fog.explore(owner, Position { plane, ..at }, 1);
+        }
+    }
+
     /// Move a stack one tile. Returns the entry result; on `Entry::Hostile` nothing moved.
     pub fn move_stack(&mut self, units: &[hecs::Entity], to: Position) -> Result<Entry, MoveError> {
-        let (costs, entry) = self.plan_step(units, to)?;
+        let (costs, entry) = self.economy().plan_step(units, to)?;
         if matches!(entry, Entry::Hostile(_) | Entry::Site(_)) {
             return Ok(entry);
         }
         let owner = self.unit_owner(units[0]).expect("checked");
         let from = self.unit_position(units[0]).expect("checked");
-        let flies = self.stack_traits(units);
-        let to_sea = self.is_sea(to);
         for (&u, cost) in units.iter().zip(costs) {
             let left = self.unit_moves_left(u).saturating_sub(cost);
             let _ = self.world.insert_one(u, MovesLeft(left));
@@ -341,81 +441,22 @@ impl Game {
             let _ = self.world.insert_one(p, to);
         }
         // Who is aboard what now.
-        for &u in units {
-            if !self.needs_ship(u, flies.flies) {
-                continue;
-            }
-            if !to_sea {
-                let _ = self.world.remove_one::<crate::transport::Aboard>(u);
-                continue;
-            }
-            if self.carrier_of(u).is_some_and(|c| units.contains(&c)) {
-                continue;
-            }
-            // Board a ship of the stack, else one waiting here.
-            let mut ships: Vec<hecs::Entity> =
-                units.iter().copied().filter(|&s| self.is_ship(s)).collect();
-            ships.extend(
-                self.ships_at(to, owner)
-                    .into_iter()
-                    .filter(|s| !units.contains(s)),
-            );
-            if let Some(ship) = ships.into_iter().find(|&s| self.ship_room(s) > 0) {
-                let serial = self.serial_of(ship);
-                let _ = self.world.insert_one(u, crate::transport::Aboard(serial));
-            }
-        }
+        let flies = self.economy().stack_traits(units);
+        crate::transport::update_aboard(
+            &mut self.world,
+            self.map.as_ref(),
+            &self.content,
+            &self.players,
+            units,
+            to,
+            flies.flies,
+        );
         Ok(Entry::Free)
-    }
-
-    /// Whether the stack could change plane where it stands: the tile holds a tower,
-    /// or every unit can travel between planes at will.
-    pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
-        let (from, _) = self.check_stack(units)?;
-        if self.planar_seal_active() {
-            return Err(MoveError::CannotShiftPlane);
-        }
-        let map = self.map.as_ref().ok_or(MoveError::NoMap)?;
-        let on_tower = map
-            .plane(from.plane)
-            .feature(from.x as i32, from.y as i32)
-            .and_then(|f| self.content.features.get(f))
-            .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower);
-        let all_travel = units
-            .iter()
-            .all(|&u| self.unit_has_ability(u, "planar_travel"));
-        let (_, owner) = self.check_stack(units)?;
-        let on_gate = self.has_gate(from, owner, crate::gates::ASTRAL_GATE);
-        if !on_tower && !all_travel && !on_gate {
-            return Err(MoveError::CannotShiftPlane);
-        }
-        let other = match from.plane {
-            Plane::Arcanus => Plane::Myrror,
-            Plane::Myrror => Plane::Arcanus,
-        };
-        let to = Position {
-            plane: other,
-            ..from
-        };
-        // An Astral Gate only works while it does not lead into another city.
-        if !on_tower && !all_travel && self.city_at(to).is_some() {
-            return Err(MoveError::CannotShiftPlane);
-        }
-        // Every unit must be able to stand on the other plane's tile.
-        let flies = self.stack_traits(units);
-        for &u in units {
-            if self.unit_moves_left(u) == 0 {
-                return Err(MoveError::NoMovesLeft);
-            }
-            self.step_cost(u, to, to, flies)
-                .map_err(|_| MoveError::CannotShiftPlane)?;
-        }
-        Ok(to)
     }
 
     /// Move the stack to the same tile on the other plane, costing one full move.
     pub fn shift_plane(&mut self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
-        let to = self.can_shift_plane(units)?;
+        let to = self.economy().can_shift_plane(units)?;
         let (_, owner) = self.check_stack(units)?;
         if self.hostile_at(to, owner).is_some() {
             return Err(MoveError::CannotShiftPlane);

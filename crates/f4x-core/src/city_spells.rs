@@ -146,18 +146,12 @@ impl Game {
 
     /// The realms the city is warded against.
     pub fn city_wards(&self, city: hecs::Entity) -> Vec<String> {
-        if !self.city_has_enchantment(city, "spell_ward") {
-            return Vec::new();
-        }
-        self.world
-            .get::<&SpellWards>(city)
-            .map(|w| w.0.clone())
-            .unwrap_or_default()
+        self.economy().city_wards(city)
     }
 
     /// Whether the city is warded against spells of `realm` (a realm's id).
     pub fn city_warded_against(&self, city: hecs::Entity, realm: &str) -> bool {
-        self.city_wards(city).iter().any(|w| w == realm)
+        self.economy().city_warded_against(city, realm)
     }
 
     /// Whether a Spell Ward against `realm` can be put on the city: it is one of the five realms
@@ -171,15 +165,7 @@ impl Game {
     /// summoned one) of a realm the city is warded against. The help says "any": the owner's own
     /// creatures too. (Not in the original's code, which never reads the wards for movement.)
     pub fn ward_bars_creature(&self, city: hecs::Entity, unit: hecs::Entity) -> bool {
-        use crate::rules::UnitKind;
-        let Some(def) = self.unit_def(unit) else {
-            return false;
-        };
-        matches!(def.kind, UnitKind::Fantastic | UnitKind::Summoned)
-            && def
-                .realm
-                .as_deref()
-                .is_some_and(|r| self.city_warded_against(city, r))
+        self.economy().ward_bars_creature(city, unit)
     }
 
     /// Whether every realm a Spell Ward can name is warded already.
@@ -263,6 +249,39 @@ impl Economy<'_> {
     /// on the city and its owner cannot use death magic.
     pub(crate) fn evil_presence_active(&self, city: hecs::Entity) -> bool {
         self.city_has_enchantment(city, "evil_presence") && !self.evil_presence_is_wasted_on(city)
+    }
+}
+
+impl Economy<'_> {
+    /// The realms the city is warded against.
+    pub fn city_wards(&self, city: hecs::Entity) -> Vec<String> {
+        if !self.city_has_enchantment(city, "spell_ward") {
+            return Vec::new();
+        }
+        self.world
+            .get::<&SpellWards>(city)
+            .map(|w| w.0.clone())
+            .unwrap_or_default()
+    }
+
+    /// Whether the city is warded against spells of `realm` (a realm's id).
+    pub fn city_warded_against(&self, city: hecs::Entity, realm: &str) -> bool {
+        self.city_wards(city).iter().any(|w| w == realm)
+    }
+
+    /// Whether a Spell Ward on the city keeps the unit out: it is a fantastic creature (or a
+    /// summoned one) of a realm the city is warded against. The help says "any": the owner's own
+    /// creatures too. (Not in the original's code, which never reads the wards for movement.)
+    pub fn ward_bars_creature(&self, city: hecs::Entity, unit: hecs::Entity) -> bool {
+        use crate::rules::UnitKind;
+        let Some(def) = self.units().unit_def(unit) else {
+            return false;
+        };
+        matches!(def.kind, UnitKind::Fantastic | UnitKind::Summoned)
+            && def
+                .realm
+                .as_deref()
+                .is_some_and(|r| self.city_warded_against(city, r))
     }
 }
 
