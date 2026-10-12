@@ -51,6 +51,9 @@ pub struct Combatant {
     pub sees_through: bool,
 }
 
+/// What a large shield adds to the defence against ranged, thrown and breath attacks.
+pub const LARGE_SHIELD: i32 = 2;
+
 /// What a defending unit contributes to the rolls, and the damage it has taken.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DefenderState {
@@ -76,9 +79,21 @@ pub struct DefenderState {
     pub front_damage: i32,
     /// Blur is on it: each point of damage may miss.
     pub blur: bool,
+    /// It carries a large shield: +2 defence against every attack but a melee blow.
+    pub large_shield: bool,
 }
 
 impl DefenderState {
+    /// The defence it rolls before immunities against an attack of this `mode`.
+    fn defense_against(&self, mode: Mode) -> i32 {
+        self.defense
+            + if self.large_shield && mode != Mode::Melee {
+                LARGE_SHIELD
+            } else {
+                0
+            }
+    }
+
     /// Hit points left over all figures.
     pub fn hit_points(&self) -> i32 {
         if self.figures == 0 {
@@ -265,7 +280,7 @@ pub fn process_attack(
         return total;
     }
     let defense = effective_defense(
-        def.defense,
+        def.defense_against(attacker.mode),
         &def.immunities,
         &attacker.nature,
         attacker.mode,
@@ -374,7 +389,7 @@ pub fn spell_attack(
         return Damage::default();
     }
     let defense = effective_defense(
-        def.defense,
+        def.defense_against(attacker.mode),
         &def.immunities,
         &attacker.nature,
         attacker.mode,

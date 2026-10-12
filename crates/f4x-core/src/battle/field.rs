@@ -278,9 +278,9 @@ impl Battle {
         for u in self
             .units
             .iter_mut()
-            .filter(|u| u.side == victim && u.is_active() && u.ranged_kind == RangedKind::Magic)
+            .filter(|u| u.side == victim && u.is_active())
         {
-            u.ammo = (u.ammo - 1).max(0);
+            u.leak_mana(MANA_LEAK_DRAIN);
         }
         vec![BattleEvent::ManaLeaked { side: victim }]
     }
@@ -385,7 +385,23 @@ impl Battle {
                 let u = &mut self.units[id];
                 u.moves_left = u.moves_left.saturating_sub(2);
             }
+            events.extend(self.regenerate(id));
         }
         events
+    }
+
+    /// A regenerating unit (the ability, or the Regeneration spell) heals one hit as its side's
+    /// turn begins.
+    fn regenerate(&mut self, id: usize) -> Option<BattleEvent> {
+        let u = &mut self.units[id];
+        if !u.regenerates() {
+            return None;
+        }
+        let before = u.hit_points();
+        let mut state = u.defender_state();
+        state.heal(1);
+        u.set_from(&state);
+        let healed = u.hit_points() - before;
+        (healed > 0).then_some(BattleEvent::SpellHealed { unit: id, healed })
     }
 }

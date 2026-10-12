@@ -2279,3 +2279,282 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::Fled { .. }))));
 }
+
+// ---- combat ability rules (task 37), spell shots (38), after the battle (42) -------------
+
+#[test]
+fn a_large_shield_turns_missiles_but_not_blows() {
+    let archer = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "archer", 6, 1, 1, 1).at((3, 10));
+        u.ranged = 5;
+        u.ammo = 4;
+        u.ranged_kind = RangedKind::Missile;
+        with_abilities(u, &["bow"])
+    };
+    let swordsman = || BattleUnit::simple(Side::Attacker, "swordsman", 6, 2, 4, 2).at((3, 10));
+    let target = |shield: bool| move || dummy(if shield { &["large_shield"] } else { &[] });
+    let open = damage_over_seeds(archer, target(false), true);
+    let shielded = damage_over_seeds(archer, target(true), true);
+    assert!(shielded * 4 < open * 3, "{shielded} vs {open}");
+    // Two more dice of defence do not touch a melee blow.
+    let open = damage_over_seeds(swordsman, target(false), false);
+    let shielded = damage_over_seeds(swordsman, target(true), false);
+    assert_eq!(open, shielded);
+}
+
+fn caster(abilities: &[&str], mana: i32, ammo: i32) -> BattleUnit {
+    let mut u = BattleUnit::simple(Side::Attacker, "caster", 3, 2, 3, 2).at((3, 10));
+    u.ranged = 6;
+    u.ranged_kind = RangedKind::Magic;
+    u.mana = mana;
+    u.ammo = ammo;
+    with_abilities(u, abilities)
+}
+
+#[test]
+fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() {
+    let mut b = duel(
+        caster(&["fireball_attack", "spellcaster"], 20, 6),
+        dummy(&[]),
+        1,
+    );
+    b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
+        .unwrap();
+    let u = b.unit(0).unwrap();
+    assert_eq!((u.mana, u.ammo), (17, 5), "three mana a shot");
+    // Mana leak takes five mana, which is another shot and a half.
+    b.units[0].leak_mana(5);
+    let u = b.unit(0).unwrap();
+    assert_eq!((u.mana, u.ammo), (12, 4));
+    // With no mana left it cannot shoot.
+    b.units[0].leak_mana(100);
+    assert_eq!((b.unit(0).unwrap().mana, b.unit(0).unwrap().ammo), (0, 0));
+    // A unit with spell shots but no mana of its own simply loses one.
+    let mut plain = caster(&["fireball_attack"], 0, 3);
+    plain.leak_mana(5);
+    assert_eq!((plain.mana, plain.ammo), (0, 2));
+    plain.ranged_kind = RangedKind::Missile;
+    plain.leak_mana(5);
+    assert_eq!(plain.ammo, 2, "arrows are not spell shots");
+}
+
+#[test]
+fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() {
+    let mut hurt = dummy(&["regeneration"]);
+    hurt.front_damage = 5;
+    let mut b = duel(spearman(Side::Attacker, (3, 10)), hurt, 1);
+    let before = b.unit(1).unwrap().hit_points();
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+    // Not on the other side's turn.
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+    // The Regeneration spell grants the same ability.
+    let mut under_spell = dummy(&[]);
+    under_spell.front_damage = 5;
+    under_spell.abilities.push("regeneration".into());
+    let mut b = duel(spearman(Side::Attacker, (3, 10)), under_spell, 1);
+    let before = b.unit(1).unwrap().hit_points();
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+}
+
+fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
+    let mut g = game();
+    let mut units = g.content.rules.units.defs().to_vec();
+    for u in units.iter_mut().filter(|u| u.id == unit_id) {
+        u.kind = crate::rules::UnitKind::Normal;
+        u.abilities.extend(abilities.iter().map(|a| a.to_string()));
+    }
+    g.content.rules.units = crate::rules::Registry::new(units);
+    for (id, name) in [(A, "A"), (D, "D")] {
+        g.players.push(crate::player::Player::new(id, name));
+    }
+    g
+}
+
+#[test]
+fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() {
+    let mut g = game_with_abilities("walker", &["lucky"]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let d = g.spawn_unit(D, at(5, 4), walker);
+    let plain = {
+        let mut other = game();
+        let w = other.content.rules.units.id_of("walker").unwrap();
+        let u = other.spawn_unit(A, at(4, 4), w);
+        let d = other.spawn_unit(D, at(5, 4), w);
+        other.apply(Command::BeginBattle {
+            attackers: vec![u],
+            defenders: vec![d],
+        });
+        other.battle().unwrap().unit(0).unwrap().clone()
+    };
+    g.apply(Command::BeginBattle {
+        attackers: vec![a],
+        defenders: vec![d],
+    });
+    let lucky = g.battle().unwrap().unit(0).unwrap();
+    assert_eq!(lucky.to_hit, plain.to_hit + 1);
+    assert_eq!(lucky.to_block, plain.to_block + 1);
+    assert_eq!(lucky.resistance, plain.resistance + 1);
+}
+
+/// Start a battle of `attackers` against `defenders` walkers, then mark the units in `dead`
+/// (attacker indexes, then defender indexes counted from the attackers' end) as slain and end
+/// the turn so that the battle finds its winner.
+fn finish_with_dead(
+    g: &mut Game,
+    attackers: &[hecs::Entity],
+    defenders: &[hecs::Entity],
+    dead: &[usize],
+) -> Vec<Event> {
+    g.apply(Command::BeginBattle {
+        attackers: attackers.to_vec(),
+        defenders: defenders.to_vec(),
+    });
+    let b = &mut g.battle.as_mut().unwrap().battle;
+    for &i in dead {
+        b.units[i].figures = 0;
+        b.units[i].status = Status::Dead;
+    }
+    g.apply(Command::Battle(BattleCommand::EndTurn))
+}
+
+#[test]
+fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() {
+    let mut g = game_with_abilities("walker", &[]);
+    let mut units = g.content.rules.units.defs().to_vec();
+    let mut troll = units.iter().find(|u| u.id == "walker").unwrap().clone();
+    troll.id = "troll".into();
+    troll.abilities.push("regeneration".into());
+    units.push(troll);
+    g.content.rules.units = crate::rules::Registry::new(units);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let troll = g.content.rules.units.id_of("troll").unwrap();
+    let alive = g.spawn_unit(A, at(4, 4), walker);
+    let slain_troll = g.spawn_unit(A, at(4, 4), troll);
+    let hurt_troll = g.spawn_unit(A, at(4, 4), troll);
+    let slain_walker = g.spawn_unit(A, at(4, 4), walker);
+    let foe = g.spawn_unit(D, at(5, 4), walker);
+    g.world
+        .insert_one(hurt_troll, crate::units::Hurt(4))
+        .unwrap();
+    let events = finish_with_dead(
+        &mut g,
+        &[alive, slain_troll, hurt_troll, slain_walker],
+        &[foe],
+        &[1, 3, 4],
+    );
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::BattleEnded { winner, .. } if *winner == A)));
+    assert!(g.world.contains(alive));
+    assert!(!g.world.contains(slain_walker), "the dead stay dead");
+    assert!(g.world.contains(slain_troll), "regeneration brings it back");
+    assert_eq!(
+        g.world.get::<&crate::units::Hurt>(slain_troll).unwrap().0,
+        0
+    );
+    assert_eq!(g.world.get::<&crate::units::Hurt>(hurt_troll).unwrap().0, 0);
+    assert_eq!(g.unit_position(slain_troll), Some(at(5, 4)), "and moves in");
+}
+
+#[test]
+fn a_regenerating_unit_that_loses_stays_dead() {
+    let mut g = game_with_abilities("walker", &[]);
+    let mut units = g.content.rules.units.defs().to_vec();
+    let mut troll = units.iter().find(|u| u.id == "walker").unwrap().clone();
+    troll.id = "troll".into();
+    troll.abilities.push("regeneration".into());
+    units.push(troll);
+    g.content.rules.units = crate::rules::Registry::new(units);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let troll = g.content.rules.units.id_of("troll").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), troll);
+    let d = g.spawn_unit(D, at(5, 4), walker);
+    finish_with_dead(&mut g, &[a], &[d], &[0]);
+    assert!(!g.world.contains(a));
+}
+
+#[test]
+fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
+    let mut g = game_with_abilities("walker", &[]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let fallen = g.spawn_unit(A, at(4, 4), walker);
+    let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.player_mut(A).unwrap().fame = 3;
+    let events = finish_with_dead(&mut g, &[a, fallen], &foes, &[1, 2, 3, 4, 5]);
+    assert!(g.world.contains(a));
+    // Four dead enemies: 2 each. The fallen of its own side give nothing, nor does it gain.
+    let xp = g.world.get::<&crate::units::Experience>(a).unwrap().0;
+    assert_eq!(xp, 8);
+    assert_eq!(g.player(A).unwrap().fame, 4);
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::BattleSpoils { player, experience: 8, fame: 1 } if *player == A
+    )));
+}
+
+#[test]
+fn fewer_than_four_kills_give_experience_but_no_fame() {
+    let mut g = game_with_abilities("walker", &[]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
+    assert_eq!(g.world.get::<&crate::units::Experience>(a).unwrap().0, 4);
+    assert_eq!(g.player(A).unwrap().fame, 0);
+}
+
+#[test]
+fn a_very_rare_foe_is_worth_a_point_of_fame() {
+    let mut g = game_with_abilities("walker", &[]);
+    let mut units = g.content.rules.units.defs().to_vec();
+    for u in units.iter_mut().filter(|u| u.id == "walker") {
+        u.cost = 600;
+    }
+    g.content.rules.units = crate::rules::Registry::new(units);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let d = g.spawn_unit(D, at(5, 4), walker);
+    g.player_mut(D).unwrap().fame = 5;
+    finish_with_dead(&mut g, &[a], &[d], &[1]);
+    assert_eq!(g.player(A).unwrap().fame, 1);
+    assert_eq!(
+        g.player(D).unwrap().fame,
+        5,
+        "no hero fell, so the loser keeps its fame"
+    );
+}
+
+#[test]
+fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back() {
+    let mut g = game_with_abilities("walker", &[]);
+    let mut units = g.content.rules.units.defs().to_vec();
+    for u in units.iter_mut().filter(|u| u.id == "walker") {
+        u.kind = crate::rules::UnitKind::Hero;
+    }
+    g.content.rules.units = crate::rules::Registry::new(units);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    // The first foe is a Veteran (level 1): half of 1 + 1 is 1.
+    g.world
+        .insert_one(foes[0], crate::units::Experience(20))
+        .unwrap();
+    g.player_mut(D).unwrap().fame = 25;
+    g.human = Some(D);
+    finish_with_dead(&mut g, &[a], &foes, &[1, 2, 3, 4]);
+    // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
+    assert_eq!(g.player(D).unwrap().fame, 23);
+    // A hero's level 0 costs nothing.
+    let mut g2 = game_with_abilities("walker", &[]);
+    let walker = g2.content.rules.units.id_of("walker").unwrap();
+    let a = g2.spawn_unit(A, at(4, 4), walker);
+    let d = g2.spawn_unit(D, at(5, 4), walker);
+    g2.player_mut(D).unwrap().fame = 5;
+    finish_with_dead(&mut g2, &[a], &[d], &[1]);
+    assert_eq!(g2.player(D).unwrap().fame, 5);
+}

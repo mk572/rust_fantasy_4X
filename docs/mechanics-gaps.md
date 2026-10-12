@@ -83,12 +83,10 @@ diplomacy, AI, random events, victory and score.
   stoning, cause death, destruction, power drain, dispel evil [429-439].
 - All immunities with their specific rules (weapon immunity: 10 defence vs magic; magic
   immunity: 50; missiles; fire; cold; poison; stoning; death; illusion) [412-420].
-- Ability rules: large shield +2 vs ranged, wall crusher 50%, healer 25% after combat,
-  invisibility, long range, regeneration (1/turn, full after combat, revives if won),
-  luck +1 to every roll, negate first strike, create/summon undead and demons, planar
-  travel, undead rules (no healing, +50% upkeep for fantastic undead) [396-427, 552-553].
-- Ranged ammunition (quiver refills after combat), magical ranged "spell shots", mana
-  leak [542, 491].
+- Ability rules still open: create/summon undead and demons, planar travel, undead rules (no
+  healing, +50% upkeep for fantastic undead) [402, 552-553]. Large shield, wall crusher,
+  healer, invisibility, long range, regeneration, luck, negate first strike, mana leak, the
+  quiver and the casters' spell shots are done (tasks 37, 38).
 - Experience gain and the original's level bonuses (tasks 173, 174). Warlord, Crusade, Heroism and the Armsmaster training are done (task 27, `experience.rs`).
 - Heroes: 13 hero abilities with levels and "super" versions; item slots by hero type
   (sword/bow/staff/armor/misc); item powers, charges, anvil to scrap items, hiring,

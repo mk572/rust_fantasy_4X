@@ -673,6 +673,7 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
 UNIT_ENCHANT_MODS = {
     # Heroism lifts the unit to Elite (`Game::unit_level`).
     "Heroism": [],
+    "Regeneration": [("Grant", "regeneration")],
     "Giant Strength": [("Melee", "Add", 1)],
     "Stone Skin": [("Defense", "Add", 1)],
     "Iron Skin": [("Defense", "Add", 5)],
@@ -1126,6 +1127,9 @@ HELP_CORRECTIONS = [
      "the code applies -1 to hit against invisible units"),
     (564, "enemy units by -2.", "enemy units by -1.",
      "the code applies -1 to hit against invisible units"),
+    (401, "Invisibility makes the unit susceptible only to ranged attacks when adjacent to an enemy, and otherwise reduces the attacker's chance to hit by 1.",
+     "Invisibility reduces the attacker's chance to hit the unit by 1.",
+     "the code only takes 1 off the attacker's chance to hit; melee is not restricted"),
     (37, "between any two of the casting wizard's cities equipped with earth gates",
      "between any two of the casting wizard's cities on the same plane equipped with earth gates",
      "the original's code and this game only link cities on the same plane"),

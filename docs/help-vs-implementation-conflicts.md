@@ -40,6 +40,7 @@ Written in our own words; nothing here is copied from either source.
 | B21 Disenchant | Dispels only other wizards' enchantments, by the usual chance (`dispel.rs`, task 59); the code's always-succeeding roll and its test against the caster are not followed. |
 | B27 Holy Word | The undead get an extra -5 to resist it, as the help says (the original has it reversed). |
 | B28 Crusade | Raises heroes as well as normal units, as the original code does; the help says "normal units". Not for the undead or creatures. |
+| B29 Invisibility [401] | The unit takes 1 off the attacker's chance to hit (an attacker immune to illusions ignores it), as the original's code does. The help also says the unit "is susceptible only to ranged attacks when adjacent to an enemy"; that is not built. |
 
 ### Decided by rule 2 (ReMoM to-do)
 | # | Decision |
@@ -131,6 +132,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B26 | Chaos Rift [110] | five strength 8 lightning bolts on each unit in the city each turn, 5% chance a building is destroyed | the turn code for it is a stub (`CTY_ChaosRift`); only the outpost shrink chance (+10) exists | Check | done (task 25) as the help says | Follow the help (done). |
 | B27 | Holy Word [spell text] | the undead have a much more difficult time resisting it | the code's extra penalty for the undead is applied the wrong way round (as a bonus to their resistance), so the undead resist better | Check | done (task 29): the undead get an extra -5, as the help says (`undead_penalty`, `battle/spells.rs`) | Follow the help. |
 | B28 | Crusade [622] | raises the levels of "normal units" | `Calc_Unit_Level` and the battle code raise every non-fantastic unit that is not undead, heroes too | Check | heroes get the extra level (task 27, `unit_level`) | Follow the code; the help's wording is loose. |
+| B29 | Invisibility ability [401] | the unit can only be hit by ranged attacks when adjacent to an enemy, and otherwise the attacker's to-hit is lowered by 1 | `BU_ProcessAttack` only subtracts 1 from the attacker's to-hit when the defender is invisible (ability or spell) and the attacker is not immune to illusions; nothing limits melee | Verified | the code's rule (task 37, `invisibility_penalty` in `battle/mod.rs`); melee is not restricted; help [401] corrected via `HELP_CORRECTIONS` | Follow the code. |
 
 ## C. The help contradicts itself
 

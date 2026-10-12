@@ -53,7 +53,28 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
   it throws or breathes.
 - **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
 
-Not yet (task 37 and later): large shield, the spell shots using mana, haste, blur, fear.
+Ability rules (task 37): **large shield** adds 2 to the defence against anything but a melee blow
+(arrows, thrown weapons, breath, spell shots and damage spells; before armour piercing halves it).
+**Lucky** adds 1 to hit, to block and to resistance in battle. **Regeneration** (the ability, or
+the Regeneration spell, which grants it) heals one hit as the unit's side's turn begins, heals the
+unit fully after the fight and brings back a slain one (not drained or destroyed) if its side won.
+
+**Spell shots** (task 38): ammunition is taken from the unit definition for each battle, so the
+quiver is full again after every fight. A spell caster (`spellcaster` 20 mana, `spellcaster_major`
+40) with a magical ranged attack shoots with its mana instead, 3 a shot (`BattleUnit::mana`,
+`shoots_with_mana`; shots = mana / 3). Mana Leak takes 5 mana from each unit and one shot from a
+unit with spell shots but no mana. Heroes' mana waits for task 51.
+
+Not yet: haste, fear.
+
+### After the battle (task 42, `battle/spoils.rs`)
+
+Each of the winner's surviving normal units and heroes gains 2 xp for every enemy unit that died
+(summoned ones too; fled ones give nothing), up to the last level experience gives. The winner
+gains 1 fame for four or more kills and 1 for a very rare foe (an enemy unit of cost 600 or
+more); the loser loses `(level + 1) / 2` fame for each hero it lost, and a human loser with more
+than 20 fame loses one more when the winner got the four-kill point (the original's rule). A
+neutral winner gets nothing. The fallen heroes' items are loot in the original (task 49).
 
 ### 2.1 Immunities and resistance (task 35)
 

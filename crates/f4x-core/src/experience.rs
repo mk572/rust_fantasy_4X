@@ -12,7 +12,7 @@
 //!
 //! Every living normal unit and hero also gains 1 xp each turn, up to the last level experience
 //! gives (Elite; a hero's Demi-god): `Do_All_Units_XP_Check` in the original. Creatures and the
-//! undead gain none. Battle experience is not in the game yet (task 42).
+//! undead gain none. A won battle gives xp too (`battle/spoils.rs`).
 
 use crate::city::{PlayerId, Position};
 use crate::rules::UnitKind;
@@ -36,8 +36,9 @@ impl Game {
         (self.unit_level(hero) as u32 + 1) * per_level
     }
 
-    /// One xp for a living normal unit or hero, up to what experience can give.
-    fn gain_turn_xp(&mut self, unit: hecs::Entity) {
+    /// `amount` xp for a living normal unit or hero (not the undead, not creatures), up to what
+    /// experience can give: the turn's one point, or a won battle's share (`battle/spoils.rs`).
+    pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
         let Some(def) = self.unit_def(unit) else {
             return;
         };
@@ -55,14 +56,16 @@ impl Game {
         };
         let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
         if xp < cap {
-            let _ = self.world.insert_one(unit, Experience(xp + 1));
+            let _ = self
+                .world
+                .insert_one(unit, Experience((xp + amount).min(cap)));
         }
     }
 
     pub(crate) fn process_experience(&mut self) {
         let units = self.all_units();
         for &unit in &units {
-            self.gain_turn_xp(unit);
+            self.gain_xp(unit, 1);
         }
         if let Some(heroism) = self.content.rules.spells.id_of(HEROISM) {
             for &unit in &units {

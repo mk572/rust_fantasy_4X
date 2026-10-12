@@ -1607,6 +1607,8 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
     let mut g = casting_siege(&["high_prayer"]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     let defense = g.battle().unwrap().unit(mine).unwrap().defense;
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    let enemy_block = g.battle().unwrap().unit(enemy).unwrap().to_block;
     let r = cast(&mut g, "bcast high prayer");
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("raises High Prayer"), "{}", r.text());
@@ -1616,8 +1618,10 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
     // Not again; and the enemy's units are not blessed.
     pass_turn(&mut g);
     assert!(!cast(&mut g, "bcast high prayer").ok);
-    let enemy = battle_units_of(&g, Side::Defender)[0];
-    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().to_block, 0);
+    assert_eq!(
+        g.battle().unwrap().unit(enemy).unwrap().to_block,
+        enemy_block
+    );
 }
 
 #[test]
@@ -2120,4 +2124,18 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
     assert_eq!(g.unit_owner(drained_unit), Some(rival));
     assert!(g.unit_is_undead(drained_unit));
     assert!(g.world.contains(drained_unit) && !g.world.contains(slain_unit));
+}
+
+#[test]
+fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&["regeneration"]);
+    let mine = battle_units_of(&g, Side::Attacker)[0];
+    g.battle.as_mut().unwrap().battle.units[mine].front_damage = 1;
+    let r = cast(&mut g, &format!("bcast regeneration unit:{mine}"));
+    assert!(r.ok, "{}", r.text());
+    let before = g.battle().unwrap().unit(mine).unwrap().hit_points();
+    pass_turn(&mut g);
+    let after = g.battle().unwrap().unit(mine).unwrap().hit_points();
+    assert_eq!(after, before + 1);
 }

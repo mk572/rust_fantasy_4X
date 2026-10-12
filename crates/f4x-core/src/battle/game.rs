@@ -144,6 +144,19 @@ impl Game {
         let physical_shot = ranged_kind == RangedKind::Missile || has("thrown");
         let melee = self.unit_stat(unit, Stat::Melee);
         let ranged = self.unit_stat(unit, Stat::Ranged);
+        // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
+        let mana = if has("spellcaster_major") {
+            40
+        } else if has("spellcaster") {
+            20
+        } else {
+            0
+        };
+        let lucky = i32::from(has("lucky"));
+        let mut ammo = self.unit_stat(unit, Stat::Ammo);
+        if ranged_kind == RangedKind::Magic && mana > 0 {
+            ammo = mana / super::SHOT_MANA;
+        }
         Some(BattleUnit {
             id: 0,
             side,
@@ -158,16 +171,17 @@ impl Game {
                 ranged
             },
             defense: self.unit_stat(unit, Stat::Defense) + if quality > 0 { extra } else { 0 },
-            resistance: self.unit_stat(unit, Stat::Resistance),
-            to_hit: self.unit_stat(unit, Stat::ToHit) / 10,
-            to_block: 0,
+            resistance: self.unit_stat(unit, Stat::Resistance) + lucky,
+            to_hit: self.unit_stat(unit, Stat::ToHit) / 10 + lucky,
+            to_block: lucky,
             hits,
             figures_start: figures,
             figures: alive,
             front_damage: alive as i32 * hits - current,
             moves: self.unit_max_moves(unit),
             moves_left: self.unit_max_moves(unit),
-            ammo: self.unit_stat(unit, Stat::Ammo),
+            ammo,
+            mana,
             ranged_kind,
             flies,
             first_strike: has("first_strike"),
@@ -324,6 +338,15 @@ impl Game {
             site,
         } = active;
         let mut events = Vec::new();
+        let spoils = self.battle_spoils(&battle, &sources);
+        let survivors: Vec<hecs::Entity> = battle
+            .units
+            .iter()
+            .filter(|u| {
+                Some(u.side) == battle.winner && (u.status == Status::Active || revived(&battle, u))
+            })
+            .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
+            .collect();
         // Units drained to death on the losing side join the winner as undead, in a fight at a
         // lair as on the map.
         let mut drained = Vec::new();
@@ -331,7 +354,13 @@ impl Game {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
             };
-            if u.status == Status::Dead {
+            // Regeneration heals the unit completely after the fight, and brings back one that
+            // was slain (not drained or destroyed) if its side won.
+            let regenerates = u.regenerates();
+            let revived = revived(&battle, u);
+            if regenerates && (revived || u.status != Status::Dead) {
+                let _ = self.world.insert_one(entity, Hurt(0));
+            } else if u.status == Status::Dead {
                 if self.is_raised_by(&battle, u, entity) {
                     drained.push(entity);
                 } else {
@@ -353,6 +382,7 @@ impl Game {
                 loser: battle.player_of(side.other()),
             });
         }
+        events.extend(self.give_spoils(&battle, &spoils, &survivors));
         if site.is_none() {
             // A city that held against a wizard's attack costs the attacker its owner's goodwill.
             if let (Some(Side::Defender), Some(pos)) = (battle.winner, battle.site) {
@@ -497,7 +527,9 @@ impl Game {
         let movers: Vec<hecs::Entity> = battle
             .units
             .iter()
-            .filter(|u| u.side == Side::Attacker && u.status == Status::Active)
+            .filter(|u| {
+                u.side == Side::Attacker && (u.status == Status::Active || revived(battle, u))
+            })
             .filter_map(source_of)
             .filter(|&u| self.unit_position(u).is_some())
             .collect();
@@ -561,4 +593,13 @@ impl Game {
         }
         events
     }
+}
+
+/// A unit that regenerates and was slain comes back to life if its side won (a unit drained or
+/// destroyed does not).
+fn revived(battle: &Battle, u: &BattleUnit) -> bool {
+    u.status == Status::Dead
+        && u.regenerates()
+        && battle.winner == Some(u.side)
+        && u.fate() == super::Fate::Slain
 }

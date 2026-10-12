@@ -19,6 +19,7 @@ pub mod legal;
 pub mod map;
 pub mod special;
 pub mod spells;
+pub mod spoils;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -94,6 +95,9 @@ pub enum Fate {
     Gone,
 }
 
+/// The mana a spell shot costs a caster unit.
+pub const SHOT_MANA: i32 = 3;
+
 /// One unit in a battle, with the statistics it fights with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleUnit {
@@ -121,7 +125,11 @@ pub struct BattleUnit {
     /// Half-moves per turn and left this turn.
     pub moves: u32,
     pub moves_left: u32,
+    /// Shots left. A spell caster with a magical ranged attack shoots with its mana instead
+    /// (`SHOT_MANA` a shot): its shots are what its mana pays for.
     pub ammo: i32,
+    /// The mana of a spell caster unit (20, or 40 for a major one).
+    pub mana: i32,
     pub ranged_kind: RangedKind,
     pub flies: bool,
     pub first_strike: bool,
@@ -186,6 +194,7 @@ impl BattleUnit {
             moves: 2 * OPEN_COST,
             moves_left: 2 * OPEN_COST,
             ammo: 0,
+            mana: 0,
             ranged_kind: RangedKind::None,
             flies: false,
             first_strike: false,
@@ -275,6 +284,7 @@ impl BattleUnit {
             figures: self.figures,
             front_damage: self.front_damage,
             blur: self.field.blur,
+            large_shield: self.has("large_shield"),
         }
     }
 
@@ -288,6 +298,40 @@ impl BattleUnit {
 
     pub fn has(&self, ability: &str) -> bool {
         self.abilities.iter().any(|a| a == ability)
+    }
+
+    /// Whether the unit regenerates: the ability, or the Regeneration spell, which grants it.
+    pub fn regenerates(&self) -> bool {
+        self.has("regeneration")
+    }
+
+    /// Whether the unit's spell shots are paid for with its mana: a spell caster with a magical
+    /// ranged attack (the original's rule for casters and heroes).
+    pub fn shoots_with_mana(&self) -> bool {
+        self.ranged_kind == RangedKind::Magic
+            && (self.has("spellcaster") || self.has("spellcaster_major"))
+    }
+
+    /// Use up one shot (and the mana it costs a caster).
+    fn spend_shot(&mut self) {
+        self.ammo -= 1;
+        if self.shoots_with_mana() {
+            self.mana = (self.mana - SHOT_MANA).max(0);
+            self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+        }
+    }
+
+    /// Mana Leak: a caster loses `field::MANA_LEAK_DRAIN` mana; any unit with spell shots loses
+    /// one (a caster's shots follow its mana).
+    pub(super) fn leak_mana(&mut self, drain: i32) {
+        self.mana = (self.mana - drain).max(0);
+        if self.ranged_kind == RangedKind::Magic {
+            if self.shoots_with_mana() {
+                self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+            } else {
+                self.ammo = (self.ammo - 1).max(0);
+            }
+        }
     }
 
     fn special_attacks(&self) -> SpecialAttacks {
@@ -443,6 +487,7 @@ pub enum BattleEvent {
     SpellImmune {
         unit: usize,
     },
+    /// A healing spell mended the unit, or it regenerated.
     SpellHealed {
         unit: usize,
         healed: i32,
@@ -735,7 +780,7 @@ impl Battle {
         let u = &mut self.units[unit];
         u.attacked = true;
         if ranged {
-            u.ammo -= 1;
+            u.spend_shot();
         } else {
             u.moves_left = 0;
         }
@@ -1098,7 +1143,7 @@ impl Battle {
             mine.heal(dmg.healed);
             a.set_from(&mine);
         }
-        a.ammo -= 1;
+        a.spend_shot();
         a.attacked = true;
         let mut events = vec![BattleEvent::Shot {
             attacker: att,

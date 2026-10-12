@@ -225,6 +225,21 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *winner),
             player(game, *loser)
         ),
+        Event::BattleSpoils {
+            player: p,
+            experience,
+            fame,
+        } => {
+            let fame = if *fame > 0 {
+                format!(" and {fame} fame")
+            } else {
+                String::new()
+            };
+            format!(
+                "{}'s survivors gain {experience} experience{fame}",
+                player(game, *p)
+            )
+        }
         Event::UnitCreated { unit: u, .. } => format!("Created {}", unit(game, *u)),
         Event::UnitsMoved {
             units: us,

@@ -383,6 +383,12 @@ pub enum Event {
         player: city::PlayerId,
         units: u32,
     },
+    /// What a won battle gave the winner: experience for each of its surviving units, and fame.
+    BattleSpoils {
+        player: city::PlayerId,
+        experience: u32,
+        fame: i32,
+    },
     BattleEnded {
         winner: city::PlayerId,
         loser: city::PlayerId,
