@@ -131,6 +131,7 @@ So we **skip every piece of the original's code that exists only for AI parity**
 - **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** done. A save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
 - **Testing:** unit tests build synthetic content (`testutil`), so rules tests never depend on shipped data. Shipped data is validated in `f4x-data`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
+- **Where tests live:** unit tests stay in the file they test as a child module (`#[cfg(test)] mod tests`), so they can reach private items and are left out of release builds. When a file's test module goes over 300 lines (the size of the test module alone; the file's total size does not matter), the tests move to their own file next to it, still as a child module: `#[cfg(test)] mod tests;` in `foo.rs` and the tests in `foo/tests.rs` (`tests.rs` beside `mod.rs` or `lib.rs`). Tests that use only the public API go in the crate's `tests/` directory. Do not make items `pub` just to test them from another file.
 - **Performance:** not a concern except pathfinding and AI, which can be budgeted per turn.
 - **Lint and format:** `cargo fmt`, `cargo clippy -D warnings` in CI.
 

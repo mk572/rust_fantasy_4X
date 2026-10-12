@@ -23,7 +23,9 @@ fn source_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for path in entries {
         if path.is_dir() {
             source_files(&path, out);
-        } else if path.extension().is_some_and(|e| e == "rs") {
+        } else if path.extension().is_some_and(|e| e == "rs")
+            && path.file_name().is_some_and(|n| n != "tests.rs")
+        {
             out.push(path);
         }
     }
