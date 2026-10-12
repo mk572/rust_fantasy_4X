@@ -409,6 +409,130 @@ pub enum SiteError {
     Busy,
 }
 
+/// Clear the lair at `index` on the map: it stops being intact (a tower's twin on the other
+/// plane too), and an encounter site vanishes from the map (towers and nodes stay). Returns
+/// the lair as it was, with its treasure; `None` if there is none or it is cleared already.
+pub(crate) fn clear_site(map: &mut Map, content: &Content, index: usize) -> Option<Lair> {
+    let lair = map.lairs().get(index).cloned()?;
+    if !lair.intact {
+        return None;
+    }
+    let is_tower = lair.site == "tower";
+    for l in 0..map.lairs().len() {
+        let Some(other) = map.lair_mut(l) else {
+            continue;
+        };
+        let same = l == index
+            || (is_tower && other.site == "tower" && (other.x, other.y) == (lair.x, lair.y));
+        if same {
+            other.intact = false;
+        }
+    }
+    let is_encounter = content
+        .features
+        .id_of(&lair.site)
+        .and_then(|f| content.features.get(f).map(|d| d.kind))
+        == Some(FeatureKind::Encounter);
+    if is_encounter {
+        map.plane_mut(lair.plane).set_feature(lair.x, lair.y, None);
+    }
+    Some(lair)
+}
+
+/// A random spell of about `rarity` from a realm the wizard has no books in (arcane counts as
+/// such a realm), trying dearer rarities when the first has nothing new; the wizard learns it.
+/// The original's selection is muddled (ReMoM calls its index arithmetic wrong); this follows
+/// its intent.
+pub(crate) fn award_spell(
+    magic: &mut crate::magic::Magic,
+    content: &Content,
+    rng: &mut crate::rng::GameRng,
+    rarity: i32,
+) -> Option<SpellId> {
+    let mut realms: Vec<String> = ["nature", "sorcery", "chaos", "life", "death"]
+        .iter()
+        .filter(|r| magic.books.get(**r).copied().unwrap_or(0) == 0)
+        .map(|r| r.to_string())
+        .collect();
+    realms.push("arcane".to_string());
+    while !realms.is_empty() {
+        let r = rng.roll(realms.len() as u32) as usize - 1;
+        let realm = realms.remove(r);
+        for step in 0..4 {
+            let level = match (rarity + step).min(4) {
+                1 => Rarity::Common,
+                2 => Rarity::Uncommon,
+                3 => Rarity::Rare,
+                _ => Rarity::VeryRare,
+            };
+            let pool: Vec<SpellId> = crate::magic::spells_of(content, &realm, level)
+                .into_iter()
+                .filter(|s| !magic.known.contains(s))
+                .filter(|s| {
+                    !matches!(
+                        content.rules.spells.get(*s).id.as_str(),
+                        "spell_of_mastery" | "spell_of_return"
+                    )
+                })
+                .collect();
+            if !pool.is_empty() {
+                let spell = pool[rng.roll(pool.len() as u32) as usize - 1];
+                magic.researchable.remove(&spell);
+                magic.known.insert(spell);
+                return Some(spell);
+            }
+        }
+    }
+    None
+}
+
+/// Spell book and retort treasure: three times in four a book of the site's realm (never life
+/// with death or the reverse, nor past twelve books), otherwise a retort. A two-pick hoard
+/// gives a two-pick retort or two books. The original's version loops and awards oddly (its
+/// own comments call these bugs); this keeps the odds and the restrictions.
+pub(crate) fn award_special(
+    magic: &mut crate::magic::Magic,
+    rng: &mut crate::rng::GameRng,
+    lair: &Lair,
+    picks: i32,
+    loot: &mut Loot,
+) {
+    let realm = match lair.site.as_str() {
+        "nature_node" => "nature".to_string(),
+        "sorcery_node" => "sorcery".to_string(),
+        "chaos_node" => "chaos".to_string(),
+        s if s.contains("temple") => "life".to_string(),
+        "dungeon" | "abandoned_keep" | "ruins" => "death".to_string(),
+        _ => ["nature", "sorcery", "chaos", "life", "death"][rng.roll(5) as usize - 1].to_string(),
+    };
+    let wants_retort = rng.roll(100) > 75;
+    if wants_retort {
+        let double = |r| retort_cost(r) == 2;
+        let options: Vec<_> = ALL_RETORTS
+            .iter()
+            .copied()
+            .filter(|r| !magic.has(*r) && retort_available(*r, &magic.books))
+            .filter(|r| *r != crate::magic::Retort::Myrran)
+            .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
+            .collect();
+        if !options.is_empty() {
+            let r = options[rng.roll(options.len() as u32) as usize - 1];
+            magic.retorts.insert(r);
+            loot.retorts.push(r);
+            return;
+        }
+    }
+    for _ in 0..picks {
+        let clash = (realm == "life" && magic.books_in("death") > 0)
+            || (realm == "death" && magic.books_in("life") > 0);
+        if clash || magic.total_books() >= 12 {
+            continue;
+        }
+        *magic.books.entry(realm.clone()).or_insert(0) += 1;
+        loot.books.push(realm.clone());
+    }
+}
+
 impl Game {
     /// The intact lair on a square.
     pub fn lair_at(&self, pos: Position) -> Option<(usize, &Lair)> {
@@ -475,50 +599,17 @@ impl Game {
 
     /// Clear a lair and give `player` its treasure.
     pub(crate) fn claim_lair(&mut self, index: usize, player: PlayerId) -> Vec<Event> {
-        let Some(lair) = self
-            .map
-            .as_ref()
-            .and_then(|m| m.lairs().get(index))
-            .cloned()
-        else {
+        let Some(map) = self.map.as_mut() else {
             return Vec::new();
         };
-        if !lair.intact {
+        let Some(lair) = clear_site(map, &self.content, index) else {
             return Vec::new();
-        }
+        };
         let pos = Position {
             plane: lair.plane,
             x: lair.x,
             y: lair.y,
         };
-        // Clear it, and a tower's twin on the other plane.
-        if let Some(map) = self.map.as_mut() {
-            let is_tower = lair.site == "tower";
-            for l in (0..map.lairs().len()).collect::<Vec<_>>() {
-                let Some(other) = map.lair_mut(l) else {
-                    continue;
-                };
-                let same = l == index
-                    || (is_tower
-                        && other.site == "tower"
-                        && (other.x, other.y) == (lair.x, lair.y));
-                if same {
-                    other.intact = false;
-                }
-            }
-        }
-        // An encounter site vanishes from the map; towers and nodes stay.
-        let is_encounter = self
-            .content
-            .features
-            .id_of(&lair.site)
-            .and_then(|f| self.content.features.get(f).map(|d| d.kind))
-            == Some(FeatureKind::Encounter);
-        if is_encounter {
-            if let Some(map) = self.map.as_mut() {
-                map.plane_mut(lair.plane).set_feature(lair.x, lair.y, None);
-            }
-        }
         let mut loot = Loot {
             gold: lair.gold,
             mana: lair.mana,
@@ -526,17 +617,24 @@ impl Game {
             prisoner: lair.prisoner,
             ..Loot::default()
         };
-        if let Some(p) = self.player_mut(player) {
+        if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
             p.gold += lair.gold as i32;
             p.mana += lair.mana as i32;
-        }
-        match lair.special {
-            1..=4 => loot.spell = self.award_spell(player, i32::from(lair.special)),
-            5 | 6 => {
-                let picks = i32::from(lair.special) - 4;
-                self.award_special(player, &lair, picks, &mut loot);
+            match lair.special {
+                1..=4 => {
+                    loot.spell = award_spell(
+                        &mut p.magic,
+                        &self.content,
+                        &mut self.rng,
+                        i32::from(lair.special),
+                    )
+                }
+                5 | 6 => {
+                    let picks = i32::from(lair.special) - 4;
+                    award_special(&mut p.magic, &mut self.rng, &lair, picks, &mut loot);
+                }
+                _ => {}
             }
-            _ => {}
         }
         let mut events = vec![Event::SiteCleared { player, pos, loot }];
         if let Some(Event::SiteCleared { loot, .. }) = events.first() {
@@ -545,104 +643,6 @@ impl Game {
             }
         }
         events
-    }
-
-    /// A random spell of about `rarity` from a realm the wizard has no books in (arcane
-    /// counts as such a realm), trying dearer rarities when the first has nothing new. The
-    /// original's selection is muddled (ReMoM calls its index arithmetic wrong); this follows
-    /// its intent.
-    fn award_spell(&mut self, player: PlayerId, rarity: i32) -> Option<SpellId> {
-        let books = self.magic(player)?.books.clone();
-        let mut realms: Vec<String> = ["nature", "sorcery", "chaos", "life", "death"]
-            .iter()
-            .filter(|r| books.get(**r).copied().unwrap_or(0) == 0)
-            .map(|r| r.to_string())
-            .collect();
-        realms.push("arcane".to_string());
-        while !realms.is_empty() {
-            let r = self.roll(realms.len() as u32) as usize - 1;
-            let realm = realms.remove(r);
-            for step in 0..4 {
-                let level = match (rarity + step).min(4) {
-                    1 => Rarity::Common,
-                    2 => Rarity::Uncommon,
-                    3 => Rarity::Rare,
-                    _ => Rarity::VeryRare,
-                };
-                let known = self.magic(player)?.known.clone();
-                let pool: Vec<SpellId> = crate::magic::spells_of(&self.content, &realm, level)
-                    .into_iter()
-                    .filter(|s| !known.contains(s))
-                    .filter(|s| {
-                        !matches!(
-                            self.content.rules.spells.get(*s).id.as_str(),
-                            "spell_of_mastery" | "spell_of_return"
-                        )
-                    })
-                    .collect();
-                if !pool.is_empty() {
-                    let spell = pool[self.roll(pool.len() as u32) as usize - 1];
-                    if let Some(m) = self.magic_mut(player) {
-                        m.researchable.remove(&spell);
-                        m.known.insert(spell);
-                    }
-                    return Some(spell);
-                }
-            }
-        }
-        None
-    }
-
-    /// Spell book and retort treasure: three times in four a book of the site's realm (never
-    /// life with death or the reverse, nor past twelve books), otherwise a retort. A two-pick
-    /// hoard gives a two-pick retort or two books. The original's version loops and awards
-    /// oddly (its own comments call these bugs); this keeps the odds and the restrictions.
-    fn award_special(&mut self, player: PlayerId, lair: &Lair, picks: i32, loot: &mut Loot) {
-        let realm = match lair.site.as_str() {
-            "nature_node" => "nature".to_string(),
-            "sorcery_node" => "sorcery".to_string(),
-            "chaos_node" => "chaos".to_string(),
-            s if s.contains("temple") => "life".to_string(),
-            "dungeon" | "abandoned_keep" | "ruins" => "death".to_string(),
-            _ => ["nature", "sorcery", "chaos", "life", "death"][self.roll(5) as usize - 1]
-                .to_string(),
-        };
-        let wants_retort = self.roll(100) > 75;
-        if wants_retort {
-            let Some(m) = self.magic(player) else {
-                return;
-            };
-            let double = |r| retort_cost(r) == 2;
-            let options: Vec<_> = ALL_RETORTS
-                .iter()
-                .copied()
-                .filter(|r| !m.has(*r) && retort_available(*r, &m.books))
-                .filter(|r| *r != crate::magic::Retort::Myrran)
-                .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
-                .collect();
-            if !options.is_empty() {
-                let r = options[self.roll(options.len() as u32) as usize - 1];
-                if let Some(m) = self.magic_mut(player) {
-                    m.retorts.insert(r);
-                }
-                loot.retorts.push(r);
-                return;
-            }
-        }
-        for _ in 0..picks {
-            let Some(m) = self.magic(player) else {
-                return;
-            };
-            let clash = (realm == "life" && m.books_in("death") > 0)
-                || (realm == "death" && m.books_in("life") > 0);
-            if clash || m.total_books() >= 12 {
-                continue;
-            }
-            if let Some(m) = self.magic_mut(player) {
-                *m.books.entry(realm.clone()).or_insert(0) += 1;
-            }
-            loot.books.push(realm.clone());
-        }
     }
 
     /// After a battle at a site: the guards go, and a win clears the site.

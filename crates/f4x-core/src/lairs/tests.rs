@@ -355,7 +355,8 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     l.site = "dungeon".into();
     l.special = 5;
     let mut loot = Loot::default();
-    g.award_special(P0, &l, 1, &mut loot);
+    let p = g.players.iter_mut().find(|p| p.id == P0).unwrap();
+    award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
     assert!(
         !loot.books.contains(&"death".to_string()),
         "life and death exclude each other"
@@ -366,7 +367,8 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
-        g.award_special(P0, &l, 1, &mut loot);
+        let p = g.players.iter_mut().find(|p| p.id == P0).unwrap();
+        award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
         assert!(loot.books.iter().all(|b| b == "life"));
     }
@@ -672,4 +674,71 @@ fn lairs_survive_a_save() {
         back.map.as_ref().unwrap().lairs(),
         g.map.as_ref().unwrap().lairs()
     );
+}
+
+/// A map and content with a lair on it and no game.
+fn bare(lairs: Vec<Lair>) -> (Map, Content) {
+    let c = content();
+    let grass = c.terrains.id_of("grassland").unwrap();
+    let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
+    map.set_lairs(lairs);
+    (map, c)
+}
+
+#[test]
+fn clearing_a_site_takes_its_treasure_once_and_needs_no_game() {
+    let (mut map, c) = bare(vec![lair(5, 5, vec![("walker", 1)])]);
+    let cleared = clear_site(&mut map, &c, 0).expect("an intact lair");
+    assert_eq!(
+        (cleared.gold, cleared.mana, cleared.items),
+        (120, 30, vec![400])
+    );
+    assert!(map.lair_at(Plane::Arcanus, 5, 5).is_none());
+    assert!(
+        clear_site(&mut map, &c, 0).is_none(),
+        "nothing the second time"
+    );
+    assert!(clear_site(&mut map, &c, 7).is_none(), "no such site");
+}
+
+#[test]
+fn clearing_a_tower_clears_its_twin_on_the_other_plane() {
+    let mut a = lair(3, 3, vec![]);
+    a.site = "tower".into();
+    let mut b = a.clone();
+    b.plane = Plane::Myrror;
+    let mut other = lair(8, 8, vec![]);
+    other.site = "tower".into();
+    let (mut map, c) = bare(vec![a, b, other]);
+    clear_site(&mut map, &c, 0).unwrap();
+    assert!(!map.lairs()[0].intact && !map.lairs()[1].intact);
+    assert!(map.lairs()[2].intact, "another tower stays");
+}
+
+#[test]
+fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
+    let mut magic = crate::magic::Magic::new(&[("life", 11)], &[]);
+    let mut rng = crate::rng::GameRng::new(5);
+    let mut l = lair(1, 1, vec![]);
+    l.site = "ruins".into();
+    for _ in 0..30 {
+        let mut loot = Loot::default();
+        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        assert!(loot.books.is_empty(), "death clashes with life");
+    }
+    l.site = "ancient_temple".into();
+    for _ in 0..60 {
+        award_special(&mut magic, &mut rng, &l, 2, &mut Loot::default());
+    }
+    assert!(magic.total_books() <= 12);
+}
+
+#[test]
+fn a_spell_award_teaches_a_spell_from_a_realm_without_books() {
+    let c = content();
+    let mut magic = crate::magic::Magic::new(&[("life", 2)], &[]);
+    let mut rng = crate::rng::GameRng::new(9);
+    let spell = award_spell(&mut magic, &c, &mut rng, 1).expect("a spell");
+    assert!(magic.known.contains(&spell));
+    assert_ne!(c.rules.spells.get(spell).realm, "life");
 }

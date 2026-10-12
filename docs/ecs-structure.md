@@ -126,6 +126,6 @@ Where this stands: diplomacy, magic (income in `magic_income.rs` over a small vi
 180, 185, 186 and 187; production's checks are methods of `Economy`). Their `impl Game` methods are still there as thin wrappers with the old names
 (`unit_stat`, `city_economy`, ...) that make a `Units` or an `Economy` and ask it; task 198 moves
 the callers over and deletes the wrappers. The turn code does too (task 188: `process_turn` only sequences
-the steps). Movement and transport (task 189: plans on `Economy`, the moves themselves on `Game` because they change the fog) and vision (193) do too. What does not yet: the lairs, conquest and the fortress (190 to 192);
+the steps). Movement and transport (task 189: plans on `Economy`, the moves themselves on `Game` because they change the fog) and vision (193) do too. The lairs (task 190: clearing and loot as functions over the map and the wizard's magic) too. What does not yet: conquest and the fortress (191 and 192);
 the battle engine, the rules layer, the map and the fog already did. Task 183 adds a test that
 reports the number of `impl Game` methods per file, as a guideline.

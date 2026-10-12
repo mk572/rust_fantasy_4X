@@ -21,7 +21,7 @@ fortress.rs 13
 gates.rs 3
 globals.rs 7
 healing.rs 1
-lairs.rs 7
+lairs.rs 5
 lib.rs 19
 magic_game.rs 13
 magic_income.rs 1
