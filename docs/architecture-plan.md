@@ -111,11 +111,13 @@ Rules that keep it from growing back:
 4. **Read-only view for the AI and client (181)**, replacing direct use of `game.world`,
    `game.map` and `game.content` outside the core where a query would do.
 5. **Docs and guard (182, 183):** bring `ecs-structure.md` up to date, write the rules above
-   into it, add the method-count test.
+   into it (182, done: sections 2 and "Domains" of `ecs-structure.md`), add the method-count test.
 
 Each step must leave the tests passing and the saves readable; no step changes behaviour.
-Units, production and the turn loop (the next largest groups) are the next candidates once these
-two are done; the same pattern applies.
+Units, economy, production and the turn loop (the next largest groups) are the next candidates
+once these two are done, in that order, because each stands on the one before: tasks 185 to 188.
+Then movement and transport, the lairs, conquest, the fortress and vision (189 to 193). The same
+pattern applies.
 
 ## 4. Risks and things to watch
 
