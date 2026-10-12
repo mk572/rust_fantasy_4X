@@ -302,7 +302,7 @@ impl Game {
         }
         let books: Vec<(&str, u8)> = build.books.iter().map(|(r, &n)| (r.as_str(), n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
-        self.init_wizard_with(player, &books, &retorts, Some(&start))
+        self.init_wizard(player, &books, &retorts, Some(&start))
             .map_err(BuildError::Magic)?;
         if let Some(p) = self.player_mut(player) {
             if !build.name.is_empty() {

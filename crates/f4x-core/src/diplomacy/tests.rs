@@ -30,7 +30,7 @@ fn world() -> Game {
     }
     g.human = Some(P0);
     for id in [P0, P1, P2] {
-        g.init_wizard(id, &[("sorcery", 2)], &[]).unwrap();
+        g.init_wizard(id, &[("sorcery", 2)], &[], None).unwrap();
     }
     g
 }
@@ -371,21 +371,21 @@ fn the_scale_runs_from_hate_to_harmony() {
 fn start_relations_come_from_the_books() {
     let mut g = world();
     // Life against death: -(life + death) * 5, no shared realm.
-    g.init_wizard(P0, &[("life", 3)], &[]).unwrap();
-    g.init_wizard(P1, &[("death", 2)], &[]).unwrap();
+    g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
+    g.init_wizard(P1, &[("death", 2)], &[], None).unwrap();
     assert_eq!(g.relation(P0, P1), -25);
     // Shared realms add two for each book of the smaller; chaos costs two for the larger.
-    g.init_wizard(P0, &[("nature", 3), ("chaos", 1)], &[])
+    g.init_wizard(P0, &[("nature", 3), ("chaos", 1)], &[], None)
         .unwrap();
-    g.init_wizard(P1, &[("nature", 2), ("chaos", 2)], &[])
+    g.init_wizard(P1, &[("nature", 2), ("chaos", 2)], &[], None)
         .unwrap();
     assert_eq!(g.relation(P0, P1), 2);
     // Never below -90.
-    g.init_wizard(P0, &[("life", 5)], &[]).unwrap();
-    g.init_wizard(P1, &[("death", 5)], &[]).unwrap();
+    g.init_wizard(P0, &[("life", 5)], &[], None).unwrap();
+    g.init_wizard(P1, &[("death", 5)], &[], None).unwrap();
     assert_eq!(g.relation(P0, P1), -50);
-    g.init_wizard(P0, &[("life", 11)], &[]).unwrap();
-    g.init_wizard(P1, &[("death", 11)], &[]).unwrap();
+    g.init_wizard(P0, &[("life", 11)], &[], None).unwrap();
+    g.init_wizard(P1, &[("death", 11)], &[], None).unwrap();
     assert_eq!(g.relation(P0, P1), -90);
 }
 
@@ -1209,8 +1209,8 @@ fn enchantments_offend_the_wizards_they_offend() {
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
     }
-    g.init_wizard(P1, &[("life", 2)], &[]).unwrap();
-    g.init_wizard(P2, &[("chaos", 2)], &[]).unwrap();
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    g.init_wizard(P2, &[("chaos", 2)], &[], None).unwrap();
     for (a, b) in [(P1, P0), (P2, P0)] {
         set_rel(&mut g, a, b, 0);
     }

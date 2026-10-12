@@ -4,11 +4,10 @@
 //! Spell resolution is in `cast.rs`, `dispel.rs` and `city_spells.rs`.
 
 use crate::city::PlayerId;
-use crate::content::Content;
 use crate::magic::{
     collect_power, pay_for_casting, upkeep_plan, CastStart, Magic, MagicError, Retort,
 };
-use crate::rng::GameRng;
+use crate::magic_commands::found_wizard;
 use crate::rules::{CastContext, SpellId};
 use crate::{Event, Game};
 
@@ -21,41 +20,28 @@ impl Game {
         self.player_mut(player).map(|p| &mut p.magic)
     }
 
-    /// A wizard's magic with the content and the random numbers, borrowed apart so the rules of
-    /// `Magic` can use all three.
-    fn magic_parts(&mut self, player: PlayerId) -> Option<(&mut Magic, &Content, &mut GameRng)> {
-        let p = self.players.iter_mut().find(|p| p.id == player)?;
-        Some((&mut p.magic, &self.content, &mut self.rng))
-    }
-
-    /// Set up a new wizard: books and retorts, starting casting skill, and the spell
-    /// library (what is known and what can be researched) from the number of books.
+    /// Set up a new wizard (see [`found_wizard`]), with the starting spells given instead of
+    /// drawn at random when `start_spells` is `Some`, and the first offer for research.
     pub fn init_wizard(
-        &mut self,
-        player: PlayerId,
-        books: &[(&str, u8)],
-        retorts: &[Retort],
-    ) -> Result<(), MagicError> {
-        self.init_wizard_with(player, books, retorts, None)
-    }
-
-    /// Like [`Game::init_wizard`], with the starting spells given instead of drawn at random.
-    pub fn init_wizard_with(
         &mut self,
         player: PlayerId,
         books: &[(&str, u8)],
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,
     ) -> Result<(), MagicError> {
-        let magic = Magic::new(books, retorts);
-        // A famous wizard starts with 10 fame, any other with none.
-        let fame = if magic.has(Retort::Famous) { 10 } else { 0 };
-        let p = self.player_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        p.magic = magic;
-        p.fame = fame;
-        if let Some((m, content, rng)) = self.magic_parts(player) {
-            m.init_library(content, rng, start_spells);
-        }
+        let p = self
+            .players
+            .iter_mut()
+            .find(|p| p.id == player)
+            .ok_or(MagicError::UnknownPlayer)?;
+        found_wizard(
+            p,
+            &self.content,
+            &mut self.rng,
+            books,
+            retorts,
+            start_spells,
+        );
         self.refill_research(player);
         Ok(())
     }
@@ -83,8 +69,12 @@ impl Game {
 
     /// Choose what to research. The choice stands until the spell is learned.
     pub fn set_research(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
-        let (m, content, _) = self.magic_parts(player).ok_or(MagicError::UnknownPlayer)?;
-        m.choose_research(content, spell)
+        let p = self
+            .players
+            .iter_mut()
+            .find(|p| p.id == player)
+            .ok_or(MagicError::UnknownPlayer)?;
+        p.magic.choose_research(&self.content, spell)
     }
 
     /// The spell becomes known to `player`, as if researched (a gift or an exchange between
@@ -101,39 +91,10 @@ impl Game {
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
         let income = self.income(player).research;
-        if let Some((m, content, rng)) = self.magic_parts(player) {
-            m.refill_research(content, rng, income);
+        if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
+            p.magic
+                .refill_research(&self.content, &mut self.rng, income);
         }
-    }
-
-    /// Convert gold to mana or mana to gold (alchemy): one for one with the retort, two for
-    /// one without. `gold_to_mana` converts that much gold; negative converts mana to gold.
-    pub fn alchemy(
-        &mut self,
-        player: PlayerId,
-        amount: i32,
-        gold_to_mana: bool,
-    ) -> Result<(), MagicError> {
-        let skilled = self
-            .magic(player)
-            .ok_or(MagicError::UnknownPlayer)?
-            .has(Retort::Alchemy);
-        let p = self.player_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        let amount = amount.max(0);
-        if gold_to_mana {
-            if p.gold < amount {
-                return Err(MagicError::NotEnoughGold);
-            }
-            p.gold -= amount;
-            p.mana += if skilled { amount } else { amount / 2 };
-        } else {
-            if p.mana < amount {
-                return Err(MagicError::NotEnoughMana);
-            }
-            p.mana -= amount;
-            p.gold += if skilled { amount } else { amount / 2 };
-        }
-        Ok(())
     }
 
     // ---- turn change -------------------------------------------------------------
@@ -252,27 +213,6 @@ impl Game {
                 Ok(Vec::new())
             }
         }
-    }
-
-    /// Give up the spell being cast; the mana already paid is lost.
-    pub fn cancel_cast(&mut self, player: PlayerId) -> Result<(), MagicError> {
-        if self.casting_return(player) {
-            return Err(MagicError::NotAvailable);
-        }
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        m.cancel_casting();
-        Ok(())
-    }
-
-    /// Turn off one of the wizard's own global enchantments.
-    pub fn turn_off_spell(
-        &mut self,
-        player: PlayerId,
-        spell: SpellId,
-    ) -> Result<Vec<Event>, MagicError> {
-        let m = self.magic_mut(player).ok_or(MagicError::UnknownPlayer)?;
-        m.turn_off(spell)?;
-        Ok(vec![Event::EnchantmentLapsed { player, spell }])
     }
 
     /// Choose the target of a spell that has been fully paid for.

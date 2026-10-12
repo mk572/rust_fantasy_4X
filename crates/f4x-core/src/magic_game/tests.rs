@@ -37,7 +37,7 @@ fn world() -> Game {
     p.tax_rate = 2;
     p.mana = 100;
     game.players.push(p);
-    game.init_wizard(P0, &[("life", 2)], &[]).unwrap();
+    game.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     game
 }
 
@@ -91,7 +91,7 @@ fn casting_skill_follows_triangular_numbers() {
 #[test]
 fn a_new_wizard_starts_with_books_spells_and_skill() {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 3), ("chaos", 2)], &[Retort::Archmage])
+    g.init_wizard(P0, &[("life", 3), ("chaos", 2)], &[Retort::Archmage], None)
         .unwrap();
     let m = g.magic(P0).unwrap();
     // Three books and two books: 2 + 1 common spells known.
@@ -162,7 +162,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() {
 #[test]
 fn retorts_and_extra_books_change_research_and_cost() {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 9)], &[Retort::SageMaster])
+    g.init_wizard(P0, &[("life", 9)], &[Retort::SageMaster], None)
         .unwrap();
     let mend = spell(&g, "mend");
     // Sage master 25 plus two books over seven, 10 each.
@@ -327,10 +327,10 @@ fn a_channeler_pays_half_the_spell_maintenance() {
 #[test]
 fn a_famous_wizard_starts_with_ten_fame() {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 3)], &[Retort::Famous])
+    g.init_wizard(P0, &[("life", 3)], &[Retort::Famous], None)
         .unwrap();
     assert_eq!(g.player(P0).unwrap().fame, 10);
-    g.init_wizard(P0, &[("life", 3)], &[]).unwrap();
+    g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
     assert_eq!(g.player(P0).unwrap().fame, 0);
 }
 

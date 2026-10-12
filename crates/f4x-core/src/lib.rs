@@ -28,6 +28,7 @@ mod healing;
 pub mod help;
 pub mod lairs;
 pub mod magic;
+mod magic_commands;
 mod magic_game;
 pub mod magic_income;
 pub mod map;
@@ -760,15 +761,29 @@ impl Game {
                 None => Err(magic::MagicError::UnknownPlayer),
             }),
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
-            Command::CancelCast { player } => reject(self.cancel_cast(player)),
+            Command::CancelCast { player } => {
+                let returning = self.casting_return(player);
+                reject(match self.player_mut(player) {
+                    Some(p) => magic_commands::cancel_cast(p, returning),
+                    None => Err(magic::MagicError::UnknownPlayer),
+                })
+            }
             Command::TurnOffSpell { player, spell } => {
-                events_or_reject(self.turn_off_spell(player, spell))
+                events_or_reject(match self.magic_mut(player) {
+                    Some(m) => m
+                        .turn_off(spell)
+                        .map(|_| vec![Event::EnchantmentLapsed { player, spell }]),
+                    None => Err(magic::MagicError::UnknownPlayer),
+                })
             }
             Command::Alchemy {
                 player,
                 amount,
                 gold_to_mana,
-            } => reject(self.alchemy(player, amount, gold_to_mana)),
+            } => reject(match self.player_mut(player) {
+                Some(p) => magic_commands::alchemy(p, amount, gold_to_mana),
+                None => Err(magic::MagicError::UnknownPlayer),
+            }),
             Command::CastSpell {
                 player,
                 spell,

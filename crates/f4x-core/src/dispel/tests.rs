@@ -129,7 +129,7 @@ fn world() -> Game {
         let mut p = Player::new(id, name);
         p.mana = 20_000;
         g.players.push(p);
-        g.init_wizard(id, &[("life", 2)], &[]).unwrap();
+        g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }
     g

@@ -28,7 +28,7 @@ fn world() -> Game {
         p.mana = 100;
         g.players.push(p);
     }
-    g.init_wizard(P0, &[("life", 2)], &[]).unwrap();
+    g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g
 }
 
@@ -221,8 +221,10 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     assert_eq!(g.magic(P0).unwrap().casting.unwrap().spell, ret);
     assert_eq!(g.income(P0).split, crate::magic::PowerSplit::default());
     assert_eq!(
-        g.cancel_cast(P0),
-        Err(crate::magic::MagicError::NotAvailable)
+        g.apply(crate::Command::CancelCast { player: P0 }),
+        vec![crate::Event::Rejected(crate::Rejection::Magic(
+            crate::magic::MagicError::NotAvailable
+        ))]
     );
     assert_eq!(
         g.start_cast(P0, ret, Some(Target::City(town))),

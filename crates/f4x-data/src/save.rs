@@ -110,6 +110,7 @@ mod tests {
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],
             &[f4x_core::magic::Retort::Alchemy],
+            None,
         )
         .unwrap();
         let first = g.magic(PlayerId(0)).unwrap().candidates[0];

@@ -266,7 +266,7 @@ pub(crate) mod tests {
             let mut p = Player::new(id, "W");
             p.mana = 100;
             g.players.push(p);
-            g.init_wizard(id, &[("life", 2)], &[]).unwrap();
+            g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         }
         g
     }

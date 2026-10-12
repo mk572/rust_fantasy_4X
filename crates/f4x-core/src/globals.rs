@@ -206,7 +206,7 @@ mod tests {
             let mut p = Player::new(id, "W");
             p.mana = 5000;
             g.players.push(p);
-            g.init_wizard(id, &[("life", 4)], &[]).unwrap();
+            g.init_wizard(id, &[("life", 4)], &[], None).unwrap();
         }
         g
     }
