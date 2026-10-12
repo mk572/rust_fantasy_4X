@@ -5,7 +5,9 @@
 
 use crate::city::PlayerId;
 use crate::content::Content;
-use crate::magic::{upkeep_plan, CastStart, Magic, MagicError, PowerSplit, Retort};
+use crate::magic::{
+    collect_power, pay_for_casting, upkeep_plan, CastStart, Magic, MagicError, PowerSplit, Retort,
+};
 use crate::rng::GameRng;
 use crate::rules::{CastContext, SpellId};
 use crate::{Event, Game};
@@ -207,18 +209,24 @@ impl Game {
 
     // ---- turn change -------------------------------------------------------------
 
-    /// All wizards' magic at the turn change: income, research, upkeep, casting.
+    /// All wizards' magic at the turn change: income, research, upkeep, casting. The steps run
+    /// over all wizards in turn, as in the original (power for all, then the research check for
+    /// all, and so on). The timers, temporary effects, global spells and experience that used to
+    /// start here are the turn's (`turn.rs`).
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
-        let mut events = self.tick_timers();
-        self.tick_temp_effects();
-        self.process_globals();
-        self.process_experience();
+        let mut events = Vec::new();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
         for &player in &ids {
-            self.apply_magic_power(player);
+            let split = self.power_split(player);
+            let research = self.research_income(player);
+            if let Some(p) = self.player_mut(player) {
+                collect_power(p, &split, research);
+            }
         }
         for &player in &ids {
-            events.extend(self.check_research(player));
+            if let Some(spell) = self.magic_mut(player).and_then(|m| m.finish_research()) {
+                events.push(Event::SpellLearned { player, spell });
+            }
         }
         for &player in &ids {
             self.refill_research(player);
@@ -227,30 +235,14 @@ impl Game {
             events.extend(self.apply_mana_upkeep(player));
         }
         for &player in &ids {
-            self.apply_casting(player);
+            if let Some(p) = self.player_mut(player) {
+                pay_for_casting(p);
+            }
         }
         for &player in &ids {
             events.extend(self.finish_casting(player));
         }
         events
-    }
-
-    /// Mana goes to the reserve, research to the spell, skill points to casting skill.
-    fn apply_magic_power(&mut self, player: PlayerId) {
-        let split = self.power_split(player);
-        let research = self.research_income(player);
-        let Some(p) = self.player_mut(player) else {
-            return;
-        };
-        let mana = p.magic.take_power(&split, research);
-        p.mana = p.mana.saturating_add(mana);
-    }
-
-    fn check_research(&mut self, player: PlayerId) -> Vec<Event> {
-        match self.magic_mut(player).and_then(|m| m.finish_research()) {
-            Some(spell) => vec![Event::SpellLearned { player, spell }],
-            None => Vec::new(),
-        }
     }
 
     /// Pay the mana upkeep. If the reserve cannot cover it, the newest lasting spells and
@@ -271,14 +263,6 @@ impl Game {
             p.mana = (p.mana - owed).max(0);
         }
         events
-    }
-
-    /// Spend casting skill and mana on the spell being cast.
-    fn apply_casting(&mut self, player: PlayerId) {
-        let Some(p) = self.player_mut(player) else {
-            return;
-        };
-        p.mana = p.magic.pay_casting(p.mana);
     }
 
     /// A spell that has been paid for takes effect: at once if it needs no target, else

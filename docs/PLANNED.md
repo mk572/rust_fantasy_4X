@@ -219,7 +219,7 @@ capital, and a faster research start. Each as an independent option with sensibl
 (e.g. "quick start"); recorded in the saved settings so a game remembers how it began.
 
 **21. Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
-(`grow_outpost` in `turn.rs`; the chance comes from the race, the land and features, task 21 of
+(`grow_outpost` in `city_growth.rs`; the chance comes from the race, the land and features, task 21 of
 `TASKS.md` for the original's edge rules) and needs 100 tens, one citizen, to become a city. In
 AI-against-AI soak runs (`f4x-tools soak`) most outposts were still outposts after 100 to 250
 turns: one wizard held 15 "cities", 12 of them outposts, which stalls expansion, production and

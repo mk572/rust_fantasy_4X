@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::cast::UpkeepItem;
 
 use crate::content::Content;
+use crate::player::Player;
 use crate::rng::GameRng;
 use crate::rules::effects::Effect;
 use crate::rules::{Rarity, SpellDef, SpellId};
@@ -216,6 +217,19 @@ fn pick_spells(
         out.push(left.remove(i));
     }
     out
+}
+
+/// The turn's income reaches the wizard: mana goes to the reserve, research to the spell being
+/// researched and skill points to casting skill (`Magic::take_power`). `split` and `research`
+/// are what the wizard's cities and fortress make, worked out by the game.
+pub(crate) fn collect_power(player: &mut Player, split: &PowerSplit, research: i32) {
+    let mana = player.magic.take_power(split, research);
+    player.mana = player.mana.saturating_add(mana);
+}
+
+/// Spend casting skill and mana on the spell being cast (`Magic::pay_casting`).
+pub(crate) fn pay_for_casting(player: &mut Player) {
+    player.mana = player.magic.pay_casting(player.mana);
 }
 
 /// What to do about the mana upkeep: the items to give up (newest first) so that the reserve
@@ -883,5 +897,52 @@ mod tests {
         m.global.push(s);
         assert_eq!(m.turn_off(s), Ok(()));
         assert!(m.global.is_empty());
+    }
+
+    #[test]
+    fn power_reaches_the_reserve_the_research_and_the_skill() {
+        use crate::city::PlayerId;
+        let c = content_with_magic();
+        let mut p = Player::new(PlayerId(0), "Merlin");
+        p.magic = Magic::new(&[("life", 2)], &[Retort::Archmage]);
+        let target = *p.magic.candidates.first().unwrap_or(&spell(&c, "mend"));
+        p.magic.researching = Some(target);
+        p.magic.research_remaining = 10;
+        p.mana = 5;
+        let points = p.magic.skill_points;
+        let split = PowerSplit {
+            mana: 7,
+            research: 4,
+            skill: 4,
+        };
+        collect_power(&mut p, &split, 4);
+        assert_eq!(p.mana, 12);
+        assert_eq!(p.magic.research_remaining, 6);
+        assert_eq!(
+            p.magic.skill_points - points,
+            6,
+            "an archmage gets half as much again"
+        );
+        p.mana = i32::MAX;
+        collect_power(&mut p, &split, 0);
+        assert_eq!(p.mana, i32::MAX, "the reserve does not overflow");
+    }
+
+    #[test]
+    fn paying_for_a_cast_takes_mana_from_the_reserve() {
+        use crate::city::PlayerId;
+        let c = content_with_magic();
+        let mut p = Player::new(PlayerId(0), "Merlin");
+        p.magic = Magic::new(&[("life", 2)], &[]);
+        p.magic.begin_casting(spell(&c, "mend"), 30);
+        p.mana = 50;
+        let skill = p.magic.skill_left;
+        pay_for_casting(&mut p);
+        assert_eq!(
+            p.mana,
+            50 - skill,
+            "the skill on hand is paid for with mana"
+        );
+        assert_eq!(p.magic.casting.unwrap().remaining, 30 - skill);
     }
 }

@@ -7,6 +7,7 @@ battle/spells.rs 16
 battle/spoils.rs 1
 cast.rs 9
 cheat.rs 11
+city_growth.rs 4
 city_spells.rs 14
 conquest.rs 6
 corruption.rs 11
@@ -15,12 +16,13 @@ dispel.rs 9
 economy.rs 12
 endgame.rs 6
 experience.rs 3
+finance.rs 5
 fortress.rs 13
 gates.rs 3
 globals.rs 8
 lairs.rs 7
-lib.rs 18
-magic_game.rs 27
+lib.rs 19
+magic_game.rs 24
 movement.rs 10
 neutral_cities.rs 9
 nightshade.rs 2
@@ -34,7 +36,7 @@ temp_effects.rs 13
 terraform.rs 6
 timers.rs 5
 transport.rs 9
-turn.rs 15
+turn.rs 6
 undead.rs 6
 undo.rs 6
 units.rs 17

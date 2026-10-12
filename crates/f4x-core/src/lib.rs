@@ -8,6 +8,7 @@ pub mod battle;
 pub mod cast;
 pub mod cheat;
 pub mod city;
+mod city_growth;
 pub mod city_spells;
 pub mod conquest;
 pub mod content;
@@ -18,6 +19,7 @@ pub mod economy;
 pub mod endgame;
 pub mod experience;
 pub mod featuregen;
+pub mod finance;
 pub mod fog;
 pub mod fortress;
 pub mod gates;
@@ -974,6 +976,11 @@ impl Game {
         self.sort_by_serial(&mut with_orders);
         events.extend(self.follow_orders(&with_orders));
         events
+    }
+
+    /// Uniform random integer in `1..=n`.
+    pub fn roll(&mut self, n: u32) -> u32 {
+        self.rng.roll(n)
     }
 
     /// Next value from the game's seeded RNG (all randomness must come from here).

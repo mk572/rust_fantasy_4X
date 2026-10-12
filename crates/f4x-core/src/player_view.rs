@@ -17,13 +17,13 @@ use crate::city::{PlayerId, Position};
 use crate::content::{Content, TerrainClass};
 use crate::diplomacy::Proposal;
 use crate::economy::CityEconomy;
+use crate::finance::Treasury;
 use crate::magic::Magic;
 use crate::map::Plane;
 use crate::player::Player;
 use crate::production::{Production, ProductionError, ProductionItem};
 use crate::rules::{SpellDef, SpellId, Stat, UnitDef};
 use crate::serial::Serial;
-use crate::turn::Treasury;
 use crate::Game;
 
 pub struct PlayerView<'a> {

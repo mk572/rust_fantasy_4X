@@ -1,9 +1,9 @@
 use super::*;
-use crate::city::PlayerId;
-use crate::economy::Population;
+use crate::city::{PlayerId, Position};
+use crate::economy::{Buildings, Enchantments, Population};
 use crate::map::{Grid, Map, Plane};
 use crate::player::Player;
-use crate::production::{ProductionError, ProductionItem};
+use crate::production::{Production, ProductionError, ProductionItem};
 use crate::rules::{ModOp, Stat};
 use crate::testutil::content_with_economy;
 use crate::units::Hurt;
