@@ -5,7 +5,34 @@
 # ~/Library/Application Support/Fantasy4X/saves.
 #
 #   scripts/make_app.sh [--open]
+#   scripts/make_app.sh -h | --help
 set -eu
+usage() {
+    cat <<'USAGE'
+Usage: make_app.sh [--open]
+       make_app.sh -h | --help
+
+Build a local macOS app, target/Fantasy4X.app: a release build of f4x-client plus a copy of
+content/, content-local/ and assets-local/art. For play on this machine only: it carries the
+local-only original art and text, so do not share it. Saves go to
+~/Library/Application Support/Fantasy4X/saves.
+
+Options:
+  --open        open the app when it is built
+  -h, --help    print this help and exit
+
+Needs: cargo (a release build of f4x-client), run from anywhere (it changes to the repo root).
+Writes: target/Fantasy4X.app, replacing a previous one. Exit status 2 for a usage error.
+USAGE
+}
+open_after=0
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help) usage; exit 0 ;;
+        --open) open_after=1 ;;
+        *) echo "make_app: unknown option: $arg (see --help)" >&2; exit 2 ;;
+    esac
+done
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
 
@@ -53,5 +80,5 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 PLIST
 
 echo "built $app"
-[ "${1:-}" = "--open" ] && open "$app"
+[ "$open_after" = 1 ] && open "$app"
 exit 0
