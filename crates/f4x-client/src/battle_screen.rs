@@ -284,7 +284,7 @@ impl App {
         let Some(pos) = mine.first().and_then(|&u| self.game.unit_position(u)) else {
             return;
         };
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         let ids: Vec<_> = rules
             .units
             .defs()
@@ -322,7 +322,7 @@ impl App {
             match event {
                 Event::Battle(e) => {
                     let spell_name =
-                        |id: SpellId| self.game.content.rules.spells.get(id).name.clone();
+                        |id: SpellId| self.game.content().rules.spells.get(id).name.clone();
                     if let Some(line) = describe(&names, &spell_name, e) {
                         self.battle_ui.log.push(line);
                     }
@@ -631,7 +631,7 @@ impl App {
     /// otherwise wait for the target (and the amount of mana).
     fn pick_spell(&mut self, spell: &f4x_core::battle::spells::BattleSpell) {
         self.battle_ui.spell_list = false;
-        let cost = self.game.content.rules.spells.get(spell.spell).cost as i32;
+        let cost = self.game.content().rules.spells.get(spell.spell).cost as i32;
         let aimless = matches!(spell.target, SpellTarget::None | SpellTarget::Battlefield);
         if aimless && !spell.takes_extra_mana {
             self.battle_order(BattleCommand::Cast {
@@ -697,7 +697,7 @@ impl App {
             return;
         };
         // More or less mana: Up/Down by one, Page Up/Down by five.
-        let cost = self.game.content.rules.spells.get(aim.spell).cost as i32;
+        let cost = self.game.content().rules.spells.get(aim.spell).cost as i32;
         let step = |up: KeyCode, down: KeyCode, by: i32| {
             i32::from(is_key_pressed(up)) * by - i32::from(is_key_pressed(down)) * by
         };
@@ -771,7 +771,7 @@ impl App {
         }
         let room = ((height - 34.0) / row_h) as usize;
         for (i, spell) in spells.iter().take(room).enumerate() {
-            let def = self.game.content.rules.spells.get(spell.spell);
+            let def = self.game.content().rules.spells.get(spell.spell);
             let label = format!(
                 "{}   {}{}",
                 def.name,
@@ -811,7 +811,7 @@ impl App {
                 }
             }
         }
-        let name = self.game.content.rules.spells.get(aim.spell).name.clone();
+        let name = self.game.content().rules.spells.get(aim.spell).name.clone();
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let mut text = format!(
             "{name}: {}",
@@ -1038,7 +1038,7 @@ impl App {
         diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
         let art = self
             .game
-            .content
+            .content()
             .rules
             .units
             .defs()
@@ -1267,7 +1267,7 @@ impl App {
         let over: Vec<String> = battle
             .fields()
             .map(|(side, _, spell)| {
-                let name = &self.game.content.rules.spells.get(spell).name;
+                let name = &self.game.content().rules.spells.get(spell).name;
                 if Some(side) == mine {
                     name.clone()
                 } else {

@@ -41,7 +41,7 @@ pub fn city_name(game: &Game, c: hecs::Entity) -> String {
 }
 
 pub fn item(game: &Game, item: ProductionItem) -> String {
-    let rules = &game.content.rules;
+    let rules = &game.content().rules;
     match item {
         ProductionItem::Building(b) => rules.buildings.get(b).name.clone(),
         ProductionItem::Unit(u) => rules.units.get(u).name.clone(),
@@ -51,7 +51,7 @@ pub fn item(game: &Game, item: ProductionItem) -> String {
 }
 
 pub fn spell(game: &Game, s: f4x_core::rules::SpellId) -> String {
-    game.content.rules.spells.get(s).name.clone()
+    game.content().rules.spells.get(s).name.clone()
 }
 
 fn units(game: &Game, list: &[hecs::Entity]) -> String {
@@ -81,7 +81,7 @@ pub fn event(game: &Game, e: &Event) -> String {
                 line += &format!(": {units_lost} unit(s) destroyed");
             }
             if let Some(b) = building {
-                line += &format!(", {} falls", game.content.rules.buildings.get(*b).name);
+                line += &format!(", {} falls", game.content().rules.buildings.get(*b).name);
             }
             line
         }

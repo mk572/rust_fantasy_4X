@@ -202,7 +202,7 @@ impl ObsSpec {
             .take(MAX_SPELLS)
             .enumerate()
         {
-            let d = game.content.rules.spells.get(s.spell);
+            let d = game.content().rules.spells.get(s.spell);
             let target = match s.target {
                 SpellTarget::None => 0,
                 SpellTarget::Battlefield => 1,

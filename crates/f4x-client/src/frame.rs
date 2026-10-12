@@ -6,7 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
-use f4x_core::city::PlayerId;
+use f4x_core::city::{PlayerId, Position};
 use macroquad::prelude::*;
 
 use crate::ui::GOLD;
@@ -246,16 +246,23 @@ impl App {
     fn draw_minimap(&mut self, lay: &Layout) {
         let r = lay.rect(spot::MINIMAP);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.05, 1.0));
-        let Some(map) = self.game.map.as_ref() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let (w, h) = (map.width() as f32, map.height() as f32);
         let (cw, ch) = (r.w / w, r.h / h);
         let grid = map.plane(self.plane);
-        let content = &self.game.content;
+        let content = &self.game.content();
         for y in 0..grid.height() {
             for x in 0..grid.width() {
-                if !self.game.fog.is_explored(HUMAN, self.plane, x, y) {
+                if !self.game.is_explored(
+                    HUMAN,
+                    Position {
+                        plane: self.plane,
+                        x,
+                        y,
+                    },
+                ) {
                     continue;
                 }
                 let class = grid
@@ -284,7 +291,7 @@ impl App {
             }
         }
         for (_, city, at) in self.game.cities() {
-            if at.plane == self.plane && self.game.fog.is_explored(HUMAN, self.plane, at.x, at.y) {
+            if at.plane == self.plane && self.game.is_explored(HUMAN, at) {
                 let PlayerId(owner) = city.owner;
                 draw_rectangle(
                     r.x + at.x as f32 * cw - cw,

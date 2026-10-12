@@ -2,7 +2,6 @@
 //! the original screen layout (320x200) when the art is available.
 
 use f4x_core::city::Position;
-use f4x_core::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
 use f4x_core::production::ProductionItem;
 use f4x_core::Command;
 use macroquad::prelude::*;
@@ -106,15 +105,11 @@ impl App {
     }
 
     pub(crate) fn city_position(&self, city: hecs::Entity) -> Position {
-        self.game
-            .world
-            .get::<&Position>(city)
-            .map(|p| *p)
-            .unwrap_or(Position {
-                plane: f4x_core::map::Plane::Arcanus,
-                x: 0,
-                y: 0,
-            })
+        self.game.city_position(city).unwrap_or(Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: 0,
+            y: 0,
+        })
     }
 
     fn view(lay: Layout) -> (f32, f32, f32) {
@@ -152,24 +147,18 @@ impl App {
         let name = self.city_name(city);
         let (race_name, race_index) = self
             .game
-            .world
-            .get::<&CityRace>(city)
+            .city_race(city)
             .map(|r| {
                 (
-                    self.game.content.rules.races.get(r.0).name.clone(),
-                    r.0.index(),
+                    self.game.content().rules.races.get(r).name.clone(),
+                    r.index(),
                 )
             })
             .unwrap_or_default();
         let Some(eco) = self.game.city_economy(city) else {
             return;
         };
-        let pop = self
-            .game
-            .world
-            .get::<&Population>(city)
-            .map(|p| *p)
-            .unwrap_or_default();
+        let pop = self.game.city_population(city);
         // The title names the size: Outpost, Hamlet, Village, Town, City, Capital.
         let size = if eco.figures == 0 {
             "Outpost"
@@ -205,7 +194,7 @@ impl App {
             Align::Right,
         );
         // The citizens: farmers, then workers, then rebels. Clicking one changes its job.
-        let farmers = self.game.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+        let farmers = self.game.city_farmers(city);
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
         let step = (11.0f32).min(196.0 / total);
         let mut x = 7.0;
@@ -309,14 +298,9 @@ impl App {
             }
         }
         // Enchantments, in the colour of whoever cast them.
-        let list: Vec<_> = self
-            .game
-            .world
-            .get::<&Enchantments>(city)
-            .map(|e| e.0.clone())
-            .unwrap_or_default();
+        let list: Vec<_> = self.game.city_enchantments(city);
         // The fortress and the summoning circle head the list, in gold.
-        let here = self.game.world.get::<&Position>(city).map(|p| *p).ok();
+        let here = self.game.city_position(city);
         let owner = self.game.city_owner(city);
         let mut tags = Vec::new();
         if self.game.is_fortress_city(city) {
@@ -344,7 +328,7 @@ impl App {
             line += 1;
         }
         for (spell, caster) in list.iter().take(6usize.saturating_sub(line)) {
-            let def = self.game.content.rules.spells.get(*spell);
+            let def = self.game.content().rules.spells.get(*spell);
             let mut name = def.name.clone();
             if def.id == "spell_ward" {
                 name = format!("{name} ({})", self.game.city_wards(city).join(", "));
@@ -366,29 +350,20 @@ impl App {
     /// What the cityscape layout needs from a city.
     fn cityscape_info(&self, city: hecs::Entity) -> crate::cityscape::CityInfo {
         use crate::cityscape as cs;
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         let at = self.city_position(city);
-        let pop = self
-            .game
-            .world
-            .get::<&Population>(city)
-            .map(|p| p.figures)
-            .unwrap_or(0);
+        let pop = self.game.city_population(city).figures;
         let buildings = self
             .game
-            .world
-            .get::<&Buildings>(city)
-            .map(|b| {
-                b.0.iter()
-                    .map(|&id| (3 + id.index() as i16, rules.buildings.get(id).shape))
-                    .collect()
-            })
-            .unwrap_or_default();
+            .city_buildings(city)
+            .into_iter()
+            .map(|id| (3 + id.index() as i16, rules.buildings.get(id).shape))
+            .collect();
         let enchanted = |name: &str| {
             self.game
-                .world
-                .get::<&Enchantments>(city)
-                .is_ok_and(|e| e.0.iter().any(|&(s, _)| rules.spells.get(s).id == name))
+                .city_enchantments(city)
+                .iter()
+                .any(|&(s, _)| rules.spells.get(s).id == name)
         };
         let mut magic = Vec::new();
         for (name, idx) in [
@@ -413,9 +388,8 @@ impl App {
         let class = self.game.terrain_class_at(at);
         let house_type = self
             .game
-            .world
-            .get::<&CityRace>(city)
-            .map(|r| rules.races.get(r.0).house_type)
+            .city_race(city)
+            .map(|r| rules.races.get(r).house_type)
             .unwrap_or(0);
         cs::CityInfo {
             population: pop,
@@ -443,10 +417,10 @@ impl App {
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
         let enchanted = |name: &str| {
-            self.game.world.get::<&Enchantments>(city).is_ok_and(|e| {
-                e.0.iter()
-                    .any(|&(s, _)| self.game.content.rules.spells.get(s).id == name)
-            })
+            self.game
+                .city_enchantments(city)
+                .iter()
+                .any(|&(s, _)| self.game.content().rules.spells.get(s).id == name)
         };
         let frame = if enchanted("flying_fortress") {
             1
@@ -470,7 +444,7 @@ impl App {
         }
         // Water and high ground around the city.
         let (mut river, mut ocean, mut mountain, mut hills) = (false, false, false, false);
-        if let Some(map) = self.game.map.as_ref() {
+        if let Some(map) = self.game.map() {
             let grid = map.plane(at.plane);
             for dy in -1i32..=1 {
                 for dx in -1i32..=1 {
@@ -478,7 +452,7 @@ impl App {
                     river |= grid.has_river(x, y);
                     let class = grid
                         .get(x, y)
-                        .and_then(|t| self.game.content.terrains.get(t))
+                        .and_then(|t| self.game.content().terrains.get(t))
                         .map(|d| d.class);
                     ocean |= class == Some(f4x_core::content::TerrainClass::Ocean);
                     if dy <= 0 && !(dy == 0 && dx != 0) {
@@ -504,9 +478,8 @@ impl App {
         let grid = cs::make_layout(&info);
         let house_type = self
             .game
-            .world
-            .get::<&CityRace>(city)
-            .map(|r| self.game.content.rules.races.get(r.0).house_type as usize)
+            .city_race(city)
+            .map(|r| self.game.content().rules.races.get(r).house_type as usize)
             .unwrap_or(0);
         // Variants of houses, trees and rocks are drawn from the layout's own seed so they
         // stay put from frame to frame.
@@ -556,10 +529,11 @@ impl App {
             }
         }
         // Walls along the front.
-        let has_walls = self.game.world.get::<&Buildings>(city).is_ok_and(|b| {
-            b.0.iter()
-                .any(|&id| self.game.content.rules.buildings.get(id).id == "city_walls")
-        });
+        let has_walls = self
+            .game
+            .city_buildings(city)
+            .iter()
+            .any(|&id| self.game.content().rules.buildings.get(id).id == "city_walls");
         if has_walls {
             self.city_pic(lay, "cityscap", 76, 0, x0, y0 + 82.0);
         }
@@ -572,7 +546,7 @@ impl App {
             Some(cs::SUMMONING_CIRCLE) => Some("Summoning Circle".to_string()),
             Some(i) if (3..=35).contains(&i) => self
                 .game
-                .content
+                .content()
                 .rules
                 .buildings
                 .defs()
@@ -588,7 +562,7 @@ impl App {
     /// The 5x5 worked area at original tile size, with shared tiles dimmed.
     fn draw_city_area(&mut self, city: hecs::Entity, lay: Layout) {
         let at = self.city_position(city);
-        let Some(map) = self.game.map.as_ref() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(at.plane);
@@ -613,7 +587,7 @@ impl App {
                 let y = at.y as i32 + dy;
                 let Some(def) = grid
                     .get(x as i32, y)
-                    .and_then(|t| self.game.content.terrains.get(t))
+                    .and_then(|t| self.game.content().terrains.get(t))
                 else {
                     draw_rectangle(r.x, r.y, r.w, r.h, BLACK);
                     continue;
@@ -637,7 +611,7 @@ impl App {
                 }
                 if let Some(f) = grid
                     .feature(x as i32, y)
-                    .and_then(|f| self.game.content.features.get(f))
+                    .and_then(|f| self.game.content().features.get(f))
                 {
                     draw_circle(r.x + r.w / 2.0, r.y + r.h / 2.0, r.h * 0.18, GOLD);
                     let _ = f;
@@ -783,7 +757,7 @@ impl App {
                 }
                 // What is being made: the unit's picture.
                 if let ProductionItem::Unit(id) = item {
-                    let art = self.game.content.rules.units.get(id).art.clone();
+                    let art = self.game.content().rules.units.get(id).art.clone();
                     if let Some((lbx, entry)) = art {
                         self.city_pic(lay, &lbx, entry as usize, 0, 217.0, 152.0);
                     }
@@ -930,7 +904,7 @@ impl App {
 
     /// Everything the city may start building: buildings, then units, then the two specials.
     fn buildable_items(&self, city: hecs::Entity) -> Vec<ProductionItem> {
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         let mut items = Vec::new();
         for (id, _) in rules.buildings.iter() {
             let item = ProductionItem::Building(id);

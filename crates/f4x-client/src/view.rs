@@ -243,11 +243,11 @@ impl App {
     }
 
     pub(crate) fn race_name(&self, race: usize) -> &str {
-        &self.game.content.rules.races.defs()[race].name
+        &self.game.content().rules.races.defs()[race].name
     }
 
     fn next_city_name(&self) -> String {
-        let race = &self.game.content.rules.races.defs()[self.race];
+        let race = &self.game.content().rules.races.defs()[self.race];
         let used = self.game.cities().len();
         race.city_names
             .get(used % race.city_names.len().max(1))
@@ -281,7 +281,7 @@ impl App {
                         line += &format!(": {units_lost} unit(s) destroyed");
                     }
                     if let Some(b) = building {
-                        let name = &self.game.content.rules.buildings.get(b).name;
+                        let name = &self.game.content().rules.buildings.get(b).name;
                         line += &format!(", {name} falls");
                     }
                     Some(line)
@@ -376,7 +376,7 @@ impl App {
                     }
                     Some(format!(
                         "Learned {}",
-                        self.game.content.rules.spells.get(spell).name
+                        self.game.content().rules.spells.get(spell).name
                     ))
                 }
                 Event::Diplomacy(d) => self.diplomacy_line(d),
@@ -387,16 +387,16 @@ impl App {
                 }
                 Event::SpellCast { spell, .. } => Some(format!(
                     "Cast {}",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::SpellFizzled { spell, city, .. } => Some(format!(
                     "{} fizzles: nightshade protects {}",
-                    self.game.content.rules.spells.get(spell).name,
+                    self.game.content().rules.spells.get(spell).name,
                     self.city_name(city)
                 )),
                 Event::SpellSuppressed { spell, by, .. } => Some(format!(
                     "{} is stopped by {}'s Suppress Magic",
-                    self.game.content.rules.spells.get(spell).name,
+                    self.game.content().rules.spells.get(spell).name,
                     self.game.player(by).map_or("a rival", |p| p.name.as_str())
                 )),
                 Event::SpellBlasted {
@@ -409,25 +409,25 @@ impl App {
                     self.game
                         .player(victim)
                         .map_or("a rival", |p| p.name.as_str()),
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::GlobalSpellRemoved { victim, spell, .. } => Some(format!(
                     "{}'s {} is ended",
                     self.game
                         .player(victim)
                         .map_or("a rival", |p| p.name.as_str()),
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
                     "Took {}'s {}",
                     self.game
                         .player(victim)
                         .map_or("a rival", |p| p.name.as_str()),
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::DispelFailed { spell, .. } => Some(format!(
                     "The dispel of {} fails",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::Dispelled { removed, .. } => Some(format!(
                     "{removed} enchantment{} dispelled",
@@ -435,19 +435,19 @@ impl App {
                 )),
                 Event::SpellReady { spell, .. } => Some(format!(
                     "{} is ready: choose its target (M)",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::SpellHasNoEffectYet { spell } => Some(format!(
                     "{} has no effect yet (not implemented)",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::EnchantmentExpired { spell, .. } => Some(format!(
                     "{} has run out",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 Event::EnchantmentLapsed { spell, .. } => Some(format!(
                     "{} ended: not enough mana for its upkeep",
-                    self.game.content.rules.spells.get(spell).name
+                    self.game.content().rules.spells.get(spell).name
                 )),
                 _ => None,
             };
@@ -465,15 +465,12 @@ impl App {
     }
 
     pub(crate) fn city_name(&self, city: hecs::Entity) -> String {
-        self.game
-            .world
-            .get::<&f4x_core::city::City>(city)
-            .map_or_else(|_| "?".to_string(), |c| c.name.clone())
+        self.game.city_name(city).unwrap_or_else(|| "?".to_string())
     }
 
     pub(crate) fn item_name(&self, item: f4x_core::production::ProductionItem) -> String {
         use f4x_core::production::ProductionItem::*;
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         match item {
             Building(b) => rules.buildings.get(b).name.clone(),
             Unit(u) => rules.units.get(u).name.clone(),
@@ -502,7 +499,7 @@ impl App {
 
     /// Replace the game with the one saved at `path`. On failure the current game is kept.
     pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
-        let content = self.game.content.clone();
+        let content = self.game.content().clone();
         let game = f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
         self.seed = game.seed();
         // Keep playing the same race: the human player's capital race.
@@ -606,7 +603,7 @@ impl App {
         let t = self.tile_size();
         let x = ((screen.x - r.x) / t.x + self.cam.x).floor() as i32;
         let y = ((screen.y - r.y) / t.y + self.cam.y).floor() as i32;
-        let grid = self.game.map.as_ref()?.plane(self.plane);
+        let grid = self.game.map()?.plane(self.plane);
         (y >= 0 && y < grid.height() as i32).then(|| Position {
             plane: self.plane,
             x: grid.wrap_x(x),
@@ -622,7 +619,7 @@ impl App {
     }
 
     pub(crate) fn new_map(&mut self, seed: u64) {
-        let content = self.game.content.clone();
+        let content = self.game.content().clone();
         match Self::new_game(
             seed,
             &self.options,
@@ -646,21 +643,7 @@ impl App {
 
     /// Explore every square on both planes (for screenshots and tests).
     pub fn reveal_all(&mut self) {
-        let Some(map) = self.game.map.as_ref() else {
-            return;
-        };
-        let (w, h) = (map.width(), map.height());
-        for plane in Plane::ALL {
-            self.game.fog.explore(
-                HUMAN,
-                Position {
-                    plane,
-                    x: w / 2,
-                    y: h / 2,
-                },
-                w.max(h),
-            );
-        }
+        self.game.reveal_map(HUMAN);
     }
 
     /// Put the top-left of the map view on a tile.
@@ -773,7 +756,7 @@ impl App {
             self.log.push("Cast cancelled".into());
         } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| is_key_pressed(*k)) {
             self.ward_prompt = None;
-            if let Some(realm) = self.game.content.rules.realms.id_of(realm) {
+            if let Some(realm) = self.game.content().rules.realms.id_of(realm) {
                 let target = f4x_core::rules::exec::Target::CityRealm(city, realm);
                 let cmd = if resolve {
                     Command::ResolveCast {
@@ -826,12 +809,7 @@ impl App {
 
     /// The question after taking a city: keep it (Enter) or raze it (R), shown over the map.
     fn raze_prompt_frame(&mut self, city: hecs::Entity) -> bool {
-        let gone = self.game.city_owner(city) != Some(HUMAN)
-            || self
-                .game
-                .world
-                .get::<&f4x_core::conquest::Conquered>(city)
-                .is_err();
+        let gone = self.game.city_owner(city) != Some(HUMAN) || !self.game.city_conquered(city);
         if gone {
             self.raze_prompt = None;
             return true;
@@ -968,7 +946,7 @@ impl App {
             self.new_map(self.seed + 1);
         }
         if is_key_pressed(KeyCode::R) {
-            self.race = (self.race + 1) % self.game.content.rules.races.len().max(1);
+            self.race = (self.race + 1) % self.game.content().rules.races.len().max(1);
             self.new_map(self.seed);
             let name = self.race_name(self.race).to_string();
             self.log.push(format!("Playing as {name}"));
@@ -1082,7 +1060,7 @@ impl App {
     }
 
     fn draw_map(&mut self) {
-        let Some(map) = self.game.map.as_ref() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(self.plane);
@@ -1127,7 +1105,14 @@ impl App {
             for i in 0..=(cols.ceil() as i32) {
                 let wx = grid.wrap_x(x0 + i);
                 let (sx, sy) = (r.x + i as f32 * t.x - off.x, r.y + j as f32 * t.y - off.y);
-                if !self.game.fog.is_explored(HUMAN, self.plane, wx, y as u32) {
+                if !self.game.is_explored(
+                    HUMAN,
+                    Position {
+                        plane: self.plane,
+                        x: wx,
+                        y: y as u32,
+                    },
+                ) {
                     draw_rectangle(sx, sy, t.x, t.y, BLACK);
                     continue;
                 }
@@ -1146,7 +1131,14 @@ impl App {
         }
         for (entity, city, pos) in &cities {
             if pos.plane != self.plane
-                || !self.game.fog.is_explored(HUMAN, self.plane, pos.x, pos.y)
+                || !self.game.is_explored(
+                    HUMAN,
+                    Position {
+                        plane: self.plane,
+                        x: pos.x,
+                        y: pos.y,
+                    },
+                )
             {
                 continue;
             }
@@ -1370,7 +1362,7 @@ impl App {
             };
             let (hp, max) = self.game.unit_hits(unit);
             let moves = self.game.unit_moves_left(unit) as f32 / 2.0;
-            let order = if self.game.world.get::<&f4x_core::units::Order>(unit).is_ok() {
+            let order = if self.game.unit_has_order(unit) {
                 " ->"
             } else {
                 ""
@@ -1386,12 +1378,19 @@ impl App {
         let Some(pos) = self.tile_at(mouse_position().into()) else {
             return;
         };
-        let content = &self.game.content;
-        let Some(map) = self.game.map.as_ref() else {
+        let content = &self.game.content();
+        let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(self.plane);
-        if !self.game.fog.is_explored(HUMAN, self.plane, pos.x, pos.y) {
+        if !self.game.is_explored(
+            HUMAN,
+            Position {
+                plane: self.plane,
+                x: pos.x,
+                y: pos.y,
+            },
+        ) {
             lines.line("Unexplored", GRAY);
             return;
         }
@@ -1410,11 +1409,7 @@ impl App {
         }
         if let Some(city) = self.game.city_at(pos) {
             let name = self.city_name(city);
-            let pop = self
-                .game
-                .world
-                .get::<&f4x_core::economy::Population>(city)
-                .map_or(0, |p| p.figures);
+            let pop = self.game.city_population(city).figures;
             lines.line(&format!("{name} (size {pop})"), GOLD);
         }
         let others: Vec<_> = self

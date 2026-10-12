@@ -31,7 +31,7 @@ fn draw_pic(tex: &Texture2D, x: f32, y: f32, scale: f32) {
 
 /// Whether a neighbouring square counts as water for a river that runs into it.
 fn is_water(game: &Game, grid: &Grid, x: i32, y: i32) -> bool {
-    pick::class_at(grid, &game.content, x, y) == Some(TerrainClass::Ocean)
+    pick::class_at(grid, game.content(), x, y) == Some(TerrainClass::Ocean)
 }
 
 /// The eight road directions in the order of `mapback.lbx` 46 to 53: clockwise from north.
@@ -60,11 +60,11 @@ pub fn draw_square(
     t: Vec2,
     anim: usize,
 ) {
-    let Some(map) = game.map.as_ref() else {
+    let Some(map) = game.map() else {
         return;
     };
     let grid = map.plane(plane);
-    let content = &game.content;
+    let content = &game.content();
     let k = t.x / TILE_W;
     let (x, yi) = (wx as i32, y as i32);
     let plane_offset = if plane == Plane::Myrror {
@@ -204,17 +204,11 @@ pub fn draw_city(game: &Game, art: &mut Art, city: hecs::Entity, sx: f32, sy: f3
     let k = t.x / TILE_W;
     let owner = game.city_owner(city).map_or(u8::MAX, |o| o.0);
     let banner = banner_of(game, owner);
-    let figures = game
-        .world
-        .get::<&f4x_core::economy::Population>(city)
-        .map_or(0, |p| p.figures);
+    let figures = game.city_population(city).figures;
     let walled = game
-        .world
-        .get::<&f4x_core::economy::Buildings>(city)
-        .is_ok_and(|b| {
-            b.0.iter()
-                .any(|&id| game.content.rules.buildings.get(id).id == "city_walls")
-        });
+        .city_buildings(city)
+        .iter()
+        .any(|&id| game.content().rules.buildings.get(id).id == "city_walls");
     let name = if walled { "city_walled" } else { "city_open" };
     if let Some(tex) = art.banner_picture(name, banner, city_frame(figures)) {
         draw_pic(tex, sx - 6.0 * k, sy - 6.0 * k, k);

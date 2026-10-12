@@ -139,7 +139,7 @@ impl App {
     /// Every overland enchantment in play, with its wizard: the original lists all of them.
     fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::city::PlayerId)> {
         self.game
-            .players
+            .players()
             .iter()
             .flat_map(|p| p.magic.global.iter().map(move |&s| (s, p.id)))
             .collect()
@@ -200,7 +200,7 @@ impl App {
             self.alchemy_popup(&lay, view);
         }
         if let Some(spell) = self.magic_ui.turn_off {
-            let name = self.game.content.rules.spells.get(spell).name.clone();
+            let name = self.game.content().rules.spells.get(spell).name.clone();
             match self.confirm_box(&format!("Do you wish to cancel your {name} spell?")) {
                 Some(true) => {
                     self.magic_ui.turn_off = None;
@@ -331,7 +331,7 @@ impl App {
         let skill = self.game.casting_skill(HUMAN);
         let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let base = self.game.power_base(HUMAN);
-        let name = |g: &f4x_core::Game, s: SpellId| g.content.rules.spells.get(s).name.clone();
+        let name = |g: &f4x_core::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
         let casting = magic
             .casting
             .map_or("None".to_string(), |c| name(&self.game, c.spell));
@@ -378,7 +378,7 @@ impl App {
         }
         let others: Vec<(PlayerId, u8, u8, bool)> = self
             .game
-            .players
+            .players()
             .iter()
             .filter(|p| p.id != HUMAN && !p.neutral && p.id.0 != u8::MAX)
             .map(|p| (p.id, p.portrait, p.banner, p.defeated))
@@ -464,7 +464,7 @@ impl App {
         }
         let first = self.magic_ui.first;
         for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
-            let name = self.game.content.rules.spells.get(spell).name.clone();
+            let name = self.game.content().rules.spells.get(spell).name.clone();
             let color = self.banner_color(owner.0);
             let (x, y, style) = if two_columns {
                 (

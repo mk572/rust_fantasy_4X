@@ -180,7 +180,7 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "war" => ProposalKind::WarOn(ctx.other_wizard(a, 2)?),
         "break" => ProposalKind::BreakAllianceWith(ctx.other_wizard(a, 2)?),
         "swap" => {
-            let spells = &ctx.game.content.rules.spells;
+            let spells = &ctx.game.content().rules.spells;
             let give = resolve(spells, a.need(2, "your spell")?, |d| &d.name, "spell")?;
             let get = resolve(spells, a.need(3, "their spell")?, |d| &d.name, "spell")?;
             ProposalKind::Exchange { give, get }
@@ -239,7 +239,7 @@ fn givegold(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn givespell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let to = ctx.other_wizard(a, 0)?;
     let spell = resolve(
-        &ctx.game.content.rules.spells,
+        &ctx.game.content().rules.spells,
         a.need(1, "spell")?,
         |d| &d.name,
         "spell",

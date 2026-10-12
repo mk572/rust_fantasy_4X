@@ -35,7 +35,7 @@ pub fn city_size_class(citizens: u32) -> u32 {
 }
 
 impl Game {
-    pub(crate) fn citizens(&self, city: hecs::Entity) -> u32 {
+    pub fn citizens(&self, city: hecs::Entity) -> u32 {
         self.world.get::<&Population>(city).map_or(0, |p| p.figures)
     }
 

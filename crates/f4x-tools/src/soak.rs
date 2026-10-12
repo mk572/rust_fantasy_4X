@@ -147,7 +147,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
 /// Cities and units of each wizard, e.g. `p0 5c/14u, p1 2c/6u`.
 fn status(game: &Game) -> String {
-    game.players
+    game.players()
         .iter()
         .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {

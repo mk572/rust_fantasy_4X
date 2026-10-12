@@ -37,7 +37,7 @@ impl App {
     /// Realm ids that hold spell books, in the rules' order (arcane has none).
     fn book_realms(&self) -> Vec<String> {
         self.game
-            .content
+            .content()
             .rules
             .realms
             .defs()
@@ -51,7 +51,7 @@ impl App {
         let mut state = CreateState::empty();
         state.build.name = "You".into();
         self.create = state;
-        if !self.game.content.rules.wizards.is_empty() {
+        if !self.game.content().rules.wizards.is_empty() {
             self.pick_preset(Some(0));
         } else {
             let realms = self.book_realms();
@@ -67,7 +67,7 @@ impl App {
     fn pick_preset(&mut self, index: Option<usize>) {
         match index {
             Some(i) => {
-                let id = self.game.content.rules.wizards.defs()[i].id.clone();
+                let id = self.game.content().rules.wizards.defs()[i].id.clone();
                 if let Some(build) = self.game.preset_build(&id) {
                     self.create.build = build;
                     self.create.preset = Some(i);
@@ -98,7 +98,7 @@ impl App {
                     .iter()
                     .copied()
                     .filter(|&s| {
-                        let d = self.game.content.rules.spells.get(s);
+                        let d = self.game.content().rules.spells.get(s);
                         d.realm == *realm && d.rarity == rarity
                     })
                     .collect();
@@ -165,7 +165,7 @@ impl App {
         lines.gap(6.0);
         let names: Vec<String> = self
             .game
-            .content
+            .content()
             .rules
             .wizards
             .defs()
@@ -249,7 +249,7 @@ impl App {
             draw_rectangle_lines(at.x, at.y, size.x, size.y, 2.0, BLACK);
         }
         if let Some(i) = self.create.preset {
-            let text = self.game.content.rules.wizards.defs()[i]
+            let text = self.game.content().rules.wizards.defs()[i]
                 .description
                 .clone();
             for line in wrap(&text, 18.0, width - 70.0) {
@@ -260,7 +260,7 @@ impl App {
         // The race.
         y = y.max(h - 206.0);
         draw_text("Race", x, y + 16.0, 20.0, GOLD);
-        let n = self.game.content.rules.races.len().max(1);
+        let n = self.game.content().rules.races.len().max(1);
         if button(Rect::new(x + 70.0, y, 30.0, 26.0), "<", true) {
             self.race = (self.race + n - 1) % n;
         }
@@ -342,7 +342,7 @@ impl App {
             let n = self.create.build.books.get(realm).copied().unwrap_or(0);
             let color = self
                 .game
-                .content
+                .content()
                 .rules
                 .realms
                 .by_name(realm)
@@ -351,7 +351,7 @@ impl App {
                 });
             let name = self
                 .game
-                .content
+                .content()
                 .rules
                 .realms
                 .by_name(realm)
@@ -462,13 +462,13 @@ impl App {
                     .spells
                     .iter()
                     .filter(|&&s| {
-                        let d = self.game.content.rules.spells.get(s);
+                        let d = self.game.content().rules.spells.get(s);
                         d.realm == *realm && d.rarity == rarity
                     })
                     .count();
                 let color = self
                     .game
-                    .content
+                    .content()
                     .rules
                     .realms
                     .by_name(realm)
@@ -477,7 +477,7 @@ impl App {
                     });
                 let title = self
                     .game
-                    .content
+                    .content()
                     .rules
                     .realms
                     .by_name(realm)
@@ -510,7 +510,7 @@ impl App {
                     if hover {
                         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.22, 0.12, 0.7));
                     }
-                    let name = self.game.content.rules.spells.get(s).name.clone();
+                    let name = self.game.content().rules.spells.get(s).name.clone();
                     draw_text(
                         &name,
                         r.x + 4.0,

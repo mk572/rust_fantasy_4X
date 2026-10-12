@@ -122,6 +122,63 @@ impl Game {
         None
     }
 
+    /// Every square on the stack's plane that it can walk to from where it stands (the squares
+    /// `find_path` would find a way to), the start included: one search instead of one per
+    /// target. Hostile squares and guarded sites are not entered.
+    pub fn reachable_squares(&self, units: &[hecs::Entity]) -> std::collections::HashSet<Position> {
+        let mut seen = std::collections::HashSet::new();
+        let (Some(&first), true) = (units.first(), self.map.is_some()) else {
+            return seen;
+        };
+        let (Some(start), Some(owner)) = (self.unit_position(first), self.unit_owner(first)) else {
+            return seen;
+        };
+        let flies = self.stack_traits(units);
+        let step_cost = |from: Position, next: Position| -> Option<u32> {
+            let mut worst = 0;
+            for &u in units {
+                worst = worst.max(self.step_cost(u, from, next, flies).ok()?);
+            }
+            Some(worst)
+        };
+        let mut best: HashMap<Position, u32> = HashMap::new();
+        let mut open = BinaryHeap::new();
+        best.insert(start, 0);
+        open.push(Reverse((0u32, start.x, start.y)));
+        while let Some(Reverse((cost, x, y))) = open.pop() {
+            let here = Position {
+                plane: start.plane,
+                x,
+                y,
+            };
+            if cost > *best.get(&here).unwrap_or(&u32::MAX) {
+                continue;
+            }
+            seen.insert(here);
+            for next in neighbours(self, here) {
+                if self.hostile_at(next, owner).is_some() {
+                    continue;
+                }
+                if owner != crate::units::NEUTRAL
+                    && self
+                        .lair_at(next)
+                        .is_some_and(|(_, l)| !l.guards.is_empty())
+                {
+                    continue;
+                }
+                let Some(step) = step_cost(here, next) else {
+                    continue;
+                };
+                let total = cost + step;
+                if total < *best.get(&next).unwrap_or(&u32::MAX) {
+                    best.insert(next, total);
+                    open.push(Reverse((total, next.x, next.y)));
+                }
+            }
+        }
+        seen
+    }
+
     /// Turns the stack needs for `path` at its slowest unit's full allowance.
     pub fn path_turns(&self, units: &[hecs::Entity], path: &[Position]) -> u32 {
         let Some(&first) = units.first() else {

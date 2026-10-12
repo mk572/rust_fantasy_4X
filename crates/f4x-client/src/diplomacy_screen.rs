@@ -223,7 +223,7 @@ impl App {
         let (Some(ma), Some(mb)) = (self.game.magic(a), self.game.magic(b)) else {
             return Vec::new();
         };
-        let spells = &self.game.content.rules.spells;
+        let spells = &self.game.content().rules.spells;
         let mut out: Vec<SpellId> = ma
             .known
             .iter()
@@ -236,7 +236,7 @@ impl App {
 
     /// The realms (indexes into the rules' realm list) with a spell `with` could give.
     fn exchange_realms(&self, with: PlayerId) -> Vec<usize> {
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         let spells = self.spells_to_give(with, HUMAN);
         rules
             .realms
@@ -369,7 +369,7 @@ impl App {
                     .into_iter()
                     .take(5)
                     .map(|s| {
-                        let name = self.game.content.rules.spells.get(s).name.clone();
+                        let name = self.game.content().rules.spells.get(s).name.clone();
                         row(name, true, Act::GiveSpell(s))
                     })
                     .collect();
@@ -384,7 +384,7 @@ impl App {
                 let mut rows: Vec<Row> = realms
                     .into_iter()
                     .map(|i| {
-                        let name = self.game.content.rules.realms.defs()[i].name.clone();
+                        let name = self.game.content().rules.realms.defs()[i].name.clone();
                         row(name, true, Act::Go(Menu::ExchangeGet(i)))
                     })
                     .collect();
@@ -392,7 +392,7 @@ impl App {
                 (say::exchange_prompt().to_string(), rows)
             }
             Menu::ExchangeGet(realm) => {
-                let rules = &self.game.content.rules;
+                let rules = &self.game.content().rules;
                 let id = rules.realms.defs()[realm].id.clone();
                 let mut rows: Vec<Row> = self
                     .spells_to_give(with, HUMAN)
@@ -411,7 +411,7 @@ impl App {
                 (say::exchange_prompt().to_string(), rows)
             }
             Menu::ExchangeGive(get) => {
-                let rules = &self.game.content.rules;
+                let rules = &self.game.content().rules;
                 let mut rows: Vec<Row> = self
                     .spells_to_give(HUMAN, with)
                     .into_iter()

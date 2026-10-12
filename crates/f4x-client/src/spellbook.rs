@@ -51,7 +51,7 @@ impl App {
     /// Pages of spells, `per_page` to a page, grouped by realm in the book's order, each
     /// group on its own pages; the last page is padded so the book has an even number.
     pub(crate) fn book_pages(&self, spells: &[SpellId], per_page: usize) -> Vec<BookPage> {
-        let rules = &self.game.content.rules;
+        let rules = &self.game.content().rules;
         let mut pages: Vec<BookPage> = Vec::new();
         for realm in BOOK_REALMS {
             let mut of: Vec<SpellId> = spells
@@ -87,7 +87,7 @@ impl App {
             .copied()
             .filter(|&s| {
                 self.game
-                    .content
+                    .content()
                     .rules
                     .spells
                     .get(s)
@@ -148,7 +148,7 @@ impl App {
                 .game
                 .magic(HUMAN)
                 .and_then(|m| m.casting)
-                .map(|c| self.game.content.rules.spells.get(c.spell).name.clone())
+                .map(|c| self.game.content().rules.spells.get(c.spell).name.clone())
                 .unwrap_or_default();
             match self.confirm_box(&format!("Do you wish to abort the {casting} spell?")) {
                 Some(true) => {
@@ -283,7 +283,7 @@ impl App {
         x: f32,
         y: f32,
     ) {
-        let def = self.game.content.rules.spells.get(spell).clone();
+        let def = self.game.content().rules.spells.get(spell).clone();
         let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
         let casting = magic.casting.filter(|c| c.spell == spell);
         let cost = casting.map_or_else(
@@ -344,7 +344,7 @@ impl App {
 
     /// The player clicked `pos` while choosing a target.
     pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::city::Position) {
-        let def = self.game.content.rules.spells.get(t.spell);
+        let def = self.game.content().rules.spells.get(t.spell);
         let target = match def.target {
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
                 let units = self.game.units_at(pos);

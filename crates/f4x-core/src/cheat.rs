@@ -22,6 +22,43 @@ impl Game {
         &self.override_log
     }
 
+    /// Remove a unit from the game.
+    pub fn cheat_remove_unit(&mut self, unit: hecs::Entity) -> bool {
+        self.world.despawn(unit).is_ok()
+    }
+
+    /// Heal a unit completely and give it all its moves back.
+    pub fn cheat_restore_unit(&mut self, unit: hecs::Entity) {
+        let moves = self.unit_max_moves(unit);
+        let _ = self.world.insert_one(unit, crate::units::Hurt(0));
+        let _ = self.world.insert_one(unit, crate::units::MovesLeft(moves));
+    }
+
+    /// Put a unit on a square, wherever it stands and whatever is there.
+    pub fn cheat_move_unit(&mut self, unit: hecs::Entity, to: Position) {
+        let _ = self.world.insert_one(unit, to);
+    }
+
+    /// Explore every square of both planes for a player, without meeting anyone (for
+    /// screenshots and tests).
+    pub fn reveal_map(&mut self, player: PlayerId) {
+        let Some(map) = self.map.as_ref() else {
+            return;
+        };
+        let (w, h) = (map.width(), map.height());
+        for plane in crate::map::Plane::ALL {
+            self.fog.explore(
+                player,
+                Position {
+                    plane,
+                    x: w / 2,
+                    y: h / 2,
+                },
+                w.max(h),
+            );
+        }
+    }
+
     /// Replace a square's terrain.
     pub fn cheat_set_terrain(&mut self, pos: Position, terrain: TerrainId) -> bool {
         let Some(map) = self.map.as_mut() else {

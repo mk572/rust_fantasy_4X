@@ -1,7 +1,6 @@
 //! Read-only commands. In legal mode they show only what the console's player can see.
 
 use f4x_core::city::Position;
-use f4x_core::economy::Population;
 use f4x_core::map::Plane;
 use f4x_core::rules::Stat;
 
@@ -116,7 +115,7 @@ impl Ctx<'_> {
         if self.overriding() {
             return true;
         }
-        let Some(map) = self.game.map.as_ref() else {
+        let Some(map) = self.game.map() else {
             return false;
         };
         if p.x >= map.width() || p.y >= map.height() {
@@ -130,11 +129,7 @@ impl Ctx<'_> {
     }
 
     fn explored(&self, p: Position) -> bool {
-        self.overriding()
-            || self
-                .game
-                .fog
-                .is_explored(self.session.player, p.plane, p.x, p.y)
+        self.overriding() || self.game.is_explored(self.session.player, p)
     }
 }
 
@@ -207,7 +202,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let rows: Vec<String> = ctx
         .game
-        .players
+        .players()
         .iter()
         .filter(|p| p.id.0 != u8::MAX && !p.neutral)
         .map(|p| {
@@ -317,11 +312,7 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let mut rows = Vec::new();
     for (e, c, p) in ctx.game.cities() {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
-            let pop = ctx
-                .game
-                .world
-                .get::<&Population>(e)
-                .map_or(0, |p| p.figures);
+            let pop = ctx.game.citizens(e);
             rows.push((
                 ctx.game.serial_of(e),
                 format!(
@@ -380,14 +371,10 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     let built: Vec<String> = ctx
         .game
-        .world
-        .get::<&f4x_core::economy::Buildings>(c)
-        .map(|b| {
-            b.0.iter()
-                .map(|&id| ctx.game.content.rules.buildings.get(id).name.clone())
-                .collect()
-        })
-        .unwrap_or_default();
+        .city_buildings(c)
+        .into_iter()
+        .map(|id| ctx.game.content().rules.buildings.get(id).name.clone())
+        .collect();
     ctx.say(format!(
         "buildings: {}",
         if built.is_empty() {
@@ -426,7 +413,7 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if ctx.game.city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed("not your city".into()));
     }
-    let rules = &ctx.game.content.rules;
+    let rules = &ctx.game.content().rules;
     let mut items: Vec<ProductionItem> = rules
         .buildings
         .iter()
@@ -438,11 +425,11 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     for i in items {
         let (name, id) = match i {
             ProductionItem::Building(b) => {
-                let d = ctx.game.content.rules.buildings.get(b);
+                let d = ctx.game.content().rules.buildings.get(b);
                 (d.name.clone(), d.id.clone())
             }
             ProductionItem::Unit(u) => {
-                let d = ctx.game.content.rules.units.get(u);
+                let d = ctx.game.content().rules.units.get(u);
                 (d.name.clone(), d.id.clone())
             }
             ProductionItem::TradeGoods => ("Trade Goods".into(), "trade".into()),
@@ -460,20 +447,16 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!("{} is unexplored", describe::pos(p)));
         return Ok(());
     }
-    let map = ctx
-        .game
-        .map
-        .as_ref()
-        .ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx.game.map().ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(p.plane);
     let t = grid
         .get(p.x as i32, p.y as i32)
-        .and_then(|t| ctx.game.content.terrains.get(t))
+        .and_then(|t| ctx.game.content().terrains.get(t))
         .map_or("outside the map".to_string(), |d| d.name.clone());
     let mut line = format!("{}: {t}", describe::pos(p));
     if let Some(f) = grid
         .feature(p.x as i32, p.y as i32)
-        .and_then(|f| ctx.game.content.features.get(f))
+        .and_then(|f| ctx.game.content().features.get(f))
     {
         line.push_str(&format!(", {}", f.name));
     }
@@ -530,11 +513,7 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         (centre, radius.clamp(1, 20) as i32)
     };
-    let map = ctx
-        .game
-        .map
-        .as_ref()
-        .ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx.game.map().ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(centre.plane);
     let mut rows = Vec::new();
     for dy in -radius..=radius {
@@ -599,7 +578,7 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .magic(me)
         .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
-    let rules = &ctx.game.content.rules;
+    let rules = &ctx.game.content().rules;
     let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>, cost_research: bool| {
         ids.map(|&s| {
             let d = rules.spells.get(s);
@@ -715,7 +694,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ));
     }
     if only.is_none() {
-        let rules = &ctx.game.content.rules;
+        let rules = &ctx.game.content().rules;
         for lc in ctx.game.legal_battle_casts() {
             let aims: Vec<String> = lc
                 .aims
@@ -744,7 +723,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     use f4x_core::rules::defs::SpellTarget;
     let me = ctx.session.player;
-    let rules = &ctx.game.content.rules;
+    let rules = &ctx.game.content().rules;
     let lines: Vec<String> = ctx
         .game
         .battle_spells(me)

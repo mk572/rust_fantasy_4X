@@ -155,7 +155,7 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.game
             .unit_def(unit)
             .and_then(|d| d.race.as_deref())
-            .and_then(|r| ctx.game.content.rules.races.by_name(r))
+            .and_then(|r| ctx.game.content().rules.races.by_name(r))
             .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
             .unwrap_or_else(|| format!("Outpost {}", used + 1))
     };
@@ -200,7 +200,7 @@ fn enter(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn production_item(ctx: &Ctx, text: &str) -> Result<ProductionItem, ConsoleError> {
-    let rules = &ctx.game.content.rules;
+    let rules = &ctx.game.content().rules;
     match text.to_lowercase().as_str() {
         "trade" | "tradegoods" | "trade_goods" => return Ok(ProductionItem::TradeGoods),
         "housing" => return Ok(ProductionItem::Housing),
@@ -238,7 +238,7 @@ fn farmers(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn sell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let city = ctx.my_city(a, 0)?;
     let building = resolve(
-        &ctx.game.content.rules.buildings,
+        &ctx.game.content().rules.buildings,
         &a.rest(1),
         |d| &d.name,
         "building",
@@ -277,7 +277,7 @@ fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
-    resolve(&ctx.game.content.rules.spells, text, |d| &d.name, "spell")
+    resolve(&ctx.game.content().rules.spells, text, |d| &d.name, "spell")
 }
 
 fn research(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
@@ -314,7 +314,7 @@ fn cancelcast(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn turnoff(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let spell = crate::args::resolve(
-        &ctx.game.content.rules.spells,
+        &ctx.game.content().rules.spells,
         a.need(0, "spell")?,
         |d| &d.name,
         "spell",

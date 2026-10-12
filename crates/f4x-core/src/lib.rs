@@ -3,6 +3,7 @@
 //! All state changes go through [`Game::apply`] as [`Command`]s, which yield
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
+mod access;
 pub mod battle;
 pub mod cast;
 pub mod cheat;
@@ -33,6 +34,7 @@ pub mod nightshade;
 pub mod nodes;
 pub mod pathing;
 pub mod player;
+pub mod player_view;
 pub mod production;
 pub mod rng;
 pub mod roads;
@@ -494,12 +496,12 @@ fn events_or_reject(r: Result<Vec<Event>, magic::MagicError>) -> Vec<Event> {
 }
 
 pub struct Game {
-    pub world: hecs::World,
+    pub(crate) world: hecs::World,
     pub turn: u32,
-    pub map: Option<map::Map>,
-    pub content: content::Content,
-    pub players: Vec<player::Player>,
-    pub fog: fog::Fog,
+    pub(crate) map: Option<map::Map>,
+    pub(crate) content: content::Content,
+    pub(crate) players: Vec<player::Player>,
+    pub(crate) fog: fog::Fog,
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `rng.rs`).
     pub(crate) rng: rng::GameRng,

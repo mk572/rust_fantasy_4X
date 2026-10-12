@@ -3,7 +3,6 @@
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::map::Plane;
-use f4x_core::units::Hurt;
 use f4x_core::Command;
 
 use crate::args::{city_by_serial, parse_player, parse_pos, parse_units, resolve, Args};
@@ -84,7 +83,7 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn spawn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let unit = resolve(
-        &ctx.game.content.rules.units,
+        &ctx.game.content().rules.units,
         a.need(0, "unit")?,
         |d| &d.name,
         "unit",
@@ -98,7 +97,7 @@ fn kill(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let units = parse_units(ctx.game, a.need(0, "units")?)?;
     for u in units {
         let line = describe::unit(ctx.game, u);
-        let _ = ctx.game.world.despawn(u);
+        ctx.game.cheat_remove_unit(u);
         ctx.say(format!("removed {line}"));
     }
     Ok(())
@@ -106,12 +105,7 @@ fn kill(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn restore(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     for u in parse_units(ctx.game, a.need(0, "units")?)? {
-        let _ = ctx.game.world.insert_one(u, Hurt(0));
-        let moves = ctx.game.unit_max_moves(u);
-        let _ = ctx
-            .game
-            .world
-            .insert_one(u, f4x_core::units::MovesLeft(moves));
+        ctx.game.cheat_restore_unit(u);
         let line = describe::unit(ctx.game, u);
         ctx.say(format!("restored {line}"));
     }
@@ -135,7 +129,7 @@ fn teleport(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .map_or(Plane::Arcanus, |p| p.plane);
     let to = parse_pos(a.need(1, "position")?, first)?;
     for u in units {
-        let _ = ctx.game.world.insert_one(u, to);
+        ctx.game.cheat_move_unit(u, to);
     }
     ctx.explore_for_units(to);
     ctx.say(format!("moved to {}", describe::pos(to)));
@@ -168,7 +162,7 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             "race" => {
                 race = Some(
                     ctx.game
-                        .content
+                        .content()
                         .rules
                         .races
                         .id_of(v)
@@ -189,13 +183,13 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if race.is_none() {
         race = ctx
             .game
-            .content
+            .content()
             .rules
             .races
             .defs()
             .first()
             .map(|r| r.id.clone())
-            .and_then(|id| ctx.game.content.rules.races.id_of(&id));
+            .and_then(|id| ctx.game.content().rules.races.id_of(&id));
     }
     ctx.apply(Command::FoundCity {
         owner,
@@ -209,7 +203,7 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn build(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let city = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
     let b = resolve(
-        &ctx.game.content.rules.buildings,
+        &ctx.game.content().rules.buildings,
         &a.rest(1),
         |d| &d.name,
         "building",
@@ -220,7 +214,7 @@ fn build(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!(
         "{} now has {}",
         describe::city_name(ctx.game, city),
-        ctx.game.content.rules.buildings.get(b).name
+        ctx.game.content().rules.buildings.get(b).name
     ));
     Ok(())
 }
@@ -230,7 +224,7 @@ fn terrain(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let name = a.need(1, "terrain id")?;
     let id = ctx
         .game
-        .content
+        .content()
         .terrains
         .id_of(name)
         .ok_or_else(|| ConsoleError::NoSuch(format!("terrain {name:?}")))?;
@@ -250,7 +244,7 @@ fn learn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         _ => (plain.join(" "), None),
     };
     let spell = resolve(
-        &ctx.game.content.rules.spells,
+        &ctx.game.content().rules.spells,
         &spell_text,
         |d| &d.name,
         "spell",
@@ -321,7 +315,7 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .ok_or(ConsoleError::Usage("missing position".into()))?,
         Plane::Arcanus,
     )?;
-    let rules = &ctx.game.content.rules;
+    let rules = &ctx.game.content().rules;
     let race_def = match opts.iter().find(|(k, _)| *k == "race") {
         Some((_, id)) => rules
             .races

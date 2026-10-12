@@ -3,6 +3,7 @@
 //! proposal (`Game::rate_proposal`, docs/diplomacy.md section 4) as the starting logic.
 
 use f4x_core::diplomacy::{DiplomacyCommand, Verdict};
+use f4x_core::player_view::PlayerView;
 use f4x_core::{Command, Event, Game};
 
 use crate::Ai;
@@ -10,13 +11,7 @@ use crate::Ai;
 /// Answer every proposal other wizards have made to this one. A proposal nobody answers lapses
 /// as refused when the turn ends.
 pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let pending: Vec<_> = game
-        .diplomacy
-        .proposals()
-        .iter()
-        .filter(|p| p.to == ai.player)
-        .copied()
-        .collect();
+    let pending = PlayerView::new(game, ai.player).proposals_to_me();
     for proposal in pending {
         let accept =
             game.rate_proposal(proposal.from, proposal.to, proposal.kind) == Verdict::Accepted;
@@ -45,7 +40,7 @@ mod tests {
     fn game() -> Game {
         let mut g = Game::new(5);
         for id in [HUMAN, AI] {
-            g.players.push(Player::new(id, "W"));
+            g.add_player(Player::new(id, "W"));
         }
         g.human = Some(HUMAN);
         g.make_contact(HUMAN, AI);
@@ -72,7 +67,7 @@ mod tests {
     #[test]
     fn proposals_to_others_are_left_alone() {
         let mut g = game();
-        g.players.push(Player::new(PlayerId(2), "W"));
+        g.add_player(Player::new(PlayerId(2), "W"));
         g.make_contact(HUMAN, PlayerId(2));
         g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
             from: HUMAN,
@@ -92,7 +87,7 @@ mod tests {
         for seed in 0..40 {
             let mut g = Game::new(seed);
             for id in [HUMAN, AI] {
-                g.players.push(Player::new(id, "W"));
+                g.add_player(Player::new(id, "W"));
             }
             g.human = Some(HUMAN);
             g.make_contact(HUMAN, AI);
@@ -107,7 +102,7 @@ mod tests {
             }
             let mut h = Game::new(seed);
             for id in [HUMAN, AI] {
-                h.players.push(Player::new(id, "W"));
+                h.add_player(Player::new(id, "W"));
             }
             h.human = Some(HUMAN);
             h.make_contact(HUMAN, AI);

@@ -59,7 +59,10 @@ pub(crate) fn describe_spell(help: &f4x_core::help::Help, name: &str) -> String 
 impl App {
     /// The paragraph that tells what a spell does.
     fn spell_text(&self, spell: SpellId) -> String {
-        describe_spell(&self.help, &self.game.content.rules.spells.get(spell).name)
+        describe_spell(
+            &self.help,
+            &self.game.content().rules.spells.get(spell).name,
+        )
     }
 
     /// Break `text` into lines no wider than `width` of the original's pixels.
@@ -289,7 +292,7 @@ impl App {
         y: f32,
         research_page: bool,
     ) {
-        let def = self.game.content.rules.spells.get(spell).clone();
+        let def = self.game.content().rules.spells.get(spell).clone();
         let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
         let known = magic.known.contains(&spell);
         let current = magic.researching == Some(spell);
@@ -375,8 +378,8 @@ impl App {
                 Color::new(0.55, 0.4, 0.2, 1.0),
             );
         }
-        let name = self.game.content.rules.spells.get(spell).name.clone();
-        let realm = self.game.content.rules.spells.get(spell).realm.clone();
+        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let realm = self.game.content().rules.spells.get(spell).realm.clone();
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
         self.bm_text(
             view,

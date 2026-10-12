@@ -108,7 +108,7 @@ Rules that keep it from growing back:
    Magic did not need the take-out trick: the wizard is a field of a `Player` in a `Vec`, so the
    game borrows the wizard, the content and the generator apart (`magic_parts`) and the rules
    of `Magic` take them as arguments.
-4. **Read-only view for the AI and client (181)**, replacing direct use of `game.world`,
+4. **Read-only view for the AI and client (181, done: `access.rs`, `player_view.rs`)**, replacing direct use of `game.world`,
    `game.map` and `game.content` outside the core where a query would do.
 5. **Docs and guard (182, 183):** bring `ecs-structure.md` up to date, write the rules above
    into it (182, done: sections 2 and "Domains" of `ecs-structure.md`), add the method-count test.

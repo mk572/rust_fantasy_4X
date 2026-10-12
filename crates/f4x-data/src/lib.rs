@@ -257,7 +257,7 @@ mod tests {
             ..Default::default()
         };
         let g = f4x_core::Game::with_generated_map(1, &Default::default(), &c).unwrap();
-        assert!(g.map.is_some());
+        assert!(g.map().is_some());
     }
 
     #[test]

@@ -189,7 +189,7 @@ fn replaces_game(ctx: &Ctx) -> Result<(), ConsoleError> {
 fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
     let path = save_path(a)?;
-    let content = ctx.game.content.clone();
+    let content = ctx.game.content().clone();
     let mut game = f4x_data::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     game.human.get_or_insert(ctx.session.player);
@@ -249,7 +249,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             other => return Err(ConsoleError::Usage(format!("unknown option {other:?}"))),
         }
     }
-    let content = ctx.game.content.clone();
+    let content = ctx.game.content().clone();
     let game = new_game(&content, &spec).map_err(ConsoleError::Failed)?;
     *ctx.game = game;
     ctx.session.player = crate::setup::HUMAN;

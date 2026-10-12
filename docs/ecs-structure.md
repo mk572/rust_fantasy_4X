@@ -69,6 +69,18 @@ The rule of thumb: if it has an identity that other things refer to and a varied
 attributes, it is an entity; if it is addressed by coordinates or is one per player, it is
 a field of `Game`.
 
+### Who may read and change what
+
+The fields of `Game` (`world`, `map`, `fog`, `content`, `players`) are private to `f4x-core`. The
+other crates ask the game through its queries (`unit_*`, `city_*`, `player`, and `access.rs`:
+`content()`, `map()`, `players()`, `is_explored`, `city_buildings`...), play through
+`Game::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
+`access.rs` and the `cheat_*` mutators of `cheat.rs`, which only the console's override commands
+use. An AI wizard reads through a `PlayerView` (`player_view.rs`): its own things, the cities of
+others on squares it has explored and the units on squares it sees, so it cannot know more than a
+human player. Tests of other crates may read a component with the hidden
+`Game::component::<T>`.
+
 ### Domains: how the code is organised
 
 A **domain** is a part of the rules with state of its own and rules that mostly concern that

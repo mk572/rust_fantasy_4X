@@ -3,10 +3,11 @@
 
 use std::collections::HashMap;
 
-use f4x_core::city::Position;
+use f4x_core::city::{PlayerId, Position};
+use f4x_core::player_view::PlayerView;
 use f4x_core::{Command, Event, Game};
 
-use crate::view::{distance, is_fighter, stack_strength, unit_strength, Sight};
+use crate::view::{distance, is_fighter, nearest_unexplored, stack_strength, unit_strength};
 use crate::Ai;
 
 /// Fighters each city keeps at home.
@@ -29,144 +30,159 @@ const NEIGHBOURS: [(i32, i32); 8] = [
     (1, 1),
 ];
 
-fn neighbours(game: &Game, at: Position) -> Vec<Position> {
-    let Some(map) = game.map.as_ref() else {
-        return Vec::new();
-    };
-    let grid = map.plane(at.plane);
+fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
     NEIGHBOURS
         .iter()
-        .filter_map(|&(dx, dy)| {
-            let y = at.y as i32 + dy;
-            (y >= 0 && y < grid.height() as i32).then(|| Position {
-                plane: at.plane,
-                x: grid.wrap_x(at.x as i32 + dx),
-                y: y as u32,
-            })
-        })
+        .filter_map(|&(dx, dy)| view.shift(at, dx, dy))
         .collect()
 }
 
 /// My fighting units, grouped by square, in a stable order.
-fn stacks(game: &Game, ai: &Ai) -> Vec<(Position, Vec<hecs::Entity>)> {
+fn stacks(view: &PlayerView) -> Vec<(Position, Vec<hecs::Entity>)> {
     let mut by_pos: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
-    for u in game.player_units(ai.player) {
-        if let (true, Some(p)) = (is_fighter(game, u), game.unit_position(u)) {
+    for u in view.my_units() {
+        if let (true, Some(p)) = (is_fighter(view, u), view.unit_position(u)) {
             by_pos.entry(p).or_default().push(u);
         }
     }
     let mut list: Vec<_> = by_pos.into_iter().collect();
     for (_, units) in &mut list {
-        game.sort_by_serial(units);
+        view.sort_by_serial(units);
     }
-    list.sort_by_key(|(_, units)| game.serial_of(units[0]));
+    list.sort_by_key(|(_, units)| view.serial_of(units[0]));
     list
+}
+
+/// What a stack decides about one square next to it.
+enum Sortie {
+    /// Nothing hostile there.
+    Nothing,
+    /// An enemy city with no one in it: walk in.
+    WalkIn,
+    /// Defended: fight if this force is enough.
+    Fight(Vec<hecs::Entity>, f32),
 }
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let sight = Sight::of(game, me);
-    let own_cities: Vec<Position> = game
-        .cities()
+    let own_cities: Vec<Position> = PlayerView::new(game, me)
+        .my_cities()
         .into_iter()
-        .filter(|(_, c, _)| c.owner == me)
-        .map(|(_, _, p)| p)
+        .map(|(_, p)| p)
         .collect();
 
     // 1. Hit what stands next to us, when we are clearly the stronger.
     let mut spent: Vec<hecs::Entity> = Vec::new();
-    for (pos, units) in stacks(game, ai) {
+    let stack_list = stacks(&PlayerView::new(game, me));
+    for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
         let ratio = if at_city { SORTIE_RATIO } else { ATTACK_RATIO };
-        let mine = stack_strength(game, &units);
-        for target in neighbours(game, pos) {
-            if game.game_over.is_some() {
-                return;
-            }
-            let Some(defenders) = game.hostile_at(target, me) else {
-                continue;
-            };
-            if defenders.is_empty() {
-                // An empty enemy city: walk in.
-                if ai.send(
-                    game,
-                    Command::MoveStack {
-                        units: units.clone(),
-                        to: target,
-                    },
-                    events,
-                ) {
-                    spent.extend(&units);
-                    break;
+        let (mine, targets) = {
+            let view = PlayerView::new(game, me);
+            (stack_strength(&view, &units), neighbours(&view, pos))
+        };
+        for target in targets {
+            let sortie = {
+                let view = PlayerView::new(game, me);
+                if view.game_over() {
+                    return;
                 }
-                continue;
-            }
-            let seen = sight.sees(target);
-            let theirs = if seen {
-                stack_strength(game, &defenders)
-                    * if game.city_at(target).is_some() {
-                        1.3
-                    } else {
-                        1.0
+                match view.hostile_at(target) {
+                    None => Sortie::Nothing,
+                    Some(defenders) if defenders.is_empty() => Sortie::WalkIn,
+                    Some(defenders) => {
+                        // A square we see is a square we know the defence of.
+                        let theirs = stack_strength(&view, &defenders)
+                            * if view.city_at(target).is_some() {
+                                1.3
+                            } else {
+                                1.0
+                            };
+                        Sortie::Fight(defenders, theirs)
                     }
-            } else {
-                GUESS_DEFENDERS * average_strength(game, me)
+                }
             };
-            if mine >= theirs * ratio && (!at_city || units.len() > 1) {
-                let attackers = if at_city {
-                    // Leave the weakest at home.
-                    units.iter().skip(1).copied().collect()
-                } else {
-                    units.clone()
-                };
-                ai.send(
-                    game,
-                    Command::AutoResolve {
-                        attackers,
-                        defenders,
-                    },
-                    events,
-                );
-                spent.extend(&units);
-                break;
+            match sortie {
+                Sortie::Nothing => continue,
+                Sortie::WalkIn => {
+                    // An empty enemy city: walk in.
+                    if ai.send(
+                        game,
+                        Command::MoveStack {
+                            units: units.clone(),
+                            to: target,
+                        },
+                        events,
+                    ) {
+                        spent.extend(&units);
+                        break;
+                    }
+                }
+                Sortie::Fight(defenders, theirs) => {
+                    if mine >= theirs * ratio && (!at_city || units.len() > 1) {
+                        let attackers = if at_city {
+                            // Leave the weakest at home.
+                            units.iter().skip(1).copied().collect()
+                        } else {
+                            units.clone()
+                        };
+                        ai.send(
+                            game,
+                            Command::AutoResolve {
+                                attackers,
+                                defenders,
+                            },
+                            events,
+                        );
+                        spent.extend(&units);
+                        break;
+                    }
+                }
             }
         }
     }
 
     // 2. Everyone who is neither at home guarding nor fighting is free to campaign.
-    let mut free: Vec<hecs::Entity> = Vec::new();
-    for (pos, units) in stacks(game, ai) {
-        let skip = if own_cities.contains(&pos) {
-            GARRISON
-        } else {
-            0
-        };
-        free.extend(
-            units
-                .into_iter()
-                .skip(skip)
-                .filter(|u| !spent.contains(u))
-                .filter(|&u| game.unit_position(u).is_some()),
-        );
-    }
-    let capital = game
-        .player(me)
-        .and_then(|p| p.fortress)
-        .or_else(|| own_cities.first().copied());
+    let (free, capital) = {
+        let view = PlayerView::new(game, me);
+        let mut free: Vec<hecs::Entity> = Vec::new();
+        for (pos, units) in stacks(&view) {
+            let skip = if own_cities.contains(&pos) {
+                GARRISON
+            } else {
+                0
+            };
+            free.extend(
+                units
+                    .into_iter()
+                    .skip(skip)
+                    .filter(|u| !spent.contains(u))
+                    .filter(|&u| view.unit_position(u).is_some()),
+            );
+        }
+        let capital = view
+            .player()
+            .and_then(|p| p.fortress)
+            .or_else(|| own_cities.first().copied());
+        (free, capital)
+    };
     let Some(capital) = capital else {
         return;
     };
 
     // 3. Choose (or keep) a city to attack.
-    if ai.campaign.is_some_and(|c| {
-        game.city_at(c)
-            .and_then(|e| game.city_owner(e))
-            .is_none_or(|o| o == me)
-    }) {
-        ai.campaign = None;
-    }
-    if ai.campaign.is_none() {
-        ai.campaign = nearest_enemy_city(game, me, capital);
+    {
+        let view = PlayerView::new(game, me);
+        if ai.campaign.is_some_and(|c| {
+            view.city_at(c)
+                .and_then(|e| view.city_owner(e))
+                .is_none_or(|o| o == me)
+        }) {
+            ai.campaign = None;
+        }
+        if ai.campaign.is_none() {
+            ai.campaign = nearest_enemy_city(&view, capital);
+        }
     }
     let Some(target) = ai.campaign else {
         explore(ai, game, &free, events);
@@ -174,29 +190,36 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
 
     // Gather at the own city nearest the target; march when strong enough.
-    let rally = own_cities
-        .iter()
-        .copied()
-        .filter(|&c| distance(game, c, target).is_some())
-        .min_by_key(|&c| distance(game, c, target))
-        .unwrap_or(capital);
-    let expected = if sight.sees(target) {
-        let defenders = game.hostile_at(target, me).unwrap_or_default();
-        stack_strength(game, &defenders) * 1.3
-    } else {
-        GUESS_DEFENDERS * average_strength(game, me)
+    let (rally, expected, at_rally, elsewhere, force) = {
+        let view = PlayerView::new(game, me);
+        let rally = own_cities
+            .iter()
+            .copied()
+            .filter(|&c| distance(&view, c, target).is_some())
+            .min_by_key(|&c| distance(&view, c, target))
+            .unwrap_or(capital);
+        let expected = if view.sees(target) {
+            let defenders = view.hostile_at(target).unwrap_or_default();
+            stack_strength(&view, &defenders) * 1.3
+        } else {
+            GUESS_DEFENDERS * average_strength(&view)
+        };
+        let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
+            .iter()
+            .copied()
+            .partition(|&u| view.unit_position(u) == Some(rally));
+        let force = stack_strength(&view, &at_rally);
+        (rally, expected, at_rally, elsewhere, force)
     };
-    let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
-        .iter()
-        .copied()
-        .partition(|&u| game.unit_position(u) == Some(rally));
-    let force = stack_strength(game, &at_rally);
     for u in &elsewhere {
-        if game.world.get::<&f4x_core::units::Order>(*u).is_err()
-            && game
-                .unit_position(*u)
-                .is_some_and(|p| p.plane == rally.plane)
-        {
+        let comes_home = {
+            let view = PlayerView::new(game, me);
+            !view.unit_has_order(*u)
+                && view
+                    .unit_position(*u)
+                    .is_some_and(|p| p.plane == rally.plane)
+        };
+        if comes_home {
             // Units on their way to the target (further from the rally than from it) go on;
             // the rest come home to gather.
             ai.send(
@@ -214,28 +237,23 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-fn average_strength(game: &Game, me: f4x_core::city::PlayerId) -> f32 {
-    let units: Vec<_> = game
-        .player_units(me)
+fn average_strength(view: &PlayerView) -> f32 {
+    let units: Vec<_> = view
+        .my_units()
         .into_iter()
-        .filter(|&u| is_fighter(game, u))
+        .filter(|&u| is_fighter(view, u))
         .collect();
     if units.is_empty() {
         return 20.0;
     }
-    units.iter().map(|&u| unit_strength(game, u)).sum::<f32>() / units.len() as f32
+    units.iter().map(|&u| unit_strength(view, u)).sum::<f32>() / units.len() as f32
 }
 
 /// The nearest city of another wizard on a square this wizard has explored.
-fn nearest_enemy_city(
-    game: &Game,
-    me: f4x_core::city::PlayerId,
-    from: Position,
-) -> Option<Position> {
-    game.cities()
+fn nearest_enemy_city(view: &PlayerView, from: Position) -> Option<Position> {
+    view.known_cities()
         .into_iter()
-        .filter(|(_, c, p)| c.owner != me && game.fog.is_explored(me, p.plane, p.x, p.y))
-        .filter_map(|(_, _, p)| distance(game, from, p).map(|d| (d, p)))
+        .filter_map(|(_, _, p)| distance(view, from, p).map(|d| (d, p)))
         .min_by_key(|&(d, p)| (d, p.y, p.x))
         .map(|(_, p)| p)
 }
@@ -248,11 +266,18 @@ fn march(
     target: Position,
     events: &mut Vec<Event>,
 ) {
-    let mut spots = neighbours(game, target);
-    spots.sort_by_key(|&s| distance(game, s, game.unit_position(units[0]).unwrap_or(target)));
+    let spots = {
+        let view = PlayerView::new(game, ai.player);
+        let mut spots = neighbours(&view, target);
+        spots.sort_by_key(|&s| distance(&view, s, view.unit_position(units[0]).unwrap_or(target)));
+        spots
+    };
     for spot in spots {
-        if game.hostile_at(spot, ai.player).is_some() || game.find_path(units, spot).is_none() {
-            continue;
+        {
+            let view = PlayerView::new(game, ai.player);
+            if view.hostile_at(spot).is_some() || !view.can_reach(units, spot) {
+                continue;
+            }
         }
         if ai.send(
             game,
@@ -269,47 +294,16 @@ fn march(
 
 /// Spare units walk to the nearest square nobody has seen.
 fn explore(ai: &mut Ai, game: &mut Game, free: &[hecs::Entity], events: &mut Vec<Event>) {
-    let me = ai.player;
+    let me: PlayerId = ai.player;
     for &unit in free.iter().take(2) {
-        if game.world.get::<&f4x_core::units::Order>(unit).is_ok() {
-            continue;
-        }
-        let Some(from) = game.unit_position(unit) else {
-            continue;
-        };
-        let Some(map) = game.map.as_ref() else {
-            return;
-        };
-        let grid = map.plane(from.plane);
-        let mut best: Option<(u32, Position)> = None;
-        for radius in 3i32..=14 {
-            for dy in (-radius..=radius).step_by(2) {
-                for dx in (-radius..=radius).step_by(2) {
-                    if dx.abs().max(dy.abs()) != radius {
-                        continue;
-                    }
-                    let y = from.y as i32 + dy;
-                    if y < 0 || y >= grid.height() as i32 {
-                        continue;
-                    }
-                    let p = Position {
-                        plane: from.plane,
-                        x: grid.wrap_x(from.x as i32 + dx),
-                        y: y as u32,
-                    };
-                    if !game.fog.is_explored(me, p.plane, p.x, p.y)
-                        && best.is_none_or(|(d, _)| radius as u32 <= d)
-                        && game.find_path(&[unit], p).is_some()
-                    {
-                        best = Some((radius as u32, p));
-                    }
-                }
+        let to = {
+            let view = PlayerView::new(game, me);
+            if view.unit_has_order(unit) {
+                continue;
             }
-            if best.is_some() {
-                break;
-            }
-        }
-        if let Some((_, to)) = best {
+            nearest_unexplored(&view, unit)
+        };
+        if let Some(to) = to {
             ai.send(
                 game,
                 Command::GoTo {

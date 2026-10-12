@@ -103,9 +103,9 @@ mod tests {
     fn game() -> Game {
         let content = content();
         let mut g = Game::new(21);
-        g.map = Some(generate(21, &GenParams::default(), &content).unwrap());
-        g.content = content;
-        g.players.push(Player::new(PlayerId(0), "Merlin"));
+        g.set_map(generate(21, &GenParams::default(), &content).unwrap());
+        g.set_content(content);
+        g.add_player(Player::new(PlayerId(0), "Merlin"));
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],
@@ -124,7 +124,7 @@ mod tests {
             })
             .find(|&p| g.can_found_city(p).is_ok())
             .unwrap();
-        let race = g.content.rules.races.id_of("sunfolk");
+        let race = g.content().rules.races.id_of("sunfolk");
         g.apply(Command::FoundCity {
             owner: PlayerId(0),
             pos,
@@ -132,7 +132,7 @@ mod tests {
             race,
             population: 3,
         });
-        let spear = g.content.rules.units.id_of("spearman").unwrap();
+        let spear = g.content().rules.units.id_of("spearman").unwrap();
         g.apply(Command::CreateUnit {
             owner: PlayerId(0),
             pos,

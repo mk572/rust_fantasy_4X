@@ -2,10 +2,9 @@
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, TerrainClass};
-use f4x_core::economy::Buildings;
 use f4x_core::map::Plane;
 use f4x_core::setup::{new_game, NewGame};
-use f4x_core::units::{Experience, Hurt};
+
 use f4x_core::{Command, Event, Game};
 
 use crate::scenario::{BattleScenario, Ground, UnitPick, WizardSpec};
@@ -80,7 +79,7 @@ fn set_wizard(game: &mut Game, player: PlayerId, spec: &Option<WizardSpec>) {
     let ids: Vec<_> = spec
         .iter()
         .flat_map(|w| w.spells.iter())
-        .filter_map(|s| game.content.rules.spells.id_of(s))
+        .filter_map(|s| game.content().rules.spells.id_of(s))
         .collect();
     let Some(p) = game.player_mut(player) else {
         return;
@@ -107,12 +106,12 @@ fn spawn_army(
 ) -> Vec<hecs::Entity> {
     let mut out = Vec::new();
     for pick in army {
-        let Some(id) = game.content.rules.units.id_of(&pick.unit) else {
+        let Some(id) = game.content().rules.units.id_of(&pick.unit) else {
             continue;
         };
         let u = game.spawn_unit(owner, at, id);
-        let _ = game.world.insert_one(u, Experience(pick.xp));
-        let _ = game.world.insert_one(u, Hurt(pick.hurt));
+        game.scenario_set_experience(u, pick.xp);
+        game.scenario_set_hurt(u, pick.hurt);
         out.push(u);
     }
     out
@@ -132,7 +131,7 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
     )?;
     game.set_undo(false);
     for u in game.all_units() {
-        let _ = game.world.despawn(u);
+        game.scenario_remove_unit(u);
     }
     set_wizard(&mut game, ATTACKER, &s.attacker_wizard);
     set_wizard(&mut game, DEFENDER, &s.defender_wizard);
@@ -145,12 +144,9 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
     let (from, to) = match s.ground {
         Ground::City { walls } => {
             let (city, at) = capital;
-            let wall = game.content.rules.buildings.id_of("city_walls");
-            if let (Some(wall), Ok(mut b)) = (wall, game.world.get::<&mut Buildings>(city)) {
-                b.0.retain(|&x| x != wall);
-                if walls {
-                    b.0.push(wall);
-                }
+            let wall = game.content().rules.buildings.id_of("city_walls");
+            if let Some(wall) = wall {
+                game.scenario_set_building(city, wall, walls);
             }
             let from = around(at)
                 .find(|&p| walkable(&game, p))

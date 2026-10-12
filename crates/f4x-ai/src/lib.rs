@@ -17,6 +17,7 @@ mod view;
 use std::collections::HashMap;
 
 use f4x_core::city::{PlayerId, Position};
+use f4x_core::player_view::PlayerView;
 use f4x_core::serial::Serial;
 use f4x_core::{Command, Event, Game};
 
@@ -53,8 +54,11 @@ impl Ai {
     /// Play this wizard's turn; returns the events the AI's own commands caused.
     pub fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
-        if game.game_over.is_some() || game.player(self.player).is_none_or(|p| p.defeated) {
-            return events;
+        {
+            let view = PlayerView::new(game, self.player);
+            if view.game_over() || view.player().is_none_or(|p| p.defeated) {
+                return events;
+            }
         }
         diplomacy::answer(self, game, &mut events);
         game.balance_farmers(self.player);
