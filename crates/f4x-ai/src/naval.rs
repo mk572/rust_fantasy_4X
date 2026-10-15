@@ -266,6 +266,12 @@ fn load_and_sail(
                 .find(|&s| !view.unit_has_order(s))
         };
         if let Some(s) = away {
+            if !PlayerView::new(game, me).can_reach(&[s], plan.port) {
+                // This ship cannot sail to the port (another sea): give the port up.
+                ai.naval_bad.push(plan.port);
+                ai.naval = None;
+                return;
+            }
             ai.send(
                 game,
                 Command::GoTo {

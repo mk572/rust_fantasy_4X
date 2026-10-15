@@ -148,11 +148,22 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             match sortie {
                 Sortie::Nothing => continue,
                 Sortie::WalkIn => {
-                    // An empty enemy city: walk in.
+                    // An empty enemy city: walk in, with the units that can still move.
+                    let walkers: Vec<hecs::Entity> = {
+                        let view = PlayerView::new(game, me);
+                        units
+                            .iter()
+                            .copied()
+                            .filter(|&u| view.unit_moves_left(u) > 0)
+                            .collect()
+                    };
+                    if walkers.is_empty() {
+                        continue;
+                    }
                     if ai.send(
                         game,
                         Command::MoveStack {
-                            units: units.clone(),
+                            units: walkers,
                             to: target,
                         },
                         events,

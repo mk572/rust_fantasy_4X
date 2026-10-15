@@ -172,6 +172,10 @@ impl Ai {
     /// Send a command and keep its events.
     #[track_caller]
     fn send(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+        if game.game_over.is_some() {
+            // The other wizard's turn ended the game: nothing more can be ordered.
+            return false;
+        }
         let at = std::panic::Location::caller();
         let kept = self.record_refusals.then(|| format!("{command:?}"));
         let out = game.apply(command);

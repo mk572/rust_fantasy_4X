@@ -191,6 +191,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_stat(unit, stat)
     }
 
+    /// Movement points the unit has left this turn.
+    pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
+        self.game.units().unit_moves_left(unit)
+    }
+
     /// `(current, maximum)` hit points over all figures.
     pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
         self.game.units().unit_hits(unit)
