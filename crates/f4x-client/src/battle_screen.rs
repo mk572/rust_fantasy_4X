@@ -10,7 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Cell, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
-    Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, RangedKind, Side, SpellAim,
+    Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,
 };
 use f4x_core::content::TerrainClass;
 use f4x_core::map::Plane;
@@ -59,6 +59,8 @@ pub(crate) struct BattleUi {
     spell_list: bool,
     /// A spell chosen and waiting for its target (and the mana put into it).
     aiming: Option<Aiming>,
+    /// Animate Dead or Raise Dead chosen: the list of the fallen to pick from.
+    fallen_list: Option<SpellId>,
 }
 
 /// A spell the player has picked.
@@ -539,7 +541,10 @@ impl App {
     }
 
     fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
-        if self.battle_ui.aiming.is_some() || self.battle_ui.spell_list {
+        if self.battle_ui.aiming.is_some()
+            || self.battle_ui.spell_list
+            || self.battle_ui.fallen_list.is_some()
+        {
             return self.spell_input(battle, hovered);
         }
         let selected = self.battle_ui.selected;
@@ -650,8 +655,7 @@ impl App {
             self.battle_ui.selected = None;
             return;
         }
-        // Animate Dead and Raise Dead take the strongest of the fallen (the fallen are not on the field to
-        // click; a list to choose from is task 175).
+        // Animate Dead and Raise Dead choose among the fallen, who are not on the field to click.
         if [
             f4x_core::battle::spells::ANIMATE_DEAD,
             f4x_core::battle::spells::RAISE_DEAD,
@@ -659,29 +663,7 @@ impl App {
         .into_iter()
         .any(|h| self.game.spell_has_hook(spell.spell, h))
         {
-            let fallen = self
-                .game
-                .legal_battle_casts()
-                .into_iter()
-                .find(|c| c.spell == spell.spell)
-                .and_then(|c| {
-                    let battle = self.game.battle()?;
-                    c.aims
-                        .into_iter()
-                        .filter_map(|a| match a {
-                            SpellAim::Unit(id) => Some(id),
-                            _ => None,
-                        })
-                        .max_by_key(|&id| battle.unit(id).map_or(0, |u| u.max_hit_points()))
-                });
-            if let Some(id) = fallen {
-                self.battle_order(BattleCommand::Cast {
-                    spell: spell.spell,
-                    aim: SpellAim::Unit(id),
-                    mana: 0,
-                });
-                self.battle_ui.selected = None;
-            }
+            self.battle_ui.fallen_list = Some(spell.spell);
             return;
         }
         let most = self
@@ -702,6 +684,7 @@ impl App {
         if is_key_pressed(KeyCode::Escape) {
             self.battle_ui.aiming = None;
             self.battle_ui.spell_list = false;
+            self.battle_ui.fallen_list = None;
             return;
         }
         let Some(mut aim) = self.battle_ui.aiming else {
@@ -797,6 +780,73 @@ impl App {
             );
             if button(rect, &label, spell.castable) {
                 self.pick_spell(spell);
+            }
+        }
+    }
+
+    /// The fallen of the wizard's army that the spell could bring back, to pick one from.
+    fn draw_fallen_list(&mut self, battle: &Battle, spell: SpellId) {
+        let fallen: Vec<usize> = self
+            .game
+            .legal_battle_casts()
+            .into_iter()
+            .find(|c| c.spell == spell)
+            .map(|c| {
+                c.aims
+                    .into_iter()
+                    .filter_map(|a| match a {
+                        SpellAim::Unit(id) => Some(id),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let (row_h, width) = (26.0, 360.0);
+        let height = (fallen.len().max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
+        let (x, y) = (20.0, 20.0);
+        draw_rectangle(x, y, width, height, PANEL);
+        draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
+        draw_text(
+            format!("{name}: raise which unit?   Esc closes"),
+            x + 10.0,
+            y + 22.0,
+            18.0,
+            WHITE,
+        );
+        if fallen.is_empty() {
+            draw_text(
+                "No fallen unit to raise",
+                x + 10.0,
+                y + 50.0,
+                18.0,
+                LIGHTGRAY,
+            );
+        }
+        let room = ((height - 34.0) / row_h) as usize;
+        for (i, &id) in fallen.iter().take(room).enumerate() {
+            let Some(u) = battle.unit(id) else {
+                continue;
+            };
+            let how = match u.fate() {
+                Fate::Drained => "drained",
+                _ => "slain",
+            };
+            let label = format!("{}   {} figures   {how}", u.name, u.figures_start);
+            let rect = Rect::new(
+                x + 8.0,
+                y + 30.0 + i as f32 * row_h,
+                width - 16.0,
+                row_h - 2.0,
+            );
+            if button(rect, &label, true) {
+                self.battle_ui.fallen_list = None;
+                self.battle_order(BattleCommand::Cast {
+                    spell,
+                    aim: SpellAim::Unit(id),
+                    mana: 0,
+                });
+                self.battle_ui.selected = None;
             }
         }
     }
@@ -978,6 +1028,9 @@ impl App {
         self.draw_battle_panel(battle, my_turn, hovered);
         if my_turn && self.battle_ui.spell_list {
             self.draw_spell_list(battle);
+        }
+        if let Some(spell) = self.battle_ui.fallen_list.filter(|_| my_turn) {
+            self.draw_fallen_list(battle, spell);
         }
     }
 
@@ -1353,6 +1406,7 @@ impl App {
         // Auto-play and the information window are not built yet (tasks 133, 132).
         let can_cast = my_turn
             && self.battle_ui.aiming.is_none()
+            && self.battle_ui.fallen_list.is_none()
             && Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn);
         let spell = self.compix_button(1, "Spell", (col(0.0), by), can_cast);
         if spell || (can_cast && is_key_pressed(KeyCode::S)) {
