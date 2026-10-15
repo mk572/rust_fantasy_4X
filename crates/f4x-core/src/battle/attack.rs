@@ -109,6 +109,11 @@ impl DefenderState {
             }
     }
 
+    /// Under Black Sleep: every blow against it does its full strength.
+    fn asleep(&self) -> bool {
+        self.enchantments.iter().any(|e| e == "black_sleep")
+    }
+
     /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
     /// lasting spells give against the attack's realm, then what its immunities make of it.
     /// Righteousness turns a ranged chaos or death attack away outright.
@@ -118,7 +123,12 @@ impl DefenderState {
         if righteous_ward(realm, mode, &ids) {
             return IMMUNE_DEFENSE;
         }
-        let defense = self.defense_against(mode) + defense_bonus(realm, mode, &ids);
+        // Berserk: no defence at all, whatever else the unit has (immunities still count).
+        let defense = if ids.contains(&"berserk") {
+            0
+        } else {
+            self.defense_against(mode) + defense_bonus(realm, mode, &ids)
+        };
         effective_defense(defense, &self.immunities, &attacker.nature, mode)
     }
 
@@ -385,7 +395,7 @@ pub fn process_attack(
         if def.figures == 0 {
             break;
         }
-        let mut dmg = if attacker.ignores_defense {
+        let mut dmg = if attacker.ignores_defense || def.asleep() {
             attacker.strength
         } else {
             let hits = blurred(
@@ -405,7 +415,7 @@ pub fn process_attack(
                 def.front_damage = 0;
                 dmg -= need;
                 // The overflow meets the next figure's defense.
-                if dmg > 0 && !attacker.ignores_defense {
+                if dmg > 0 && !attacker.ignores_defense && !def.asleep() {
                     dmg = (dmg - def.blocks(defense, attacker.eldritch, rng)).max(0);
                 }
             } else {
@@ -455,7 +465,8 @@ pub fn spell_attack(
     }
     let defense = def.defense_versus(attacker);
     let blow = |strength: i32, rng: &mut dyn RngCore| {
-        if attacker.ignores_defense {
+        // A sleeper takes the full strength of every blow.
+        if attacker.ignores_defense || def.asleep() {
             strength
         } else {
             let hits = roll_successes(strength, attacker.to_hit, rng);

@@ -656,6 +656,33 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
 }
 
 #[test]
+fn a_sleeper_takes_every_blow_at_full_strength() {
+    let mut r = rng(5);
+    let mut d = def(1, 100, 100);
+    d.enchantments.push("black_sleep".into());
+    d.figures = 1;
+    d.figures_max = 1;
+    let hit = process_attack(&combatant(5, 0), 1, &mut d, &mut r);
+    assert_eq!(hit.points, 5);
+}
+
+#[test]
+fn berserk_leaves_no_defense_whatever_the_bonuses() {
+    let bolt = Combatant {
+        nature: AttackNature {
+            realm: Some(Realm::Chaos),
+            ..AttackNature::default()
+        },
+        mode: Mode::Ranged,
+        ..combatant(5, 0)
+    };
+    let mut d = def(1, 10, 4);
+    d.enchantments.push("elemental_armor".into());
+    d.enchantments.push("berserk".into());
+    assert_eq!(d.defense_versus(&bolt), 0);
+}
+
+#[test]
 fn eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
     let mut r = rng(11);
     let (mut plain, mut eldritch) = (0, 0);

@@ -10,7 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Cell, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
-    Battle, BattleCommand, BattleEvent, BattleUnit, RangedKind, Side, SpellAim,
+    Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, RangedKind, Side, SpellAim,
 };
 use f4x_core::content::TerrainClass;
 use f4x_core::map::Plane;
@@ -213,6 +213,11 @@ pub(crate) fn describe(
             )
         }
         BattleEvent::Terrified { unit } => format!("{} cowers in terror", name(*unit)),
+        BattleEvent::Confused { unit, act } => match act {
+            Confusion::Idle => format!("{} stands about, confused", name(*unit)),
+            Confusion::Wandered => format!("{} wanders off, confused", name(*unit)),
+            Confusion::Seized => format!("{} falls under the enemy's orders", name(*unit)),
+        },
         BattleEvent::ManaLeaked { .. } => "Mana drains away".to_string(),
         BattleEvent::CounterMagicRaised { strength, .. } => {
             format!("Counter Magic {strength} stands against spells")

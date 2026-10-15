@@ -721,6 +721,13 @@ UNIT_ENCHANT_MODS = {
     # (The game's own spelling of the name.)
     "Invisiblity": [("Grant", "invisibility")],
     "Flight": [("Moves", "Set", 3)],
+    # Twice the melee strength and no defence (`battle/attack.rs` also drops the realm bonuses).
+    "Berserk": [("Melee", "Percent", 100), ("Defense", "Set", 0)],
+    # Held where it stands (no flying either), asleep (cannot act, takes full damage), and
+    # confused (a random act each turn): the battle reads the spell by name (`battle/field.rs`).
+    "Web": [("Moves", "Set", 0), ("Grant", "webbed")],
+    "Black Sleep": [("Moves", "Set", 0), ("Grant", "asleep")],
+    "Confusion": [("Grant", "confused")],
     "Weakness": [("Melee", "Add", -2), ("Ranged", "Add", -2)],
     "Vertigo": [("ToHit", "Add", -20), ("Defense", "Add", -1)],
     "Black Prayer": [("Melee", "Add", -1), ("Defense", "Add", -1), ("Resistance", "Add", -2)],
@@ -855,6 +862,8 @@ SLAY_SPELLS = {
 CURSE_SAVES = {
     "Weakness": (-2, []),
     "Vertigo": (0, []),
+    "Black Sleep": (-2, []),
+    "Confusion": (-4, []),
     "Mind Storm": (-100, ["illusion_immunity"]),
 }
 
@@ -1406,6 +1415,18 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     used_abilities["eldritch_weapon"] = (
         "Eldritch Weapon",
         "Its attacks are magical and the defender blocks with one plus fewer.",
+    )
+    used_abilities["webbed"] = (
+        "Webbed",
+        "Held where it stands, and no longer flies, until the web is dispelled.",
+    )
+    used_abilities["asleep"] = (
+        "Asleep",
+        "Cannot move, attack or fly; every blow against it does full damage.",
+    )
+    used_abilities["confused"] = (
+        "Confused",
+        "Each turn it stands about, wanders to a random square, is led by the enemy, or acts as usual.",
     )
     used_abilities["water_walking"] = (
         "Water Walking",

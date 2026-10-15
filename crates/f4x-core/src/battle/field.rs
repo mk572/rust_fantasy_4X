@@ -18,7 +18,8 @@ use rand::{Rng, RngCore};
 
 use super::attack::{unblockable, Damage};
 use super::immunity::{AttackNature, Immunities, Realm};
-use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side};
+use super::map::{self, Pos};
+use super::{Battle, BattleEvent, BattleUnit, Confusion, RangedKind, Side};
 use crate::rules::effects::DamageTraits;
 use crate::rules::SpellId;
 
@@ -386,8 +387,60 @@ impl Battle {
                 u.moves_left = u.moves_left.saturating_sub(2);
             }
             events.extend(self.regenerate(id));
+            if self.units[id]
+                .enchantments
+                .iter()
+                .any(|e| e == "black_sleep")
+            {
+                self.units[id].attacked = true;
+            }
+            events.extend(self.confusion(id));
+        }
+        // The enemy's units that confusion has put in this side's hands (they go back as the
+        // next turn begins).
+        for u in &mut self.units {
+            if u.seized && u.side == side.other() && u.is_active() {
+                u.seized = false;
+                u.turned_from = Some(u.side);
+                u.side = side;
+                u.moves_left = u.moves;
+                u.attacked = false;
+            }
         }
         events
+    }
+
+    /// A confused unit does one of four things each turn, each as likely: nothing, a move to a
+    /// random free square, the enemy's orders, or its own business as usual.
+    fn confusion(&mut self, id: usize) -> Option<BattleEvent> {
+        if !self.units[id].enchantments.iter().any(|e| e == "confusion") {
+            return None;
+        }
+        let act = match self.rng.gen_range(0..4) {
+            0 => Confusion::Idle,
+            1 => Confusion::Wandered,
+            2 => Confusion::Seized,
+            _ => return None,
+        };
+        if act == Confusion::Wandered {
+            let free: Vec<Pos> = (0..map::GRID_H)
+                .flat_map(|y| (0..map::GRID_W).map(move |x| (x, y)))
+                .filter(|&p| {
+                    self.map.enter_cost(p, false).is_some()
+                        && !(map::is_wall_corner(p) && self.map.has_wall(p))
+                        && self.unit_at(p).is_none()
+                })
+                .collect();
+            if !free.is_empty() {
+                let to = free[self.rng.gen_range(0..free.len())];
+                self.units[id].cell = to;
+            }
+        }
+        let u = &mut self.units[id];
+        u.moves_left = 0;
+        u.attacked = true;
+        u.seized = act == Confusion::Seized;
+        Some(BattleEvent::Confused { unit: id, act })
     }
 
     /// A regenerating unit (the ability, or the Regeneration spell) heals one hit as its side's

@@ -206,6 +206,8 @@ impl Game {
             combat_spells: Vec::new(),
             base: None,
             field: Default::default(),
+            seized: false,
+            turned_from: None,
         })
     }
 

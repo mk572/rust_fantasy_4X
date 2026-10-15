@@ -327,6 +327,10 @@ impl Battle {
             base.base = None;
             unit.base = Some(Box::new(base));
         }
+        // Sleep ends the unit's turn.
+        if id == "black_sleep" {
+            unit.attacked = true;
+        }
         unit.combat_spells.push((spell, caster));
         unit.enchantments.push(id.to_string());
         unit.apply_lasting(mods, grants);
@@ -413,6 +417,10 @@ impl BattleUnit {
         self.long_range |= self.has("long_range");
         self.magical_weapon |= self.has("magical_weapon");
         self.flies |= self.has("flying");
+        // A web or sleep grounds a flyer.
+        if self.has("webbed") || self.has("asleep") {
+            self.flies = false;
+        }
     }
 
     /// Take the numbers (not the damage or the position) from `base`.

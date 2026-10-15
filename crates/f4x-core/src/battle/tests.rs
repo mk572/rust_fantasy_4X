@@ -1599,6 +1599,7 @@ mod fields {
     use super::*;
     use crate::battle::field::{Field, MANA_LEAK_DRAIN};
     use crate::battle::immunity::Realm;
+    use crate::rules::stats::{ModOp, Modifier, Source, Stat};
     use crate::rules::SpellId;
 
     fn spell() -> SpellId {
@@ -1807,6 +1808,80 @@ mod fields {
             }
         }
         assert!(frozen > 30, "{frozen} of 40 froze");
+    }
+
+    /// A lasting spell put on a unit the way the casting does it.
+    fn put_on(b: &mut Battle, unit: usize, id: &str, mods: &[Modifier], grants: &[&str]) {
+        let grants: Vec<String> = grants.iter().map(|g| g.to_string()).collect();
+        b.enchant_unit(unit, spell(), id, A, mods, &grants);
+    }
+
+    #[test]
+    fn black_sleep_and_web_hold_a_unit_and_ground_a_flyer() {
+        let still = Modifier::new(Stat::Moves, ModOp::Set, 0, Source::Other);
+        let mut flyer = of(Side::Defender, None, (17, 5));
+        flyer.flies = true;
+        flyer.abilities.push("flying".into());
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), flyer);
+        put_on(&mut b, 1, "web", &[still], &["webbed"]);
+        let u = &b.units[1];
+        assert!(!u.flies && u.moves == 0 && u.moves_left == 0);
+        assert!(!u.attacked, "a webbed unit can still fight");
+        end_turns(&mut b, 1);
+        assert_eq!(b.units[1].moves_left, 0);
+        assert!(!b.units[1].attacked);
+
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        put_on(&mut b, 1, "black_sleep", &[still], &["asleep"]);
+        assert!(b.units[1].attacked);
+        end_turns(&mut b, 1);
+        assert!(b.units[1].attacked && b.units[1].moves_left == 0);
+        assert!(b.legal_commands().iter().all(|c| !matches!(
+            c,
+            BattleCommand::Move { unit: 1, .. } | BattleCommand::Attack { unit: 1, .. }
+        )));
+    }
+
+    #[test]
+    fn confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy() {
+        let (mut idle, mut wandered, mut seized, mut free) = (0, 0, 0, 0);
+        for seed in 0..200 {
+            let mut b = duel(
+                of(Side::Attacker, None, (3, 5)),
+                of(Side::Defender, None, (17, 5)),
+                seed,
+            );
+            put_on(&mut b, 1, "confusion", &[], &["confused"]);
+            let events = end_turns(&mut b, 1);
+            let act = events.iter().find_map(|e| match e {
+                BattleEvent::Confused { unit: 1, act } => Some(*act),
+                _ => None,
+            });
+            match act {
+                Some(Confusion::Idle) => idle += 1,
+                Some(Confusion::Wandered) => {
+                    wandered += 1;
+                    assert_ne!(b.units[1].cell, (17, 5));
+                }
+                Some(Confusion::Seized) => {
+                    seized += 1;
+                    assert!(b.units[1].attacked && b.units[1].seized);
+                    // The enemy commands it on their turn, and it goes home after.
+                    end_turns(&mut b, 1);
+                    assert_eq!(b.units[1].side, Side::Attacker);
+                    assert!(b.units[1].moves_left > 0 && !b.units[1].attacked);
+                    end_turns(&mut b, 1);
+                    assert_eq!(b.units[1].side, Side::Defender);
+                }
+                None => free += 1,
+            }
+        }
+        for n in [idle, wandered, seized, free] {
+            assert!((25..=75).contains(&n), "{idle} {wandered} {seized} {free}");
+        }
     }
 
     #[test]

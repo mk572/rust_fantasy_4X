@@ -1294,16 +1294,17 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
 #[test]
 fn only_known_battle_spells_with_effects_can_be_cast() {
     use f4x_core::battle::Side;
-    // Web is known but not yet in the game; Earth Lore is overland only; Fireball is not known.
-    let mut g = casting_siege(&["web", "earth_lore"]);
+    // Warp Wood is known but not yet in the game; Earth Lore is overland only; Fireball is not
+    // known.
+    let mut g = casting_siege(&["warp_wood", "earth_lore"]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
-    for spell in ["web", "earth lore", "fireball"] {
+    for spell in ["warp wood", "earth lore", "fireball"] {
         let r = cast(&mut g, &format!("bcast {spell} unit:{enemy}"));
         assert!(!r.ok, "{spell}");
     }
     assert!(
         cast(&mut g, "bspells").text().is_empty()
-            || !cast(&mut g, "bspells").text().contains("web"),
+            || !cast(&mut g, "bspells").text().contains("warp wood"),
         "unfinished spells are not offered"
     );
 }

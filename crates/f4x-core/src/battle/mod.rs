@@ -99,6 +99,17 @@ pub enum Fate {
 /// The mana a spell shot costs a caster unit.
 pub const SHOT_MANA: i32 = 3;
 
+/// What a confused unit does in a turn: one of four, chosen at random.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confusion {
+    /// Stands about doing nothing.
+    Idle,
+    /// Goes to a random free square and stops.
+    Wandered,
+    /// Does nothing now, and the enemy commands it on their turn.
+    Seized,
+}
+
 /// One unit in a battle, with the statistics it fights with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleUnit {
@@ -166,6 +177,10 @@ pub struct BattleUnit {
     pub base: Option<Box<BattleUnit>>,
     /// What the battlefield spells have changed (`field.rs`).
     pub field: FieldBonus,
+    /// Confusion has put it under the enemy's orders for their next turn.
+    pub seized: bool,
+    /// While it is under the enemy's orders: the side it really belongs to.
+    pub turned_from: Option<Side>,
 }
 
 impl BattleUnit {
@@ -218,6 +233,8 @@ impl BattleUnit {
             combat_spells: Vec::new(),
             base: None,
             field: FieldBonus::default(),
+            seized: false,
+            turned_from: None,
         }
     }
 
@@ -581,6 +598,11 @@ pub enum BattleEvent {
     Terrified {
         unit: usize,
     },
+    /// Confusion decided what the unit does this turn (`Confusion`).
+    Confused {
+        unit: usize,
+        act: Confusion,
+    },
     /// Mana Leak drained a side's wizard (and spell shots).
     ManaLeaked {
         side: Side,
@@ -757,6 +779,11 @@ impl Battle {
         if side == Side::Attacker {
             events.extend(self.turn_effects());
         }
+        for u in &mut self.units {
+            if let Some(owner) = u.turned_from.take() {
+                u.side = owner;
+            }
+        }
         for u in self
             .units
             .iter_mut()
@@ -784,7 +811,13 @@ impl Battle {
         if self.winner.is_some() {
             return None;
         }
-        let alive = |s| self.active_units(s).count();
+        // A unit lent to the enemy by confusion still counts for its owner.
+        let alive = |s| {
+            self.units
+                .iter()
+                .filter(|u| u.is_active() && u.turned_from.unwrap_or(u.side) == s)
+                .count()
+        };
         let winner = if alive(Side::Attacker) == 0 {
             Some(Side::Defender)
         } else if alive(Side::Defender) == 0 {
@@ -795,6 +828,13 @@ impl Battle {
             None
         };
         self.winner = winner;
+        if winner.is_some() {
+            for u in &mut self.units {
+                if let Some(owner) = u.turned_from.take() {
+                    u.side = owner;
+                }
+            }
+        }
         winner.map(|winner| BattleEvent::Ended { winner })
     }
 

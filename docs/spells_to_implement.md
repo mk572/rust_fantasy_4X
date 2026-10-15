@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 35 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 31 spells are listed. The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` and the importer (`scripts/import_mom.py`) in step.
 - Where help and code disagree for a spell, add a row to
   `help-vs-implementation-conflicts.md` when it is wired.
@@ -36,10 +36,6 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 
 | No. | Spell | Realm | Needs first |
 |---|---|---|---|
-| 5 | Web | nature | A web with its own hit points on a unit: no moving, no flying; rules to break it (task 159) |
-| 46 | Confusion | sorcery | Random behaviour each turn for a unit (do nothing, wander, hit friends, hit foes) |
-| 165 | Black Sleep | death | A unit that cannot act and takes maximum damage |
-| 179 | Berserk | death | Doubled melee and defence 0 for a unit, for the battle |
 | 73 | Creature Binding | sorcery | A unit that changes sides for one battle and goes home after; the same for Possession |
 | 172 | Possession | death | The same side change for a normal unit; heroes and fantastic creatures are refused |
 | 81 | Warp Wood | chaos | Ammunition for a unit's ranged attack to be removable |
