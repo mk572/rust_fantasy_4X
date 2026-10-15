@@ -693,6 +693,15 @@ UNIT_ENCHANT_MODS = {
     "Righteousness": [],
     # Weapon immunity; the battle also stops two more points of each hit (`battle/attack.rs`).
     "Invulnerability": [("Grant", "weapon_immunity")],
+    # Seeing through illusions is the illusion immunity (the original sets that bit too).
+    "True Sight": [("Grant", "illusion_immunity")],
+    # Fire on every melee blow, fear in melee, and a weapon that is magical and blocks less
+    # (`battle/attack.rs`).
+    "Immolation": [("Grant", "immolation")],
+    "Cloak of Fear": [("Grant", "cause_fear")],
+    "Eldritch Weapon": [("Grant", "eldritch_weapon"), ("Grant", "magical_weapon")],
+    # Dispelling and the slaying spells read the lock by name (`dispel.rs`).
+    "Spell Lock": [],
     "Resist Magic": [],
     "Magic Immunity": [("Grant", "magic_immunity")],
     "Guardian Wind": [("Grant", "missile_immunity")],
@@ -1394,6 +1403,10 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         "Its normal attacks count as magical, so weapon immunity does not stop them.",
     )
     # Abilities that only spells grant.
+    used_abilities["eldritch_weapon"] = (
+        "Eldritch Weapon",
+        "Its attacks are magical and the defender blocks with one plus fewer.",
+    )
     used_abilities["water_walking"] = (
         "Water Walking",
         "Walks on water as on land, without a ship.",

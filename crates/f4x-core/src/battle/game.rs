@@ -176,6 +176,7 @@ impl Game {
             to_hit: self.units().unit_stat(unit, Stat::ToHit) / 10 + lucky,
             to_block: lucky,
             hits,
+            extra_hits: 0,
             figures_start: figures,
             figures: alive,
             front_damage: alive as i32 * hits - current,

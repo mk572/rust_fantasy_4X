@@ -397,11 +397,7 @@ impl Battle {
         if !u.regenerates() {
             return None;
         }
-        let before = u.hit_points();
-        let mut state = u.defender_state();
-        state.heal(1);
-        u.set_from(&state);
-        let healed = u.hit_points() - before;
+        let healed = u.heal_points(1, false);
         (healed > 0).then_some(BattleEvent::SpellHealed { unit: id, healed })
     }
 }

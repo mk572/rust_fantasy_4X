@@ -50,7 +50,17 @@ pub struct Combatant {
     pub special: SpecialAttacks,
     /// The attacker sees through illusions, so Blur does not trouble it.
     pub sees_through: bool,
+    /// Eldritch Weapon: the defender blocks with one plus fewer.
+    pub eldritch: bool,
+    /// Immolation: every melee blow also burns the defender (strength 4, fire).
+    pub immolation: bool,
+    /// Cause fear (a Cloak of Fear too): figures of the defender that fail a death resistance
+    /// check cannot strike back.
+    pub fear: bool,
 }
+
+/// The strength of the fire attack Immolation adds to a melee blow.
+const IMMOLATION_STRENGTH: i32 = 4;
 
 /// What a large shield adds to the defence against ranged, thrown and breath attacks.
 pub const LARGE_SHIELD: i32 = 2;
@@ -60,8 +70,10 @@ const INVULNERABILITY_BLOCK: i32 = 2;
 /// What a defending unit contributes to the rolls, and the damage it has taken.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DefenderState {
-    /// Hit points of one figure.
+    /// Hit points of one figure, with the extra ones life steal has added in this battle.
     pub hits: i32,
+    /// Of `hits`, what overhealing added during the battle (it goes when the battle ends).
+    pub extra_hits: i32,
     pub defense: i32,
     /// What the defender is immune to, which changes the defence it rolls (`immunity.rs`).
     pub immunities: Immunities,
@@ -111,9 +123,9 @@ impl DefenderState {
     }
 
     /// The blows one roll of `defense` stops: Invulnerability stops two more.
-    fn blocks(&self, defense: i32, rng: &mut dyn RngCore) -> i32 {
+    fn blocks(&self, defense: i32, eldritch: bool, rng: &mut dyn RngCore) -> i32 {
         let invulnerable = self.enchantments.iter().any(|e| e == "invulnerability");
-        roll_successes(defense, self.to_block, rng)
+        roll_successes(defense, self.to_block - i32::from(eldritch), rng)
             + if invulnerable {
                 INVULNERABILITY_BLOCK
             } else {
@@ -145,6 +157,16 @@ impl DefenderState {
     /// Heal `amount` hit points: the damaged figure first, then bring dead figures back.
     /// Nothing happens to a unit with no figures left.
     pub fn heal(&mut self, amount: i32) {
+        self.heal_by(amount, false);
+    }
+
+    /// Heal as life steal does: what is left once every figure is back and whole is spread
+    /// over the figures as extra hit points, one more for each figure's worth.
+    pub fn heal_overflow(&mut self, amount: i32) {
+        self.heal_by(amount, true);
+    }
+
+    fn heal_by(&mut self, amount: i32, overflow: bool) {
         if self.figures == 0 || amount <= 0 {
             return;
         }
@@ -161,6 +183,10 @@ impl DefenderState {
         }
         if balance > 0 {
             self.front_damage = balance;
+        } else if overflow && self.figures_max > 0 {
+            let extra = (-balance) / self.figures_max as i32;
+            self.hits += extra;
+            self.extra_hits += extra;
         }
     }
 }
@@ -286,12 +312,29 @@ pub fn process_attack(
     let mut total = Damage::default();
     let sp = &attacker.special;
     let touchable = !def.immunities.magic;
+    if attacker.immolation && attacker.mode == Mode::Melee && touchable && def.figures > 0 {
+        let fire = Combatant {
+            strength: IMMOLATION_STRENGTH,
+            mode: Mode::Ranged,
+            nature: AttackNature {
+                stopped_by: Immunities {
+                    fire: true,
+                    magic: true,
+                    ..Immunities::default()
+                },
+                realm: Some(Realm::Chaos),
+                armor_piercing: false,
+            },
+            ..Combatant::default()
+        };
+        total += spell_attack(&fire, Volley::Area, def, rng);
+    }
     if attacker.mode == Mode::ThrownOrBreath && sp.gaze != Gaze::None && touchable {
         let gazed = def.figures;
         if matches!(sp.gaze, Gaze::Stoning | Gaze::Multi) && !def.immunities.stoning {
             for _ in 0..gazed {
                 if def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0 {
-                    total += kill_figure(def);
+                    total += kill_figure(def).all_gone();
                 }
             }
         }
@@ -315,14 +358,14 @@ pub fn process_attack(
             if sp.dispel_evil && matches!(def.realm, Some(Realm::Chaos | Realm::Death)) {
                 let modifier = if def.undead { -9 } else { -4 };
                 if def.resistance_failure(Some(Realm::Life), modifier, rng) > 0 {
-                    total += kill_figure(def);
+                    total += kill_figure(def).all_gone();
                 }
             }
             if sp.stoning_touch
                 && !def.immunities.stoning
                 && def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0
             {
-                total += kill_figure(def);
+                total += kill_figure(def).all_gone();
             }
             if sp.death_touch
                 && !def.immunities.death
@@ -351,7 +394,7 @@ pub fn process_attack(
                 def,
                 rng,
             );
-            (hits - def.blocks(defense, rng)).max(0)
+            (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
             let need = def.hits - def.front_damage;
@@ -363,7 +406,7 @@ pub fn process_attack(
                 dmg -= need;
                 // The overflow meets the next figure's defense.
                 if dmg > 0 && !attacker.ignores_defense {
-                    dmg = (dmg - def.blocks(defense, rng)).max(0);
+                    dmg = (dmg - def.blocks(defense, attacker.eldritch, rng)).max(0);
                 }
             } else {
                 def.front_damage += dmg;
@@ -416,7 +459,7 @@ pub fn spell_attack(
             strength
         } else {
             let hits = roll_successes(strength, attacker.to_hit, rng);
-            (hits - def.blocks(defense, rng)).max(0)
+            (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
         }
     };
     match volley {
@@ -479,36 +522,60 @@ pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCor
     // Thrown weapons and breath go first, with every figure the attacker has.
     if let Some(thrown) = &att.thrown {
         let d = process_attack(thrown, att.state.figures, &mut def.state, rng);
-        att.state.heal(d.healed);
+        att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
     // A defender with a gaze gazes back before the blows, with the figures it has left.
     if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.gaze != Gaze::None) {
         if def.state.figures > 0 && att.state.figures > 0 {
             let d = process_attack(gaze, def.state.figures, &mut att.state, rng);
-            def.state.heal(d.healed);
+            def.state.heal_overflow(d.healed);
             out.taken += d;
         }
     }
     let first_strike = att.first_strike && !def.negate_first_strike;
     if first_strike && def.state.figures > 0 {
-        let d = process_attack(&att.melee, att.state.figures, &mut def.state, rng);
-        att.state.heal(d.healed);
+        let figures = att
+            .state
+            .figures
+            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
+        let d = process_attack(&att.melee, figures, &mut def.state, rng);
+        att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
-    // The defender strikes back with the figures it has left.
+    // The defender strikes back with the figures it has left, less those the attacker frightens.
     if def.state.figures > 0 && att.state.figures > 0 {
-        let d = process_attack(&def.melee, def.state.figures, &mut att.state, rng);
-        def.state.heal(d.healed);
+        let figures = def
+            .state
+            .figures
+            .saturating_sub(feared_figures(&att.melee, &def.state, rng));
+        let d = process_attack(&def.melee, figures, &mut att.state, rng);
+        def.state.heal_overflow(d.healed);
         out.taken += d;
     }
     // An attacker without first strike now swings with the figures that survived.
     if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
-        let d = process_attack(&att.melee, att.state.figures, &mut def.state, rng);
-        att.state.heal(d.healed);
+        let figures = att
+            .state
+            .figures
+            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
+        let d = process_attack(&att.melee, figures, &mut def.state, rng);
+        att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
     out
+}
+
+/// How many of `def`'s figures `attacker` frightens: each rolls a death resistance check, and
+/// the ones that fail cannot fight this round (attack or counter-attack, whoever began). Nothing for an attacker that causes no fear or a
+/// defender immune to death.
+fn feared_figures(attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> u32 {
+    if !attacker.fear || def.immunities.death {
+        return 0;
+    }
+    (0..def.figures)
+        .filter(|_| def.resistance_failure(Some(Realm::Death), 0, rng) > 0)
+        .count() as u32
 }
 
 /// A ranged attack: the target fires nothing back.

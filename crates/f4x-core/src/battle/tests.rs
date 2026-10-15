@@ -2566,3 +2566,41 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
     finish_with_dead(&mut g2, &[a], &[d], &[1]);
     assert_eq!(g2.player(D).unwrap().fame, 5);
 }
+
+#[test]
+fn healing_cannot_bring_back_what_was_destroyed() {
+    let mut u = BattleUnit::simple(Side::Attacker, "spearman", 4, 5, 3, 2);
+    // One figure lost to destruction, one to ordinary blows.
+    u.figures = 2;
+    u.record(attack::Damage {
+        points: 10,
+        kills: 2,
+        gone: 5,
+        ..Default::default()
+    });
+    assert_eq!(u.healable(), 5);
+    assert_eq!(
+        u.heal_points(20, false),
+        5,
+        "only the ordinary damage comes back"
+    );
+    assert_eq!(u.figures, 3);
+    assert_eq!(u.healable(), 0);
+    assert_eq!(u.damage_kinds, [0, 0, 5]);
+    // Life steal can overheal, but not past the figures it has: the surplus becomes extra hits.
+    let gained = u.heal_points(9, true);
+    // Five bring the lost figure back, the other four are one more hit point for each of the
+    // four figures.
+    assert_eq!((gained, u.figures, u.extra_hits), (9, 4, 1));
+    assert_eq!(u.healable(), 0, "the destroyed damage is still there");
+}
+
+#[test]
+fn extra_hits_do_not_count_as_the_units_real_strength() {
+    let mut u = BattleUnit::simple(Side::Attacker, "spearman", 2, 5, 3, 2);
+    assert_eq!(u.max_hit_points(), 10);
+    u.heal_points(4, true);
+    assert_eq!(u.extra_hits, 2);
+    assert_eq!(u.hit_points(), 14);
+    assert_eq!(u.max_hit_points(), 10, "the real maximum stays");
+}

@@ -54,6 +54,7 @@ pub(crate) fn damage_unit_with_spell(
         },
         special: Default::default(),
         sees_through: false,
+        ..Combatant::default()
     };
     let dmg = spell_attack(&spell, volley, &mut state, rng);
     unit.set_from(&state);
@@ -304,11 +305,7 @@ impl Battle {
 
     /// Heal a unit by `points`, bringing dead figures back; returns the hit points it gained.
     pub fn spell_heal(&mut self, target: usize, points: i32) -> i32 {
-        let before = self.units[target].hit_points();
-        let mut state = self.units[target].defender_state();
-        state.heal(points);
-        self.units[target].set_from(&state);
-        self.units[target].hit_points() - before
+        self.units[target].heal_points(points, false)
     }
 
     /// Put a lasting spell on a unit: its modifiers and abilities change the unit's numbers

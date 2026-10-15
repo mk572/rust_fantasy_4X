@@ -119,6 +119,9 @@ pub struct BattleUnit {
     pub to_block: i32,
     /// Hit points of one figure.
     pub hits: i32,
+    /// Of `hits`, the extra ones overhealing (life steal) added in this battle: they are not
+    /// part of the unit's real strength, so the damage written back ignores them.
+    pub extra_hits: i32,
     pub figures_start: u32,
     pub figures: u32,
     /// Damage on the front figure.
@@ -189,6 +192,7 @@ impl BattleUnit {
             to_hit: 0,
             to_block: 0,
             hits,
+            extra_hits: 0,
             figures_start: figures,
             figures,
             front_damage: 0,
@@ -222,6 +226,45 @@ impl BattleUnit {
         self.damage_kinds[0] += d.points - d.drained - d.gone;
         self.damage_kinds[1] += d.drained;
         self.damage_kinds[2] += d.gone;
+    }
+
+    /// What healing takes off the damage tally: the ordinary damage first, then the drained.
+    /// Damage that destroys is never healed.
+    pub(super) fn heal_kinds(&mut self, amount: i32) {
+        self.damage_kinds[0] -= amount;
+        if self.damage_kinds[0] < 0 {
+            self.damage_kinds[1] = (self.damage_kinds[1] + self.damage_kinds[0]).max(0);
+            self.damage_kinds[0] = 0;
+        }
+    }
+
+    /// The hit points healing can still bring back: all it has lost but what was destroyed.
+    pub fn healable(&self) -> i32 {
+        (self.max_hit_points() - self.hit_points() - self.damage_kinds[2]).max(0)
+    }
+
+    /// Heal the unit by `amount` hit points (`Battle_Unit_Heal`): the front figure, then dead
+    /// figures back. Unless `overheal`, no more than `healable` comes back, since damage that
+    /// destroys stays. Returns the hit points the unit gained.
+    pub fn heal_points(&mut self, amount: i32, overheal: bool) -> i32 {
+        let amount = if overheal {
+            amount
+        } else {
+            amount.min(self.healable())
+        };
+        if amount <= 0 {
+            return 0;
+        }
+        let before = self.hit_points();
+        let mut state = self.defender_state();
+        if overheal {
+            state.heal_overflow(amount);
+        } else {
+            state.heal(amount);
+        }
+        self.set_from(&state);
+        self.heal_kinds(amount);
+        self.hit_points() - before
     }
 
     /// How the unit died, by the kind of damage that did most of it (as the original does:
@@ -268,12 +311,13 @@ impl BattleUnit {
     }
 
     pub fn max_hit_points(&self) -> i32 {
-        self.figures_start as i32 * self.hits
+        self.figures_start as i32 * (self.hits - self.extra_hits)
     }
 
     fn defender_state(&self) -> DefenderState {
         DefenderState {
             hits: self.hits,
+            extra_hits: self.extra_hits,
             defense: self.defense,
             immunities: Immunities::of(&self.abilities),
             resistance: self.resistance,
@@ -290,6 +334,8 @@ impl BattleUnit {
     }
 
     fn set_from(&mut self, state: &DefenderState) {
+        self.hits = state.hits;
+        self.extra_hits = state.extra_hits;
         self.figures = state.figures;
         self.front_damage = state.front_damage;
         if self.figures == 0 {
@@ -352,6 +398,14 @@ impl BattleUnit {
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
             special,
             sees_through: self.has("illusion_immunity"),
+            eldritch: self.has("eldritch_weapon")
+                && (mode == Mode::Melee
+                    || self.has("bow")
+                    || self.has("sling")
+                    || self.has("rock_throwing")
+                    || self.has("thrown")),
+            immolation: self.has("immolation"),
+            fear: self.has("cause_fear"),
         }
     }
 
@@ -361,7 +415,7 @@ impl BattleUnit {
 
     /// The plus to hit the unit's weapons give.
     fn weapon_plus(&self) -> i32 {
-        i32::from(self.weapon_quality > 0)
+        i32::from(self.weapon_quality > 0 || self.has("eldritch_weapon"))
     }
 
     fn thrown_combatant(&self) -> Option<Combatant> {
@@ -1103,6 +1157,8 @@ impl Battle {
         self.units[def].set_from(&d.state);
         self.units[def].record(out.dealt);
         self.units[att].record(out.taken);
+        self.units[att].heal_kinds(out.dealt.healed);
+        self.units[def].heal_kinds(out.taken.healed);
         self.units[att].attacked = true;
         self.units[att].moves_left = 0;
         for id in [att, def] {
@@ -1140,9 +1196,7 @@ impl Battle {
         self.units[def].record(dmg);
         let a = &mut self.units[att];
         if dmg.healed > 0 {
-            let mut mine = a.defender_state();
-            mine.heal(dmg.healed);
-            a.set_from(&mine);
+            a.heal_points(dmg.healed, true);
         }
         a.spend_shot();
         a.attacked = true;

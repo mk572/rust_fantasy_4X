@@ -654,3 +654,152 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
     d.enchantments.push("righteousness".into());
     assert_eq!(d.defense_versus(&bolt), 50);
 }
+
+#[test]
+fn eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
+    let mut r = rng(11);
+    let (mut plain, mut eldritch) = (0, 0);
+    for _ in 0..3_000 {
+        let mut a = def(100, 100, 6);
+        let mut b = def(100, 100, 6);
+        a.to_block = 1;
+        b.to_block = 1;
+        let weapon = Combatant {
+            eldritch: true,
+            ..combatant(5, 0)
+        };
+        plain += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
+        eldritch += process_attack(&weapon, 4, &mut b, &mut r).points;
+    }
+    assert!(eldritch > plain + plain / 5, "{eldritch} vs {plain}");
+}
+
+#[test]
+fn immolation_burns_the_defender_on_top_of_the_blows() {
+    let mut r = rng(12);
+    let burning = Combatant {
+        immolation: true,
+        ..combatant(0, 0)
+    };
+    let mut d = def(4, 10, 0);
+    let dealt = process_attack(&burning, 1, &mut d, &mut r);
+    // No melee dice, so every point comes from the strength-four fire.
+    assert!(dealt.points > 0, "the fire hurt");
+    let mut immune = def(4, 10, 0);
+    immune.immunities.fire = true;
+    assert_eq!(process_attack(&burning, 1, &mut immune, &mut r).points, 0);
+    let mut warded = def(4, 10, 0);
+    warded.immunities.magic = true;
+    assert_eq!(process_attack(&burning, 1, &mut warded, &mut r).points, 0);
+}
+
+#[test]
+fn fear_keeps_figures_from_striking_back() {
+    let fighter = |fear: bool, melee: i32| Fighter {
+        melee: Combatant {
+            fear,
+            ..combatant(melee, 0)
+        },
+        thrown: None,
+        first_strike: false,
+        negate_first_strike: false,
+        state: def(6, 100, 0),
+    };
+    let mut r = rng(13);
+    let (mut calm, mut frightened) = (0, 0);
+    for _ in 0..2_000 {
+        let (mut a, mut b) = (fighter(false, 0), fighter(false, 4));
+        calm += melee_exchange(&mut a, &mut b, &mut r).taken.points;
+        let (mut a, mut b) = (fighter(true, 0), fighter(false, 4));
+        frightened += melee_exchange(&mut a, &mut b, &mut r).taken.points;
+    }
+    assert!(calm > 3 * frightened, "{calm} vs {frightened}");
+    // A defender immune to death is not frightened.
+    let mut r = rng(14);
+    let mut steady = fighter(false, 4);
+    steady.state.immunities.death = true;
+    let scary = fighter(true, 0);
+    let total: i32 = (0..500)
+        .map(|_| {
+            let mut s = steady.clone();
+            let mut f = scary.clone();
+            melee_exchange(&mut f, &mut s, &mut r).taken.points
+        })
+        .sum();
+    assert!(total > 0);
+}
+
+#[test]
+fn a_fearsome_defender_frightens_the_attackers_figures_too() {
+    let fighter = |fear: bool, melee: i32| Fighter {
+        melee: Combatant {
+            fear,
+            ..combatant(melee, 0)
+        },
+        thrown: None,
+        first_strike: false,
+        negate_first_strike: false,
+        state: def(6, 100, 0),
+    };
+    let mut r = rng(15);
+    let (mut calm, mut frightened) = (0, 0);
+    for _ in 0..2_000 {
+        let (mut a, mut b) = (fighter(false, 4), fighter(false, 0));
+        calm += melee_exchange(&mut a, &mut b, &mut r).dealt.points;
+        let (mut a, mut b) = (fighter(false, 4), fighter(true, 0));
+        frightened += melee_exchange(&mut a, &mut b, &mut r).dealt.points;
+    }
+    assert!(calm > 3 * frightened, "{calm} vs {frightened}");
+}
+
+#[test]
+fn overhealing_adds_a_hit_point_to_every_figure_for_each_figures_worth() {
+    let mut whole = def(3, 5, 0);
+    whole.figures_max = 3;
+    let mut plain = whole.clone();
+    plain.heal(9);
+    assert_eq!(
+        (plain.hits, plain.extra_hits),
+        (5, 0),
+        "ordinary healing stops at whole"
+    );
+    whole.heal_overflow(7);
+    assert_eq!(
+        (whole.hits, whole.extra_hits),
+        (7, 2),
+        "7 over 3 figures is 2 each"
+    );
+    // A wounded unit heals first: 4 on the front figure, the rest is surplus.
+    let mut hurt = def(3, 5, 0);
+    hurt.figures_max = 3;
+    hurt.front_damage = 4;
+    hurt.heal_overflow(6);
+    assert_eq!((hurt.front_damage, hurt.hits, hurt.extra_hits), (0, 5, 0));
+}
+
+#[test]
+fn stoning_and_dispel_evil_leave_nothing_to_heal() {
+    let mut r = rng(31);
+    let stoner = special(
+        SpecialAttacks {
+            stoning_touch: true,
+            penalty: 9,
+            ..SpecialAttacks::default()
+        },
+        Mode::Melee,
+    );
+    let d = process_attack(&stoner, 6, &mut soft(40, 100, 1), &mut r);
+    assert!(d.kills > 0);
+    assert_eq!(d.gone, d.kills as i32 * 100, "each stoned figure is gone");
+    let death = special(
+        SpecialAttacks {
+            death_touch: true,
+            penalty: 9,
+            ..SpecialAttacks::default()
+        },
+        Mode::Melee,
+    );
+    let d = process_attack(&death, 6, &mut soft(40, 100, 1), &mut r);
+    assert!(d.kills > 0);
+    assert_eq!(d.gone, 0, "death can be healed back");
+}
