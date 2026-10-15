@@ -285,8 +285,93 @@ pub struct ItemDef {
     pub id: String,
     pub name: String,
     pub slot: ItemSlot,
+    /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
+    pub kind: ItemKind,
     pub cost: u32,
+    /// The plain bonuses: attack, to hit, defence, movement (in half-moves), resistance.
     pub effects: Vec<EffectRule>,
+    /// Added to the hero's mana in battle.
+    #[serde(default)]
+    pub spell_skill: i32,
+    /// The size of the resistance penalty put on what the hero's spells hit, as the original stores it.
+    #[serde(default)]
+    pub spell_save: i32,
+    /// Special powers (ids in `item_powers.ron`). What each one does is task 49.
+    #[serde(default)]
+    pub powers: Vec<String>,
+    /// The spell the hero can cast from the item, and how many times (Spell Charges).
+    #[serde(default)]
+    pub charges: Option<(String, u32)>,
+    /// The original's book counts of the item, as stored (`ITEMDATA.LBX`, five bytes). They
+    /// decide which wizards the random item generator may give it to. The order of the realms
+    /// and the way the counts come about are not worked out yet (task 218).
+    #[serde(default)]
+    pub books: Vec<u8>,
+    /// The original's flag byte: set items are left out of the Enchant Item grade, unset ones out
+    /// of the Create Artifact grade (`Make_Item`).
+    #[serde(default)]
+    pub flag: bool,
+}
+
+/// The ten item types of the original, in its order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ItemKind {
+    Sword,
+    Mace,
+    Axe,
+    Bow,
+    Staff,
+    Wand,
+    Misc,
+    Shield,
+    Chainmail,
+    Platemail,
+}
+
+impl ItemKind {
+    /// The hero slot the kind goes in.
+    pub fn slot(self) -> ItemSlot {
+        match self {
+            Self::Sword | Self::Mace | Self::Axe | Self::Bow | Self::Staff | Self::Wand => {
+                ItemSlot::Weapon
+            }
+            Self::Misc => ItemSlot::Misc,
+            Self::Shield | Self::Chainmail | Self::Platemail => ItemSlot::Armor,
+        }
+    }
+}
+
+/// One entry of the item power table (`ITEMPOW.LBX`): a plain bonus or a special power an item
+/// can carry, with what it costs to put on one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ItemPowerDef {
+    pub id: String,
+    pub name: String,
+    /// At most one power of a group on an item.
+    pub group: u8,
+    /// Mana cost of adding the power to an item.
+    pub cost: u32,
+    /// The item types that may carry it.
+    pub kinds: Vec<ItemKind>,
+    /// Special powers: the realm and the number of books a wizard needs to add it.
+    #[serde(default)]
+    pub realm: Option<String>,
+    #[serde(default)]
+    pub books: u32,
+    /// Plain bonuses: what it adds (movement in half-moves; spell save is the size of the penalty).
+    #[serde(default)]
+    pub bonus: Option<(PowerBonus, i32)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PowerBonus {
+    Attack,
+    ToHit,
+    Defense,
+    Moves,
+    Resistance,
+    SpellSkill,
+    SpellSave,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -376,6 +461,7 @@ impl_def!(
     RealmDef,
     SpellDef,
     ItemDef,
+    ItemPowerDef,
     LevelPathDef,
     WizardDef
 );
@@ -391,6 +477,7 @@ pub struct Rules {
     pub realms: Registry<RealmDef>,
     pub spells: Registry<SpellDef>,
     pub items: Registry<ItemDef>,
+    pub item_powers: Registry<ItemPowerDef>,
     pub level_paths: Registry<LevelPathDef>,
     pub wizards: Registry<WizardDef>,
     /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.

@@ -391,12 +391,12 @@ impl BattleUnit {
         self.ranged = comp(Stat::Ranged, self.ranged);
         self.defense = comp(Stat::Defense, self.defense);
         self.resistance = comp(Stat::Resistance, self.resistance);
-        // To hit is kept in pluses (ten points each).
-        self.to_hit = comp(Stat::ToHit, self.to_hit * 10).div_euclid(10);
+        self.to_hit = comp(Stat::ToHit, self.to_hit);
         self.hits = comp(Stat::MaxHp, self.hits).max(1);
         let old = self.moves;
-        // Moves are whole moves in the spell data and half-moves here.
-        self.moves = comp(Stat::Moves, (self.moves / 2) as i32).max(0) as u32 * 2;
+        // Moves are whole moves in the spell data and half-moves here; an odd half-move stays.
+        let whole = comp(Stat::Moves, (self.moves / 2) as i32).max(0) as u32;
+        self.moves = if whole == 0 { 0 } else { whole * 2 + old % 2 };
         if self.moves >= old {
             self.moves_left += self.moves - old;
         } else {

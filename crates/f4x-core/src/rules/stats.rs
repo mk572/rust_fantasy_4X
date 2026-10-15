@@ -21,8 +21,11 @@ pub enum Stat {
     MaxHp,
     Figures,
     Moves,
+    /// Half-moves added to the movement allowance (items: the original gives them in half-moves).
+    /// Counts only while the unit has a whole move, so a spell that stops a unit stops it for good.
+    HalfMoves,
     Sight,
-    /// Percentage points added to the base to-hit chance (may be negative).
+    /// Pluses added to the to-hit chance, ten percentage points each (may be negative).
     ToHit,
     Ammo,
     /// The number that goes with a unit's special attack or ability: poison strength, or the

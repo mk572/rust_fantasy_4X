@@ -260,7 +260,11 @@ impl<'a> Units<'a> {
 
     /// Full movement allowance in half-moves.
     pub fn unit_max_moves(&self, unit: hecs::Entity) -> u32 {
-        self.unit_stat(unit, Stat::Moves).max(0) as u32 * 2
+        let whole = self.unit_stat(unit, Stat::Moves).max(0) as u32;
+        if whole == 0 {
+            return 0;
+        }
+        whole * 2 + self.unit_stat(unit, Stat::HalfMoves).max(0) as u32
     }
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
@@ -397,6 +401,26 @@ mod tests {
         x: 2,
         y: 2,
     };
+
+    #[test]
+    fn half_moves_add_to_the_allowance_but_not_to_a_unit_that_cannot_move() {
+        use crate::rules::{MovementType, Registry, Stat};
+        use crate::testutil::unit;
+        let mut content = content_with_magic();
+        let mut boots = unit("boots", MovementType::Walking, 2, &[]);
+        boots.stats.insert(Stat::HalfMoves, 1);
+        let mut rooted = unit("rooted", MovementType::Walking, 0, &[]);
+        rooted.stats.insert(Stat::HalfMoves, 1);
+        content.rules.units = Registry::new(vec![boots, rooted]);
+        let mut world = World::new();
+        let mut max = |id: &str, n: u64| {
+            let def = content.rules.units.id_of(id).unwrap();
+            let e = spawn(&mut world, &content, &[], Serial(n), PlayerId(0), AT, def);
+            Units::new(&world, &content, &[]).unit_max_moves(e)
+        };
+        assert_eq!(max("boots", 1), 5, "two moves and a half-move");
+        assert_eq!(max("rooted", 2), 0);
+    }
 
     #[test]
     fn a_units_figures_come_from_a_world_and_content_alone() {

@@ -173,7 +173,7 @@ impl Game {
             defense: self.units().unit_stat(unit, Stat::Defense)
                 + if quality > 0 { extra } else { 0 },
             resistance: self.units().unit_stat(unit, Stat::Resistance) + lucky,
-            to_hit: self.units().unit_stat(unit, Stat::ToHit) / 10 + lucky,
+            to_hit: self.units().unit_stat(unit, Stat::ToHit) + lucky,
             to_block: lucky,
             hits,
             extra_hits: 0,

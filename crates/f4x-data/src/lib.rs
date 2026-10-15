@@ -324,6 +324,17 @@ mod tests {
     }
 
     #[test]
+    fn the_real_rules_data_has_every_item_and_power_of_the_original() {
+        let c =
+            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+                .unwrap();
+        assert_eq!(c.rules.items.len(), 250);
+        assert_eq!(c.rules.item_powers.len(), 66);
+        assert!(c.rules.items.id_of("white_lightning_ii").is_some());
+        assert!(c.rules.items.id_of("deathbringer").is_some());
+    }
+
+    #[test]
     fn generated_maps_obey_placement_rules() {
         let c = shipped_content();
         let p = f4x_core::mapgen::GenParams::default();

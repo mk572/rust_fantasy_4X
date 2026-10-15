@@ -149,7 +149,25 @@ Decided October 2026, `wizard_screen.rs`.
 - Heroes are listed by their class only; the original prints "Name The Class" (no personal hero
   names are kept yet, task 219).
 
-## 8. Recorded elsewhere
+## 8. Item names (task 218)
+
+The original has two pairs of items that share a name. They are different items with different
+costs and bonuses, so the game keeps both and tells them apart:
+
+| Original name | Items in `content/items.ron` | What differs |
+|---|---|---|
+| White Lightning | `white_lightning_i`, `white_lightning_ii` | I: a sword, 2200 gold, +3 to hit and +2 defence. II: a wand, 1450 gold, +1 attack, spell skill 5, spell save 2. |
+| The Resistor | `the_resistor_i`, `the_resistor_ii` | I: an axe, 950 gold, +5 attack. II: a shield, 1900 gold, +3 defence, 4 half-moves and +6 resistance. |
+
+The numbering follows the original's table order. The original shows the plain name in both
+places, so a player cannot tell them apart there; in ours the names carry I and II.
+
+Two other points about the item data that are not departures but are easy to mistake for bugs:
+movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit), and
+to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
+The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
+
+## 9. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

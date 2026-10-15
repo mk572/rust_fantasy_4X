@@ -6,8 +6,8 @@ use std::path::Path;
 use f4x_core::content::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
 use f4x_core::rules::{
-    AbilityDef, BuildingDef, Def, Duration, ItemDef, LevelPathDef, RaceDef, RealmDef, Registry,
-    Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
+    AbilityDef, BuildingDef, Def, Duration, ItemDef, ItemPowerDef, LevelPathDef, RaceDef, RealmDef,
+    Registry, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
 };
 
 use crate::{id_problem, ContentError};
@@ -68,6 +68,7 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         realms: Registry::new(parse::<Vec<RealmDef>>(dir, "realms.ron")?),
         spells: Registry::new(parse::<Vec<SpellDef>>(dir, "spells.ron")?),
         items: Registry::new(parse::<Vec<ItemDef>>(dir, "items.ron")?),
+        item_powers: Registry::new(parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?),
         level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
         // Ready-made wizards are optional: a rule set without them just has no presets.
         wizards: Registry::new(if find(dir, "wizards.ron").is_some() {
@@ -100,6 +101,56 @@ fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Vec<String>) 
     }
 }
 
+fn check_items(r: &Rules, p: &mut Vec<String>) {
+    for power in r.item_powers.defs() {
+        let who = format!("item power {:?}", power.id);
+        if let Some(realm) = &power.realm {
+            if r.realms.by_name(realm).is_none() {
+                p.push(format!("{who} has unknown realm {realm:?}"));
+            }
+        }
+        if power.kinds.is_empty() {
+            p.push(format!("{who} fits no item type"));
+        }
+    }
+    for item in r.items.defs() {
+        let who = format!("item {:?}", item.id);
+        if item.kind.slot() != item.slot {
+            p.push(format!(
+                "{who}: a {:?} does not go in the {:?} slot",
+                item.kind, item.slot
+            ));
+        }
+        if item.effects.is_empty()
+            && item.powers.is_empty()
+            && item.charges.is_none()
+            && item.spell_skill == 0
+            && item.spell_save == 0
+        {
+            p.push(format!("{who} has no effects"));
+        }
+        for power in &item.powers {
+            if r.item_powers.by_name(power).is_none() {
+                p.push(format!("{who} has unknown power {power:?}"));
+            }
+        }
+        if let Some((spell, count)) = &item.charges {
+            if r.spells.by_name(spell).is_none() {
+                p.push(format!("{who} has unknown spell {spell:?}"));
+            }
+            if *count == 0 {
+                p.push(format!("{who} has a spell with no charges"));
+            }
+        }
+        if !item.books.is_empty() && item.books.len() != 5 {
+            p.push(format!(
+                "{who} lists {} book counts, expected 5",
+                item.books.len()
+            ));
+        }
+    }
+}
+
 /// Returns a human-readable list of problems; empty means valid.
 pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     let mut p = Vec::new();
@@ -110,6 +161,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     check_ids("realm", &r.realms, &mut p);
     check_ids("spell", &r.spells, &mut p);
     check_ids("item", &r.items, &mut p);
+    check_ids("item power", &r.item_powers, &mut p);
     check_ids("level path", &r.level_paths, &mut p);
     check_ids("wizard", &r.wizards, &mut p);
 
@@ -119,11 +171,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     check_spells(r, &mut p);
     check_level_paths(r, &mut p);
     check_wizards(r, &mut p);
-    for item in r.items.defs() {
-        if item.effects.is_empty() {
-            p.push(format!("item {:?} has no effects", item.id));
-        }
-    }
+    check_items(r, &mut p);
 
     // Effect and condition references, for everything that carries effect rules.
     let mut carriers: Vec<(String, &[EffectRule])> = Vec::new();
@@ -575,6 +623,7 @@ mod tests {
             realms: Registry::new(ron::from_str(&list("realms.ron")).unwrap()),
             spells: Registry::new(ron::from_str(&list("spells.ron")).unwrap()),
             items: Registry::new(ron::from_str(&list("items.ron")).unwrap()),
+            item_powers: Registry::new(ron::from_str(&list("item_powers.ron")).unwrap()),
             level_paths: Registry::new(ron::from_str(&list("level_paths.ron")).unwrap()),
             wizards: Registry::new(Vec::new()),
             wizard_names: Vec::new(),
@@ -603,6 +652,24 @@ mod tests {
         let id = rules.units.id_of("archer").unwrap();
         assert_eq!(rules.units.get(id).name, "Archer");
         assert!(rules.units.id_of("nope").is_none());
+    }
+
+    #[test]
+    fn catches_item_problems() {
+        let p = problems(&[
+            (
+                "items.ron",
+                "slot: Weapon, kind: Sword, cost: 100,",
+                "slot: Armor, kind: Sword, cost: 100, powers: [\"nope\"], charges: Some((\"nowhere\", 0)), books: [1],",
+            ),
+            ("item_powers.ron", "realm: Some(\"chaos\")", "realm: Some(\"void\")"),
+        ]);
+        assert!(has(&p, "a Sword does not go in the Armor slot"), "{p:?}");
+        assert!(has(&p, "unknown power \"nope\""), "{p:?}");
+        assert!(has(&p, "unknown spell \"nowhere\""), "{p:?}");
+        assert!(has(&p, "spell with no charges"), "{p:?}");
+        assert!(has(&p, "lists 1 book counts"), "{p:?}");
+        assert!(has(&p, "unknown realm \"void\""), "{p:?}");
     }
 
     #[test]

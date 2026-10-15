@@ -15,7 +15,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 | Piece | State |
 |---|---|
 | 35 hero units in `content/units.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (slots: [Weapon, Armor, Misc], hire_cost)`. Stats come from `UNITTYPE.c`; the hero type (who is a mage) and the portrait are not imported. |
-| 231 items in `content/items.ron` | `ItemDef {id, name, slot: Weapon/Armor/Misc, cost, effects}`. The importer reads only the five stat bonuses (attack, to hit, defence, movement, resistance) of the 56-byte record: 19 items that have only special powers are skipped, the others lose their powers, charges, spell skill and spell save. |
+| 250 items in `content/items.ron`, 66 powers in `content/item_powers.ron` | Hand-kept data of every original item and power (task 218 steps 1 and 2): `ItemDef {id, name, slot, kind, cost, effects, spell_skill, spell_save, powers, charges, books, flag}`; plain bonuses are effects (movement as `HalfMoves`, to hit in pluses). What the special powers do, and the books' meaning, are open. |
 | `Source::Item(Id<ItemDef>)` in `rules/stats.rs` | Exists, nothing uses it. |
 | `experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
 | `battle/spoils.rs` | Fame for fallen heroes. Their items are not looted. |
@@ -31,7 +31,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 - **Record.** `s_ITEM`, 50 bytes (`MOM_DAT.h`): name[30], icon (`ITEMS.LBX` entry), slot type, item type,
   cost, attack, to hit, defense, moves in half-moves, resistance, spell skill, spell save, embedded
   spell and its charges, a 32-bit power mask. `ITEMDATA.LBX` has 250 of them, each followed by six
-  bytes: the books needed per realm (5) and a flag (`Make_Item` leaves flagged records out of the Enchant Item grade and unflagged ones out of the Create Artifact grade).
+  bytes: the books needed per realm (5; their meaning is task 244) and a flag (`Make_Item` leaves flagged records out of the Enchant Item grade and unflagged ones out of the Create Artifact grade).
 - **Types** (10): sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail. **Slot
   types** (6, `e_ITEM_SLOT_TYPES`): 1 sword (sword, mace, axe), 2 bow, 3 sword or staff, 4 staff
   (staff, wand), 5 armour (shield, mail), 6 misc. An item's slot type is set by its type

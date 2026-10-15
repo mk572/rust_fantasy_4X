@@ -221,6 +221,24 @@ def import_races(remom: Path) -> list[Race]:
 
 
 
+HERO_COUNT = 35
+HERO_NAME_SETS = 5
+
+
+def import_hero_names(game: Path, units_file: Path) -> list[tuple[str, list[str]]]:
+    """The original's individual hero names: `NAMES.LBX` holds five sets of 35 names, and
+    hero `h` of the unit table takes the names at `h`, `h + 35`, ... Returned with the ids
+    of the hero units in `units_file`, in table order."""
+    names = [cstr(r) for r in read_records(read_lbx(game / "NAMES.LBX")[0])]
+    ids = re.findall(r'\(id: "([^"]+)",[^\n]*?kind: Hero', units_file.read_text(encoding="utf-8"))
+    if len(ids) != HERO_COUNT:
+        raise ValueError(f"{units_file} has {len(ids)} heroes, expected {HERO_COUNT}")
+    return [
+        (uid, [names[h + HERO_COUNT * s] for s in range(HERO_NAME_SETS)])
+        for h, uid in enumerate(ids)
+    ]
+
+
 def import_city_names(game: Path) -> list[list[str]]:
     """City names per race, in race-table order (20 names of 14 bytes each)."""
     records = read_records(read_lbx(game / "CITYNAME.LBX")[0])
@@ -551,6 +569,10 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     write_list(out / "city_names.ron", local_header, [
         f"    (race: {ron_str(race.id)}, names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
         for race in races
+    ])
+    write_list(out / "hero_names.ron", local_header, [
+        f"    (unit: {ron_str(uid)}, names: [{', '.join(ron_str(n) for n in names)}]),"
+        for uid, names in import_hero_names(game, rules_out / "units.ron")
     ])
     write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
