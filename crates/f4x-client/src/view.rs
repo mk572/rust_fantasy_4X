@@ -420,6 +420,11 @@ impl App {
                     "{} slays {count} units",
                     self.game.content().rules.spells.get(spell).name
                 )),
+                Event::UnitTransformed { from, to, .. } => Some(format!(
+                    "{} becomes {}",
+                    self.game.content().rules.units.get(from).name,
+                    self.game.content().rules.units.get(to).name
+                )),
                 Event::EarthquakeStruck {
                     units_lost,
                     buildings_lost,

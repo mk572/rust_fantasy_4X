@@ -180,9 +180,11 @@ Shift (the whole stack to the other plane). Two known differences (recorded in `
 a full circle (`Evict_Weakest_Unit`), here a full circle makes the spell unavailable; and Plane Shift refuses a square
 where any unit could not stand (the original has separate water rules, `Cast_Plane_Shift_Check`). Second group done in
 `wizard_spells.rs`: Earthquake, Great Unsummoning, Death Wish, Drain Power, Cruel Unminding and Subversion (where help and code
-disagree: `help-vs-implementation-conflicts.md` B30 to B33; Death Wish has no resistance penalty). Still open: Stasis,
-Lycanthropy, Call the Void, Chaos Channels, Black Wind (needs figures per unit), Resurrection, Incarnation (these need dead-unit
-tracking or wizard-state changes), the AI casting any of the new spells,
+disagree: `help-vs-implementation-conflicts.md` B30 to B33; Death Wish has no resistance penalty). Black Wind (a resistance roll at -1 for every figure of every unit
+on the square, each failure costing one figure's hit points; the original's relations penalty for it is not applied: its call
+is garbled) and Lycanthropy (the unit becomes Werewolves with no experience; ships are refused, the original does not) are in too.
+Still open: Stasis, Call the Void, Chaos Channels, Resurrection, Incarnation (these need dead-unit tracking or wizard-state
+changes), the AI casting any of the new spells,
 Fire Storm and Ice Storm, plus Enchant Item, Create Artifact and the summon spells (heroes tasks, 218 onward).
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,

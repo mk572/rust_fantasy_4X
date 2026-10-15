@@ -35,6 +35,8 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::wizard_spells::GREAT_UNSUMMONING,
     crate::wizard_spells::DEATH_WISH,
     crate::wizard_spells::EARTHQUAKE,
+    crate::wizard_spells::BLACK_WIND,
+    crate::wizard_spells::LYCANTHROPY,
     crate::endgame::SPELL_OF_MASTERY,
     crate::gates::CITY_GATE,
     crate::city_spells::CITY_FLAG,

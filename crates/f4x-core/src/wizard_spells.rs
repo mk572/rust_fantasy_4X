@@ -18,6 +18,13 @@ pub const SUBVERSION: &str = "subversion";
 pub const GREAT_UNSUMMONING: &str = "great_unsummoning";
 pub const DEATH_WISH: &str = "death_wish";
 pub const EARTHQUAKE: &str = "earthquake";
+pub const BLACK_WIND: &str = "black_wind";
+pub const LYCANTHROPY: &str = "lycanthropy";
+
+/// The unit Lycanthropy turns a normal unit into.
+const WEREWOLVES: &str = "werewolves";
+/// Black Wind's resistance check is at this penalty.
+const BLACK_WIND_MODIFIER: i32 = -1;
 
 /// Drain Power takes the sum of this many rolls of a twenty-sided die (`Apply_Drain_Power`).
 const DRAIN_ROLLS: u32 = 10;
@@ -92,6 +99,82 @@ impl Game {
             }
         }
         slain
+    }
+
+    /// Black Wind: every unit on the square, whoever owns it, rolls a resistance check against
+    /// death at -1 for each of its figures, and each failure costs the unit one figure's hit
+    /// points. A unit with no hit points left dies. Returns the units killed.
+    pub(crate) fn black_wind(&mut self, at: crate::city::Position, rng: &mut GameRng) -> u32 {
+        use crate::units::Hurt;
+        let mut killed = 0;
+        for unit in self.units().units_at(at) {
+            let units = self.units();
+            if units.unit_protected_from(unit, Some(Realm::Death)) {
+                continue;
+            }
+            let figures = units.unit_stat(unit, crate::rules::Stat::Figures).max(1);
+            let hits_each = units.unit_stat(unit, crate::rules::Stat::MaxHp).max(0) as u32;
+            let resistance = units.unit_resistance_against(unit, Some(Realm::Death));
+            let (left, _) = units.unit_hits(unit);
+            let failed = (0..figures)
+                .filter(|_| resistance_failure(resistance, BLACK_WIND_MODIFIER, rng) > 0)
+                .count() as u32;
+            let damage = failed * hits_each;
+            if damage >= left {
+                let _ = self.world.despawn(unit);
+                killed += 1;
+            } else if damage > 0 {
+                let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+                let _ = self.world.insert_one(unit, Hurt(hurt + damage));
+            }
+        }
+        killed
+    }
+
+    /// Whether Lycanthropy may be cast on the unit: a normal land unit that is not undead.
+    /// (The original refuses heroes, fantastic creatures and the mutated; ships are refused
+    /// here too, which its test does not do.)
+    pub fn can_become_werewolf(&self, unit: hecs::Entity) -> bool {
+        let units = self.units();
+        let Some(def) = units.unit_def(unit) else {
+            return false;
+        };
+        def.kind == UnitKind::Normal
+            && def.realm.is_none()
+            && def.movement != crate::rules::MovementType::Sailing
+            && !units.unit_counts_as_undead(unit)
+            && self.content.rules.units.id_of(WEREWOLVES).is_some()
+    }
+
+    /// Lycanthropy: the unit becomes Werewolves for good, starting again from no experience. It
+    /// keeps the damage it has taken and its spells. Returns what it was and what it is.
+    pub(crate) fn lycanthropy(
+        &mut self,
+        unit: hecs::Entity,
+    ) -> Option<(crate::rules::UnitId, crate::rules::UnitId)> {
+        if !self.can_become_werewolf(unit) {
+            return None;
+        }
+        let to = self.content.rules.units.id_of(WEREWOLVES)?;
+        let from = self.world.get::<&crate::units::Unit>(unit).ok()?.0;
+        let _ = self.world.insert_one(unit, crate::units::Unit(to));
+        let _ = self.world.remove_one::<crate::units::Experience>(unit);
+        let (left, _) = self.units().unit_hits(unit);
+        if left == 0 {
+            // More damage than the new body can take: it is left on its last hit point.
+            let max = self
+                .units()
+                .unit_stat(unit, crate::rules::Stat::MaxHp)
+                .max(0) as u32
+                * self
+                    .units()
+                    .unit_stat(unit, crate::rules::Stat::Figures)
+                    .max(0) as u32;
+            let _ = self
+                .world
+                .insert_one(unit, crate::units::Hurt(max.saturating_sub(1)));
+        }
+        Some((from, to))
     }
 
     /// Great Unsummoning: every fantastic creature on both planes, the caster's too, must resist

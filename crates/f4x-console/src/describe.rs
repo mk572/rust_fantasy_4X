@@ -215,6 +215,11 @@ pub fn event(game: &Game, e: &Event) -> String {
             spell: s,
             count,
         } => format!("{}'s {} slays {count} units", player(game, *p), spell(game, *s)),
+        Event::UnitTransformed { from, to, .. } => format!(
+            "A {} becomes {}",
+            game.content().rules.units.get(*from).name,
+            game.content().rules.units.get(*to).name
+        ),
         Event::EarthquakeStruck {
             units_lost,
             buildings_lost,

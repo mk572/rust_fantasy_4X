@@ -44,7 +44,8 @@ impl GameHost<'_> {
     /// (`wizard_spells.rs`); `None` for any other hook. Subversion is carried out after the cast.
     fn wizard_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
         use crate::wizard_spells::{
-            CRUEL_UNMINDING, DEATH_WISH, DRAIN_POWER, EARTHQUAKE, GREAT_UNSUMMONING, SUBVERSION,
+            BLACK_WIND, CRUEL_UNMINDING, DEATH_WISH, DRAIN_POWER, EARTHQUAKE, GREAT_UNSUMMONING,
+            LYCANTHROPY, SUBVERSION,
         };
         let player = ctx.owner;
         let spell = match ctx.source {
@@ -84,8 +85,23 @@ impl GameHost<'_> {
                     count,
                 }]
             }
+            (BLACK_WIND, Target::Tile(at)) => {
+                let count = self.game.black_wind(at, &mut self.rng);
+                vec![Event::UnitsSlain {
+                    player,
+                    spell,
+                    count,
+                }]
+            }
+            (LYCANTHROPY, Target::Unit(unit)) => match self.game.lycanthropy(unit) {
+                Some((from, to)) => vec![Event::UnitTransformed { unit, from, to }],
+                None => Vec::new(),
+            },
             (EARTHQUAKE, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
-            (DRAIN_POWER | CRUEL_UNMINDING | EARTHQUAKE | SUBVERSION, _) => Vec::new(),
+            (
+                DRAIN_POWER | CRUEL_UNMINDING | EARTHQUAKE | SUBVERSION | BLACK_WIND | LYCANTHROPY,
+                _,
+            ) => Vec::new(),
             _ => return None,
         })
     }
@@ -535,6 +551,28 @@ impl Game {
             return match target {
                 Some(Target::Unit(u))
                     if unit_ok(u) && self.plane_shift_destination(u).is_some() =>
+                {
+                    Ok(())
+                }
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::wizard_spells::LYCANTHROPY) {
+            return match target {
+                Some(Target::Unit(u)) if unit_ok(u) && self.can_become_werewolf(u) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::wizard_spells::BLACK_WIND) {
+            return match target {
+                Some(Target::Tile(at))
+                    if self
+                        .units()
+                        .units_at(at)
+                        .iter()
+                        .any(|&u| !mine(self.units().unit_owner(u))) =>
                 {
                     Ok(())
                 }

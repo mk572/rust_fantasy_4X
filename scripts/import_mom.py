@@ -788,6 +788,8 @@ WIZARD_HOOKS = {
     "Great Unsummoning": ("great_unsummoning", "None"),
     "Death Wish": ("death_wish", "None"),
     "Earthquake": ("earthquake", "EnemyCity"),
+    "Black Wind": ("black_wind", "Tile"),
+    "Lycanthropy": ("lycanthropy", "OwnUnit"),
 }
 
 

@@ -60,6 +60,18 @@ fn world() -> Game {
             _ => {}
         }
     }
+    let mut wolves = units.iter().find(|u| u.id == "slow").unwrap().clone();
+    wolves.id = "werewolves".into();
+    wolves.name = "Werewolves".into();
+    wolves.realm = Some("death".into());
+    units.push(wolves);
+    // A squad of five with two hit points each, to count figures.
+    let mut squad = units.iter().find(|u| u.id == "walker").unwrap().clone();
+    squad.id = "squad".into();
+    squad.stats.insert(crate::rules::Stat::Figures, 5);
+    squad.stats.insert(crate::rules::Stat::MaxHp, 2);
+    squad.stats.insert(crate::rules::Stat::Resistance, 0);
+    units.push(squad);
     c.rules.units = Registry::new(units);
     let mut spells = c.rules.spells.defs().to_vec();
     for (id, realm, target, hook) in [
@@ -84,6 +96,8 @@ fn world() -> Game {
         ),
         ("death_wish", "death", SpellTarget::None, DEATH_WISH),
         ("earthquake", "nature", SpellTarget::EnemyCity, EARTHQUAKE),
+        ("black_wind", "death", SpellTarget::Tile, BLACK_WIND),
+        ("lycanthropy", "death", SpellTarget::OwnUnit, LYCANTHROPY),
     ] {
         spells.push(spell(id, realm, target, hook));
     }
@@ -321,6 +335,128 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() {
     let events = cast(&mut g, "earthquake", Some(Target::City(own)));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
+    let mut g = world();
+    // Zero resistance: a roll of 1 to 10 against -1 fails every time, so five figures of two
+    // hit points each usually all rot away.
+    let mut dead = 0;
+    let mut hurt = 0;
+    for i in 0..9 {
+        unit(&mut g, P1, "squad", at(i, 1));
+    }
+    let mut rng = crate::rng::GameRng::new(3);
+    for i in 0..9 {
+        let before = g.units().units_at(at(i, 1)).len();
+        let killed = g.black_wind(at(i, 1), &mut rng);
+        dead += killed;
+        if before == 1 && killed == 0 {
+            hurt += 1;
+        }
+    }
+    assert!(dead + hurt == 9);
+    assert!(dead > 0, "five figures at zero resistance usually all rot");
+}
+
+#[test]
+fn black_wind_wounds_a_unit_that_resists_some_figures() {
+    let mut g = world();
+    let u = unit(&mut g, P1, "squad", at(4, 4));
+    g.world.insert_one(u, crate::units::Hurt(0)).unwrap();
+    // A resistance of 5 against -1: each figure fails on a roll of 5 to 10 (60 percent).
+    let stats = {
+        let mut defs = g.content.rules.units.defs().to_vec();
+        for d in defs.iter_mut().filter(|d| d.id == "squad") {
+            d.stats.insert(crate::rules::Stat::Resistance, 5);
+        }
+        defs
+    };
+    g.content.rules.units = Registry::new(stats);
+    let mut rng = crate::rng::GameRng::new(11);
+    let mut wounded = 0;
+    let mut killed = 0;
+    for _ in 0..200 {
+        let u = unit(&mut g, P1, "squad", at(6, 6));
+        killed += g.black_wind(at(6, 6), &mut rng);
+        if g.world.contains(u) && g.units().unit_hits(u).0 < 10 {
+            wounded += 1;
+        }
+        if g.world.contains(u) {
+            let _ = g.world.despawn(u);
+        }
+    }
+    assert!(
+        wounded > 0 && killed > 0,
+        "{wounded} wounded, {killed} killed"
+    );
+}
+
+#[test]
+fn black_wind_needs_a_square_with_an_enemy_on_it() {
+    let mut g = world();
+    unit(&mut g, P0, "walker", at(2, 2));
+    let events = cast(&mut g, "black_wind", Some(Target::Tile(at(2, 2))));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+    unit(&mut g, P1, "walker", at(2, 2));
+    let events = cast(&mut g, "black_wind", Some(Target::Tile(at(2, 2))));
+    assert!(
+        events.iter().any(|e| matches!(e, Event::UnitsSlain { .. })),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() {
+    let mut g = world();
+    let u = unit(&mut g, P0, "walker", at(3, 3));
+    g.world
+        .insert_one(u, crate::units::Experience(120))
+        .unwrap();
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::UnitTransformed { .. })),
+        "{events:?}"
+    );
+    assert_eq!(g.units().unit_def(u).unwrap().id, "werewolves");
+    assert!(g.units().unit_stat(u, crate::rules::Stat::Figures) > 0);
+    assert!(g.world.get::<&crate::units::Experience>(u).is_err());
+    // Not twice: Werewolves are fantastic.
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
+    let mut g = world();
+    let summoned = unit(&mut g, P0, "slow", at(1, 1));
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(summoned)));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+    let risen = unit(&mut g, P0, "walker", at(1, 2));
+    g.make_undead(risen);
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(risen)));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+    let theirs = unit(&mut g, P1, "walker", at(1, 3));
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(theirs)));
+    assert!(
+        events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
     );
 }

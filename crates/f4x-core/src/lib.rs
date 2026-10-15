@@ -370,6 +370,12 @@ pub enum Event {
         spell: rules::SpellId,
         count: u32,
     },
+    /// A unit became another kind of unit (Lycanthropy).
+    UnitTransformed {
+        unit: hecs::Entity,
+        from: rules::UnitId,
+        to: rules::UnitId,
+    },
     /// An Earthquake shook `city`.
     EarthquakeStruck {
         city: hecs::Entity,
