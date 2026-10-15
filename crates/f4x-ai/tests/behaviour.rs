@@ -1,5 +1,6 @@
 //! The scripted AI playing real content: what it does over a few dozen turns, and that it can
-//! win with the Spell of Mastery (`docs/ai-design.md`).
+//! win with the Spell of Mastery (`docs/ai-design.md`). Slow, so ignored by default: run them with
+//! `cargo test -p f4x-ai --test behaviour -- --ignored` when the AI changes.
 
 use f4x_ai::{play_round, Ai};
 use f4x_core::city::PlayerId;
@@ -39,6 +40,7 @@ fn play(game: &mut Game, turns: u32) {
 }
 
 #[test]
+#[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn scouts_find_far_more_of_the_map_than_the_garrison_walks() {
     let mut g = game(1);
     play(&mut g, 60);
@@ -47,6 +49,7 @@ fn scouts_find_far_more_of_the_map_than_the_garrison_walks() {
 }
 
 #[test]
+#[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn cities_stop_making_settlers_once_there_are_enough_cities() {
     let mut g = game(1);
     play(&mut g, 120);
@@ -60,6 +63,7 @@ fn cities_stop_making_settlers_once_there_are_enough_cities() {
 }
 
 #[test]
+#[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() {
     let mut g = game(1);
     let mastery = g
@@ -79,6 +83,7 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() {
 }
 
 #[test]
+#[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() {
     let explored_after = |lore: bool| {
         let mut g = game(1);
@@ -100,6 +105,7 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() {
 }
 
 #[test]
+#[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_alone_on_an_island_builds_a_ship_and_finds_the_world() {
     // Seed 2 puts the first wizard on a small island: walking shows it 55 squares in all.
     let mut g = game(2);

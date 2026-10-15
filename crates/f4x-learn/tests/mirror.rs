@@ -24,6 +24,7 @@ fn fight(content: &Content, seed: u64, side: Side) -> Option<bool> {
 }
 
 #[test]
+#[ignore = "fights 300 mirrored battles; run with --ignored when the battle AI changes"]
 fn the_smarter_ai_beats_the_plain_one_on_both_sides() {
     let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
     let (mut wins, mut losses) = (0, 0);

@@ -24,6 +24,6 @@ Follow `~/projects/CODING_GUIDELINES.md`. Project-specific rules:
 
 ## Commands
 
-- **Test:** `cargo test --workspace`
+- **Test:** `cargo test --workspace` (skips the slow AI behaviour tests and never runs soaks; run those only when asked: `cargo test -p f4x-ai --test behaviour -- --ignored`, `cargo test -p f4x-learn --test mirror -- --ignored`, `f4x-tools soak`)
 - **Lint/format:** `cargo fmt --all` and `cargo clippy --workspace --tests`
 - **Scripts:** `scripts/` (table in `docs/scripts.md`)
