@@ -197,7 +197,7 @@ read where it matters (`globals.rs`), by spell id for engine rules, and through 
 passive rules for unit stats (a rule may carry a condition such as `KindIs(Normal)` or
 `RealmIs("chaos")`, checked against each of the owner's units). Spells with an engine rule carry
 the `global_effect` hook so that casting them does not report "no effect yet". Implemented:
-Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature's Awareness, Detect Magic, Holy Arms,
+Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature Awareness, Detect Magic, Holy Arms,
 Chaos Surge, Charm of Life. The rest is task 87.
 
 ## 15. City enchantments with engine effects (task 25)

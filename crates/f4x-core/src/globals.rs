@@ -4,7 +4,7 @@
 //! from the spell's own passive rules (with a condition such as "normal units"); the rest is
 //! recognised by spell id.
 //!
-//! Done: Evil Omens (cost), Herb Mastery, Planar Seal, Awareness, Nature's Awareness, Detect
+//! Done: Evil Omens (cost), Herb Mastery, Planar Seal, Awareness, Nature Awareness, Detect
 //! Magic, Holy Arms (the attack bonus), Chaos Surge, Charm of Life. The others are listed in
 //! `docs/TASKS.md` (task 87).
 
@@ -63,7 +63,7 @@ impl Game {
             .collect()
     }
 
-    /// Explore what Awareness and Nature's Awareness show `player`.
+    /// Explore what Awareness and Nature Awareness show `player`.
     pub(crate) fn reveal_for_globals(&mut self, player: PlayerId) {
         let Some(map) = self.map.as_ref() else {
             return;

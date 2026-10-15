@@ -586,7 +586,7 @@ impl Diplomacy {
     }
 
     /// Once a turn: whoever sees another wizard's city or visible unit meets it, and
-    /// Nature's Awareness meets everyone.
+    /// Nature Awareness meets everyone.
     fn contact_sweep(&mut self, ctx: &mut DiplomacyCtx<'_>) {
         let wizards = wizards(ctx.view);
         for &player in &wizards {

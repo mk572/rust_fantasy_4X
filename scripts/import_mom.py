@@ -796,7 +796,7 @@ WIZARD_HOOKS = {
 # Global enchantments the engine reads from the wizard's list (`globals.rs`); casting them
 # runs no effect of its own.
 GLOBAL_ENGINE = {
-    "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature's Awareness",
+    "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature Awareness",
     "Detect Magic", "Charm of Life", "Suppress Magic", "Crusade",
 }
 

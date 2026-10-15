@@ -69,7 +69,7 @@ duration starts at 0.
 ## 3. Contact
 
 Wizards are *contacted* when one of them scouts a square holding the other's city or a visible
-unit (invisible units by enchantment do not count), or when Nature's Awareness is cast (all
+unit (invisible units by enchantment do not count), or when Nature Awareness is cast (all
 wizards). It is checked as the map is explored (`Explore.c`) and once per turn over all units
 (`NEXTTURN.c`). On contact the human's stage becomes `Greeted`; the next turn the AI opens a
 greeting by personality (`do_Greeting + personality`), after which the stage is `Established`.

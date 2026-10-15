@@ -340,7 +340,7 @@ Myrran start on Myrror and the race it controls (53), and eleven-book realms.
 global spells where they matter: Evil Omens (life and nature spells cost half as much again for
 every wizard but the holder; one cost function, B11 decided as "follow the help"), Herb Mastery
 (heals every unit each turn), Planar Seal (blocks every plane shift, towers and planar travel
-included), Awareness (explores all city squares), Nature's Awareness (explores and shows the
+included), Awareness (explores all city squares), Nature Awareness (explores and shows the
 whole map), Detect Magic (`detect_magic_view`, shown on the magic screen), and the stat
 bonuses Holy Arms (+1 melee and ranged for normal units), Chaos Surge (+2 for chaos creatures)
 and Charm of Life (a quarter of the hit points, at least one). Unit rules can now carry
@@ -353,7 +353,7 @@ conditions on a unit's kind (`Condition::KindIs`). The data marks these spells w
 [271, 782-794], in `diplomacy.rs`: a record per wizard pair (contact, treaty, relation, default) and per
 direction (hidden core reaction, the three patience counters, peace duration, hostility, the human's last
 deed), saved with the game. `Change_Relations` with all its rules; `Declare_War`, `Break_Treaties`,
-`Declare_Peace` and the treaties; contact (a city or visible unit seen, Nature's Awareness, a battle, a
+`Declare_Peace` and the treaties; contact (a city or visible unit seen, Nature Awareness, a battle, a
 city taken); the proposal state machine (`Command::Diplomacy`: propose, answer, break, declare war, give gold
 or a spell, swap spells; proposals lapse at the end of the turn); the original's rating of a proposal as a
 helper (`Game::rate_proposal`); the turn's drift, growth and patience; and the hooks in battle, conquest,
