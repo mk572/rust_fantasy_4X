@@ -621,3 +621,36 @@ fn healing_mends_the_front_figure_then_brings_the_dead_back() {
     d.heal(-4);
     assert_eq!((d.figures, d.front_damage), (4, 0));
 }
+
+#[test]
+fn invulnerability_blocks_two_more_points_of_each_hit() {
+    let mut r = rng(7);
+    let (mut plain, mut invulnerable) = (0, 0);
+    for _ in 0..2_000 {
+        let mut a = def(100, 100, 0);
+        let mut b = def(100, 100, 0);
+        b.enchantments.push("invulnerability".into());
+        plain += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
+        invulnerable += process_attack(&combatant(5, 0), 4, &mut b, &mut r).points;
+    }
+    // Four figures hitting about 1.5 each: two off every volley leaves a seventh or so.
+    assert!(plain > 5 * invulnerable.max(1), "{plain} vs {invulnerable}");
+}
+
+#[test]
+fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
+    let bolt = Combatant {
+        nature: AttackNature {
+            realm: Some(Realm::Chaos),
+            ..AttackNature::default()
+        },
+        mode: Mode::Ranged,
+        ..combatant(5, 0)
+    };
+    let mut d = def(1, 10, 2);
+    assert_eq!(d.defense_versus(&bolt), 2);
+    d.enchantments.push("elemental_armor".into());
+    assert_eq!(d.defense_versus(&bolt), 12);
+    d.enchantments.push("righteousness".into());
+    assert_eq!(d.defense_versus(&bolt), 50);
+}

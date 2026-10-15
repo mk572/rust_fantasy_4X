@@ -248,7 +248,7 @@ pub fn effective_defense(
         immune = true;
     }
     if immune {
-        return 50;
+        return IMMUNE_DEFENSE;
     }
     if at_least_ten {
         return defense.max(10);
@@ -296,6 +296,35 @@ pub fn effective_resistance(
     }
     out
 }
+
+/// The defence a unit's lasting spells add against an attack of `realm` (`Battle_Unit_Defense_Special`):
+/// Elemental Armor +10, or else Resist Elements +3, against ranged chaos and nature; Bless +3
+/// against chaos and death.
+pub fn defense_bonus(realm: Option<Realm>, mode: Mode, enchantments: &[&str]) -> i32 {
+    let has = |id: &str| enchantments.contains(&id);
+    let mut out = 0;
+    if matches!(realm, Some(Realm::Chaos | Realm::Nature)) && mode != Mode::Melee {
+        if has("elemental_armor") {
+            out += 10;
+        } else if has("resist_elements") {
+            out += 3;
+        }
+    }
+    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has("bless") {
+        out += 3;
+    }
+    out
+}
+
+/// Righteousness: a ranged attack of chaos or death cannot touch the unit.
+pub fn righteous_ward(realm: Option<Realm>, mode: Mode, enchantments: &[&str]) -> bool {
+    matches!(realm, Some(Realm::Chaos | Realm::Death))
+        && mode != Mode::Melee
+        && enchantments.contains(&"righteousness")
+}
+
+/// The defence an unbeatable ward or immunity gives.
+pub const IMMUNE_DEFENSE: i32 = 50;
 
 /// A resistance check: roll a ten-sided die against the resistance plus the spell's modifier
 /// (negative for a spell that is hard to resist). Returns by how much the roll beat the

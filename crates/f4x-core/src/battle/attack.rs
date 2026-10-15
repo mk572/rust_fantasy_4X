@@ -18,7 +18,8 @@
 use rand::{Rng, RngCore};
 
 use super::immunity::{
-    effective_defense, effective_resistance, resistance_failure, AttackNature, Immunities, Realm,
+    defense_bonus, effective_defense, effective_resistance, resistance_failure, righteous_ward,
+    AttackNature, Immunities, Realm, IMMUNE_DEFENSE,
 };
 use super::special::{Gaze, SpecialAttacks};
 
@@ -53,6 +54,8 @@ pub struct Combatant {
 
 /// What a large shield adds to the defence against ranged, thrown and breath attacks.
 pub const LARGE_SHIELD: i32 = 2;
+/// What Invulnerability takes off every hit.
+const INVULNERABILITY_BLOCK: i32 = 2;
 
 /// What a defending unit contributes to the rolls, and the damage it has taken.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -89,6 +92,30 @@ impl DefenderState {
         self.defense
             + if self.large_shield && mode != Mode::Melee {
                 LARGE_SHIELD
+            } else {
+                0
+            }
+    }
+
+    /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
+    /// lasting spells give against the attack's realm, then what its immunities make of it.
+    /// Righteousness turns a ranged chaos or death attack away outright.
+    fn defense_versus(&self, attacker: &Combatant) -> i32 {
+        let ids: Vec<&str> = self.enchantments.iter().map(String::as_str).collect();
+        let (realm, mode) = (attacker.nature.realm, attacker.mode);
+        if righteous_ward(realm, mode, &ids) {
+            return IMMUNE_DEFENSE;
+        }
+        let defense = self.defense_against(mode) + defense_bonus(realm, mode, &ids);
+        effective_defense(defense, &self.immunities, &attacker.nature, mode)
+    }
+
+    /// The blows one roll of `defense` stops: Invulnerability stops two more.
+    fn blocks(&self, defense: i32, rng: &mut dyn RngCore) -> i32 {
+        let invulnerable = self.enchantments.iter().any(|e| e == "invulnerability");
+        roll_successes(defense, self.to_block, rng)
+            + if invulnerable {
+                INVULNERABILITY_BLOCK
             } else {
                 0
             }
@@ -279,12 +306,7 @@ pub fn process_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return total;
     }
-    let defense = effective_defense(
-        def.defense_against(attacker.mode),
-        &def.immunities,
-        &attacker.nature,
-        attacker.mode,
-    );
+    let defense = def.defense_versus(attacker);
     for _ in 0..figures {
         if def.figures == 0 {
             break;
@@ -329,7 +351,7 @@ pub fn process_attack(
                 def,
                 rng,
             );
-            (hits - roll_successes(defense, def.to_block, rng)).max(0)
+            (hits - def.blocks(defense, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
             let need = def.hits - def.front_damage;
@@ -341,7 +363,7 @@ pub fn process_attack(
                 dmg -= need;
                 // The overflow meets the next figure's defense.
                 if dmg > 0 && !attacker.ignores_defense {
-                    dmg = (dmg - roll_successes(defense, def.to_block, rng)).max(0);
+                    dmg = (dmg - def.blocks(defense, rng)).max(0);
                 }
             } else {
                 def.front_damage += dmg;
@@ -388,18 +410,13 @@ pub fn spell_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return Damage::default();
     }
-    let defense = effective_defense(
-        def.defense_against(attacker.mode),
-        &def.immunities,
-        &attacker.nature,
-        attacker.mode,
-    );
+    let defense = def.defense_versus(attacker);
     let blow = |strength: i32, rng: &mut dyn RngCore| {
         if attacker.ignores_defense {
             strength
         } else {
             let hits = roll_successes(strength, attacker.to_hit, rng);
-            (hits - roll_successes(defense, def.to_block, rng)).max(0)
+            (hits - def.blocks(defense, rng)).max(0)
         }
     };
     match volley {

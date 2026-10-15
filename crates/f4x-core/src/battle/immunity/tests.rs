@@ -279,3 +279,42 @@ fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
         50
     );
 }
+
+#[test]
+fn enchantments_add_defense_against_the_realms_they_guard() {
+    let ranged = Mode::Ranged;
+    let d = |realm, mode, names: &[&str]| defense_bonus(Some(realm), mode, names);
+    assert_eq!(d(Realm::Chaos, ranged, &["elemental_armor"]), 10);
+    assert_eq!(d(Realm::Nature, ranged, &["resist_elements"]), 3);
+    assert_eq!(
+        d(
+            Realm::Nature,
+            ranged,
+            &["elemental_armor", "resist_elements"]
+        ),
+        10,
+        "the better one counts"
+    );
+    assert_eq!(d(Realm::Chaos, Mode::Melee, &["elemental_armor"]), 0);
+    assert_eq!(d(Realm::Sorcery, ranged, &["elemental_armor"]), 0);
+    assert_eq!(d(Realm::Death, ranged, &["bless"]), 3);
+    assert_eq!(d(Realm::Life, ranged, &["bless"]), 0);
+    assert_eq!(
+        defense_bonus(None, ranged, &["bless", "elemental_armor"]),
+        0
+    );
+}
+
+#[test]
+fn righteousness_turns_ranged_chaos_and_death_away() {
+    let r = |realm, mode| righteous_ward(Some(realm), mode, &["righteousness"]);
+    assert!(r(Realm::Chaos, Mode::Ranged));
+    assert!(r(Realm::Death, Mode::Ranged));
+    assert!(!r(Realm::Nature, Mode::Ranged));
+    assert!(!r(Realm::Chaos, Mode::Melee));
+    assert!(!righteous_ward(
+        Some(Realm::Chaos),
+        Mode::Ranged,
+        &["bless"]
+    ));
+}

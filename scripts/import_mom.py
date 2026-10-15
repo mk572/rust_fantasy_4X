@@ -687,6 +687,12 @@ UNIT_ENCHANT_MODS = {
     # Resist Elements and Resist Magic add to resistance against particular realms only, which
     # the engine works out from the spell (`battle::immunity::effective_resistance`).
     "Resist Elements": [],
+    # Their defence bonuses and Righteousness's ward are worked out from the spell too.
+    "Elemental Armor": [],
+    "Bless": [],
+    "Righteousness": [],
+    # Weapon immunity; the battle also stops two more points of each hit (`battle/attack.rs`).
+    "Invulnerability": [("Grant", "weapon_immunity")],
     "Resist Magic": [],
     "Magic Immunity": [("Grant", "magic_immunity")],
     "Guardian Wind": [("Grant", "missile_immunity")],

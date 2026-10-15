@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 44 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 40 spells are listed. The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` and the importer (`scripts/import_mom.py`) in step.
 - Where help and code disagree for a spell, add a row to
   `help-vs-implementation-conflicts.md` when it is wired.
@@ -39,10 +39,6 @@ The abilities or numbers are in the content; the battle (or movement) code does 
 | 131 | True Sight | life | Illusion immunity from a spell; seeing through Wall of Darkness and invisibility (task 159 item 9) |
 | 86 | Eldritch Weapon | chaos | A defence penalty on the target of its attacks and weapon-immunity piercing, stacking |
 | 54 | Spell Lock | sorcery | The dispel code (`dispel.rs`) skipping its unit's good enchantments; its own dispel difficulty of 150; protecting a summoned creature's bond |
-| 21 | Elemental Armor | nature | A realm-aware defence bonus in `effective_defense` (task 156), plus its resistance part |
-| 121 | Bless | life | The same realm-aware defence bonus (task 156) |
-| 144 | Righteousness | life | The same (task 156); its immunity to death and chaos spells is already read |
-| 143 | Invulnerability | life | Damage reduction for each hit and resistance to ordinary weapons (task 156) |
 
 ## C. Battle spells that need a per-unit state or a changed unit
 
@@ -100,7 +96,7 @@ The abilities or numbers are in the content; the battle (or movement) code does 
 ## Order that gives the most spells for the least work
 
 1. (Done: Aura of Majesty and Just Cause, small hooks onto parts that already existed.)
-2. The realm-aware defence bonus (task 156): four spells (Elemental Armor, Bless, Righteousness, Invulnerability).
+2. (Done: the realm-aware defence bonus of task 156, with Elemental Armor, Bless, Righteousness and Invulnerability.)
 3. Combat code for the unit enchantments (section B) and a per-unit battle state (section C): about eighteen spells share these.
 4. Corruption and volcano turns (task 123): Great Wasting, Armageddon, Call the Void.
 5. Heroes and items (section A) come with their own tasks.
