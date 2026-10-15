@@ -31,6 +31,9 @@ pub(crate) fn magic_has_global(
 /// running anything when they are cast.
 pub const GLOBAL_EFFECT: &str = "global_effect";
 
+/// The fame Just Cause adds while it lasts.
+const JUST_CAUSE_FAME: i32 = 10;
+
 impl Game {
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
@@ -41,6 +44,18 @@ impl Game {
     /// Does any wizard keep the global spell with this id going?
     pub fn any_global(&self, id: &str) -> bool {
         self.players.iter().any(|p| self.has_global(p.id, id))
+    }
+
+    /// A wizard's fame as the rules count it: what they have earned, and ten more while Just
+    /// Cause is kept going.
+    pub fn fame(&self, player: PlayerId) -> i32 {
+        let earned = self.player(player).map_or(0, |p| p.fame);
+        earned
+            + if self.has_global(player, "just_cause") {
+                JUST_CAUSE_FAME
+            } else {
+                0
+            }
     }
 
     /// Is another wizard's Evil Omens making `player`'s life and nature spells dearer?
@@ -380,6 +395,17 @@ mod tests {
             .visibility(P1, Plane::Arcanus)
             .iter()
             .any(|&v| !v));
+    }
+
+    #[test]
+    fn just_cause_adds_ten_to_fame_while_it_lasts() {
+        let mut g = world();
+        g.player_mut(P0).unwrap().fame = 3;
+        assert_eq!(g.fame(P0), 3);
+        grant(&mut g, P0, "just_cause");
+        assert_eq!(g.fame(P0), 13);
+        assert_eq!(g.fame(P1), g.player(P1).unwrap().fame, "only the caster");
+        assert_eq!(g.score(P0).fame, 26, "and it counts for the score");
     }
 
     #[test]

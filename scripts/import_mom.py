@@ -797,7 +797,8 @@ WIZARD_HOOKS = {
 # runs no effect of its own.
 GLOBAL_ENGINE = {
     "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature Awareness",
-    "Detect Magic", "Charm of Life", "Suppress Magic", "Crusade",
+    "Detect Magic", "Charm of Life", "Suppress Magic", "Crusade", "Aura of Majesty",
+    "Just Cause",
 }
 
 # The dispel family (`dispel.rs`): (target, effect, strength factor). The strength is the

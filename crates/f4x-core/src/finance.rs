@@ -228,7 +228,7 @@ impl Game {
                 figures: eco.figures as i32,
             })
             .collect();
-        let fame = self.player(player).map_or(0, |p| p.fame);
+        let fame = self.fame(player);
         Treasury::compute(&cities, &self.troops(player), fame)
     }
 
@@ -236,10 +236,11 @@ impl Game {
     pub(crate) fn settle_treasury(&mut self, player: PlayerId) -> Vec<Event> {
         let t = self.treasury(player);
         let troops = self.troops(player);
+        let fame = self.fame(player);
         let Some(p) = self.player_mut(player) else {
             return Vec::new();
         };
-        let settled = settle(&t, p.gold, p.fame, &troops);
+        let settled = settle(&t, p.gold, fame, &troops);
         p.gold = settled.gold;
         for unit in &settled.disbanded {
             let _ = self.world.despawn(*unit);

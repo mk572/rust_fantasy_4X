@@ -673,6 +673,8 @@ pub fn content_with_magic() -> Content {
         "holy_arms",
         "chaos_surge",
         "crusade",
+        "just_cause",
+        "aura_of_majesty",
     ] {
         let mut s = base(id, "arcane", Rarity::VeryRare, 100, 100, SpellTarget::None);
         s.duration = Duration::Permanent;

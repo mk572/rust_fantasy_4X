@@ -205,12 +205,13 @@ impl App {
                 py + 66.0,
             );
         }
-        if player.fame > 0 {
+        let fame = self.game.fame(ui.who);
+        if fame > 0 {
             self.bm_text(
                 view,
                 2,
                 light,
-                &player.fame.to_string(),
+                &fame.to_string(),
                 px + 79.0,
                 py + 96.0,
                 Align::Right,

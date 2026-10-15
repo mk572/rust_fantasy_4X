@@ -149,7 +149,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             p.gold,
             t.net_gold(),
             p.mana,
-            p.fame,
+            ctx.game.fame(me),
             p.tax_rate
         ));
         let mut lines = Vec::new();

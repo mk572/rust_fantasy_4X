@@ -119,7 +119,7 @@ impl Game {
             spells: p.magic.known.len() as i32,
             townsfolk: (townsfolk / 2) as i32,
             conquests: conquests as i32 * 50,
-            fame: p.fame * 2,
+            fame: self.fame(player) * 2,
             time,
             mastery: if mastery_by == Some(player) { 250 } else { 0 },
         }

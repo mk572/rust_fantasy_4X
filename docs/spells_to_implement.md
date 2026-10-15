@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 46 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 44 spells are listed. The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` and the importer (`scripts/import_mom.py`) in step.
 - Where help and code disagree for a spell, add a row to
   `help-vs-implementation-conflicts.md` when it is wired.
@@ -79,8 +79,6 @@ The abilities or numbers are in the content; the battle (or movement) code does 
 
 | No. | Spell | Realm | Needs first |
 |---|---|---|---|
-| 59 | Aura of Majesty | sorcery | A relation shift of +1 each turn toward the caster for every other wizard (the diplomacy hook exists: task 63) |
-| 127 | Just Cause | life | A fame bonus of 10 while it lasts (task 72, `fame::total`) |
 | 57 | Wind Mastery | sorcery | Movement rules that depend on the owner: double for own ships and sky units, half for everyone else's |
 | 80 | Time Stop | sorcery | Turn flow where only the caster moves and pays upkeep (and a combat part) |
 | 156 | Life Force | life | A spell-resistance check for other wizards' non-combat death spells, like Suppress Magic's (`suppressed_by`) |
@@ -101,7 +99,7 @@ The abilities or numbers are in the content; the battle (or movement) code does 
 
 ## Order that gives the most spells for the least work
 
-1. Aura of Majesty and Just Cause: small hooks onto parts that already exist.
+1. (Done: Aura of Majesty and Just Cause, small hooks onto parts that already existed.)
 2. The realm-aware defence bonus (task 156): four spells (Elemental Armor, Bless, Righteousness, Invulnerability).
 3. Combat code for the unit enchantments (section B) and a per-unit battle state (section C): about eighteen spells share these.
 4. Corruption and volcano turns (task 123): Great Wasting, Armageddon, Call the Void.
