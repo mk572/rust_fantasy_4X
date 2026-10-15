@@ -160,6 +160,19 @@ impl BattleEnv {
                 _ => {}
             }
         }
+        // Fleeing costs units, settled when the battle ends (task 250): only those that got
+        // away count as saved.
+        for e in &events {
+            if let f4x_core::Event::UnitsLostFleeing { player, units } = e {
+                let side = if *player == ATTACKER {
+                    Side::Attacker
+                } else {
+                    Side::Defender
+                };
+                let saved = &mut self.outcome.saved_by_fleeing[side.index()];
+                *saved = saved.saturating_sub(*units);
+            }
+        }
         Ok(Step {
             events: seen,
             done: self.done(),

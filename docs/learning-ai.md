@@ -334,7 +334,10 @@ lost:  reward = -1 + (enemy units destroyed + own units saved by fleeing)
 - **Fleeing** (when `may_flee`) ends the battle as a loss, and every own unit that gets away
   counts the same as an enemy unit destroyed. So fleeing pays in a battle where the agent is
   unlikely to get any kills, and fighting on pays when it can destroy more enemy units than it
-  would save by leaving: that trade is what the agent learns.
+  would save by leaving: that trade is what the agent learns. Since task 250 (16 October) a
+  fleeing unit is lost with one chance in two (a quarter for heroes), settled when the battle
+  ends; the environment subtracts those from the units saved (`UnitsLostFleeing`). The runs of
+  7.8 were trained before this, when every fleeing unit counted as saved.
 - A small per-step cost stops stalling; a battle that runs to the 100-turn limit is a loss for
   both.
 - Sampling `stakes` and `mana_budget` at random during training is what makes the policy obey
@@ -353,7 +356,7 @@ for tests and for the evaluation suite). What a scenario holds:
 | **Odds** | The strength ratio is sampled on purpose, not left to chance: even fights, **overwhelming** (the agent should win with little loss), **overwhelmed** (it should sell its units dearly or flee), and lopsided in kind (all fliers against no ranged). Without the second and third kind the reward terms of 7.4 never get exercised. |
 | **Ground** | The overland terrain under the fight (the battlefield it makes), the plane, an open field, a city (walls, gate, towers, buildings, Wall of Fire or Darkness, a Spell Ward), a node, a lair or tower with guards. Which side attacks. |
 | **Wizards** | Each side has a wizard or none (independent cities and monsters have none). If present: the **books and retorts** (these set the cost reductions and the realms of the spells), the **casting skill**, the **mana in the reserve**, the **distance to the fortress and plane** (the range multiplier of `combat.md` section 8, so the same mana buys less far away), and the spells known. |
-| **Spells known** | A random subset of the spells the game can cast in battle, drawn **from `Game::battle_spells`**, the same list the console's `bspells` shows (bolts and damage, healing, summons, dispels, Counter Magic, the lasting spells on a unit, as `combat.md` section 8 lists), with the realm mix of the books. From none (a wizard who cannot cast) to the whole list. |
+| **Spells known** | A random subset (from 16 October: of the spells of one or two realms, 90% of wizards, or of three to five, and the arcane ones; at most 40, the number of spell tokens) of the spells the game can cast in battle, drawn **from `Game::battle_spells`**, the same list the console's `bspells` shows (bolts and damage, healing, summons, dispels, Counter Magic, the lasting spells on a unit, as `combat.md` section 8 lists), with the realm mix of the books. From none (a wizard who cannot cast) to the whole list. |
 | **Mana** | The reserve and the **budget** (`mana_budget` of the brief): below the cost of any spell, only enough for one cheap spell, plenty. Budget 0 is a normal case: the agent must fight without the wizard. |
 | **Battlefield enchantments** | Present at the start on either side, where the rules allow. |
 | **Brief** | `stakes` and `may_flee` (section 2). |
@@ -383,10 +386,11 @@ sees and does):
   gives the dead that could be raised (not the destroyed) a unit token after the live ones. A
   fallen unit is told apart by having no figures, no square and no moves (`obs.rs`); the token
   shapes did not change, so older checkpoints still load, but they have never seen such a token
-  and have not learned to use it. A checkpoint records which spells and unit abilities the rules
-  supported when it was trained (a version of the rules); when the set grows, training resumes
-  from that checkpoint on the new set rather than starting over, and spells the network has
-  never seen as tokens are the reason spells are encoded from stats.
+  and have not learned to use it. A checkpoint is saved with a record of what it reads (`NAME.shape.ron`: the ability
+  list and the token sizes, `obs::Signature`), and loading one whose record differs from the
+  game now, or has none, is refused with the differences listed (16 October; before that a
+  mismatch panicked, and the first runs' checkpoints have no record). Carrying a checkpoint over
+  to a grown set of abilities or spells is not built: the network must be trained again.
 - **What the agent knows of the enemy wizard** is what the battle view shows a player (the
   `battle` query lists each wizard's skill, mana and range cost, and the field enchantments are
   public); not their spell list. Task 169 checks this against the view.
@@ -421,7 +425,7 @@ What `f4x-learn` does today (the numbers are in section 7.8):
   version (a pointer over the units).
 - **Network** (`net.rs`, Burn, about a million parameters): a trunk reads the field picture
   (six channels), up to 32 unit tokens (the unit's numbers and a multi-hot of its abilities),
-  up to 24 spell tokens and 17 globals into a context vector; heads give the unit's order
+  up to 40 spell tokens and 17 globals into a context vector; heads give the unit's order
   (squares by a linear layer, targets by a pointer over the tokens), the wizard's choice, a
   spell's aim (none, a unit, a square) and mana, and a value. Fleeing has a head of its own:
   its logit rises with how much fleeing now would score above what the critic expects of
@@ -515,6 +519,8 @@ Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit
 | Training | `RAYON_NUM_THREADS=4 ... --features train --example train_battle OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--no-briefs] [--seed N]` | Warm start, then PPO; writes `log.txt` and `net_NNNN.bpk` every 5 iterations; `BANK=` picks the bank |
 | Probe | `... --features train --example probe CHECKPOINT [BANK]` | How often a checkpoint flees at its first decision, by odds |
 | In a game | `cargo run --release -p f4x-tools --features learned -- soak --battle-ai CHECKPOINT ...` | AI wizards fight their battles with the checkpoint |
+
+**Bank v2 (16 October).** `models-local/bank-v2.ron` was made on the current rules with the realm-limited wizards (1200 scenarios, 400 of each odds class, odds measured by the scripted AI); the old `bank.ron` is kept. No run has trained on it yet, and every old checkpoint is refused (their ability list and spell slots differ), so the next run starts from scratch with `BANK=models-local/bank-v2.ron`.
 
 What exists on disk after the first runs: the bank (1.3 MB), six run directories (`run0` to
 `run4` and `control`) with their logs and checkpoints, and `battle-v1.bpk`. A checkpoint is

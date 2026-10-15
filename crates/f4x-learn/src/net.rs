@@ -293,3 +293,52 @@ pub fn matrix(rows: Vec<Vec<f32>>, width: usize, device: &Device) -> Tensor<2> {
 pub fn log_probs(logits: Tensor<2>, mask: Tensor<2>) -> Tensor<2> {
     log_softmax(masked(logits, mask), 1)
 }
+
+/// Where the record of what a checkpoint reads is kept: beside it, as `NAME.shape.ron`.
+fn shape_file(checkpoint: &std::path::Path) -> std::path::PathBuf {
+    checkpoint.with_extension("shape.ron")
+}
+
+/// Write a checkpoint (`path` without the `.bpk` that Burn adds) and, beside it, what the network
+/// reads, so a later change to the game's abilities or sizes is caught on loading.
+pub fn save_checkpoint(
+    net: PolicyNet,
+    spec: &crate::obs::ObsSpec,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    use burn::module::Module;
+    net.save_file(path).map_err(|e| format!("{e:?}"))?;
+    let text = ron::ser::to_string_pretty(&spec.signature(), ron::ser::PrettyConfig::default())
+        .map_err(|e| e.to_string())?;
+    std::fs::write(shape_file(path), text).map_err(|e| e.to_string())
+}
+
+/// Read a checkpoint, or say why it cannot be used with the game as it is now: no record of
+/// what it reads (saved before checkpoints had one), or a record that differs.
+pub fn load_checkpoint(
+    spec: &crate::obs::ObsSpec,
+    path: &std::path::Path,
+    device: &Device,
+) -> Result<PolicyNet, String> {
+    use burn::module::Module;
+    let shape = shape_file(path);
+    let text = std::fs::read_to_string(&shape).map_err(|_| {
+        format!(
+            "{} has no record of what it reads ({} is missing): it was saved before checkpoints \
+             had one, and cannot be told apart from a mismatched one; train again",
+            path.display(),
+            shape.display()
+        )
+    })?;
+    let saved: crate::obs::Signature =
+        ron::from_str(&text).map_err(|e| format!("{}: {e}", shape.display()))?;
+    let diff = saved.differences(&spec.signature());
+    if !diff.is_empty() {
+        return Err(format!(
+            "{} was trained on other rules than these: {}; train again",
+            path.display(),
+            diff.join("; ")
+        ));
+    }
+    Ok(PolicyNet::new(spec.unit_features(), device).load_file(path))
+}

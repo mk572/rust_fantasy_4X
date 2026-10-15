@@ -83,6 +83,81 @@ mod tests {
     }
 
     #[test]
+    fn fleeing_saves_only_the_units_that_survive_the_flight() {
+        let content = content();
+        let (mut sent, mut saved) = (0, 0);
+        for seed in 0..60 {
+            let mut env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
+            let side = env.to_play().unwrap();
+            env.step(f4x_core::battle::BattleCommand::Flee).unwrap();
+            assert!(env.outcome.fled[side.index()], "seed {seed}");
+            let i = side.index();
+            assert!(env.outcome.saved_by_fleeing[i] <= env.outcome.sent[i]);
+            sent += env.outcome.sent[i];
+            saved += env.outcome.saved_by_fleeing[i];
+        }
+        // Each unit is lost with one chance in two (flat settings: no safe flight).
+        let share = saved as f32 / sent as f32;
+        assert!((0.35..0.65).contains(&share), "saved {saved} of {sent}");
+    }
+
+    #[test]
+    fn wizards_of_one_or_two_realms_fit_the_spell_slots() {
+        let content = content();
+        let realm_of = |id: &str| {
+            let spells = &content.rules.spells;
+            spells.get(spells.id_of(id).unwrap()).realm.clone()
+        };
+        // Every pair of realms with the arcane spells fits whole, so a generated wizard of one or
+        // two realms is never cut short.
+        let battle: Vec<String> = {
+            content
+                .rules
+                .spells
+                .iter()
+                .filter(|(_, d)| scenario::battle_spell(d))
+                .map(|(_, d)| d.realm.clone())
+                .collect()
+        };
+        let in_realm = |r: &str| battle.iter().filter(|x| *x == r).count();
+        let arcane = in_realm("arcane");
+        let names = ["nature", "sorcery", "chaos", "life", "death"];
+        for a in names {
+            for b in names {
+                let n = in_realm(a) + if a == b { 0 } else { in_realm(b) } + arcane;
+                assert!(n <= obs::MAX_SPELLS, "{a} and {b} have {n} battle spells");
+            }
+        }
+        let (mut small, mut large) = (0, 0);
+        for seed in 0..3000 {
+            let s = generate(&content, seed);
+            for w in [&s.attacker_wizard, &s.defender_wizard]
+                .into_iter()
+                .flatten()
+            {
+                let mut realms: Vec<String> = w
+                    .spells
+                    .iter()
+                    .map(|id| realm_of(id))
+                    .filter(|r| r != "arcane")
+                    .collect();
+                realms.sort();
+                realms.dedup();
+                if realms.len() <= 2 {
+                    small += 1;
+                } else {
+                    large += 1;
+                }
+            }
+        }
+        // Most wizards are of one or two realms, a few of more.
+        assert!(
+            small > 5 * large && large > 0,
+            "{small} small, {large} large"
+        );
+    }
+
+    #[test]
     fn the_scripted_battle_ai_plays_a_generated_battle_to_its_end() {
         let content = content();
         for seed in 100..110 {
@@ -298,7 +373,6 @@ mod agent_tests {
 #[cfg(all(test, feature = "train"))]
 mod brain_tests {
     use super::*;
-    use burn::module::Module;
     use burn::prelude::*;
     use std::path::Path;
 
@@ -311,9 +385,12 @@ mod brain_tests {
         let dir = std::env::temp_dir().join(format!("f4x-learn-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("net");
-        net::PolicyNet::new(spec.unit_features(), &Device::flex())
-            .save_file(&file)
-            .unwrap();
+        net::save_checkpoint(
+            net::PolicyNet::new(spec.unit_features(), &Device::flex()),
+            &spec,
+            &file,
+        )
+        .unwrap();
         let mut finished = 0;
         for seed in 0..4 {
             let mut env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
@@ -331,6 +408,44 @@ mod brain_tests {
             finished += usize::from(env.outcome.winner.is_some());
         }
         assert!(finished >= 3, "{finished} of 4 battles ended");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A checkpoint saved for other rules (an ability gone, a size changed) or with no record of
+    /// what it reads is refused with a reason, not a panic.
+    #[test]
+    fn a_checkpoint_for_other_rules_is_refused_with_a_reason() {
+        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let spec = obs::ObsSpec::new(&content);
+        let dir = std::env::temp_dir().join(format!("f4x-learn-shape-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("net");
+        net::save_checkpoint(
+            net::PolicyNet::new(spec.unit_features(), &Device::flex()),
+            &spec,
+            &file,
+        )
+        .unwrap();
+        assert!(brain::LearnedBrain::load(&content, &file).is_ok());
+
+        let shape = dir.join("net.shape.ron");
+        let mut sig = spec.signature();
+        sig.abilities.pop();
+        sig.sizes[2].1 += 1;
+        std::fs::write(&shape, ron::to_string(&sig).unwrap()).unwrap();
+        let Err(why) = brain::LearnedBrain::load(&content, &file) else {
+            panic!("a checkpoint of other rules was loaded");
+        };
+        assert!(
+            why.contains("abilities added") && why.contains("MAX_SPELLS was"),
+            "{why}"
+        );
+
+        std::fs::remove_file(&shape).unwrap();
+        let Err(why) = brain::LearnedBrain::load(&content, &file) else {
+            panic!("a checkpoint with no record was loaded");
+        };
+        assert!(why.contains("no record"), "{why}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

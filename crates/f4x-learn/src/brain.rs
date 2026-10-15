@@ -5,7 +5,6 @@
 
 use std::path::Path;
 
-use burn::module::Module;
 use burn::prelude::*;
 use f4x_core::battle::game::BattleBrain;
 use f4x_core::battle::BattleCommand;
@@ -37,7 +36,7 @@ impl LearnedBrain {
     pub fn load(content: &Content, checkpoint: &Path) -> Result<Self, String> {
         let spec = ObsSpec::new(content);
         let device = Device::flex();
-        let net = PolicyNet::new(spec.unit_features(), &device).load_file(checkpoint);
+        let net = crate::net::load_checkpoint(&spec, checkpoint, &device)?;
         Ok(Self {
             net,
             spec,

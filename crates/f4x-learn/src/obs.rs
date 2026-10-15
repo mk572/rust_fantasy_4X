@@ -17,8 +17,9 @@ use f4x_core::Game;
 pub const GRID_CHANNELS: usize = 6;
 /// Most unit tokens (two stacks of nine and what is summoned).
 pub const MAX_UNITS: usize = 32;
-/// Most spell tokens.
-pub const MAX_SPELLS: usize = 24;
+/// Most spell tokens: the two largest realms (sorcery 20, chaos 18) and the arcane spell come
+/// to 39, so a wizard of one or two realms never overflows (a test checks it).
+pub const MAX_SPELLS: usize = 40;
 /// Numbers of the global vector.
 pub const GLOBALS: usize = 17;
 /// Features of a unit before its abilities.
@@ -281,4 +282,66 @@ pub fn tokens(b: &Battle) -> usize {
         .filter(|u| u.is_active())
         .count()
         .min(MAX_UNITS)
+}
+
+/// What a network was built to read: the ability vocabulary and the sizes of the tokens, grids
+/// and vocabularies. A checkpoint is saved with its signature and refused when it differs from
+/// the game's now, since its weights would be read with the wrong meaning (or not fit at all).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Signature {
+    pub abilities: Vec<String>,
+    /// Named sizes (`MAX_UNITS`, `MAX_SPELLS` and so on).
+    pub sizes: Vec<(String, usize)>,
+}
+
+impl Signature {
+    /// What differs from `now`, in words; empty when they are the same.
+    pub fn differences(&self, now: &Signature) -> Vec<String> {
+        let mut out = Vec::new();
+        for (name, n) in &now.sizes {
+            match self.sizes.iter().find(|(m, _)| m == name) {
+                Some((_, then)) if then == n => {}
+                Some((_, then)) => out.push(format!("{name} was {then}, now {n}")),
+                None => out.push(format!("{name} was not recorded, now {n}")),
+            }
+        }
+        let added: Vec<&String> = now
+            .abilities
+            .iter()
+            .filter(|a| !self.abilities.contains(a))
+            .collect();
+        let removed: Vec<&String> = self
+            .abilities
+            .iter()
+            .filter(|a| !now.abilities.contains(a))
+            .collect();
+        if !added.is_empty() {
+            out.push(format!("abilities added: {added:?}"));
+        }
+        if !removed.is_empty() {
+            out.push(format!("abilities removed: {removed:?}"));
+        }
+        if added.is_empty() && removed.is_empty() && self.abilities != now.abilities {
+            out.push("the abilities changed order".into());
+        }
+        out
+    }
+}
+
+impl ObsSpec {
+    /// What a network built for this spec reads (see [`Signature`]).
+    pub fn signature(&self) -> Signature {
+        let sizes = [
+            ("GRID_CHANNELS", GRID_CHANNELS),
+            ("MAX_UNITS", MAX_UNITS),
+            ("MAX_SPELLS", MAX_SPELLS),
+            ("GLOBALS", GLOBALS),
+            ("UNIT_BASE", UNIT_BASE),
+            ("SPELL_FEATURES", SPELL_FEATURES),
+        ];
+        Signature {
+            abilities: self.abilities.clone(),
+            sizes: sizes.iter().map(|&(n, v)| (n.to_string(), v)).collect(),
+        }
+    }
 }

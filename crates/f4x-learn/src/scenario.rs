@@ -5,6 +5,8 @@
 //! makes random ones from the rules.
 
 use f4x_core::content::Content;
+
+use crate::obs::MAX_SPELLS;
 use f4x_core::rules::Stat;
 use f4x_core::rules::UnitKind;
 use rand::{Rng, SeedableRng};
@@ -135,20 +137,55 @@ fn power(content: &Content, army: &[UnitPick]) -> f32 {
     army.iter().map(|u| rough_strength(content, &u.unit)).sum()
 }
 
-fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
+/// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`).
+pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
     use f4x_core::rules::defs::CastContext;
+    use f4x_core::rules::effects::Effect;
+    d.contexts.contains(&CastContext::Battle)
+        && !d
+            .effects
+            .iter()
+            .any(|r| matches!(&r.effect, Effect::Custom(h) if h == "unimplemented"))
+}
+
+/// The realms a wizard's books can be in.
+const REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
+
+/// How many realms a generated wizard has books in: mostly one or two, as in real games, and
+/// now and then three to five so the agent is not helpless against the rest.
+fn realm_count(rng: &mut Pcg64Mcg) -> usize {
+    match rng.gen_range(0..100) {
+        0..=39 => 1,
+        40..=89 => 2,
+        _ => rng.gen_range(3..=REALMS.len()),
+    }
+}
+
+fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
+    use rand::seq::SliceRandom;
     if rng.gen_bool(0.3) {
         return None;
     }
+    let mut realms = REALMS.to_vec();
+    realms.shuffle(rng);
+    realms.truncate(realm_count(rng));
     let share = rng.gen_range(0.1..0.9);
-    let spells = content
+    // The spells of the wizard's realms and the arcane ones, a share of them known.
+    let mut spells: Vec<String> = content
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.contexts.contains(&CastContext::Battle))
+        .filter(|(_, d)| battle_spell(d))
+        .filter(|(_, d)| d.realm == "arcane" || realms.contains(&d.realm.as_str()))
         .filter(|_| rng.gen_bool(share))
         .map(|(_, d)| d.id.clone())
         .collect();
+    // A wizard of many realms can know more than the agent has slots for; a random few are
+    // left out (one or two realms never reach the limit, which a test checks).
+    if spells.len() > MAX_SPELLS {
+        spells.shuffle(rng);
+        spells.truncate(MAX_SPELLS);
+    }
     // Log-uniform: from a reserve that buys one spell to one that buys the whole battle.
     let mana = [0, 15, 40, 120, 400, 1500, 5000][rng.gen_range(0..7)];
     let skill_points = [0, 300, 1200, 4000, 12000, 30000][rng.gen_range(0..6)];

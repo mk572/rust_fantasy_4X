@@ -10,7 +10,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use burn::module::Module;
 use burn::prelude::*;
 use f4x_learn::obs::ObsSpec;
 use f4x_learn::train::{
@@ -187,11 +186,11 @@ fn main() -> Result<(), String> {
                     ev.wins, ev.games, ev.reward, ev.by_odds
                 ));
             }
-            learner
-                .net
-                .clone()
-                .save_file(out.join(format!("net_{it:04}")))
-                .map_err(|e| format!("{e:?}"))?;
+            f4x_learn::net::save_checkpoint(
+                learner.net.clone(),
+                &spec,
+                &out.join(format!("net_{it:04}")),
+            )?;
         }
     }
     Ok(())

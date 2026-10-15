@@ -3,13 +3,11 @@
 
 use std::path::Path;
 
-use burn::module::Module;
 use burn::prelude::*;
 use f4x_core::battle::{BattleCommand, Side};
 use f4x_learn::agent::{Driver, Request};
 use f4x_learn::bank::Bank;
 use f4x_learn::env::BattleEnv;
-use f4x_learn::net::PolicyNet;
 use f4x_learn::obs::{Brief, ObsSpec};
 use f4x_learn::scenario::Odds;
 use f4x_learn::train::choose;
@@ -28,7 +26,7 @@ fn main() -> Result<(), String> {
     let bank = Bank::from_text(&std::fs::read_to_string(&bank_path).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     let device = Device::flex();
-    let net = PolicyNet::new(spec.unit_features(), &device).load_file(&ckpt);
+    let net = f4x_learn::net::load_checkpoint(&spec, Path::new(&ckpt), &device)?;
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     for odds in [Odds::Even, Odds::Overwhelming, Odds::Overwhelmed] {
         let (mut asks, mut flees, mut casts) = (0, 0, 0);
