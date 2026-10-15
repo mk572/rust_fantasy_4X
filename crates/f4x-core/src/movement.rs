@@ -111,7 +111,11 @@ impl Economy<'_> {
         if has("non_corporeal") && !is_water {
             return Ok(1);
         }
-        if stack_flies || def.movement == MovementType::Flying || has("flying") {
+        if stack_flies
+            || def.movement == MovementType::Flying
+            || has("flying")
+            || (is_water && has("water_walking"))
+        {
             return Ok(FULL_MOVE);
         }
         match def.movement {

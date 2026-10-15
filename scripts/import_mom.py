@@ -690,6 +690,13 @@ UNIT_ENCHANT_MODS = {
     "Resist Magic": [],
     "Magic Immunity": [("Grant", "magic_immunity")],
     "Guardian Wind": [("Grant", "missile_immunity")],
+    # Movement: the overland rules read these abilities (`movement.rs`).
+    "Wind Walking": [("Grant", "wind_walking")],
+    "Planar Travel": [("Grant", "planar_travel")],
+    "Water Walking": [("Grant", "water_walking")],
+    "Path Finding": [("Grant", "pathfinding")],
+    # Weapon immunity and a body that passes walls; on the map every land square costs one half move.
+    "Wraith Form": [("Grant", "non_corporeal"), ("Grant", "weapon_immunity")],
     "Lionheart": [("Melee", "Add", 3), ("Ranged", "Add", 3), ("Resistance", "Add", 3), ("MaxHp", "Add", 3)],
     "Holy Armor": [("Defense", "Add", 2)],
     "Holy Weapon": [("ToHit", "Add", 10), ("Grant", "magical_weapon")],
@@ -1355,6 +1362,15 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     used_abilities["magical_weapon"] = (
         "Magical Weapon",
         "Its normal attacks count as magical, so weapon immunity does not stop them.",
+    )
+    # Abilities that only spells grant.
+    used_abilities["water_walking"] = (
+        "Water Walking",
+        "Walks on water as on land, without a ship.",
+    )
+    used_abilities["pathfinding"] = (
+        "Path Finding",
+        "The unit and all stacked with it cross any land square for one half move.",
     )
     abilities_lines = [
         f"    (id: {ron_str(i)}, name: {ron_str(n)}, description: {ron_str(d)}, effects: []),"

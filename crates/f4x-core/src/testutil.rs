@@ -153,6 +153,7 @@ pub fn content_with_units() -> Content {
         unit("spirit", MovementType::Walking, 2, &["non_corporeal"]),
         unit("mage", MovementType::Walking, 2, &["wind_walking"]),
         unit("traveller", MovementType::Walking, 2, &["planar_travel"]),
+        unit("strider", MovementType::Walking, 2, &["water_walking"]),
         unit("hardy", MovementType::Walking, 2, &["tough"]),
     ];
     let ability = |id: &str, effects| AbilityDef {
@@ -168,6 +169,7 @@ pub fn content_with_units() -> Content {
         "non_corporeal",
         "wind_walking",
         "planar_travel",
+        "water_walking",
         "flying",
     ]
     .into_iter()

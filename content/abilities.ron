@@ -45,6 +45,7 @@
     (id: "nature_bolt", name: "Nature Bolt", description: "Ranged attack type: Nature Bolt.", effects: []),
     (id: "negate_first_strike", name: "Negate First Strike", description: "Cancels enemy first strike.", effects: []),
     (id: "non_corporeal", name: "Non-Corporeal", description: "Passes through walls; resists physical harm.", effects: []),
+    (id: "pathfinding", name: "Path Finding", description: "The unit and all stacked with it cross any land square for one half move.", effects: []),
     (id: "planar_travel", name: "Planar Travel", description: "Can shift between Arcanus and Myrror.", effects: []),
     (id: "poison_immunity", name: "Poison Immunity", description: "Immune to poison.", effects: []),
     (id: "poison_touch", name: "Poison Touch", description: "Poisons what it hits.", effects: []),
@@ -65,6 +66,7 @@
     (id: "teleport", name: "Teleport", description: "Moves to any free square in a battle, for one move.", effects: []),
     (id: "thrown", name: "Thrown", description: "Ranged attack type: Thrown.", effects: []),
     (id: "wall_crusher", name: "Wall Crusher", description: "Can breach city walls.", effects: []),
+    (id: "water_walking", name: "Water Walking", description: "Walks on water as on land, without a ship.", effects: []),
     (id: "weapon_immunity", name: "Weapon Immunity", description: "Normal weapons barely hurt it: its defence is at least 10 against them, and normal arrows and thrown weapons are cut to the same. Heroes, fantastic creatures, magical weapons and spells ignore it.", effects: []),
     (id: "wind_walking", name: "Wind Walking", description: "Carries a stack through the air.", effects: []),
 ]

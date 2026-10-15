@@ -238,6 +238,20 @@ fn wind_walking_carries_the_whole_stack_over_water() {
 }
 
 #[test]
+fn water_walking_carries_only_the_walker_over_water() {
+    let mut g = world();
+    let strider = unit(&mut g, P0, "strider", at(6, 2));
+    let walker = unit(&mut g, P0, "walker", at(6, 2));
+    assert_eq!(
+        g.move_stack(&[walker], at(7, 2)),
+        Err(MoveError::Impassable)
+    );
+    assert_eq!(g.move_stack(&[strider], at(7, 2)), Ok(Entry::Free));
+    assert_eq!(g.units().unit_position(strider), Some(at(7, 2)));
+    assert_eq!(g.units().unit_position(walker), Some(at(6, 2)));
+}
+
+#[test]
 fn shifting_planes_needs_a_tower_or_planar_travel() {
     let mut g = world();
     let on_tower = unit(&mut g, P0, "walker", at(1, 4));

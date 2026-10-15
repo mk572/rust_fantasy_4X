@@ -28,7 +28,7 @@ impl Economy<'_> {
     }
 
     /// Whether the unit cannot cross the sea by itself: it walks and neither flies nor is
-    /// carried through the air nor is non-corporeal.
+    /// carried through the air nor is non-corporeal nor walks on water.
     pub fn needs_ship(&self, unit: hecs::Entity, stack_flies: bool) -> bool {
         let units = self.units();
         !stack_flies
@@ -37,7 +37,7 @@ impl Economy<'_> {
                     && !units
                         .unit_abilities(unit)
                         .iter()
-                        .any(|a| a == "flying" || a == "non_corporeal")
+                        .any(|a| a == "flying" || a == "non_corporeal" || a == "water_walking")
             })
     }
 
