@@ -48,9 +48,32 @@ pub enum Personality {
 }
 
 impl Personality {
+    pub fn name(self) -> &'static str {
+        match self {
+            Personality::Maniacal => "Maniacal",
+            Personality::Ruthless => "Ruthless",
+            Personality::Aggressive => "Aggressive",
+            Personality::Chaotic => "Chaotic",
+            Personality::Lawful => "Lawful",
+            Personality::Peaceful => "Peaceful",
+        }
+    }
+
     /// The original's `TBL_AI_PRS_IDK_Mod`: how well the wizard takes proposals.
     pub fn modifier(self) -> i32 {
         self as i32 * 10
+    }
+}
+
+impl Treaty {
+    /// The words of the wizard sheet.
+    pub fn name(self) -> &'static str {
+        match self {
+            Treaty::None => "No Treaty",
+            Treaty::Pact => "Wizard Pact",
+            Treaty::Alliance => "Alliance",
+            Treaty::War => "War",
+        }
     }
 }
 
@@ -278,6 +301,7 @@ pub struct Diplomacy {
     pairs: BTreeMap<(u8, u8), Pair>,
     stances: BTreeMap<(u8, u8), Stance>,
     personalities: BTreeMap<u8, Personality>,
+    objectives: BTreeMap<u8, crate::objective::Objective>,
     proposals: Vec<Proposal>,
     /// Events that hooks (battles, spells, the turn) raise; the next command returns them.
     queue: Vec<DiplomacyEvent>,
@@ -319,6 +343,14 @@ impl Diplomacy {
 
     pub fn set_personality(&mut self, wizard: PlayerId, personality: Personality) {
         self.personalities.insert(wizard.0, personality);
+    }
+
+    pub fn objective(&self, wizard: PlayerId) -> Option<crate::objective::Objective> {
+        self.objectives.get(&wizard.0).copied()
+    }
+
+    pub fn set_objective(&mut self, wizard: PlayerId, objective: crate::objective::Objective) {
+        self.objectives.insert(wizard.0, objective);
     }
 
     pub fn pair(&self, a: PlayerId, b: PlayerId) -> Option<&Pair> {
@@ -1699,6 +1731,8 @@ pub struct DiplomacySave {
     pub pairs: Vec<(u8, u8, Pair)>,
     pub stances: Vec<(u8, u8, Stance)>,
     pub personalities: Vec<(u8, Personality)>,
+    #[serde(default)]
+    pub objectives: Vec<(u8, crate::objective::Objective)>,
     pub proposals: Vec<ProposalSave>,
 }
 
@@ -1733,6 +1767,7 @@ impl Diplomacy {
                 .map(|(k, v)| (k.0, k.1, v.clone()))
                 .collect(),
             personalities: self.personalities.iter().map(|(&k, &v)| (k, v)).collect(),
+            objectives: self.objectives.iter().map(|(&k, &v)| (k, v)).collect(),
             proposals: self
                 .proposals
                 .iter()
@@ -1771,6 +1806,7 @@ impl Diplomacy {
             .map(|(a, b, s)| ((a, b), s))
             .collect();
         self.personalities = save.personalities.into_iter().collect();
+        self.objectives = save.objectives.into_iter().collect();
         self.proposals = save
             .proposals
             .into_iter()

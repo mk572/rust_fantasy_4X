@@ -2159,3 +2159,68 @@ fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
     let flight = g.content().rules.spells.id_of("flight").unwrap();
     assert!(g.battle_spells(HUMAN).iter().any(|s| s.spell == flight));
 }
+
+#[test]
+fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
+    let content = content();
+    let g = new_game(
+        &content,
+        &NewGame {
+            seed: 11,
+            wizards: 4,
+            ..NewGame::default()
+        },
+    )
+    .unwrap();
+    let human = g.human.unwrap();
+    assert_eq!(g.objective(human), None, "the human has no objective");
+    for p in g.players().iter().filter(|p| !p.neutral && p.id != human) {
+        assert!(g.objective(p.id).is_some(), "{} has an objective", p.name);
+    }
+    let back = g.snapshot().restore(content).unwrap();
+    for p in g.players().iter().filter(|p| !p.neutral) {
+        assert_eq!(back.objective(p.id), g.objective(p.id));
+        assert_eq!(back.personality(p.id), g.personality(p.id));
+    }
+}
+
+#[test]
+fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
+    let content = content();
+    assert!(
+        content.rules.wizards.defs().is_empty(),
+        "no ready-made wizards in the test content"
+    );
+    let names = |seed: u64| -> Vec<String> {
+        let g = new_game(
+            &content,
+            &NewGame {
+                seed,
+                wizards: 5,
+                ..NewGame::default()
+            },
+        )
+        .unwrap();
+        g.players()
+            .iter()
+            .filter(|p| !p.neutral && p.id != g.human.unwrap())
+            .map(|p| p.name.clone())
+            .collect()
+    };
+    let lists = &content.rules.wizard_names;
+    assert_eq!(lists.len(), 4);
+    assert!(lists.iter().all(|l| l.len() == 10));
+    for seed in 0..20 {
+        let got = names(seed);
+        assert_eq!(got.len(), 4);
+        for (name, list) in got.iter().zip(lists) {
+            assert!(list.contains(name), "{name} is not in its slot's list");
+        }
+        assert_eq!(got, names(seed), "the same seed draws the same names");
+    }
+    let seen: std::collections::BTreeSet<_> = (0..20).map(|s| names(s)[0].clone()).collect();
+    assert!(
+        seen.len() > 3,
+        "the first rival's name varies with the seed: {seen:?}"
+    );
+}

@@ -75,6 +75,12 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         } else {
             Vec::new()
         }),
+        // Fallback names for rival wizards, also optional.
+        wizard_names: if find(dir, "wizard_names.ron").is_some() {
+            parse::<Vec<Vec<String>>>(dir, "wizard_names.ron")?
+        } else {
+            Vec::new()
+        },
     };
     let problems = validate_rules(&rules, features);
     if problems.is_empty() {
@@ -571,6 +577,7 @@ mod tests {
             items: Registry::new(ron::from_str(&list("items.ron")).unwrap()),
             level_paths: Registry::new(ron::from_str(&list("level_paths.ron")).unwrap()),
             wizards: Registry::new(Vec::new()),
+            wizard_names: Vec::new(),
         }
     }
 

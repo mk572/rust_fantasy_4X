@@ -179,8 +179,15 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     taken.push(id);
                     b
                 }
-                None if k % 2 == 1 => fixed(&[("chaos", 3), ("death", 2)], Retort::Warlord),
-                None => fixed(&[("life", 3), ("nature", 2)], Retort::Charismatic),
+                None => {
+                    let mut build = if k % 2 == 1 {
+                        fixed(&[("chaos", 3), ("death", 2)], Retort::Warlord)
+                    } else {
+                        fixed(&[("life", 3), ("nature", 2)], Retort::Charismatic)
+                    };
+                    build.name = fallback_name(&game.content, spec.seed, k);
+                    build
+                }
             }
         };
         builds.push(build);
@@ -253,8 +260,30 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for plane in [Plane::Arcanus, Plane::Myrror] {
         game.generate_neutral_cities(plane);
     }
+    game.assign_temperaments();
     game.set_undo(true);
     Ok(game)
+}
+
+/// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list
+/// (`content/wizard_names.ron`), picked from the seed without touching the game's random stream.
+/// Empty if there is no list, which leaves the plain "Wizard N".
+fn fallback_name(content: &Content, seed: u64, k: usize) -> String {
+    let lists = &content.rules.wizard_names;
+    let Some(list) = lists.get(k.saturating_sub(1).min(lists.len().saturating_sub(1))) else {
+        return String::new();
+    };
+    if list.is_empty() {
+        return String::new();
+    }
+    // splitmix64 of the seed and the slot.
+    let mut z = seed
+        .wrapping_add((k as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+        .wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    list[(z % list.len() as u64) as usize].clone()
 }
 
 /// Whether the wizard has the Myrran retort (and so starts on Myrror).

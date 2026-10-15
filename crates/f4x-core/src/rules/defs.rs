@@ -393,4 +393,6 @@ pub struct Rules {
     pub items: Registry<ItemDef>,
     pub level_paths: Registry<LevelPathDef>,
     pub wizards: Registry<WizardDef>,
+    /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.
+    pub wizard_names: Vec<Vec<String>>,
 }

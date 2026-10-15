@@ -37,6 +37,7 @@ pub mod movement;
 pub mod neutral_cities;
 pub mod nightshade;
 pub mod nodes;
+pub mod objective;
 pub mod pathing;
 pub mod player;
 pub mod player_view;
