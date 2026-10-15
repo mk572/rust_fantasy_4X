@@ -1,13 +1,11 @@
 """Import Master of Magic data into local content files for rust_fantasy_4X.
 
-Reads the author's own copy of the original game (items, buildings for the
-help check, and the help text from the `.LBX` files) and the race table from a local clone of the ReMoM
-reverse-engineering project. Writes RON files into `content/` (races, items, realms,
-level paths and rule values, which are committed) and `content-local/` (help text,
-screen-to-topic map, city names and preset wizards: copyrighted prose, gitignored, never to
-be committed or distributed). The units, buildings, spells and abilities are the game's own
-data in `content/`, kept by hand: the importer only reads them (the races list their units;
-buildings and spells are checked against the help text).
+Reads the author's own copy of the original game and a local clone of the ReMoM
+reverse-engineering project, and writes only what is not game data: `content-local/` (help
+text, screen-to-topic map, city names and preset wizards: copyrighted prose, gitignored,
+never to be committed or distributed). The game's own data in `content/` (races, units,
+buildings, spells, abilities, items, realms, level paths, rules) is kept by hand; the importer only reads
+buildings, races and spells to check them against the help text.
 
 Usage:
     python3 -I scripts/import_mom.py [--game DIR] [--remom DIR] [--out DIR] [--rules-out DIR]
@@ -76,35 +74,7 @@ def ron_str(s: str) -> str:
 # Constants taken from the clone's headers and docs
 # --------------------------------------------------------------------------- #
 
-REALMS = [  # index = realm byte in the spell table
-    ("nature", "Nature", (60, 160, 60)),
-    ("sorcery", "Sorcery", (60, 110, 220)),
-    ("chaos", "Chaos", (210, 70, 50)),
-    ("life", "Life", (235, 235, 225)),
-    ("death", "Death", (130, 60, 170)),
-    ("arcane", "Arcane", (190, 190, 190)),
-]
 
-# Spells a wizard starts with when none are chosen: per realm the ten common spells, two uncommon
-# and one rare one, in the original's default order (a realm with n books takes the first n - 1
-# common ones; with eleven books it knows all ten, and the two uncommon and the rare one).
-DEFAULT_START_SPELLS = {
-    "nature": ["War Bears", "Stone Skin", "Sprites", "Water Walking", "Giant Strength", "Web",
-               "Earth to Mud", "Wall of Stone", "Resist Elements", "Earth Lore",
-               "Cockatrices", "Change Terrain", "Gorgons"],
-    "sorcery": ["Nagas", "Psionic Blast", "Phantom Warriors", "Floating Island", "Confusion",
-                "Counter Magic", "Word of Recall", "Dispel Magic True", "Resist Magic",
-                "Guardian Wind", "Flight", "Phantom Beast", "Storm Giant"],
-    "chaos": ["Fire Bolt", "Fire Elemental", "Eldritch Weapon", "Hell Hounds", "Corruption",
-              "Warp Creature", "Shatter", "Wall of Fire", "Disrupt", "Warp Wood",
-              "Lightning Bolt", "Doom Bat", "Efreet"],
-    "life": ["Heroism", "Guardian Spirit", "Holy Armor", "Just Cause", "Healing", "Holy Weapon",
-             "Star Fires", "Endurance", "True Light", "Bless",
-             "Resurrection", "Unicorns", "Angel"],
-    "death": ["Life Drain", "Ghouls", "Weakness", "Dark Rituals", "Black Sleep", "Darkness",
-              "Terror", "Skeletons", "Mana Leak", "Cloak of Fear",
-              "Black Prayer", "Black Channels", "Wraiths"],
-}
 
 # The ready-made wizards (NewGame.c `_wizard_presets_table`): books in the order life,
 # sorcery, nature, death, chaos, and the retort; help topic 659 + position describes them.
@@ -150,31 +120,9 @@ RACE_COUNT = 14
 
 
 
-# Race traits from the original code (CITYCALC.c) and help text, by race id.
-RACE_TRAITS = {
-    "halfling": "farmer_food: 3",
-    "dwarven": "worker_production_x2: 6, double_mining: true",
-    "klackon": "worker_production_x2: 6",
-    "dark_elf": "mana_per_citizen_x2: 2",
-    "high_elf": "mana_per_citizen_x2: 1",
-    "beastmen": "mana_per_citizen_x2: 1",
-    "draconian": "mana_per_citizen_x2: 1",
-    "nomad": "trade_percent: 50",
-}
-
-# The races whose neutral cities stand on Myrror (`Generate_Neutral_Cities`); the rest are Arcanus.
-MYRROR_RACES = {"beastmen", "dark_elf", "draconian", "dwarven", "troll"}
 
 
-# Normal units stop at Elite by experience; Ultra-Elite and Champion need the Warlord
-# ability / Crusade spell (help topics 530-532): the level path lists them as bonus levels,
-# which `Game::unit_level` lifts a unit into.
-LEVELS_NORMAL = [("Recruit", 0), ("Regular", 20), ("Veteran", 60), ("Elite", 120)]
-BONUS_LEVELS_NORMAL = ["Ultra-Elite", "Champion"]
-LEVELS_HERO = [
-    ("Hero", 0), ("Myrmidon", 20), ("Captain", 60), ("Commander", 120), ("Champion", 200),
-    ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 1000),
-]
+
 
 
 
@@ -182,8 +130,6 @@ LEVELS_HERO = [
 SKIP_BUILDINGS = {"None", "Trade Goods", "Housing"}
 
 
-def _mod(stat: str, op: str, value: int) -> str:
-    return f"(effect: Modify(stat: {stat}, op: {op}, value: {value}))"
 
 
 # --------------------------------------------------------------------------- #
@@ -255,9 +201,6 @@ class Race:
     id: str
     name: str
     cant_build: list[int]
-    growth_people: int  # people per turn (the table counts in tens)
-    outpost_growth: int = 10  # base chance (percent) an outpost grows each turn
-    house_type: int = 0  # 0 standard, 1 tree houses, 2 mounds
 
 
 def import_races(remom: Path) -> list[Race]:
@@ -271,9 +214,8 @@ def import_races(remom: Path) -> list[Race]:
     for i, text in enumerate(comments):
         words = struct.unpack("<12h", bytes.fromhex("".join(text.split())))
         count, cant = words[1], words[2 : 2 + 7]
-        growth_mod = words[10]
         name = names[f"{i:03d}"]
-        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c], growth_mod * 10, words[9], words[11]))
+        races.append(Race(i, slug(name), name, [c for c in cant[:count] if c]))
     return races
 
 
@@ -346,42 +288,10 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
 # Items
 # --------------------------------------------------------------------------- #
 
-def mods_effects(mods: list[tuple]) -> list[str]:
-    """Passive effects: stat modifiers `(stat, op, value)` and granted abilities `("Grant", id)`."""
-    return [
-        f'(effect: GrantAbility("{m[1]}"))' if m[0] == "Grant"
-        else f"(effect: Modify(stat: {m[0]}, op: {m[1]}, value: {m[2]}))"
-        for m in mods
-    ]
 
 
-ITEM_SLOT_BY_TYPE = {0: "Weapon", 1: "Weapon", 2: "Weapon", 3: "Weapon", 4: "Weapon", 5: "Weapon",
-                     6: "Misc", 7: "Armor", 8: "Armor", 9: "Armor"}
 
 
-def import_items(game: Path, report: Report) -> list[str]:
-    out, taken = [], set()
-    for r in read_records(read_lbx(game / "ITEMDATA.LBX")[0]):
-        name = cstr(r[:30])
-        item_type = r[0x21]
-        cost = struct.unpack_from("<h", r, 0x22)[0]
-        attack, to_hit, defense, moves2, resist = struct.unpack_from("<bbbbb", r, 0x24)
-        mods = []
-        for stat, value in (("Melee", attack), ("ToHit", to_hit * 10), ("Defense", defense),
-                            ("Moves", moves2 // 2), ("Resistance", resist)):
-            if value:
-                mods.append((stat, "Add", value))
-        if not mods or cost <= 0:
-            report.note("items", f"{name}: no stat bonus (specials not imported); skipped")
-            continue
-        ident = slug(name)
-        if ident in taken:
-            ident = f"{ident}_{len(taken)}"
-        taken.add(ident)
-        slot = ITEM_SLOT_BY_TYPE.get(item_type, "Misc")
-        out.append(f"    (id: {ron_str(ident)}, name: {ron_str(name)}, slot: {slot}, cost: {cost}, "
-                   f"effects: [{', '.join(mods_effects(mods))}]),")
-    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -603,69 +513,21 @@ def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
 
-def level_effects(i: int) -> str:
-    effects = []
-    if i >= 1:
-        effects.append("(effect: Modify(stat: Resistance, op: Add, value: 1))")
-    if i >= 2:
-        effects.append("(effect: Modify(stat: ToHit, op: Add, value: 10))")
-    return ", ".join(effects)
 
 
-def level_path_ron(ident: str, levels: list[tuple[str, int]], bonus: list[str] = ()) -> str:
-    rows = [f"        (name: {ron_str(name)}, xp: {xp}, effects: [{level_effects(i)}])," for i, (name, xp) in enumerate(levels)]
-    out = f"    (id: {ron_str(ident)}, levels: [\n" + "\n".join(rows) + "\n    ]"
-    if bonus:
-        rows = [f"        (name: {ron_str(name)}, effects: [{level_effects(len(levels) + i)}])," for i, name in enumerate(bonus)]
-        out += ", bonus: [\n" + "\n".join(rows) + "\n    ]"
-    return out + "),"
 
 
-# Percent unrest caused by each tax rate (the rate is also half the gold per citizen).
-TAX_UNREST_PERCENT = [0, 10, 20, 30, 45, 60, 75]
 
 
-# What the Grand Vizier builds, first to last (our own list; the original's is not documented).
-AUTOBUILD_ORDER = [
-    "granary", "builders_hall", "marketplace", "library", "temple", "barracks", "smithy",
-    "sawmill", "shrine", "farmers_market", "sages_guild", "foresters_guild", "miners_guild",
-    "bank", "city_walls", "university", "armory", "alchemists_guild", "stables", "oracle",
-    "parthenon", "cathedral", "merchants_guild", "mechanicians_guild", "maritime_guild",
-    "fighters_guild", "wizards_guild",
-]
 
 
-def import_racial_unrest(game: Path) -> list[list[int]]:
-    """Unrest in tens of percent: `[capital race][city race]` (TERRSTAT.LBX entry 1)."""
-    values = struct.unpack("<196b", read_lbx(game / "TERRSTAT.LBX")[1][4:])
-    return [list(values[i * RACE_COUNT : (i + 1) * RACE_COUNT]) for i in range(RACE_COUNT)]
 
 
-def write_rules(path: Path, game: Path) -> None:
-    autobuild = ", ".join(f'"{b}"' for b in AUTOBUILD_ORDER)
-    matrix = ", ".join("[" + ", ".join(str(v) for v in row) + "]" for row in import_racial_unrest(game))
-    path.write_text(
-        "// Generated by scripts/import_mom.py from the original game's rules data.\n(\n"
-        "    to_hit_percent: 30,\n    block_percent: 30,\n    min_city_distance: 4,\n    max_city_size: 25,\n"
-        f"    tax_unrest_percent: {TAX_UNREST_PERCENT},\n    racial_unrest: [{matrix}],\n    autobuild_order: [{autobuild}],\n)\n",
-        encoding="utf-8",
-    )
 
 
 # Rules data goes to the committed content directory; the rest stays local.
 RULES_FILES = ("races", "units", "buildings", "abilities", "realms", "spells", "items",
                "level_paths", "rules")
-
-
-def units_of_race(units_ron: Path) -> dict[str, list[str]]:
-    """The unit ids of each race, in file order, from the game's own `units.ron`."""
-    out: dict[str, list[str]] = {}
-    for line in units_ron.read_text(encoding="utf-8").splitlines():
-        unit = re.search(r'\(id: "([^"]+)"', line)
-        race = re.search(r'\brace: Some\("([^"]+)"\)', line)
-        if unit and race:
-            out.setdefault(race.group(1), []).append(unit.group(1))
-    return out
 
 
 def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
@@ -682,51 +544,19 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     spell_rows = import_spell_rows(game)
     help_topics = import_help(game, report)
     apply_help_corrections(help_topics, report)
-    # The units are the game's own data (`content/units.ron`, kept by hand): the race table
-    # only lists them.
-    units_by_race = units_of_race(rules_out / "units.ron")
 
-    # races
-    race_lines = []
-    for race in races:
-        mine = units_by_race.get(race.id, [])
-        effects = ""
-        if race.growth_people:
-            effects = f", effects: [{_mod('CityGrowth', 'Add', race.growth_people)}]"
-        traits = RACE_TRAITS.get(race.id)
-        extra = f", {traits}" if traits else ""
-        if race.id in MYRROR_RACES:
-            extra += ", myrror: true"
-        race_lines.append(
-            f"    (id: {ron_str(race.id)}, name: {ron_str(race.name)}, "
-            f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
-            f"outpost_growth: {race.outpost_growth}, house_type: {race.house_type}{extra}),"
-        )
-    realm_lines = [
-        f"    (id: {ron_str(i)}, name: {ron_str(n)}, color: ({c[0]}, {c[1]}, {c[2]}), "
-        f"default_spells: [{', '.join(ron_str(slug(x)) for x in DEFAULT_START_SPELLS.get(i, []))}])," for i, n, c in REALMS
-    ]
-    items = import_items(game, report)
-
-    header = "Generated by scripts/import_mom.py from the original game's rules data."
     local_header = "Generated by scripts/import_mom.py from the original game data. Do not commit."
-    write_list(rules_out / "races.ron", header, race_lines)
     # The original's city names are IP: they stay local and replace the invented ones in
     # `content/city_names.ron` (races without a local entry keep those).
     write_list(out / "city_names.ron", local_header, [
         f"    (race: {ron_str(race.id)}, names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
         for race in races
     ])
-    write_list(rules_out / "realms.ron", header, realm_lines)
-    write_list(rules_out / "items.ron", header, items)
     write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
-    write_list(rules_out / "level_paths.ron", header,
-               [level_path_ron("standard_xp", LEVELS_NORMAL, BONUS_LEVELS_NORMAL), level_path_ron("hero_xp", LEVELS_HERO)])
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])
     write_list(out / "help_screens.ron", local_header, import_help_screens(game, remom))
-    write_rules(rules_out / "rules.ron", game)
     # Older runs wrote the rules files (and copies of terrain and features) here; the
     # committed ones in `rules_out` now apply, and a stale copy would shadow them.
     for stale in (*RULES_FILES, "terrain", "features"):
@@ -736,7 +566,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
             LOG.info("removed stale %s", old)
 
     summary = (
-        f"races {len(races)}, buildings {len(buildings)} (checked only), items {len(items)}, "
+        f"races {len(races)} and buildings {len(buildings)} (checked only), "
         f"help topics {len(help_topics)}"
     )
     (out / "IMPORT_REPORT.txt").write_text(summary + "\n\n" + "\n".join(report.lines) + "\n", encoding="utf-8")
