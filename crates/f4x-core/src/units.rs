@@ -128,7 +128,7 @@ impl<'a> Units<'a> {
 
     /// Sort entities oldest first.
     pub(crate) fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
-        entities.sort_by_key(|&e| (self.serial_of(e), e.id()));
+        entities.sort_by_cached_key(|&e| (self.serial_of(e), e.id()));
     }
 
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
@@ -167,6 +167,14 @@ impl<'a> Units<'a> {
         };
         let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
         path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
+    }
+
+    /// The lasting spells on a unit, with the wizard who cast each.
+    pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<(crate::rules::SpellId, PlayerId)> {
+        self.world
+            .get::<&UnitEnchantments>(unit)
+            .map(|e| e.0.clone())
+            .unwrap_or_default()
     }
 
     /// Whether the Heroism spell is on the unit.

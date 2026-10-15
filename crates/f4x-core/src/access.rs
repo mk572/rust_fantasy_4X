@@ -39,6 +39,14 @@ impl Game {
         self.fog.is_explored(player, at.plane, at.x, at.y)
     }
 
+    /// How many squares the player has explored, on both planes.
+    pub fn explored_squares(&self, player: PlayerId) -> usize {
+        crate::map::Plane::ALL
+            .iter()
+            .map(|&pl| self.fog.explored_count(player, pl))
+            .sum()
+    }
+
     /// A city's name.
     pub fn city_name(&self, city: hecs::Entity) -> Option<String> {
         self.world

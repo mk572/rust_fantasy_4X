@@ -23,8 +23,9 @@ const USAGE: &str = "usage:
                                               (default out: assets-local/art)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
                                               run the game from text commands (stdin, or the script)
-  f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N]
-                                              AI wizards play whole games and report";
+  f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
+                                              AI wizards play whole games and report; with
+                                              --refused-log, every refused command goes to FILE (TSV)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

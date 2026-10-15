@@ -52,6 +52,11 @@ impl<'a> PlayerView<'a> {
         self.game.content()
     }
 
+    /// The turn the game is at.
+    pub fn turn(&self) -> u32 {
+        self.game.turn
+    }
+
     /// Has the game ended?
     pub fn game_over(&self) -> bool {
         self.game.game_over.is_some()
@@ -82,6 +87,60 @@ impl<'a> PlayerView<'a> {
     /// What casting a spell overland costs the player.
     pub fn casting_cost(&self, spell: SpellId) -> i32 {
         self.game.casting_cost(self.me, spell, false)
+    }
+
+    /// Is the player another wizard (not the neutral player or the monsters)?
+    pub fn is_rival_wizard(&self, other: PlayerId) -> bool {
+        other != self.me && self.game.is_wizard(other)
+    }
+
+    /// What the player's power makes this turn: the split, the research and the mana upkeep.
+    pub fn income(&self) -> crate::magic_income::Income {
+        self.game.income(self.me)
+    }
+
+    /// What researching a spell would cost the player (the Spell of Mastery's depends on the
+    /// spells it knows).
+    pub fn research_cost(&self, spell: SpellId) -> i32 {
+        self.game
+            .magic(self.me)
+            .map_or(0, |m| m.research_cost(self.game.content(), spell))
+    }
+
+    /// A spell that has been paid for over several turns and now waits for its target (or takes
+    /// effect at the turn's end).
+    pub fn paid_spell(&self) -> Option<SpellId> {
+        self.game.magic(self.me).and_then(|m| m.casting_paid())
+    }
+
+    /// Does casting the spell ask for a target?
+    pub fn spell_needs_target(&self, spell: SpellId) -> bool {
+        self.game.spell_needs_target(self.me, spell)
+    }
+
+    /// Would the game accept the spell aimed at the target? (The rules the cast would be checked
+    /// by; nothing is cast.)
+    pub fn can_aim(&self, spell: SpellId, target: Option<crate::rules::exec::Target>) -> bool {
+        self.game.check_target(self.me, spell, target).is_ok()
+    }
+
+    /// The lasting spells on one of the player's units.
+    pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<SpellId> {
+        self.game
+            .units()
+            .unit_enchantments(unit)
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect()
+    }
+
+    /// The lasting spells on a city.
+    pub fn city_enchantments(&self, city: hecs::Entity) -> Vec<SpellId> {
+        self.game
+            .city_enchantments(city)
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect()
     }
 
     /// The proposals other wizards have made to the player and it has not answered.

@@ -133,7 +133,7 @@ impl<'a> Economy<'a> {
             .map(|(e, (c, p))| (e, c.clone(), *p))
             .collect();
         let units = self.units();
-        out.sort_by_key(|(e, ..)| (units.serial_of(*e), e.id()));
+        out.sort_by_cached_key(|(e, ..)| (units.serial_of(*e), e.id()));
         out
     }
 

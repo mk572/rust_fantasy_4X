@@ -128,6 +128,14 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 221 | Heroes | Item loot and loss: fallen heroes' items, removal spells, lair items and prisoners |
 | 222 | Heroes | AI and console for heroes and items |
 | 223 | Heroes | Hero and item help conflicts: record H1 to H25 and settle the Check rows |
+| 228 | Meta | Scripted AI steps 4 and 5: casting beyond summons, the win spell, special spells |
+| 229 | Meta | Scripted AI steps 6 and 7: war targets, memory, defence, shared strength |
+| 230 | Meta | Scripted AI step 8: ships and other land masses |
+| 232 | Combat | Conventional battle AI steps 10 and 11: target values, focus fire, defence, fleeing |
+| 233 | Combat | Sea battles: rules for fights on the ocean (ship combat, passengers, terrain) |
+| 234 | Combat | Attacking from a ship: can land units attack a city or stack from a boat? |
+| 235 | Units | A ship lost in battle or by a spell: what happens to its passengers |
+| 236 | Units | The nine-unit stack limit and ships: passengers and capacity |
 
 ## Descriptions
 
@@ -183,11 +191,10 @@ melee, creature realm), immunity flags and movement grants; depends on 30 and th
 wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
 skill, fame, diplomacy) and spell ownership transfer. Low priority: only needed for specific spells, buildings, units or abilities.
 
-**61. The Spell of Mastery's research cost and the AI casting it.** Finishing the spell wins
+**61. The Spell of Mastery's research cost and the AI casting it (engine and AI done; announcement open).** Finishing the spell wins
 the game and the Spell of Return works after banishment (tasks 70 and 15; `docs/game_end.md`).
-Still open: the Spell of Mastery's special research cost (the data holds a placeholder of 1
-because the original computes it), the announcement when a wizard starts casting it, and the AI
-choosing to cast it.
+Done (tasks 226 and 228): the research cost is the listed 60,000 less half the research cost of every spell known (the importer used to read it as a signed number and give 1), the spell is offered for research when nothing else is left, and the AI researches it when it is within reach, splits its power for it and casts it until it is paid (`ai-design.md` section 7).
+Still open: the announcement when a wizard starts casting it (the player is told nothing today; `diplomacy.rs` already turns the other wizards against the caster).
 
 **62. Player-chosen losses when mana runs short.** The engine drops the newest upkeep items
 deterministically; the original asks the player. Add a prompt or a priority list, and the "mana
@@ -544,3 +551,19 @@ Parity task, low priority.
 **222. The AI and the console for heroes and items.** Section 4 of [`heroes-items-design.md`](heroes-items-design.md). `f4x-ai`: accept hero offers (`AI_Accept_Hero`), equip items by fit (`AI_ProcessItems`: best attack in the weapon slot, armour in the armour slot), keep heroes with the army, craft nothing at first. `PlayerView` shows a wizard its own heroes and items only. `f4x-console`: commands and queries for the roster, the vault, equip, scrap, craft, accept and reject an offer, so the whole feature can be played and tested without the client. Soak: computer wizards must hire and equip heroes without refused orders.
 
 **223. Hero and item help conflicts.** Section 7 of [`heroes-items-design.md`](heroes-items-design.md) lists 25 places where the help, the original's code and ReMoM disagree (Leadership per two or three levels, Constitution's defence, Agility without a help topic, Sage's super factor, Famous's cap, Lucky, item attack by kind, and more). Add them to `help-vs-implementation-conflicts.md` with the next B numbers, read the code again for each row marked Check (Leadership, Legendary's price cut, Sage, Lucky, Charismatic's order, Recall Hero overland, the number of powers in Enchant Item, hero 24's name, whether a slain hero can be resurrected, where offers fall in the turn), record the decision, and write `HELP_CORRECTIONS` notes where we deviate from the help. Do this before the steps that depend on each row.
+
+**228. Scripted AI steps 4 and 5: casting (partly done).** Done in `wizardry.rs`: the kinds the AI casts (Spell of Mastery, summons, unit and city buffs, good globals, Earth Lore, Nature's Cures), paid over as many turns as the casting skill needs, the Spell of Mastery never abandoned; tested with a wizard that knows it (`behaviour.rs`) and `soak --grant-mastery`. Still open: Word of Recall, Transmute and Plane Shift, disenchant and disjunction, curses on the target wizard, the original's weighted pick among kinds. Sections 5.3 and 7.3. The eleven category weights with our own pickers, the affordability check, the mana gate, the special spells of task 56 (Earth Lore, Word of Recall, Nature's Cures, Transmute, Plane Shift), and the Spell of Mastery: weight 500 when known, never abandoned, upkeep shed first.
+
+**229. Scripted AI steps 6 and 7: war (partly done).** Done in `military.rs` and `economy.rs`: a march state, gathering within two squares, chunks of nine, unreachable targets dropped for 40 turns, remembered garrisons and a lightly-held target preferred, a strike force before buildings, units re-chosen every turn. Still open: defence of threatened cities, a shared strength function for the overland and battle AI, an army size from the war plan. Sections 5.2 and 5.4. Memory of enemy garrisons, target wizard then city, a stack that suits the target, defence of threatened cities, army size from the war plan, income-first buildings, a strength function shared with the battle AI.
+
+**230. Scripted AI step 8: ships (not started).** What was learned is in `ai-design.md` 11.3: four of eight soak seeds put the wizards on separate land masses or planes.  Section 5.2 and 10. About half the soak seeds put the wizards on separate land masses or planes; without transports those games cannot end by conquest. Needs `transport.rs` and `movement.rs` queries on the view.
+
+**232. Conventional battle AI steps 10 and 11 (partly done).** Done in `battle/ai.rs`: targets by value (`expected_damage`, `worth`), focus fire, shooters hold, defenders hold the walls; the old AI is `ai::baseline_command`. These unit tactics are within the dice's spread (123 to 117 in mirrored fights); only the wizard's spells showed a gain. Still open: sallying out, fleeing, kiting, not stepping into a worse fight. Sections 6.3 and 6.4. Target values after ReMoM's `Target_Unit_Value`, focus fire, no steps into worse fights, kiting, holding the walls, sallying out, fleeing when hopeless. Run the learn tests at each step; `learning-ai.md` section 13 gets a note.
+
+**233. Sea battles.** `battle/map.rs` treats an ocean fight as an open field (no obstacles, no rough ground) and the battle code has no notion of ships. Decide what the original does (and what the help says) for a fight at sea: whether ships fight as ordinary units, whether passengers fight or sit out, whether ranged attacks and spells differ over water, and what the fight map looks like. Record the answer in `combat.md` (and `divergences.md` where we differ), implement it, and test it with the real ships (`trireme`, `galley`, `warship`). Found while checking the ship mechanics before task 230.
+
+**234. Attacking from a ship.** Moving a stack onto an enemy square starts a fight (`Entry::Hostile`) whatever the stack stands on; no rule bars land units aboard a ship from attacking a city or a stack on land, and none is tested. Find out what the original and the help say (a landing may have to happen first, or an attack from a ship may suffer a penalty), then enforce and test it, and tell the AI (`f4x-ai/naval.rs` lands its troops first and attacks from land, so it works either way today). Related: 233.
+
+**235. A ship lost with passengers.** Passengers of a ship that is destroyed in battle or removed by a spell are only lost later, by `drown_stranded` at the next turn end (`transport.rs`). Decide the rule (lost at once, with the ship; or saved when land is adjacent), make the loss part of the battle result and the events, and test it: a ship sunk in a fight, a ship dismissed, a ship killed by a spell, passengers aboard each time. Check where in the turn order `drown_stranded` runs.
+
+**236. The stack limit and ships.** A tile holds nine units (`MAX_STACK`); a galley carries five, so a loaded galley and its passengers take six places, and a port or sea square with several ships fills fast. Check how passengers count towards the limit when boarding, sailing into a city and landing, whether a landing stack can be refused for lack of room, and make the AI's gathering (chunks of nine in `military.rs`, loads of two to five in `naval.rs`) agree with it. Test with a full galley and a crowded square.

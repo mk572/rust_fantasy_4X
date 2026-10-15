@@ -3,21 +3,40 @@
 
 use std::collections::HashMap;
 
-use f4x_core::city::{PlayerId, Position};
+use f4x_core::city::Position;
 use f4x_core::player_view::PlayerView;
+use f4x_core::serial::Serial;
 use f4x_core::{Command, Event, Game};
 
-use crate::view::{distance, is_fighter, nearest_unexplored, stack_strength, unit_strength};
+use crate::view::{distance, garrison_wanted, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
 
-/// Fighters each city keeps at home.
-const GARRISON: usize = 2;
 /// The AI attacks when its force is this much stronger than what it expects to meet.
-const ATTACK_RATIO: f32 = 1.4;
+fn attack_ratio() -> f32 {
+    crate::knob("ATTACK", 1.4)
+}
 /// An attack out of a city's garrison needs a much bigger edge.
-const SORTIE_RATIO: f32 = 2.5;
+fn sortie_ratio() -> f32 {
+    crate::knob("SORTIE", 2.5)
+}
 /// Strength assumed for a defence the AI cannot see.
 const GUESS_DEFENDERS: f32 = 3.0;
+/// How long a remembered garrison is trusted, in turns.
+const MEMORY_TURNS: u32 = 80;
+/// Squares of walking one average unit of garrison is worth when choosing a target.
+const HELD_WEIGHT: f32 = 1.5;
+/// A force that has marched and not fought for this many turns goes home to gather again.
+const MARCH_TURNS: u32 = 15;
+/// Units this close to the rally city count as gathered (a full city cannot hold them all).
+const GATHER_RADIUS: u32 = 2;
+/// What a landing party wants over the expected defence before it marches on the city.
+const COMMITTED_LANDING: f32 = 1.2;
+/// Turns an enemy city that no march could reach is left alone.
+const UNREACHABLE_TURNS: u32 = 40;
+/// Once marched, a force attacks with this much of an edge.
+fn committed_ratio() -> f32 {
+    crate::knob("COMMITTED", 1.1)
+}
 
 const NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
@@ -38,9 +57,16 @@ fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
 }
 
 /// My fighting units, grouped by square, in a stable order.
-fn stacks(view: &PlayerView) -> Vec<(Position, Vec<hecs::Entity>)> {
+fn stacks(
+    view: &PlayerView,
+    scouts: &[Serial],
+    ferrying: &[Serial],
+) -> Vec<(Position, Vec<hecs::Entity>)> {
     let mut by_pos: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
     for u in view.my_units() {
+        if scouts.contains(&view.serial_of(u)) || ferrying.contains(&view.serial_of(u)) {
+            continue;
+        }
         if let (true, Some(p)) = (is_fighter(view, u), view.unit_position(u)) {
             by_pos.entry(p).or_default().push(u);
         }
@@ -65,6 +91,11 @@ enum Sortie {
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
+    let ferrying: Vec<Serial> = ai
+        .ferry
+        .as_ref()
+        .map(|f| f.group.clone())
+        .unwrap_or_default();
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()
@@ -73,10 +104,22 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
     // 1. Hit what stands next to us, when we are clearly the stronger.
     let mut spent: Vec<hecs::Entity> = Vec::new();
-    let stack_list = stacks(&PlayerView::new(game, me));
+    let stack_list = stacks(&PlayerView::new(game, me), &ai.scouts, &ferrying);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
-        let ratio = if at_city { SORTIE_RATIO } else { ATTACK_RATIO };
+        let committed = {
+            let view = PlayerView::new(game, me);
+            units
+                .iter()
+                .any(|&u| ai.marching.contains(&view.serial_of(u)))
+        };
+        let ratio = if at_city {
+            sortie_ratio()
+        } else if committed {
+            committed_ratio()
+        } else {
+            attack_ratio()
+        };
         let (mine, targets) = {
             let view = PlayerView::new(game, me);
             (stack_strength(&view, &units), neighbours(&view, pos))
@@ -146,9 +189,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (free, capital) = {
         let view = PlayerView::new(game, me);
         let mut free: Vec<hecs::Entity> = Vec::new();
-        for (pos, units) in stacks(&view) {
+        for (pos, units) in stacks(&view, &ai.scouts, &ferrying) {
             let skip = if own_cities.contains(&pos) {
-                GARRISON
+                garrison_wanted(&view, pos)
             } else {
                 0
             };
@@ -170,9 +213,15 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
 
-    // 3. Choose (or keep) a city to attack.
+    // 3. Choose (or keep) a city to attack. What is seen of enemy cities is remembered.
     {
         let view = PlayerView::new(game, me);
+        for (_, owner, pos) in view.known_cities() {
+            if owner != me && view.sees(pos) {
+                let strength = stack_strength(&view, &view.hostile_at(pos).unwrap_or_default());
+                ai.city_memory.insert(pos, (strength, game.turn));
+            }
+        }
         if ai.campaign.is_some_and(|c| {
             view.city_at(c)
                 .and_then(|e| view.city_owner(e))
@@ -180,15 +229,36 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }) {
             ai.campaign = None;
         }
-        if ai.campaign.is_none() {
-            ai.campaign = nearest_enemy_city(&view, capital);
+        // The best city that can be walked to; those that cannot are put aside for the ships.
+        while ai.campaign.is_none() {
+            let Some(c) = best_enemy_city(&view, capital, &ai.unreachable, &ai.city_memory) else {
+                break;
+            };
+            if on_foot(&view, capital, c) {
+                ai.campaign = Some(c);
+            } else {
+                ai.unreachable.push(c);
+                ai.unreachable_since = game.turn;
+            }
+        }
+        // A landing in preparation is the campaign.
+        if let Some(plan) = ai.naval {
+            ai.campaign = Some(plan.target);
         }
     }
     let Some(target) = ai.campaign else {
-        explore(ai, game, &free, events);
         return;
     };
 
+    // Targets that could not be reached are tried again after a while.
+    if game.turn.saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
+        ai.unreachable.clear();
+    }
+    // A march that has gone on too long, or whose target has changed, is called off.
+    if game.turn.saturating_sub(ai.march_started) > MARCH_TURNS || ai.march_target != Some(target) {
+        ai.marching.clear();
+        ai.march_target = Some(target);
+    }
     // Gather at the own city nearest the target; march when strong enough.
     let (rally, expected, at_rally, elsewhere, force) = {
         let view = PlayerView::new(game, me);
@@ -198,16 +268,19 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&c| distance(&view, c, target).is_some())
             .min_by_key(|&c| distance(&view, c, target))
             .unwrap_or(capital);
-        let expected = if view.sees(target) {
-            let defenders = view.hostile_at(target).unwrap_or_default();
-            stack_strength(&view, &defenders) * 1.3
-        } else {
-            GUESS_DEFENDERS * average_strength(&view)
-        };
+        let rally = ai
+            .naval
+            .filter(|p| p.target == target)
+            .map_or(rally, |p| p.port);
+        let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
         let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
             .iter()
             .copied()
-            .partition(|&u| view.unit_position(u) == Some(rally));
+            .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+            .partition(|&u| {
+                view.unit_position(u)
+                    .is_some_and(|p| distance(&view, p, rally).is_some_and(|d| d <= GATHER_RADIUS))
+            });
         let force = stack_strength(&view, &at_rally);
         (rally, expected, at_rally, elsewhere, force)
     };
@@ -218,10 +291,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && view
                     .unit_position(*u)
                     .is_some_and(|p| p.plane == rally.plane)
+                && view.can_reach(&[*u], rally)
         };
         if comes_home {
-            // Units on their way to the target (further from the rally than from it) go on;
-            // the rest come home to gather.
             ai.send(
                 game,
                 Command::GoTo {
@@ -232,8 +304,52 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             );
         }
     }
-    if force >= expected * ATTACK_RATIO + 1.0 && at_rally.len() >= 3 {
-        march(ai, game, &at_rally, target, events);
+    // Troops for a landing wait at the port; the ship takes them. Those already ashore on the
+    // target's land mass march on it when they are strong enough.
+    if ai.naval.is_some_and(|p| p.target == target) {
+        march_landed(ai, game, &free, target, events);
+        return;
+    }
+    if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= 3 {
+        let mut launched: Vec<Serial> = Vec::new();
+        let mut refused = false;
+        // Units march as stacks: those on one square, nine at most.
+        let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+        {
+            let view = PlayerView::new(game, me);
+            for &u in &at_rally {
+                let Some(p) = view.unit_position(u) else {
+                    continue;
+                };
+                match by_square.iter_mut().find(|(q, _)| *q == p) {
+                    Some((_, list)) => list.push(u),
+                    None => by_square.push((p, vec![u])),
+                }
+            }
+        }
+        for (_, units) in &by_square {
+            for chunk in units.chunks(f4x_core::units::MAX_STACK) {
+                let serials: Vec<Serial> = {
+                    let view = PlayerView::new(game, me);
+                    chunk.iter().map(|&u| view.serial_of(u)).collect()
+                };
+                match march(ai, game, chunk, target, events) {
+                    March::Sent => launched.extend(serials),
+                    March::Refused => refused = true,
+                    March::NoWay => {}
+                }
+            }
+        }
+        if launched.is_empty() && !refused {
+            // No square next to the target can be reached: give it up for a while and go for
+            // the next nearest city (ships or a gate may open the way later).
+            ai.unreachable.push(target);
+            ai.unreachable_since = game.turn;
+            ai.campaign = None;
+        } else if !launched.is_empty() {
+            ai.marching = launched;
+            ai.march_started = game.turn;
+        }
     }
 }
 
@@ -249,12 +365,60 @@ fn average_strength(view: &PlayerView) -> f32 {
     units.iter().map(|&u| unit_strength(view, u)).sum::<f32>() / units.len() as f32
 }
 
-/// The nearest city of another wizard on a square this wizard has explored.
-fn nearest_enemy_city(view: &PlayerView, from: Position) -> Option<Position> {
+/// Can the AI's soldiers walk to a square beside the city? Judged with a fighter of the capital.
+fn on_foot(view: &PlayerView, capital: Position, city: Position) -> bool {
+    let Some(walker) = view
+        .garrison(capital)
+        .into_iter()
+        .find(|&u| is_fighter(view, u))
+    else {
+        return true;
+    };
+    neighbours(view, city)
+        .into_iter()
+        .any(|s| view.hostile_at(s).is_none() && view.can_reach(&[walker], s))
+}
+
+/// What the AI expects to meet in an enemy city: the strength it last saw there (with the city's
+/// own walls counted in), or a guess of a few average units if it never saw it or saw it long
+/// ago.
+pub(crate) fn expected_defence(
+    view: &PlayerView,
+    memory: &HashMap<Position, (f32, u32)>,
+    turn: u32,
+    at: Position,
+) -> f32 {
+    let guess = crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view);
+    if view.sees(at) {
+        return stack_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
+    }
+    match memory.get(&at) {
+        Some(&(s, seen)) if turn.saturating_sub(seen) <= MEMORY_TURNS => s * 1.3,
+        _ => guess,
+    }
+}
+
+/// The enemy city worth marching on: near, and lightly held as far as the AI knows. Each average
+/// unit of garrison counts as a few squares of walking.
+fn best_enemy_city(
+    view: &PlayerView,
+    from: Position,
+    skip: &[Position],
+    memory: &HashMap<Position, (f32, u32)>,
+) -> Option<Position> {
+    let average = average_strength(view).max(1.0);
     view.known_cities()
         .into_iter()
-        .filter_map(|(_, _, p)| distance(view, from, p).map(|d| (d, p)))
-        .min_by_key(|&(d, p)| (d, p.y, p.x))
+        .filter(|(_, _, p)| !skip.contains(p))
+        .filter_map(|(_, _, p)| {
+            let d = distance(view, from, p)? as f32;
+            let held = memory.get(&p).map_or(GUESS_DEFENDERS, |m| m.0 / average);
+            Some((d + HELD_WEIGHT * held, p))
+        })
+        .min_by(|a, b| {
+            a.0.total_cmp(&b.0)
+                .then((a.1.y, a.1.x).cmp(&(b.1.y, b.1.x)))
+        })
         .map(|(_, p)| p)
 }
 
@@ -265,7 +429,8 @@ fn march(
     units: &[hecs::Entity],
     target: Position,
     events: &mut Vec<Event>,
-) {
+) -> March {
+    let mut way = false;
     let spots = {
         let view = PlayerView::new(game, ai.player);
         let mut spots = neighbours(&view, target);
@@ -278,40 +443,94 @@ fn march(
             if view.hostile_at(spot).is_some() || !view.can_reach(units, spot) {
                 continue;
             }
+            way = true;
         }
-        if ai.send(
+        let sent = ai.send(
             game,
             Command::GoTo {
                 units: units.to_vec(),
                 to: spot,
             },
             events,
-        ) {
-            return;
+        );
+        if sent {
+            return March::Sent;
         }
+    }
+    if way {
+        March::Refused
+    } else {
+        March::NoWay
     }
 }
 
-/// Spare units walk to the nearest square nobody has seen.
-fn explore(ai: &mut Ai, game: &mut Game, free: &[hecs::Entity], events: &mut Vec<Event>) {
-    let me: PlayerId = ai.player;
-    for &unit in free.iter().take(2) {
-        let to = {
-            let view = PlayerView::new(game, me);
-            if view.unit_has_order(unit) {
+/// How a march order came out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum March {
+    /// The units are on their way.
+    Sent,
+    /// A way exists but the order was refused now (no moves left, say): try again next turn.
+    Refused,
+    /// No square next to the target can be walked to.
+    NoWay,
+}
+
+/// Troops that came ashore (they can walk to the target, which the rest cannot) march on the city
+/// when together they are strong enough for what is expected there.
+fn march_landed(
+    ai: &mut Ai,
+    game: &mut Game,
+    free: &[hecs::Entity],
+    target: Position,
+    events: &mut Vec<Event>,
+) {
+    let me = ai.player;
+    let (landed, force, expected) = {
+        let view = PlayerView::new(game, me);
+        let landed: Vec<hecs::Entity> = free
+            .iter()
+            .copied()
+            .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+            .filter(|&u| {
+                neighbours(&view, target)
+                    .into_iter()
+                    .any(|s| view.hostile_at(s).is_none() && view.can_reach(&[u], s))
+            })
+            .collect();
+        let force = stack_strength(&view, &landed);
+        let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
+        (landed, force, expected)
+    };
+    if landed.len() < 2 || force < expected * COMMITTED_LANDING {
+        return;
+    }
+    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+    {
+        let view = PlayerView::new(game, me);
+        for &u in &landed {
+            let Some(p) = view.unit_position(u) else {
                 continue;
+            };
+            match by_square.iter_mut().find(|(q, _)| *q == p) {
+                Some((_, list)) => list.push(u),
+                None => by_square.push((p, vec![u])),
             }
-            nearest_unexplored(&view, unit)
-        };
-        if let Some(to) = to {
-            ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![unit],
-                    to,
-                },
-                events,
-            );
         }
+    }
+    let mut launched: Vec<Serial> = Vec::new();
+    for (_, units) in &by_square {
+        for chunk in units.chunks(f4x_core::units::MAX_STACK) {
+            let serials: Vec<Serial> = {
+                let view = PlayerView::new(game, me);
+                chunk.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            if march(ai, game, chunk, target, events) == March::Sent {
+                launched.extend(serials);
+            }
+        }
+    }
+    if !launched.is_empty() {
+        ai.marching = launched;
+        ai.march_started = game.turn;
     }
 }

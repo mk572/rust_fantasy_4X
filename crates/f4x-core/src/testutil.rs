@@ -272,6 +272,7 @@ pub fn content_with_economy() -> Content {
                 races: vec![],
                 effects,
                 shape: 0,
+                coastal: false,
             }
         };
     let mut hall = building("builders_hall", 60, 1, &[], vec![]);
@@ -525,7 +526,7 @@ pub fn content_with_magic() -> Content {
         "arcane",
         Rarity::Uncommon,
         5000,
-        1,
+        60_000,
         SpellTarget::None,
     );
     mastery.effects = vec![rule(

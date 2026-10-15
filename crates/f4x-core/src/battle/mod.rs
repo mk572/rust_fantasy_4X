@@ -11,6 +11,7 @@
 
 pub mod ai;
 pub mod attack;
+pub mod brain;
 pub mod casting;
 pub mod field;
 pub mod game;

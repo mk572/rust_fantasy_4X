@@ -3,11 +3,10 @@
 use f4x_core::city::Position;
 use f4x_core::player_view::PlayerView;
 use f4x_core::production::ProductionItem;
-use f4x_core::rules::effects::Effect;
-use f4x_core::rules::{CastContext, UnitKind};
+use f4x_core::rules::UnitKind;
 use f4x_core::{Command, Event, Game};
 
-use crate::view::is_fighter;
+use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
 
 /// Buildings in the order the AI wants them, when it can have them.
@@ -31,16 +30,16 @@ const BUILD_ORDER: &[&str] = &[
     "university",
 ];
 
+/// Fighters beyond the home guard the AI wants, before a half per city more.
+const STRIKE_BASE: usize = 4;
 /// The most cities the AI settles before it only builds up.
 const WANTED_CITIES: usize = 7;
-/// Fighters each city should have at home.
-const GARRISON: usize = 2;
 
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
 /// rate that earns the most. Rebels from high taxes are counted by the treasury forecast.
 pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     const MAX_RATE: u8 = 3;
-    const WANTED_NET: i32 = 3;
+    let wanted_net = crate::knob("NET", 3.0) as i32;
     let me = ai.player;
     let mut best: Option<(i32, u8)> = None;
     let mut chosen = None;
@@ -50,83 +49,13 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if best.is_none_or(|(n, _)| net > n) {
             best = Some((net, rate));
         }
-        if net >= WANTED_NET {
+        if net >= wanted_net {
             chosen = Some(rate);
             break;
         }
     }
     let rate = chosen.or(best.map(|(_, r)| r)).unwrap_or(1);
     ai.send(game, Command::SetTaxRate { player: me, rate }, events);
-}
-
-/// Pick the cheapest spell to research when nothing is being researched.
-pub fn research(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let spell = {
-        let view = PlayerView::new(game, ai.player);
-        if !view.magic().is_some_and(|m| m.researching.is_none()) {
-            return;
-        }
-        view.research_choices().first().copied()
-    };
-    if let Some(spell) = spell {
-        ai.send(
-            game,
-            Command::SetResearch {
-                player: ai.player,
-                spell,
-            },
-            events,
-        );
-    }
-}
-
-/// Cast the dearest summoning spell that is paid for this turn.
-pub fn cast(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let spell = {
-        let view = PlayerView::new(game, ai.player);
-        let Some(magic) = view.magic() else {
-            return;
-        };
-        if magic.casting.is_some() {
-            return;
-        }
-        let available = magic
-            .skill_left
-            .min(view.player().map_or(0, |p| p.mana))
-            .max(0);
-        let mut options: Vec<_> = magic
-            .known
-            .iter()
-            .copied()
-            .filter(|&s| {
-                let d = view.spell(s);
-                d.contexts.contains(&CastContext::Overland)
-                    && d.effects
-                        .iter()
-                        .any(|r| matches!(r.effect, Effect::Summon { .. }))
-            })
-            .map(|s| (view.casting_cost(s), s))
-            .filter(|&(cost, _)| cost > 0 && cost <= available)
-            .collect();
-        options.sort();
-        // Keep a reserve of mana for upkeep: only cast with at least a third left over.
-        options
-            .iter()
-            .rev()
-            .find(|&&(c, _)| c * 3 / 2 <= available)
-            .map(|&(_, spell)| spell)
-    };
-    if let Some(spell) = spell {
-        ai.send(
-            game,
-            Command::CastSpell {
-                player: ai.player,
-                spell,
-                target: None,
-            },
-            events,
-        );
-    }
 }
 
 /// Set production in every city that is not building anything.
@@ -149,19 +78,29 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (mine, planned)
     };
     for (city, pos) in mine {
-        let item = {
+        let (item, current) = {
             let view = PlayerView::new(game, me);
-            // Housing and trade goods never finish: look again every turn.
-            let busy = matches!(
-                view.city_production(city).item,
-                Some(ProductionItem::Building(_) | ProductionItem::Unit(_))
-            );
-            if busy {
+            let current = view.city_production(city).item;
+            // A building is built once and then the city asks again, but a unit is built over and
+            // over until the city is told otherwise: look at units again every turn.
+            if matches!(current, Some(ProductionItem::Building(_))) {
                 continue;
             }
-            choose(&view, city, pos, mine_count(&view), &mut settlers_planned)
+            if matches!(current, Some(ProductionItem::Unit(u)) if is_settler_def(&view, u)) {
+                settlers_planned = settlers_planned.saturating_sub(1);
+            }
+            (
+                choose(
+                    &view,
+                    city,
+                    pos,
+                    ai.naval.map(|p| p.port).or(ai.sea_port),
+                    &mut settlers_planned,
+                ),
+                current,
+            )
         };
-        if let Some(item) = item {
+        if let Some(item) = item.filter(|&i| Some(i) != current) {
             ai.send(game, Command::SetProduction { city, item }, events);
         }
     }
@@ -210,14 +149,6 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.send(game, Command::BuyProduction { city }, events);
         }
     }
-}
-
-/// Real cities, not outposts.
-fn mine_count(view: &PlayerView) -> usize {
-    view.my_cities()
-        .iter()
-        .filter(|(e, _)| view.city_economy(*e).is_some_and(|x| x.figures > 0))
-        .count()
 }
 
 fn settlers_alive(view: &PlayerView) -> usize {
@@ -269,7 +200,7 @@ fn best_fighter(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem>
                     + 1.0)
                     * s(f4x_core::rules::Stat::MaxHp).max(1.0)
                     * s(f4x_core::rules::Stat::Figures).max(1.0);
-                power / d.cost as f32
+                power / (d.cost as f32).powf(crate::knob("COSTEXP", 1.0))
             };
             value(a).total_cmp(&value(b))
         })
@@ -290,7 +221,7 @@ fn choose(
     view: &PlayerView,
     city: hecs::Entity,
     pos: Position,
-    cities: usize,
+    port: Option<Position>,
     settlers_planned: &mut usize,
 ) -> Option<ProductionItem> {
     let size = view.city_economy(city).map_or(0, |e| e.figures);
@@ -303,10 +234,25 @@ fn choose(
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    let net = view.treasury().net_gold();
-    let broke = net < 0 && view.player().is_some_and(|p| p.gold < 60);
+    // A full treasury can bear a deficit: the gold on hand, spread over a hundred turns, counts
+    // as income.
+    let gold = view.player().map_or(0, |p| p.gold);
+    let net = view.treasury().net_gold() + (gold / 100).max(0);
+    let broke = net < 0 && gold < 60;
     // Soldiers and settlers each eat one food; build none the land cannot feed.
     let fighter = best_fighter(view, city).filter(|_| spare_food(view) >= 1 || garrison == 0);
+    // 0. The port of a landing builds the ship (and what the ship needs) when there is none.
+    if port == Some(pos)
+        && !broke
+        && !view
+            .my_units()
+            .iter()
+            .any(|&u| crate::view::is_ship(view, u))
+    {
+        if let Some(item) = crate::naval::port_item(view, city) {
+            return Some(item);
+        }
+    }
     // 1. Never leave a city empty.
     if garrison == 0 && !broke {
         if let Some(f) = fighter {
@@ -325,13 +271,32 @@ fn choose(
             return Some(s);
         }
     }
-    // 3. Two soldiers in every city once there is more than one.
-    if garrison < GARRISON && cities >= 2 && !broke {
+    // 3. The garrison the city should have.
+    if garrison < garrison_wanted(view, pos) && !broke {
         if let Some(f) = fighter {
             return Some(f);
         }
     }
-    // 4. Buildings, while the treasury can bear their upkeep.
+    // 4. A strike force before most of the buildings: the wars are won by armies.
+    let fighters = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| is_fighter(view, u))
+        .count();
+    let all = view.my_cities().len();
+    let home_guard: usize = view
+        .my_cities()
+        .iter()
+        .map(|&(_, p)| garrison_wanted(view, p))
+        .sum();
+    let strike = crate::knob("STRIKE", STRIKE_BASE as f32) as usize + all / 2;
+    let treasury_ok = net >= 1 && spare_food(view) >= 1;
+    if fighters < home_guard + strike && treasury_ok {
+        if let Some(f) = fighter {
+            return Some(f);
+        }
+    }
+    // 5. Buildings, while the treasury can bear their upkeep.
     if net >= 2 {
         let rules = &view.content().rules;
         for id in BUILD_ORDER {
@@ -343,13 +308,8 @@ fn choose(
             }
         }
     }
-    // 5. An army, within what the treasury pays for.
-    let army = view
-        .my_units()
-        .into_iter()
-        .filter(|&u| is_fighter(view, u))
-        .count();
-    if net >= 1 && army < cities * 3 + 2 {
+    // 6. More army, within what the treasury pays for.
+    if treasury_ok && fighters < home_guard + strike * 3 {
         if let Some(f) = fighter {
             return Some(f);
         }

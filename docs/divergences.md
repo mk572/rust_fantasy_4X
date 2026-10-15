@@ -124,7 +124,19 @@ Decided October 2026, `special_spells.rs`.
 - **Earth Lore's block.** The original explores the map window on screen (12 by 10 squares).
   We explore a block of that size centred on the tile the wizard picks.
 
-## 6. Recorded elsewhere
+## 6. The Spell of Mastery's research cost (task 226)
+
+Decided October 2026, `Magic::research_cost`.
+
+- **Starting spells count.** The original lowers a wizard's Spell of Mastery research cost by
+  half the research cost of each spell as the wizard gains it (`Player_Gets_Spell`; the starting
+  spells are set directly and do not count) and by 3,000 more for a wizard with every realm at
+  rank 11. We take the listed 60,000 less half the research cost of every spell the wizard
+  knows, starting spells included, worked out when asked, so it needs no saved field. The
+  rank-11 reduction is not modelled (no wizard can have it yet). The difference is a few hundred
+  points of 60,000.
+
+## 7. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

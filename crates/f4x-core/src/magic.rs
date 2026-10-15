@@ -488,6 +488,25 @@ impl Magic {
         Ok(())
     }
 
+    /// What researching `spell` costs this wizard. The Spell of Mastery's cost is its listed
+    /// 60,000 less half the research cost of every spell the wizard already knows (the original
+    /// takes that off as each spell is gained; counting the starting spells too is our
+    /// simplification, so the sum needs no saved field). Any other spell costs its listed
+    /// amount.
+    pub fn research_cost(&self, content: &Content, spell: SpellId) -> i32 {
+        let spells = &content.rules.spells;
+        let listed = spells.get(spell).research_cost as i32;
+        if spells.get(spell).id != "spell_of_mastery" {
+            return listed;
+        }
+        let known: i32 = self
+            .known
+            .iter()
+            .map(|&s| spells.get(s).research_cost as i32 / 2)
+            .sum();
+        (listed - known).max(0)
+    }
+
     /// Choose what to research. The choice stands until the spell is learned.
     pub fn choose_research(&mut self, content: &Content, spell: SpellId) -> Result<(), MagicError> {
         if self.researching.is_some() {
@@ -497,7 +516,7 @@ impl Magic {
             return Err(MagicError::NotAvailable);
         }
         self.researching = Some(spell);
-        self.research_remaining = content.rules.spells.get(spell).research_cost as i32;
+        self.research_remaining = self.research_cost(content, spell);
         Ok(())
     }
 
@@ -570,11 +589,23 @@ impl Magic {
             let pick = pool[rng.roll(pool.len() as u32) as usize - 1];
             self.candidates.push(pick);
         }
+        // With nothing left to offer, the Spell of Mastery is: the last thing to research.
+        if self.candidates.len() < RESEARCH_SLOTS {
+            if let Some(som) = content.rules.spells.id_of("spell_of_mastery") {
+                if !self.known.contains(&som)
+                    && !self.candidates.contains(&som)
+                    && self.research_pool(content).is_empty()
+                {
+                    self.researchable.insert(som);
+                    self.candidates.push(som);
+                }
+            }
+        }
         let income = income.max(0);
         let time = |s: SpellId| {
             let def = content.rules.spells.get(s);
             let bonus = self.research_bonus(def);
-            let cost = def.research_cost as i32 * 100 / (100 + bonus);
+            let cost = self.research_cost(content, s) * 100 / (100 + bonus);
             if income == 0 {
                 cost
             } else {
@@ -785,6 +816,47 @@ mod tests {
         m.retorts.insert(Retort::ManaFocusing);
         let split = m.split_power(10, 0);
         assert_eq!((split.mana, split.skill, split.research), (5 + 1, 5, 0));
+    }
+
+    #[test]
+    fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() {
+        let c = content_with_magic();
+        let mastery = spell(&c, "spell_of_mastery");
+        let mut rng = GameRng::new(3);
+        let mut m = Magic::new(&[("life", 1)], &[]);
+        m.init_library(&c, &mut rng, None);
+        m.refill_research(&c, &mut rng, 5);
+        assert!(
+            !m.candidates.contains(&mastery),
+            "not while other spells remain"
+        );
+        let mut learned = 0;
+        while m.candidates != [mastery] {
+            let next = *m.candidates.first().expect("something on offer");
+            m.learn(next);
+            learned += 1;
+            assert!(learned < 500, "the pool runs dry");
+            m.refill_research(&c, &mut rng, 5);
+        }
+        let listed = c.rules.spells.get(mastery).research_cost as i32;
+        let cost = m.research_cost(&c, mastery);
+        assert!(
+            cost < listed,
+            "known spells cut it: {cost} against {listed}"
+        );
+        let half: i32 = m
+            .known
+            .iter()
+            .map(|&s| c.rules.spells.get(s).research_cost as i32 / 2)
+            .sum();
+        assert_eq!(cost, (listed - half).max(0));
+        m.choose_research(&c, mastery).unwrap();
+        assert_eq!(m.research_remaining, cost);
+        assert_ne!(
+            m.research_cost(&c, spell(&c, "mend")),
+            cost,
+            "other spells cost their listed amount"
+        );
     }
 
     #[test]

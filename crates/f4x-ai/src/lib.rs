@@ -12,14 +12,32 @@ mod diplomacy;
 mod economy;
 mod expand;
 mod military;
+mod naval;
+mod scouts;
+#[cfg(test)]
+mod testworld;
 mod view;
+mod wizardry;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use f4x_core::city::{PlayerId, Position};
 use f4x_core::player_view::PlayerView;
 use f4x_core::serial::Serial;
 use f4x_core::{Command, Event, Game};
+
+/// A command the game refused, with where in the AI it was sent from (for finding out why the AI
+/// sends orders the game will not take).
+#[derive(Debug, Clone)]
+pub struct Refusal {
+    pub turn: u32,
+    pub player: PlayerId,
+    /// `file:line` of the `send` call.
+    pub source: String,
+    pub command: String,
+    pub reason: String,
+}
 
 /// One computer-played wizard.
 #[derive(Debug, Clone)]
@@ -33,6 +51,39 @@ pub struct Ai {
     settler_last: HashMap<Serial, Position>,
     /// Sites the AI gave up on.
     bad_sites: Vec<Position>,
+    /// The units set to find the rest of the world, and where each is heading.
+    scouts: Vec<Serial>,
+    scout_targets: HashMap<Serial, Position>,
+    /// Where each scout stood last turn and for how many turns it has not moved.
+    scout_last: HashMap<Serial, (Position, u32)>,
+    /// Targets scouts could not get to.
+    bad_scout_targets: Vec<Position>,
+    /// The units on the march against `march_target`, and the turn they set out.
+    marching: Vec<Serial>,
+    march_started: u32,
+    march_target: Option<Position>,
+    /// The landing the AI is working towards when the enemy lives on another land mass, the ship
+    /// on a voyage, and ports or targets that did not work out.
+    naval: Option<naval::Plan>,
+    ferry: Option<naval::Ferry>,
+    naval_bad: Vec<Position>,
+    /// Turns a loaded ship has waited for a stronger landing party.
+    naval_wait: u32,
+    /// Looking for the rest of the world by ship: the city that builds it, whether a ship is out
+    /// scouting, and whether that is over.
+    sea_port: Option<Position>,
+    sea_scouting: bool,
+    sea_done: bool,
+    /// The strength last seen in each enemy city and the turn it was seen.
+    city_memory: HashMap<Position, (f32, u32)>,
+    /// Enemy cities no march found a way to, and when the last was added.
+    unreachable: Vec<Position>,
+    unreachable_since: u32,
+    /// No reachable square shows anything new: scouting by land is over.
+    frontier_closed: bool,
+    /// Whether refused commands are kept (see [`Ai::take_refusals`]) and the ones kept so far.
+    record_refusals: bool,
+    refusals: RefCell<Vec<Refusal>>,
 }
 
 impl Ai {
@@ -43,12 +94,58 @@ impl Ai {
             campaign: None,
             settler_last: HashMap::new(),
             bad_sites: Vec::new(),
+            scouts: Vec::new(),
+            scout_targets: HashMap::new(),
+            scout_last: HashMap::new(),
+            bad_scout_targets: Vec::new(),
+            frontier_closed: false,
+            marching: Vec::new(),
+            march_started: 0,
+            march_target: None,
+            naval: None,
+            ferry: None,
+            naval_bad: Vec::new(),
+            naval_wait: 0,
+            sea_port: None,
+            sea_scouting: false,
+            sea_done: false,
+            city_memory: HashMap::new(),
+            unreachable: Vec::new(),
+            unreachable_since: 0,
+            record_refusals: false,
+            refusals: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Keep every command the game refuses, for [`Ai::take_refusals`].
+    pub fn record_refusals(&mut self, on: bool) {
+        self.record_refusals = on;
+    }
+
+    /// The refused commands kept since the last call.
+    pub fn take_refusals(&self) -> Vec<Refusal> {
+        std::mem::take(&mut *self.refusals.borrow_mut())
     }
 
     /// The enemy city this AI is campaigning against, if any (for tools that watch it).
     pub fn campaign(&self) -> Option<Position> {
         self.campaign
+    }
+
+    /// How many units are out scouting and where each is heading.
+    pub fn scout_targets(&self) -> Vec<(u64, Position)> {
+        self.scout_targets.iter().map(|(s, p)| (s.0, *p)).collect()
+    }
+
+    /// The landing the AI is preparing against a city on another land mass, as (target, port),
+    /// and whether a ship is on a voyage.
+    pub fn landing(&self) -> Option<(Position, Position, bool)> {
+        self.naval.map(|p| (p.target, p.port, self.ferry.is_some()))
+    }
+
+    /// Whether scouting by land is over: nothing the AI can walk to shows anything new.
+    pub fn frontier_closed(&self) -> bool {
+        self.frontier_closed
     }
 
     /// Play this wizard's turn; returns the events the AI's own commands caused.
@@ -63,18 +160,35 @@ impl Ai {
         diplomacy::answer(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
-        economy::research(self, game, &mut events);
-        economy::cast(self, game, &mut events);
+        wizardry::run(self, game, &mut events);
         expand::settlers(self, game, &mut events);
+        scouts::scout(self, game, &mut events);
         military::army(self, game, &mut events);
+        naval::run(self, game, &mut events);
         economy::cities(self, game, &mut events);
         events
     }
 
     /// Send a command and keep its events.
+    #[track_caller]
     fn send(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+        let at = std::panic::Location::caller();
+        let kept = self.record_refusals.then(|| format!("{command:?}"));
         let out = game.apply(command);
         let ok = !out.iter().any(|e| matches!(e, Event::Rejected(_)));
+        if let Some(command) = kept {
+            for e in &out {
+                if let Event::Rejected(reason) = e {
+                    self.refusals.borrow_mut().push(Refusal {
+                        turn: game.turn,
+                        player: self.player,
+                        source: format!("{}:{}", at.file(), at.line()),
+                        command: command.clone(),
+                        reason: format!("{reason:?}"),
+                    });
+                }
+            }
+        }
         events.extend(out);
         ok
     }
@@ -98,4 +212,12 @@ pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
         events.extend(game.apply(Command::EndTurn));
     }
     events
+}
+
+/// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
+pub(crate) fn knob(name: &str, default: f32) -> f32 {
+    std::env::var(format!("AIK_{name}"))
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }

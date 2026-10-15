@@ -95,7 +95,7 @@ impl Game {
             self.battle_brains.push((p, brain));
             return Some(c);
         }
-        Some(super::ai::next_command(self.battle()?))
+        super::brain::next_command(self)
     }
 
     /// Is a battle being fought?

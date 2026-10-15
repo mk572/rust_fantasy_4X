@@ -1,6 +1,7 @@
 //! `f4x-tools soak`: let AI wizards play whole games against each other, with no window, and
 //! report how each game went. Used to find AI and rules bugs (task 77).
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -9,13 +10,16 @@ use f4x_core::city::PlayerId;
 use f4x_core::setup::{new_game, NewGame};
 use f4x_core::Game;
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--battle-ai CHECKPOINT]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE]";
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let (mut first, mut last) = (1u64, 3u64);
     let (mut turns, mut players, mut every) = (200u32, 2u8, 0u32);
     let mut trace = 0u32;
+    let mut detail = false;
+    let mut grant_mastery: Option<u32> = None;
     let mut battle_ai: Option<PathBuf> = None;
+    let mut refused_log: Option<PathBuf> = None;
     let mut dir: Option<PathBuf> = None;
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -29,10 +33,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             "--turns" => turns = value("--turns")?.parse().map_err(|_| "bad turns")?,
             "--players" => players = value("--players")?.parse().map_err(|_| "bad players")?,
+            "--detail" => detail = true,
+            "--grant-mastery" => {
+                grant_mastery = Some(value("--grant-mastery")?.parse().map_err(|_| "bad turn")?)
+            }
             "--trace" => trace = value("--trace")?.parse().map_err(|_| "bad turns")?,
             "--every" => every = value("--every")?.parse().map_err(|_| "bad interval")?,
             "--content" => dir = Some(value("--content")?.into()),
             "--battle-ai" => battle_ai = Some(value("--battle-ai")?.into()),
+            "--refused-log" => refused_log = Some(value("--refused-log")?.into()),
             other => return Err(format!("unknown option {other:?}\n{USAGE}")),
         }
     }
@@ -45,6 +54,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
     });
     let content =
         f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())?;
+    // One line per refused command, tab separated, for finding out why the AI sends them.
+    let mut refused_out = match &refused_log {
+        Some(path) => {
+            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut f = std::io::BufWriter::new(
+                std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?,
+            );
+            writeln!(f, "seed\tturn\tplayer\tsource\treason\tcommand")
+                .map_err(|e| e.to_string())?;
+            Some(f)
+        }
+        None => None,
+    };
     let mut summary = Vec::new();
     for seed in first..=last {
         let mut game = new_game(
@@ -70,10 +94,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
             ));
         }
         let mut ais: Vec<Ai> = (0..players).map(|k| Ai::new(PlayerId(k))).collect();
+        for ai in &mut ais {
+            ai.record_refusals(refused_out.is_some());
+        }
         let started = Instant::now();
         let mut rejected = 0usize;
         let (mut battles, mut captures) = (0usize, 0usize);
         while game.turn <= turns && game.game_over.is_none() {
+            if grant_mastery == Some(game.turn) {
+                grant_mastery_to_all(&mut game);
+            }
             let events = play_round(&mut game, &mut ais);
             if game.turn <= trace && trace > 0 {
                 for ai in &ais {
@@ -107,6 +137,18 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     );
                 }
             }
+            if let Some(out) = refused_out.as_mut() {
+                for ai in &ais {
+                    for r in ai.take_refusals() {
+                        writeln!(
+                            out,
+                            "{seed}\t{}\t{}\t{}\t{}\t{}",
+                            r.turn, r.player.0, r.source, r.reason, r.command
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
             battles += events
                 .iter()
                 .filter(|e| matches!(e, f4x_core::Event::BattleEnded { .. }))
@@ -121,6 +163,34 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 .count();
             if every > 0 && game.turn % every == 0 {
                 println!("seed {seed} turn {}: {}", game.turn, status(&game));
+                if detail {
+                    for line in detail_lines(&game, &ais) {
+                        println!("    {line}");
+                    }
+                }
+            }
+        }
+        if detail {
+            for (c, city, pos) in game.economy().cities() {
+                if game.is_neutral_player(city.owner) {
+                    continue;
+                }
+                let seen_by: Vec<String> = game
+                    .players()
+                    .iter()
+                    .filter(|p| p.id != city.owner && game.is_explored(p.id, pos))
+                    .map(|p| format!("p{}", p.id.0))
+                    .collect();
+                println!(
+                    "    city {} of p{} at {:?} {},{} size {}: explored by [{}]",
+                    city.name,
+                    city.owner.0,
+                    pos.plane,
+                    pos.x,
+                    pos.y,
+                    game.economy().city_economy(c).map_or(0, |e| e.figures),
+                    seen_by.join(" ")
+                );
             }
         }
         let outcome = match game.game_over {
@@ -163,4 +233,86 @@ fn status(game: &Game) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// One line per wizard about magic and exploring: mana, spells known, research, the spell being
+/// cast and how much of the map is explored.
+fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
+    let mut out = Vec::new();
+    for p in game
+        .players()
+        .iter()
+        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
+    {
+        let Some(m) = game.magic(p.id) else {
+            continue;
+        };
+        let name = |s: f4x_core::rules::SpellId| game.content().rules.spells.get(s).id.clone();
+        let explored = game.explored_squares(p.id);
+        let income = game.income(p.id);
+        let mut known: Vec<String> = m.known.iter().map(|&s| name(s)).collect();
+        known.sort();
+        out.push(format!("  known: {}", known.join(" ")));
+        out.push(format!(
+            "p{}: skill {}/{}, gold {} (cities {}, buildings -{}, units -{}, food {}), food {}, mana {} (+{} upkeep {}), spells {}, researching {} ({} left), casting {}, split {}/{}/{}, explored {}{}, scouts {:?}, campaign {:?}, landing {:?}",
+            p.id.0,
+            m.skill_left,
+            m.casting_skill(),
+            game.treasury(p.id).net_gold(),
+            game.treasury(p.id).city_gold,
+            game.treasury(p.id).building_upkeep,
+            game.treasury(p.id).unit_upkeep,
+            game.treasury(p.id).food_gold,
+            game.treasury(p.id).food_surplus,
+            p.mana,
+            income.split.mana,
+            income.mana_upkeep,
+            m.known.len(),
+            m.researching.map_or("-".into(), name),
+            m.research_remaining,
+            m.casting
+                .as_ref()
+                .map_or("-".into(), |c| format!("{} ({} left)", name(c.spell), c.remaining)),
+            m.mana_pct,
+            m.research_pct,
+            m.skill_pct,
+            explored,
+            if ais.iter().any(|a| a.player == p.id && a.frontier_closed()) {
+                " (frontier closed)"
+            } else {
+                ""
+            },
+            ais.iter()
+                .find(|a| a.player == p.id)
+                .map(|a| a.scout_targets().into_iter().map(|(_, p)| (p.x, p.y)).collect::<Vec<_>>()),
+            ais.iter().find(|a| a.player == p.id).and_then(|a| a.campaign()).map(|c| (c.x, c.y)),
+            ais.iter()
+                .find(|a| a.player == p.id)
+                .and_then(|a| a.landing())
+                .map(|(t, port, f)| ((t.x, t.y), (port.x, port.y), f))
+        ));
+    }
+    out
+}
+
+/// Give every wizard the Spell of Mastery with the mana and skill to cast it, so a game shows
+/// whether the AI casts it and wins without waiting for the 60,000 research points.
+fn grant_mastery_to_all(game: &mut Game) {
+    let Some(spell) = game.content().rules.spells.id_of("spell_of_mastery") else {
+        return;
+    };
+    let ids: Vec<PlayerId> = game
+        .players()
+        .iter()
+        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
+        .map(|p| p.id)
+        .collect();
+    for id in ids {
+        if let Some(p) = game.player_mut(id) {
+            p.magic.known.insert(spell);
+            p.magic.researchable.remove(&spell);
+            p.magic.skill_points += 2000;
+            p.mana += 6000;
+        }
+    }
 }

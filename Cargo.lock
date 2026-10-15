@@ -2563,6 +2563,7 @@ name = "f4x-ai"
 version = "0.1.0"
 dependencies = [
  "f4x-core",
+ "f4x-data",
  "hecs",
 ]
 

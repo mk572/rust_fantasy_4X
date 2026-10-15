@@ -114,6 +114,9 @@ impl Economy<'_> {
                 if !def.races.is_empty() && !def.races.contains(&race.id) {
                     return Err(ProductionError::WrongRace);
                 }
+                if def.coastal && !self.city_is_coastal(city) {
+                    return Err(ProductionError::NotCoastal);
+                }
                 self.requirements_met(&built, &def.requires)
             }
             ProductionItem::Unit(u) => {

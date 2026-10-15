@@ -174,6 +174,9 @@ pub struct BuildingDef {
     /// Footprint in the city picture: 0 is 2x2, 1 is 2x3, 2 is 3x2, 3 is 3x3.
     #[serde(default)]
     pub shape: u8,
+    /// Only a coastal city (one next to the sea) can build it.
+    #[serde(default)]
+    pub coastal: bool,
 }
 
 /// A school of magic. Data, so the set of realms is not hard-coded.

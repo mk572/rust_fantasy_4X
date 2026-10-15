@@ -366,6 +366,10 @@ def import_buildings(game: Path, report: Report) -> list[Building]:
     return out
 
 
+# Buildings that enable ships: in the original only a coastal city can build them.
+COASTAL_BUILDINGS = {"Ship Wrights Guild", "Ship Yard", "Maritime Guild"}
+
+
 def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list[str]) -> str:
     requires = [by_index[r].id for r in b.requires if r in by_index]
     parts = [f"id: {ron_str(b.id)}", f"name: {ron_str(b.name)}", f"cost: {b.cost}"]
@@ -373,6 +377,8 @@ def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list
         parts.append(f"shape: {b.shape}")
     if b.upkeep:
         parts.append(f"upkeep_gold: {b.upkeep}")
+    if b.name in COASTAL_BUILDINGS:
+        parts.append("coastal: true")
     if requires:
         parts.append("requires: [" + ", ".join(ron_str(r) for r in requires) + "]")
     if races_allowed:
@@ -660,7 +666,8 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
     rows = []
     for i, r in enumerate(read_records(read_lbx(game / "SPELLDAT.LBX")[0])):
         kind, category, realm, elig = struct.unpack_from("<bbbb", r, 21)
-        cost, research = struct.unpack_from("<hh", r, 26)
+        # The research cost is unsigned: the Spell of Mastery's 60,000 does not fit a signed short.
+        cost, research = struct.unpack_from("<hH", r, 26)
         p0, p1 = struct.unpack_from("<BB", r, 32)
         attributes = struct.unpack_from("<H", r, 34)[0]
         rows.append(SpellRow(i, cstr(r[:19]), kind, category, realm, elig, cost, research, p0, p1,

@@ -212,6 +212,6 @@
     (id: "disjunction", name: "Disjunction", realm: "arcane", rarity: Common, cost: 200, research_cost: 750, contexts: [Overland], target: GlobalEnchantment, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("disjunction"))]),
     (id: "create_artifact", name: "Create Artifact", realm: "arcane", rarity: Uncommon, cost: 1, research_cost: 1000, contexts: [Overland], target: None, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("unimplemented"))]),
     (id: "summon_champion", name: "Summon Champion", realm: "arcane", rarity: Uncommon, cost: 750, research_cost: 1250, contexts: [Overland], target: None, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("unimplemented"))]),
-    (id: "spell_of_mastery", name: "Spell of Mastery", realm: "arcane", rarity: Uncommon, cost: 5000, research_cost: 1, contexts: [Overland], target: None, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("spell_of_mastery"))]),
+    (id: "spell_of_mastery", name: "Spell of Mastery", realm: "arcane", rarity: Uncommon, cost: 5000, research_cost: 60000, contexts: [Overland], target: None, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("spell_of_mastery"))]),
     (id: "spell_of_return", name: "Spell of Return", realm: "arcane", rarity: Uncommon, cost: 1000, research_cost: 20, contexts: [Overland], target: OwnCity, duration: Instant, effects: [(when: OnCast, target: Chosen, effect: Custom("return_to_fortress"))]),
 ]
