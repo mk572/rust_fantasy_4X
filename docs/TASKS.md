@@ -178,9 +178,11 @@ First group done in `special_spells.rs`: Transmute (iron and gold, coal and gems
 whole stack on the unit's tile, except Death-realm and undead units), Word of Recall (to the summoning circle) and Plane
 Shift (the whole stack to the other plane). Two known differences (recorded in `divergences.md` section 5): the original's Word of Recall evicts the weakest unit of
 a full circle (`Evict_Weakest_Unit`), here a full circle makes the spell unavailable; and Plane Shift refuses a square
-where any unit could not stand (the original has separate water rules, `Cast_Plane_Shift_Check`). Still open: Stasis,
-Earthquake, Great Unsummoning, Death Wish, Lycanthropy, Call the Void, Chaos Channels, Black Wind, Drain Power,
-Subversion, Cruel Unminding, Resurrection, Incarnation (these need dead-unit tracking or wizard-state changes),
+where any unit could not stand (the original has separate water rules, `Cast_Plane_Shift_Check`). Second group done in
+`wizard_spells.rs`: Earthquake, Great Unsummoning, Death Wish, Drain Power, Cruel Unminding and Subversion (where help and code
+disagree: `help-vs-implementation-conflicts.md` B30 to B33; Death Wish has no resistance penalty). Still open: Stasis,
+Lycanthropy, Call the Void, Chaos Channels, Black Wind (needs figures per unit), Resurrection, Incarnation (these need dead-unit
+tracking or wizard-state changes), the AI casting any of the new spells,
 Fire Storm and Ice Storm, plus Enchant Item, Create Artifact and the summon spells (heroes tasks, 218 onward).
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,

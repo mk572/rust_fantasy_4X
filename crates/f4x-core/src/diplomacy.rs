@@ -87,6 +87,9 @@ pub enum Stage {
     Established,
 }
 
+/// What Subversion takes off every other wizard's relation to its target.
+const SUBVERSION_PENALTY: i32 = 25;
+
 /// What moved a relation (the original's reaction types).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
@@ -1218,6 +1221,27 @@ impl Diplomacy {
         }
     }
 
+    /// Subversion (`Apply_Subversion`): the relation of every other wizard that has met `target`
+    /// falls by [`SUBVERSION_PENALTY`], and the peace between them is over. The original's code
+    /// then overwrites the new relation with the old one, which leaves only the peace ended; the
+    /// help's rule is followed here (`docs/help-vs-implementation-conflicts.md`, B33).
+    pub(crate) fn subvert(&mut self, ctx: &mut DiplomacyCtx<'_>, target: PlayerId) {
+        let others: Vec<PlayerId> = ctx
+            .view
+            .players()
+            .iter()
+            .map(|p| p.id)
+            .filter(|&w| w != target && ctx.view.is_wizard(w) && ctx.view.human() != Some(w))
+            .filter(|&w| self.have_met(w, target))
+            .collect();
+        for w in others {
+            let pair = self.pair_mut(ctx.view, w, target);
+            pair.visible = (pair.visible - SUBVERSION_PENALTY).max(-100);
+            self.stance_mut(w, target).peace_duration = 0;
+            self.stance_mut(target, w).peace_duration = 0;
+        }
+    }
+
     /// What a curse on a city costs in relations (`Change_Relations_For_Bad_City_Spell`).
     fn bad_city_spell_value(spell: &str) -> Option<i32> {
         Some(match spell {
@@ -1615,6 +1639,13 @@ impl Game {
         self.with_diplomacy(|d, ctx| {
             d.change_relations(ctx, value, attacker, defender, action, spell)
         });
+    }
+
+    /// Subversion on `target`: every other wizard who has met them thinks 25 points worse of them
+    /// and will not hold to a peace with them. The human's own feelings are left alone, as in the
+    /// original (`Apply_Subversion`).
+    pub(crate) fn subvert(&mut self, target: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.subvert(ctx, target));
     }
 
     /// A pact or an alliance between two wizards (`Start_Treaty`).

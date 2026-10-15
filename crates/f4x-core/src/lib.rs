@@ -62,6 +62,7 @@ pub mod units;
 pub mod view;
 pub mod vision;
 pub mod wizard;
+pub mod wizard_spells;
 
 use rand::RngCore;
 
@@ -350,6 +351,30 @@ pub enum Event {
         victim: city::PlayerId,
         spell: rules::SpellId,
         mana: i32,
+    },
+    /// Drain Power took `amount` mana from `victim`.
+    PowerDrained {
+        player: city::PlayerId,
+        victim: city::PlayerId,
+        amount: i32,
+    },
+    /// Cruel Unminding took `amount` points of casting skill from `victim` for good.
+    SkillDestroyed {
+        player: city::PlayerId,
+        victim: city::PlayerId,
+        amount: i32,
+    },
+    /// A spell that strikes units across the map (Great Unsummoning, Death Wish) slew `count`.
+    UnitsSlain {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+        count: u32,
+    },
+    /// An Earthquake shook `city`.
+    EarthquakeStruck {
+        city: hecs::Entity,
+        units_lost: u32,
+        buildings_lost: u32,
     },
     /// Another wizard's Suppress Magic stopped the spell.
     SpellSuppressed {

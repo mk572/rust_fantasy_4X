@@ -779,6 +779,18 @@ UNIT_HOOKS = {
 }
 
 
+# Instant overland spells that strike at a wizard, a city or every unit on the map
+# (`wizard_spells.rs`): (hook, target).
+WIZARD_HOOKS = {
+    "Drain Power": ("drain_power", "EnemyWizard"),
+    "Cruel Unminding": ("cruel_unminding", "EnemyWizard"),
+    "Subversion": ("subversion", "EnemyWizard"),
+    "Great Unsummoning": ("great_unsummoning", "None"),
+    "Death Wish": ("death_wish", "None"),
+    "Earthquake": ("earthquake", "EnemyCity"),
+}
+
+
 # Global enchantments the engine reads from the wizard's list (`globals.rs`); casting them
 # runs no effect of its own.
 GLOBAL_ENGINE = {
@@ -865,6 +877,9 @@ def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report
     if name in UNIT_HOOKS:
         hook = UNIT_HOOKS[name]
         return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnUnit", "instant"
+    if name in WIZARD_HOOKS:
+        hook, target = WIZARD_HOOKS[name]
+        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], target, "instant"
     if name in DISPEL_FAMILY:
         target, effect, factor = DISPEL_FAMILY[name]
         if effect == "Dispel":
@@ -1133,6 +1148,12 @@ HELP_CORRECTIONS = [
      "the code gives the Animist's Guild +3 mana"),
     (734, "at an upkeep cost of 3 mana points a turn.", "and +3 mana.",
      "the code adds 3 mana for a Wizard's Guild instead of charging it"),
+    (26, "All buildings have a 10% chance of being destroyed. All non- flying, corporeal creatures have a 15% chance of dying.",
+     "All buildings have a 15% chance of being destroyed. All non- flying, corporeal creatures have a 25% chance of dying.",
+     "the code rolls 15 for each building and one in four for each unit"),
+    (171, "Drains 50-150 mana points from a target wizard's mana reserve.",
+     "Drains 10-200 mana points (105 on average) from a target wizard's mana reserve.",
+     "the code adds ten rolls of a twenty-sided die"),
     (667, "which doubles the power and pacifying effects received from shrines, temples, and parthenons.",
      "which increases the power and pacifying effects received from shrines, temples, and parthenons by 50%.",
      "the code applies 150% for Infernal and Divine Power alike"),

@@ -404,6 +404,29 @@ impl App {
                     self.game.content().rules.spells.get(spell).name,
                     self.game.player(by).map_or("a rival", |p| p.name.as_str())
                 )),
+                Event::PowerDrained { victim, amount, .. } => Some(format!(
+                    "Drain Power takes {amount} mana from {}",
+                    self.game
+                        .player(victim)
+                        .map_or("a rival", |p| p.name.as_str())
+                )),
+                Event::SkillDestroyed { victim, amount, .. } => Some(format!(
+                    "{} loses {amount} points of casting skill for good",
+                    self.game
+                        .player(victim)
+                        .map_or("A rival", |p| p.name.as_str())
+                )),
+                Event::UnitsSlain { spell, count, .. } => Some(format!(
+                    "{} slays {count} units",
+                    self.game.content().rules.spells.get(spell).name
+                )),
+                Event::EarthquakeStruck {
+                    units_lost,
+                    buildings_lost,
+                    ..
+                } => Some(format!(
+                    "The earthquake kills {units_lost} units and destroys {buildings_lost} buildings"
+                )),
                 Event::SpellBlasted {
                     spell,
                     victim,

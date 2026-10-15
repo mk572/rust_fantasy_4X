@@ -192,6 +192,34 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *victim),
             spell(game, *s)
         ),
+        Event::PowerDrained {
+            player: p,
+            victim,
+            amount,
+        } => format!(
+            "{} drains {amount} mana from {}",
+            player(game, *p),
+            player(game, *victim)
+        ),
+        Event::SkillDestroyed {
+            player: p,
+            victim,
+            amount,
+        } => format!(
+            "{} destroys {amount} points of {}'s casting skill",
+            player(game, *p),
+            player(game, *victim)
+        ),
+        Event::UnitsSlain {
+            player: p,
+            spell: s,
+            count,
+        } => format!("{}'s {} slays {count} units", player(game, *p), spell(game, *s)),
+        Event::EarthquakeStruck {
+            units_lost,
+            buildings_lost,
+            ..
+        } => format!("An earthquake kills {units_lost} units and destroys {buildings_lost} buildings"),
         Event::SpellSuppressed {
             player: p,
             spell: s,

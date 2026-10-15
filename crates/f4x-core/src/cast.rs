@@ -40,6 +40,56 @@ struct GameHost<'a> {
 }
 
 impl GameHost<'_> {
+    /// Drain Power, Cruel Unminding, Great Unsummoning, Death Wish and Earthquake
+    /// (`wizard_spells.rs`); `None` for any other hook. Subversion is carried out after the cast.
+    fn wizard_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
+        use crate::wizard_spells::{
+            CRUEL_UNMINDING, DEATH_WISH, DRAIN_POWER, EARTHQUAKE, GREAT_UNSUMMONING, SUBVERSION,
+        };
+        let player = ctx.owner;
+        let spell = match ctx.source {
+            Source::Spell(s) => s,
+            _ => return None,
+        };
+        Some(match (hook, who) {
+            (DRAIN_POWER, Target::Player(victim)) => {
+                let amount = self.game.drain_power(victim, &mut self.rng);
+                vec![Event::PowerDrained {
+                    player,
+                    victim,
+                    amount,
+                }]
+            }
+            (CRUEL_UNMINDING, Target::Player(victim)) => {
+                let amount = self.game.cruel_unminding(victim, &mut self.rng);
+                vec![Event::SkillDestroyed {
+                    player,
+                    victim,
+                    amount,
+                }]
+            }
+            (GREAT_UNSUMMONING, _) => {
+                let count = self.game.great_unsummoning(&mut self.rng);
+                vec![Event::UnitsSlain {
+                    player,
+                    spell,
+                    count,
+                }]
+            }
+            (DEATH_WISH, _) => {
+                let count = self.game.death_wish(player, &mut self.rng);
+                vec![Event::UnitsSlain {
+                    player,
+                    spell,
+                    count,
+                }]
+            }
+            (EARTHQUAKE, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
+            (DRAIN_POWER | CRUEL_UNMINDING | EARTHQUAKE | SUBVERSION, _) => Vec::new(),
+            _ => return None,
+        })
+    }
+
     /// Disjunction, Spell Binding and Spell Blast; `None` for any other hook.
     fn dispel_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
         use crate::dispel::{
@@ -275,6 +325,10 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
+        if let Some(events) = self.wizard_hook(hook, who, ctx) {
+            self.events.extend(events);
+            return;
+        }
         if let Target::Tile(at) = who {
             let events = match hook {
                 crate::terraform::RAISE_VOLCANO => {
@@ -503,7 +557,8 @@ impl Game {
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
                 p != player
                     && self.player(p).is_some_and(|x| !x.defeated)
-                    && self.mana_spent_casting(p).is_some()
+                    && (!self.spell_has_hook(spell, crate::dispel::SPELL_BLAST)
+                        || self.mana_spent_casting(p).is_some())
             }
             (SpellTarget::GlobalEnchantment, Some(Target::Global(owner, s))) => {
                 owner != player && self.magic(owner).is_some_and(|m| m.global.contains(&s))
@@ -627,6 +682,11 @@ impl Game {
             _ => None,
         };
         self.cast_relations(player, spell, victim);
+        if let Some(Target::Player(wizard)) = target {
+            if self.spell_has_hook(spell, crate::wizard_spells::SUBVERSION) {
+                self.subvert(wizard);
+            }
+        }
         for o in &outcomes {
             if let Outcome::Dispelled { removed, .. } = o {
                 events.push(Event::Dispelled {
