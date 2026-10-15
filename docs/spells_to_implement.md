@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 31 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 25 spells are listed. The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` in step. Spells are edited directly in `content/spells.ron` (the
   importer no longer writes it).
 - Where help and code disagree for a spell, add a row to
@@ -37,12 +37,6 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 
 | No. | Spell | Realm | Needs first |
 |---|---|---|---|
-| 73 | Creature Binding | sorcery | A unit that changes sides for one battle and goes home after; the same for Possession |
-| 172 | Possession | death | The same side change for a normal unit; heroes and fantastic creatures are refused |
-| 81 | Warp Wood | chaos | Ammunition for a unit's ranged attack to be removable |
-| 88 | Shatter | chaos | A resistance roll, then a lasting cut of the unit's attacks to one |
-| 89 | Warp Creature | chaos | A permanent per-figure change (half attack, half defence or no ranged attack) |
-| 137 | Raise Dead | life | The dead of a battle kept per unit so one can be brought back at half strength; not fantastic creatures |
 
 ## D. Battlefield spells
 
@@ -73,7 +67,7 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 | 120 | Armageddon | chaos | A volcano each turn with the caster gaining power from each (task 123) |
 | 119 | Call the Void | chaos | An instant spell: 50 percent of a city's buildings, 10 damage to each unit inside, corruption around (tasks 123, 158) |
 | 40 | Nature's Wrath | nature | Triggering on every non-combat death or chaos spell the caster casts, then shaking the caster's cities: units that do not fly or lack a body, and buildings. Check help against code when wired |
-| 188 | Zombie Mastery | death | Normal creatures that die in a won battle become the caster's zombies afterwards (the dead of a battle, as for Raise Dead) |
+| 188 | Zombie Mastery | death | Normal creatures that die in a won battle become the caster's zombies afterwards (the dead of a battle, which Animate Dead and Raise Dead already read) |
 | 197 | Eternal Night | death | Every battle treated as under Darkness, except in cities with Heavenly Light |
 
 ## G. Overland instants needing new state

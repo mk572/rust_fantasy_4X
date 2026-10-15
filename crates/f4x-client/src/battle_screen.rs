@@ -650,11 +650,14 @@ impl App {
             self.battle_ui.selected = None;
             return;
         }
-        // Animate Dead raises the strongest of the fallen (the fallen are not on the field to
+        // Animate Dead and Raise Dead take the strongest of the fallen (the fallen are not on the field to
         // click; a list to choose from is task 175).
-        if self
-            .game
-            .spell_has_hook(spell.spell, f4x_core::battle::spells::ANIMATE_DEAD)
+        if [
+            f4x_core::battle::spells::ANIMATE_DEAD,
+            f4x_core::battle::spells::RAISE_DEAD,
+        ]
+        .into_iter()
+        .any(|h| self.game.spell_has_hook(spell.spell, h))
         {
             let fallen = self
                 .game

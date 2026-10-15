@@ -1846,6 +1846,62 @@ mod fields {
     }
 
     #[test]
+    fn a_bound_unit_fights_for_the_caster_and_goes_home_when_the_battle_ends() {
+        let mut b = Battle::new(
+            A,
+            D,
+            BattleMap::open(),
+            vec![
+                spearman(Side::Attacker, (3, 5)),
+                spearman(Side::Defender, (17, 5)),
+                spearman(Side::Defender, (17, 7)),
+            ],
+            1,
+        );
+        b.change_sides(1, Side::Attacker);
+        let u = &b.units[1];
+        assert_eq!(
+            (u.side, u.bound_from),
+            (Side::Attacker, Some(Side::Defender))
+        );
+        assert!(
+            u.attacked && u.moves_left == 0,
+            "it acts from the next turn"
+        );
+        // A new turn does not hand it back, as confusion does.
+        end_turns(&mut b, 2);
+        assert_eq!(b.units[1].side, Side::Attacker);
+        // The last of the rival's own units falls: the caster wins, and the unit goes home.
+        b.units[2].status = Status::Dead;
+        b.check_winner();
+        assert_eq!(b.winner, Some(Side::Attacker));
+        assert_eq!(b.units[1].side, Side::Defender);
+        assert_eq!(b.units[1].bound_from, None);
+    }
+
+    #[test]
+    fn a_creature_still_bound_when_the_battle_ends_is_destroyed() {
+        let mut b = Battle::new(
+            A,
+            D,
+            BattleMap::open(),
+            vec![
+                spearman(Side::Attacker, (3, 5)),
+                spearman(Side::Defender, (17, 5)),
+                spearman(Side::Defender, (17, 7)),
+            ],
+            1,
+        );
+        b.units[1].enchantments.push("creature_binding".into());
+        b.change_sides(1, Side::Attacker);
+        b.units[2].status = Status::Dead;
+        b.check_winner();
+        let u = &b.units[1];
+        assert_eq!((u.status, u.side), (Status::Dead, Side::Defender));
+        assert_eq!(u.fate(), Fate::Gone);
+    }
+
+    #[test]
     fn confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy() {
         let (mut idle, mut wandered, mut seized, mut free) = (0, 0, 0, 0);
         for seed in 0..200 {

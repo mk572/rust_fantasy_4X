@@ -51,6 +51,11 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::battle::field::CALL_CHAOS,
     crate::battle::field::DISINTEGRATE,
     crate::battle::spells::ANIMATE_DEAD,
+    crate::battle::spells::CREATURE_BINDING,
+    crate::battle::spells::POSSESSION,
+    crate::battle::spells::RAISE_DEAD,
+    crate::battle::spells::WARP_WOOD,
+    crate::battle::spells::WARP_CREATURE,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

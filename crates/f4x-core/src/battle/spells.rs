@@ -24,17 +24,44 @@ use rand_pcg::Pcg64Mcg;
 use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
 use super::field::{Field, BATTLEFIELD, CALL_CHAOS};
 use super::immunity::{AttackNature, Immunities, Realm};
-use super::{Battle, BattleError, BattleEvent, Side};
+use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
 use crate::city::{PlayerId, Position};
 use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget};
 use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
-use crate::rules::stats::{Modifier, Source};
+use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::SpellId;
 use crate::units::UnitEnchantments;
 use crate::{Event, Game};
 
 /// The hook of the Animate Dead spell.
 pub const ANIMATE_DEAD: &str = "animate_dead";
+/// The hook of Creature Binding: a fantastic creature fights for the caster until the battle
+/// ends or the spell is dispelled.
+pub const CREATURE_BINDING: &str = "creature_binding";
+/// The hook of Possession: a normal unit fights for the caster until the battle ends.
+pub const POSSESSION: &str = "possession";
+/// The hook of Raise Dead: a fallen normal unit returns with half its figures.
+pub const RAISE_DEAD: &str = "raise_dead";
+/// The hook of Warp Wood: a missile unit's ammunition is destroyed.
+pub const WARP_WOOD: &str = "warp_wood";
+/// The hook of Warp Creature.
+pub const WARP_CREATURE: &str = "warp_creature";
+/// What Warp Creature did to a unit, as the id kept among its lasting spells: half its attacks,
+/// half its defence, or no resistance.
+const WARPS: [&str; 3] = ["warp_attack", "warp_defense", "warp_resistance"];
+
+/// The changes of one of Warp Creature's three results.
+fn warp_mods(variant: usize, spell: SpellId) -> Vec<Modifier> {
+    let source = Source::Spell(spell);
+    match variant {
+        0 => vec![
+            Modifier::new(Stat::Melee, ModOp::Percent, -50, source),
+            Modifier::new(Stat::Ranged, ModOp::Percent, -50, source),
+        ],
+        1 => vec![Modifier::new(Stat::Defense, ModOp::Percent, -50, source)],
+        _ => vec![Modifier::new(Stat::Resistance, ModOp::Set, 0, source)],
+    }
+}
 
 /// What a spell does in a battle, from its effects.
 #[derive(Debug, Clone, PartialEq)]
@@ -79,6 +106,20 @@ enum Kind {
     CallChaos,
     /// Raise one of the wizard's own dead units as undead (Animate Dead).
     Animate,
+    /// Bring a fallen normal unit of the wizard's back with half its figures (Raise Dead).
+    Raise,
+    /// Destroy a missile unit's ammunition (Warp Wood).
+    WarpWood,
+    /// A unit changes sides after a resistance check: for good until a dispel (Creature
+    /// Binding, fantastic creatures) or just for the battle (Possession, normal units).
+    Turn {
+        bind: bool,
+        save: Option<SpellSave>,
+    },
+    /// After a resistance check, one of three lasting harms to a normal unit (Warp Creature).
+    Warp {
+        save: Option<SpellSave>,
+    },
 }
 
 impl Kind {
@@ -152,6 +193,15 @@ impl Game {
     fn battle_kind(&self, spell: SpellId, def: &SpellDef) -> Option<Kind> {
         if !def.contexts.contains(&CastContext::Battle) {
             return None;
+        }
+        if let [r] = def.effects.as_slice() {
+            let bind = matches!(&r.effect, Effect::Custom(h) if h == CREATURE_BINDING);
+            if bind || matches!(&r.effect, Effect::Custom(h) if h == POSSESSION) {
+                return Some(Kind::Turn {
+                    bind,
+                    save: def.save.clone(),
+                });
+            }
         }
         // A lasting spell on one unit: every rule is a plain modifier or granted ability.
         if matches!(def.target, SpellTarget::OwnUnit | SpellTarget::EnemyUnit)
@@ -234,6 +284,11 @@ impl Game {
             Effect::Custom(h) if h == BATTLEFIELD => Field::of(&def.id).map(Kind::Field),
             Effect::Custom(h) if h == CALL_CHAOS => Some(Kind::CallChaos),
             Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
+            Effect::Custom(h) if h == RAISE_DEAD => Some(Kind::Raise),
+            Effect::Custom(h) if h == WARP_WOOD => Some(Kind::WarpWood),
+            Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
+                save: def.save.clone(),
+            }),
             _ => None,
         }
     }
@@ -518,6 +573,18 @@ impl Game {
                 }
                 Ok(())
             }
+            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Raise) => {
+                if battle.active_units(side).count() >= MAX_SIDE_UNITS
+                    || battle.first_summon_square(side).is_none()
+                {
+                    return Err(SpellError::NoRoom);
+                }
+                if self.can_raise(battle, side, id) {
+                    Ok(())
+                } else {
+                    Err(SpellError::BadTarget)
+                }
+            }
             (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Animate) => {
                 if battle.active_units(side).count() >= MAX_SIDE_UNITS
                     || battle.first_summon_square(side).is_none()
@@ -548,7 +615,34 @@ impl Game {
                 if matches!(kind, Kind::Heal { all: false, .. }) && u.realm == Some(Realm::Death) {
                     return Err(SpellError::BadTarget);
                 }
+                if let Kind::Turn { bind, .. } = kind {
+                    // Binding takes fantastic creatures, Possession normal units, not heroes.
+                    let fits = if *bind {
+                        u.is_fantastic()
+                    } else {
+                        !u.is_fantastic() && !self.battle_unit_is_hero(u)
+                    };
+                    if !fits
+                        || u.bound_from.is_some()
+                        || battle.active_units(side).count() >= MAX_SIDE_UNITS
+                    {
+                        return Err(SpellError::BadTarget);
+                    }
+                }
                 if matches!(kind, Kind::Enchant { .. }) && u.enchantments.contains(&def.id) {
+                    return Err(SpellError::BadTarget);
+                }
+                // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
+                // and a unit is warped once.
+                if matches!(kind, Kind::WarpWood)
+                    && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0 || u.is_fantastic())
+                {
+                    return Err(SpellError::BadTarget);
+                }
+                if matches!(kind, Kind::Warp { .. })
+                    && (u.is_fantastic()
+                        || u.enchantments.iter().any(|e| WARPS.contains(&e.as_str())))
+                {
                     return Err(SpellError::BadTarget);
                 }
                 if let Some(realms) = only_against(&def.id) {
@@ -570,6 +664,17 @@ impl Game {
         }
     }
 
+    /// Whether the unit of the battle is a hero, from the overland unit it was copied from.
+    fn battle_unit_is_hero(&self, u: &super::BattleUnit) -> bool {
+        let Some(active) = self.battle.as_ref() else {
+            return false;
+        };
+        u.source
+            .and_then(|i| active.sources.get(i).copied())
+            .and_then(|e| self.units().unit_def(e))
+            .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero)
+    }
+
     /// Whether `id` is a dead unit of `side` that Animate Dead can raise: a unit of the wizard's
     /// army (not one summoned in the battle, and not a hero) that was not destroyed outright.
     fn can_animate(&self, battle: &Battle, side: Side, id: usize) -> bool {
@@ -587,6 +692,45 @@ impl Game {
                 .units()
                 .unit_def(entity)
                 .is_some_and(|d| d.kind != UnitKind::Hero)
+    }
+
+    /// Whether `id` is a dead normal unit of `side` that Raise Dead can bring back: from the
+    /// wizard's army, not a hero, a fantastic creature or one destroyed outright.
+    fn can_raise(&self, battle: &Battle, side: Side, id: usize) -> bool {
+        battle
+            .unit(id)
+            .is_some_and(|u| !u.is_fantastic() && !u.undead)
+            && self.can_animate(battle, side, id)
+    }
+
+    /// Raise Dead: the dead unit returns on a free square of its side's half of the field,
+    /// ready to act, with half its figures (rounded up) and none of its enchantments.
+    fn raise_dead(&mut self, side: Side, id: usize) -> Vec<BattleEvent> {
+        let Some(active) = self.battle.as_ref() else {
+            return Vec::new();
+        };
+        let Some(cell) = active.battle.first_summon_square(side) else {
+            return Vec::new();
+        };
+        let Some(source) = active.battle.unit(id).and_then(|u| u.source) else {
+            return Vec::new();
+        };
+        let Some(entity) = self.battle_source(source) else {
+            return Vec::new();
+        };
+        self.world.remove_one::<crate::units::Hurt>(entity).ok();
+        self.world.remove_one::<UnitEnchantments>(entity).ok();
+        let Some(mut unit) = self.battle_unit_from(entity, side, source) else {
+            return Vec::new();
+        };
+        let Some(active) = self.battle.as_mut() else {
+            return Vec::new();
+        };
+        unit.id = id;
+        unit.cell = cell;
+        unit.figures = unit.figures_start.div_ceil(2).max(1);
+        active.battle.units[id] = unit;
+        vec![BattleEvent::Raised { unit: id }]
     }
 
     /// The overland unit a battle unit was copied from, by its index in the battle's list.
@@ -748,8 +892,45 @@ impl Game {
                 }
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
-            (Kind::CallChaos, _) => self.call_chaos(side),
+            (Kind::CallChaos, _) => self.call_chaos(side, player),
+            (Kind::WarpWood, SpellAim::Unit(target)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                active.battle.units[target].ammo = 0;
+                vec![BattleEvent::SpellEnchanted {
+                    unit: target,
+                    spell,
+                }]
+            }
+            (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                if let Some(save) = save {
+                    let unit = &battle.units[target];
+                    if save.immune.iter().any(|i| unit.has(i)) {
+                        return vec![BattleEvent::SpellImmune { unit: target }];
+                    }
+                    if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
+                        return vec![BattleEvent::SpellResisted { unit: target }];
+                    }
+                }
+                if bind {
+                    battle.enchant_unit(target, spell, &def.id, player, &[], &[]);
+                }
+                battle.change_sides(target, side);
+                vec![BattleEvent::SpellEnchanted {
+                    unit: target,
+                    spell,
+                }]
+            }
+            (Kind::Warp { save }, SpellAim::Unit(target)) => {
+                self.warp_creature(spell, def, target, player, save.as_ref())
+            }
             (Kind::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
+            (Kind::Raise, SpellAim::Unit(target)) => self.raise_dead(side, target),
             (Kind::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
@@ -859,11 +1040,49 @@ impl Game {
         }
     }
 
+    /// Warp Creature on a unit: after its resistance check (`save`), one of three lasting harms.
+    fn warp_creature(
+        &mut self,
+        spell: SpellId,
+        def: &SpellDef,
+        target: usize,
+        player: PlayerId,
+        save: Option<&SpellSave>,
+    ) -> Vec<BattleEvent> {
+        let Some(active) = self.battle.as_mut() else {
+            return Vec::new();
+        };
+        let battle = &mut active.battle;
+        if let Some(save) = save {
+            let unit = &battle.units[target];
+            if save.immune.iter().any(|i| unit.has(i)) {
+                return vec![BattleEvent::SpellImmune { unit: target }];
+            }
+            if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
+                return vec![BattleEvent::SpellResisted { unit: target }];
+            }
+        }
+        let variant = battle.roll(3) as usize - 1;
+        battle.enchant_unit(
+            target,
+            spell,
+            WARPS[variant],
+            player,
+            &warp_mods(variant, spell),
+            &[],
+        );
+        vec![BattleEvent::SpellEnchanted {
+            unit: target,
+            spell,
+        }]
+    }
+
     /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, five hit
     /// points of healing (not the dead), Chaos Channels, Warp Creature, a Fire Bolt of strength
-    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels and Warp Creature are
-    /// not in the game yet (task 159) and do nothing.
-    fn call_chaos(&mut self, side: Side) -> Vec<BattleEvent> {
+    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels is not in the game yet
+    /// (task 159) and does nothing; Warp Creature works as the spell does, on a normal unit not
+    /// warped already.
+    fn call_chaos(&mut self, side: Side, player: PlayerId) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for t in self.enemies_of(side) {
             let Some(active) = self.battle.as_mut() else {
@@ -871,6 +1090,22 @@ impl Game {
             };
             let roll = active.battle.roll(8);
             match roll {
+                4 => {
+                    let u = &active.battle.units[t];
+                    let warped = u.enchantments.iter().any(|e| WARPS.contains(&e.as_str()));
+                    if let Some(spell) = self.content.rules.spells.id_of("warp_creature") {
+                        if !u.is_fantastic() && !warped {
+                            let def = self.content.rules.spells.get(spell).clone();
+                            events.extend(self.warp_creature(
+                                spell,
+                                &def,
+                                t,
+                                player,
+                                def.save.as_ref(),
+                            ));
+                        }
+                    }
+                }
                 2 => {
                     let b = &mut active.battle;
                     if b.units[t].realm != Some(Realm::Death) {
@@ -969,12 +1204,29 @@ impl Game {
                 let def = self.content.rules.spells.get(s);
                 match self.battle_kind(s, def)? {
                     Kind::Enchant { mods, grants, .. } => Some((def.id.clone(), mods, grants)),
+                    Kind::Turn { bind: true, .. } => Some((def.id.clone(), Vec::new(), Vec::new())),
+                    // The warp it got is kept among the unit's enchantment ids.
+                    Kind::Warp { .. } => {
+                        let variant = WARPS
+                            .iter()
+                            .position(|w| unit.enchantments.iter().any(|e| e == w))?;
+                        Some((
+                            WARPS[variant].to_string(),
+                            warp_mods(variant, s),
+                            Vec::new(),
+                        ))
+                    }
                     _ => None,
                 }
             })
             .collect();
         if let Some(active) = self.battle.as_mut() {
             active.battle.rebuild_unit(target, base, kept, &lasting);
+            if unit.enchantments.iter().any(|e| e == CREATURE_BINDING)
+                && !lasting.iter().any(|(id, _, _)| id == CREATURE_BINDING)
+            {
+                active.battle.return_unit(target);
+            }
             active.battle.refresh_fields();
         }
         vec![event]

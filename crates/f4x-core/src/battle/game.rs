@@ -208,6 +208,7 @@ impl Game {
             field: Default::default(),
             seized: false,
             turned_from: None,
+            bound_from: None,
         })
     }
 

@@ -1778,6 +1778,109 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
 }
 
 #[test]
+fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
+    use f4x_core::battle::{RangedKind, Side};
+    let mut g = casting_siege(&["shatter", "warp_wood", "warp_creature"]);
+    let [a, b] = [0, 1].map(|i| battle_units_of(&g, Side::Defender)[i]);
+    {
+        let units = &mut g.battle.as_mut().unwrap().battle.units;
+        units[a].resistance = 0;
+        (units[a].melee, units[a].ranged, units[a].ranged_kind) = (5, 3, RangedKind::Missile);
+        units[a].ammo = 4;
+        units[b].resistance = 0;
+        (units[b].melee, units[b].defense) = (6, 4);
+    }
+    // Warp Wood takes the arrows, and refuses a unit that has none left.
+    let r = cast(&mut g, &format!("bcast warp wood unit:{a}"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.battle().unwrap().unit(a).unwrap().ammo, 0);
+    pass_turn(&mut g);
+    assert!(!cast(&mut g, &format!("bcast warp wood unit:{a}")).ok);
+    // Shatter: attacks drop to one, though the unit gets a resistance roll.
+    let mut shattered = false;
+    for _ in 0..8 {
+        let r = cast(&mut g, &format!("bcast shatter unit:{a}"));
+        assert!(r.ok, "{}", r.text());
+        let u = g.battle().unwrap().unit(a).unwrap();
+        if u.melee == 1 {
+            assert_eq!(u.ranged, 1);
+            shattered = true;
+            break;
+        }
+        pass_turn(&mut g);
+    }
+    assert!(shattered, "an unresisting unit is shattered soon enough");
+    // Warp Creature: one of three harms, once.
+    let (melee, defense, resistance) = {
+        let u = g.battle().unwrap().unit(b).unwrap();
+        (u.melee, u.defense, u.resistance)
+    };
+    let mut warped = false;
+    for _ in 0..8 {
+        pass_turn(&mut g);
+        let r = cast(&mut g, &format!("bcast warp creature unit:{b}"));
+        assert!(r.ok, "{}", r.text());
+        let u = g.battle().unwrap().unit(b).unwrap();
+        if u.melee < melee || u.defense < defense {
+            warped = true;
+            break;
+        }
+        // A zero resistance cannot be told from the third harm: look at the spell list.
+        if u.enchantments.iter().any(|e| e == "warp_resistance") {
+            assert_eq!(u.resistance, resistance.min(0));
+            warped = true;
+            break;
+        }
+    }
+    assert!(warped, "an unresisting unit is warped soon enough");
+    pass_turn(&mut g);
+    assert!(
+        !cast(&mut g, &format!("bcast warp creature unit:{b}")).ok,
+        "a unit is warped once"
+    );
+}
+
+#[test]
+fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
+    use f4x_core::battle::immunity::Realm;
+    use f4x_core::battle::Side;
+    // Two rival units: `a` a normal one, `b` a fantastic one, neither with resistance. The
+    // spell is cast until it takes (they get a roll), the other unit keeping the fight going.
+    for (spell, turned, other) in [("creature_binding", 1, 0), ("possession", 0, 1)] {
+        let mut g = casting_siege(&[spell]);
+        let units = battle_units_of(&g, Side::Defender);
+        let (a, b) = (units[0], units[1]);
+        {
+            let units = &mut g.battle.as_mut().unwrap().battle.units;
+            units[a].resistance = 0;
+            units[b].resistance = 0;
+            (units[a].realm, units[b].realm) = (None, Some(Realm::Chaos));
+        }
+        let (target, spared) = ([a, b][turned], [a, b][other]);
+        // The wrong kind of unit is refused.
+        let name = spell.replace('_', " ");
+        assert!(!cast(&mut g, &format!("bcast {name} unit:{spared}")).ok);
+        let mut done = false;
+        for _ in 0..12 {
+            let r = cast(&mut g, &format!("bcast {name} unit:{target}"));
+            assert!(r.ok, "{}", r.text());
+            let u = g.battle().unwrap().unit(target).unwrap();
+            if u.side == Side::Attacker {
+                assert_eq!(u.bound_from, Some(Side::Defender));
+                done = true;
+                break;
+            }
+            pass_turn(&mut g);
+        }
+        assert!(done, "{spell}: a unit with no resistance turns soon enough");
+        assert_eq!(
+            g.battle().unwrap().unit(spared).unwrap().side,
+            Side::Defender
+        );
+    }
+}
+
+#[test]
 fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["call_chaos", "invisiblity"]);
@@ -2130,6 +2233,35 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
     assert_eq!(u.side, Side::Attacker);
     let entity = g.battle.as_ref().unwrap().sources[u.source.unwrap()];
     assert!(g.units().unit_is_undead(entity), "undead for good");
+}
+
+#[test]
+fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
+    use f4x_core::battle::immunity::Realm;
+    use f4x_core::battle::{Side, Status};
+    let mut g = casting_siege(&["raise_dead"]);
+    let mine = battle_units_of(&g, Side::Attacker);
+    let (fallen, fantastic) = (mine[0], mine[1]);
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        b.units[fallen].enchantments.push("bless".into());
+        b.units[fantastic].realm = Some(Realm::Chaos);
+    }
+    let start = g.battle().unwrap().unit(fallen).unwrap().figures_start;
+    fell(&mut g, fallen, [4, 0, 0]);
+    fell(&mut g, fantastic, [4, 0, 0]);
+    // Fantastic creatures go home when slain; destroyed units cannot return.
+    assert!(!cast(&mut g, &format!("bcast raise dead unit:{fantastic}")).ok);
+    let r = cast(&mut g, &format!("bcast raise dead unit:{fallen}"));
+    assert!(r.ok, "{}", r.text());
+    let u = g.battle().unwrap().unit(fallen).unwrap();
+    assert_eq!((u.status, u.side), (Status::Active, Side::Attacker));
+    assert_eq!(u.figures, start.div_ceil(2), "half, rounded up");
+    assert!(!u.undead && !u.enchantments.iter().any(|e| e == "bless"));
+    assert!(
+        u.hit_points() < u.max_hit_points(),
+        "the missing half stays missing"
+    );
 }
 
 #[test]

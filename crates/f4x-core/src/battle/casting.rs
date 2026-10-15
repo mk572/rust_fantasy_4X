@@ -308,6 +308,29 @@ impl Battle {
         self.units[target].heal_points(points, false)
     }
 
+    /// Put a unit on `to`'s side for the rest of the battle (Creature Binding, Possession). It
+    /// has done its turn for now; it goes home when the battle ends or the binding is dispelled.
+    pub fn change_sides(&mut self, target: usize, to: Side) {
+        let u = &mut self.units[target];
+        if u.side == to {
+            return;
+        }
+        u.bound_from.get_or_insert(u.side);
+        u.side = to;
+        u.moves_left = 0;
+        u.attacked = true;
+    }
+
+    /// Take a bound unit back to the side it belongs to.
+    pub fn return_unit(&mut self, target: usize) {
+        let u = &mut self.units[target];
+        if let Some(owner) = u.bound_from.take() {
+            u.side = owner;
+            u.moves_left = 0;
+            u.attacked = true;
+        }
+    }
+
     /// Put a lasting spell on a unit: its modifiers and abilities change the unit's numbers
     /// until the battle ends or a dispel takes the spell off.
     pub fn enchant_unit(

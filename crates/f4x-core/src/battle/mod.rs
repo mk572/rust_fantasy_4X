@@ -181,6 +181,9 @@ pub struct BattleUnit {
     pub seized: bool,
     /// While it is under the enemy's orders: the side it really belongs to.
     pub turned_from: Option<Side>,
+    /// Creature Binding or Possession has put it on the other side for the rest of the battle:
+    /// the side it really belongs to.
+    pub bound_from: Option<Side>,
 }
 
 impl BattleUnit {
@@ -235,6 +238,7 @@ impl BattleUnit {
             field: FieldBonus::default(),
             seized: false,
             turned_from: None,
+            bound_from: None,
         }
     }
 
@@ -830,7 +834,16 @@ impl Battle {
         self.winner = winner;
         if winner.is_some() {
             for u in &mut self.units {
-                if let Some(owner) = u.turned_from.take() {
+                // A creature still under Creature Binding is destroyed (Possession only lasts).
+                if u.is_active()
+                    && u.bound_from.is_some()
+                    && u.enchantments.iter().any(|e| e == "creature_binding")
+                {
+                    u.figures = 0;
+                    u.status = Status::Dead;
+                    u.damage_kinds[2] = u.damage_kinds[2].max(1);
+                }
+                if let Some(owner) = u.turned_from.take().or_else(|| u.bound_from.take()) {
                     u.side = owner;
                 }
             }
