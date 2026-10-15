@@ -131,6 +131,10 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 243 | Content | Find out what `WIZARDS.LBX`, `SPECIAL.LBX`, `SPLMASTR.LBX` and the other unread data files hold |
 | 244 | Heroes | Work out what the "books" bytes of an item mean |
 | 245 | Housekeeping | Delete the old `~/reference` folder (user) |
+| 246 | Meta | Game settings, stage 1: the record, save, load and default difficulty |
+| 247 | Meta | Game settings, stage 2: the base screen and the original's difficulty effects |
+| 248 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
+| 249 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
 
 ## Descriptions
 
@@ -300,10 +304,10 @@ shown from the start menu (86) and after a game ends (victory and score, 70). Ne
 switches, strategic-only combat, animation and message speeds, and so on. Store them as a
 settings record, `serde(default)` and saved with the game where they change rules (events,
 Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
-change presentation. Reachable from the start menu (86) and in game.
+change presentation. Reachable from the start menu (86) and in game. The rules half is designed in [`game-settings.md`](game-settings.md) (draft); built in tasks 246 to 249.
 
 **94. Settings screen.** The client screen for the options of task 89: gameplay options and
-presentation options (volume, speeds, zoom), reachable from the start menu (86).
+presentation options (volume, speeds, zoom), reachable from the start menu (86). The advanced rules screen is designed in [`game-settings.md`](game-settings.md) section 5.
 
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
@@ -541,3 +545,11 @@ Parity task, low priority.
 **244. What the "books" bytes of an item mean.** Every `ITEMDATA.LBX` record ends in five bytes (`spellranks[5]` in ReMoM's `s_ITEM_DATA`) and a flag. `Make_Item` (`ItemMake.c`) leaves an item out when any of the five is above the wizard's book count in that realm, so they decide which wizards a random or prefab item may go to. They are stored raw in `books` in `content/items.ron`, and the realm order and the way they come about are not known: a derivation from the item's powers (the largest book need in each power's realm, in the usual nature, sorcery, chaos, life, death order) matches only about 115 of the 250 items; Deathbringer (power Death, 3 books) has `[3, 0, 0, 0, 0]` and Sword of Stealth (True Sight, a life power needing 6) has `[0, 0, 6, 0, 0]`, so the order looks different. Find out (a brute-force fit over realm orders and over what counts, including the plain bonuses and the embedded spell's realm, and a read of `Make_Item` and `Create_Random_Item`), then write the rule and the realm order into `heroes-items-design.md` section 2.1, give `books` a named per-realm form in `ItemDef` and have `validate` check it. Needed before the item offers and rewards (tasks 220 and 221).
 
 **245. Delete the old `~/reference` folder.** The folder outside the project, `~/reference` (the earlier ReMoM clone and the steamcmd home), is superseded by `reference/` inside the project and should go. The user deletes it themselves: the safety hook blocks Claude from deleting outside the project, and nothing in the project reads it. Check first that nothing there is still needed (the project's own `reference/ReMoM` and `reference/mom-classic` hold what the importer reads). This was part of task 80, which was closed without it.
+
+**246. Game settings, stage 1: the record, save, load and default difficulty.** Stage 1 of [`game-settings.md`](game-settings.md) (section 9). `settings.rs` with `GameSettings` (the basic block and empty or default groups), `Game::settings()`, `validate`, the presets as functions returning today's numbers, a snapshot field with the old-save migration (the old `difficulty` and `magic_strength` become the matching level), the new-game path and the console's `new` and `settings` taking a record. No behaviour change: soak identical, default difficulty Average. Tests: round trip, migration, `validate`. Part of tasks 89 and 148.
+
+**247. Game settings, stage 2: the base screen and the original's difficulty effects.** Stage 2 of `game-settings.md`. The base block of task 94's screen (difficulty, opponents, land size, magic power, seed) over the record, and the original's effects behind difficulty: starting gold and picks by level (human and AI), the AI city multipliers and upkeep cut, the AI wizard randomisation (section 4.8: random presets, consolidation, erasure, refill to the picks, the Myrran rule), lair guards and treasure, neutral city size, score scale, event frequency and the Intro switch-off (with task 68), safe flee as a setting (the rule itself is task 250, done; replace its difficulty test). Reverses the "no AI bonuses" rule: update `design.md` section 8 and `divergences.md` sections 1 and 4 and tasks 148 and 155 in the same change. The soak changes once; the internal `flat` preset keeps today's game for the soak and the learning AI. Needs 246.
+
+**248. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs 247. (Hardcore is stage 4, task 249.)
+
+**249. Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings.** Stage 4 of `game-settings.md`. No Myrror (section 4.9: one plane, no Myrran wizards, Planar Travel, Plane Shift or Planar Seal) and hardcore mode (4.10 and `PLANNED.md` item 8: no undo, permanent death, one constantly updated save file). Larger unit stacks are designed in [`large-stacks.md`](large-stacks.md); a raised city size cap needs its own check (growth tables, art for larger cities, balance); more than four opponents and per-event switches are listed in section 6. Each gets its own task before it starts. Needs 248.

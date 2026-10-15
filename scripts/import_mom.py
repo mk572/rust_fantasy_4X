@@ -379,6 +379,9 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (593, "fleeing heroes have a 25% chance.",
+     "fleeing heroes have a 25% chance. On the Intro and Easy levels the player whose turn it is loses no unit by fleeing, and units that are asleep, confused or held in a web are always lost.",
+     "the combat code skips the roll on Intro and Easy for the player on turn, and always destroys sleeping, confused and webbed fleeing units"),
     (607, "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack and to hit is increased by 10%.",
      "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack is increased by 10%.",
      "the code gives +2 to melee and defence, +3 to resistance and +1 (ten percent) to hit and to block"),

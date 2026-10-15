@@ -124,6 +124,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 231 | Combat | Conventional battle AI step 9: a brain with the game, wizard spells | (done)
 | 237 | Units | Ship buildings and the coast: inland cities may build the Ship Wrights Guild and Ship Yard | (done)
 | 239 | Data | Spells owned by the game, not imported (done) |
+| 250 | Battle | Fleeing: sure loss of sleeping, confused and webbed units, and safe flee on Intro and Easy (done) |
 
 ## Descriptions
 
@@ -577,3 +578,5 @@ the ward and enchantment icons along the bottom, rubble, and selling by clicking
 **237. Ship buildings and the coast (done).** `can_build` (`production.rs`) refuses a ship *unit* in a city that is not coastal (`NotCoastal`), but the Ship Wrights Guild, Ship Yard and Maritime Guild have no such rule: an inland city can build and pay upkeep for all three and then never build a ship (found by the naval tests in `f4x-ai`). In the original these buildings can only be built in coastal cities (confirmed by the project owner, 15 October 2026), so add the rule (data flag or `can_build` check, returning `NotCoastal`), test it for all three buildings, and check the cities of existing saves and the AI's build order (`economy.rs`) against it. `f4x-ai/naval.rs` `port_item` already tests for `NotCoastal` on the Ship Yard, which can never happen today; it only picks coastal ports, so the AI is unaffected. Done: `BuildingDef.coastal` (set by `import_mom.py` on the three buildings, so `content/buildings.ron` regenerates unchanged), enforced in `can_build` with `NotCoastal`; tests in `f4x-ai/tests/ships.rs`; the soak is unchanged (2 of 8 games end).
 
 **239. Spells owned by the game (done).** `content/spells.ron` is now hand-kept: `scripts/import_mom.py` no longer writes it and its spell tables are gone. The abilities (those only spells grant included) are in `content/abilities.ron`, now kept by hand with the units and buildings. A summoned creature's cost is read from its summoning spell in `spells.ron`. The importer still reads the original's spell table for the help cross-check only, and still takes the spells' help text, pictures and animations as local content.
+
+**250. Fleeing rules from the original (done).** `Combat.c` (3863 and 4075): on Intro and Easy the player whose turn it is loses nothing when they flee, and units that are asleep (Black Sleep), confused or webbed (with Web hit points left) are always lost when their side flees. Ours (`battle/game.rs::overland_aftermath`, task 42) has only the 50% and 25% rolls. The always-lost rule is a plain fix; the difficulty rule reads `rules.safe_flee` of the settings (task 247). Add the help-versus-code check to `help-vs-implementation-conflicts.md` if the original's help text says otherwise.

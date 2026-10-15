@@ -496,25 +496,33 @@ impl Game {
         let mut events = Vec::new();
         let source_of = |u: &BattleUnit| u.source.and_then(|i| sources.get(i).copied());
 
-        // Fleeing costs half the units and a quarter of the heroes (task 42).
+        // Fleeing costs half the units and a quarter of the heroes (task 42). Units that are
+        // asleep, confused or webbed are always lost, and on Intro and Easy the player whose
+        // turn it is (the attacker: a battle starts on its mover's turn) loses nothing else
+        // (`Combat.c`, task 250).
+        const HELD: [&str; 3] = ["black_sleep", "confusion", "web"];
         for side in [Side::Attacker, Side::Defender] {
-            let mut fled: Vec<hecs::Entity> = battle
+            let mut fled: Vec<(hecs::Entity, bool)> = battle
                 .units
                 .iter()
                 .filter(|u| u.side == side && u.status == Status::Fled)
-                .filter_map(source_of)
+                .filter_map(|u| {
+                    let held = u.enchantments.iter().any(|e| HELD.contains(&e.as_str()));
+                    source_of(u).map(|e| (e, held))
+                })
                 .collect();
             if fled.is_empty() {
                 continue;
             }
-            self.sort_by_serial(&mut fled);
+            fled.sort_by_key(|&(e, _)| (self.serial_of(e), e.id()));
+            let safe = self.difficulty <= 1 && side == Side::Attacker;
             let mut lost = 0;
-            for unit in fled {
+            for (unit, held) in fled {
                 let percent = match self.units().unit_def(unit).map(|d| d.kind) {
                     Some(UnitKind::Hero) => 25,
                     _ => 50,
                 };
-                if self.roll(100) <= percent {
+                if held || (!safe && self.roll(100) <= percent) {
                     let _ = self.world.despawn(unit);
                     lost += 1;
                 }

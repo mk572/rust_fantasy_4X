@@ -629,6 +629,54 @@ fn wounded_units_enter_a_battle_wounded() {
     assert!(!g.world.contains(a) || g.units().unit_hits(a).0 == 1);
 }
 
+/// A fight of `n` walkers against one, at the given difficulty, with `held` enchantments put
+/// on the first attackers before the attacker flees. Returns the attackers (alive or not).
+fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity>) {
+    let mut g = game();
+    g.difficulty = difficulty;
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let d = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: att.clone(),
+        defenders: vec![d],
+    });
+    for (i, enchantment) in held.iter().enumerate() {
+        let battle = &mut g.battle.as_mut().unwrap().battle;
+        let unit = battle
+            .units
+            .iter_mut()
+            .filter(|u| u.side == Side::Attacker)
+            .nth(i)
+            .unwrap();
+        unit.enchantments.push((*enchantment).to_string());
+    }
+    g.apply(Command::Battle(BattleCommand::Flee));
+    (g, att)
+}
+
+#[test]
+fn on_intro_and_easy_the_attacker_loses_nobody_by_fleeing() {
+    for difficulty in [0, 1] {
+        let (g, att) = flee_with(difficulty, 9, &[]);
+        assert!(
+            att.iter().all(|&u| g.world.contains(u)),
+            "level {difficulty}"
+        );
+    }
+}
+
+#[test]
+fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
+    // On Intro nobody else is lost, so exactly the three held units go.
+    let (g, att) = flee_with(0, 6, &["black_sleep", "confusion", "web"]);
+    let alive: Vec<bool> = att.iter().map(|&u| g.world.contains(u)).collect();
+    assert_eq!(alive, [false, false, false, true, true, true]);
+    // On Average every unit rolls, but all three held ones are certain to go.
+    let (g, att) = flee_with(2, 3, &["black_sleep", "confusion", "web"]);
+    assert!(att.iter().all(|&u| !g.world.contains(u)));
+}
+
 #[test]
 fn ranged_abilities_map_to_battle_kinds() {
     use super::game::ranged_kind_of;
