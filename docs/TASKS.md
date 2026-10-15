@@ -250,7 +250,7 @@ Decide the multiplayer scope first (`design.md` section 13).
 **75. Wizard overview screen.** A screen about one wizard (the player's own and, once met, the
 rivals): portrait (83), name, books, retorts, fame, gold and mana, cities, heroes, and the spells
 they are known to cast. The data exists (`Magic`, `Player`); the screen and its entry points
-(menu key, clicking a wizard in lists) do not.
+(F9, the original's Mirror key, which is free now; the right-click on a rival's gem on the Magic screen) do not. Layout and art: `docs/hotkeys.md` and the original's `WIZVIEW.c` (panel `backgrnd` 4, gem `lilwiz`, books `magic` 33 to 50).
 
 **76. Background music.** Play music in the client: a track per situation (title, map, city, battle,
 victory and defeat, and the diplomacy screen's own tune), looping and crossfading, with a volume setting (94). The original's music

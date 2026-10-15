@@ -236,7 +236,7 @@ The macroquad client (`f4x-client`) runs this loop each frame: read input, turn 
 touches the `hecs::World` directly except to read. The `--shot` mode runs a few commands
 (`--turns N`) and renders a single frame, which is how the flow is checked without a person.
 
-Keys: F5 saves to `saves/quick.ron`, F9 loads it, and the game autosaves to
+Keys: F10 saves to `saves/quick.ron`, Ctrl-L loads it, and the game autosaves to
 `saves/autosave.ron` at every turn end. `--save FILE` and `--load FILE` do the same from the
 command line. Before each turn end the client puts more citizens on farms if the army would
 otherwise go hungry, so the starting troops do not starve unnoticed.

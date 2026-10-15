@@ -20,7 +20,7 @@ use crate::ui::{Lines, GOLD};
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 
-/// Where F5 / F9 save and load, and where each turn is saved automatically.
+/// Where F10 / Ctrl-L save and load, and where each turn is saved automatically.
 pub const QUICKSAVE: &str = "saves/quick.ron";
 pub const AUTOSAVE: &str = "saves/autosave.ron";
 
@@ -45,7 +45,7 @@ pub enum Screen {
     Options,
     /// The game has ended: result and score.
     GameOver,
-    /// The text console (F2).
+    /// The text console (backquote key).
     Console,
     /// The start menu: Continue, Load Game, New Game, Hall of Fame, Quit.
     MainMenu,
@@ -99,7 +99,7 @@ pub struct App {
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
-    /// The text console's state (F2).
+    /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// A city just taken, waiting for the player to keep or raze it.
     pub(crate) raze_prompt: Option<hecs::Entity>,
@@ -667,7 +667,7 @@ impl App {
         } else {
             self.battle_ui.ready = false;
         }
-        if is_key_pressed(KeyCode::F2) {
+        if is_key_pressed(KeyCode::GraveAccent) {
             self.toggle_console();
         }
         if let Some(city) = self.raze_prompt {
@@ -860,6 +860,62 @@ impl App {
         true
     }
 
+    fn toggle_plane(&mut self) {
+        self.plane = if self.plane == Plane::Arcanus {
+            Plane::Myrror
+        } else {
+            Plane::Arcanus
+        };
+    }
+
+    /// The numpad digits (and the arrow keys, while they do not scroll) move the selected stack
+    /// one square.
+    fn stack_keys(&mut self) {
+        let Some(from) = self.selection_position() else {
+            return;
+        };
+        let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+        let mut keys = vec![
+            (KeyCode::Kp1, (-1, 1)),
+            (KeyCode::Kp2, (0, 1)),
+            (KeyCode::Kp3, (1, 1)),
+            (KeyCode::Kp4, (-1, 0)),
+            (KeyCode::Kp6, (1, 0)),
+            (KeyCode::Kp7, (-1, -1)),
+            (KeyCode::Kp8, (0, -1)),
+            (KeyCode::Kp9, (1, -1)),
+        ];
+        if !shift {
+            keys.extend([
+                (KeyCode::Left, (-1, 0)),
+                (KeyCode::Right, (1, 0)),
+                (KeyCode::Up, (0, -1)),
+                (KeyCode::Down, (0, 1)),
+            ]);
+        }
+        let Some(&(_, (dx, dy))) = keys.iter().find(|(k, _)| is_key_pressed(*k)) else {
+            return;
+        };
+        let Some(map) = self.game.map() else {
+            return;
+        };
+        let (w, h) = (map.width() as i32, map.height() as i32);
+        let y = from.y as i32 + dy;
+        if !(0..h).contains(&y) {
+            return;
+        }
+        let to = Position {
+            plane: from.plane,
+            x: (from.x as i32 + dx).rem_euclid(w) as u32,
+            y: y as u32,
+        };
+        let events = self.game.apply(Command::MoveStack {
+            units: self.selection.clone(),
+            to,
+        });
+        self.note(events);
+    }
+
     fn select_at(&mut self, pos: Position) {
         let mine: Vec<_> = self
             .game
@@ -880,27 +936,25 @@ impl App {
     fn overworld_input(&mut self) {
         let step = 12.0 * get_frame_time();
         let mut pan = Vec2::ZERO;
-        for (key, dir) in [
-            (KeyCode::Left, vec2(-1.0, 0.0)),
-            (KeyCode::A, vec2(-1.0, 0.0)),
-            (KeyCode::Right, vec2(1.0, 0.0)),
-            (KeyCode::D, vec2(1.0, 0.0)),
-            (KeyCode::Up, vec2(0.0, -1.0)),
-            (KeyCode::W, vec2(0.0, -1.0)),
-            (KeyCode::Down, vec2(0.0, 1.0)),
-            (KeyCode::S, vec2(0.0, 1.0)),
-        ] {
-            if is_key_down(key) {
-                pan += dir;
+        // The arrow keys move the selected stack, as in the original; they scroll the map when
+        // nothing is selected, or with Shift held.
+        let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+        let scrolls = self.selection.is_empty() || shift;
+        if scrolls {
+            for (key, dir) in [
+                (KeyCode::Left, vec2(-1.0, 0.0)),
+                (KeyCode::Right, vec2(1.0, 0.0)),
+                (KeyCode::Up, vec2(0.0, -1.0)),
+                (KeyCode::Down, vec2(0.0, 1.0)),
+            ] {
+                if is_key_down(key) {
+                    pan += dir;
+                }
             }
         }
         self.cam += pan * step;
         if is_key_pressed(KeyCode::Tab) {
-            self.plane = if self.plane == Plane::Arcanus {
-                Plane::Myrror
-            } else {
-                Plane::Arcanus
-            };
+            self.toggle_plane();
         }
         if is_key_pressed(KeyCode::Equal) || is_key_pressed(KeyCode::KpAdd) {
             self.zoom = (self.zoom + 1.0).min(6.0);
@@ -908,7 +962,7 @@ impl App {
         if is_key_pressed(KeyCode::Minus) || is_key_pressed(KeyCode::KpSubtract) {
             self.zoom = (self.zoom - 1.0).max(1.0);
         }
-        if is_key_pressed(KeyCode::Enter) {
+        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::N) {
             self.end_turn();
             self.save_to(Path::new(AUTOSAVE));
         }
@@ -916,7 +970,7 @@ impl App {
         if command_key && is_key_pressed(KeyCode::Z) {
             self.undo_last();
         }
-        if is_key_pressed(KeyCode::F5) {
+        if is_key_pressed(KeyCode::F10) {
             self.save_to(Path::new(QUICKSAVE));
         }
         if is_key_pressed(KeyCode::F8) {
@@ -932,62 +986,87 @@ impl App {
                 .into(),
             );
         }
-        if is_key_pressed(KeyCode::F9) {
+        if command_key && is_key_pressed(KeyCode::L) {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
                 self.log.push(format!("Load failed: {e}"));
             }
         }
-        if is_key_pressed(KeyCode::M) {
+        if !command_key && is_key_pressed(KeyCode::M) {
             self.open_magic();
         }
-        if is_key_pressed(KeyCode::V) {
+        if is_key_pressed(KeyCode::S) {
             self.open_spellbook();
+        }
+        if is_key_pressed(KeyCode::G) {
+            self.open_slots(false);
         }
         if is_key_pressed(KeyCode::F3) {
             self.open_apprentice();
         }
-        if is_key_pressed(KeyCode::N) {
+        if command_key && is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
         }
-        if is_key_pressed(KeyCode::R) {
+        if command_key && is_key_pressed(KeyCode::R) {
             self.race = (self.race + 1) % self.game.content().rules.races.len().max(1);
             self.new_map(self.seed);
             let name = self.race_name(self.race).to_string();
             self.log.push(format!("Playing as {name}"));
         }
         if is_key_pressed(KeyCode::B) {
-            self.settle();
-        }
-        if is_key_pressed(KeyCode::U) && !self.selection.is_empty() {
-            let events = self.game.apply(Command::Meld {
-                units: self.selection.clone(),
+            let settles = self.selection.iter().any(|&u| {
+                self.game.units().unit_has_ability(u, "create_outpost")
+                    || self
+                        .game
+                        .units()
+                        .unit_stat(u, f4x_core::rules::Stat::Construction)
+                        > 0
             });
-            self.note(events);
-        }
-        if is_key_pressed(KeyCode::P) && !self.selection.is_empty() {
-            let events = self.game.apply(Command::ShiftPlane {
-                units: self.selection.clone(),
-            });
-            if let Some(at) = self.selection_position() {
-                self.plane = at.plane;
+            if settles || self.selection.is_empty() {
+                self.settle();
+            } else {
+                // The special button of the original: a spirit melds with the node it stands on.
+                let events = self.game.apply(Command::Meld {
+                    units: self.selection.clone(),
+                });
+                self.note(events);
             }
-            self.note(events);
         }
+        if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::U) {
+            self.selection.clear();
+        }
+        if is_key_pressed(KeyCode::P) {
+            // The plane button: the selected units change plane if they can, else the view does.
+            let shifted = !self.selection.is_empty() && {
+                let events = self.game.apply(Command::ShiftPlane {
+                    units: self.selection.clone(),
+                });
+                let ok = !events
+                    .iter()
+                    .any(|e| matches!(e, f4x_core::Event::Rejected(_)));
+                self.note(events);
+                ok
+            };
+            if shifted {
+                if let Some(at) = self.selection_position() {
+                    self.plane = at.plane;
+                }
+            } else {
+                self.toggle_plane();
+            }
+        }
+        self.stack_keys();
         if is_key_pressed(KeyCode::T) {
             self.game.balance_farmers(HUMAN);
             self.log.push("Farmers balanced to feed the army".into());
         }
-        if is_key_pressed(KeyCode::F) && !self.selection.is_empty() {
+        if is_key_pressed(KeyCode::D) && !self.selection.is_empty() {
             self.game.apply(Command::ClearOrders {
                 units: self.selection.clone(),
             });
         }
         if is_key_pressed(KeyCode::C) {
-            let at = self
-                .selection_position()
-                .or_else(|| self.tile_at(mouse_position().into()));
-            if let Some(city) = at.and_then(|p| self.game.economy().city_at(p)) {
-                self.screen = Screen::City(city);
+            if let Some(at) = self.selection_position() {
+                self.center_on(at);
             }
         }
         self.clamp_camera();
@@ -1335,10 +1414,10 @@ impl App {
         );
         if self.show_keys || is_key_down(KeyCode::F1) {
             let keys = [
-                "click select      right-click go      B settle / build road      U meld spirit",
-                "C city      P plane-shift      F stop      T balance farmers      M magic      V spell book      F3 apprentice",
-                "Tab other plane      +/- zoom      arrows pan      Enter end turn",
-                "Ctrl-Z undo      F5 quick-save      F9 quick-load      F8 Grand Vizier      N new map      R next race      Esc game menu",
+                "click select      right-click go      B settle / road / meld      Q or U unselect      D done",
+                "C centre      P plane      numpad / arrows move the stack      T balance farmers      M magic      S spells      F3 apprentice      G game menu",
+                "Tab other plane      +/- zoom      arrows pan (nothing selected, or with Shift)      N or Enter end turn",
+                "Ctrl-Z undo      F10 quick-save      Ctrl-L quick-load      F8 Grand Vizier      Ctrl-N new map      Ctrl-R next race      ` console      Esc game menu",
             ];
             let box_w = m.w * 0.9;
             draw_rectangle(

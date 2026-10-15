@@ -50,7 +50,7 @@ Two things worth knowing before the tables:
 |---|---|---|---|
 | **Main menu** (`Main_Menu_Screen`, `MainMenu.c`) | The title page: Continue, Load Game, New Game, Quit to DOS, Hall of Fame. Plays the credits when left alone. | At start (after the opening movie); from the Load screen's Quit (it saves to slot 9 first); after the Hall of Fame; after a cancelled new game; when a game ends (win or lose). | **Done** (`menu_screen.rs`, task 86), on the original's art; Hall of Fame is greyed (88) and there is no credits roll or opening movie (85). |
 | **Continue** (`scr_Continue`, no picture) | Loads the last auto-save (slot 9) and goes to the main screen. | "Continue" on the main menu; when the new-game steps finish (the new game is created, then continued). | **Done:** the client auto-saves at every end of turn and Continue loads it. F9 loads the quick-save. Console: `load`. |
-| **Load / Save** (`Load_Screen`, `LoadScr.c`) | One screen for both: the list of save slots, buttons Load, Save, Settings, Quit (saves, then to the main menu) and OK. | The **Game** button on the main screen; "Load Game" on the main menu. | **Done** (`menu_screen.rs`, task 145): eight slots on the original's art. A slot's name is not typed; it shows wizard, turn and save time. Settings is greyed (94). F5 and F9 still quick-save and load. |
+| **Load / Save** (`Load_Screen`, `LoadScr.c`) | One screen for both: the list of save slots, buttons Load, Save, Settings, Quit (saves, then to the main menu) and OK. | The **Game** button on the main screen; "Load Game" on the main menu. | **Done** (`menu_screen.rs`, task 145): eight slots on the original's art. A slot's name is not typed; it shows wizard, turn and save time. Settings is greyed (94). F10 and Ctrl-L quick-save and load. |
 | **New game** (`Newgame_Control`, `NewGame.c`) | Walks through the eight creation steps of section 3, then builds the world. | "New Game" on the main menu. | **Partial.** One creation screen covers wizard, picks, spells and race (section 3), with a Back button to the menu. |
 | **Quit to DOS** (`scr_Quit_To_DOS`) | Ends the program (the source marks an auto-save here as to do). | Main menu Quit; the quit-game flag on the main screen. | **Done** (Esc quits; there is no confirmation or auto-save). |
 | **Hall of fame** (`Hall_Of_Fame_Screen`, `SCORE.c`) | The table of best scores, with the winner's name, race and score, kept between games in `MAGIC.SET`. | "Hall of Fame" on the main menu; after the end-of-game score (`End_Of_Game_Score`). | **Missing.** Task 88. The score itself is computed (`endgame.rs`, `docs/game_end.md`). |
@@ -163,7 +163,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 | Screen | What it does | Entered |
 |---|---|---|
-| **Console** (`console_screen.rs`, `f4x-console`) | The text interface to the game: every action as a command, with legal and override modes. See [`console.md`](console.md). | F2 in the client; the `f4x-tools` binary runs it without the client. |
+| **Console** (`console_screen.rs`, `f4x-console`) | The text interface to the game: every action as a command, with legal and override modes. See [`console.md`](console.md). | The backquote key in the client (F2 is the Cartographer); the `f4x-tools` binary runs it without the client. |
 | **Game over** (`game_over_screen.rs`) | Plain result and score; stands in for sections 6's screens until task 134. | When the core reports the game ended. |
 | **Wizard creation** (`create_screen.rs`) | One screen for steps 1, 4, 5 and 6 of section 3. | At start. |
 

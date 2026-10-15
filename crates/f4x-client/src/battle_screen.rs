@@ -1346,10 +1346,12 @@ impl App {
         let can_cast = my_turn
             && self.battle_ui.aiming.is_none()
             && Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn);
-        if self.compix_button(1, "Spell", (col(0.0), by), can_cast) {
+        let spell = self.compix_button(1, "Spell", (col(0.0), by), can_cast);
+        if spell || (can_cast && is_key_pressed(KeyCode::S)) {
             self.battle_ui.spell_list = !self.battle_ui.spell_list;
         }
-        if self.compix_button(2, "Wait", (col(1.0), by), my_turn) {
+        let wait = self.compix_button(2, "Wait", (col(1.0), by), my_turn);
+        if wait || (my_turn && is_key_pressed(KeyCode::W)) {
             self.select_next(sel);
         }
         if self.compix_button(3, "Done", (col(2.0), by), my_turn && sel.is_some()) {
@@ -1358,7 +1360,8 @@ impl App {
         self.compix_button(4, "Auto", (col(0.0), by + 40.0), false);
         self.compix_button(20, "Info", (col(1.0), by + 40.0), false);
         let sure = self.battle_ui.confirm_flee;
-        if self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn) {
+        let flee = self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn);
+        if flee || (my_turn && is_key_pressed(KeyCode::F)) {
             if sure {
                 order = Some(BattleCommand::Flee);
             } else {

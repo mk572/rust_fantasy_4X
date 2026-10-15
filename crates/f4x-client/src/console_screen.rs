@@ -1,4 +1,4 @@
-//! The text console in the client (F2): the same `f4x_console::Console` every other front end
+//! The text console in the client (backquote key): the same `f4x_console::Console` every other front end
 //! uses, with an input line, scrollback and a command history.
 
 use f4x_console::{Access, Console, Mode};
@@ -155,12 +155,6 @@ impl App {
             size,
             color,
         );
-        draw_text(
-            "F2 / Esc: back to the game",
-            w - 250.0,
-            h - 22.0,
-            16.0,
-            GRAY,
-        );
+        draw_text("` / Esc: back to the game", w - 250.0, h - 22.0, 16.0, GRAY);
     }
 }

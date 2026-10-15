@@ -1,6 +1,6 @@
 # The console
 
-Code: `crates/f4x-console/`. Front ends: the client (F2), `f4x-tools console` (headless).
+Code: `crates/f4x-console/`. Front ends: the client (backquote key), `f4x-tools console` (headless).
 Planned mod item 15 (`PLANNED.md`); the MCP server (item 17), an AI player and a remote client are
 meant to use the same hooks.
 
@@ -45,7 +45,7 @@ everything.
 
 ## 2. Using it
 
-**In the client:** F2 opens the console as a screen (F2 or Esc closes it). The prompt shows the
+**In the client:** The backquote key (`) opens the console as a screen (the same key or Esc closes it). The prompt shows the
 mode (`[read-only]>`, `[legal]>` or red `[OVERRIDE]>`). Up and Down walk through the history and Tab completes a
 command name. A battle that starts from a console line keeps the console open, so a fight can
 be played from text (`battle`, `bmove`, `battack`, ...).
