@@ -9,7 +9,8 @@ their own lists.
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
 - 31 spells are listed. The count should drop as they are done: when a spell is wired, delete its
-  row, and keep `docs/TASKS.md` and the importer (`scripts/import_mom.py`) in step.
+  row, and keep `docs/TASKS.md` in step. Spells are edited directly in `content/spells.ron` (the
+  importer no longer writes it).
 - Where help and code disagree for a spell, add a row to
   `help-vs-implementation-conflicts.md` when it is wired.
 

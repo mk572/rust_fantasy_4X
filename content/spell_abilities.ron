@@ -1,0 +1,9 @@
+// Abilities that only spells grant. Kept by hand (the importer does not write this file).
+[
+    (id: "asleep", name: "Asleep", description: "Cannot move, attack or fly; every blow against it does full damage.", effects: []),
+    (id: "confused", name: "Confused", description: "Each turn it stands about, wanders to a random square, is led by the enemy, or acts as usual.", effects: []),
+    (id: "eldritch_weapon", name: "Eldritch Weapon", description: "Its attacks are magical and the defender blocks with one plus fewer.", effects: []),
+    (id: "pathfinding", name: "Path Finding", description: "The unit and all stacked with it cross any land square for one half move.", effects: []),
+    (id: "water_walking", name: "Water Walking", description: "Walks on water as on land, without a ship.", effects: []),
+    (id: "webbed", name: "Webbed", description: "Held where it stands, and no longer flies, until the web is dispelled.", effects: []),
+]

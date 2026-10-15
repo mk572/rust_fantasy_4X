@@ -59,11 +59,16 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
     let dir = dirs;
     let mut races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
     apply_city_names(dir, &mut races)?;
+    // The abilities only spells grant are kept by hand in their own file.
+    let mut abilities = parse::<Vec<AbilityDef>>(dir, "abilities.ron")?;
+    if find(dir, "spell_abilities.ron").is_some() {
+        abilities.extend(parse::<Vec<AbilityDef>>(dir, "spell_abilities.ron")?);
+    }
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
         races: Registry::new(races),
         units: Registry::new(parse::<Vec<UnitDef>>(dir, "units.ron")?),
-        abilities: Registry::new(parse::<Vec<AbilityDef>>(dir, "abilities.ron")?),
+        abilities: Registry::new(abilities),
         buildings: Registry::new(parse::<Vec<BuildingDef>>(dir, "buildings.ron")?),
         realms: Registry::new(parse::<Vec<RealmDef>>(dir, "realms.ron")?),
         spells: Registry::new(parse::<Vec<SpellDef>>(dir, "spells.ron")?),

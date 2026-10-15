@@ -114,6 +114,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 227 | Meta | Scripted AI step 3: research choice and power split | (done)
 | 231 | Combat | Conventional battle AI step 9: a brain with the game, wizard spells | (done)
 | 237 | Units | Ship buildings and the coast: inland cities may build the Ship Wrights Guild and Ship Yard | (done)
+| 239 | Data | Spells owned by the game, not imported (done) |
 
 ## Descriptions
 
@@ -532,3 +533,5 @@ the ward and enchantment icons along the bottom, rubble, and selling by clicking
 **231. Conventional battle AI step 9 (done).** Section 6.2 and 6.5. `ScriptedBrain` as a `BattleBrain` with the whole game: cast once a turn from `legal_battle_casts` by value per mana, then the unit orders. `next_command(&Battle)` stays for callers without a game. Keep the old logic as `ai::baseline` for the mirrored-fight test. Done in `crates/f4x-core/src/battle/brain.rs` (`Game::next_battle_command` for every wizard without a learned brain): a cast chosen by value per mana from `legal_battle_casts`, then the unit orders. 300 mirrored fights against the plain AI: 173 won, 127 lost (`crates/f4x-learn/tests/mirror.rs`).
 
 **237. Ship buildings and the coast (done).** `can_build` (`production.rs`) refuses a ship *unit* in a city that is not coastal (`NotCoastal`), but the Ship Wrights Guild, Ship Yard and Maritime Guild have no such rule: an inland city can build and pay upkeep for all three and then never build a ship (found by the naval tests in `f4x-ai`). In the original these buildings can only be built in coastal cities (confirmed by the project owner, 15 October 2026), so add the rule (data flag or `can_build` check, returning `NotCoastal`), test it for all three buildings, and check the cities of existing saves and the AI's build order (`economy.rs`) against it. `f4x-ai/naval.rs` `port_item` already tests for `NotCoastal` on the Ship Yard, which can never happen today; it only picks coastal ports, so the AI is unaffected. Done: `BuildingDef.coastal` (set by `import_mom.py` on the three buildings, so `content/buildings.ron` regenerates unchanged), enforced in `can_build` with `NotCoastal`; tests in `f4x-ai/tests/ships.rs`; the soak is unchanged (2 of 8 games end).
+
+**239. Spells owned by the game (done).** `content/spells.ron` is now hand-kept: `scripts/import_mom.py` no longer writes it and its spell tables are gone. The abilities only spells grant are in `content/spell_abilities.ron` (read by the loader beside `abilities.ron`). A summoned creature's cost is read from its summoning spell in `spells.ron`. The importer still reads the original's spell table for the help cross-check only, and still takes the spells' help text, pictures and animations as local content.

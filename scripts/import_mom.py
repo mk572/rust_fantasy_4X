@@ -540,7 +540,7 @@ def build_units(
     races: list[Race],
     buildings: dict[int, Building],
     used_abilities: dict[str, tuple[str, str]],
-    spell_cost_by_unit: dict[int, int],
+    spell_cost_by_unit: dict[str, int],
     report: Report,
 ) -> list[Unit]:
     ids: dict[int, str] = {}
@@ -570,7 +570,7 @@ def build_units(
             kind, cost, race_index = "Normal", v["cost"], v["race"]
         else:
             kind = "Summoned"
-            cost = v["cost"] or spell_cost_by_unit.get(row.index, 0) or 1
+            cost = v["cost"] or spell_cost_by_unit.get(ids[row.index], 0) or 1
         parts.append(f"kind: {kind}")
         if kind == "Normal":
             parts.append(f"race: Some({ron_str(races[race_index].id)})")
@@ -617,33 +617,8 @@ def build_units(
 # Spells
 # --------------------------------------------------------------------------- #
 
-@dataclass
-class SpellHelp:
-    effects: str
-    target: str
-    upkeep: int
-    text: str
-
-
 def norm_name(name: str) -> str:
     return re.sub(r"[^a-z]", "", name.lower())
-
-
-def spell_help_from_topics(topics: list["HelpTopic"]) -> dict[str, SpellHelp]:
-    """Spell details from the (corrected) help topics: effect class, target, upkeep, text."""
-    out = {}
-    for topic in topics:
-        lines = topic.text.split("\n")
-        if not lines[0].startswith("Effects:") or len(lines) < 5:
-            continue
-        upkeep_digits = re.search(r"\d+", lines[3])
-        out[norm_name(topic.title)] = SpellHelp(
-            lines[0][len("Effects:"):].strip(),
-            lines[1][len("Target:"):].strip(),
-            int(upkeep_digits.group()) if upkeep_digits else 0,
-            "\n".join(lines[4:]),
-        )
-    return out
 
 
 @dataclass
@@ -662,6 +637,18 @@ class SpellRow:
     attributes: int = 0
 
 
+def summon_costs(spells_ron: Path) -> dict[str, int]:
+    """Casting cost of the spell that summons each unit, by unit id, from the game's own
+    `spells.ron` (kept by hand): a summoned creature costs what its spell does."""
+    out = {}
+    for line in spells_ron.read_text(encoding="utf-8").splitlines():
+        unit = re.search(r'Summon\(unit: "([^"]+)"', line)
+        cost = re.search(r"\bcost: (\d+)", line)
+        if unit and cost:
+            out[unit.group(1)] = int(cost.group(1))
+    return out
+
+
 def import_spell_rows(game: Path) -> list[SpellRow]:
     rows = []
     for i, r in enumerate(read_records(read_lbx(game / "SPELLDAT.LBX")[0])):
@@ -675,95 +662,9 @@ def import_spell_rows(game: Path) -> list[SpellRow]:
     return rows
 
 
-# Unit-enchantment style spells that map directly onto stat modifiers.
-# name -> list of (stat, op, value). Sourced from the original manual text.
-UNIT_ENCHANT_MODS = {
-    # Heroism lifts the unit to Elite (`Game::unit_level`).
-    "Heroism": [],
-    "Regeneration": [("Grant", "regeneration")],
-    "Giant Strength": [("Melee", "Add", 1)],
-    "Stone Skin": [("Defense", "Add", 1)],
-    "Iron Skin": [("Defense", "Add", 5)],
-    # Resist Elements and Resist Magic add to resistance against particular realms only, which
-    # the engine works out from the spell (`battle::immunity::effective_resistance`).
-    "Resist Elements": [],
-    # Their defence bonuses and Righteousness's ward are worked out from the spell too.
-    "Elemental Armor": [],
-    "Bless": [],
-    "Righteousness": [],
-    # Weapon immunity; the battle also stops two more points of each hit (`battle/attack.rs`).
-    "Invulnerability": [("Grant", "weapon_immunity")],
-    # Seeing through illusions is the illusion immunity (the original sets that bit too).
-    "True Sight": [("Grant", "illusion_immunity")],
-    # Fire on every melee blow, fear in melee, and a weapon that is magical and blocks less
-    # (`battle/attack.rs`).
-    "Immolation": [("Grant", "immolation")],
-    "Cloak of Fear": [("Grant", "cause_fear")],
-    "Eldritch Weapon": [("Grant", "eldritch_weapon"), ("Grant", "magical_weapon")],
-    # Dispelling and the slaying spells read the lock by name (`dispel.rs`).
-    "Spell Lock": [],
-    "Resist Magic": [],
-    "Magic Immunity": [("Grant", "magic_immunity")],
-    "Guardian Wind": [("Grant", "missile_immunity")],
-    # Movement: the overland rules read these abilities (`movement.rs`).
-    "Wind Walking": [("Grant", "wind_walking")],
-    "Planar Travel": [("Grant", "planar_travel")],
-    "Water Walking": [("Grant", "water_walking")],
-    "Path Finding": [("Grant", "pathfinding")],
-    # Weapon immunity and a body that passes walls; on the map every land square costs one half move.
-    "Wraith Form": [("Grant", "non_corporeal"), ("Grant", "weapon_immunity")],
-    "Lionheart": [("Melee", "Add", 3), ("Ranged", "Add", 3), ("Resistance", "Add", 3), ("MaxHp", "Add", 3)],
-    "Holy Armor": [("Defense", "Add", 2)],
-    "Holy Weapon": [("ToHit", "Add", 10), ("Grant", "magical_weapon")],
-    "Endurance": [("Moves", "Add", 1)],
-    "Flame Blade": [("Melee", "Add", 2), ("Ranged", "Add", 2), ("Grant", "magical_weapon")],
-    "Haste": [("Moves", "Percent", 100)],
-    # (The game's own spelling of the name.)
-    "Invisiblity": [("Grant", "invisibility")],
-    "Flight": [("Moves", "Set", 3)],
-    # Twice the melee strength and no defence (`battle/attack.rs` also drops the realm bonuses).
-    "Berserk": [("Melee", "Percent", 100), ("Defense", "Set", 0)],
-    # Held where it stands (no flying either), asleep (cannot act, takes full damage), and
-    # confused (a random act each turn): the battle reads the spell by name (`battle/field.rs`).
-    "Web": [("Moves", "Set", 0), ("Grant", "webbed")],
-    "Black Sleep": [("Moves", "Set", 0), ("Grant", "asleep")],
-    "Confusion": [("Grant", "confused")],
-    "Weakness": [("Melee", "Add", -2), ("Ranged", "Add", -2)],
-    "Vertigo": [("ToHit", "Add", -20), ("Defense", "Add", -1)],
-    "Black Prayer": [("Melee", "Add", -1), ("Defense", "Add", -1), ("Resistance", "Add", -2)],
-    "Mind Storm": [("Melee", "Add", -5), ("Ranged", "Add", -5), ("Defense", "Add", -5), ("Resistance", "Add", -5)],
-    "Black Channels": [("Melee", "Add", 2), ("Ranged", "Add", 1), ("MaxHp", "Add", 1),
-                       ("Resistance", "Add", 1), ("Defense", "Add", 1)],
-}
-NEGATIVE_UNIT_SPELLS = {"Weakness", "Black Prayer", "Mind Storm", "Warp Creature", "Web", "Vertigo",
-                        "Confusion", "Possession", "Black Sleep", "Slow", "Creature Binding", "Petrify"}
-
-CITY_ENCHANT_MODS = {
-    # Gaia's Blessing is handled by the engine itself (more food from the land, doubled
-    # forest production), so it keeps the placeholder effect.
-    "Consecration": [("CityUnrest", "Add", -2)],
-    "Natures Eye": [("CitySight", "Min", 4)],
-    "Nature's Eye": [("CitySight", "Min", 4)],
-    "Inspirations": [("CityProduction", "Percent", 100)],
-    "Heavenly Light": [("CityUnrest", "Add", -1)],
-    "Altar of Battle": [("StartingXp", "Min", 120)],
-    "Stream of Life": [("CityGrowthPercent", "Add", 100)],
-    "Prosperity": [("CityGold", "Percent", 100)],
-    "Famine": [("CityFood", "Percent", -50), ("CityUnrestPercent", "Add", 25)],
-    "Pestilence": [("CityUnrest", "Add", 2)],
-    "Cursed Lands": [("CityProduction", "Percent", -50), ("CityUnrest", "Add", 1)],
-    "Dark Rituals": [("CityGrowthPercent", "Add", -25), ("CityUnrest", "Add", 1)],
-}
-
-DAMAGE_KIND_BY_NAME = {
-    "Ice Bolt": "Cold", "Ice Storm": "Cold", "Lightning Bolt": "Lightning", "Call Lightning": "Lightning",
-    "Warp Lightning": "Lightning", "Fire Bolt": "Fire", "Fireball": "Fire", "Flame Strike": "Fire",
-    "Fire Storm": "Fire", "Doom Bolt": "Physical", "Life Drain": "Death", "Death Spell": "Death",
-    "Psionic Blast": "Physical", "Holy Word": "Holy", "Disintegrate": "Physical",
-}
-DAMAGE_KIND_BY_REALM = {"nature": "Cold", "sorcery": "Lightning", "chaos": "Fire", "life": "Holy",
-                        "death": "Death", "arcane": "Physical"}
-
+# --------------------------------------------------------------------------- #
+# Items
+# --------------------------------------------------------------------------- #
 
 def mods_effects(mods: list[tuple]) -> list[str]:
     """Passive effects: stat modifiers `(stat, op, value)` and granted abilities `("Grant", id)`."""
@@ -773,289 +674,6 @@ def mods_effects(mods: list[tuple]) -> list[str]:
         for m in mods
     ]
 
-
-# Spells that move the wizard's fortress or summoning circle; the engine runs these hooks.
-FORTRESS_HOOKS = {
-    "Move Fortress": "move_fortress",
-    "Summoning Circle": "move_summoning_circle",
-    "Spell of Return": "return_to_fortress",
-}
-
-
-# Spells that reshape one map square; the engine runs these hooks on a tile target.
-TILE_HOOKS = {
-    "Raise Volcano": "raise_volcano",
-    "Change Terrain": "change_terrain",
-    "Enchant Road": "enchant_road",
-    "Corruption": "corrupt_land",
-    "Warp Node": "warp_node",
-    "Transmute": "transmute",
-    "Earth Lore": "earth_lore",
-}
-
-# Special spells aimed at a friendly unit and its stack (`special_spells.rs`).
-UNIT_HOOKS = {
-    "Nature's Cures": "natures_cures",
-    "Word of Recall": "word_of_recall",
-    "Plane Shift": "plane_shift",
-}
-
-
-# Instant overland spells that strike at a wizard, a city or every unit on the map
-# (`wizard_spells.rs`): (hook, target).
-WIZARD_HOOKS = {
-    "Drain Power": ("drain_power", "EnemyWizard"),
-    "Cruel Unminding": ("cruel_unminding", "EnemyWizard"),
-    "Subversion": ("subversion", "EnemyWizard"),
-    "Great Unsummoning": ("great_unsummoning", "None"),
-    "Death Wish": ("death_wish", "None"),
-    "Earthquake": ("earthquake", "EnemyCity"),
-    "Black Wind": ("black_wind", "Tile"),
-    "Lycanthropy": ("lycanthropy", "OwnUnit"),
-}
-
-
-# Global enchantments the engine reads from the wizard's list (`globals.rs`); casting them
-# runs no effect of its own.
-GLOBAL_ENGINE = {
-    "Herb Mastery", "Planar Seal", "Evil Omens", "Awareness", "Nature Awareness",
-    "Detect Magic", "Charm of Life", "Suppress Magic", "Crusade", "Aura of Majesty",
-    "Just Cause",
-}
-
-# The dispel family (`dispel.rs`): (target, effect, strength factor). The strength is the
-# spell's cost (we have no extra mana); the "True" spells count every point three times.
-DISPEL_FAMILY = {
-    "Disenchant Area": ("Tile", "Dispel", 1),
-    "Disenchant True": ("Tile", "Dispel", 3),
-    "Disjunction": ("GlobalEnchantment", "disjunction", 1),
-    "Disjunction True": ("GlobalEnchantment", "disjunction_true", 1),
-    "Spell Binding": ("GlobalEnchantment", "spell_binding", 1),
-    "Spell Blast": ("EnemyWizard", "spell_blast", 1),
-    # A reserve in a battle (`Battle::counter_magic`) that the mana put into the spell fills.
-    "Counter Magic": ("None", "counter_magic", 1),
-}
-
-# Battlefield enchantments, whose effects the battle code carries out by the spell's id
-# (`battle/field.rs`).
-BATTLEFIELD_ENCHANTMENTS = {
-    "Entangle", "Call Lightning", "Blur", "Mass Invisibility", "Metal Fires", "Warp Reality",
-    "True Light", "Prayer", "High Prayer", "Terror", "Darkness", "Mana Leak", "Black Prayer",
-    "Wrack",
-}
-# Instant spells that destroy figures that fail a resistance check (`Effect::Slay`):
-# (target, realm, modifier, immune abilities, who, resistance limit, mana per extra step).
-# The modifiers are the original's `Spell_Resistance_Modifier`. Holy Word's check uses the
-# death realm in the original's code; its own realm (life) is used here, where Righteousness
-# does not help the creatures it is thrown at (an OGBUG).
-SLAY_SPELLS = {
-    "Holy Word": ("AllEnemyUnits", "life", -2, [], "Fantastic", None, 0),
-    "Death Spell": ("AllEnemyUnits", "death", -2, ["death_immunity"], "Any", None, 0),
-    "Word of Death": ("Chosen", "death", -5, [], "Any", None, 0),
-    "Petrify": ("Chosen", "nature", 0, ["stoning_immunity"], "Any", None, 0),
-    "Dispel Evil": ("Chosen", "life", -4, [], "ChaosOrDeath", None, 0),
-    "Disintegrate": ("Chosen", "chaos", 0, [], "Any", 10, 0),
-    "Banish": ("Chosen", "sorcery", -3, [], "Fantastic", None, 15),
-}
-# Curses a unit can resist when they are cast in a battle: (resistance modifier, abilities that
-# make the unit immune). Mind Storm has no resistance roll (a modifier no resistance can beat).
-CURSE_SAVES = {
-    "Weakness": (-2, []),
-    "Vertigo": (0, []),
-    "Black Sleep": (-2, []),
-    "Confusion": (-4, []),
-    "Mind Storm": (-100, ["illusion_immunity"]),
-}
-
-# Extra mana (beyond the cost) that buys one more point of strength from a damage spell in a
-# battle: Fire Bolt, Ice Bolt and Lightning Bolt take one each, Psionic Blast two and Fireball
-# three (`Combat_Cast_Apply_Spell_Effect`). The other damage spells take no extra mana.
-MANA_PER_POINT = {"Fire Bolt": 1, "Ice Bolt": 1, "Lightning Bolt": 1, "Psionic Blast": 2, "Fireball": 3}
-# Global enchantments that change unit stats: (condition, stat, op, value) per rule.
-GLOBAL_MODS = {
-    "Holy Arms": [("KindIs(Normal)", "Melee", "Add", 1), ("KindIs(Normal)", "Ranged", "Add", 1)],
-    "Chaos Surge": [('RealmIs("chaos")', "Melee", "Add", 2), ('RealmIs("chaos")', "Ranged", "Add", 2)],
-}
-
-
-# City enchantments whose effect the engine reads from the city's enchantment list (`gates.rs`).
-CITY_ENGINE = {"Earth Gate", "Astral Gate"}
-
-# City enchantments the engine reads by name from the city's enchantment list (`cityflags.rs`,
-# `economy.rs`, `battle/`): casting only puts the enchantment on the city.
-CITY_FLAGS = {
-    "Gaia's Blessing", "Flying Fortress", "Wall of Fire", "Wall of Darkness", "Cloud of Shadow",
-    "Chaos Rift", "Evil Presence",
-}
-
-
-def spell_effects(row: SpellRow, unit_ids: dict[int, str], realm_id: str, report: Report) -> tuple[list[str], str, str]:
-    """Return (effects, target, duration-kind) for a spell; `duration-kind` is
-    "instant" or "lasting". Unmapped spells get the `unimplemented` custom hook."""
-    name, kind = row.name, row.kind
-    if name in FORTRESS_HOOKS:
-        hook = FORTRESS_HOOKS[name]
-        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnCity", "instant"
-    if name == "Spell of Mastery":  # finishing it wins the game (engine hook)
-        return ['(when: OnCast, target: Chosen, effect: Custom("spell_of_mastery"))'], "None", "instant"
-    if name in TILE_HOOKS:
-        hook = TILE_HOOKS[name]
-        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "Tile", "instant"
-    if name in UNIT_HOOKS:
-        hook = UNIT_HOOKS[name]
-        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], "OwnUnit", "instant"
-    if name in WIZARD_HOOKS:
-        hook, target = WIZARD_HOOKS[name]
-        return [f'(when: OnCast, target: Chosen, effect: Custom("{hook}"))'], target, "instant"
-    if name in DISPEL_FAMILY:
-        target, effect, factor = DISPEL_FAMILY[name]
-        if effect == "Dispel":
-            effect = f"Dispel(strength: {max(row.cost, 1) * factor})"
-        else:
-            effect = f'Custom("{effect}")'
-        return [f"(when: OnCast, target: Chosen, effect: {effect})"], target, "instant"
-    if name in GLOBAL_ENGINE or name in GLOBAL_MODS:
-        rules = ['(when: OnCast, target: Chosen, effect: Custom("global_effect"))']
-        for cond, stat, op, value in GLOBAL_MODS.get(name, []):
-            rules.append(f"(condition: {cond}, effect: Modify(stat: {stat}, op: {op}, value: {value}))")
-        return rules, "None", "lasting"
-    unimplemented = ['(when: OnCast, target: Chosen, effect: Custom("unimplemented"))']
-    if name == "Animate Dead":  # raises one of the wizard's own dead units (`battle/spells.rs`)
-        return ['(when: OnCast, target: Chosen, effect: Custom("animate_dead"))'], "AnyUnit", "instant"
-    if name == "Wall of Stone":  # builds City Walls in a friendly city (`Cast_Wall_Of_Stone`)
-        return ['(when: OnCast, target: Chosen, effect: Custom("wall_of_stone"))'], "OwnCity", "instant"
-    if name == "Spell Ward":  # the realm is picked when casting
-        return ['(when: OnCast, target: Chosen, effect: Custom("spell_ward"))'], "OwnCity", "lasting"
-    if name in BATTLEFIELD_ENCHANTMENTS:
-        return ['(when: OnCast, target: Chosen, effect: Custom("battlefield"))'], "Battlefield", "lasting"
-    if name == "Call Chaos":
-        return ['(when: OnCast, target: Chosen, effect: Custom("call_chaos"))'], "Battlefield", "instant"
-    if name == "Mass Healing":
-        return ["(when: OnCast, condition: Not(RealmIs(\"death\")), target: AllOwnUnits, effect: Heal(5))"], "Battlefield", "instant"
-    if name == "Flame Strike":
-        immune = [ident for mask, ident, *_ in ATTRIB_1_FLAGS[:8] if row.param1 & mask]
-        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
-        return [f'(when: OnCast, target: AllEnemyUnits, effect: Damage(amount: {row.param0}, kind: Fire, resistible: true, '
-                f'immune: {immune_ron}, realm: Some("{realm_id}"), traits: (area: true)))'], "Battlefield", "instant"
-    if name in SLAY_SPELLS:
-        who, realm, modifier, immune, only, below, step = SLAY_SPELLS[name]
-        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
-        extra = (f", below: Some({below})" if below is not None else "") + (f", mana_per_step: {step}" if step else "")
-        effect = (f'Slay(realm: "{realm}", modifier: {modifier}, immune: {immune_ron}, only: {only}{extra})')
-        return [f"(when: OnCast, target: {who}, effect: {effect})"], ("Battlefield" if who == "AllEnemyUnits" else "AnyUnit"), "instant"
-    if kind == 0:  # summoning
-        unit = unit_ids.get(row.param0 | (row.param1 << 8))
-        if unit:
-            return [f'(when: OnCast, target: Chosen, effect: Summon(unit: {ron_str(unit)}, count: 1))'], "Tile", "instant"
-        report.note("spells", f"{name}: summons unit index {row.param0} which is not a summonable unit")
-        return unimplemented, "Tile", "instant"
-    if kind in (1, 13, 14, 15):
-        mods = UNIT_ENCHANT_MODS.get(name)
-        target = "EnemyUnit" if name in NEGATIVE_UNIT_SPELLS else "OwnUnit"
-        if mods is not None:
-            return mods_effects(mods), target, "lasting"
-        report.note("spells", f"{name}: unit enchantment without a stat mapping; custom hook")
-        return unimplemented, target, "lasting"
-    if kind in (2, 3):
-        if name in CITY_ENGINE:
-            return ['(when: OnCast, target: Chosen, effect: Custom("city_gate"))'], "OwnCity", "lasting"
-        if name in CITY_FLAGS:
-            target = "OwnCity" if kind == 2 else "EnemyCity"
-            return ['(when: OnCast, target: Chosen, effect: Custom("city_flag"))'], target, "lasting"
-        mods = CITY_ENCHANT_MODS.get(name)
-        target = "OwnCity" if kind == 2 else "EnemyCity"
-        if mods:
-            return mods_effects(mods), target, "lasting"
-        report.note("spells", f"{name}: city enchantment without a stat mapping; custom hook")
-        return unimplemented, target, "lasting"
-    if kind in (4, 22):
-        dk = DAMAGE_KIND_BY_NAME.get(name, DAMAGE_KIND_BY_REALM[realm_id])
-        amount = max(row.param0, 1)
-        # The spell data's immunity byte lists who it cannot hurt (same bits as the unit flags).
-        immune = [ident for mask, ident, *_ in ATTRIB_1_FLAGS[:8] if row.param1 & mask]
-        immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
-        # How it is dealt in a battle: the attack attributes of the spell data.
-        traits = [f"{field}: true" for bit, field in ((0x0001, "armor_piercing"), (0x0010, "ignores_defense"),
-                                                      (0x1000, "area"), (0x8000, "decaying"))
-                  if row.attributes & bit]
-        if name in MANA_PER_POINT:
-            traits.append(f"mana_per_point: {MANA_PER_POINT[name]}")
-        traits_ron = f", traits: ({', '.join(traits)})" if traits else ""
-        return [f'(when: OnCast, target: Chosen, effect: Damage(amount: {amount}, kind: {dk}, resistible: true, '
-                f'immune: {immune_ron}, realm: Some("{realm_id}"){traits_ron}))'], "EnemyUnit", "instant"
-    if kind == 18:
-        factor = 3 if name.endswith("True") else 1
-        return [f"(when: OnCast, target: Chosen, effect: Dispel(strength: {max(row.cost, 1) * factor}))"], "AnyUnit", "instant"
-    if name == "Healing":
-        return ["(when: OnCast, target: Chosen, effect: Heal(5))"], "OwnUnit", "instant"
-    target = {6: "Wizard", 17: "Wizard", 9: "None", 10: "Battlefield", 11: "None"}.get(kind)
-    if target is None:
-        target = "AnyUnit" if row.eligibility <= 0 else "None"
-    report.note("spells", f"{name}: spell type {kind} not mapped; custom hook")
-    lasting = "lasting" if kind in (9, 10) else "instant"
-    return unimplemented, target, lasting
-
-
-# The spell data's eligibility byte (`Spellbook.c`, `Combat.c`, `Casting_Cost` in ReMoM):
-#   -2, -1  battle only                      0, 2, 3  both; overland costs five times as much
-#   1       overland only (not in battle)    4        listed for both, but see below
-#   5       the Spell of Return, in neither list
-# 4 (Word of Recall, Disenchant True and Area) is in the original's battle list too, but their
-# battle effects are not built (task 159), so they stay overland-only here.
-BOTH_CONTEXTS = (0, 2, 3)
-
-
-def spell_contexts(row: SpellRow) -> str:
-    if row.eligibility < 0:
-        return "[Battle]"
-    if row.eligibility in BOTH_CONTEXTS:
-        return "[Battle, Overland]"
-    return "[Overland]"
-
-
-def build_spells(rows: list[SpellRow], help_: dict[str, SpellHelp], unit_ids: dict[int, str],
-                 report: Report) -> list[str]:
-    out = []
-    per_realm: dict[int, int] = {}
-    for row in rows[1:]:  # row 0 is the "None" placeholder
-        realm_id = REALMS[row.realm][0]
-        n = per_realm.get(row.realm, 0)
-        per_realm[row.realm] = n + 1
-        # The table lists each realm's spells common -> very rare in blocks of ten.
-        rarity = ["Common", "Uncommon", "Rare", "VeryRare"][min(n // 10, 3)]
-        info = help_.get(norm_name(row.name))
-        if info is None:
-            report.note("spells", f"{row.name}: no help text found; upkeep estimated")
-        effects, target, lasting = spell_effects(row, unit_ids, realm_id, report)
-        if lasting == "lasting":
-            duration = "Permanent"
-            upkeep = info.upkeep if info else max(row.cost // 10, 1)
-        else:
-            duration, upkeep = "Instant", 0
-        parts = [
-            f"id: {ron_str(slug(row.name))}", f"name: {ron_str(row.name)}",
-            f"realm: {ron_str(realm_id)}", f"rarity: {rarity}",
-            f"cost: {max(row.cost, 1)}", f"research_cost: {max(row.research, 1)}",
-            f"contexts: {spell_contexts(row)}", f"target: {target}", f"duration: {duration}",
-        ]
-        if row.eligibility in BOTH_CONTEXTS:
-            parts.append("overland_x5: true")
-        if upkeep:
-            parts.append(f"upkeep: {upkeep}")
-        if lasting == "lasting":
-            parts.append(f"dispel_difficulty: {max(row.cost, 1)}")
-        if row.name in CURSE_SAVES:
-            modifier, immune = CURSE_SAVES[row.name]
-            immune_ron = "[" + ", ".join(f'"{i}"' for i in immune) + "]"
-            parts.append(f"save: Some((modifier: {modifier}, immune: {immune_ron}))")
-        parts.append("effects: [" + ", ".join(effects) + "]")
-        out.append("    (" + ", ".join(parts) + "),")
-    return out
-
-
-# --------------------------------------------------------------------------- #
-# Items
-# --------------------------------------------------------------------------- #
 
 ITEM_SLOT_BY_TYPE = {0: "Weapon", 1: "Weapon", 2: "Weapon", 3: "Weapon", 4: "Weapon", 5: "Weapon",
                      6: "Misc", 7: "Armor", 8: "Armor", 9: "Armor"}
@@ -1376,13 +994,10 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     spell_rows = import_spell_rows(game)
     help_topics = import_help(game, report)
     apply_help_corrections(help_topics, report)
-    help_texts = spell_help_from_topics(help_topics)
-    spell_cost_by_unit = {r.param0 | (r.param1 << 8): r.cost for r in spell_rows if r.kind == 0}
+    spell_cost_by_unit = summon_costs(rules_out / "spells.ron")
 
     used_abilities: dict[str, tuple[str, str]] = {}
     units = build_units(rows, races, by_index, used_abilities, spell_cost_by_unit, report)
-    summoned_ids = {u.index: u.id for u in units if u.index in SUMMONED_RANGE}
-    spells = build_spells(spell_rows, help_texts, summoned_ids, report)
 
     # races
     race_lines = []
@@ -1411,31 +1026,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         "Magical Weapon",
         "Its normal attacks count as magical, so weapon immunity does not stop them.",
     )
-    # Abilities that only spells grant.
-    used_abilities["eldritch_weapon"] = (
-        "Eldritch Weapon",
-        "Its attacks are magical and the defender blocks with one plus fewer.",
-    )
-    used_abilities["webbed"] = (
-        "Webbed",
-        "Held where it stands, and no longer flies, until the web is dispelled.",
-    )
-    used_abilities["asleep"] = (
-        "Asleep",
-        "Cannot move, attack or fly; every blow against it does full damage.",
-    )
-    used_abilities["confused"] = (
-        "Confused",
-        "Each turn it stands about, wanders to a random square, is led by the enemy, or acts as usual.",
-    )
-    used_abilities["water_walking"] = (
-        "Water Walking",
-        "Walks on water as on land, without a ship.",
-    )
-    used_abilities["pathfinding"] = (
-        "Path Finding",
-        "The unit and all stacked with it cross any land square for one half move.",
-    )
+    # (The abilities only spells grant are in `content/spell_abilities.ron`, kept by hand.)
     abilities_lines = [
         f"    (id: {ron_str(i)}, name: {ron_str(n)}, description: {ron_str(d)}, effects: []),"
         for i, (n, d) in sorted(used_abilities.items())
@@ -1459,7 +1050,6 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     write_list(rules_out / "buildings.ron", header, building_lines)
     write_list(rules_out / "abilities.ron", header, abilities_lines)
     write_list(rules_out / "realms.ron", header, realm_lines)
-    write_list(rules_out / "spells.ron", header, spells)
     write_list(rules_out / "items.ron", header, items)
     write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
     write_list(rules_out / "level_paths.ron", header,
@@ -1479,7 +1069,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
 
     summary = (
         f"races {len(races)}, buildings {len(buildings)}, units {len(units)}, "
-        f"abilities {len(used_abilities)}, spells {len(spells)}, items {len(items)}, "
+        f"abilities {len(used_abilities)}, items {len(items)}, "
         f"help topics {len(help_topics)}"
     )
     (out / "IMPORT_REPORT.txt").write_text(summary + "\n\n" + "\n".join(report.lines) + "\n", encoding="utf-8")
