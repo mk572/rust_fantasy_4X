@@ -516,6 +516,7 @@ Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit
 | Framework | `... --features spike --example spike -- flex\|metal` | The Burn spike of task 169 |
 | Generator | `... --example calibrate [N]` | How well the generator's idea of odds predicts who wins |
 | Bank | `... --example make_bank models-local/bank.ron [count] [first_seed]` | 1200 scenarios with odds measured by the scripted AI, three threads |
+| Unattended | `scripts/train_battle.sh --detach --name NAME [--iters N ...]` | The whole training run in the background: build, train through `cool_run.sh`, best checkpoint by held-out reward, `STATUS` and `summary.txt` in `models-local/NAME` (`--help` lists the options; default bank `bank-v2.ron`) |
 | Training | `RAYON_NUM_THREADS=4 ... --features train --example train_battle OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--no-briefs] [--seed N]` | Warm start, then PPO; writes `log.txt` and `net_NNNN.bpk` every 5 iterations; `BANK=` picks the bank |
 | Probe | `... --features train --example probe CHECKPOINT [BANK]` | How often a checkpoint flees at its first decision, by odds |
 | In a game | `cargo run --release -p f4x-tools --features learned -- soak --battle-ai CHECKPOINT ...` | AI wizards fight their battles with the checkpoint |

@@ -1,6 +1,6 @@
 //! Train the battle AI (task 170). Run through `scripts/cool_run.sh`:
 //!
-//! `RAYON_NUM_THREADS=4 scripts/cool_run.sh cargo run --release -p f4x-learn --features train --example train_battle -- OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--seed N]`
+//! `RAYON_NUM_THREADS=4 scripts/cool_run.sh cargo run --release -p f4x-learn --features train --example train_battle -- OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--seed N] [--until UNIX_SECONDS]`
 //!
 //! It first clones the scripted AI on `--bc` scripted battles (a short warm start, skipped with
 //! 0), then trains with PPO on self-play and play against the scripted AI. It writes a
@@ -18,6 +18,10 @@ use f4x_learn::train::{
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
+/// Seconds kept for the evaluations and the checkpoint after the last iteration of a run with a
+/// deadline.
+const EVAL_MARGIN: u64 = 360;
+
 /// Battles in an evaluation (the held-out scenarios, with different dice each time round).
 const EVAL_N: usize = 300;
 
@@ -30,6 +34,8 @@ fn main() -> Result<(), String> {
     let (mut iters, mut bc, mut battles, mut seed, mut advice) =
         (50usize, 200usize, 64usize, 1u64, 0.5f64);
     let mut briefs = true;
+    // Stop at this time (Unix seconds): the last iteration is the one that would end after it.
+    let mut until: Option<u64> = None;
     while let Some(a) = args.next() {
         let mut v = |n: &str| args.next().ok_or(format!("{n} needs a value"));
         match a.as_str() {
@@ -37,6 +43,7 @@ fn main() -> Result<(), String> {
             "--bc" => bc = v("--bc")?.parse().map_err(|_| "bad number")?,
             "--battles" => battles = v("--battles")?.parse().map_err(|_| "bad number")?,
             "--seed" => seed = v("--seed")?.parse().map_err(|_| "bad number")?,
+            "--until" => until = Some(v("--until")?.parse().map_err(|_| "bad number")?),
             "--no-advice" => advice = 0.0,
             "--no-briefs" => briefs = false,
             other => return Err(format!("unknown option {other}")),
@@ -127,7 +134,14 @@ fn main() -> Result<(), String> {
 
     let ppo = PpoConfig::default();
     let mut next_seed = 2_000_000u64;
+    let now = || {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs())
+    };
+    let mut iter_took = 0u64;
     for it in 1..=iters {
+        let iter_began = now();
         let net = learner.plain();
         let mut samples = Vec::new();
         let mut st_all = Vec::new();
@@ -167,7 +181,10 @@ fn main() -> Result<(), String> {
             st_all[1].reward,
             started.elapsed().as_secs_f32()
         ));
-        if it % 5 == 0 || it == iters {
+        // The last iteration: the count is reached, or another one would end after the deadline.
+        iter_took = iter_took.max(now() - iter_began);
+        let last = it == iters || until.is_some_and(|t| now() + iter_took + EVAL_MARGIN >= t);
+        if it % 5 == 0 || last {
             for shown in [false, true] {
                 let ev = evaluate(
                     &learner.plain(),
@@ -191,6 +208,10 @@ fn main() -> Result<(), String> {
                 &spec,
                 &out.join(format!("net_{it:04}")),
             )?;
+        }
+        if last {
+            say(format!("stopped after iteration {it}"));
+            break;
         }
     }
     Ok(())
