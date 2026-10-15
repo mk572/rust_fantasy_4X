@@ -226,7 +226,7 @@ game from any state; the engine rejects illegal commands, so a bot cannot cheat 
 **Suggested path:**
 1. Finish combat and a scripted AI first (tasks 33-46 and 65-67); it is the baseline and the
    training opponent.
-2. Build an AI-vs-AI soak runner (also wanted for balancing, task 77); it is the harness any
+2. Build an AI-vs-AI soak runner (also wanted for balancing, planned 24); it is the harness any
    learning would use.
 3. Tune the scripted AI's weights by self-play.
 4. Consider learning only for the battle AI (task 46), where search or a small model can work.

@@ -590,7 +590,7 @@ battles the advice is dropped more often and the warm start is short.
   buildings.
 - **Reward hacking is expected.** An agent that finds a loop or a rules bug is a bug report:
   `f4x-tools` writes the command log of any episode that ends with an anomaly (score jump,
-  illegal-looking state, a panic) and adds it to the `soak` findings (task 77).
+  illegal-looking state, a panic) and adds it to the `soak` findings (planned 24).
 - **Determinism**: a recorded episode replays identically from its seed and checkpoint, so
   every finding can be reproduced.
 

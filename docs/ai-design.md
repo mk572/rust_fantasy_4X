@@ -3,7 +3,7 @@
 Design for the hand-written AI players: the strategic AI (`crates/f4x-ai`) and the conventional
 battle AI (`crates/f4x-core/src/battle/ai.rs`). The learned AI is a separate design
 ([`learning-ai.md`](learning-ai.md)) and is not touched here. Related tasks: 46 (battle AI), 61
-(Spell of Mastery), 64 to 67 (personalities, AI v1, spells, attack), 77 (soak runs), 106
+(Spell of Mastery), 64 to 67 (personalities, AI v1, spells, attack), planned 24 (soak runs), 106
 (battle views), 224 to 232 (this design's steps, section 9).
 
 Status (13 October 2026): steps 0 to 7 and 9 to 11 are built and tested; step 8 (ships) is not.
@@ -402,7 +402,7 @@ that does not improve the soak or the mirrored fights is reverted and noted in t
 - **Soak time.** 200 turns take about 15 s a game; eight seeds at 400 turns take about four
   minutes. Steps that make games longer or busier (more battles) cost more.
 - **Game balance, not AI quality, may stop wars.** If the AI meets and still never wins, the
-  rules (city defence, growth, upkeep) are the cause and the fix is a balance task (77).
+  rules (city defence, growth, upkeep) are the cause and the fix is a balance task (planned 24).
 - **Islands.** About half the seeds put the wizards on separate land masses, or on separate
   planes. Without ships (step 8) or plane travel those games cannot end by conquest.
 - **Original's pickers are stubs in ReMoM**, so the category weights are the only part to port;
@@ -484,7 +484,7 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/mirror.r
 - **The economy limits the war.** A wizard's net income is a few gold a turn at 200 turns; a unit
   costs one or two gold a turn, so armies stop at 15 to 40 units. Outposts take hundreds of turns
   to grow (`PLANNED.md` item 21). A better AI cannot fix that; it is a rules and balance question
-  (task 77).
+  (planned 24).
 - **Speed.** 400 turns take 30 to 190 s a seed; the cost grows with the number of units (a path
   search for each idle unit each turn). Not yet profiled.
 

@@ -1,5 +1,5 @@
 //! `f4x-tools soak`: let AI wizards play whole games against each other, with no window, and
-//! report how each game went. Used to find AI and rules bugs (task 77).
+//! report how each game went. Used to find AI and rules bugs (planned 24, `docs/PLANNED.md`).
 
 use std::io::Write;
 use std::path::{Path, PathBuf};

@@ -33,6 +33,8 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 20 | Rules | Early-game speed-up options |
 | 21 | Rules | Faster outpost growth |
 | 22 | Rules | Alternative effect for the Charismatic retort |
+| 23 | Platform | Packaging for Linux |
+| 24 | Content | Content pass and balance with AI-vs-AI soak runs |
 
 ## Descriptions
 
@@ -239,3 +241,11 @@ effect that does not depend on the AI's behaviour, as an option beside the origi
 (the original's stays the default while parity is the goal). What the effect should be is open;
 decide it when the AI's diplomacy is settled (tasks 64 to 66), and keep the retort's pick cost
 and the help text in step with whatever is chosen (`HELP_CORRECTIONS`).
+
+**23. Packaging for Linux.** A Linux build: static or well-documented dynamic binaries (the
+macroquad dependencies: X11 or Wayland, OpenGL, ALSA once audio exists), an AppImage or tarball,
+a `.desktop` file and icon, testing on a current Debian/Ubuntu and Fedora, and the same
+local-assets workflow as the Mac build (T81). A release workflow on GitHub Actions.
+
+**24. Content pass and balance.** Fill out races, units, buildings and spells from the imported
+data, then balance with AI-vs-AI soak runs (needs AI and combat).

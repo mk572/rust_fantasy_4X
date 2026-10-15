@@ -411,6 +411,62 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
     assert!(crate::args::parse_target(&g, "global:1:no_such_spell").is_err());
 }
 
+#[test]
+fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
+    use f4x_core::rules::exec::Target;
+    let mut g = game();
+    let (city, _, _) = g
+        .economy()
+        .cities()
+        .into_iter()
+        .find(|(_, c, _)| c.owner == HUMAN)
+        .unwrap();
+    let eye = g.content().rules.spells.id_of("natures_eye").unwrap();
+    assert!(g.cheat_learn_spell(HUMAN, eye));
+    assert_eq!(g.economy().city_sight(city), 2);
+    // A rival's plain unit four squares away and an invisible one three squares away, and a
+    // plain one five squares away.
+    let home = g.city_position(city).unwrap();
+    let width = g.map().unwrap().width();
+    let rival = PlayerId(1);
+    let beside = |dx: u32| f4x_core::city::Position {
+        x: (home.x + dx) % width,
+        ..home
+    };
+    let spawn = |g: &mut Game, id: &str, dx: u32| {
+        let def = g.content().rules.units.id_of(id).unwrap();
+        g.spawn_unit(rival, beside(dx), def)
+    };
+    let near = spawn(&mut g, "barbarian_spearmen", 4);
+    let ghost = spawn(&mut g, "dark_elf_nightblades", 3);
+    let far = spawn(&mut g, "barbarian_spearmen", 5);
+    // What the wizard makes out: the square is in sight and the unit is not hidden.
+    let sees = |g: &Game, unit: hecs::Entity| {
+        let at = g.units().unit_position(unit).unwrap();
+        let seen = g.economy().visibility(HUMAN, at.plane);
+        seen[(at.y * width + at.x) as usize] && g.economy().unit_visible_to(unit, HUMAN)
+    };
+    assert!(!sees(&g, near), "four squares is out of sight at first");
+    g.player_mut(HUMAN).unwrap().mana = 5000;
+    g.start_cast(HUMAN, eye, Some(Target::City(city))).unwrap();
+    // Paid over turns by the casting skill, then aimed.
+    for _ in 0..60 {
+        if g.city_enchantments(city).iter().any(|&(s, _)| s == eye) {
+            break;
+        }
+        g.apply(f4x_core::Command::EndTurn);
+        g.apply(f4x_core::Command::ResolveCast {
+            player: HUMAN,
+            target: Target::City(city),
+        });
+    }
+    assert!(g.city_enchantments(city).iter().any(|&(s, _)| s == eye));
+    assert_eq!(g.economy().city_sight(city), 4);
+    assert!(sees(&g, near), "the eye reveals what is four squares away");
+    assert!(!sees(&g, ghost), "an invisible unit stays hidden");
+    assert!(!sees(&g, far), "five squares is still out of sight");
+}
+
 fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::city::Position)> {
     g.economy()
         .cities()

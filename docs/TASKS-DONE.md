@@ -43,6 +43,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 38 | Combat | Ranged ammunition and spell shots (done) |
 | 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
 | 42 | Combat | Fleeing and after-battle results (done) |
+| 46 | Combat | Battle AI (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 53 | Magic | Remaining retort effects (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
@@ -50,16 +51,23 @@ original task numbers. Newest work is merged in ascending order by number.
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 63 | Meta | Diplomacy (done) |
+| 65 | Meta | AI v1: expansion, production, defence (done) |
+| 66 | Meta | AI research and spell use (done) |
+| 67 | Meta | AI attack (done) |
+| 69 | Meta | Difficulty levels (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 75 | Client | Wizard overview screen (done) |
+| 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
 | 91 | Client | Diplomacy screen (done) |
 | 92 | Client | Spell-research dialogs (done) |
 | 93 | Client | Spell-book view of the magic screen (done) |
+| 96 | Client | City screen: enchantments list (done) |
 | 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
 | 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
+| 109 | Housekeeping | Importer clean-up (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 145 | Client | Save and load screen with slots (done) |
@@ -314,6 +322,9 @@ or a guarded site starts the battle; the other side is played by a plain placeho
 (wounds, deaths, site loot logged). `--battle` with `--shot` opens a test fight. Remaining
 work is split into tasks 131-133 and 112 (map art), 43/44 (casting).
 
+**46. Battle AI (done).** Done and superseded: `battle/ai.rs` plays battles and combat spells; the open work is task 232. Decision making for AI-controlled units in tactical battles and for the AI
+wizard's combat spells. After 40 and 43.
+
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each
 turn's magic step counts it down and removes the enchantment with `Event::EnchantmentExpired`.
@@ -362,11 +373,34 @@ spells and fortress capture. The AI answers proposals in `f4x-ai` (`diplomacy.rs
 `diplomacy`, `propose`, `answer` and the rest (`talk.rs`). What is left is task 167. The plan and the
 original's rules are in `docs/diplomacy.md`.
 
+**65. AI v1 (done).** Done and superseded: the AI exists in `f4x-ai`; the open work is tasks 135 (client), 228, 229, 230, 232 and 238. First version in `crates/f4x-ai` (taxes, research, summoning spells, production
+and buying, settlers, garrisons, attacks on weaker stacks, marching on explored enemy cities); it
+uses commands only, like the human, and `f4x-tools soak` plays whole AI-against-AI games. It is
+not hooked into the client yet (the rival still does nothing there). Known limits from the soak
+runs: armies stay small (food upkeep disbands units), it rarely finds the rival to attack, and
+outposts take very long to grow (`PLANNED.md` item 21), so no soak game has ended with a winner.
+
+**66. AI research and spell use (done).** Superseded by tasks 228 (casting) and 238 (objectives steering research). Research picking by personality, casting overland spells
+(summoning, enchantments) and the spell weights from the original's AI tables.
+
+**67. AI attack (done).** Superseded by tasks 229 (war), 230 (ships) and 232 (battle AI). Target selection, army assembly and attacking cities and sites; depends on
+combat (33-42).
+
+**69. Difficulty levels (done).** Closed: the difficulty setting exists; the open part (scaling the final score, the AI's strength) is task 148. Difficulty is chosen in the options step (task 10) and scales lair guards
+and treasure. The original's AI power, gold and mana modifiers and the Hard-level starting spells
+for the AI are **not** ported: the AI gets no advantage or disadvantage (design.md section 8), so
+difficulty can only change how well the AI plays. The final score is scaled by difficulty
+(`endgame::scale_for_difficulty` exists but is not called yet). See `docs/game_end.md`.
+
 **70. Victory conditions and score (done).** The game ends by conquest, by the human wizard's
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
 the cut-scenes and the hall of fame are tasks 134 and 88.
 
 **75. Wizard overview screen (done).** The original's Mirror screen (`WIZVIEW.c`), `wizard_screen.rs`: the wizard's gem and name; for a rival the lines Relations, Treaties, Personality and Objective; gold and mana; the shelf of spell books; fame; the retorts as a running sentence; the heroes. Entry points as in the original: F9 shows your own, a right-click on a met rival's gem on the Magic screen shows theirs; Esc, Enter or a click leaves. Layout and art: `docs/hotkeys.md` and `WIZVIEW.c` (panel `backgrnd` 4, gem `lilwiz`, books `magic` 33 to 50). Departure (`divergences.md` section 7): the books on the shelf cycle through the realm's three pictures, where ReMoM's code stays on the first. The Mirror's own help entries are not wired. Differences: heroes show their class only (no personal names are kept, task 219), and the "target a wizard" spell use waits for that screen (task 60). Not seen on screen yet: the layout is written from the source and the tests cover the text and book logic only.
+
+**80. Push to GitHub and tidy (done).** Closed: pushing is routine. Left for the user: delete the old `~/reference` folder (the safety hook blocks Claude from doing it). Work since the last push is committed locally only. Push when the
+user agrees. The user still needs to delete the old `~/reference` folder (the earlier ReMoM clone
+and steamcmd home) themselves; the safety hook blocks it for Claude.
 
 **83. Wizard portraits and banner colours (done).** A wizard has a picture (`Player::portrait`, 0 to 13, kept in saves): a ready-made wizard has the one of its place in the list, which is the original's order; the creation screen has a picture choice beside the banner choice; every wizard of a new game has its own. It shows in the magic screen's gems (`lilwiz`, by picture and banner) and on the diplomacy screen (`moodwiz`, `diplomac`). The creation screen itself is not laid out like the original's (task 86 is about the other screens).
 
@@ -399,9 +433,14 @@ learned spells only show in the message log. Done: the original's offer of eight
 beside or instead of the list: spells by realm and rarity with their costs, casting buttons
 and the research queue, using the original's book art locally. Done: the small book the Spells button and V open (`spellbook.rs`: pages by realm, cost, a symbol for each turn, "Instant Cast", replacing a spell under way asks first) and the Apprentice's big book on F3 (`bigbook.rs`: the library, then the research pages). The Magic screen itself no longer lists spells. Left over: task 166.
 
+**96. City screen: enchantments list (done).** Done: the city screen lists the enchantments in the caster's colour. Dispelling from the list stays in task 119. List the spells on a city (own and enemy, with the caster's
+colour and upkeep) as the original's city screen does [301], and allow dispel attempts from it.
+
 **101. Eleven-book realms and the full starting-spell rule (done).** The original lets one realm hold 11 books (with 10 common choices, 2 uncommon and 1 rare starting spell, `m_select_count_*`); the creation screen and `init_wizard` stop at 10 books and only choose common spells. Raise the limit, add the uncommon and rare starting picks, and extend the creation screen's spell lists. Done: 11 books in a realm (`MAX_BOOKS`) know all ten commons and pick two uncommon and one rare (`WizardBuild::spell_choices_of`, `init_spell_library`), the importer gives each realm its original defaults for them (`realms.ron`), and the creation screen lists the uncommon and rare spells too.
 
 **105. Wire overland attacks to battles (done).** Done: the winner of an overland battle moves onto the square, takes a city on it (`capture_city`) and an empty enemy city is taken by walking in (`Game::hostile_entry`); the human's attack opens the battle screen (task 45) and AIs use `Command::AutoResolve` (39). Experience and loot are task 42, walls and razing task 41. Original text: Moving into a hostile square only emits `AttackRequested`. Connect it: the client opens a battle (`Command::BeginBattle`) for the human, the AI does so for itself, and the winner takes the square (attackers advance when the defenders are gone), with the defenders' city handled by the siege task (41). Needs the after-battle results of 42 for experience and loot.
+
+**109. Importer clean-up (done).** Done by removal: the tables it names are gone, since the game data moved into `content/` and the importer only writes local files now. `scripts/import_mom.py` has duplicate entries (`Natures Eye` and `Nature's Eye` in the city-enchantment table), several maps keyed by display names that differ between sources, and spell-effect tables that grew by hand (global, tile, fortress hooks). Tidy them into one table per kind with a check that every key matches a real spell, building or unit, reported in `IMPORT_REPORT.txt`.
 
 **113. Original bitmap fonts (done).** `f4x-tools extract-art` now decodes `FONTS.LBX` (`fonts.rs`):
 eight styles of 96 glyphs, stored by columns with skip and run bytes, drawn through 16 colour

@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 39 | Combat | Auto-resolve (low priority) |
-| 46 | Combat | Battle AI |
 | 47 | Heroes | Hero abilities (low priority) |
 | 48 | Heroes | Hiring, summoning, recall, resurrection and fame |
 | 49 | Heroes | Item slots, powers and data schema |
@@ -29,19 +28,13 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 61 | Magic | The Spell of Mastery's research cost and the AI casting it |
 | 62 | Magic | Player-chosen losses when mana runs short |
 | 64 | Meta | Wizard personalities and AI objectives |
-| 65 | Meta | AI v1: expansion, production, defence |
-| 66 | Meta | AI research and spell use |
-| 67 | Meta | AI attack |
 | 68 | Meta | Random events |
-| 69 | Meta | Difficulty levels |
 | 71 | Meta | Advisors |
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
 | 76 | Client | Background music |
-| 77 | Content | Content pass and balance with AI-vs-AI soak runs |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
-| 80 | Housekeeping | Push to GitHub and tidy the old reference folder |
 | 81 | Housekeeping | Packaging for Mac |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
@@ -51,9 +44,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 89 | Meta | Game settings |
 | 94 | Client | Settings screen |
 | 95 | Client | Tutorial |
-| 96 | Client | City screen: enchantments list |
 | 97 | Client | Sound effects |
-| 98 | Housekeeping | Packaging for Linux |
 | 99 | Combat | Saving during a battle |
 | 100 | Map | Draw the original's edge variants for mountains, hills and tundra |
 | 102 | Map | Road-building path selection in the client |
@@ -62,7 +53,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
-| 109 | Housekeeping | Importer clean-up |
 | 110 | Combat | Battle map generation parity with the original |
 | 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
 | 112 | Client | Battle map art |
@@ -141,15 +131,13 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 242 | Content | Check the other text and list tables the importer skips (`DESC`, `BUILDESC`, `LISTDAT`, `RESOURCE`, `EVENTMSG`, `DIPLOMSG`, `MESSAGE`) |
 | 243 | Content | Find out what `WIZARDS.LBX`, `SPECIAL.LBX`, `SPLMASTR.LBX` and the other unread data files hold |
 | 244 | Heroes | Work out what the "books" bytes of an item mean |
+| 245 | Housekeeping | Delete the old `~/reference` folder (user) |
 
 ## Descriptions
 
 ### Combat
 
 **39. Auto-resolve.** Done: `Command::AutoResolve` (console `auto`) fights a battle to the end with the placeholder battle AI (`battle/ai.rs`) playing both sides, from an adjacent square, with the usual aftermath. Open: the strategic-combat-only option [685], a button for it on the battle screen (the Auto button is drawn greyed; task 133), and a better battle AI (46) so the result is not just whoever the placeholder favours.
-
-**46. Battle AI.** Decision making for AI-controlled units in tactical battles and for the AI
-wizard's combat spells. After 40 and 43.
 
 ### Heroes and items
 
@@ -225,28 +213,9 @@ the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`
 (`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
 here yet.
 
-**65. AI v1.** First version in `crates/f4x-ai` (taxes, research, summoning spells, production
-and buying, settlers, garrisons, attacks on weaker stacks, marching on explored enemy cities); it
-uses commands only, like the human, and `f4x-tools soak` plays whole AI-against-AI games. It is
-not hooked into the client yet (the rival still does nothing there). Known limits from the soak
-runs: armies stay small (food upkeep disbands units), it rarely finds the rival to attack, and
-outposts take very long to grow (`PLANNED.md` item 21), so no soak game has ended with a winner.
-
-**66. AI research and spell use.** Research picking by personality, casting overland spells
-(summoning, enchantments) and the spell weights from the original's AI tables.
-
-**67. AI attack.** Target selection, army assembly and attacking cities and sites; depends on
-combat (33-42).
-
 **68. Random events.** Plague, population boom, conjunctions, moons, mana short and others, each
 ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow intent for B18
 (count from the real turn, not from game start or load).
-
-**69. Difficulty levels.** Difficulty is chosen in the options step (task 10) and scales lair guards
-and treasure. The original's AI power, gold and mana modifiers and the Hard-level starting spells
-for the AI are **not** ported: the AI gets no advantage or disadvantage (design.md section 8), so
-difficulty can only change how well the AI plays. The final score is scaled by difficulty
-(`endgame::scale_for_difficulty` exists but is not called yet). See `docs/game_end.md`.
 
 **71. Advisors.** The original's advisors (surveyor, cartographer, historian, astrologer, chancellor,
 tax collector, grand vizier, war and mage advisors) give information screens and messages about
@@ -271,18 +240,11 @@ victory and defeat, and the diplomacy screen's own tune), looping and crossfadin
 can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
 repo ships none); decide the audio crate, and keep the game silent and working without files.
 
-**77. Content pass and balance.** Fill out races, units, buildings and spells from the imported
-data, then balance with AI-vs-AI soak runs (needs AI and combat).
-
 **78. Open conflict decisions.** Items still marked "Check" or open in
 `help-vs-implementation-conflicts.md`: B9 Heroism, B10 undead immunities, B11 Evil Omens cost,
 B12 legendary fame (decided, not built), B13 Blur, B15 swamp food, B16 nature node food, C3
 Invisibility. Decide each, apply to content and help, and add the "[Updated from game code]" note
 where the help changes.
-
-**80. Push to GitHub and tidy.** Work since the last push is committed locally only. Push when the
-user agrees. The user still needs to delete the old `~/reference` folder (the earlier ReMoM clone
-and steamcmd home) themselves; the safety hook blocks it for Claude.
 
 **81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
 per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the
@@ -347,18 +309,10 @@ presentation options (volume, speeds, zoom), reachable from the start menu (86).
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
 
-**96. City screen: enchantments list.** List the spells on a city (own and enemy, with the caster's
-colour and upkeep) as the original's city screen does [301], and allow dispel attempts from it.
-
 **97. Sound effects.** Short sounds for UI clicks, turn end, city growth, spell casting, combat
 hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the
 same audio layer as the music (76) with its own volume, from locally extracted files. Events
 (`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
-
-**98. Packaging for Linux.** A Linux build: static or well-documented dynamic binaries (the
-macroquad dependencies: X11 or Wayland, OpenGL, ALSA once audio exists), an AppImage or tarball,
-a `.desktop` file and icon, testing on a current Debian/Ubuntu and Fedora, and the same
-local-assets workflow as the Mac build (81). A release workflow on GitHub Actions.
 
 **99. Saving during a battle.** A battle in progress is not part of a save today (`Game::battle`
 is skipped, so saving mid-fight would lose it, and the client should block saving). Make
@@ -381,8 +335,6 @@ middle of a battle continues exactly like the unsaved one.
 **107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: Evil Omens spares the wizard who holds it; the original's own Lo Pan spends 12 picks (presets skip the budget); the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision.
 
 **108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warped nodes exist as a flag but nothing sets it (Warp Node, task 7); unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
-
-**109. Importer clean-up.** `scripts/import_mom.py` has duplicate entries (`Natures Eye` and `Nature's Eye` in the city-enchantment table), several maps keyed by display names that differ between sources, and spell-effect tables that grew by hand (global, tile, fortress hooks). Tidy them into one table per kind with a check that every key matches a real spell, building or unit, reported in `IMPORT_REPORT.txt`.
 
 **110. Battle map generation parity with the original.** Our battle map only sprinkles rough and blocked squares by terrain class. The original (`Generate_Combat_Map` in ReMoM `Combat.c`) builds the map from the overland square and its surroundings: terrain sets and patches, scattered trees and rocks by terrain, roads crossing the battlefield where overland roads run, rivers carved through, rough ground removed around cities, and per-square movement-cost maps. Port it, keep it seeded and deterministic, and test the shapes (connectivity of the deployment edges, roads and rivers on the right sides).
 
@@ -590,3 +542,5 @@ Parity task, low priority.
 **243. Unread data files.** Find out what `WIZARDS.LBX` (14 entries of 109 records of 104 bytes), `SPECIAL.LBX` and `SPECIAL2.LBX`, `SPLMASTR.LBX` (32 entries of about 94 KB) and the remaining files the importer does not open hold (most of the 98 `.LBX` files are art, sound and music). List them in `docs/` with what each is, and add a task for each one that carries rules or text.
 
 **244. What the "books" bytes of an item mean.** Every `ITEMDATA.LBX` record ends in five bytes (`spellranks[5]` in ReMoM's `s_ITEM_DATA`) and a flag. `Make_Item` (`ItemMake.c`) leaves an item out when any of the five is above the wizard's book count in that realm, so they decide which wizards a random or prefab item may go to. They are stored raw in `books` in `content/items.ron`, and the realm order and the way they come about are not known: a derivation from the item's powers (the largest book need in each power's realm, in the usual nature, sorcery, chaos, life, death order) matches only about 115 of the 250 items; Deathbringer (power Death, 3 books) has `[3, 0, 0, 0, 0]` and Sword of Stealth (True Sight, a life power needing 6) has `[0, 0, 6, 0, 0]`, so the order looks different. Find out (a brute-force fit over realm orders and over what counts, including the plain bonuses and the embedded spell's realm, and a read of `Make_Item` and `Create_Random_Item`), then write the rule and the realm order into `heroes-items-design.md` section 2.1, give `books` a named per-realm form in `ItemDef` and have `validate` check it. Needed before the item offers and rewards (tasks 220 and 221).
+
+**245. Delete the old `~/reference` folder.** The folder outside the project, `~/reference` (the earlier ReMoM clone and the steamcmd home), is superseded by `reference/` inside the project and should go. The user deletes it themselves: the safety hook blocks Claude from deleting outside the project, and nothing in the project reads it. Check first that nothing there is still needed (the project's own `reference/ReMoM` and `reference/mom-classic` hold what the importer reads). This was part of task 80, which was closed without it.
