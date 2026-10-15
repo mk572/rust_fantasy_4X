@@ -1,13 +1,13 @@
 """Import Master of Magic data into local content files for rust_fantasy_4X.
 
-Reads the author's own copy of the original game (buildings, spells, items and
-spell help text from the `.LBX` files) and the unit and race tables from a local
-clone of the ReMoM reverse-engineering project (those tables live in the game
-executable, which is not parsed directly). Writes RON files into
-`content/` (the rules data: races, units, buildings, spells, items, abilities, realms,
+Reads the author's own copy of the original game (items, buildings for the
+help check, and the help text from the `.LBX` files) and the race table from a local clone of the ReMoM
+reverse-engineering project. Writes RON files into `content/` (races, items, realms,
 level paths and rule values, which are committed) and `content-local/` (help text,
-screen-to-topic map and preset wizards: copyrighted prose, gitignored, never to be
-committed or distributed).
+screen-to-topic map, city names and preset wizards: copyrighted prose, gitignored, never to
+be committed or distributed). The units, buildings, spells and abilities are the game's own
+data in `content/`, kept by hand: the importer only reads them (the races list their units;
+buildings and spells are checked against the help text).
 
 Usage:
     python3 -I scripts/import_mom.py [--game DIR] [--remom DIR] [--out DIR] [--rules-out DIR]
@@ -145,106 +145,10 @@ def wizard_lines(help_topics) -> list[str]:
     return lines
 
 
-# Unit table: first and last index of each block.
-HERO_RANGE = range(0, 35)
-BOAT_RANGE = range(35, 39)  # boats and the catapult: race-neutral
-NORMAL_RANGE = range(39, 154)
-SUMMONED_RANGE = range(154, 198)
 
 RACE_COUNT = 14
-# Units 154..197 take their "race" byte from this block of the race enum.
-REALM_BY_RACE_BYTE = {15: "arcane", 16: "nature", 17: "sorcery", 18: "chaos", 19: "life", 20: "death"}
 
-RANGED_TYPES = {
-    10: ("rock_throwing", "Rock Throwing"),
-    11: ("cannon", "Cannon"),
-    20: ("bow", "Bow"),
-    21: ("sling", "Sling"),
-    30: ("lightning_bolt", "Lightning Bolt"),
-    31: ("fireball_attack", "Fireball"),
-    32: ("sorcery_bolt", "Sorcery Bolt"),
-    33: ("death_bolt", "Death Bolt"),
-    34: ("ice_bolt", "Ice Bolt"),
-    35: ("shaman_bolt", "Shaman Bolt"),
-    36: ("drow_bolt", "Drow Bolt"),
-    37: ("sprite_bolt", "Sprite Bolt"),
-    38: ("nature_bolt", "Nature Bolt"),
-    100: ("thrown", "Thrown"),
-    101: ("fire_breath", "Fire Breath"),
-    102: ("lightning_breath", "Lightning Breath"),
-    103: ("stoning_gaze", "Stoning Gaze"),
-    104: ("multi_gaze", "Multiple Gaze"),
-    105: ("death_gaze", "Death Gaze"),
-}
 
-# (mask, id, name, description) per flag word of the unit table.
-ATTRIB_1_FLAGS = [
-    (0x0001, "fire_immunity", "Fire Immunity", "Fire attacks (fire breath, fire spells) do nothing to it."),
-    (0x0002, "stoning_immunity", "Stoning Immunity", "Cannot be turned to stone."),
-    (0x0004, "missile_immunity", "Missile Immunity", "Arrows and slings do nothing to it."),
-    (0x0008, "illusion_immunity", "Illusion Immunity", "Sees through illusions, so they do not ignore its defence."),
-    (0x0010, "cold_immunity", "Cold Immunity", "Cold attacks (ice spells) do nothing to it."),
-    (0x0020, "magic_immunity", "Magic Immunity", "Spells and magical ranged attacks do nothing to it, and it resists magic with +30."),
-    (0x0040, "death_immunity", "Death Immunity", "Spells that kill or frighten do nothing to it."),
-    (0x0080, "poison_immunity", "Poison Immunity", "Immune to poison."),
-    (0x0100, "weapon_immunity", "Weapon Immunity", "Normal weapons barely hurt it: its defence is at least 10 against them, and normal arrows and thrown weapons are cut to the same. Heroes, fantastic creatures, magical weapons and spells ignore it."),
-    (0x0200, "flying", "Flying", "Moves over any terrain."),
-    (0x0400, "lucky", "Lucky", "Fortune favours this unit."),
-    (0x0800, "summon_demon", "Creature Summoning", "Can summon demons to fight beside it."),
-    (0x2000, "spellcaster", "Spell Caster", "Casts spells in battle."),
-    (0x4000, "spellcaster_major", "Major Spell Caster", "Casts spells in battle, with more mana."),
-]
-ATTRIB_2_FLAGS = [
-    (0x0001, "casts_healing", "Healing Spell", "Casts Healing in battle."),
-    (0x0002, "casts_fireball", "Fireball Spell", "Casts Fireball in battle."),
-    (0x0004, "casts_doom_bolt", "Doom Bolt Spell", "Casts Doom Bolt in battle."),
-    (0x0008, "immolation", "Immolation", "Burns attackers in melee."),
-    (0x0010, "casts_web", "Web Spell", "Casts Web in battle."),
-    (0x0020, "cause_fear", "Cause Fear", "Enemy figures may flee in fear."),
-    (0x0040, "resist_all", "Resist All", "Resists every kind of elemental magic."),
-    (0x0080, "holy_bonus", "Holy Bonus", "Strengthened by holy magic."),
-]
-ABILITY_FLAGS = [
-    (0x0002, "large_shield", "Large Shield", "Extra defence against missiles."),
-    (0x0004, "planar_travel", "Planar Travel", "Can shift between Arcanus and Myrror."),
-    (0x0008, "wall_crusher", "Wall Crusher", "Can breach city walls."),
-    (0x0010, "healer", "Healer", "Heals friendly units each turn."),
-    (0x0020, "create_outpost", "Create Outpost", "Can found cities."),
-    (0x0040, "invisibility", "Invisibility", "Cannot be seen by ordinary units."),
-    (0x0080, "create_undead", "Create Undead", "Raises the dead as undead."),
-    (0x0100, "long_range", "Long Range", "Ranged attacks reach farther."),
-    (0x0200, "land_corruption", "Land Corruption", "Corrupts the land around it."),
-    (0x0400, "meld", "Meld", "Can merge with a node."),
-    (0x0800, "non_corporeal", "Non-Corporeal", "Passes through walls; resists physical harm."),
-    (0x1000, "wind_walking", "Wind Walking", "Carries a stack through the air."),
-    (0x2000, "regeneration", "Regeneration", "Heals fully each turn."),
-    (0x4000, "purify", "Purify", "Cleanses corrupted land."),
-    (0x8000, "negate_first_strike", "Negate First Strike", "Cancels enemy first strike."),
-]
-ATTACK_FLAGS = [
-    (0x0001, "armor_piercing", "Armour Piercing", "Halves the target's defence."),
-    (0x0002, "first_strike", "First Strike", "Strikes before the defender can answer."),
-    (0x0004, "poison_touch", "Poison Touch", "Poisons what it hits."),
-    (0x0008, "life_steal", "Life Steal", "Drains life from its victims."),
-    (0x0010, "doom_damage", "Doom Damage", "Ignores defence entirely."),
-    (0x0020, "destruction", "Destruction", "Destroys what it hits outright."),
-    (0x0040, "illusion_attack", "Illusion", "Cannot be blocked by those who cannot see it."),
-    (0x0080, "stoning_touch", "Stoning Touch", "Turns figures to stone."),
-    (0x0200, "death_touch", "Death Touch", "Kills figures outright."),
-    (0x0400, "power_drain", "Power Drain", "Drains the target's mana."),
-    (0x0800, "dispel_evil", "Dispel Evil", "Banishes evil creatures."),
-    (0x1000, "area_attack", "Area Attack", "Hits every figure of the target."),
-    (0x2000, "damage_limit", "Damage Limit", "Damage is capped by the attacker's hits."),
-    (0x4000, "eldritch_weapon", "Eldritch Weapon", "Reduces the defender's chance to block."),
-    (0x8000, "warp_lightning", "Warp Lightning", "A chain of lightning bolts."),
-]
-MOVE_FLAG_ABILITIES = [
-    (0x0001, "cavalry", "Cavalry", "Mounted: fast on open ground."),
-    (0x0020, "forester", "Forester", "Crosses forests at no extra cost."),
-    (0x0040, "mountaineer", "Mountaineer", "Crosses mountains and hills at no extra cost."),
-    (0x0010, "teleport", "Teleport", "Moves to any free square in a battle, for one move."),
-    (0x0080, "merging", "Merging", "Moves instantly through the ground to any free square in a battle, for one move."),
-]
 
 # Race traits from the original code (CITYCALC.c) and help text, by race id.
 RACE_TRAITS = {
@@ -261,12 +165,6 @@ RACE_TRAITS = {
 # The races whose neutral cities stand on Myrror (`Generate_Neutral_Cities`); the rest are Arcanus.
 MYRROR_RACES = {"beastmen", "dark_elf", "draconian", "dwarven", "troll"}
 
-# Unit-table columns, in file order.
-UNIT_COLUMNS = (
-    "name melee ranged ranged_type ammo to_hit defense resist moves cost upkeep race "
-    "bld1 bld2 pict hits sight transport figures construction special "
-    "move_flags attr1 attr2 abilities attack_flags sound"
-).split()
 
 # Normal units stop at Elite by experience; Ultra-Elite and Champion need the Warlord
 # ability / Crusade spell (help topics 530-532): the level path lists them as bonus levels,
@@ -278,38 +176,14 @@ LEVELS_HERO = [
     ("Lord", 300), ("Grand Lord", 450), ("Super Hero", 600), ("Demi-God", 1000),
 ]
 
-# Building effects, by building name. Values follow the clone's building notes.
-def _mod(stat: str, op: str, value: int) -> str:
-    return f"(effect: Modify(stat: {stat}, op: {op}, value: {value}))"
 
 
-# Building effects, by building name, from the original help text (topics 716-748).
-BUILDING_EFFECTS = {
-    "Marketplace": [_mod("CityGold", "Percent", 50)],
-    "Bank": [_mod("CityGold", "Percent", 50)],
-    "Merchants Guild": [_mod("CityGold", "Percent", 100)],
-    "Library": [_mod("CityResearch", "Add", 2)],
-    "Sages Guild": [_mod("CityResearch", "Add", 3)],
-    "University": [_mod("CityResearch", "Add", 5)],
-    "Wizards Guild": [_mod("CityResearch", "Add", 8), _mod("CityMana", "Add", 3)],
-    "Oracle": [_mod("CityUnrest", "Add", -2), _mod("CitySight", "Min", 4)],
-    "City Walls": [_mod("CitySight", "Min", 3)],
-    "Shrine": [_mod("CityMana", "Add", 1), _mod("CityUnrest", "Add", -1)],
-    "Temple": [_mod("CityMana", "Add", 2), _mod("CityUnrest", "Add", -1)],
-    "Parthenon": [_mod("CityMana", "Add", 3), _mod("CityUnrest", "Add", -1)],
-    "Cathedral": [_mod("CityMana", "Add", 4), _mod("CityUnrest", "Add", -1)],
-    # Granary and market food arrives after the farmland limit is applied.
-    "Granary": [_mod("CityFoodFlat", "Add", 2), _mod("CityGrowth", "Add", 20)],
-    "Farmers Market": [_mod("CityFoodFlat", "Add", 3), _mod("CityGrowth", "Add", 30)],
-    # +1 food for every farmer; +3 mana is what the original game's code gives this guild.
-    "Animists Guild": [_mod("FarmerFood", "Add", 1), _mod("CityUnrest", "Add", -1), _mod("CityMana", "Add", 3)],
-    "Sawmill": [_mod("CityProduction", "Percent", 25)],
-    "Foresters Guild": [_mod("CityFood", "Add", 2), _mod("CityProduction", "Percent", 25)],
-    "Miners Guild": [_mod("CityProduction", "Percent", 50)],
-    "Mechanicians Guild": [_mod("CityProduction", "Percent", 50)],
-}
 # Placeholder "buildings" that are production choices, not structures.
 SKIP_BUILDINGS = {"None", "Trade Goods", "Housing"}
+
+
+def _mod(stat: str, op: str, value: int) -> str:
+    return f"(effect: Modify(stat: {stat}, op: {op}, value: {value}))"
 
 
 # --------------------------------------------------------------------------- #
@@ -366,31 +240,8 @@ def import_buildings(game: Path, report: Report) -> list[Building]:
     return out
 
 
-# Buildings that enable ships: in the original only a coastal city can build them.
-COASTAL_BUILDINGS = {"Ship Wrights Guild", "Ship Yard", "Maritime Guild"}
 
 
-def building_ron(b: Building, by_index: dict[int, Building], races_allowed: list[str]) -> str:
-    requires = [by_index[r].id for r in b.requires if r in by_index]
-    parts = [f"id: {ron_str(b.id)}", f"name: {ron_str(b.name)}", f"cost: {b.cost}"]
-    if b.shape:
-        parts.append(f"shape: {b.shape}")
-    if b.upkeep:
-        parts.append(f"upkeep_gold: {b.upkeep}")
-    if b.name in COASTAL_BUILDINGS:
-        parts.append("coastal: true")
-    if requires:
-        parts.append("requires: [" + ", ".join(ron_str(r) for r in requires) + "]")
-    if races_allowed:
-        parts.append("races: [" + ", ".join(ron_str(r) for r in races_allowed) + "]")
-    if b.replaces is not None and b.replaces in by_index:
-        parts.append(f"replaces: Some({ron_str(by_index[b.replaces].id)})")
-    effects = list(BUILDING_EFFECTS.get(b.name, []))
-    if b.starting_xp:
-        effects.append(_mod("StartingXp", "Min", b.starting_xp))
-    if effects:
-        parts.append(f"effects: [{', '.join(effects)}]")
-    return "    (" + ", ".join(parts) + "),"
 
 
 # --------------------------------------------------------------------------- #
@@ -426,11 +277,6 @@ def import_races(remom: Path) -> list[Race]:
     return races
 
 
-@dataclass
-class UnitRow:
-    index: int
-    v: dict[str, int]
-    name: str
 
 
 def import_city_names(game: Path) -> list[list[str]]:
@@ -439,178 +285,22 @@ def import_city_names(game: Path) -> list[list[str]]:
     return [[cstr(rec[i : i + 14]) for i in range(0, len(rec), 14)] for rec in records]
 
 
-def import_unit_rows(remom: Path) -> list[UnitRow]:
-    src = (remom / "MoM/src/UNITTYPE.c").read_text(encoding="utf-8", errors="replace")
-    names = {int(i): n for i, n in re.findall(r'char unit_type_name_(\d+)\[\] = "([^"]*)"', src)}
-    body = src.split("_unit_type_table[NUM_UNIT_TYPES] =", 1)[1]
-    rows = re.findall(r"\{&_unit_type_names\[(\d+)\],([^}]*)\}", body)
-    out = []
-    for idx, (name_idx, rest) in enumerate(rows):
-        nums = [int(x, 0) for x in rest.replace("\n", " ").split(",") if x.strip()]
-        if len(nums) != len(UNIT_COLUMNS) - 1:
-            raise ValueError(f"unit row {idx}: expected {len(UNIT_COLUMNS) - 1} numbers, got {len(nums)}")
-        values = dict(zip(UNIT_COLUMNS[1:], nums))
-        out.append(UnitRow(idx, values, names[int(name_idx)]))
-    return out
 
 
-def flag_ids(word: int, table: list[tuple[int, str, str, str]], used: dict[str, tuple[str, str]]) -> list[str]:
-    ids = []
-    for mask, ident, name, desc in table:
-        if word & mask:
-            used[ident] = (name, desc)
-            ids.append(ident)
-    return ids
 
 
-def unit_abilities(row: UnitRow, used: dict[str, tuple[str, str]]) -> list[str]:
-    v = row.v
-    ids = []
-    ids += flag_ids(v["attr1"], ATTRIB_1_FLAGS, used)
-    ids += flag_ids(v["attr2"], ATTRIB_2_FLAGS, used)
-    ids += flag_ids(v["abilities"], ABILITY_FLAGS, used)
-    ids += flag_ids(v["attack_flags"], ATTACK_FLAGS, used)
-    ids += flag_ids(v["move_flags"], MOVE_FLAG_ABILITIES, used)
-    rt = v["ranged_type"]
-    if rt in RANGED_TYPES:
-        ident, name = RANGED_TYPES[rt]
-        used[ident] = (name, f"Ranged attack type: {name}.")
-        ids.append(ident)
-    # the same id can come from two flag words (flying): keep first
-    return list(dict.fromkeys(ids))
 
 
-def upkeep_ron(kind: str, amount: int) -> str:
-    if kind == "Summoned":
-        return f"(mana: {amount})"
-    food = ", food: 1" if kind == "Normal" else ""
-    return f"(gold: {amount}{food})"
 
 
-def movement_of(row: UnitRow) -> str:
-    flags = row.v["move_flags"]
-    if flags & 0x08 or row.v["attr1"] & 0x0200:
-        return "Flying"
-    if flags & 0x02:
-        return "Sailing"
-    if flags & 0x04:
-        return "Swimming"
-    return "Walking"
 
 
-def unit_stats(row: UnitRow) -> dict[str, int]:
-    v = row.v
-    stats = {
-        "Melee": v["melee"],
-        "Defense": v["defense"],
-        "Resistance": v["resist"],
-        "MaxHp": max(v["hits"], 1),
-        "Figures": max(v["figures"], 1),
-        "Moves": max((v["moves"] + 1) // 2, 1),  # the original counts half-moves
-        "Sight": max(v["sight"], 1),
-    }
-    if v["ranged"] > 0:
-        stats["Ranged"] = v["ranged"]
-        stats["Ammo"] = max(v["ammo"], 1)
-    if v["transport"] > 0:
-        stats["Transport"] = v["transport"]
-    if v["construction"] > 0:
-        stats["Construction"] = v["construction"]
-    if v["to_hit"] > 0:
-        stats["ToHit"] = v["to_hit"] * 10  # the table counts in steps of 10%
-    if v["special"]:
-        stats["SpecialLevel"] = abs(v["special"])  # a penalty is stored negative; only the size counts
-    return stats
 
 
-def stats_ron(stats: dict[str, int]) -> str:
-    return "{" + ", ".join(f"{k}: {x}" for k, x in stats.items()) + "}"
 
 
-@dataclass
-class Unit:
-    index: int
-    id: str
-    ron: str
-    race: int | None = None  # race index for Normal units
 
 
-def build_units(
-    rows: list[UnitRow],
-    races: list[Race],
-    buildings: dict[int, Building],
-    used_abilities: dict[str, tuple[str, str]],
-    spell_cost_by_unit: dict[str, int],
-    report: Report,
-) -> list[Unit]:
-    ids: dict[int, str] = {}
-    taken: set[str] = set()
-    for row in rows:
-        v = row.v
-        if row.index in NORMAL_RANGE and v["race"] < RACE_COUNT:
-            base = f"{races[v['race']].id}_{slug(row.name)}"
-        else:
-            base = slug(row.name)
-        ident, n = base, 2
-        while ident in taken:
-            ident, n = f"{base}_{n}", n + 1
-        taken.add(ident)
-        ids[row.index] = ident
-
-    units = []
-    for row in rows:
-        v = row.v
-        parts = [f"id: {ron_str(ids[row.index])}", f"name: {ron_str(row.name)}"]
-        race_index = None
-        if row.index in HERO_RANGE:
-            kind, cost = "Hero", v["cost"]
-        elif row.index in BOAT_RANGE:
-            kind, cost = "Fantastic", v["cost"]
-        elif row.index in NORMAL_RANGE:
-            kind, cost, race_index = "Normal", v["cost"], v["race"]
-        else:
-            kind = "Summoned"
-            cost = v["cost"] or spell_cost_by_unit.get(ids[row.index], 0) or 1
-        parts.append(f"kind: {kind}")
-        if kind == "Normal":
-            parts.append(f"race: Some({ron_str(races[race_index].id)})")
-        if kind == "Summoned":
-            realm = REALM_BY_RACE_BYTE.get(v["race"])
-            if realm is None:
-                report.note("units", f"{row.name}: unknown realm byte {v['race']}; using arcane")
-                realm = "arcane"
-            parts.append(f"realm: Some({ron_str(realm)})")
-        parts.append(f"cost: {max(cost, 1) if kind != 'Hero' else cost}")
-        if v["upkeep"]:
-            parts.append(f"upkeep: {upkeep_ron(kind, v['upkeep'])}")
-        parts.append(f"stats: {stats_ron(unit_stats(row))}")
-        parts.append(f"movement: {movement_of(row)}")
-        abilities = unit_abilities(row, used_abilities)
-        if abilities:
-            parts.append("abilities: [" + ", ".join(ron_str(a) for a in abilities) + "]")
-        if kind in ("Normal", "Fantastic") and row.index not in HERO_RANGE:
-            reqs = []
-            for b in (v["bld1"], v["bld2"]):
-                if b not in buildings or b <= 0:
-                    continue
-                if race_index is not None and b in races[race_index].cant_build:
-                    # The original lists a building the unit's own race cannot build, so the
-                    # unit can never be produced there. Keep it buildable and say so.
-                    report.note("units", f"{row.name} ({races[race_index].name}): requires "
-                                f"{buildings[b].name}, which that race cannot build; requirement dropped")
-                    continue
-                reqs.append(buildings[b].id)
-            if reqs:
-                parts.append("requires: [" + ", ".join(ron_str(r) for r in reqs) + "]")
-        if kind == "Hero":
-            parts.append('level_path: Some("hero_xp")')
-            parts.append(f"hero: Some((slots: [Weapon, Armor, Misc], hire_cost: {v['cost']}))")
-        elif kind == "Normal":
-            parts.append('level_path: Some("standard_xp")')
-        lbx, entry = ("units1", row.index) if row.index < 120 else ("units2", row.index - 120)
-        parts.append(f"art: Some(({ron_str(lbx)}, {entry}))")
-        units.append(Unit(row.index, ids[row.index], "    (" + ", ".join(parts) + "),", race_index))
-    return units
 
 
 # --------------------------------------------------------------------------- #
@@ -637,16 +327,6 @@ class SpellRow:
     attributes: int = 0
 
 
-def summon_costs(spells_ron: Path) -> dict[str, int]:
-    """Casting cost of the spell that summons each unit, by unit id, from the game's own
-    `spells.ron` (kept by hand): a summoned creature costs what its spell does."""
-    out = {}
-    for line in spells_ron.read_text(encoding="utf-8").splitlines():
-        unit = re.search(r'Summon\(unit: "([^"]+)"', line)
-        cost = re.search(r"\bcost: (\d+)", line)
-        if unit and cost:
-            out[unit.group(1)] = int(cost.group(1))
-    return out
 
 
 def import_spell_rows(game: Path) -> list[SpellRow]:
@@ -977,6 +657,17 @@ RULES_FILES = ("races", "units", "buildings", "abilities", "realms", "spells", "
                "level_paths", "rules")
 
 
+def units_of_race(units_ron: Path) -> dict[str, list[str]]:
+    """The unit ids of each race, in file order, from the game's own `units.ron`."""
+    out: dict[str, list[str]] = {}
+    for line in units_ron.read_text(encoding="utf-8").splitlines():
+        unit = re.search(r'\(id: "([^"]+)"', line)
+        race = re.search(r'\brace: Some\("([^"]+)"\)', line)
+        if unit and race:
+            out.setdefault(race.group(1), []).append(unit.group(1))
+    return out
+
+
 def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     report = Report()
     out.mkdir(parents=True, exist_ok=True)
@@ -987,22 +678,18 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     if len(city_names) < len(races):
         raise ValueError(f"CITYNAME.LBX has {len(city_names)} races, expected {len(races)}")
     buildings = [b for b in import_buildings(game, report) if b.name not in SKIP_BUILDINGS]
-    by_index = {b.index: b for b in buildings}
-    rows = import_unit_rows(remom)
 
-    # Spell summons need unit ids; units need summon costs. Build ids first.
     spell_rows = import_spell_rows(game)
     help_topics = import_help(game, report)
     apply_help_corrections(help_topics, report)
-    spell_cost_by_unit = summon_costs(rules_out / "spells.ron")
-
-    used_abilities: dict[str, tuple[str, str]] = {}
-    units = build_units(rows, races, by_index, used_abilities, spell_cost_by_unit, report)
+    # The units are the game's own data (`content/units.ron`, kept by hand): the race table
+    # only lists them.
+    units_by_race = units_of_race(rules_out / "units.ron")
 
     # races
     race_lines = []
     for race in races:
-        mine = [u.id for u in units if u.race == race.index]
+        mine = units_by_race.get(race.id, [])
         effects = ""
         if race.growth_people:
             effects = f", effects: [{_mod('CityGrowth', 'Add', race.growth_people)}]"
@@ -1015,22 +702,6 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
             f"units: [{', '.join(ron_str(u) for u in mine)}], buildings: []{effects}, "
             f"outpost_growth: {race.outpost_growth}, house_type: {race.house_type}{extra}),"
         )
-    # buildings, with per-race exclusions turned into allowed-race lists
-    building_lines = []
-    for b in buildings:
-        excluded = {r.id for r in races if b.index in r.cant_build}
-        allowed = [r.id for r in races if r.id not in excluded] if excluded else []
-        building_lines.append(building_ron(b, by_index, allowed))
-
-    used_abilities["magical_weapon"] = (
-        "Magical Weapon",
-        "Its normal attacks count as magical, so weapon immunity does not stop them.",
-    )
-    # (The abilities only spells grant are in `content/spell_abilities.ron`, kept by hand.)
-    abilities_lines = [
-        f"    (id: {ron_str(i)}, name: {ron_str(n)}, description: {ron_str(d)}, effects: []),"
-        for i, (n, d) in sorted(used_abilities.items())
-    ]
     realm_lines = [
         f"    (id: {ron_str(i)}, name: {ron_str(n)}, color: ({c[0]}, {c[1]}, {c[2]}), "
         f"default_spells: [{', '.join(ron_str(slug(x)) for x in DEFAULT_START_SPELLS.get(i, []))}])," for i, n, c in REALMS
@@ -1046,9 +717,6 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         f"    (race: {ron_str(race.id)}, names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
         for race in races
     ])
-    write_list(rules_out / "units.ron", header, [u.ron for u in units])
-    write_list(rules_out / "buildings.ron", header, building_lines)
-    write_list(rules_out / "abilities.ron", header, abilities_lines)
     write_list(rules_out / "realms.ron", header, realm_lines)
     write_list(rules_out / "items.ron", header, items)
     write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
@@ -1068,8 +736,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
             LOG.info("removed stale %s", old)
 
     summary = (
-        f"races {len(races)}, buildings {len(buildings)}, units {len(units)}, "
-        f"abilities {len(used_abilities)}, items {len(items)}, "
+        f"races {len(races)}, buildings {len(buildings)} (checked only), items {len(items)}, "
         f"help topics {len(help_topics)}"
     )
     (out / "IMPORT_REPORT.txt").write_text(summary + "\n\n" + "\n".join(report.lines) + "\n", encoding="utf-8")
