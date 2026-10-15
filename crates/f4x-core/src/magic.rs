@@ -46,6 +46,30 @@ pub enum Retort {
     NodeMastery,
 }
 
+impl Retort {
+    /// The retorts in the order the original lists them (its wizard record's field order).
+    pub const LISTED: [Retort; 18] = [
+        Retort::Alchemy,
+        Retort::Warlord,
+        Retort::ChaosMastery,
+        Retort::NatureMastery,
+        Retort::SorceryMastery,
+        Retort::InfernalPower,
+        Retort::DivinePower,
+        Retort::SageMaster,
+        Retort::Channeler,
+        Retort::Myrran,
+        Retort::Archmage,
+        Retort::ManaFocusing,
+        Retort::NodeMastery,
+        Retort::Famous,
+        Retort::Runemaster,
+        Retort::Conjurer,
+        Retort::Charismatic,
+        Retort::Artificer,
+    ];
+}
+
 /// How many spells are offered for research at once.
 pub const RESEARCH_SLOTS: usize = 8;
 

@@ -51,6 +51,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 63 | Meta | Diplomacy (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
+| 75 | Client | Wizard overview screen (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
@@ -363,6 +364,8 @@ original's rules are in `docs/diplomacy.md`.
 **70. Victory conditions and score (done).** The game ends by conquest, by the human wizard's
 defeat or by the Spell of Mastery; the game-over screen shows the score. See `docs/game_end.md`;
 the cut-scenes and the hall of fame are tasks 134 and 88.
+
+**75. Wizard overview screen (done).** The original's Mirror screen (`WIZVIEW.c`), `wizard_screen.rs`: the wizard's gem and name; for a rival the lines Relations, Treaties, Personality and Objective; gold and mana; the shelf of spell books; fame; the retorts as a running sentence; the heroes. Entry points as in the original: F9 shows your own, a right-click on a met rival's gem on the Magic screen shows theirs; Esc, Enter or a click leaves. Layout and art: `docs/hotkeys.md` and `WIZVIEW.c` (panel `backgrnd` 4, gem `lilwiz`, books `magic` 33 to 50). Departure (`divergences.md` section 7): the books on the shelf cycle through the realm's three pictures, where ReMoM's code stays on the first. The Mirror's own help entries are not wired. Differences: heroes show their class only (no personal names are kept, task 219), and the "target a wizard" spell use waits for that screen (task 60). Not seen on screen yet: the layout is written from the source and the tests cover the text and book logic only.
 
 **83. Wizard portraits and banner colours (done).** A wizard has a picture (`Player::portrait`, 0 to 13, kept in saves): a ready-made wizard has the one of its place in the list, which is the original's order; the creation screen has a picture choice beside the banner choice; every wizard of a new game has its own. It shows in the magic screen's gems (`lilwiz`, by picture and banner) and on the diplomacy screen (`moodwiz`, `diplomac`). The creation screen itself is not laid out like the original's (task 86 is about the other screens).
 

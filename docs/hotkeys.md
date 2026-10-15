@@ -17,7 +17,7 @@ sensitive. "Not yet" means the screen or action does not exist in our game.
 | F6 | Advisor: Chancellor | not yet |
 | F7 | Advisor: Tax Collector | not yet |
 | F8 | Advisor: Grand Vizier | toggles the Grand Vizier (the screen's one setting) |
-| F9 | Advisor: Mirror (wizard sheet, task 75) | not yet |
+| F9 | Advisor: Mirror (your wizard sheet) | done (a rival's sheet: right-click its gem on the Magic screen) |
 | F10 | Quick-save (save slot 9) | done |
 | N | Next turn | done (**extra:** Enter does the same) |
 | G | Game button (save, load, quit menu) | done (also Esc) |

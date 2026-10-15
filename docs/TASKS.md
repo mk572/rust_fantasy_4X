@@ -38,7 +38,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
-| 75 | Client | Wizard overview screen |
 | 76 | Client | Background music |
 | 77 | Content | Content pass and balance with AI-vs-AI soak runs |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
@@ -136,6 +135,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 234 | Combat | Attacking from a ship: can land units attack a city or stack from a boat? |
 | 235 | Units | A ship lost in battle or by a spell: what happens to its passengers |
 | 236 | Units | The nine-unit stack limit and ships: passengers and capacity |
+| 238 | AI | Wizard objectives steering the scripted AI (design: `ai-objectives.md`) |
 
 ## Descriptions
 
@@ -184,7 +184,13 @@ Subversion, Cruel Unminding, Resurrection, Incarnation (these need dead-unit tra
 Fire Storm and Ice Storm, plus Enchant Item, Create Artifact and the summon spells (heroes tasks, 218 onward).
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
-conditional bonuses and regeneration. Needs conditional modifiers (by attacker realm, ranged versus
+conditional bonuses and regeneration. **Done so far:** the movement spells grant the abilities the
+movement code reads (`import_mom.py`, `UNIT_ENCHANT_MODS`): Wind Walking, Planar Travel, Water Walking
+(new ability `water_walking`: the unit crosses water alone and needs no ship), Path Finding (new
+ability `pathfinding`, which `movement.rs` already read) and Wraith Form (non-corporeal and weapon
+immunity). **Left** (still the `unimplemented` placeholder): True Sight, Immolation and Cloak of Fear (the abilities exist but no
+combat code reads them), Eldritch Weapon, Spell Lock, Berserk; Elemental Armor, Bless, Righteousness and
+Invulnerability are task 156. Not checked: the AI's use of the five new spells. Needs conditional modifiers (by attacker realm, ranged versus
 melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **60. Wizard-targeting, destruction and other special categories.** About 20 spells aimed at
@@ -204,7 +210,14 @@ short" event interaction (68).
 
 **64. Wizard personalities and AI objectives.** Maniacal to peaceful personalities and the
 pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
-[271, 782-794]. See `docs/diplomacy.md`.
+[271, 782-794]. See `docs/diplomacy.md`. **Done:** both are drawn at game start for every wizard
+but the human, as the original's `Init_Magic_Personalities_Objectives` does (`objective.rs`: the
+primary realm's weight row plus the retort bonuses, personality first, then objective; both stored in
+`Diplomacy` and in saves; `Game::objective`, `Game::personality`). Personality already acted in
+diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Open:** what
+the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
+(`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
+here yet.
 
 **65. AI v1.** First version in `crates/f4x-ai` (taxes, research, summoning spells, production
 and buying, settlers, garrisons, attacks on weaker stacks, marching on explored enemy cities); it
@@ -246,11 +259,6 @@ cross a load. If replays or multiplayer are wanted, switch commands to creation 
 Decide the multiplayer scope first (`design.md` section 13).
 
 ### Client, content, housekeeping
-
-**75. Wizard overview screen.** A screen about one wizard (the player's own and, once met, the
-rivals): portrait (83), name, books, retorts, fame, gold and mana, cities, heroes, and the spells
-they are known to cast. The data exists (`Magic`, `Player`); the screen and its entry points
-(F9, the original's Mirror key, which is free now; the right-click on a rival's gem on the Magic screen) do not. Layout and art: `docs/hotkeys.md` and the original's `WIZVIEW.c` (panel `backgrnd` 4, gem `lilwiz`, books `magic` 33 to 50).
 
 **76. Background music.** Play music in the client: a track per situation (title, map, city, battle,
 victory and defeat, and the diplomacy screen's own tune), looping and crossfading, with a volume setting (94). The original's music
@@ -567,3 +575,5 @@ Parity task, low priority.
 **235. A ship lost with passengers.** Passengers of a ship that is destroyed in battle or removed by a spell are only lost later, by `drown_stranded` at the next turn end (`transport.rs`). Decide the rule (lost at once, with the ship; or saved when land is adjacent), make the loss part of the battle result and the events, and test it: a ship sunk in a fight, a ship dismissed, a ship killed by a spell, passengers aboard each time. Check where in the turn order `drown_stranded` runs.
 
 **236. The stack limit and ships.** A tile holds nine units (`MAX_STACK`); a galley carries five, so a loaded galley and its passengers take six places, and a port or sea square with several ships fills fast. Check how passengers count towards the limit when boarding, sailing into a city and landing, whether a landing stack can be refused for lack of room, and make the AI's gathering (chunks of nine in `military.rs`, loads of two to five in `naval.rs`) agree with it. Test with a full galley and a crowded square.
+
+**238. Wizard objectives steering the AI.** Task 64 draws an objective for every AI wizard but nothing reads it. Design in [`ai-objectives.md`](ai-objectives.md): an objective table in `f4x-ai` read through the AI's own view; step 1 the plumbing (no change in play), step 2 the small hooks (cities wanted, strike size, research share, research score), step 3 weighted building and casting choices (a redesign, decided after step 2), step 4 war declarations by Militarist and Expansionist wizards. Each step that changes play gets a soak, only when asked.

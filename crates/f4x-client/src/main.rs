@@ -21,6 +21,7 @@ mod spellbook;
 mod terrain_pick;
 mod ui;
 mod view;
+mod wizard_screen;
 
 use std::path::{Path, PathBuf};
 
@@ -38,6 +39,8 @@ struct Options {
     city: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// With `--shot`, open this wizard's sheet first (0 is you; a rival's shows as if met).
+    wizard: Option<u8>,
     /// With `--shot`, open the diplomacy screen with the first rival (`--talk MENU`, `--mood N`).
     talk: Option<String>,
     /// With `--talk`, make the relation about this much (-100 to 100).
@@ -84,6 +87,7 @@ fn parse_args() -> Result<Options, String> {
         shot: None,
         city: false,
         magic: false,
+        wizard: None,
         talk: None,
         mood: 0,
         spells: false,
@@ -118,6 +122,13 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
+            "--wizard" => {
+                o.wizard = Some(
+                    value("--wizard")?
+                        .parse()
+                        .map_err(|_| "--wizard must be a player number")?,
+                )
+            }
             "--talk" => o.talk = Some(value("--talk")?),
             "--mood" => {
                 o.mood = value("--mood")?
@@ -169,7 +180,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -216,6 +227,9 @@ async fn main() {
     }
     if options.magic {
         app.open_magic();
+    }
+    if let Some(who) = options.wizard {
+        app.open_test_wizard(who);
     }
     if let Some(menu) = &options.talk {
         app.open_test_talk(menu, options.mood);

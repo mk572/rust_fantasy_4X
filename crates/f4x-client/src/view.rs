@@ -29,6 +29,8 @@ pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
+    /// One wizard's sheet (the original's Mirror).
+    Wizard,
     /// Talking to another wizard.
     Diplomacy,
     /// The spell book the wizard casts from.
@@ -74,6 +76,7 @@ pub struct App {
     pub(crate) choice_scroll: usize,
     /// The magic screen's staves, locks and windows.
     pub(crate) magic_ui: crate::magic_screen::MagicUi,
+    pub(crate) wizard_ui: crate::wizard_screen::WizardUi,
     /// The diplomacy screen's talk.
     pub(crate) diplo_ui: crate::diplomacy_screen::DiploUi,
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
@@ -150,6 +153,7 @@ impl App {
             choosing: false,
             choice_scroll: 0,
             magic_ui: Default::default(),
+            wizard_ui: Default::default(),
             diplo_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),
@@ -710,6 +714,7 @@ impl App {
                 self.city_screen(city);
             }
             Screen::Magic => self.magic_screen(),
+            Screen::Wizard => self.wizard_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
@@ -1002,6 +1007,9 @@ impl App {
         }
         if is_key_pressed(KeyCode::F3) {
             self.open_apprentice();
+        }
+        if is_key_pressed(KeyCode::F9) {
+            self.open_wizard(HUMAN);
         }
         if command_key && is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
@@ -1415,7 +1423,7 @@ impl App {
         if self.show_keys || is_key_down(KeyCode::F1) {
             let keys = [
                 "click select      right-click go      B settle / road / meld      Q or U unselect      D done",
-                "C centre      P plane      numpad / arrows move the stack      T balance farmers      M magic      S spells      F3 apprentice      G game menu",
+                "C centre      P plane      numpad / arrows move the stack      T balance farmers      M magic      S spells      F3 apprentice      F9 your wizard      G game menu",
                 "Tab other plane      +/- zoom      arrows pan (nothing selected, or with Shift)      N or Enter end turn",
                 "Ctrl-Z undo      F10 quick-save      Ctrl-L quick-load      F8 Grand Vizier      Ctrl-N new map      Ctrl-R next race      ` console      Esc game menu",
             ];

@@ -136,7 +136,20 @@ Decided October 2026, `Magic::research_cost`.
   rank-11 reduction is not modelled (no wizard can have it yet). The difference is a few hundred
   points of 60,000.
 
-## 7. Recorded elsewhere
+## 7. The wizard sheet (task 75)
+
+Decided October 2026, `wizard_screen.rs`.
+
+- **The spell books on the shelf cycle through their pictures.** `MAGIC.LBX` has three pictures
+  for each realm's book. ReMoM's code for the Mirror screen (`WIZVIEW.c`, `Mirror_Screen_Load`)
+  picks the next one with `var_2 = (var_2 + 1) / 3`, which never leaves the first, so a shelf of
+  ten books of one realm shows ten identical books. We cycle first, second, third, first...
+  (`n % 3`), so a shelf looks varied. **Not checked:** whether the real game's shelf is varied or
+  identical; ReMoM is a reconstruction and the line may be its own error. Decided by the author.
+- Heroes are listed by their class only; the original prints "Name The Class" (no personal hero
+  names are kept yet, task 219).
+
+## 8. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

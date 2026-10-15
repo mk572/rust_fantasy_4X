@@ -372,7 +372,8 @@ impl App {
 
     /// The other wizards' gems: grey until the wizard is met, then its picture in its banner
     /// colour with the word for how it feels about you and an icon for each treaty, and broken
-    /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen.
+    /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen, a
+    /// right-click the wizard's sheet.
     fn magic_gems(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool) {
         for i in 0..4 {
             self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
@@ -445,11 +446,12 @@ impl App {
                     show(self, t, colour);
                 }
             }
-            if active
-                && is_mouse_button_pressed(MouseButton::Left)
-                && gem.is_some_and(|r| r.contains(mouse_position().into()))
-            {
+            let over = gem.is_some_and(|r| r.contains(mouse_position().into()));
+            if active && over && is_mouse_button_pressed(MouseButton::Left) {
                 self.open_diplomacy(id);
+            }
+            if active && over && is_mouse_button_pressed(MouseButton::Right) {
+                self.open_wizard(id);
             }
         }
     }
