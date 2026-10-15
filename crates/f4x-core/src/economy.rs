@@ -582,18 +582,27 @@ impl<'a> Economy<'a> {
             housing,
         );
 
+        // A computer wizard's difficulty bonuses come last, on the finished figures, as in the
+        // original's `Do_City_Calculations`.
+        let bonus = player.map_or_else(crate::player::Bonus::default, |p| p.bonus);
+        let of = crate::player::Bonus::of;
+        let growth_tens = if growth_tens > 0 {
+            of(bonus.growth, growth_tens)
+        } else {
+            growth_tens
+        };
         Some(CityEconomy {
             figures,
             farmers,
             workers,
             rebels,
             max_size,
-            food,
-            production,
-            gold,
-            gold_upkeep,
-            research,
-            mana,
+            food: of(bonus.food, food),
+            production: of(bonus.production, production),
+            gold: of(bonus.gold, gold),
+            gold_upkeep: of(bonus.maintenance, gold_upkeep),
+            research: of(bonus.research, research),
+            mana: of(bonus.mana, mana),
             growth_tens,
             unit_cost_percent: (100 - cost_reduction).max(50),
         })
@@ -795,6 +804,64 @@ mod handle_tests {
             eco.city_area(at).len(),
             21,
             "a 5x5 area without its corners"
+        );
+    }
+
+    #[test]
+    fn a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses() {
+        let content = content_with_economy();
+        let grass = content.terrains.id_of("grassland").unwrap();
+        let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
+        let at = Position {
+            plane: Plane::Arcanus,
+            x: 10,
+            y: 7,
+        };
+        let mut world = World::new();
+        let city = world.spawn((
+            City {
+                name: "Town".into(),
+                owner: PlayerId(0),
+            },
+            at,
+            Population {
+                figures: 10,
+                tens: 0,
+            },
+            Farmers(8),
+            Buildings::default(),
+            Enchantments::default(),
+        ));
+        let plain = [Player::new(PlayerId(0), "Merlin")];
+        let before = Economy::new(&world, Some(&map), &content, &plain)
+            .city_economy(city)
+            .unwrap();
+        let mut boosted = plain.clone();
+        boosted[0].bonus = crate::player::Bonus {
+            food: 200,
+            production: 150,
+            gold: 200,
+            research: 150,
+            mana: 200,
+            maintenance: 50,
+            growth: 200,
+            ..crate::player::Bonus::default()
+        };
+        let after = Economy::new(&world, Some(&map), &content, &boosted)
+            .city_economy(city)
+            .unwrap();
+        assert!(before.food > 0 && before.production > 0 && before.gold > 0);
+        assert!(before.growth_tens > 0, "a growing city: {before:?}");
+        assert_eq!(after.food, before.food * 2);
+        assert_eq!(after.production, before.production * 3 / 2);
+        assert_eq!(after.gold, before.gold * 2);
+        assert_eq!(after.research, before.research * 3 / 2);
+        assert_eq!(after.mana, before.mana * 2);
+        assert_eq!(after.gold_upkeep, before.gold_upkeep / 2);
+        assert_eq!(after.growth_tens, before.growth_tens * 2);
+        assert_eq!(
+            after.figures, before.figures,
+            "the people are not multiplied"
         );
     }
 }

@@ -21,7 +21,6 @@ fn game(seed: u64) -> Game {
         &content(),
         &NewGame {
             seed,
-            wizards: 2,
             all_ai: true,
             ..NewGame::default()
         },

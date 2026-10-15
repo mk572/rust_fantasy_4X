@@ -63,6 +63,9 @@ impl App {
         ] {
             lines.line(&format!("{label:<20}{value:>8}"), WHITE);
         }
+        if score.percent != 100 {
+            lines.line(&format!("{:<20}{:>7}%", "Difficulty", score.percent), WHITE);
+        }
         lines.line(&format!("{:<20}{:>8}", "Total", score.total()), GOLD);
         let y = lines.y + 24.0;
         if button(Rect::new(x, y, 200.0, 36.0), "New game", true) {

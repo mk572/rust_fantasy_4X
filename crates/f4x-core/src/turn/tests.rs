@@ -954,7 +954,7 @@ fn difficulty_does_not_change_outpost_growth_for_anyone() {
     let outpost = found(&mut g, at(10, 6), "elf", 0);
     let normal = g.economy().outpost_growth_chance(outpost);
     for difficulty in [0, 4] {
-        g.difficulty = difficulty;
+        g.settings.basic.difficulty = difficulty;
         assert_eq!(g.economy().outpost_growth_chance(outpost), normal);
     }
 }

@@ -222,7 +222,8 @@ fn hoards_follow_the_original_rules() {
             "lair",
             SiteType::Wild,
             200 + (i % 40) * 100,
-            2,
+            75,
+            133,
         );
         assert_eq!(l.gold % 10, 0);
         assert_eq!(l.mana % 10, 0);
@@ -239,8 +240,8 @@ fn hoards_follow_the_original_rules() {
         saw_items |= !l.items.is_empty();
     }
     assert!(saw_items && saw_big);
-    // Impossible difficulty keeps the whole budget: more guards than on easy.
-    let value = |difficulty| {
+    // Impossible keeps more of the budget (125%): more guards than on Intro (25%).
+    let value = |guard_percent| {
         let mut rng = Pcg64Mcg::seed_from_u64(9);
         (0..200)
             .map(|_| {
@@ -252,13 +253,14 @@ fn hoards_follow_the_original_rules() {
                     "lair",
                     SiteType::Wild,
                     900,
-                    difficulty,
+                    guard_percent,
+                    100,
                 )
                 .guard_count()
             })
             .sum::<u32>()
     };
-    assert!(value(4) > value(0));
+    assert!(value(125) > value(25));
 }
 
 #[test]

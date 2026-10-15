@@ -36,6 +36,13 @@ pub const TABLE: &[CommandDef] = &[
         run: history,
     },
     CommandDef {
+        name: "settings",
+        kind: Kind::Query,
+        usage: "settings",
+        help: "The settings this game is played with (difficulty, opponents, land, magic power).",
+        run: settings,
+    },
+    CommandDef {
         name: "save",
         kind: Kind::Legal,
         usage: "save [name]",
@@ -150,6 +157,29 @@ fn history(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
+fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let b = ctx.game.settings().basic;
+    let level = |names: &[(&'static str, u8)], i: u8| {
+        names
+            .iter()
+            .find(|(_, v)| *v == i)
+            .map_or("?", |(name, _)| *name)
+    };
+    ctx.say(format!(
+        "difficulty {} ({})",
+        b.difficulty,
+        level(&DIFFICULTY, b.difficulty)
+    ));
+    ctx.say(format!("opponents {}", b.opponents));
+    ctx.say(format!("land {}%", b.land_percent));
+    ctx.say(format!(
+        "magic power {} ({})",
+        b.magic_strength,
+        level(&MAGIC, b.magic_strength)
+    ));
+    Ok(())
+}
+
 fn save_path(a: &Args) -> Result<PathBuf, ConsoleError> {
     let name = a.get(0).unwrap_or("quick");
     if name.is_empty()
@@ -221,13 +251,26 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             "name" => spec.name = Some(v.to_string()),
             "race" => spec.race = Some(v.to_string()),
             "players" => {
-                spec.wizards = v
-                    .parse()
-                    .map_err(|_| ConsoleError::Parse(format!("{v:?} is not a number of wizards")))?
+                let n: u8 = v.parse().map_err(|_| {
+                    ConsoleError::Parse(format!("{v:?} is not a number of wizards"))
+                })?;
+                if !(2..=5).contains(&n) {
+                    return Err(ConsoleError::Parse("a game has 2 to 5 wizards".into()));
+                }
+                spec.settings.basic.opponents = n - 1;
             }
-            "land" => spec.land_percent = parse_choice(v, "land", &LAND, 1, 99)?,
-            "difficulty" => spec.difficulty = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?,
-            "magic" => spec.magic_strength = parse_choice(v, "magic", &MAGIC, 0, 2)?,
+            "land" => spec.settings.basic.land_percent = parse_choice(v, "land", &LAND, 1, 99)?,
+            "difficulty" => {
+                // A level brings the original's figures for it; the other basic choices stay.
+                let level = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?;
+                let basic = spec.settings.basic;
+                spec.settings = f4x_core::settings::GameSettings::for_difficulty(level);
+                spec.settings.basic = f4x_core::settings::BasicSettings {
+                    difficulty: level,
+                    ..basic
+                };
+            }
+            "magic" => spec.settings.basic.magic_strength = parse_choice(v, "magic", &MAGIC, 0, 2)?,
             "books" => {
                 for part in v.split(',') {
                     let (realm, n) = part.split_once(':').ok_or_else(|| {

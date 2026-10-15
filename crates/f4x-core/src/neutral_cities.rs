@@ -257,10 +257,11 @@ impl Game {
 
     /// One neutral city with its population, buildings and garrison.
     fn make_neutral_city(&mut self, pos: Position, race: RaceId) -> hecs::Entity {
-        let d = u32::from(self.difficulty);
-        let mut population = 1 + (d + 1) / 3 + self.roll(4);
+        let d = u32::from(self.settings.basic.difficulty);
+        let bonus = u32::from(self.settings.world.neutral_city_size_bonus);
+        let mut population = 1 + bonus + self.roll(4);
         if d > 2 && self.roll(5) == 1 {
-            population = (d + 1) / 3 + self.roll(10);
+            population = bonus + self.roll(10);
         }
         let name = self.unused_city_name(race);
         let owner = self.new_city_player(&name);

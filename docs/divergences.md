@@ -17,11 +17,14 @@ Add new entries at the end of their section; keep them short.
 
 Decided October 2026, `design.md` section 8.
 
-- **No AI bonuses or penalties.** The original gives computer wizards difficulty-based extras
-  (gold, production, growth, mana, cheaper units, a slower outpost growth) and lets some code
-  treat the human and the AI differently. We use the human's rules for everybody and skip every
-  branch that exists only for AI parity. Difficulty scales lair guards, lair treasure, neutral
-  city population and the final score, and may later set how well the AI plays.
+- **Difficulty bonuses for the computer wizards are in (changed 16 October 2026, task 247).**
+  The original gives computer wizards difficulty-based extras (gold, production, growth, mana,
+  research, food, outpost growth, cheaper maintenance and unit upkeep, extra picks, starting
+  gold). They are now the levels' settings (`game-settings.md`), applied to computer wizards only
+  and changeable on the advanced screen; the internal `flat` settings give the old symmetric game.
+  Still skipped: other code that treats the human and the AI differently, and the neutral cities'
+  halved growth. Difficulty also scales lair guards, lair treasure, neutral city population and
+  the final score, and sets how well the AI plays (task 148).
 - **No hard-coded AI decisions in the core.** What an AI decides lives in `f4x-ai` and reaches
   the core only as ordinary commands.
 - **The AI sees only what a human player would (task 181).** What the original does (as
@@ -89,10 +92,9 @@ Decided with task 41; code in `conquest.rs`, `battle/`.
 
 Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
 
-- **Starting gold is 100 for everyone.** The original gives the human `(5 - difficulty) * 25`
-  (125 on Intro down to 25 on Impossible) and every AI 150. The flat figure removes an AI bonus
-  (section 1) and keeps the start the same at every difficulty. Revisit if difficulty should
-  affect the player's own start.
+- **Starting gold follows the level (task 247).** The human gets `(5 - difficulty) * 25` (125 on
+  Intro down to 25 on Impossible) and every AI 150, as in the original; both are settings.
+  The internal `flat` settings (tests, soak, learning AI) give 100 to everyone.
 - **Fortress sites are the nearest fitting site to a spread-out anchor**, not the original's
   random picks, so a seed gives a predictable, evenly spread start. The checks themselves are
   the original's (land, fortress distance 16 relaxing to 10, node/tower/lair distance 3
@@ -100,9 +102,9 @@ Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
   original's `Range` throughout; the original uses a wrapping delta for fortresses, nodes and
   lairs. See task 155.
 - **No two wizards share a race** while a free one remains; the original may repeat a race.
-- **AI races are not limited by difficulty.** The original draws from nine races up to normal
-  difficulty and from five (Klackon, High Elf, Halfling, High Men, Nomad) above it, which is a
-  bias against the AI (section 1).
+- **AI races are not limited by difficulty yet.** The original draws from nine races up to
+  normal difficulty and from five (Klackon, High Elf, Halfling, High Men, Nomad) above it; that
+  is a settings switch still to do (task 155 item 2).
 - **A race from the wrong plane is refused** when the player names one (a Myrran wizard needs a
   Myrror race, anyone else an Arcanus one). The original's new-game screen just never offers
   it.

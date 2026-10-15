@@ -50,8 +50,8 @@ fn game() -> Game {
     }]);
     let mut g = Game::new(99);
     g.content = c;
-    g.magic_strength = 2;
-    g.difficulty = 4;
+    g.settings.basic.magic_strength = 2;
+    g.settings.basic.difficulty = 4;
     g.map = Some(map);
     let mut p = Player::new(P0, "Merlin");
     p.gold = 300;
@@ -147,8 +147,8 @@ fn restoring_gives_the_same_game() {
         back.map.as_ref().unwrap().nodes(),
         g.map.as_ref().unwrap().nodes()
     );
-    assert_eq!(back.magic_strength, 2);
-    assert_eq!(back.difficulty, 4);
+    assert_eq!(back.settings.basic.magic_strength, 2);
+    assert_eq!(back.settings.basic.difficulty, 4);
     assert!(grid.feature(10, 8).is_some());
     assert_eq!(
         back.fog.explored_count(P0, Plane::Arcanus),
@@ -335,6 +335,31 @@ fn an_empty_game_round_trips() {
         .restore(Default::default())
         .unwrap();
     assert_eq!(back.snapshot(), snap);
+}
+
+#[test]
+fn every_setting_survives_a_save() {
+    let mut g = Game::new(5);
+    g.settings.basic = crate::settings::BasicSettings {
+        difficulty: 3,
+        opponents: 4,
+        land_percent: 15,
+        magic_strength: 0,
+    };
+    let text = g.snapshot().to_text().unwrap();
+    let back = Snapshot::from_text(&text)
+        .unwrap()
+        .restore(Default::default())
+        .unwrap();
+    assert_eq!(back.settings(), g.settings());
+}
+
+#[test]
+fn a_save_with_out_of_range_settings_is_brought_into_range() {
+    let mut snap = Game::new(5).snapshot();
+    snap.settings.basic.difficulty = 9;
+    let back = snap.restore(Default::default()).unwrap();
+    assert_eq!(back.settings().basic.difficulty, 4);
 }
 
 #[test]

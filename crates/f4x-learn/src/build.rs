@@ -124,7 +124,6 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
         content,
         &NewGame {
             seed: s.seed,
-            wizards: 2,
             all_ai: true,
             ..NewGame::default()
         },

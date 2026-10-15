@@ -75,9 +75,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
             &content,
             &NewGame {
                 seed,
-                wizards: players,
                 all_ai: true,
-                ..NewGame::default()
+                ..NewGame::with_wizards(players)
             },
         )?;
         game.set_undo(false);

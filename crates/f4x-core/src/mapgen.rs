@@ -30,8 +30,13 @@ pub struct GenParams {
     /// Strong and weak random encounter sites, on either plane (the original's 25 and 32).
     pub strong_sites: u32,
     pub weak_sites: u32,
-    /// The game's difficulty, 0 (intro) to 4 (impossible): guards and treasure scale with it.
+    /// The game's difficulty, 0 (intro) to 4 (impossible), as `Game::with_generated_map` records
+    /// it. The lairs read the two percents below, not this.
     pub difficulty: u8,
+    /// Guards of lairs, towers and nodes as a percent of the budget (`world.lair_guard_percent`).
+    pub lair_guard_percent: u16,
+    /// Treasure of lairs as a percent (`world.lair_treasure_percent`).
+    pub lair_treasure_percent: u16,
     /// The game's node setting, 0 weak to 2 powerful.
     pub magic_strength: u8,
     /// Indexed by [`Plane::index`].
@@ -48,6 +53,8 @@ impl Default for GenParams {
             strong_sites: 25,
             weak_sites: 32,
             difficulty: 2,
+            lair_guard_percent: 75,
+            lair_treasure_percent: 133,
             magic_strength: 1,
             planes: [
                 PlaneParams {

@@ -168,12 +168,10 @@ fn fill_hoard(
     plane: Plane,
     guard_value: i32,
     second_value: i32,
-    difficulty: i32,
+    treasure_percent: i32,
 ) {
     let mut loot = guard_value + second_value / 2;
-    if difficulty != 4 {
-        loot = loot * 4 / (difficulty + 1);
-    }
+    loot = loot * treasure_percent / 100;
     loot = match plane {
         Plane::Arcanus => loot * (49 + random(rng, 76)) / 100,
         Plane::Myrror => loot * (75 + random(rng, 100)) / 100,
@@ -251,9 +249,10 @@ fn make_lair(
     site_id: &str,
     site: SiteType,
     budget: i32,
-    difficulty: i32,
+    guard_percent: i32,
+    treasure_percent: i32,
 ) -> Lair {
-    let budget = budget * (difficulty + 1) / 4;
+    let budget = budget * guard_percent / 100;
     let realm = guard_realm(rng, site);
     let list = candidates(content, realm);
     let (guards, first, second) = pick_guards(rng, &list, budget);
@@ -270,14 +269,15 @@ fn make_lair(
         prisoner: false,
         special: 0,
     };
-    fill_hoard(rng, &mut lair, site, plane, first, second, difficulty);
+    fill_hoard(rng, &mut lair, site, plane, first, second, treasure_percent);
     lair
 }
 
 /// Give every tower, node and encounter site on the map its guards and treasure.
 pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Content) {
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x1A12_5EED_600D_5CA1);
-    let difficulty = i32::from(params.difficulty.min(4));
+    let guards = i32::from(params.lair_guard_percent.min(300));
+    let treasure = i32::from(params.lair_treasure_percent.min(500));
     let magic = i32::from(params.magic_strength.min(2));
     let mut lairs: Vec<Lair> = Vec::new();
     // Towers stand on both planes and share one set of guards and treasure.
@@ -305,7 +305,8 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
                     &def.id,
                     SiteType::Tower,
                     budget,
-                    difficulty,
+                    guards,
+                    treasure,
                 );
                 lairs.push(Lair {
                     plane: Plane::Myrror,
@@ -327,7 +328,8 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
             &id,
             SiteType::Node(&node.realm),
             budget,
-            difficulty,
+            guards,
+            treasure,
         );
         lairs.push(lair);
     }
@@ -377,7 +379,8 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
             &def.id,
             site_type(&def.id, def.kind),
             budget,
-            difficulty,
+            guards,
+            treasure,
         );
         lairs.push(lair);
     }

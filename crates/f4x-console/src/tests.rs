@@ -345,19 +345,39 @@ fn new_game_settings_reach_the_game() {
         seed: 7,
         ..NewGame::default()
     });
-    assert_eq!((base.difficulty, base.magic_strength), (2, 1));
+    assert_eq!(
+        (
+            base.settings().basic.difficulty,
+            base.settings().basic.magic_strength
+        ),
+        (2, 1)
+    );
     assert_eq!(wizards(&base), 2);
 
     let small = made(NewGame {
         seed: 7,
-        wizards: 5,
-        land_percent: f4x_core::setup::LAND_SMALL,
-        difficulty: 4,
-        magic_strength: 2,
+        settings: {
+            let mut s = NewGame::with_wizards(5).settings;
+            s.basic.land_percent = f4x_core::setup::LAND_SMALL;
+            s.basic.difficulty = 4;
+            s.basic.magic_strength = 2;
+            s
+        },
         ..NewGame::default()
     });
     assert_eq!(wizards(&small), 5, "four opponents");
-    assert_eq!((small.difficulty, small.magic_strength), (4, 2));
+    assert_eq!(small.settings().basic.opponents, 4);
+    assert_eq!(
+        small.settings().basic.land_percent,
+        f4x_core::setup::LAND_SMALL
+    );
+    assert_eq!(
+        (
+            small.settings().basic.difficulty,
+            small.settings().basic.magic_strength
+        ),
+        (4, 2)
+    );
     let land = |g: &Game| {
         let map = g.map().unwrap();
         f4x_core::mapgen::land_percent(
@@ -373,6 +393,127 @@ fn new_game_settings_reach_the_game() {
     assert!(land(&base).abs_diff(30) <= 2, "large land {}", land(&base));
 }
 
+fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
+    let mut spec = NewGame::with_wizards(wizards);
+    spec.seed = seed;
+    let basic = spec.settings.basic;
+    spec.settings = f4x_core::settings::GameSettings::for_difficulty(level);
+    spec.settings.basic = f4x_core::settings::BasicSettings {
+        difficulty: level,
+        ..basic
+    };
+    new_game(&content(), &spec).unwrap()
+}
+
+#[test]
+fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
+    for level in 0..=4u8 {
+        let g = level_game(level, 2, 5);
+        let human = g.human.unwrap();
+        let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
+        assert_eq!(g.player(human).unwrap().gold, (5 - i32::from(level)) * 25);
+        assert_eq!(g.player(ai).unwrap().gold, 150);
+        let percent = |p| g.player(p).unwrap().bonus.production;
+        assert_eq!(percent(human), 100);
+        assert_eq!(
+            percent(ai),
+            [100, 125, 150, 200, 400][usize::from(level)],
+            "level {level}"
+        );
+    }
+    // The symmetric game: the same gold, no bonuses.
+    let g = new_game(&content(), &NewGame::default()).unwrap();
+    assert!(g
+        .players()
+        .iter()
+        .all(|p| p.gold == 100 && p.bonus.gold == 100));
+}
+
+#[test]
+fn computer_wizards_are_made_to_the_levels_pick_budget() {
+    use f4x_core::wizard::{retort_cost, ALL_RETORTS};
+    for (level, picks) in [(2u8, 11), (3, 13), (4, 15)] {
+        for seed in [1u64, 2, 3, 4] {
+            let g = level_game(level, 3, seed);
+            let human = g.human.unwrap();
+            let mut names = Vec::new();
+            for p in g
+                .wizards()
+                .into_iter()
+                .filter(|&w| w != human)
+                .filter_map(|w| g.player(w))
+            {
+                let spent = p.magic.total_books()
+                    + ALL_RETORTS
+                        .iter()
+                        .filter(|&&r| p.magic.has(r))
+                        .map(|&r| i32::from(retort_cost(r)))
+                        .sum::<i32>();
+                // Erasure takes books and refilling puts them back; a wizard may end a pick or
+                // two over when the last retort did not fit, never under.
+                assert!(
+                    (picks..=picks + 1).contains(&spent),
+                    "level {level} seed {seed}: {} spent {spent} of {picks}",
+                    p.name
+                );
+                names.push(p.name.clone());
+            }
+            names.sort();
+            names.dedup();
+            assert_eq!(names.len(), 2, "two different wizards");
+        }
+    }
+}
+
+#[test]
+fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
+    for level in [3u8, 4] {
+        for seed in [1u64, 2, 3, 4, 5, 6] {
+            let g = level_game(level, 4, seed);
+            let human = g.human.unwrap();
+            let n = g
+                .wizards()
+                .into_iter()
+                .filter(|&w| w != human)
+                .filter_map(|w| g.player(w))
+                .filter(|p| p.magic.has(f4x_core::magic::Retort::Myrran))
+                .count();
+            assert!(
+                (1..=2).contains(&n),
+                "level {level} seed {seed}: {n} Myrran"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_same_seed_makes_the_same_wizards() {
+    let a = level_game(4, 4, 9);
+    let b = level_game(4, 4, 9);
+    assert_eq!(a.snapshot(), b.snapshot());
+}
+
+#[test]
+fn the_settings_command_shows_what_the_game_was_made_with() {
+    let mut game = game();
+    let mut c = console();
+    c.execute(
+        &mut game,
+        "new 3 land=small difficulty=hard magic=weak players=3",
+    );
+    let r = c.execute(&mut game, "settings");
+    assert!(r.error.is_none(), "{:?}", r.error);
+    let text = r.text();
+    for want in [
+        "difficulty 3 (hard)",
+        "opponents 2",
+        "land 15%",
+        "magic power 0 (weak)",
+    ] {
+        assert!(text.contains(want), "{want:?} not in {text:?}");
+    }
+}
+
 #[test]
 fn the_new_command_takes_the_settings_by_name() {
     let mut game = game();
@@ -382,7 +523,13 @@ fn the_new_command_takes_the_settings_by_name() {
         "new 3 land=small difficulty=hard magic=weak players=3",
     );
     assert!(r.error.is_none(), "{:?}", r.error);
-    assert_eq!((game.difficulty, game.magic_strength), (3, 0));
+    assert_eq!(
+        (
+            game.settings().basic.difficulty,
+            game.settings().basic.magic_strength
+        ),
+        (3, 0)
+    );
     assert_eq!(wizards(&game), 3);
     let r = c.execute(&mut game, "new 3 difficulty=nightmare");
     assert!(matches!(r.error, Some(ConsoleError::Parse(_))));
@@ -774,8 +921,7 @@ fn a_wizard_starts_as_in_the_original() {
             &content,
             &NewGame {
                 seed,
-                wizards: 4,
-                ..NewGame::default()
+                ..NewGame::with_wizards(4)
             },
         )
         .unwrap();
@@ -2356,8 +2502,7 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
         &content,
         &NewGame {
             seed: 11,
-            wizards: 4,
-            ..NewGame::default()
+            ..NewGame::with_wizards(4)
         },
     )
     .unwrap();
@@ -2385,8 +2530,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
             &content,
             &NewGame {
                 seed,
-                wizards: 5,
-                ..NewGame::default()
+                ..NewGame::with_wizards(5)
             },
         )
         .unwrap();

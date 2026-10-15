@@ -69,8 +69,8 @@ Casting the Spell of Mastery counts every wizard still standing as defeated (the
 marks them all as conquests). A wizard counts as having defeated another when they took that
 wizard's last city (`defeated_by`). The total is then scaled by difficulty: Intro halves it,
 Easy takes three quarters, Normal leaves it, Hard doubles and Impossible triples it
-(`scale_for_difficulty`). The game has no difficulty setting yet, so the client's total is not
-scaled (task 69). The original draws a bar of `min(score / 40, 200)`.
+(`scale_for_difficulty`). `Score::total` applies the game's `scoring.score_percent` (task 247), and
+the game over screen shows the scale. The original draws a bar of `min(score / 40, 200)`.
 
 ## 5. The client
 

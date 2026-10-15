@@ -45,6 +45,9 @@ pub enum Screen {
     Create,
     /// The new-game options (difficulty, opponents, land size, magic power).
     Options,
+    /// The settings of the game being played (read-only), or the options for the next game when
+    /// there is none; opened from the save slots' Settings button (task 94).
+    Settings,
     /// The game has ended: result and score.
     GameOver,
     /// The text console (backquote key).
@@ -196,13 +199,16 @@ impl App {
             .map(|w| w.id.clone());
         let spec = NewGame {
             seed,
-            wizards: options.wizards(),
             preset,
             build: human.cloned(),
             race: content.rules.races.defs().get(race).map(|r| r.id.clone()),
-            land_percent: options.land_percent(),
-            difficulty: options.difficulty,
-            magic_strength: options.magic,
+            settings: {
+                let mut s = f4x_core::settings::GameSettings::for_difficulty(options.difficulty);
+                s.basic.opponents = options.opponents.clamp(1, 4);
+                s.basic.land_percent = options.land_percent();
+                s.basic.magic_strength = options.magic;
+                s
+            },
             ..NewGame::default()
         };
         setup::new_game(content, &spec)
@@ -750,6 +756,7 @@ impl App {
             Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
             Screen::Options => self.options_screen(),
+            Screen::Settings => self.settings_screen(),
             Screen::MainMenu => return self.main_menu_screen(),
             Screen::Slots => self.slots_screen(),
             Screen::Map => {

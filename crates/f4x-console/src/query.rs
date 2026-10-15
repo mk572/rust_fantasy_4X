@@ -834,13 +834,14 @@ fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     let s = ctx.game.score(who);
     ctx.say(format!(
-        "spells {}, townsfolk {}, wizards defeated {}, fame {}, time {}, mastery {}; total {}",
+        "spells {}, townsfolk {}, wizards defeated {}, fame {}, time {}, mastery {}; scale {}%; total {}",
         s.spells,
         s.townsfolk,
         s.conquests,
         s.fame,
         s.time,
         s.mastery,
+        s.percent,
         s.total()
     ));
     Ok(())

@@ -37,6 +37,53 @@ pub struct Player {
     /// An independent city's own player (task 31): it has a treasury and pays its way like a
     /// wizard, but is no wizard (no magic, no victory, no AI).
     pub neutral: bool,
+    /// The computer wizards' difficulty bonuses (percents of what a human would get). Set from
+    /// the game's settings (`Game::apply_wizard_settings`), not saved.
+    pub bonus: Bonus,
+}
+
+/// What a wizard's cities and army are multiplied by, in percent (100 changes nothing). The
+/// original gives these to computer wizards by difficulty (`difficulty_modifiers_table`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bonus {
+    pub growth: i32,
+    pub outpost_growth: i32,
+    pub production: i32,
+    pub gold: i32,
+    pub mana: i32,
+    pub food: i32,
+    pub research: i32,
+    /// Building maintenance.
+    pub maintenance: i32,
+    /// Gold upkeep of units.
+    pub unit_upkeep: i32,
+}
+
+impl Default for Bonus {
+    fn default() -> Self {
+        Self {
+            growth: 100,
+            outpost_growth: 100,
+            production: 100,
+            gold: 100,
+            mana: 100,
+            food: 100,
+            research: 100,
+            maintenance: 100,
+            unit_upkeep: 100,
+        }
+    }
+}
+
+impl Bonus {
+    /// `value` as a percent of itself.
+    pub fn of(percent: i32, value: i32) -> i32 {
+        if percent == 100 {
+            value
+        } else {
+            value * percent / 100
+        }
+    }
 }
 
 /// The banner of the neutral player and of monsters.
@@ -75,6 +122,7 @@ impl Player {
             portrait: if id.0 == u8::MAX { 0 } else { id.0 % PORTRAITS },
             grand_vizier: false,
             neutral: false,
+            bonus: Bonus::default(),
         }
     }
 

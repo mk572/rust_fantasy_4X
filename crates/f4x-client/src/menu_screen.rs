@@ -391,15 +391,14 @@ impl App {
             false,
             true,
         );
-        // Settings are task 94.
-        self.menu_button(
+        let settings = self.menu_button(
             &lay,
             (172.0, 171.0, 58.0, 13.0),
             Some(("load", 12, 172.0, 171.0)),
             "Settings",
+            true,
             false,
-            false,
-            false,
+            true,
         );
         let ok = self.menu_button(
             &lay,
@@ -434,7 +433,9 @@ impl App {
             );
         }
 
-        if load {
+        if settings {
+            self.screen = Screen::Settings;
+        } else if load {
             if let Some(n) = selected {
                 match self.load_from(&slot_path(n)) {
                     Ok(()) => {

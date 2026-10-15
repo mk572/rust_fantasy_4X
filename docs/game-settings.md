@@ -7,6 +7,14 @@ an advanced screen, opened from a button on the base screen, for the numbers the
 lets the player touch. Larger stacks have their own design, [`large-stacks.md`](large-stacks.md),
 for later.
 
+**Built so far (16 October 2026):** stage 1 (task 246) and stage 2 (task 247, with the
+settings screen of task 94). The record holds the basic block, the wizard, AI, world, rule, event
+and score groups of the levels; `GameSettings::flat()` is the default of `NewGame` and `Game::new`,
+so tests, the soak and the learning AI play the symmetric game, and the client and the console's
+`new difficulty=...` start from a level. The number of opponents is `settings.basic.opponents`,
+the one place it lives. Not yet read by the rules: `picks.human` (stage 3), the event group
+(task 68). Old saves are not migrated.
+
 Read first: `divergences.md` section 4 (starting setup), `game_end.md`, `screen_list.md`
 section 3 (the new-game steps). `design.md` section 8 and `divergences.md` section 1 still say
 "no AI advantage"; this design reverses that (section 2), so those passages need updating when
@@ -201,8 +209,8 @@ Notes:
   Average the human starts with 75 instead of 100, the AI with 150, and every AI city gets the
   150% bonuses. The soak baseline changes once, when the AI group lands (stage 2), and the commit
   says so. A **`flat` preset (today's symmetric game) exists internally, for the soak and the
-  learning AI only**: it is not on any screen and not in the dropdown. It is reachable from the
-  console (`new flat`) and tests.
+  learning AI only**: it is not on any screen and not in the dropdown. It is what the console's
+  `new` makes when no `difficulty=` is given, and what tests build.
 - Rows that are today's numbers (`lair_*`, `neutral_city_size_bonus`) must reproduce the present
   output exactly at every level; a test per level checks it.
 - The original applies the AI multipliers to computer wizards' cities and mana only; the human is
@@ -218,16 +226,11 @@ Notes:
 
 ### 3.3 Where it lives and how it is saved
 
-- `Game` gets `settings: GameSettings` (read through `Game::settings()`). `Game::difficulty` and
-  `Game::magic_strength` become reads of `settings.basic` (kept as methods so the many callers do
-  not all change at once).
-- `Snapshot` (`save.rs`) gets `#[serde(default)] settings: Option<GameSettings>`.
-  - **New saves** write `Some(settings)`.
-  - **Old saves** have `None` and the two existing fields `difficulty` and `magic_strength`;
-    loading builds `GameSettings::for_difficulty(difficulty)` with `magic_strength` applied, so
-    an old game keeps every rule it was played with. The two old fields keep being written for a
-    release so an older build still reads a newer save, then are dropped with a
-    `SAVE_VERSION` bump (task 73).
+- `Game` gets `settings: GameSettings` (read through `Game::settings()`; the old public
+  `difficulty` and `magic_strength` fields are gone, callers read `settings.basic`).
+- `Snapshot` (`save.rs`) holds `#[serde(default)] settings: GameSettings`. **Old saves are not
+  migrated**: the two old fields `difficulty` and `magic_strength` are no longer written or read,
+  and a save without the record reads as the defaults. Out-of-range values are clamped on load.
   - Settings that took effect at creation (`picks`, `starting_gold`, map size) are saved too, for
     the screens and the hall of fame; only the ones read during play (stack limit, events, Mastery,
     Return, city limits, scoring) have to be right after a load.
@@ -697,8 +700,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
 ## 8. Tests
 
 - Round trip: a non-default `GameSettings` through snapshot save and load, byte for byte.
-- Old-save migration: a snapshot with only `difficulty` and `magic_strength` loads as the matching
-  preset.
+- Out-of-range values in a save are brought into range on load.
 - Preset check: for each difficulty, `lair_*`, `neutral_city_size_bonus` and `score_percent` give the
   numbers the code produced before (golden values from the current functions).
 - Baseline: the internal `flat` preset (100 gold for all, AI percents 100, picks 11, no
@@ -725,11 +727,11 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
 
 1. **Wireframe, save, load, default difficulty.** `settings.rs` with `GameSettings` holding the
    basic block and the groups as empty or default structs; `Game::settings()`; the snapshot field
-   with the old-save migration (old `difficulty` and `magic_strength` become the matching level);
+   (old saves are not migrated: a save without the record reads as the defaults);
    `validate`; presets as functions that so far return the same numbers as the code uses today;
    the new-game path takes a `GameSettings`; the console `new` and `settings` commands. **No
    behaviour change**, soak identical, and the default difficulty is Average as now. Tests:
-   round trip, migration, `validate`.
+   round trip, `validate`.
 2. **The base screen with the original's settings.** Task 94's base block (difficulty, opponents,
    land size, magic power, seed) over the record, and the original's difficulty effects behind it:
    starting gold and picks by level (human and AI), the `ai` multipliers, the AI wizard rules

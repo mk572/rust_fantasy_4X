@@ -98,7 +98,7 @@ impl WorldView for Game {
     }
 
     fn difficulty(&self) -> u8 {
-        self.difficulty
+        self.settings.basic.difficulty
     }
 
     fn content(&self) -> &Content {

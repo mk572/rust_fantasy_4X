@@ -4,6 +4,7 @@
 //! [`Event`]s. The command log plus the seed fully reproduces a game.
 
 mod access;
+mod ai_wizards;
 pub mod battle;
 pub mod cast;
 pub mod cheat;
@@ -47,6 +48,7 @@ pub mod roads;
 pub mod rules;
 pub mod save;
 pub mod serial;
+pub mod settings;
 pub mod setup;
 pub mod special_spells;
 pub mod temp_effects;
@@ -545,10 +547,9 @@ pub struct Game {
     pub(crate) rng: rng::GameRng,
     /// Countdowns for timed spells.
     pub(crate) timers: Vec<timers::Timer>,
-    /// The game's node setting: 0 weak, 1 normal, 2 powerful.
-    pub magic_strength: u8,
-    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
-    pub difficulty: u8,
+    /// What the game is played with (difficulty, node strength, ...). Chosen when the game is
+    /// made and fixed after that; read through [`Game::settings`].
+    pub(crate) settings: settings::GameSettings,
     /// The battle being fought, if any. Saves do not hold a battle in progress.
     pub battle: Option<battle::game::ActiveBattle>,
     /// Set once the game has ended; every later command is refused.
@@ -577,8 +578,9 @@ impl Game {
             next_serial: 1,
             rng: rng::GameRng::new(seed),
             timers: Vec::new(),
-            magic_strength: 1,
-            difficulty: 2,
+            // The symmetric game, as `settings::GameSettings::flat` says; a game made for
+            // play gets its level from `setup::new_game`.
+            settings: settings::GameSettings::flat(),
             battle: None,
             game_over: None,
             human: None,
@@ -590,6 +592,11 @@ impl Game {
         }
     }
 
+    /// The settings the game is played with.
+    pub fn settings(&self) -> &settings::GameSettings {
+        &self.settings
+    }
+
     /// Start a game on a freshly generated map.
     pub fn with_generated_map(
         seed: u64,
@@ -597,8 +604,8 @@ impl Game {
         content: &content::Content,
     ) -> Result<Self, mapgen::GenError> {
         let mut game = Self::new(seed);
-        game.magic_strength = params.magic_strength.min(2);
-        game.difficulty = params.difficulty.min(4);
+        game.settings.basic.magic_strength = params.magic_strength.min(2);
+        game.settings.basic.difficulty = params.difficulty.min(4);
         game.map = Some(mapgen::generate(seed, params, content)?);
         game.content = content.clone();
         Ok(game)

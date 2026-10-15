@@ -41,12 +41,9 @@ pub struct Snapshot {
     pub draws: u64,
     pub turn: u32,
     pub next_serial: u64,
-    /// The node setting: 0 weak, 1 normal, 2 powerful.
-    #[serde(default = "normal_magic")]
-    pub magic_strength: u8,
-    /// The difficulty, 0 intro to 4 impossible.
-    #[serde(default = "normal_difficulty")]
-    pub difficulty: u8,
+    /// The settings the game is played with (a save without them reads as the defaults).
+    #[serde(default)]
+    pub settings: crate::settings::GameSettings,
     /// Set once the game has ended.
     #[serde(default)]
     pub game_over: Option<crate::endgame::GameOver>,
@@ -82,14 +79,6 @@ pub struct TimerSave {
     pub spell: String,
     pub caster: u8,
     pub left: u16,
-}
-
-fn normal_magic() -> u8 {
-    1
-}
-
-fn normal_difficulty() -> u8 {
-    2
 }
 
 /// The map with terrain and features saved as indexes into name lists.
@@ -711,8 +700,7 @@ impl Game {
             draws: self.rng.draws(),
             turn: self.turn,
             next_serial: self.next_serial,
-            magic_strength: self.magic_strength,
-            difficulty: self.difficulty,
+            settings: self.settings,
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
@@ -772,8 +760,7 @@ impl Snapshot {
         let mut game = Game::new(self.seed);
         game.content = content;
         game.turn = self.turn;
-        game.magic_strength = self.magic_strength.min(2);
-        game.difficulty = self.difficulty.min(4);
+        game.settings = self.settings.normalised();
         game.game_over = self.game_over;
         game.human = self.human.map(PlayerId);
         game.override_log = self.override_log;
@@ -804,6 +791,7 @@ impl Snapshot {
                 })
                 .transpose()?;
             game.players.push(Player {
+                bonus: crate::player::Bonus::default(),
                 id: PlayerId(p.id),
                 name: p.name,
                 gold: p.gold,
@@ -1053,6 +1041,7 @@ impl Snapshot {
         for player in idle {
             game.refill_research(player);
         }
+        game.apply_wizard_settings();
         Ok(game)
     }
 }

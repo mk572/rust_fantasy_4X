@@ -10,6 +10,7 @@ use crate::magic::Retort;
 use crate::map::Plane;
 use crate::mapgen::{generate, GenParams};
 use crate::player::Player;
+use crate::settings::GameSettings;
 use crate::wizard::WizardBuild;
 use crate::{Command, Game};
 
@@ -52,16 +53,12 @@ pub fn parse_retort(text: &str) -> Option<Retort> {
 
 /// The original's land sizes, as a share of each plane's tiles (`NEWG_CreateLands`: 360, 480 and
 /// 720 of 2400).
-pub const LAND_SMALL: u8 = 15;
-pub const LAND_MEDIUM: u8 = 20;
-pub const LAND_LARGE: u8 = 30;
+pub use crate::settings::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
 
 /// What a new game is made from. Everything but the seed is optional.
 #[derive(Debug, Clone)]
 pub struct NewGame {
     pub seed: u64,
-    /// How many wizards play (2 to 5); the first is player 0.
-    pub wizards: u8,
     /// Every wizard is a ready-made one for an AI to play (no human): `human` stays unset.
     pub all_ai: bool,
     /// A ready-made wizard's id for player 0; the default is a fixed sorcery and nature wizard.
@@ -75,19 +72,24 @@ pub struct NewGame {
     /// A finished wizard for player 0 (name, books, retorts, spells, banner); it wins over
     /// `preset`, `name`, `books` and `retorts`.
     pub build: Option<WizardBuild>,
-    /// Land as a share of each plane's tiles, 1 to 99 (see [`LAND_SMALL`]).
-    pub land_percent: u8,
-    /// 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
-    pub difficulty: u8,
-    /// Node strength: 0 weak, 1 normal, 2 powerful.
-    pub magic_strength: u8,
+    /// The settings the game is played with: difficulty, the number of opponents (2 to 5
+    /// wizards play in all, the first is player 0), land size, node strength and the rest.
+    pub settings: GameSettings,
+}
+
+impl NewGame {
+    /// A new game with `wizards` playing (2 to 5) and every other choice at its default.
+    pub fn with_wizards(wizards: u8) -> Self {
+        let mut spec = Self::default();
+        spec.settings.basic.opponents = wizards.saturating_sub(1);
+        spec
+    }
 }
 
 impl Default for NewGame {
     fn default() -> Self {
         Self {
             seed: 0,
-            wizards: 2,
             all_ai: false,
             preset: None,
             name: None,
@@ -95,30 +97,34 @@ impl Default for NewGame {
             retorts: BTreeSet::new(),
             race: None,
             build: None,
-            land_percent: LAND_LARGE,
-            difficulty: 2,
-            magic_strength: 1,
+            // The symmetric game: tests, the soak and the learning AI. The client and the
+            // console's `difficulty=` start from a level instead.
+            settings: GameSettings::flat(),
         }
     }
 }
 
 pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
-    if !(2..=5).contains(&spec.wizards) {
-        return Err("a game has 2 to 5 wizards".into());
+    let problems = spec.settings.validate();
+    if !problems.is_empty() {
+        return Err(problems.join("; "));
     }
+    let settings = spec.settings;
+    let wizards = settings.basic.opponents + 1;
     let params = GenParams {
-        land_percent: spec.land_percent,
-        difficulty: spec.difficulty.min(4),
-        magic_strength: spec.magic_strength.min(2),
+        land_percent: settings.basic.land_percent,
+        difficulty: settings.basic.difficulty,
+        magic_strength: settings.basic.magic_strength,
+        lair_guard_percent: settings.world.lair_guard_percent,
+        lair_treasure_percent: settings.world.lair_treasure_percent,
         ..GenParams::default()
     };
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::new(spec.seed);
-    game.difficulty = params.difficulty;
-    game.magic_strength = params.magic_strength;
+    game.settings = settings;
     game.map = Some(map);
     game.content = content.clone();
-    for k in 0..spec.wizards {
+    for k in 0..wizards {
         let name = match (k, spec.all_ai) {
             (0, false) => "You".to_string(),
             _ => format!("Wizard {}", k + 1),
@@ -144,7 +150,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         .collect();
     let mut taken: Vec<String> = Vec::new();
     let mut builds = Vec::new();
-    for k in 0..spec.wizards as usize {
+    // The computer wizards, made together when the settings ask for it (see `ai_wizards`).
+    let mut made: Option<std::collections::VecDeque<WizardBuild>> = None;
+    for k in 0..wizards as usize {
         let build = if k == 0 && !spec.all_ai {
             if let Some(build) = &spec.build {
                 if let Some(id) = build.preset.then(|| spec.preset.clone()).flatten() {
@@ -168,6 +176,27 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             } else {
                 fixed(&[("sorcery", 3), ("nature", 2)], Retort::Conjurer)
             }
+        } else if let Some(build) = settings
+            .ai
+            .wizards
+            .randomise
+            .then(|| {
+                made.get_or_insert_with(|| {
+                    let computers = usize::from(wizards) - usize::from(!spec.all_ai);
+                    let first = usize::from(!spec.all_ai);
+                    let plain =
+                        |i: usize| plain_computer_build(&game.content, spec.seed, first + i);
+                    let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
+                    crate::ai_wizards::make(&mut game, &settings, &mut taken, computers, &|i| {
+                        plain[i].clone()
+                    })
+                    .into()
+                })
+                .pop_front()
+            })
+            .flatten()
+        {
+            build
         } else {
             // The next ready-made wizard nobody has yet, starting from a seed-chosen one.
             let free: Vec<&String> = preset_ids.iter().filter(|id| !taken.contains(id)).collect();
@@ -179,15 +208,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     taken.push(id);
                     b
                 }
-                None => {
-                    let mut build = if k % 2 == 1 {
-                        fixed(&[("chaos", 3), ("death", 2)], Retort::Warlord)
-                    } else {
-                        fixed(&[("life", 3), ("nature", 2)], Retort::Charismatic)
-                    };
-                    build.name = fallback_name(&game.content, spec.seed, k);
-                    build
-                }
+                None => plain_computer_build(&game.content, spec.seed, k),
             }
         };
         builds.push(build);
@@ -198,7 +219,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     // Every wizard has a banner of their own.
     let mut used = BTreeSet::new();
-    for k in 0..spec.wizards {
+    for k in 0..wizards {
         let id = PlayerId(k);
         let mut banner = game.player(id).map_or(0, |p| p.banner);
         while used.contains(&banner) {
@@ -211,7 +232,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     // And a picture of their own.
     let mut shown = BTreeSet::new();
-    for k in 0..spec.wizards {
+    for k in 0..wizards {
         let id = PlayerId(k);
         let mut portrait = game.player(id).map_or(0, |p| p.portrait);
         while shown.contains(&portrait) {
@@ -223,11 +244,19 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         }
     }
     game.human = (!spec.all_ai).then_some(HUMAN);
+    game.apply_wizard_settings();
+    for k in 0..wizards {
+        let id = PlayerId(k);
+        let gold = settings.wizards.starting_gold.of(game.human == Some(id));
+        if let Some(p) = game.player_mut(id) {
+            p.gold = gold;
+        }
+    }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A
     // Myrran wizard has a Myrror race and starts there; everyone else an Arcanus one.
     let race_defs = game.content.rules.races.defs().to_vec();
     let mut races: Vec<String> = Vec::new();
-    for k in 0..spec.wizards as usize {
+    for k in 0..wizards as usize {
         let myrran = is_myrran(&game, PlayerId(k as u8));
         let on_plane = |r: &&crate::rules::RaceDef| !r.city_names.is_empty() && r.myrror == myrran;
         let id = match spec.race.as_ref().filter(|_| k == 0) {
@@ -253,8 +282,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         };
         races.push(id);
     }
-    for k in 0..spec.wizards {
-        start_player(&mut game, PlayerId(k), spec.wizards, &races[k as usize])?;
+    for k in 0..wizards {
+        start_player(&mut game, PlayerId(k), wizards, &races[k as usize])?;
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
@@ -263,6 +292,25 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.assign_temperaments();
     game.set_undo(true);
     Ok(game)
+}
+
+/// The plain build of computer wizard `k` when no ready-made wizard is free: a chaos and death
+/// wizard or a life and nature one, with a name from the lists.
+fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
+    let (books, retort): (&[(&str, u8)], Retort) = if k % 2 == 1 {
+        (&[("chaos", 3), ("death", 2)], Retort::Warlord)
+    } else {
+        (&[("life", 3), ("nature", 2)], Retort::Charismatic)
+    };
+    WizardBuild {
+        name: fallback_name(content, seed, k),
+        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        retorts: [retort].into_iter().collect(),
+        spells: Vec::new(),
+        banner: None,
+        portrait: None,
+        preset: true,
+    }
 }
 
 /// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list

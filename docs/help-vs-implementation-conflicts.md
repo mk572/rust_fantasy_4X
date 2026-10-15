@@ -36,7 +36,7 @@ Written in our own words; nothing here is copied from either source.
 | B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). |
 | B18 Events | Use the real turn number, so events run from turn one and after loading a save. |
 | B19 Growth | The original suppresses shrinking at maximum size and at the largest size; here starvation and being over the limit still shrink (done, task 20). Surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug in the original, but we do not port it: neutrals get no bonus or penalty, design.md section 8.) |
-| B20 Outposts | Done (task 21). Outpost growth includes wild game; no AI difficulty modifier applies to anyone (no AI advantage, design.md section 8). |
+| B20 Outposts | Done (task 21). Outpost growth includes wild game; the computer wizards' difficulty modifier is applied at the end of the growth chance (task 247; none in the symmetric `flat` game). |
 | B21 Disenchant | Dispels only other wizards' enchantments, by the usual chance (`dispel.rs`, task 59); the code's always-succeeding roll and its test against the caster are not followed. |
 | B27 Holy Word | The undead get an extra -5 to resist it, as the help says (the original has it reversed). |
 | B28 Crusade | Raises heroes as well as normal units, as the original code does; the help says "normal units". Not for the undead or creatures. |

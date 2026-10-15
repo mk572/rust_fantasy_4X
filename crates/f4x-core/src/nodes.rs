@@ -111,7 +111,8 @@ impl Game {
         if node.warped {
             return -5;
         }
-        let mut power = i32::from(node.power) * (i32::from(self.magic_strength) + 1) / 2;
+        let mut power =
+            i32::from(node.power) * (i32::from(self.settings.basic.magic_strength) + 1) / 2;
         let Some(owner) = node.owner else {
             return 0;
         };
@@ -369,11 +370,11 @@ pub(crate) mod tests {
         let base = g.income(P0).power_base;
         assert_eq!(g.node_income(P0), power, "normal strength: one per square");
         assert_eq!(g.income(P1).power_base, 0);
-        g.magic_strength = 2;
+        g.settings.basic.magic_strength = 2;
         assert_eq!(g.node_income(P0), power * 3 / 2, "powerful: one and a half");
-        g.magic_strength = 0;
+        g.settings.basic.magic_strength = 0;
         assert_eq!(g.node_income(P0), power / 2, "weak: half");
-        g.magic_strength = 1;
+        g.settings.basic.magic_strength = 1;
         g.magic_mut(P0).unwrap().retorts.insert(Retort::NodeMastery);
         assert_eq!(g.node_income(P0), power * 2);
         assert_eq!(

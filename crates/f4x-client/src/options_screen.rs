@@ -95,6 +95,79 @@ impl App {
     }
 }
 
+impl App {
+    /// The Settings screen (task 94), opened from the save slots. In a game it shows what the
+    /// game is played with and changes nothing; from the start menu there is no game, so it is
+    /// the options for the next one. Back returns to the slots.
+    pub(crate) fn settings_screen(&mut self) {
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        let (w, h) = (screen_width(), screen_height());
+        draw_rectangle(0.0, 0.0, w, h, PANEL);
+        let x = (w / 2.0 - 260.0).max(30.0);
+        draw_text("Settings", x, 80.0, 36.0, GOLD);
+        let mut y = 130.0;
+        let back = if self.menu.from_menu {
+            draw_text("For the next game", x, y - 6.0, 20.0, GRAY);
+            y += 16.0;
+            let o = &mut self.options;
+            o.difficulty = choose(x, &mut y, "Difficulty", &DIFFICULTIES, o.difficulty);
+            let opponents = ["1", "2", "3", "4"];
+            o.opponents = 1 + choose(
+                x,
+                &mut y,
+                "Opponents",
+                &opponents,
+                o.opponents.clamp(1, 4) - 1,
+            );
+            let lands = LAND_SIZES.map(|(name, _)| name);
+            o.land = choose(x, &mut y, "Land size", &lands, o.land);
+            o.magic = choose(x, &mut y, "Magic power", &MAGIC_LEVELS, o.magic);
+            button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
+        } else {
+            draw_text("This game (cannot be changed)", x, y - 6.0, 20.0, GRAY);
+            y += 16.0;
+            for line in settings_lines(self.game.settings()) {
+                draw_text(&line, x, y + 20.0, 22.0, WHITE);
+                y += 30.0;
+            }
+            button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
+        };
+        if back || is_key_pressed(KeyCode::Escape) {
+            self.screen = Screen::Slots;
+        }
+    }
+}
+
+/// What a game was made with, one line each (the Settings screen of a running game).
+pub(crate) fn settings_lines(s: &f4x_core::settings::GameSettings) -> Vec<String> {
+    let b = &s.basic;
+    fn name<'a>(names: &[&'a str], i: u8) -> &'a str {
+        names.get(usize::from(i)).copied().unwrap_or("?")
+    }
+    let mut lines = vec![
+        format!(
+            "Difficulty: {}{}",
+            name(&DIFFICULTIES, b.difficulty),
+            if s.is_level() { "" } else { " (custom)" }
+        ),
+        format!("Opponents: {}", b.opponents),
+        format!("Land: {}% of each plane", b.land_percent),
+        format!("Magic power: {}", name(&MAGIC_LEVELS, b.magic_strength)),
+        format!(
+            "Starting gold: {} for you, {} for the computer wizards",
+            s.wizards.starting_gold.human, s.wizards.starting_gold.ai
+        ),
+    ];
+    if s.ai.production_percent != 100 || s.ai.gold_percent != 100 {
+        lines.push(format!(
+            "Computer wizards' cities: production {}%, gold {}%, research {}%",
+            s.ai.production_percent, s.ai.gold_percent, s.ai.research_percent
+        ));
+    }
+    lines.push(format!("Final score: {}%", s.scoring.score_percent));
+    lines
+}
+
 /// A row of radio buttons; returns the chosen index.
 fn choose(x: f32, y: &mut f32, label: &str, names: &[&str], current: u8) -> u8 {
     draw_text(label, x, *y + 22.0, 24.0, WHITE);
@@ -124,6 +197,17 @@ mod tests {
         assert_eq!(o.wizards(), 2);
         assert_eq!(o.land_percent(), LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "Average");
+    }
+
+    #[test]
+    fn a_running_games_settings_read_as_words() {
+        let lines = settings_lines(&f4x_core::settings::GameSettings::for_difficulty(4));
+        assert_eq!(lines[0], "Difficulty: Impossible");
+        assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
+        assert!(lines.iter().any(|l| l.contains("production 400%")));
+        let mut custom = f4x_core::settings::GameSettings::default();
+        custom.wizards.starting_gold.human = 300;
+        assert_eq!(settings_lines(&custom)[0], "Difficulty: Average (custom)");
     }
 
     #[test]

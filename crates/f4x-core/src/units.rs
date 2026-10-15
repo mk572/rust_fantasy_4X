@@ -318,11 +318,17 @@ impl<'a> Units<'a> {
         if self.unit_is_undead(unit) {
             return 0;
         }
-        match def.kind {
+        let gold = match def.kind {
             UnitKind::Normal => def.upkeep.gold as i32,
             UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
             _ => 0,
-        }
+        };
+        // A computer wizard's difficulty cuts its units' upkeep (task 247).
+        let cut = self
+            .unit_owner(unit)
+            .and_then(|o| self.players.iter().find(|p| p.id == o))
+            .map_or(100, |p| p.bonus.unit_upkeep);
+        crate::player::Bonus::of(cut, gold)
     }
 
     /// A player's units, in the order of `all_units`.

@@ -25,6 +25,10 @@ pub(crate) trait IncomeView {
     fn node_income(&self, player: PlayerId) -> i32;
     /// Mana the lasting spells and summoned creatures cost per turn, before a Channeler's half.
     fn upkeep_total(&self, player: PlayerId) -> i32;
+    /// A computer wizard's difficulty bonus on the power of its nodes, in percent.
+    fn node_percent(&self, _player: PlayerId) -> i32 {
+        100
+    }
 }
 
 /// A wizard's income and upkeep, as the screens and the AI read them.
@@ -52,7 +56,8 @@ fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
         }
         None => 0,
     };
-    (city_mana + fortress + view.volcanoes(player) + view.node_income(player)).max(0)
+    let nodes = crate::player::Bonus::of(view.node_percent(player), view.node_income(player));
+    (city_mana + fortress + view.volcanoes(player) + nodes).max(0)
 }
 
 /// Everything the wizard earns (zero power while the Spell of Return is cast) and owes, with the cities asked once.
@@ -86,6 +91,10 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
 pub(crate) struct GameIncome<'a>(pub &'a Game);
 
 impl IncomeView for GameIncome<'_> {
+    fn node_percent(&self, player: PlayerId) -> i32 {
+        self.0.player(player).map_or(100, |p| p.bonus.mana)
+    }
+
     fn magic(&self, player: PlayerId) -> Option<&Magic> {
         self.0.magic(player)
     }

@@ -31,9 +31,9 @@ pub struct GameOver {
     pub turn: u32,
 }
 
-/// A wizard's final score and where it came from (`End_Of_Game_Score_Draw`). The original also
-/// scales the total by difficulty (task 69).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// A wizard's final score and where it came from (`End_Of_Game_Score_Draw`). The total is scaled
+/// by the game's score percent (the original's difficulty scale: 50% on Intro to 300%).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Score {
     /// Spells known, 1 point each.
     pub spells: i32,
@@ -47,11 +47,29 @@ pub struct Score {
     pub time: i32,
     /// 250 for casting the Spell of Mastery.
     pub mastery: i32,
+    /// The scale of the total, in percent (the game's `scoring.score_percent`).
+    pub percent: i32,
+}
+
+impl Default for Score {
+    fn default() -> Self {
+        Self {
+            spells: 0,
+            townsfolk: 0,
+            conquests: 0,
+            fame: 0,
+            time: 0,
+            mastery: 0,
+            percent: 100,
+        }
+    }
 }
 
 impl Score {
     pub fn total(&self) -> i32 {
-        self.spells + self.townsfolk + self.conquests + self.fame + self.time + self.mastery
+        let sum =
+            self.spells + self.townsfolk + self.conquests + self.fame + self.time + self.mastery;
+        sum * self.percent / 100
     }
 }
 
@@ -122,6 +140,7 @@ impl Game {
             fame: self.fame(player) * 2,
             time,
             mastery: if mastery_by == Some(player) { 250 } else { 0 },
+            percent: i32::from(self.settings.scoring.score_percent),
         }
     }
 
@@ -231,7 +250,10 @@ mod tests {
             fame: 4,
             time: -6,
             mastery: 250,
+            percent: 100,
         };
         assert_eq!(s.total(), 328);
+        assert_eq!(Score { percent: 50, ..s }.total(), 164);
+        assert_eq!(Score { percent: 300, ..s }.total(), 984);
     }
 }
