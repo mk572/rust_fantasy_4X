@@ -13,4 +13,4 @@
 | `map/banners.tsv` | banner shades (blue, green, purple, red, yellow, neutral) |
 
 The client picks ground types in `crates/f4x-client/src/terrain_pick.rs` and draws a square in `map_draw.rs`.
-Rivers are drawn as the river piece's water pixels only, over any ground. Gaps are tasks 121-125.
+Rivers are drawn as the river piece's water pixels only, over any ground. Gaps are tasks 121, 123-125. A sea square a river runs into takes the river-mouth shore piece (`shore_with_rivers`).

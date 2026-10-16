@@ -3,6 +3,7 @@
 
 mod art;
 mod battle_anim;
+mod battle_ground;
 mod battle_screen;
 mod bigbook;
 mod city_screen;

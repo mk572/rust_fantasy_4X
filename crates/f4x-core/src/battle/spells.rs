@@ -480,7 +480,9 @@ impl Game {
             candidates.extend(battle.units.iter().map(|u| SpellAim::Unit(u.id)));
             for y in 0..super::map::GRID_H {
                 for x in 0..super::map::GRID_W {
-                    candidates.push(SpellAim::Tile((x, y)));
+                    if battle.map.is_playable((x, y)) {
+                        candidates.push(SpellAim::Tile((x, y)));
+                    }
                 }
             }
             let aims: Vec<SpellAim> = candidates

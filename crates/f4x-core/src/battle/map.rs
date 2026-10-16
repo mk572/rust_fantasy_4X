@@ -1,15 +1,21 @@
-//! The tactical map of a battle: a 21 by 22 grid of squares with obstacles and rough ground.
+//! The tactical map of a battle: a 21 by 22 grid of squares, of which the original plays on the
+//! 200 of its screen's band.
 //!
 //! Units move in eight directions. Open ground costs one move (two half-moves), rough ground
-//! two moves, blocked squares (trees, rocks, water) cannot be entered, and flying units pay
-//! one move everywhere and cross everything but other units.
+//! two moves, a road half a move, trees and rocks add half a move each (to four at most),
+//! squares outside the band and a lair's structure cannot be entered, and flying units pay
+//! one move everywhere and cross everything but those. The ground comes from [`layout`], the
+//! port of the original's field generator.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use rand::{Rng, RngCore};
-
 use crate::content::TerrainClass;
+
+pub mod layout;
+
+use layout::{Layout, Look, Set, Spec};
+use rand::Rng;
 
 pub const GRID_W: i32 = 21;
 pub const GRID_H: i32 = 22;
@@ -24,8 +30,10 @@ pub enum Cell {
     Open,
     /// Forest, swamp, rubble: slows walkers.
     Rough,
-    /// Trees, rocks: walkers cannot enter.
+    /// An obstacle walkers cannot enter but fliers pass (made by hand, in tests).
     Blocked,
+    /// Outside the band the original plays on, or a lair's structure: nobody can enter.
+    Void,
 }
 
 pub type Pos = (i32, i32);
@@ -94,6 +102,10 @@ impl Mover {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleMap {
     cells: Vec<Cell>,
+    /// Half-moves to enter each square on foot (`layout::INF` for none).
+    costs: Vec<u8>,
+    /// What the screen draws, in the original's frame; `None` on a map made by hand.
+    look: Option<Box<Look>>,
     /// The walls of the city, indexed by the square's place in the city area; `None` outside
     /// a city battle, and in one without walls every site is `Wall::None`.
     walls: Option<[Wall; 16]>,
@@ -107,6 +119,8 @@ impl BattleMap {
     pub fn open() -> Self {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
+            costs: vec![OPEN_COST as u8; (GRID_W * GRID_H) as usize],
+            look: None,
             walls: None,
             fortress: false,
         }
@@ -125,14 +139,9 @@ impl BattleMap {
         self.fortress
     }
 
-    /// Put a city on the map: the city area is open ground, ringed by standing walls if
-    /// `walled`.
+    /// Put a city on the map, ringed by standing walls if `walled`. The ground of the city area
+    /// stays as it is (the field generator keeps it clear).
     pub fn with_city(mut self, walled: bool) -> Self {
-        for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
-            for x in CITY_X0..CITY_X0 + CITY_SIZE {
-                self.set((x, y), Cell::Open);
-            }
-        }
         let mut walls = [Wall::None; 16];
         if walled {
             for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
@@ -202,38 +211,41 @@ impl BattleMap {
         out
     }
 
-    /// A map shaped by the overland terrain the fight happens on. The deployment columns
-    /// at both edges stay open so every unit has a place to stand.
-    pub fn generate(terrain: Option<TerrainClass>, rng: &mut dyn RngCore) -> Self {
-        // Percent of squares that are (rough, blocked) per terrain.
-        let (rough, blocked) = match terrain {
-            Some(TerrainClass::Forest) => (25, 12),
-            Some(TerrainClass::Hills) => (20, 6),
-            Some(TerrainClass::Mountains) => (15, 15),
-            Some(TerrainClass::Swamp) => (30, 3),
-            Some(TerrainClass::Tundra) => (8, 4),
-            Some(TerrainClass::Desert) => (4, 3),
-            Some(TerrainClass::Grassland) => (3, 4),
-            Some(TerrainClass::Ocean) | None => (0, 0),
-        };
+    /// The map for a field built by [`layout::generate`]. The layout is in the original's frame;
+    /// the rules use the mirrored one (`x = 20 - cgx`).
+    pub fn from_layout(layout: Layout) -> Self {
         let mut map = Self::open();
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                if !(4..=GRID_W - 5).contains(&x) {
-                    continue;
-                }
-                let roll = rng.gen_range(0..100);
-                let cell = if roll < blocked {
-                    Cell::Blocked
-                } else if roll < blocked + rough {
-                    Cell::Rough
-                } else {
-                    Cell::Open
+                let cost = layout.cost_at(GRID_W - 1 - x, y);
+                let i = Self::index((x, y));
+                map.costs[i] = cost;
+                map.cells[i] = match cost {
+                    layout::INF => Cell::Void,
+                    c if c > OPEN_COST as u8 => Cell::Rough,
+                    _ => Cell::Open,
                 };
-                map.set((x, y), cell);
             }
         }
+        map.look = Some(Box::new(layout.look));
         map
+    }
+
+    /// A map for the overland terrain a fight happens on: a field of that kind, with nothing on
+    /// it. For tests; the game builds its field from the whole square (`Layout`).
+    pub fn generate(terrain: Option<TerrainClass>, rng: &mut impl Rng) -> Self {
+        Self::from_layout(layout::generate(&Spec::open(set_of(terrain)), rng))
+    }
+
+    /// What the screen draws, if the map was generated.
+    pub fn look(&self) -> Option<&Look> {
+        self.look.as_deref()
+    }
+
+    /// Whether a square is in the band the original plays on (always true on a map made by
+    /// hand).
+    pub fn is_playable(&self, pos: Pos) -> bool {
+        self.get(pos).is_some_and(|c| c != Cell::Void)
     }
 
     pub fn in_bounds(pos: Pos) -> bool {
@@ -250,7 +262,13 @@ impl BattleMap {
 
     pub fn set(&mut self, pos: Pos, cell: Cell) {
         if Self::in_bounds(pos) {
-            self.cells[Self::index(pos)] = cell;
+            let i = Self::index(pos);
+            self.cells[i] = cell;
+            self.costs[i] = match cell {
+                Cell::Open => OPEN_COST as u8,
+                Cell::Rough => ROUGH_COST as u8,
+                Cell::Blocked | Cell::Void => layout::INF,
+            };
         }
     }
 
@@ -258,10 +276,10 @@ impl BattleMap {
     /// counted: see [`BattleMap::reachable_as`].)
     pub fn enter_cost(&self, pos: Pos, flying: bool) -> Option<u32> {
         match (self.get(pos)?, flying) {
+            (Cell::Void, _) => None,
             (_, true) => Some(OPEN_COST),
-            (Cell::Open, false) => Some(OPEN_COST),
-            (Cell::Rough, false) => Some(ROUGH_COST),
             (Cell::Blocked, false) => None,
+            _ => Some(u32::from(self.costs[Self::index(pos)])),
         }
     }
 
@@ -393,6 +411,20 @@ impl BattleMap {
     }
 }
 
+/// The original's combat terrain set for an overland terrain class: swamp and grassland are
+/// plains, and open water has no ground of its own.
+pub fn set_of(terrain: Option<TerrainClass>) -> Set {
+    match terrain {
+        Some(TerrainClass::Forest) => Set::Forest,
+        Some(TerrainClass::Hills) => Set::Hills,
+        Some(TerrainClass::Mountains) => Set::Mountains,
+        Some(TerrainClass::Desert) => Set::Desert,
+        Some(TerrainClass::Tundra) => Set::Tundra,
+        Some(TerrainClass::Swamp) | Some(TerrainClass::Grassland) => Set::Plains,
+        Some(TerrainClass::Ocean) | None => Set::Water,
+    }
+}
+
 /// Squares where a side's units start in a city battle, as the original deploys them
 /// (`Deploy_Battle_Units`, mirrored): the defenders inside the city in three columns of four
 /// (the gate's first), skipping the wall's corner towers when there are walls, the attackers in
@@ -417,25 +449,30 @@ pub fn city_deployment(attacker: bool, count: usize, walled: bool) -> Vec<Pos> {
     out
 }
 
-/// Squares where a side's `count` units start: attackers on the west edge, defenders on the
-/// east, in a block centred on the middle rows.
+/// Squares where a side's `count` units start outside a city: the same block of three columns
+/// of four as at a city (the original deploys every battle alike), then two columns further
+/// back for a stack beyond twelve. The defenders keep off the square of a lair's structure.
 pub fn deployment(attacker: bool, count: usize) -> Vec<Pos> {
-    let columns: [i32; 3] = if attacker {
-        [3, 2, 1]
+    let columns: [i32; 5] = if attacker {
+        [6, 5, 4, 3, 2]
     } else {
-        [GRID_W - 4, GRID_W - 3, GRID_W - 2]
+        [12, 13, 14, 15, 16]
     };
     let mut out = Vec::new();
-    let mid = GRID_H / 2;
-    for i in 0..count {
-        let col = columns[i / 9 % 3];
-        let k = (i % 9) as i32;
-        // 0, +1, -1, +2, -2, ... around the middle row.
-        let offset = if k % 2 == 0 { k / 2 } else { -(k + 1) / 2 };
-        out.push((col, mid + offset));
+    for &x in &columns {
+        for y in [12, 11, 13, 10] {
+            if !attacker && (x, y) == STRUCTURE {
+                continue;
+            }
+            out.push((x, y));
+        }
     }
+    out.truncate(count);
     out
 }
+
+/// The square of a lair's structure, an outpost's or a tower's, in the rules' frame.
+pub const STRUCTURE: Pos = (GRID_W - 1 - layout::STRUCTURE.0, layout::STRUCTURE.1);
 
 /// Distance in squares (diagonals count as one).
 pub fn distance(a: Pos, b: Pos) -> u32 {

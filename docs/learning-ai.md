@@ -712,3 +712,14 @@ Still open:
   currently has the plain battle AI play both sides): probably yes, after phase 2.
 - How the strategic AI is judged "good enough" to be the default (phase 4 gives a number to
   decide on).
+
+## Fields changed (tasks 110, 112, 131)
+
+On 16 Oct 2026 the battle field became the original's: the playable band of 200 squares, the
+original's deployment squares for every battle, scattered rough ground and dirt, roads, and trees
+and rocks that make a square dearer to enter instead of forbidding it
+(`crates/f4x-core/src/battle/map/layout.rs`). Runs up to and including `run-20261016-v3` and
+every checkpoint and bank made before then were on the old field (fights began at the edges of
+a full rectangle, with blocked squares). The checkpoints still load, since the observation has
+the same shape, but their scores are not comparable with new runs, and the nets should be
+retrained on the new field before any tournament (`docs/PLANNED.md` item 25) counts them.

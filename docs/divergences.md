@@ -74,8 +74,10 @@ Decided with task 31; code in `neutral_cities.rs`, `player.rs`, `turn.rs`, `fort
 
 Decided with task 41; code in `conquest.rs`, `battle/`.
 
-- **The field is mirrored:** the original has the defenders and the city at the west; ours has
-  them at the east (x 12 to 15), as our other battles do. Only the picture differs.
+- **The field is mirrored in the rules:** the original has the defenders and the city at low x;
+  the core has them at high x (the city at x 12 to 15, `x = 20 - cgx`). Only the code differs: the
+  client draws each square where the original draws the mirrored one (`battle_screen.rs`,
+  `battle_ground.rs`), so the picture is the original's.
 - **An independent city's loot is its own treasury,** in proportion to the city's share of the
   citizens (all of it, as each independent city has one), where the original rolls a ten-sided die for each
   citizen. Our neutral cities have treasuries (section 2), so the wizard's formula fits.

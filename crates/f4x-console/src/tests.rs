@@ -1581,14 +1581,14 @@ fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
     let mut g = casting_siege(&["phantom_warriors"]);
     let overland = g.entity_count();
     let before = g.battle().unwrap().active_units(Side::Attacker).count();
-    let r = cast(&mut g, "bcast phantom warriors tile:3,5");
+    let r = cast(&mut g, "bcast phantom warriors tile:4,8");
     assert!(r.ok, "{}", r.text());
     let b = g.battle().unwrap();
     assert_eq!(b.active_units(Side::Attacker).count(), before + 1);
     let new = b.units.last().unwrap();
     assert_eq!(
         (new.side, new.cell, new.source),
-        (Side::Attacker, (3, 5), None)
+        (Side::Attacker, (4, 8), None)
     );
     assert_eq!(g.entity_count(), overland, "no unit is left on the map");
     // Not on the enemy's half, nor on an occupied square.

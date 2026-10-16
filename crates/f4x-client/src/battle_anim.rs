@@ -73,12 +73,13 @@ impl Visual {
     }
 }
 
-/// Which of the eight pictures of a figure shows it looking from `from` towards `to` (0 north,
-/// clockwise; the original's `BATTLE_UNIT_FACING_DRECTION`, where grid x grows to the lower
+/// Which of the eight pictures of a figure shows it looking from `from` towards `to`, squares
+/// of the core's frame (0 north, clockwise; the original's `BATTLE_UNIT_FACING_DRECTION`, where grid x grows to the lower
 /// right and y to the lower left). Facing nowhere gives 2, as the original does.
 pub fn facing(from: Pos, to: Pos) -> u8 {
     use std::cmp::Ordering::*;
-    match (from.0.cmp(&to.0), from.1.cmp(&to.1)) {
+    // The core's x is the original's mirrored, so the comparison on x is turned round.
+    match (to.0.cmp(&from.0), from.1.cmp(&to.1)) {
         (Greater, Greater) => 0,
         (Equal, Greater) => 1,
         (Less, Greater) => 2,
@@ -212,15 +213,19 @@ mod tests {
 
     #[test]
     fn facing_follows_the_original_table() {
-        assert_eq!(facing((5, 5), (4, 4)), 0);
-        assert_eq!(facing((5, 5), (5, 4)), 1);
-        assert_eq!(facing((5, 5), (6, 4)), 2);
-        assert_eq!(facing((5, 5), (6, 5)), 3);
-        assert_eq!(facing((5, 5), (6, 6)), 4);
-        assert_eq!(facing((5, 5), (5, 6)), 5);
-        assert_eq!(facing((5, 5), (4, 6)), 6);
-        assert_eq!(facing((5, 5), (4, 5)), 7);
-        assert_eq!(facing((5, 5), (5, 5)), 2);
+        // The table is the original's; the squares are given in the original's frame and
+        // mirrored into the core's.
+        let m = |p: Pos| (20 - p.0, p.1);
+        let f = |a: Pos, b: Pos| facing(m(a), m(b));
+        assert_eq!(f((5, 5), (4, 4)), 0);
+        assert_eq!(f((5, 5), (5, 4)), 1);
+        assert_eq!(f((5, 5), (6, 4)), 2);
+        assert_eq!(f((5, 5), (6, 5)), 3);
+        assert_eq!(f((5, 5), (6, 6)), 4);
+        assert_eq!(f((5, 5), (5, 6)), 5);
+        assert_eq!(f((5, 5), (4, 6)), 6);
+        assert_eq!(f((5, 5), (4, 5)), 7);
+        assert_eq!(f((5, 5), (5, 5)), 2);
     }
 
     #[test]
@@ -246,7 +251,7 @@ mod tests {
         };
         let v = visual_in(&anim, STEP_TIME * 0.5, 3, (4, 5), 2).unwrap();
         assert!((v.at.0 - 4.5).abs() < 1e-4 && (v.at.1 - 5.0).abs() < 1e-4);
-        assert_eq!(v.facing, 3);
+        assert_eq!(v.facing, 7); // east in the core is west on the original's screen
         let v = visual_in(&anim, STEP_TIME * 1.5, 3, (4, 5), 2).unwrap();
         assert!((v.at.0 - 5.5).abs() < 1e-4);
         // Other units are not touched.
@@ -277,7 +282,7 @@ mod tests {
         let d = |t| visual_between(&anim, t, 1, (6, 5), (5, 5), 7).unwrap();
         assert_eq!(d(0.0).hurt, 0.0);
         assert!(d(ATTACK_TIME * 0.5).hurt > 0.5);
-        assert_eq!(d(0.0).facing, 7);
+        assert_eq!(d(0.0).facing, 3);
     }
 
     #[test]

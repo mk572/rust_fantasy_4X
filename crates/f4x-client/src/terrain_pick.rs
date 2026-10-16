@@ -30,6 +30,189 @@ const TUNDRA_BASE: usize = 600;
 /// The mountain edge pieces, and the hills that follow them sixteen types later.
 const MOUNTAIN_EDGES: std::ops::RangeInclusive<usize> = 0x103..=0x112;
 
+/// The shore pieces with a river reaching the sea (`_ShoreNNNNNNNN` with an `R` in place of the
+/// digit of the side the river comes from), by pattern, with their terrain type numbers
+/// (`TerrType.h`). The pattern's digits are the neighbours that are land, in the order of the
+/// mask bits, NW N NE E SE S SW W.
+const RIVER_MOUTHS: [(&str, usize); 176] = [
+    ("1R00000R", 201),
+    ("1R10000R", 202),
+    ("1R00001R", 203),
+    ("1R10001R", 204),
+    ("000R1R00", 205),
+    ("000R1R10", 206),
+    ("001R1R00", 207),
+    ("001R1R10", 208),
+    ("0R1R0000", 209),
+    ("0R1R1000", 210),
+    ("1R1R0000", 211),
+    ("1R1R1000", 212),
+    ("00000R1R", 213),
+    ("00001R1R", 214),
+    ("10000R1R", 215),
+    ("10001R1R", 216),
+    ("00001R10", 217),
+    ("00001R00", 218),
+    ("00000R10", 219),
+    ("00000R00", 220),
+    ("1000001R", 221),
+    ("0000001R", 222),
+    ("1000000R", 223),
+    ("0000000R", 224),
+    ("1R100000", 225),
+    ("1R000000", 226),
+    ("0R100000", 227),
+    ("0R000000", 228),
+    ("001R1000", 229),
+    ("001R0000", 230),
+    ("000R1000", 231),
+    ("000R0000", 232),
+    ("00011R11", 452),
+    ("1100011R", 453),
+    ("1R110001", 454),
+    ("011R1100", 455),
+    ("10011R11", 456),
+    ("1110011R", 457),
+    ("1R111001", 458),
+    ("011R1110", 459),
+    ("00111R11", 460),
+    ("1100111R", 461),
+    ("1R110011", 462),
+    ("111R1100", 463),
+    ("10111R11", 464),
+    ("1110111R", 465),
+    ("1R111011", 466),
+    ("111R1110", 467),
+    ("1100000R", 473),
+    ("1110000R", 474),
+    ("1100001R", 475),
+    ("1110001R", 476),
+    ("00011R00", 477),
+    ("00111R00", 478),
+    ("00011R10", 479),
+    ("00111R10", 480),
+    ("0R110000", 481),
+    ("0R111000", 482),
+    ("1R110000", 483),
+    ("1R111000", 484),
+    ("00000R11", 485),
+    ("00001R11", 486),
+    ("10000R11", 487),
+    ("10001R11", 488),
+    ("1R000001", 489),
+    ("1R100001", 490),
+    ("1R000011", 491),
+    ("1R100011", 492),
+    ("000R1100", 493),
+    ("001R1100", 494),
+    ("000R1110", 495),
+    ("001R1110", 496),
+    ("011R0000", 497),
+    ("011R1000", 498),
+    ("111R0000", 499),
+    ("111R1000", 500),
+    ("0000011R", 501),
+    ("0000111R", 502),
+    ("1000011R", 503),
+    ("1000111R", 504),
+    ("0001111R", 505),
+    ("1R000111", 506),
+    ("111R0001", 507),
+    ("0R111100", 508),
+    ("1001111R", 509),
+    ("1R100111", 510),
+    ("111R1001", 511),
+    ("0R111110", 512),
+    ("0011111R", 513),
+    ("1R001111", 514),
+    ("111R0011", 515),
+    ("1R111100", 516),
+    ("1011111R", 517),
+    ("1R101111", 518),
+    ("111R1011", 519),
+    ("1R111110", 520),
+    ("000R1111", 521),
+    ("11000R11", 522),
+    ("1111000R", 523),
+    ("01111R00", 524),
+    ("100R1111", 525),
+    ("11100R11", 526),
+    ("1111100R", 527),
+    ("01111R10", 528),
+    ("001R1111", 529),
+    ("11001R11", 530),
+    ("1111001R", 531),
+    ("11111R00", 532),
+    ("101R1111", 533),
+    ("11101R11", 534),
+    ("1111101R", 535),
+    ("11111R10", 536),
+    ("1R101110", 537),
+    ("1R100110", 538),
+    ("1R101100", 539),
+    ("1R100100", 540),
+    ("1R001110", 541),
+    ("1R000110", 542),
+    ("1R001100", 543),
+    ("1R000100", 544),
+    ("0R101110", 545),
+    ("0R100110", 546),
+    ("0R101100", 547),
+    ("0R100100", 548),
+    ("0R001110", 549),
+    ("0R000110", 550),
+    ("0R001100", 551),
+    ("0R000100", 552),
+    ("11101R10", 553),
+    ("11100R10", 554),
+    ("11101R00", 555),
+    ("11100R00", 556),
+    ("11001R10", 557),
+    ("11000R10", 558),
+    ("11001R00", 559),
+    ("11000R00", 560),
+    ("01101R10", 561),
+    ("01100R10", 562),
+    ("01101R00", 563),
+    ("01100R00", 564),
+    ("01001R10", 565),
+    ("01000R10", 566),
+    ("01001R00", 567),
+    ("01000R00", 568),
+    ("1001001R", 569),
+    ("1001101R", 570),
+    ("1011001R", 571),
+    ("1011101R", 572),
+    ("1001000R", 573),
+    ("1001100R", 574),
+    ("1011000R", 575),
+    ("1011100R", 576),
+    ("0001001R", 577),
+    ("0001101R", 578),
+    ("0011001R", 579),
+    ("0011101R", 580),
+    ("0001000R", 581),
+    ("0001100R", 582),
+    ("0011000R", 583),
+    ("0011100R", 584),
+    ("100R0011", 585),
+    ("100R1011", 586),
+    ("101R0011", 587),
+    ("101R1011", 588),
+    ("100R0001", 589),
+    ("100R1001", 590),
+    ("101R0001", 591),
+    ("101R1001", 592),
+    ("000R0011", 593),
+    ("000R1011", 594),
+    ("001R0011", 595),
+    ("001R1011", 596),
+    ("000R0001", 597),
+    ("000R1001", 598),
+    ("001R0001", 599),
+    ("001R1001", 600),
+];
+
 /// The eight neighbours in the order of the mask bits: NW 1, N 2, NE 4, E 8, SE 16, S 32,
 /// SW 64, W 128.
 pub const AROUND: [(i32, i32); 8] = [
@@ -72,6 +255,40 @@ fn mask_of(
         .fold(0, |m, (bit, _)| m | (1 << bit))
 }
 
+/// The shore piece of a sea square whose land neighbours are `land` (the mask of table 0) and
+/// that a river runs into from the sides in `rivers` (bits N 1, E 2, S 4, W 8, each a side with
+/// land). The original's `River_Autotile` swaps the `R` piece in for the plain one; when it has
+/// no piece for the combination, the river-mouth pieces for fewer sides are tried, and last the
+/// plain shore.
+pub fn shore_with_rivers(land: usize, rivers: usize, plain: usize) -> usize {
+    // Pattern position of each cardinal side: N 1, E 3, S 5, W 7.
+    const SIDES: [(usize, usize); 4] = [(1, 1), (2, 3), (4, 5), (8, 7)];
+    // Only a side with land can have a river.
+    let cardinal_land = (land >> 1 & 1) | (land >> 2 & 2) | (land >> 3 & 4) | (land >> 4 & 8);
+    let mut sides = rivers & cardinal_land;
+    loop {
+        if sides == 0 {
+            return plain;
+        }
+        let mut name: Vec<u8> = (0..8)
+            .map(|i| if land >> i & 1 == 1 { b'1' } else { b'0' })
+            .collect();
+        for (bit, at) in SIDES {
+            if sides & bit != 0 {
+                name[at] = b'R';
+            }
+        }
+        if let Some(&(_, t)) = RIVER_MOUTHS
+            .iter()
+            .find(|(n, _)| n.as_bytes() == name.as_slice())
+        {
+            return t;
+        }
+        // Drop the highest side and try again.
+        sides &= !(1 << (usize::BITS - 1 - sides.leading_zeros()));
+    }
+}
+
 /// The terrain type of a square on Arcanus (add 762 for Myrror). `table(t, mask)` is one of
 /// the original's autotile tables.
 pub fn ground_type(
@@ -86,10 +303,20 @@ pub fn ground_type(
     let v = variation(x, y, plane);
     Some(match class {
         // Water: the shore piece for the land around it (a lake is water with land all round).
-        TerrainClass::Ocean => table(
-            0,
-            mask_of(grid, content, x, y, |c| c != TerrainClass::Ocean),
-        ),
+        TerrainClass::Ocean => {
+            let land = mask_of(grid, content, x, y, |c| c != TerrainClass::Ocean);
+            let plain = table(0, land);
+            // A river reaching the sea gives the shore piece its mouth.
+            let rivers = [(0, -1, 1), (1, 0, 2), (0, 1, 4), (-1, 0, 8)]
+                .iter()
+                .filter(|&&(dx, dy, _)| {
+                    grid.has_river(x + dx, y + dy)
+                        && class_at(grid, content, x + dx, y + dy)
+                            .is_some_and(|c| c != TerrainClass::Ocean)
+                })
+                .fold(0, |m, &(_, _, bit)| m | bit);
+            shore_with_rivers(land, rivers, plain)
+        }
         _ if grid.volcano(x, y).is_some() => VOLCANO,
         TerrainClass::Grassland => GRASS[v % 3],
         TerrainClass::Forest => FOREST[v % 3],
@@ -307,6 +534,26 @@ mod tests {
             Some(2 + 255),
             "a lake: land all round"
         );
+    }
+
+    #[test]
+    fn a_river_into_the_sea_gives_the_shore_its_mouth() {
+        // Land to the south and south-east (mask 48, plain piece 3); a river on the south
+        // square is `_Shore00001R00`.
+        assert_eq!(shore_with_rivers(48, 4, 3), 0xDA);
+        // Land north-west, north and west: a river from the north is `_Shore1R000001`.
+        let n_mouth = RIVER_MOUTHS
+            .iter()
+            .find(|(n, _)| *n == "1R000001")
+            .unwrap()
+            .1;
+        assert_eq!(shore_with_rivers(1 | 2 | 128, 1, 99), n_mouth);
+        // No river, or a combination without a piece, keeps the plain piece.
+        assert_eq!(shore_with_rivers(48, 0, 3), 3);
+        assert_eq!(shore_with_rivers(48, 1, 77), 77, "no piece for it");
+        let (mut g, c) = world(&["ooo", "ooo", "ogg"]);
+        g.set_river(1, 2, true);
+        assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(0xDA));
     }
 
     #[test]

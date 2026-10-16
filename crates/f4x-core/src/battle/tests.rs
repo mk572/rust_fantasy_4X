@@ -514,8 +514,8 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     let u = b.unit(0).unwrap();
     assert_eq!((u.melee, u.defense, u.hits, u.figures), (3, 2, 2, 3));
     assert_eq!(u.moves, g.units().unit_max_moves(a1));
-    assert_eq!(u.cell, (3, 11));
-    assert_eq!(b.unit(2).unwrap().cell, (GRID_W - 4, 11));
+    assert_eq!(u.cell, (6, 12));
+    assert_eq!(b.unit(2).unwrap().cell, (12, 12));
     // A second battle is refused while this one runs.
     let again = g.apply(Command::BeginBattle {
         attackers: vec![a1],

@@ -2,17 +2,18 @@
 //! it, and the orders a player can give. The fight itself is the core's (`f4x_core::battle`).
 //!
 //! The grid uses the original's 32 by 16 pixel cells and its step of (16, 8) per square
-//! (`Combat_Grid_Screen_Coordinates`), scaled to fit the window. The original shows only a
-//! band of its 21 by 22 squares; the core plays on all of them, so all are drawn.
+//! (`Combat_Grid_Screen_Coordinates`), scaled to fit the window. The core's squares are the
+//! original's mirrored (`x = 20 - cgx`), so a square is drawn where the original draws the
+//! mirrored one, and the picture comes out as the original's. Like the original this draws only
+//! the band of 200 squares it plays on (the field generator shuts the rest).
 
 use std::collections::{HashMap, VecDeque};
 
 use f4x_core::battle::ai::next_command;
-use f4x_core::battle::map::{distance, Cell, Pos, Wall, GRID_H, GRID_W};
+use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
     Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,
 };
-use f4x_core::content::TerrainClass;
 use f4x_core::map::Plane;
 use f4x_core::rules::defs::SpellTarget;
 use f4x_core::rules::SpellId;
@@ -20,6 +21,7 @@ use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
 use crate::battle_anim::{self, Anim, Visual};
+use crate::battle_ground::Piece;
 use crate::frame::Align;
 use crate::ui::{bar, button, GOLD, PANEL};
 use crate::view::{App, Screen, HUMAN};
@@ -80,6 +82,11 @@ impl BattleUi {
     }
 }
 
+/// Top-left of a cell of the original's frame (`cgx`, `cgy`), relative to the grid's origin.
+fn original_origin(cgx: f32, cgy: f32) -> (f32, f32) {
+    ((cgx - cgy) * STEP_X, (cgx + cgy) * STEP_Y)
+}
+
 /// Top-left of a square's cell, relative to the grid's origin, in native pixels.
 pub(crate) fn cell_origin(pos: Pos) -> (f32, f32) {
     cell_origin_f((pos.0 as f32, pos.1 as f32))
@@ -87,7 +94,7 @@ pub(crate) fn cell_origin(pos: Pos) -> (f32, f32) {
 
 /// The same for a position between squares.
 pub(crate) fn cell_origin_f(pos: (f32, f32)) -> (f32, f32) {
-    ((pos.0 - pos.1) * STEP_X, (pos.0 + pos.1) * STEP_Y)
+    original_origin((GRID_W - 1) as f32 - pos.0, pos.1)
 }
 
 /// The square under a native point (relative to the grid's origin), if any. Where cells of
@@ -107,32 +114,17 @@ pub(crate) fn cell_at(x: f32, y: f32) -> Option<Pos> {
     found
 }
 
+/// Native extent of the band of squares the original plays on (the cell origins run from
+/// -144 to 144 across and 88 to 248 down), with headroom for tall figures.
+const BAND_X: (f32, f32) = (-144.0, 144.0 + CELL_W);
+const BAND_Y: (f32, f32) = (88.0, 248.0 + CELL_H);
+
 /// Native width and height of the grid, with headroom.
 fn grid_extent() -> (f32, f32) {
-    let width = (GRID_W + GRID_H - 2) as f32 * STEP_X + CELL_W;
-    let height = (GRID_W + GRID_H - 2) as f32 * STEP_Y + CELL_H + HEADROOM;
-    (width, height)
+    (BAND_X.1 - BAND_X.0, BAND_Y.1 - BAND_Y.0 + HEADROOM)
 }
 
 /// The original's picture file for the ground of a fight on this terrain.
-pub(crate) fn terrain_set(class: Option<TerrainClass>, plane: Plane) -> &'static str {
-    let (arcanus, myrror) = match class {
-        Some(TerrainClass::Desert) => ("cmbdesrt", "cmbdesrc"),
-        Some(TerrainClass::Mountains) => ("cmbmount", "cmbmounc"),
-        Some(TerrainClass::Tundra) => ("cmbtundr", "cmbtundc"),
-        _ => ("cmbgrass", "cmbgrasc"),
-    };
-    match plane {
-        Plane::Arcanus => arcanus,
-        Plane::Myrror => myrror,
-    }
-}
-
-/// One of the four plain ground pictures, varied by square.
-fn ground_variant(pos: Pos) -> usize {
-    ((pos.0 * 7 + pos.1 * 13) as usize) % 4
-}
-
 /// Tell what a battle event did, in one line.
 pub(crate) fn describe(
     names: &[String],
@@ -277,9 +269,9 @@ impl App {
                 .find(|u| unfinished(u))
                 .map(|u| u.id);
             self.battle_ui.selected = first;
-            // The attackers look east across the field, the defenders west.
+            // The attackers (at the original's high x) look towards low x, the defenders the other way.
             for u in &battle.units {
-                let look = if u.side == Side::Attacker { 3 } else { 7 };
+                let look = if u.side == Side::Attacker { 7 } else { 3 };
                 self.battle_ui.facing.insert(u.id, look);
             }
         }
@@ -526,7 +518,8 @@ impl App {
         let (w, h) = (screen_width(), screen_height());
         let (scale, ox, oy) = grid_view(w - PANEL_W, h - 30.0);
         let mouse: Vec2 = mouse_position().into();
-        let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale);
+        let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
+            .filter(|&p| battle.map.is_playable(p));
 
         if my_turn {
             self.battle_input(&battle, hovered);
@@ -910,11 +903,7 @@ impl App {
             let (x, y) = cell_origin(pos);
             (ox + x * scale, oy + y * scale)
         };
-        let (plane, class) = match battle.site {
-            Some(site) => (site.plane, self.game.economy().terrain_class_at(site)),
-            None => (Plane::Arcanus, None),
-        };
-        let set = terrain_set(class, plane);
+        let plane = battle.site.map_or(Plane::Arcanus, |site| site.plane);
 
         let selected = self.battle_ui.selected.and_then(|i| battle.unit(i));
         let reach = match (selected, my_turn) {
@@ -922,30 +911,13 @@ impl App {
             _ => Default::default(),
         };
 
-        // Ground, then reach markers.
+        // Ground and roads, then reach markers.
+        self.draw_ground(battle, plane, (ox, oy, scale));
         for gy in 0..GRID_H {
             for gx in 0..GRID_W {
                 let pos = (gx, gy);
-                let (sx, sy) = at(pos);
-                let cell = battle.map.get(pos);
-                let tint = match cell {
-                    Some(Cell::Rough) => Color::new(0.75, 0.62, 0.4, 1.0),
-                    _ => WHITE,
-                };
-                match self.art.picture(set, ground_variant(pos), 0) {
-                    Some(tex) => draw_texture_ex(
-                        tex,
-                        sx,
-                        sy,
-                        tint,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(CELL_W * scale, CELL_H * scale)),
-                            ..Default::default()
-                        },
-                    ),
-                    None => diamond(sx, sy, scale, Color::new(0.2, 0.35, 0.15, 1.0), true),
-                }
                 if reach.contains_key(&pos) {
+                    let (sx, sy) = at(pos);
                     diamond(sx, sy, scale, Color::new(0.4, 0.7, 1.0, 0.28), true);
                 }
             }
@@ -953,8 +925,10 @@ impl App {
         // Grid lines help to judge distance.
         for gy in 0..GRID_H {
             for gx in 0..GRID_W {
-                let (sx, sy) = at((gx, gy));
-                diamond(sx, sy, scale, Color::new(0.0, 0.0, 0.0, 0.18), false);
+                if battle.map.is_playable((gx, gy)) {
+                    let (sx, sy) = at((gx, gy));
+                    diamond(sx, sy, scale, Color::new(0.0, 0.0, 0.0, 0.18), false);
+                }
             }
         }
         if let Some(pos) = hovered {
@@ -962,37 +936,26 @@ impl App {
             diamond(sx, sy, scale, Color::new(1.0, 1.0, 1.0, 0.8), false);
         }
 
-        // Scenery and units, far rows first so near ones cover them.
-        let mut items: Vec<(i32, bool, Pos, usize)> = Vec::new();
-        for gy in 0..GRID_H {
-            for gx in 0..GRID_W {
-                if battle.map.get((gx, gy)) == Some(Cell::Blocked) {
-                    items.push((gx + gy, false, (gx, gy), 0));
-                }
-            }
-        }
-        for gy in 0..GRID_H {
-            for gx in 0..GRID_W {
-                if battle.map.wall((gx, gy)) != Wall::None {
-                    items.push((gx + gy, false, (gx, gy), 1));
-                }
-            }
-        }
+        // Scenery, walls and units, far rows first so near ones cover them.
+        let mut items = self.scenery_pieces(battle);
         let mut looks: HashMap<usize, Visual> = HashMap::new();
         for u in battle.units.iter().filter(|u| u.is_active()) {
             let vis = self.visual_of(battle, u.id);
-            items.push(((vis.at.0 + vis.at.1).round() as i32, true, u.cell, u.id));
+            let depth = ((GRID_W - 1) as f32 - vis.at.0 + vis.at.1) * 100.0;
+            items.push((depth.round() as i32, 2, u.cell, Piece::Unit(u.id)));
             looks.insert(u.id, vis);
         }
-        items.sort_by_key(|&(depth, is_unit, pos, _)| (depth, is_unit, pos));
-        for (_, is_unit, pos, id) in items {
-            if is_unit {
-                let idle = self.battle_ui.selected == Some(id) && my_turn;
-                self.draw_unit(battle, id, looks[&id], idle, (ox, oy, scale), my_turn);
-            } else if id == 1 {
-                draw_wall(battle.map.wall(pos), at(pos), scale);
-            } else {
-                self.draw_scenery(set, class, pos, at(pos), scale);
+        items.sort_by_key(|&(depth, rank, pos, _)| (depth, rank, pos));
+        for (_, _, pos, piece) in items {
+            match piece {
+                Piece::Unit(id) => {
+                    let idle = self.battle_ui.selected == Some(id) && my_turn;
+                    self.draw_unit(battle, id, looks[&id], idle, (ox, oy, scale), my_turn);
+                }
+                Piece::Wall(_) if self.wall_picture_missing(battle, plane, pos) => {
+                    draw_wall(battle.map.wall(pos), at(pos), scale);
+                }
+                piece => self.draw_piece(battle, plane, piece, (ox, oy, scale)),
             }
         }
         self.draw_missile(battle, (ox, oy, scale));
@@ -1031,41 +994,6 @@ impl App {
         }
         if let Some(spell) = self.battle_ui.fallen_list.filter(|_| my_turn) {
             self.draw_fallen_list(battle, spell);
-        }
-    }
-
-    fn draw_scenery(
-        &mut self,
-        set: &str,
-        class: Option<TerrainClass>,
-        pos: Pos,
-        (sx, sy): (f32, f32),
-        scale: f32,
-    ) {
-        let trees = matches!(
-            class,
-            Some(TerrainClass::Forest) | Some(TerrainClass::Grassland) | Some(TerrainClass::Swamp)
-        ) || (pos.0 + pos.1) % 3 == 0;
-        let entry = if trees {
-            48 + ((pos.0 * 5 + pos.1 * 3) as usize) % 5
-        } else {
-            53 + ((pos.0 * 5 + pos.1 * 3) as usize) % 5
-        };
-        if let Some(tex) = self.art.picture(set, entry, 0) {
-            let size = tex.size() * scale;
-            // Stand the picture's base on the middle of the cell.
-            draw_texture_ex(
-                tex,
-                sx + (CELL_W * scale - size.x) / 2.0,
-                sy + CELL_H * scale * 0.65 - size.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(size),
-                    ..Default::default()
-                },
-            );
-        } else {
-            diamond(sx, sy, scale, Color::new(0.0, 0.25, 0.0, 0.9), true);
         }
     }
 
@@ -1136,11 +1064,15 @@ impl App {
             spots.sort_by_key(|&(_, fy)| fy);
             for (fx, fy) in spots {
                 if let Some(tex) = self.art.figure(ty, vis.facing, frame, banner_index) {
-                    let size = tex.size() * scale;
+                    let native = tex.size();
+                    let size = native * scale;
+                    // Standing on the bottom corner of the square, the figure rising from
+                    // there; the formation's offsets only move the figures about it (a lone
+                    // figure's offset is (1, 8)).
                     draw_texture_ex(
                         tex,
-                        sx + (CELL_W / 2.0 - 14.0 + fx as f32) * scale,
-                        sy + (CELL_H / 2.0 - 23.0 + fy as f32) * scale,
+                        sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32) * scale,
+                        sy + (CELL_H - native.y + (fy - 8) as f32) * scale,
                         tint,
                         DrawTextureParams {
                             dest_size: Some(size),
@@ -1154,7 +1086,7 @@ impl App {
         if !drew {
             // No figures extracted: the overland picture stands in.
             let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry as usize, 0));
-            let base = sy + CELL_H * scale * 0.7;
+            let base = sy + CELL_H * scale;
             match icon {
                 Some(tex) => {
                     let size = tex.size() * scale * 1.3;
@@ -1524,12 +1456,11 @@ fn draw_wall(wall: Wall, (sx, sy): (f32, f32), scale: f32) {
 pub(crate) fn grid_view(width: f32, height: f32) -> (f32, f32, f32) {
     let (gw, gh) = grid_extent();
     let scale = (width / gw).min(height / gh).max(0.5);
-    let ox = (width - gw * scale) / 2.0 + (GRID_H - 1) as f32 * STEP_X * scale;
-    let oy = (height - gh * scale) / 2.0 + HEADROOM * scale;
+    let ox = (width - gw * scale) / 2.0 - BAND_X.0 * scale;
+    let oy = (height - gh * scale) / 2.0 + (HEADROOM - BAND_Y.0) * scale;
     (scale, ox, oy)
 }
 
-/// A cell-shaped diamond at a cell's top-left.
 fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {
     let (w, h) = (CELL_W * scale, CELL_H * scale);
     let top = vec2(sx + w / 2.0, sy);
@@ -1569,12 +1500,18 @@ mod tests {
     #[test]
     fn neighbours_step_by_the_original_amounts() {
         let (x0, y0) = cell_origin((5, 5));
-        assert_eq!(cell_origin((6, 5)), (x0 + 16.0, y0 + 8.0));
+        // The core's x runs the other way from the original's.
+        assert_eq!(cell_origin((6, 5)), (x0 - 16.0, y0 - 8.0));
         assert_eq!(cell_origin((5, 6)), (x0 - 16.0, y0 + 8.0));
+        assert_eq!(cell_origin((4, 5)), (x0 + 16.0, y0 + 8.0));
     }
 
     #[test]
     fn the_ground_set_follows_terrain_and_plane() {
+        use crate::battle_ground::ground_file;
+        use f4x_core::battle::map::set_of;
+        use f4x_core::content::TerrainClass;
+        let terrain_set = |c: Option<TerrainClass>, p: Plane| ground_file(set_of(c), p);
         assert_eq!(
             terrain_set(Some(TerrainClass::Desert), Plane::Arcanus),
             "cmbdesrt"

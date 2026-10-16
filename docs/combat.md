@@ -236,12 +236,23 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   into `BeginBattle` / `EnterSite` at once (a confirm box is task 133 and 128). Any time
   `Game::in_battle()` is true the screen shows.
 - **Projection:** the original's: a cell is 32 by 16 pixels, a step in x moves (+16, +8) and a
-  step in y moves (-16, +8) (`Combat_Grid_Screen_Coordinates`). The grid is scaled to fit the
-  window. The original shows only a band of the 21 by 22 squares; this screen draws them all
-  (task 131).
-- **Art:** ground from `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr` (Myrror: the `c` variants)
-  by the overland terrain, entries 0-3 as plain ground, 48-52 trees and 53-57 rocks on blocked
-  squares; rough squares are the ground tinted. Units are drawn as their figures (`figures1` to
+  step in y moves (-16, +8) (`Combat_Grid_Screen_Coordinates`). The core's x is the original's
+  mirrored (`x = 20 - cgx`), so a square is drawn where the original draws the mirrored one and
+  the picture is the original's (the city and the defenders at the upper left). Like the
+  original it draws only the band of 200 squares it plays on, scaled to fit the window.
+- **The field** (`battle/map/layout.rs`, in the original's frame; tasks 110 and 131) is built from
+  the square: terrain set, roads on it and its eight neighbours, the city with its houses and
+  walls. Rough ground, dirt, roads, trees and rocks are laid as the original lays them; walking
+  costs are grass and dirt 2 half-moves, rough 4, road 1, plus 1 for each tree or rock on the
+  square (to 4); the corners outside the band and an outpost's structure square are shut to
+  everyone. The seed comes from the square (`x * y * (plane + 5) + 10039`), as in the original,
+  so a fight on one square is fought on the same ground. It has no rivers, as the original's
+  (it never sets the flags the generator takes). Water battles keep open ground (task 254).
+- **Art** (`battle_ground.rs`, task 112): ground from `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr`
+  (Myrror: the `c` variants), entries 0 to 47 picked by the field (grass 0-3, dirt 4-7, grass
+  edged by dirt 8-31, rough ground edged by its neighbours 32-47), trees 48-52 and rocks 53-57 at
+  their offsets in the cell; `cmbtcity` for roads (69-96, five frames), houses (2-16), the city
+  base (0) and an outpost; `citywall` for the walls (twelve to a bank, frame 1 is rubble). Units are drawn as their figures (`figures1` to
   `figure16`: fifteen unit types to a file, eight directions per type, four frames; the type number
   is the unit's `units1` entry, or 120 plus its `units2` entry) at the original's positions for
   the number of figures, on a diamond in the owner's banner colour, with a health bar and the
@@ -265,9 +276,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 
 ## 7. Differences from the original and open work
 
-- Grid band and deployment squares: the original plays on part of the grid (task 131).
-- No unit figures, animation, projectiles or combat frame (task 132); the map art lacks
-  autotiled edges, roads, rivers and cities (task 112).
+- The original's melee-before-ranged deployment order and the water, mud and wall effects on the field: task 254.
+- No unit figures, animation, projectiles or combat frame (task 132); the field's art is task 112 (done).
 - No experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and
   no AI-versus-AI resolution (task 133).

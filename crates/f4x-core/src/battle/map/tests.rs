@@ -69,61 +69,78 @@ fn rough_ground_costs_double_and_a_last_move_may_overrun() {
 }
 
 #[test]
-fn the_generated_map_keeps_the_edges_open_and_follows_the_terrain() {
-    let count = |t, seed| {
+fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
+    let counts = |t, seed| {
         let mut r = Pcg64Mcg::seed_from_u64(seed);
         let m = BattleMap::generate(t, &mut r);
-        for y in 0..GRID_H {
-            for x in [0, 1, 2, 3, GRID_W - 4, GRID_W - 1] {
-                assert_eq!(m.get((x, y)), Some(Cell::Open));
-            }
-        }
-        let mut rough = 0;
-        let mut blocked = 0;
+        let mut playable = 0;
+        let mut dear = 0;
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                match m.get((x, y)).unwrap() {
-                    Cell::Rough => rough += 1,
-                    Cell::Blocked => blocked += 1,
-                    Cell::Open => {}
+                // The rules' frame is the original's mirrored.
+                assert_eq!(
+                    m.is_playable((x, y)),
+                    layout::in_band(GRID_W - 1 - x, y),
+                    "({x},{y})"
+                );
+                if m.is_playable((x, y)) {
+                    playable += 1;
+                    if m.enter_cost((x, y), false).unwrap() > OPEN_COST {
+                        dear += 1;
+                    }
                 }
             }
         }
-        (rough, blocked)
+        (playable, dear)
     };
-    assert_eq!(count(None, 1), (0, 0), "no terrain, no obstacles");
-    let forest: i32 = (0..20)
-        .map(|s| count(Some(TerrainClass::Forest), s).0)
+    assert_eq!(counts(None, 1).0, 200);
+    let mountains: u32 = (0..20)
+        .map(|s| counts(Some(TerrainClass::Mountains), s).1)
         .sum();
-    let grass: i32 = (0..20)
-        .map(|s| count(Some(TerrainClass::Grassland), s).0)
+    let grass: u32 = (0..20)
+        .map(|s| counts(Some(TerrainClass::Grassland), s).1)
         .sum();
-    assert!(forest > grass * 3, "{forest} vs {grass}");
-    let mountains: i32 = (0..20)
-        .map(|s| count(Some(TerrainClass::Mountains), s).1)
-        .sum();
-    assert!(mountains > 0);
+    assert!(mountains > grass * 2, "{mountains} vs {grass}");
     let a = BattleMap::generate(Some(TerrainClass::Hills), &mut Pcg64Mcg::seed_from_u64(5));
     let b = BattleMap::generate(Some(TerrainClass::Hills), &mut Pcg64Mcg::seed_from_u64(5));
     assert_eq!(a, b);
 }
 
 #[test]
-fn deployment_blocks_are_on_opposite_edges_and_never_overlap() {
-    let att = deployment(true, 9);
-    let def = deployment(false, 9);
-    assert_eq!(att.len(), 9);
+fn fliers_cannot_enter_the_corners_outside_the_band() {
+    let m = BattleMap::generate(
+        Some(TerrainClass::Grassland),
+        &mut Pcg64Mcg::seed_from_u64(1),
+    );
+    assert_eq!(m.enter_cost((20, 0), true), None);
+    assert_eq!(m.enter_cost((20, 0), false), None);
+    assert!(m.enter_cost((10, 10), true).is_some());
+}
+
+#[test]
+fn deployment_blocks_are_three_columns_of_four_on_opposite_sides_and_never_overlap() {
+    let att = deployment(true, 12);
+    let def = deployment(false, 12);
+    assert_eq!(att.len(), 12);
     assert!(att
         .iter()
-        .all(|p| p.0 < GRID_W / 2 && BattleMap::in_bounds(*p)));
+        .all(|p| p.0 < CITY_X0 && layout::in_band(GRID_W - 1 - p.0, p.1)));
     assert!(def
         .iter()
-        .all(|p| p.0 > GRID_W / 2 && BattleMap::in_bounds(*p)));
-    let mut seen = att.clone();
+        .all(|p| p.0 >= CITY_X0 && layout::in_band(GRID_W - 1 - p.0, p.1)));
+    let mut seen: Vec<Pos> = att.iter().chain(&def).copied().collect();
     seen.sort();
     seen.dedup();
-    assert_eq!(seen.len(), 9);
-    assert_eq!(deployment(true, 1), vec![(3, 11)]);
+    assert_eq!(seen.len(), 24);
+    assert_eq!(deployment(true, 1), vec![(6, 12)]);
+    assert!(
+        !def.contains(&STRUCTURE),
+        "defenders keep off a structure's square"
+    );
+    // A stack beyond twelve spills into columns further back, still in the band.
+    let many = deployment(true, 20);
+    assert_eq!(many.len(), 20);
+    assert!(many.iter().all(|p| layout::in_band(GRID_W - 1 - p.0, p.1)));
     assert_eq!(distance((0, 0), (3, 2)), 3);
 }
 

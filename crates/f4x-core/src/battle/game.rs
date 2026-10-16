@@ -284,8 +284,9 @@ impl Game {
             }
         }
         let seed = self.next_u64();
-        let mut map_rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(seed ^ 0xB477);
-        let mut map = BattleMap::generate(self.economy().terrain_class_at(site), &mut map_rng);
+        // The field is built from the square alone, as the original seeds it from the square's
+        // place, so a fight on the same square is fought on the same ground.
+        let mut map = self.battle_field(site, city, walled);
         let has = |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);
@@ -318,6 +319,52 @@ impl Game {
             defender: d_owner,
             site,
         }])
+    }
+
+    /// The ground of a fight on `site`: the original's field for the square's terrain, roads,
+    /// city and walls (`Build_Battlefield`).
+    fn battle_field(&self, site: Position, city: Option<hecs::Entity>, walled: bool) -> BattleMap {
+        use super::map::layout::{self, Site, Spec};
+        let economy = self.economy();
+        let mut spec = Spec::open(super::map::set_of(economy.terrain_class_at(site)));
+        if let Some(c) = city {
+            let pop = self.city_population(c);
+            spec.site = if pop.figures == 0 {
+                Site::Outpost
+            } else {
+                Site::City
+            };
+            spec.population = pop.figures;
+            spec.walled = walled && spec.site == Site::City;
+            spec.house_type_from(
+                self.city_race(c)
+                    .map_or(0, |r| self.content.rules.races.get(r).house_type),
+            );
+        }
+        if let Some(map) = self.map() {
+            let grid = map.plane(site.plane);
+            for (i, (dx, dy)) in [
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (0, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (x, y) = (site.x as i32 + dx, site.y as i32 + dy);
+                spec.roads[i] = y >= 0 && grid.has_road(x, y);
+            }
+            spec.enchanted_roads = grid.has_enchanted_road(site.x as i32, site.y as i32);
+        }
+        let place = i64::from(site.x) * i64::from(site.y) * (site.plane.index() as i64 + 5) + 10039;
+        let mut rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(place as u64);
+        BattleMap::from_layout(layout::generate(&spec, &mut rng))
     }
 
     /// Carry out a battle command; when it ends the battle, apply the results.

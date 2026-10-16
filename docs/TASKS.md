@@ -45,16 +45,13 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 95 | Client | Tutorial |
 | 97 | Client | Sound effects |
 | 99 | Combat | Saving during a battle |
-| 100 | Map | Draw the original's edge variants for mountains, hills and tundra |
 | 102 | Map | Road-building path selection in the client |
 | 103 | Units | Scouting levels and unit sight |
 | 104 | Units | Ship tiers by building and ship movement estimates (low priority) |
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
-| 110 | Combat | Battle map generation parity with the original |
 | 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
-| 112 | Client | Battle map art |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
 | 117 | City | Selling buildings from the city picture |
@@ -62,7 +59,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 119 | Client | City screen details |
 | 120 | Client | Overland screen details |
 | 121 | Map | Unexplored-edge pictures (corner-based exploration) |
-| 122 | Map | River mouths and shore pieces with rivers |
 | 123 | Map | Call the Void, Great Wasting and Armageddon corruption (low priority) |
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
 | 125 | Client | Unit stack backgrounds in banner colours |
@@ -70,7 +66,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 127 | Map | Lair rewards: original spell, book and retort selection |
 | 128 | Client | Site encounter dialogs and treasure popup |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
-| 131 | Combat | Battle grid shape and deployment as in the original |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 133 | Client | Prompt before attacking, and battles between AI players |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
@@ -134,6 +129,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 249 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
 | 251 | Magic | Check where the AI mana bonus applies: fortress and volcano power |
 | 252 | Magic | Check and implement the starting spells each wizard gets in a new game |
+| 253 | Map | Lakes with an inflow and the original's rewriting of extra river inflows |
+| 254 | Combat | Battlefield leftovers after the field generator and art (110, 112) |
+| 255 | Combat | River terrain on the battlefield |
 
 ## Descriptions
 
@@ -321,8 +319,6 @@ fighters were copied from (by creation number). Restore it on load, check it for
 (units on the map, sources still alive), keep old saves loading, and test that a save in the
 middle of a battle continues exactly like the unsaved one.
 
-**100. Draw the original's edge variants for mountains, hills and tundra.** The extractor already writes all five tables of `autotile.tsv` (neighbour mask to terrain type), but the client only uses table 0 (ocean shores). Use the other tables so mountain, hill and tundra squares blend with their neighbours as in the original, and check the result against the screenshots (84).
-
 **102. Road-building path selection in the client.** The B key builds a road only on the square under the engineers. Add the original's road-building mode (topics 510-512): click a path, show valid squares in blue and invalid in red with the turns it will take, OK and Cancel buttons, using `find_path`-style planning and `Command::BuildRoad` with the whole path.
 
 **103. Scouting levels and unit sight.** Units see by their `Sight` stat only; the original's scouting ability adds a level to sight [546] and Wind Walking gives its stack speed 3. Import scouting as its own ability or stat modifier, apply it in `visibility`, and give wind-walking stacks their speed.
@@ -335,11 +331,7 @@ middle of a battle continues exactly like the unsaved one.
 
 **108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warped nodes exist as a flag but nothing sets it (Warp Node, task 7); unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
 
-**110. Battle map generation parity with the original.** Our battle map only sprinkles rough and blocked squares by terrain class. The original (`Generate_Combat_Map` in ReMoM `Combat.c`) builds the map from the overland square and its surroundings: terrain sets and patches, scattered trees and rocks by terrain, roads crossing the battlefield where overland roads run, rivers carved through, rough ground removed around cities, and per-square movement-cost maps. Port it, keep it seeded and deterministic, and test the shapes (connectivity of the deployment edges, roads and rivers on the right sides).
-
 **111. Special battle sites: nodes, lairs, towers, ruins and fortress cities.** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108).
-
-**112. Battle map art.** Draw the battle map with the original's combat terrain art, extracted locally (`cmbgrass*`, `cmbdesrt*`, `citywall`, `cityscap` and the other combat `.lbx` files already extracted under `assets-local/art`): terrain sets per overland terrain and plane, tree and rock scenery, roads, rivers, city buildings and walls, the isometric grid and its coordinate mapping (`Combat_Grid_Screen_Coordinates`). Part of the battle screen (45) but large enough to track separately.
 
 **115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
 
@@ -354,8 +346,6 @@ middle of a battle continues exactly like the unsaved one.
 **120. Overland screen details.** What the original's main screen has and ours lacks: the unit panel in the right column with the stack's pictures and the Done, Patrol, Wait and Build buttons, the minimap's other plane switch and click-drag, the surveyor and the info menus behind the Info button, the Armies and Cities lists behind their buttons (tasks 71 and 91-96 cover the screens themselves), terrain and unit animation, and unit movement as a smooth slide.
 
 **121. Unexplored-edge pictures.** The original keeps exploration per square corner and draws `mapback.lbx` 0 to 13 along the border of explored land so the edge is soft. We explore whole squares and draw black. Needs corner exploration in the fog data (with saves) and the 14 edge masks.
-
-**122. River mouths and shore pieces with rivers.** The original has terrain types (`_Shore..R..`) for a river reaching the sea; we lay the plain river piece over the shore. Pick the river-mouth shore pieces and check against the original's look.
 
 **123. Call the Void, Great Wasting and Armageddon corruption.** The corruption layer, Corruption, Purify, Land Corruption and Gaia's Blessing exist; the global spells that corrupt land each turn (and the Great Wasting and Armageddon looks) are still to wire to it (the spells themselves: [`spells_to_implement.md`](spells_to_implement.md)). Low priority: only needed for specific spells, buildings, units or abilities.
 
@@ -381,13 +371,6 @@ on arrival without a prompt. The fight itself uses the battle screen (done); the
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
 cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**131. Battle grid shape and deployment as in the original.** The original draws 22 staggered rows
-of 11 cells, which covers only the band of the 21 by 22 grid with about -9 <= x - y <= 11
-(`Combat_Screen_Map_Draw`); the core lets units stand on all squares and deploys in columns at the
-west and east edges, so the client draws a full diamond. Port the original's playable squares,
-its deployment squares per side, the lair/structure square (6, 11) and `Combat_Grid_Screen_Coordinates`
-placement at 320 by 200, then restrict the core map and movement to them.
 
 **132. Battle screen: unit figures, animation and the original's frame.** Done: each unit is drawn
 as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
@@ -549,3 +532,9 @@ Parity task, low priority.
 **251. Check where the computer wizards' mana bonus applies.** Task 247 multiplies a computer wizard's city mana (at the end of the city calculation) and the power of its **nodes** (`magic_income.rs`, `node_percent`) by `ai.mana_percent`, as the original's `Do_City_Calculations` and the power-base phases (`CITYCALC.c`, "Apply AI Difficulty Modifiers", right after the node phase and before the city phase) do. It does **not** multiply the fortress's power (a point per book, five more on Myrror) or the volcanoes' power, because I could not tell from `CITYCALC.c` where the original adds them. Read the power-base function in ReMoM (`Player_Magic_Power` or the routine at the top of that file's power section) and find out whether the fortress and the volcanoes are added before or after the multiplier; if before, multiply them too (`base_from`), add a test, and record the result in `docs/game-settings.md` (3.2 notes) and `divergences.md`.
 
 **252. Check and implement the starting spells each wizard gets in a new game.** What a wizard knows when the game begins is not settled against the original. Today `wizard.rs` gives the spells the books buy (the common spells chosen at creation, defaulted by `default_starting_spells_of`), and the ready-made wizards and the computer wizards go through the same path. Read the original's start (ReMoM `INITGAME.c` and the wizard-creation code) and write down what it gives each wizard: any spells every wizard starts with, the spells per book and realm (how many, which rarity, chosen or random), the starting research choice, and what the ready-made wizards and the computer wizards get beyond the player's own picks. Then compare with `wizard.rs` and fix the differences, with a test per rule. Points that depend on the answer: the order the starting spells are listed in, which `FirstSummon` in `game-settings.md` (4.2) needs fixed and tested; the Hard-level "knowable starting spell" for computer wizards, now left out because the original's code has bugs there (`divergences.md`); and the spells of a ready-made wizard with other than 11 picks (`game-settings.md`, open questions). Record any change in `divergences.md` and, where behaviour differs from the original help, in `HELP_CORRECTIONS` in `scripts/import_mom.py`.
+
+**253. Lakes with an inflow and the original's rewriting of extra river inflows.** Left out of task 122. (1) A lake (a sea square with land all round) that a river runs into takes the `_1LakeRiv_N/E/S/W` piece for the side the river comes from, as block 1 of `River_Autotile` does in ReMoM `MAPGEN.c` (about 5029-5120); a lake with no inflow becomes desert (`_1Desert`) there. (2) Where more than one river runs into a lake or a shore square, the original keeps one outlet, turns the other inflow squares into grassland and goes back over the squares it changed. Our map keeps its rivers, so `terrain_pick::shore_with_rivers` falls back to fewer sides instead. Decide whether map generation should do the same rewrite (changes the maps of new games, so it is a rule-set question) or only the drawing should; then draw the lake pieces, check the look against the original, and test it.
+
+**254. Battlefield leftovers after the field generator and art (110, 112).** (1) **Water battles** (a fight on a sea square): the original uses its own terrain set (ocean pictures, no land unit may deploy, ships move by the sailing cost map, `Undeployable_Battle_Units_On_Water`, floating islands for fights between ships); ours keeps open ground and draws the water pictures. (2) **Deployment order:** the original puts melee units in front and ranged ones behind, moving the strongest ranged unit forward when there are more than five (`Deploy_Battle_Units`). (3) **Effects drawn on the field:** the mud of Earth to Mud (`cmbtcity` 118, which also costs 12 to cross), the wall of fire and wall of darkness pictures, the wall-rise animation (`wallrise`), the cell effect (`cmbtcity` 120), the Flying Fortress cloud check, and the chaos node and nature node pictures (with task 111). (4) **A city with walls** and the Myrror wall bank were not looked at on a screenshot; compare them with the original's, including the draw order of the walls against units standing on them. (5) The original's other movement cost maps (`MoveCost_Ground2`, teleport and sailing) are not kept; only the walking one is. (6) The learning AI's networks and bank were made for the old fields (different deployment squares and costs): their checkpoints still load but should be retrained, and `docs/learning-ai.md` should say which runs were on which field.
+
+**255. River terrain on the battlefield.** The original has the whole machinery and never uses it: `Build_Battlefield` passes `Generate_Combat_Map` a river array it has zeroed, so `Carve_River_Terrain` (a river walked across the field from the sides the overland river leaves by, only on plains) never runs. What exists to port: the river ground group (walking cost 4, sailing cost 2), the tile types 56 to 67 (`Set_Terrain_Tile_Types`: left-right, up-down and the four corners, two variants each), the animated river pictures (`cmbtcity` 97 to 108 on Arcanus, `chriver` 0 to 11 on Myrror, drawn over the ground in `Combat_Screen_Map_Draw`), and the rule that the ground under a river picture is the base square `(cgx + cgy) & 3`. Decide whether battles on a square with an overland river should show one (the original's intent, a rule-set choice because it changes the walking costs of those fights), then: fill the river flags from the square and its eight neighbours (`Grid::has_river`), port `Carve_River_Terrain` with its two cases, keep trees, rocks and roads off river squares, add `Layout` data and the cost, draw the pictures, and test that a river crosses the field and the deployment squares stay reachable. Related to the overland river pieces in task 253.
