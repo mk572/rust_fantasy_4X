@@ -69,6 +69,8 @@ pub enum Screen {
     UnitSheet,
     /// The list of the wizard's stacks (`army_screen.rs`).
     ArmyList,
+    /// The list of the wizard's cities (`city_list_screen.rs`).
+    CityList,
 }
 
 pub struct App {
@@ -141,6 +143,7 @@ pub struct App {
     pub(crate) sheet_ui: crate::unit_screen::SheetUi,
     /// The army list's scroll and the unit under the mouse.
     pub(crate) army_ui: crate::army_screen::ArmyUi,
+    pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     unit_rows: Vec<(Rect, hecs::Entity)>,
@@ -225,6 +228,7 @@ impl App {
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
             army_ui: Default::default(),
+            city_list_ui: Default::default(),
             unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
@@ -877,6 +881,7 @@ impl App {
             Screen::Wizard => self.wizard_screen(),
             Screen::UnitSheet => self.unit_sheet_screen(),
             Screen::ArmyList => self.army_screen(),
+            Screen::CityList => self.city_list_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
@@ -1563,7 +1568,7 @@ impl App {
             Some(2) => self.open_army_list(),
             Some(4) => self.open_magic(),
             Some(5) => self.open_advisor_menu(),
-            Some(3) => self.open_first_city(),
+            Some(3) => self.open_city_list(),
             Some(6) => {
                 self.plane = if self.plane == Plane::Arcanus {
                     Plane::Myrror

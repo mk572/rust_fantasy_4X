@@ -479,3 +479,7 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
 - The original's AI only reads that a wizard is casting it (hostility +50, peace no protection).
   Here the AI also reads how much mana the caster has left and weighs a race against a war
   (`ai-design.md` section 7, step 4). That is a deliberate extension.
+
+## 21. Lo Pan's starting books
+
+The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`WIZARD_PRESETS` in `scripts/import_mom.py`), eleven picks, as the other presets.

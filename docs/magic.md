@@ -188,7 +188,7 @@ Myrran), at most six retorts, with the prerequisites in `retort_available`. A re
 books lets the wizard choose `n - 1` common spells at the start (more are filled from
 `RealmDef::default_spells`); with eleven books in one realm the wizard knows all ten commons and
 chooses two uncommon and one rare (`WizardBuild::spell_choices_of`). Ready-made wizards skip the budget check (the original's Lo Pan
-spends twelve). The client's creation screen is `create_screen.rs`.
+spent twelve; ours has four sorcery books and spends eleven). The client's creation screen is `create_screen.rs`.
 
 ## 14. Global enchantments
 

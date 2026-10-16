@@ -82,7 +82,7 @@ WIZARD_PRESETS = [
     ("Merlin", (5, 0, 5, 0, 0), "SageMaster"),
     ("Raven", (0, 6, 5, 0, 0), None),
     ("Sharee", (0, 0, 0, 5, 5), "Conjurer"),
-    ("Lo Pan", (0, 5, 0, 0, 5), "Channeler"),
+    ("Lo Pan", (0, 4, 0, 0, 5), "Channeler"),  # the original gives 5 sorcery (12 picks); ours is 11
     ("Jafar", (0, 10, 0, 0, 0), "Alchemy"),
     ("Oberic", (0, 0, 5, 0, 5), "ManaFocusing"),
     ("Rjak", (0, 0, 0, 9, 0), "InfernalPower"),

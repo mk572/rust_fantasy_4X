@@ -56,7 +56,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
 | 137 | Client | Teleport and merge animation in the battle screen (low priority) |
-| 139 | Client | City list screen |
 | 140 | Client | Unit statistics window and the enemy stack list |
 | 141 | Client | Outpost screen, enemy city screen and the naming boxes |
 | 142 | Client | Item screen and the item pop-up |
@@ -338,8 +337,6 @@ reinforce threatened cities and to cross planes. Low priority: only needed for s
 `Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
 the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
 and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**139. City list screen.** `CityList_Screen`: all cities in a table (size, gold, production, what is being built) with a small map; opens the city screen or the production menu. The Cities button of the main screen.
 
 **140. Unit statistics window and the enemy stack list.** **Done:** the sheet (`unit_sheet.rs` builds it, `unit_screen.rs` draws it, following ReMoM `Unit_Statistics_Popup`/`Thing_View_Draw`): the unit's figures on their diamond (grass or water), the name (a race's unit with the race first), moves with the movement icon, upkeep icons or (in battle) the front figure's damage, five icon rows (melee by weapon quality, range by attack type, armour, resistance, hearts; gold icons for bonuses, darkened ones for curses and damage), and the abilities list, eight to a page with the up and down arrows (level with experience, quiver, to hit, construction, abilities with the original's icons, undead, lasting spells), Dismiss (with a yes/no, `Command::DismissUnit`; not heroes) and OK on the map. Opened by a right-click on a unit's line in the selected-stack text or on a unit in the battle; `--sheet N` for screenshots. **Left:** (1) `Unit_List_Window`, the read-only list of another wizard's stack. (2) The help pop-up of an ability or spell (right-click on its line) and the click that removes a lasting spell cast by you (`UV_Remove_Unit_Enchantment`, with its confirmation). (3) Heroes: portrait, items row and item powers, hero abilities (tasks 218 to 221, 47); Dismiss for heroes (task 48). (4) The sheet from the city garrison is done (a right-click on a garrison unit; `garrison_cells` in `city_screen.rs`); from the Army list and the item screen it comes with those screens (tasks 138 and 142, which do not exist yet); the production screen's version (cost, upkeep for a unit not yet built), and the expanding-box opening. (5) The battle's sheet is a snapshot taken on opening and sits on a plain background instead of over the field. (6) Scouting, Summon Demons use count, mana left (`Caster 12 (20) mp`) and Warp Creature's three icons, once those exist. (7) The hits row shows hit points of one figure; the original also draws it so (the figure count is the pictures on the diamond).
 

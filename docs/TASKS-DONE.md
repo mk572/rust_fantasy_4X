@@ -93,6 +93,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
 | 138 | Client | Army list screen (done) |
+| 139 | Client | City list screen (done) |
 | 145 | Client | Save and load screen with slots (done) |
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities (done) |
 | 165 | Magic | Upkeep of enchantments cast on enemy cities (done) |
@@ -587,6 +588,8 @@ placement at 320 by 200, then restrict the core map and movement to them.
 **133. Prompt before attacking, and battles between AI players (done).** A human move into an enemy stack or a city asks first (`attack_prompt.rs`): Fight (Enter), Auto (A) or Cancel (Esc); with strategic combat only on, Fight is auto-resolved. Fights started by AI wizards (against the human, or against each other) belong to running the AI in the client, task 135. The original's picture for the box is task 143.
 
 **138. Army list screen (done).** The original's `ArmyList_Screen`: every stack of the wizard with its units and orders; opens a unit's details (140) and the Item screen (142). Reached from the Army button of the main screen. See [`screen_list.md`](screen_list.md). **Done** (`army_screen.rs`, from `ArmyList.c`): the Army button or A opens it; six rows of stacks, nine units each, with the unit under the mouse named, its lasting spells, a small map of where it stands, the army's gold, mana and food upkeep, scrolling by the arrows, U and D or the wheel; a left-click on a unit selects its stack and goes to it, a right-click opens the unit sheet (140), Esc or OK leaves. Left: the hero portraits (task 219), the Items button (task 142), the original's status letters on units (B, G, P, C), the unit pictures in their banner colours (the extracted unit icons have no recoloured copy, so a banner-coloured square stands behind them), and the unit enchantment outline animation. The mana upkeep counts units' and your unit enchantments' upkeep without the Channeler discount.
+
+**139. City list screen (done).** `CityList_Screen`: all cities in a table (size, gold, production, what is being built) with a small map; opens the city screen or the production menu. The Cities button of the main screen. Built (`city_list_screen.rs`, `--cities` for screenshots): the original's table of nine rows on `reload` 21, the arrows and OK, the scanned row's enchantments in two columns coloured by caster, the small map; a click opens the city, a right-click its production menu. An outpost is only shown on the map until task 141 exists.
 
 **145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.
 

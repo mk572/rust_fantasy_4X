@@ -190,7 +190,7 @@ impl App {
                 );
             }
             if let Some(at) = self.game.units().unit_position(unit) {
-                self.draw_reduced_map(&lay, at);
+                self.draw_reduced_map(&lay, at, MAP);
             }
         }
 
@@ -260,15 +260,20 @@ impl App {
     }
 
     /// The small map: the explored squares round the unit, the unit's square blinking.
-    fn draw_reduced_map(&mut self, lay: &Layout, at: Position) {
-        let r = lay.rect(MAP);
+    pub(crate) fn draw_reduced_map(
+        &mut self,
+        lay: &Layout,
+        at: Position,
+        area: (f32, f32, f32, f32),
+    ) {
+        let r = lay.rect(area);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.05, 1.0));
         let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(at.plane);
         let (gw, gh) = (grid.width() as i32, grid.height() as i32);
-        let (w, h) = (MAP.2 as i32, MAP.3 as i32);
+        let (w, h) = (area.2 as i32, area.3 as i32);
         // The window is centred on the unit, kept inside the map up and down and wrapping
         // sideways.
         let top = (at.y as i32 - h / 2).clamp(0, (gh - h).max(0));
@@ -310,7 +315,14 @@ impl App {
 
     /// One of the list's two-frame buttons (`armylist` 1 to 4); true when clicked. A disabled
     /// one shows its second frame.
-    fn army_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, enabled: bool) -> bool {
+    pub(crate) fn army_button(
+        &mut self,
+        lay: &Layout,
+        entry: usize,
+        x: f32,
+        y: f32,
+        enabled: bool,
+    ) -> bool {
         let Some(tex) = self.art.picture("armylist", entry, 0).cloned() else {
             return false;
         };

@@ -11,6 +11,7 @@ mod battle_ground;
 mod battle_screen;
 mod bigbook;
 mod chancellor;
+mod city_list_screen;
 mod city_screen;
 mod cityscape;
 mod console_screen;
@@ -90,6 +91,7 @@ struct Options {
     select: bool,
     /// With `--shot`, open the army list first.
     armies: bool,
+    cities: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
@@ -138,6 +140,7 @@ fn parse_args() -> Result<Options, String> {
         save: None,
         sheet: None,
         armies: false,
+        cities: false,
         offer: None,
     };
     let mut args = std::env::args().skip(1);
@@ -155,6 +158,7 @@ fn parse_args() -> Result<Options, String> {
             "--city" => o.city = true,
             "--select" => o.select = true,
             "--armies" => o.armies = true,
+            "--cities" => o.cities = true,
             "--offer" => o.offer = Some(value("--offer")?),
             "--sheet" => {
                 o.sheet = Some(
@@ -246,7 +250,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -315,6 +319,9 @@ async fn main() {
     }
     if options.armies {
         app.open_army_list();
+    }
+    if options.cities {
+        app.open_city_list();
     }
     if let Some(kind) = &options.offer {
         app.open_test_offer(kind);
