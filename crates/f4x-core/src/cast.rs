@@ -16,7 +16,7 @@ use crate::{Event, Game};
 
 /// Something a wizard pays mana for every turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UpkeepKind {
+pub enum UpkeepKind {
     Global(SpellId),
     City(hecs::Entity, SpellId),
     UnitSpell(hecs::Entity, SpellId),

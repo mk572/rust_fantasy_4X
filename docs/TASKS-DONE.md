@@ -60,6 +60,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) (done) |
 | 61 | Magic | The Spell of Mastery's research cost and the AI casting it (done) |
+| 62 | Magic | Player-chosen losses when mana runs short (done) |
 | 63 | Meta | Diplomacy (done) |
 | 65 | Meta | AI v1: expansion, production, defence (done) |
 | 66 | Meta | AI research and spell use (done) |
@@ -174,6 +175,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 290 | Combat | ~~The wizard's fortress city on the battlefield (Fortress structure and house layout)~~ (done) |
 
 ## Descriptions
+
+**62. Player-chosen losses when mana runs short (done).** Not in the original (its `WIZ_MatchManaUpkeep` drops a random kind of asset and only the summons part exists), so this is our own rule, chosen by the project owner: before ending the turn the client asks `Game::upkeep_shortfall` and, if the reserve plus the coming mana income cannot pay, shows a prompt (`upkeep_prompt.rs`) with every item that costs mana, the default pre-marked; `Command::ReleaseUpkeep` gives up the chosen ones and the turn change drops only what is still missing. The AI and the console keep the deterministic newest-first rule. The "mana short" event interaction belongs to task 68 (random events).
 
 **73. Save-format migration (done).** Dropped, not built: there are no old save games to convert, so a
 conversion step before `restore` has no use. Version 1 is the only format; saves from an older layout are

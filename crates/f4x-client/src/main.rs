@@ -43,6 +43,7 @@ mod ui;
 mod unit_list_screen;
 mod unit_screen;
 mod unit_sheet;
+mod upkeep_prompt;
 mod view;
 mod wizard_screen;
 

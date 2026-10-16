@@ -109,7 +109,15 @@ home; battle spells are cast in battles (`combat.md` section 8).
 Each turn the wizard pays mana for lasting spells they cast (global, city, unit) and for units
 with mana upkeep. If the reserve cannot cover it, things are given up newest-last until it can:
 mana-upkeep units first, then unit, city and global spells (`EnchantmentLapsed`,
-`UnitsDisbanded`). The original lets the player choose; this is the deterministic default.
+`UnitsDisbanded`). This is the deterministic default, and what the AI gets.
+
+**The human's choice (task 62).** Before the turn ends, the client asks `Game::upkeep_shortfall(player)`:
+the reserve plus this turn's mana income against the upkeep (`upkeep.rs`). If it is short, a prompt
+lists every item that costs mana with its price, pre-marks what the default would give up, and lets
+the player mark others (space or click; Enter confirms, Esc goes back). The marked items are
+released with `Command::ReleaseUpkeep`, and the turn change then drops only what is still missing.
+The original does not ask: its `WIZ_MatchManaUpkeep` takes a random kind of asset and only the
+summons part is written (`NEXTTURN.c`), so this prompt is our own rule.
 
 ## 9. Turn order
 

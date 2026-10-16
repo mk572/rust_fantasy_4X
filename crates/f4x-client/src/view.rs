@@ -174,6 +174,8 @@ pub struct App {
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// A city just taken, waiting for the player to keep or raze it.
     pub(crate) raze_prompt: Option<hecs::Entity>,
+    /// The question of what to give up when the mana reserve cannot pay the upkeep.
+    pub(crate) upkeep_prompt: Option<crate::upkeep_prompt::UpkeepPrompt>,
     /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
     /// paid for (`Targeting::resolve`).
     pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
@@ -262,6 +264,7 @@ impl App {
             menu: Default::default(),
             console: Default::default(),
             raze_prompt: None,
+            upkeep_prompt: None,
             ward_prompt: None,
             mastery_notice: std::collections::VecDeque::new(),
         };
@@ -739,7 +742,7 @@ impl App {
 
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
     /// (the city screen lets you set farmers by hand; this just protects the troops).
-    fn end_turn(&mut self) {
+    pub(crate) fn end_turn(&mut self) {
         let t = self.game.treasury(HUMAN);
         if t.food_surplus < t.food_upkeep {
             self.game.balance_farmers(HUMAN);
@@ -864,6 +867,13 @@ impl App {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.raze_prompt_frame(city);
             }
+        }
+        if self.upkeep_prompt.is_some()
+            && !self.game.in_battle()
+            && !matches!(self.screen, Screen::Console)
+            && self.upkeep_prompt_frame()
+        {
+            return true;
         }
         if let Some(prompt) = self.ward_prompt {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
@@ -1217,8 +1227,7 @@ impl App {
             self.zoom = (self.zoom - 1.0).max(1.0);
         }
         if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::N) {
-            self.end_turn();
-            self.save_to(Path::new(AUTOSAVE));
+            self.request_end_turn();
         }
         let command_key = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::LeftSuper);
         if command_key && is_key_pressed(KeyCode::Z) {
@@ -1674,8 +1683,7 @@ impl App {
             None => {}
         }
         if click.next_turn {
-            self.end_turn();
-            self.save_to(Path::new(AUTOSAVE));
+            self.request_end_turn();
         }
 
         // Information laid over the map: turn, selection, what is under the mouse, messages.

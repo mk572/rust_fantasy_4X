@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 62 | Magic | Player-chosen losses when mana runs short |
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
 | 72 | Meta | Fame effects |
@@ -131,12 +130,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 291 | Combat | Variant river pictures for the battlefield (low priority) |
 
 ## Descriptions
-
-### Magic (first pass done; see `magic.md`)
-
-**62. Player-chosen losses when mana runs short.** The engine drops the newest upkeep items
-deterministically; the original asks the player. Add a prompt or a priority list, and the "mana
-short" event interaction (68).
 
 ### Meta: diplomacy, AI, events, victory
 

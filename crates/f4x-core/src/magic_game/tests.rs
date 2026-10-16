@@ -328,6 +328,81 @@ fn a_channeler_pays_half_the_spell_maintenance() {
     assert!(g.magic(P0).unwrap().global.contains(&dear.0));
 }
 
+/// Two lasting spells of 6 mana each and a reserve of 8: one must go.
+fn short_of_mana() -> (Game, [SpellId; 2]) {
+    let mut g = world();
+    found(&mut g, at(10, 6), 4);
+    let mut defs = g.content.rules.spells.defs().to_vec();
+    defs[0].upkeep = 6;
+    defs[1].upkeep = 6;
+    g.content.rules.spells = crate::rules::Registry::new(defs);
+    let ids = [
+        g.content
+            .rules
+            .spells
+            .id_of(&g.content.rules.spells.defs()[0].id)
+            .unwrap(),
+        g.content
+            .rules
+            .spells
+            .id_of(&g.content.rules.spells.defs()[1].id)
+            .unwrap(),
+    ];
+    g.magic_mut(P0).unwrap().global.extend(ids);
+    g.magic_mut(P0).unwrap().set_split(0, 100, 0).ok();
+    g.player_mut(P0).unwrap().mana = 8;
+    (g, ids)
+}
+
+#[test]
+fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() {
+    use crate::cast::UpkeepKind;
+    let (mut g, [first, second]) = short_of_mana();
+    let short = g.upkeep_shortfall(P0).expect("12 owed against 8");
+    assert_eq!((short.owed, short.reserve), (12, 8));
+    assert_eq!(short.lines.len(), 2);
+    assert!(short
+        .lines
+        .iter()
+        .all(|l| l.mana == 6 && !l.label.is_empty()));
+    // The turn change would drop the newest (the second); the wizard keeps it and loses the first.
+    let events = g.release_upkeep(P0, &[UpkeepKind::Global(first)]).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::EnchantmentLapsed { spell, .. } if *spell == first)));
+    assert!(g.upkeep_shortfall(P0).is_none());
+    g.apply_mana_upkeep(P0);
+    assert_eq!(g.magic(P0).unwrap().global, vec![second]);
+    assert_eq!(g.player(P0).unwrap().mana, 2);
+}
+
+#[test]
+fn only_real_upkeep_can_be_released() {
+    use crate::cast::UpkeepKind;
+    let (mut g, [first, _]) = short_of_mana();
+    let last = &g.content.rules.spells.defs().last().unwrap().id;
+    let stranger = g.content.rules.spells.id_of(last).unwrap();
+    assert_ne!(stranger, first);
+    g.magic_mut(P0).unwrap().global.retain(|&s| s == first);
+    let before = g.magic(P0).unwrap().global.clone();
+    assert_eq!(
+        g.release_upkeep(
+            P0,
+            &[UpkeepKind::Global(first), UpkeepKind::Global(stranger)]
+        ),
+        Err(MagicError::NotAvailable)
+    );
+    assert_eq!(
+        g.magic(P0).unwrap().global,
+        before,
+        "nothing is released on a bad list"
+    );
+    assert!(
+        g.upkeep_shortfall(P0).is_none(),
+        "one spell of 6 against 8 is no shortfall"
+    );
+}
+
 #[test]
 fn a_famous_wizard_starts_with_ten_fame() {
     let mut g = world();

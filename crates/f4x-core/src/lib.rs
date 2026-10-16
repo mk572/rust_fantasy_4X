@@ -72,6 +72,7 @@ pub mod turn;
 pub mod undead;
 pub mod undo;
 pub mod units;
+pub mod upkeep;
 pub mod view;
 pub mod vision;
 pub mod wizard;
@@ -245,6 +246,12 @@ pub enum Command {
         mana: u8,
         research: u8,
         skill: u8,
+    },
+    /// Give up lasting spells and summoned creatures now, chosen from `Game::upkeep_shortfall`
+    /// before the turn change would drop the newest ones.
+    ReleaseUpkeep {
+        player: city::PlayerId,
+        items: Vec<cast::UpkeepKind>,
     },
     SetResearch {
         player: city::PlayerId,
@@ -975,6 +982,9 @@ impl Game {
                 Some(m) => m.set_split(mana, research, skill),
                 None => Err(magic::MagicError::UnknownPlayer),
             }),
+            Command::ReleaseUpkeep { player, items } => {
+                events_or_reject(self.release_upkeep(player, &items))
+            }
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
             Command::CancelCast { player } => {
                 let returning = self.casting_return(player);
