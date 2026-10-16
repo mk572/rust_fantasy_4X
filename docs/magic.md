@@ -181,8 +181,9 @@ resigning, and drawing the fortress as a building. See tasks 70 and 82.
 
 ## 13. Creating a wizard
 
-`wizard.rs` holds the pick rules and `Game::create_wizard`; `wizards.ron` (written by the
-importer, optional) lists the ready-made wizards. Eleven picks buy books (one each) and
+`wizard.rs` holds the pick rules and `Game::create_wizard`; `content/wizards.ron` lists the
+ready-made wizards' books and retorts (game rules, committed); their names and descriptions come from the
+importer's local `wizard_texts.ron`, and without it a wizard is named after its id. Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
 Myrran), at most six retorts, with the prerequisites in `retort_available`. A realm with `n`
 books lets the wizard choose `n - 1` common spells at the start (more are filled from

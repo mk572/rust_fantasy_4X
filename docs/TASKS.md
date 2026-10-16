@@ -133,7 +133,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 285 | Client | Spell interface: Stasis, mutations, vortices, Time Stop |
 | 286 | Rules | Leftovers of the last ten spells (unrest, Time Stop, Call the Void) |
 | 287 | Client | Spell of Mastery announcement: the swirling animation and sound |
-| 288 | Content | Ready-made wizards as game files: books, retorts and the AI's randomisation rules |
 
 ## Descriptions
 
@@ -492,5 +491,3 @@ Parity task, low priority.
 **286. Leftovers of the last ten spells.** (1) Great Wasting's unrest in other wizards' cities (-1, `CITYCALC.c`, written there as an assignment that looks like a bug); Armageddon's own unrest effect is done in another form (no building calms any city). (2) Time Stop: block the other wizards' non-movement commands (founding a city, production and casting orders) and have the AI skip its turn. (3) Call the Void's loss of citizens, if wanted (conflicts B40). (4) Stasis in a battle is only "asleep"; check the original. (5) The AI casting and scoring the new spells (task 56) and steering a vortex.
 
 **287. Spell of Mastery announcement: animation and sound.** The notice is plain text over a dark screen. The original (`Cast_Spell_Of_Mastery`, `SPLMASTR.c`) plays the vortex animation `SPELLSCR.LBX` 67 to 70 (frames swapped at ticks 17, 33 and 49, 200 ticks in all, ESC skips) in the palette 4 with the two lines in outlined font 5 at y 160 and 180, and the music `MUSIC_SoM_Started`. Extract the animation to `assets-local/`, draw it, add the music and the palette. The AI's announcements for other things (Eternal Night and the like) are not shown at all yet.
-
-**288. Ready-made wizards as game files.** Today `scripts/import_mom.py` (`WIZARD_PRESETS`) writes the ready-made wizards' books, retorts and starting spell rules into `content-local/wizards.ron`, which is local and gitignored. Rules belong in the committed game files: move each preset's books, retort, starting spells and the computer wizards' randomisation rules (which realms and retorts an AI wizard draws, weighted by difficulty, `Init_Computer_Players_Wizard_Profile` and `Init_Magic_Personalities_Objectives` in ReMoM; see `docs/magic.md` section 13 for the starting spells by number of books) into `content/` (for example `content/wizards.ron`, read by `f4x-data` like the other rules). The importer then writes only what is the original's IP: the names, the portrait art (`halofam` and `wizards` pictures) and the descriptions, into `content-local/`, which the game merges by id. Lo Pan's eleven picks (four sorcery books) stay as decided. Asked for by the user, 17 October 2026, to be done after the starting-spell check and the screen wiring.

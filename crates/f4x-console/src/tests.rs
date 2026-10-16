@@ -2544,11 +2544,9 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
 
 #[test]
 fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
-    let content = content();
-    assert!(
-        content.rules.wizards.defs().is_empty(),
-        "no ready-made wizards in the test content"
-    );
+    let mut content = content();
+    // The fallback is for a rule set with no ready-made wizards.
+    content.rules.wizards = f4x_core::rules::Registry::new(Vec::new());
     let names = |seed: u64| -> Vec<String> {
         let g = new_game(
             &content,

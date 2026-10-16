@@ -76,44 +76,38 @@ def ron_str(s: str) -> str:
 
 
 
-# The ready-made wizards (NewGame.c `_wizard_presets_table`): books in the order life,
-# sorcery, nature, death, chaos, and the retort; help topic 659 + position describes them.
-WIZARD_PRESETS = [
-    ("Merlin", (5, 0, 5, 0, 0), "SageMaster"),
-    ("Raven", (0, 6, 5, 0, 0), None),
-    ("Sharee", (0, 0, 0, 5, 5), "Conjurer"),
-    ("Lo Pan", (0, 4, 0, 0, 5), "Channeler"),  # the original gives 5 sorcery (12 picks); ours is 11
-    ("Jafar", (0, 10, 0, 0, 0), "Alchemy"),
-    ("Oberic", (0, 0, 5, 0, 5), "ManaFocusing"),
-    ("Rjak", (0, 0, 0, 9, 0), "InfernalPower"),
-    ("Sss'ra", (4, 0, 0, 0, 4), "Myrran"),
-    ("Tauron", (0, 0, 0, 0, 10), "ChaosMastery"),
-    ("Freya", (0, 0, 10, 0, 0), "NatureMastery"),
-    ("Horus", (5, 5, 0, 0, 0), "Archmage"),
-    ("Ariel", (10, 0, 0, 0, 0), "Charismatic"),
-    ("Tlaloc", (0, 0, 4, 5, 0), "Warlord"),
-    ("Kali", (0, 5, 0, 5, 0), "Artificer"),
+# The ready-made wizards' names and descriptions (help topic 659 + position). Their books and
+# retorts are game rules and live in `content/wizards.ron`, in this order (the original's
+# `_wizard_presets_table`).
+WIZARD_NAMES = [
+    ("merlin", "Merlin"),
+    ("raven", "Raven"),
+    ("sharee", "Sharee"),
+    ("lo_pan", "Lo Pan"),
+    ("jafar", "Jafar"),
+    ("oberic", "Oberic"),
+    ("rjak", "Rjak"),
+    ("sssra", "Sss'ra"),
+    ("tauron", "Tauron"),
+    ("freya", "Freya"),
+    ("horus", "Horus"),
+    ("ariel", "Ariel"),
+    ("tlaloc", "Tlaloc"),
+    ("kali", "Kali"),
 ]
-WIZARD_REALM_ORDER = ["life", "sorcery", "nature", "death", "chaos"]
 WIZARD_HELP_FIRST = 659
 
 
-def wizard_lines(help_topics) -> list[str]:
+def wizard_text_lines(help_topics) -> list[str]:
     by_index = {t.index: t for t in help_topics}
     lines = []
-    for i, (name, books, retort) in enumerate(WIZARD_PRESETS):
-        book_list = ", ".join(
-            f"({ron_str(r)}, {n})" for r, n in zip(WIZARD_REALM_ORDER, books) if n
-        )
+    for i, (wid, name) in enumerate(WIZARD_NAMES):
         topic = by_index.get(WIZARD_HELP_FIRST + i)
         text = topic.text if topic and topic.title.lower() == name.lower() else ""
-        retorts = f"[{retort}]" if retort else "[]"
         lines.append(
-            f"    (id: {ron_str(slug(name))}, name: {ron_str(name)}, description: {ron_str(text)}, "
-            f"books: [{book_list}], retorts: {retorts}),"
+            f"    (id: {ron_str(wid)}, name: {ron_str(name)}, description: {ron_str(text)}),"
         )
     return lines
-
 
 
 RACE_COUNT = 14
@@ -587,14 +581,14 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         f"    (unit: {ron_str(uid)}, names: [{', '.join(ron_str(n) for n in names)}]),"
         for uid, names in import_hero_names(game, rules_out / "units.ron")
     ])
-    write_list(out / "wizards.ron", local_header, wizard_lines(help_topics))
+    write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])
     write_list(out / "help_screens.ron", local_header, import_help_screens(game, remom))
     # Older runs wrote the rules files (and copies of terrain and features) here; the
     # committed ones in `rules_out` now apply, and a stale copy would shadow them.
-    for stale in (*RULES_FILES, "terrain", "features"):
+    for stale in (*RULES_FILES, "terrain", "features", "wizards"):
         old = out / f"{stale}.ron"
         if old.exists() and old.resolve() != (rules_out / f"{stale}.ron").resolve():
             old.unlink()

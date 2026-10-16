@@ -482,4 +482,4 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
 
 ## 21. Lo Pan's starting books
 
-The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`WIZARD_PRESETS` in `scripts/import_mom.py`), eleven picks, as the other presets.
+The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`content/wizards.ron`), eleven picks, as the other presets.

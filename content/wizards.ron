@@ -1,0 +1,20 @@
+// The ready-made wizards: which books and retort each has. Their order is the order of their
+// portraits. The names, descriptions and portrait art are the original's and are local-only
+// (`content-local/wizard_texts.ron`, from `scripts/import_mom.py`); without them a wizard is named
+// after its id. Lo Pan has four sorcery books, one fewer than the original (docs/divergences.md).
+[
+    (id: "merlin", books: [("life", 5), ("nature", 5)], retorts: [SageMaster]),
+    (id: "raven", books: [("sorcery", 6), ("nature", 5)], retorts: []),
+    (id: "sharee", books: [("death", 5), ("chaos", 5)], retorts: [Conjurer]),
+    (id: "lo_pan", books: [("sorcery", 4), ("chaos", 5)], retorts: [Channeler]),
+    (id: "jafar", books: [("sorcery", 10)], retorts: [Alchemy]),
+    (id: "oberic", books: [("nature", 5), ("chaos", 5)], retorts: [ManaFocusing]),
+    (id: "rjak", books: [("death", 9)], retorts: [InfernalPower]),
+    (id: "sssra", books: [("life", 4), ("chaos", 4)], retorts: [Myrran]),
+    (id: "tauron", books: [("chaos", 10)], retorts: [ChaosMastery]),
+    (id: "freya", books: [("nature", 10)], retorts: [NatureMastery]),
+    (id: "horus", books: [("life", 5), ("sorcery", 5)], retorts: [Archmage]),
+    (id: "ariel", books: [("life", 10)], retorts: [Charismatic]),
+    (id: "tlaloc", books: [("nature", 4), ("death", 5)], retorts: [Warlord]),
+    (id: "kali", books: [("sorcery", 5), ("death", 5)], retorts: [Artificer]),
+]

@@ -317,10 +317,13 @@ pub struct RealmDef {
     pub default_spells: Vec<String>,
 }
 
-/// A ready-made wizard for the creation screen: a name, a book and retort loadout.
+/// A ready-made wizard for the creation screen: a book and retort loadout, and the name and
+/// description that the local texts file fills in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardDef {
     pub id: String,
+    /// The original's name is local-only; without it the wizard is named after its id.
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,

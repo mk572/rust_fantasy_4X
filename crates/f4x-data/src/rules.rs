@@ -79,6 +79,46 @@ fn apply_hero_names(dirs: &[&Path], templates: &mut [HeroTemplate]) -> Result<()
     Ok(())
 }
 
+/// The ready-made wizards' names and descriptions, kept apart from their books and retorts
+/// because the original's are local only.
+#[derive(serde::Deserialize)]
+struct WizardTexts {
+    id: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+}
+
+/// Fill in each ready-made wizard's name and description from `wizard_texts.ron`, if any
+/// directory has it. A wizard the file does not mention is named after its id ("lo_pan" is
+/// "Lo Pan").
+fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), ContentError> {
+    if find(dirs, "wizard_texts.ron").is_some() {
+        for t in parse::<Vec<WizardTexts>>(dirs, "wizard_texts.ron")? {
+            let Some(w) = wizards.iter_mut().find(|w| w.id == t.id) else {
+                return Err(ContentError::Invalid(vec![format!(
+                    "wizard_texts.ron names unknown wizard {:?}",
+                    t.id
+                )]));
+            };
+            w.name = t.name;
+            w.description = t.description;
+        }
+    }
+    for w in wizards.iter_mut().filter(|w| w.name.is_empty()) {
+        w.name =
+            w.id.split('_')
+                .map(|word| {
+                    let mut c = word.chars();
+                    c.next()
+                        .map_or(String::new(), |f| f.to_uppercase().chain(c).collect())
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+    }
+    Ok(())
+}
+
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
 pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
@@ -91,6 +131,12 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         Vec::new()
     };
     apply_hero_names(dir, &mut hero_templates)?;
+    let mut wizards = if find(dir, "wizards.ron").is_some() {
+        parse::<Vec<WizardDef>>(dir, "wizards.ron")?
+    } else {
+        Vec::new()
+    };
+    apply_wizard_texts(dir, &mut wizards)?;
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
         races: Registry::new(races),
@@ -103,11 +149,7 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         item_powers: Registry::new(parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?),
         level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
         // Ready-made wizards are optional: a rule set without them just has no presets.
-        wizards: Registry::new(if find(dir, "wizards.ron").is_some() {
-            parse::<Vec<WizardDef>>(dir, "wizards.ron")?
-        } else {
-            Vec::new()
-        }),
+        wizards: Registry::new(wizards),
         // The starting records of the hero types, also optional.
         hero_templates,
         // Fallback names for rival wizards, also optional.
@@ -664,6 +706,21 @@ mod tests {
     use super::*;
     use f4x_core::rules::stats::{compute, passive_modifiers};
     use f4x_core::rules::Source;
+
+    #[test]
+    fn the_committed_wizards_are_named_after_their_ids_until_local_texts_arrive() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let features =
+            crate::parse_features(&std::fs::read_to_string(dir.join("features.ron")).unwrap())
+                .unwrap();
+        let rules = load_rules(&[dir.as_path()], &features).unwrap();
+        let wizards = rules.wizards.defs();
+        assert_eq!(wizards.len(), 14);
+        let lo_pan = wizards.iter().find(|w| w.id == "lo_pan").unwrap();
+        assert_eq!(lo_pan.name, "Lo Pan");
+        assert_eq!(lo_pan.books.iter().map(|b| u32::from(b.1)).sum::<u32>(), 9);
+        assert!(wizards.iter().all(|w| w.description.is_empty()));
+    }
 
     fn content_dir() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")
