@@ -267,6 +267,59 @@ mod tests {
     }
 
     #[test]
+    fn the_hero_types_and_their_starting_records_are_the_originals() {
+        use f4x_core::rules::{HeroKind, PickType};
+        let c =
+            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
+                .unwrap();
+        let units = &c.rules.units;
+        let heroes: Vec<_> = units
+            .defs()
+            .iter()
+            .filter(|u| u.kind == f4x_core::rules::UnitKind::Hero)
+            .collect();
+        assert_eq!(heroes.len(), 35);
+        assert_eq!(c.rules.hero_templates.len(), 35);
+        // The records follow the units' order.
+        for (h, t) in heroes.iter().zip(&c.rules.hero_templates) {
+            assert_eq!(h.id, t.unit);
+        }
+        let count = |k| {
+            heroes
+                .iter()
+                .filter(|h| h.hero.as_ref().unwrap().kind == k)
+                .count()
+        };
+        assert_eq!(
+            [
+                count(HeroKind::Warrior),
+                count(HeroKind::Bow),
+                count(HeroKind::SwordOrStaff),
+                count(HeroKind::Mage)
+            ],
+            [19, 4, 3, 9]
+        );
+        let hero = |id: &str| units.by_name(id).unwrap().hero.clone().unwrap();
+        assert_eq!(hero("ranger").kind, HeroKind::Bow);
+        assert_eq!(hero("chosen").portrait, 0);
+        let t = |id: &str| {
+            c.rules
+                .hero_templates
+                .iter()
+                .find(|t| t.unit == id)
+                .unwrap()
+        };
+        assert_eq!(t("sage").spells, ["dispel_magic_true", "counter_magic"]);
+        assert_eq!(t("sage").casting_skill, 2);
+        assert_eq!(t("bard").abilities, ["leadership", "female"]);
+        assert_eq!(
+            (t("knight").picks, t("knight").pick_type),
+            (3, PickType::Any)
+        );
+        assert_eq!(t("chosen").spells.len(), 4);
+    }
+
+    #[test]
     fn the_level_paths_are_the_originals_level_bonuses() {
         use f4x_core::rules::Stat::*;
         let c =

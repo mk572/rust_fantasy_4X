@@ -104,14 +104,136 @@ pub enum ItemSlot {
     Misc,
 }
 
+/// The kind of a hero, which decides what its three item slots take (`Hero_Slot_Types`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HeroKind {
+    /// Sword, armour, miscellaneous.
+    Warrior,
+    /// Bow, armour, miscellaneous.
+    Bow,
+    /// Sword or staff, armour, miscellaneous.
+    SwordOrStaff,
+    /// Staff, miscellaneous, miscellaneous.
+    Mage,
+}
+
+/// What a hero's item slot takes (the original's six item slot types).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SlotKind {
+    /// Sword, mace or axe.
+    Sword,
+    /// A bow, or what the sword slot takes.
+    Bow,
+    /// What the sword slot takes, or a staff or wand.
+    SwordOrStaff,
+    /// Staff or wand.
+    Staff,
+    /// Shields and mail.
+    Armor,
+    Misc,
+}
+
+impl HeroKind {
+    /// The kinds of the hero's three slots.
+    pub fn slots(self) -> [SlotKind; 3] {
+        match self {
+            Self::Warrior => [SlotKind::Sword, SlotKind::Armor, SlotKind::Misc],
+            Self::Bow => [SlotKind::Bow, SlotKind::Armor, SlotKind::Misc],
+            Self::SwordOrStaff => [SlotKind::SwordOrStaff, SlotKind::Armor, SlotKind::Misc],
+            Self::Mage => [SlotKind::Staff, SlotKind::Misc, SlotKind::Misc],
+        }
+    }
+}
+
+impl SlotKind {
+    /// Whether an item of this kind may go in the slot (`ItemScrn.c`, `Move_Item`): an item
+    /// fits the slot of its own type; the bow slot also takes the sword slot's items and the
+    /// sword-or-staff slot those and the staff slot's.
+    pub fn fits(self, item: ItemKind) -> bool {
+        use ItemKind as K;
+        let sword = matches!(item, K::Sword | K::Mace | K::Axe);
+        let staff = matches!(item, K::Staff | K::Wand);
+        match self {
+            Self::Sword => sword,
+            Self::Bow => sword || item == K::Bow,
+            Self::SwordOrStaff => sword || staff,
+            Self::Staff => staff,
+            Self::Armor => matches!(item, K::Shield | K::Chainmail | K::Platemail),
+            Self::Misc => item == K::Misc,
+        }
+    }
+}
+
 /// Extra data for [`UnitKind::Hero`] units.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeroDef {
-    /// Slots the hero can carry items in.
-    pub slots: Vec<ItemSlot>,
+    /// Decides the hero's three item slots.
+    pub kind: HeroKind,
+    /// The hero's portrait: an entry of the original's `PORTRAIT.LBX`.
+    pub portrait: u32,
     /// Gold to hire.
     pub hire_cost: u32,
 }
+
+impl HeroDef {
+    /// The kinds of the hero's three item slots.
+    pub fn slots(&self) -> [SlotKind; 3] {
+        self.kind.slots()
+    }
+}
+
+/// Which abilities a hero's random picks may draw (`Init_Heroes`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PickType {
+    Warrior,
+    Mage,
+    /// Both the warrior and the mage abilities.
+    Any,
+}
+
+/// How a hero type starts in each wizard's game (`NewGame.c:_hero_premade_table`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeroTemplate {
+    /// The hero's unit id.
+    pub unit: String,
+    /// Abilities drawn at random for each wizard at the start of the game.
+    pub picks: u32,
+    pub pick_type: PickType,
+    /// Abilities every wizard's copy has (names in [`HERO_ABILITIES`]).
+    pub abilities: Vec<String>,
+    pub casting_skill: u32,
+    /// The innate spells (ids in `spells.ron`), at most four.
+    pub spells: Vec<String>,
+}
+
+/// The hero abilities, by the name `heroes.ron` uses (`super_` is the doubled version of the
+/// one before it; they are the original's `HSA_*` flags).
+pub const HERO_ABILITIES: [&str; 24] = [
+    "leadership",
+    "super_leadership",
+    "legendary",
+    "super_legendary",
+    "blademaster",
+    "super_blademaster",
+    "armsmaster",
+    "super_armsmaster",
+    "constitution",
+    "super_constitution",
+    "might",
+    "super_might",
+    "arcane_power",
+    "super_arcane_power",
+    "sage",
+    "super_sage",
+    "prayermaster",
+    "super_prayermaster",
+    "agility",
+    "super_agility",
+    "lucky",
+    "charmed",
+    "noble",
+    "female",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDef {
@@ -480,6 +602,32 @@ pub struct Rules {
     pub item_powers: Registry<ItemPowerDef>,
     pub level_paths: Registry<LevelPathDef>,
     pub wizards: Registry<WizardDef>,
+    /// The starting record of each hero type, in the order of the hero units (optional).
+    pub hero_templates: Vec<HeroTemplate>,
     /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.
     pub wizard_names: Vec<Vec<String>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn item_slots_take_what_the_original_lets_them() {
+        use ItemKind::*;
+        // A sword slot takes swords, maces and axes; the bow slot those and bows.
+        assert!(SlotKind::Sword.fits(Mace) && !SlotKind::Sword.fits(Bow));
+        assert!(SlotKind::Bow.fits(Bow) && SlotKind::Bow.fits(Axe) && !SlotKind::Bow.fits(Staff));
+        // Sword or staff takes the sword slot's items and staves and wands, but no bow.
+        assert!(SlotKind::SwordOrStaff.fits(Sword) && SlotKind::SwordOrStaff.fits(Wand));
+        assert!(!SlotKind::SwordOrStaff.fits(Bow));
+        assert!(SlotKind::Staff.fits(Wand) && !SlotKind::Staff.fits(Sword));
+        assert!(SlotKind::Armor.fits(Shield) && SlotKind::Armor.fits(Platemail));
+        assert!(SlotKind::Misc.fits(Misc) && !SlotKind::Misc.fits(Shield));
+        // A mage carries a staff and two miscellaneous items.
+        assert_eq!(
+            HeroKind::Mage.slots(),
+            [SlotKind::Staff, SlotKind::Misc, SlotKind::Misc]
+        );
+    }
 }

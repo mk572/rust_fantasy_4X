@@ -16,7 +16,7 @@
     (id: "captain_mira", name: "Captain Mira", kind: Hero, cost: 0, upkeep: (gold: 2),
      stats: {Melee: 4, Defense: 3, Resistance: 6, MaxHp: 4, Figures: 1, Moves: 1, Sight: 2},
      movement: Walking, abilities: ["first_strike"], level_path: Some("hero_xp"),
-     hero: Some((slots: [Weapon, Armor, Misc], hire_cost: 150))),
+     hero: Some((kind: Warrior, portrait: 0, hire_cost: 150))),
 
     (id: "fire_sprite", name: "Fire Sprite", kind: Summoned, realm: Some("chaos"), cost: 30, upkeep: (mana: 2),
      stats: {Melee: 2, Ranged: 3, Ammo: 6, Defense: 1, Resistance: 6, MaxHp: 2, Figures: 1, Moves: 2, Sight: 1},

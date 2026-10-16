@@ -14,7 +14,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 
 | Piece | State |
 |---|---|
-| 35 hero units in `content/units.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (slots: [Weapon, Armor, Misc], hire_cost)`. Stats come from `UNITTYPE.c`; the hero type (who is a mage) and the portrait are not imported. |
+| 35 hero units in `content/units.ron`, `content/heroes.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (kind: Warrior / Bow / SwordOrStaff / Mage, portrait, hire_cost)` (task 218: the type fixes the three slots, `HeroKind::slots`, `SlotKind::fits`) and the 35 starting records of `NewGame.c:_hero_premade_table` (picks, fixed abilities by `HSA_*` name, casting skill, four innate spells), loaded into `Rules::hero_templates` and checked by `validate`. |
 | 250 items in `content/items.ron`, 66 powers in `content/item_powers.ron` | Hand-kept data of every original item and power (task 218 steps 1 and 2): `ItemDef {id, name, slot, kind, cost, effects, spell_skill, spell_save, powers, charges, books, flag}`; plain bonuses are effects (movement as `HalfMoves`, to hit in pluses). What the special powers do, and the books' meaning, are open. |
 | `Source::Item(Id<ItemDef>)` in `rules/stats.rs` | Exists, nothing uses it. |
 | `experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
@@ -169,8 +169,8 @@ pub fn mana_value(item: &Item) -> u32;                                  // cost;
 ```
 
 `ItemDef` in the content becomes the same shape (`Item` is its `to_instance`), so a prefab item is a
-copy. `ItemSlot` of `HeroDef` is replaced by `SlotKind` (the importer sets mage heroes to
-staff, misc, misc). This answers the open question of `design.md` section 13: **an item is data with
+copy. The `ItemSlot` list of `HeroDef` is replaced by `HeroKind` and `SlotKind` (done, task 218: mage
+heroes have staff, misc, misc). This answers the open question of `design.md` section 13: **an item is data with
 bonuses plus a list of power ids; its effects reach the rules through `Source::Item`, so the stat
 engine (`rules/stats.rs`) and the ability list need no special case.**
 
@@ -358,7 +358,7 @@ through `extract-art` (already extracted to `assets-local/art/<lbx>/<entry>_<fra
 | Crafting screen | `SPELLSCR.LBX` entries 13 (background), 14 to 23 (weapon buttons), 24 (OK), 25 to 34 (highlighted buttons), 35 and 36 (arrows), 37 to 41 (charges) | Extracted (`spellscr`). |
 | Hero portraits | `PORTRAIT.LBX` (40 entries; the `bld1` column of the unit table for heroes is the entry) | Extracted. **Importer: read `bld1` as portrait** for the 35 hero rows. |
 | Hero type (slots) | unit table column `bld2` of the 35 hero rows (`UNITTYPE.c`): 0 warrior (19 heroes), 1 bow (Dervish, Huntress, Ranger, Knight), 2 sword-or-staff (Warrior Mage, row 24, Chaos Warrior), 3 mage (Sage, Druid, Magician, Wind Mage, Witch, Warlock, Illusionist, Priestess, Necromancer) | Not imported yet. **Add `hero: (kind: ..., portrait: ...)` to `HeroDef`.** |
-| Hero ability roll tables | `NewGame.c:_hero_premade_table` (35 rows: picks count, picks type, fixed ability mask, casting skill, four spell numbers). `HERODATA.LBX` (1500 bytes, 150 records of 10 bytes) is **not read by ReMoM** and I have not found what it holds. | **Import from `NewGame.c`** into `content/heroes.ron` (ability bit names from `HSA_*`; spell numbers need the importer's spell index map). |
+| Hero ability roll tables | `NewGame.c:_hero_premade_table` (35 rows: picks count, picks type, fixed ability mask, casting skill, four spell numbers). `HERODATA.LBX` (one entry of 150 records of 10 bytes: five copies of 30 hero types, so one set a wizard) is **not read by ReMoM or, as far as can be told, by the game**: each record holds a 32-bit-looking ability field (bytes 2 and 3), a casting skill of 5, 10 or 15 (byte 4) and up to four spell numbers (bytes 5 to 8) that differ from the premade table's, so it is probably a leftover of an earlier design of the same data. Nothing in the game needs it (task 218). | **Import from `NewGame.c`** into `content/heroes.ron` (ability bit names from `HSA_*`; spell numbers need the importer's spell index map). |
 | Hero ability flags and icons | `HSA_*` (`MOX_DEF.h`), `LVLMAKE.c:USW_HeroAbilities` (flag, icon, help), icons in `SPECIAL.LBX` / `SPECIAL2.LBX` | Extracted; the importer needs the flag names. |
 | Hero names | `NAMES.LBX` entry 0: 200 names of 13 characters, indexed `player * 35 + type` | **Decision needed:** names are not rules. Treat like the city names: invented defaults in `content/`, the original's in `content-local/` (see `local-assets.md`). |
 | Hero level names and xp | `hero_xp` in `level_paths.ron` (Hero 0, Myrmidon 20, Captain 60, Commander 120, Champion 200, Lord 300, Grand Lord 450, Super Hero 600, Demi-God 1000) | Imported already; check against `TBL_Experience` in task 174. |

@@ -6,8 +6,9 @@ use std::path::Path;
 use f4x_core::content::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
 use f4x_core::rules::{
-    AbilityDef, BuildingDef, Def, Duration, ItemDef, ItemPowerDef, LevelPathDef, RaceDef, RealmDef,
-    Registry, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
+    AbilityDef, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef, LevelPathDef,
+    RaceDef, RealmDef, Registry, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
+    HERO_ABILITIES,
 };
 
 use crate::{id_problem, ContentError};
@@ -76,6 +77,12 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         } else {
             Vec::new()
         }),
+        // The starting records of the hero types, also optional.
+        hero_templates: if find(dir, "heroes.ron").is_some() {
+            parse::<Vec<HeroTemplate>>(dir, "heroes.ron")?
+        } else {
+            Vec::new()
+        },
         // Fallback names for rival wizards, also optional.
         wizard_names: if find(dir, "wizard_names.ron").is_some() {
             parse::<Vec<Vec<String>>>(dir, "wizard_names.ron")?
@@ -97,6 +104,46 @@ fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Vec<String>) 
         problems.extend(id_problem(kind, d.id()));
         if !seen.insert(d.id()) {
             problems.push(format!("duplicate {kind} id {:?}", d.id()));
+        }
+    }
+}
+
+/// Pictures in the original's `PORTRAIT.LBX`.
+const HERO_PORTRAITS: u32 = 40;
+
+/// The hero templates: one for each hero unit, no more, with real abilities and spells.
+fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
+    if r.hero_templates.is_empty() {
+        return;
+    }
+    let mut seen = HashSet::new();
+    for t in &r.hero_templates {
+        let who = format!("hero template {:?}", t.unit);
+        match r.units.by_name(&t.unit) {
+            Some(u) if u.kind == UnitKind::Hero => {}
+            Some(_) => p.push(format!("{who} is not a Hero unit")),
+            None => p.push(format!("{who} names an unknown unit")),
+        }
+        if !seen.insert(t.unit.as_str()) {
+            p.push(format!("{who} appears twice"));
+        }
+        for a in &t.abilities {
+            if !HERO_ABILITIES.contains(&a.as_str()) {
+                p.push(format!("{who} has unknown hero ability {a:?}"));
+            }
+        }
+        for s in &t.spells {
+            if r.spells.by_name(s).is_none() {
+                p.push(format!("{who} has unknown spell {s:?}"));
+            }
+        }
+        if t.spells.len() > 4 {
+            p.push(format!("{who} has more than four innate spells"));
+        }
+    }
+    for u in r.units.defs().iter().filter(|u| u.kind == UnitKind::Hero) {
+        if !seen.contains(u.id.as_str()) {
+            p.push(format!("hero {:?} has no hero template", u.id));
         }
     }
 }
@@ -172,6 +219,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     check_level_paths(r, &mut p);
     check_wizards(r, &mut p);
     check_items(r, &mut p);
+    check_hero_templates(r, &mut p);
 
     // Effect and condition references, for everything that carries effect rules.
     let mut carriers: Vec<(String, &[EffectRule])> = Vec::new();
@@ -343,9 +391,11 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
                 match &u.hero {
                     None => p.push(format!("{who} is a Hero and needs hero data")),
                     Some(h) => {
-                        let unique: HashSet<_> = h.slots.iter().collect();
-                        if h.slots.is_empty() || unique.len() != h.slots.len() {
-                            p.push(format!("{who}: hero slots must be non-empty and unique"));
+                        if h.portrait >= HERO_PORTRAITS {
+                            p.push(format!(
+                                "{who}: portrait {} is not one of the {HERO_PORTRAITS} hero portraits",
+                                h.portrait
+                            ));
                         }
                     }
                 }
@@ -626,6 +676,7 @@ mod tests {
             item_powers: Registry::new(ron::from_str(&list("item_powers.ron")).unwrap()),
             level_paths: Registry::new(ron::from_str(&list("level_paths.ron")).unwrap()),
             wizards: Registry::new(Vec::new()),
+            hero_templates: Vec::new(),
             wizard_names: Vec::new(),
         }
     }
@@ -701,10 +752,34 @@ mod tests {
     }
 
     #[test]
+    fn catches_hero_template_problems() {
+        use f4x_core::rules::{HeroTemplate, PickType};
+        let mut rules = rules_with(&[]);
+        let template = |unit: &str| HeroTemplate {
+            unit: unit.into(),
+            picks: 1,
+            pick_type: PickType::Any,
+            abilities: vec!["might".into()],
+            casting_skill: 0,
+            spells: Vec::new(),
+        };
+        // A hero without a template, once there are templates at all.
+        rules.hero_templates = vec![template("archer"), template("nobody")];
+        rules.hero_templates[0].abilities.push("flying".into());
+        rules.hero_templates[0].spells.push("nowhere".into());
+        let p = validate_rules(&rules, &features());
+        assert!(has(&p, "\"archer\" is not a Hero unit"), "{p:?}");
+        assert!(has(&p, "names an unknown unit"), "{p:?}");
+        assert!(has(&p, "unknown hero ability \"flying\""), "{p:?}");
+        assert!(has(&p, "unknown spell \"nowhere\""), "{p:?}");
+        assert!(has(&p, "captain_mira\" has no hero template"), "{p:?}");
+    }
+
+    #[test]
     fn catches_unit_rule_violations() {
         let p = problems(&[
             // hero without hero data, summoned unit without a realm
-            ("units.ron", "hero: Some((slots: [Weapon, Armor, Misc], hire_cost: 150))", "hero: None"),
+            ("units.ron", "hero: Some((kind: Warrior, portrait: 0, hire_cost: 150))", "hero: None"),
             ("units.ron", "kind: Summoned, realm: Some(\"chaos\")", "kind: Summoned"),
             // ranged unit without ammo
             ("units.ron", "Ranged: 2, Ammo: 4", "Ranged: 2"),
