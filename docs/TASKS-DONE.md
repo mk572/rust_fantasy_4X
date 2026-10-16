@@ -44,6 +44,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
 | 42 | Combat | Fleeing and after-battle results (done) |
 | 46 | Combat | Battle AI (done) |
+| 48 | Heroes | Hiring, summoning, recall, resurrection and fame (done) |
 | 49 | Heroes | Item slots, powers and data schema (done) |
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
@@ -343,6 +344,8 @@ work is split into tasks 131-133 and 112 (map art), 43/44 (casting).
 
 **46. Battle AI (done).** Done and superseded: `battle/ai.rs` plays battles and combat spells; the open work is task 232. Decision making for AI-controlled units in tactical battles and for the AI
 wizard's combat spells. After 40 and 43.
+
+**48. Hiring, summoning, recall, resurrection and fame (done).** `hero_spells.rs`: `Game::hire_hero(player, kind)` (the price of `Units::hero_hire_price`, half for a Charismatic wizard; the hero appears at the summoning circle; errors `NoGold`, `NoCircle`, `NoRoom`, `NotAvailable`), the hooks `summon_hero` and `summon_champion` (`pick_hero` with a zero cost, no gold), `incarnation` (Torin, the last hero type, free or dead, with his experience) and `resurrection`, and Recall Hero in the battle (`Status::Recalled`: the hero leaves the field and stands at the summoning circle after the fight, with no flee roll). Resurrection needs a choice of dead hero, so it is cast with `Command::ResurrectHero {player, kind}` (as Enchant Item is with `CraftItem`); the choice waits in `Magic::raising` while the cost is paid over turns. The other spells refuse to start when the wizard has six heroes, no summoning circle or nobody to bring (the original lets the cast fail), and cost nothing then. Events `HeroJoined` and `HeroSpellFailed` (a summoning paid over turns that finds nobody). Fame itself was already in (`Units::fame`). Left to other tasks: the offers, the Famous wizard's doubled chance and the Charismatic price for items (220); dismissing a hero (221, because of its items); the choice of dead hero and the hire box on screen (143, 222). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.9 and step 6; deviations in `divergences.md` section 11.
 
 **49. Item slots, powers and data schema (done).** Slots by hero type (sword, bow, staff, armor, misc),
 item powers, charges, and how this is expressed in data (open question in `design.md` section 13).

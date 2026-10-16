@@ -490,6 +490,18 @@ impl App {
                     "{} is ready: choose its target (M)",
                     self.game.content().rules.spells.get(spell).name
                 )),
+                Event::HeroJoined { player, kind, .. } => {
+                    let name = self
+                        .game
+                        .roster(player)
+                        .and_then(|r| r.get(kind))
+                        .map_or("A hero", |r| r.name.as_str());
+                    Some(format!("{name} joins your army"))
+                }
+                Event::HeroSpellFailed { spell, .. } => Some(format!(
+                    "{} finds no hero to bring",
+                    self.game.content().rules.spells.get(spell).name
+                )),
                 Event::SpellHasNoEffectYet { spell } => Some(format!(
                     "{} has no effect yet (not implemented)",
                     self.game.content().rules.spells.get(spell).name

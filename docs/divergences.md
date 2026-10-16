@@ -231,6 +231,19 @@ Where the item rules differ from the original's code or are read from ReMoM with
   (the design doc's open question 4: whether the original makes the fled ones revivable is not
   settled). Unpaid upkeep and dismissal make a hero `Free` (hireable again with its experience);
   a defeated wizard's heroes are `Gone`.
+- **Hero spells are refused before they are paid for.** The help says Summon Hero, Summon
+  Champion and Resurrection "fail" with six heroes. Ours does not start the cast when the wizard
+  has six heroes, no summoning circle, or nobody who could come (and Incarnation when Torin is
+  serving or gone), so no mana is lost. A summoning that was paid over turns and then finds
+  nobody is lost, with an event.
+- **Resurrection names the hero.** The wizard chooses which dead hero returns
+  (`Command::ResurrectHero`); the original lists the dead heroes for a human wizard
+  (a single one is raised unasked) and a computer wizard takes the last in type order
+  (`Units::ai_resurrection_pick`). Torin is never on the list, as in the original (only
+  Incarnation brings him). The original also marks hero type 0 gone when the list is empty or
+  there is no free place; that bug is not copied. Heroes arrive at the summoning circle (hired ones too).
+- **Recall Hero is a battle spell that risks nothing**: the hero leaves the field and is at the
+  summoning circle after the battle, not counted among the fleeing.
 - **Heroes cannot be dismissed yet**: the Dismiss button refuses them until the items they carry
   have somewhere to go (task 221).
 - **Names.** A hero's name comes from `content-local/hero_names.ron` (five a hero, one per wizard

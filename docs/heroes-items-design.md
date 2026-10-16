@@ -289,6 +289,8 @@ pop-up (task 143).
 
 ### 3.9 Hero spells (resolve through the existing effect host)
 
+**Built (task 48)** as one hook for each of the four overland spells in `hero_spells.rs` (the effect host lends out the game's generator, so the pick draws from the one the hook is given) and `Kind::Recall` in `battle/spells.rs`; the `Heroes<'a>` handle was not needed. Sketch:
+
 New effect primitives (`rules/exec.rs`): `SummonHero(class)`, `Incarnate`, `Resurrect`, `RecallHero`,
 `CraftItem(Craft)`. Each calls the `roster` / `hero` / `armory` functions through a small `Heroes<'a>`
 handle (world, content, players), the same shape as `Units` and `Economy`. Cracks Call, Banish,
@@ -400,7 +402,7 @@ comment or one read of the code and need a second look before they are built (th
 | H13 | Charismatic [704] | half price for heroes, mercenaries and items | Heroes: half of `cost + level * cost / 4`; items: the affordability test is made before halving ("wrong order of operations" in a ReMoM note); mercenaries: `Total_Cost /= 2` | Half price, test after halving. **Check** (the ReMoM note says the original tests before) |
 | H14 | Summon Hero / Champion [208, 212] | "will not require any initial gold" | `WIZ_HireHero` with no price; the summoned hero still pays upkeep | As help. |
 | H15 | Resurrection [133] | "if six other heroes have been hired the spell fails" | Same (checks `Hero_Slot_Open`) | As help. |
-| H16 | Recall Hero [205] | "instantly summons the target hero to your summoning circle, removing her from the current combat" | not read yet | Battle only, as the spell data has it. **Check** |
+| H16 | Recall Hero [205] | "instantly summons the target hero to your summoning circle, removing her from the current combat" | not read yet | Battle only, as the spell data has it. Built (task 48): `Status::Recalled`, no flee roll. |
 | H17 | Anvil [246] | half the base creation cost in mana | Same | As help. |
 | H18 | Enchant Item [207] | "only powers that cost 200 mana or less" | `Itam_Make_Screen_Build_Weapon_Powers_List` takes a maximum cost for a power (the player's crafting); random items for Power 1 use cost 200 and **at most 2** powers; the player may pick four (`NUM_ITEM_POWERS`; the screen warns "only 4 powers may be enchanted into an item") | Limit each power as the help says; four powers at most. **Done** (task 50, `crafting::check`). |
 | H19 | Artificer [697] | cost of making magical items -50% | A 50 percent reduction of the crafting spells' casting cost, in the same function as the other books' reductions (`NEXTTURN.c:1343`) | As help. |
@@ -446,7 +448,7 @@ Each step is testable without a screen; later steps add the client screens.
 4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (219) **Done** (hiring with gold, the offers and dismissing a hero are 48, 220 and 221).
 5. **Hero abilities in battle and overland**: stat abilities, leadership and prayermaster, Sage, Legendary and
    `fame::total`; hero level bonuses (with 174). (47, 72, 174)
-6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48)
+6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48) **Done** (`hero_spells.rs`; Resurrection through `Command::ResurrectHero`, see `divergences.md` section 11).
 7. **Loot**: fallen heroes' items, the removal spells, lair items and prisoners (127). (49)
 8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
    prefab items, `Make_Item`, are task 262; the crafting screen 260).

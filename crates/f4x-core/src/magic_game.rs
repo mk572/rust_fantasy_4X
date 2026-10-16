@@ -185,6 +185,18 @@ impl Game {
             // The items are designed first: `Command::CraftItem`.
             return Err(MagicError::NotAvailable);
         }
+        if self.spell_has_hook(spell, crate::hero_spells::RESURRECTION) {
+            // The dead hero is chosen first: `Command::ResurrectHero`.
+            return Err(MagicError::NotAvailable);
+        }
+        for hook in crate::hero_spells::HOOKS {
+            if self.spell_has_hook(spell, hook)
+                && self.units().hero_spell_blocked(player, hook).is_some()
+            {
+                // Six heroes already, no circle to appear in, or nobody left to bring.
+                return Err(MagicError::NotAvailable);
+            }
+        }
         if self.spell_has_hook(spell, crate::fortress::RETURN) {
             // Cast only through banishment, never chosen.
             return Err(MagicError::NotAvailable);

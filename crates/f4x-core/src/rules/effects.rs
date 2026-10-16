@@ -30,6 +30,10 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::special_spells::WORD_OF_RECALL,
     crate::special_spells::PLANE_SHIFT,
     crate::items::crafting::CRAFT_ITEM,
+    crate::hero_spells::SUMMON_HERO,
+    crate::hero_spells::SUMMON_CHAMPION,
+    crate::hero_spells::INCARNATION,
+    crate::hero_spells::RESURRECTION,
     crate::wizard_spells::DRAIN_POWER,
     crate::wizard_spells::CRUEL_UNMINDING,
     crate::wizard_spells::SUBVERSION,
@@ -55,6 +59,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::battle::spells::CREATURE_BINDING,
     crate::battle::spells::POSSESSION,
     crate::battle::spells::RAISE_DEAD,
+    crate::battle::spells::RECALL_HERO,
     crate::battle::spells::WARP_WOOD,
     crate::battle::spells::WARP_CREATURE,
 ];

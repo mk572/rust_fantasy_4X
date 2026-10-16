@@ -1407,24 +1407,27 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
 /// mana and skill; returns the game.
 fn casting_siege(spells: &[&str]) -> Game {
     let (mut g, city) = siege_world(6, &[]);
-    {
-        let ids: Vec<_> = spells
-            .iter()
-            .map(|s| {
-                g.content()
-                    .rules
-                    .spells
-                    .id_of(s)
-                    .unwrap_or_else(|| panic!("{s}"))
-            })
-            .collect();
-        let p = g.player_mut(HUMAN).unwrap();
-        p.mana = 5000;
-        p.magic.skill_points = 20_000;
-        p.magic.known.extend(ids);
-    }
+    arm_human(&mut g, spells);
     start_siege(&mut g, city);
     g
+}
+
+/// The human wizard knows `spells` and has the mana and skill to cast them.
+fn arm_human(g: &mut Game, spells: &[&str]) {
+    let ids: Vec<_> = spells
+        .iter()
+        .map(|s| {
+            g.content()
+                .rules
+                .spells
+                .id_of(s)
+                .unwrap_or_else(|| panic!("{s}"))
+        })
+        .collect();
+    let p = g.player_mut(HUMAN).unwrap();
+    p.mana = 5000;
+    p.magic.skill_points = 20_000;
+    p.magic.known.extend(ids);
 }
 
 fn cast(g: &mut Game, line: &str) -> crate::Reply {
@@ -2557,5 +2560,45 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
     assert!(
         seen.len() > 3,
         "the first rival's name varies with the seed: {seen:?}"
+    );
+}
+
+#[test]
+fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
+    use f4x_core::battle::{Side, Status};
+    let (mut g, city) = siege_world(6, &[]);
+    arm_human(&mut g, &["recall_hero"]);
+    let home = g.summon_point(HUMAN).expect("the wizard has a circle");
+    let hero = g.spawn_hero(HUMAN, home, 0).unwrap();
+    start_siege(&mut g, city);
+    let mine = battle_units_of(&g, Side::Attacker);
+    let source_of = |g: &Game, id: usize| {
+        let b = g.battle.as_ref().unwrap();
+        b.sources[b.battle.unit(id).unwrap().source.unwrap()]
+    };
+    let hero_id = *mine
+        .iter()
+        .find(|&&id| source_of(&g, id) == hero)
+        .expect("the hero fights");
+    let other = *mine.iter().find(|&&id| id != hero_id).unwrap();
+    // Only a hero of the wizard's own can be recalled.
+    assert!(!cast(&mut g, &format!("bcast recall hero unit:{other}")).ok);
+    let enemy = battle_units_of(&g, Side::Defender)[0];
+    assert!(!cast(&mut g, &format!("bcast recall hero unit:{enemy}")).ok);
+    let r = cast(&mut g, &format!("bcast recall hero unit:{hero_id}"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(
+        g.battle().unwrap().unit(hero_id).unwrap().status,
+        Status::Recalled
+    );
+    // The rest of the army gives up: the hero is not among those who flee and risk their lives.
+    g.apply(f4x_core::Command::Battle(
+        f4x_core::battle::BattleCommand::Flee,
+    ));
+    assert!(g.battle().is_none(), "the battle is over");
+    assert_eq!(
+        g.units().unit_position(hero),
+        Some(home),
+        "a recalled hero is not lost"
     );
 }

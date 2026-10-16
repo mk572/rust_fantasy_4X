@@ -550,6 +550,13 @@ impl Game {
         // turn it is (the attacker: a battle starts on its mover's turn) loses nothing else
         // (`Combat.c`, task 250).
         const HELD: [&str; 3] = ["black_sleep", "confusion", "web"];
+        // Heroes taken off the field by Recall Hero are at the summoning circle now.
+        for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {
+            let to = self.summon_point(battle.player_of(u.side));
+            if let (Some(unit), Some(to)) = (source_of(u), to) {
+                let _ = self.world.insert_one(unit, to);
+            }
+        }
         for side in [Side::Attacker, Side::Defender] {
             let mut fled: Vec<(hecs::Entity, bool)> = battle
                 .units

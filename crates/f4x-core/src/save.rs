@@ -197,6 +197,9 @@ pub struct MagicSave {
     /// The item being made by Enchant Item or Create Artifact; absent in older saves.
     #[serde(default)]
     pub crafting: Option<crate::items::Item>,
+    /// The dead hero Resurrection is bringing back; absent in older saves.
+    #[serde(default)]
+    pub raising: Option<usize>,
     pub global: Vec<String>,
     pub skill_left: i32,
 }
@@ -218,6 +221,7 @@ impl Default for MagicSave {
             research_remaining: 0,
             casting: None,
             crafting: None,
+            raising: None,
             global: Vec::new(),
             skill_left: 0,
         }
@@ -241,6 +245,7 @@ impl Magic {
             research_remaining: self.research_remaining,
             casting: self.casting.map(|c| (name(&c.spell), c.remaining)),
             crafting: self.crafting.clone(),
+            raising: self.raising,
             global: self.global.iter().map(name).collect(),
             skill_left: self.skill_left,
         }
@@ -284,6 +289,7 @@ impl Magic {
                 .map(|(s, remaining)| id(&s).map(|spell| Casting { spell, remaining }))
                 .transpose()?,
             crafting: m.crafting,
+            raising: m.raising,
             global: ids(&m.global)?,
             skill_left: m.skill_left,
         })

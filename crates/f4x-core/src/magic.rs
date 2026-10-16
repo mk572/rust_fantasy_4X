@@ -108,6 +108,8 @@ pub struct Magic {
     /// The item Enchant Item or Create Artifact is making while its cost is paid (the
     /// original's reserved item record); it goes to the armory when the spell is done.
     pub crafting: Option<crate::items::Item>,
+    /// The dead hero (a roster index) Resurrection is bringing back while its cost is paid.
+    pub raising: Option<usize>,
     /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
     pub global: Vec<SpellId>,
     /// Casting skill still available this turn for instant casting (the original's
@@ -131,6 +133,7 @@ impl Default for Magic {
             research_remaining: 0,
             casting: None,
             crafting: None,
+            raising: None,
             global: Vec::new(),
             skill_left: 0,
         }
@@ -759,6 +762,7 @@ impl Magic {
     pub fn cancel_casting(&mut self) {
         self.casting = None;
         self.crafting = None;
+        self.raising = None;
     }
 
     /// Turn off one of the wizard's own global enchantments.

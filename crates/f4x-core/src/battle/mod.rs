@@ -81,6 +81,9 @@ pub enum Status {
     Active,
     Dead,
     Fled,
+    /// A hero Recall Hero took off the field to the summoning circle: unlike a fled unit it
+    /// risks nothing.
+    Recalled,
 }
 
 /// How a unit that died was brought down, by the kind of damage that did most of it (the
@@ -640,6 +643,10 @@ pub enum BattleEvent {
     },
     Fled {
         side: Side,
+    },
+    /// Recall Hero took the hero (a battle unit id) off the field.
+    HeroRecalled {
+        unit: usize,
     },
     Ended {
         winner: Side,

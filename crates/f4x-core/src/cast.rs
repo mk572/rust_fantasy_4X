@@ -341,6 +341,10 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
+        if let Some(events) = self.game.hero_hook(hook, ctx.owner, &mut self.rng) {
+            self.events.extend(events);
+            return;
+        }
         if hook == crate::endgame::SPELL_OF_MASTERY {
             let events = self.game.win_by_mastery(ctx.owner);
             self.events.extend(events);

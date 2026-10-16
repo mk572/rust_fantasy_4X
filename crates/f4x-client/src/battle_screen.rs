@@ -218,6 +218,9 @@ pub(crate) fn describe(
         }
         BattleEvent::TurnStarted { turn, .. } => format!("Turn {turn}"),
         BattleEvent::Fled { .. } => "The army flees".to_string(),
+        BattleEvent::HeroRecalled { unit } => {
+            format!("{} is recalled to the summoning circle", name(*unit))
+        }
         BattleEvent::Ended { .. } => return None,
     })
 }

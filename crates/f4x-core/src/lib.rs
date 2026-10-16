@@ -29,6 +29,8 @@ mod healing;
 pub mod help;
 pub mod hero;
 mod hero_game;
+pub use hero_game::HeroError;
+pub mod hero_spells;
 pub mod items;
 pub mod lairs;
 pub mod magic;
@@ -159,6 +161,11 @@ pub enum Command {
         player: city::PlayerId,
         craft: items::crafting::Craft,
         design: items::crafting::ItemDesign,
+    },
+    /// Cast Resurrection on the dead hero `kind` (a roster index).
+    ResurrectHero {
+        player: city::PlayerId,
+        kind: usize,
     },
     /// The anvil: destroy a vault or award item for half its value in mana.
     ScrapItem {
@@ -438,6 +445,17 @@ pub enum Event {
     SpellHasNoEffectYet {
         spell: rules::SpellId,
     },
+    /// A hero joined the army at the summoning circle (`kind` is its roster index).
+    HeroJoined {
+        player: city::PlayerId,
+        unit: hecs::Entity,
+        kind: usize,
+    },
+    /// A summoning spell was cast and found no hero to bring.
+    HeroSpellFailed {
+        player: city::PlayerId,
+        spell: rules::SpellId,
+    },
     /// A lasting spell ended because its upkeep could not be paid.
     EnchantmentLapsed {
         player: city::PlayerId,
@@ -555,6 +573,7 @@ pub enum Rejection {
     Battle(battle::BattleError),
     Item(items::armory::ItemError),
     Craft(items::crafting::CraftingError),
+    Hero(HeroError),
     /// The game has ended; nothing more can be done.
     GameOver,
 }
@@ -788,6 +807,9 @@ impl Game {
                 Ok(events) => events,
                 Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
             },
+            Command::ResurrectHero { player, kind } => self
+                .resurrect_hero(player, kind)
+                .unwrap_or_else(|r| vec![Event::Rejected(r)]),
             Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
                 Some(_) => Vec::new(),
                 None => vec![Event::Rejected(Rejection::Item(

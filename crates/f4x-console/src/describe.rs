@@ -241,6 +241,16 @@ pub fn event(game: &Game, e: &Event) -> String {
                 spell(game, *s)
             )
         }
+        Event::HeroJoined { player: p, kind, .. } => {
+            let name = game
+                .roster(*p)
+                .and_then(|r| r.get(*kind))
+                .map_or("A hero", |r| r.name.as_str());
+            format!("{name} joins {}", player(game, *p))
+        }
+        Event::HeroSpellFailed { spell: s, .. } => {
+            format!("{} finds no hero to bring", spell(game, *s))
+        }
         Event::SpellHasNoEffectYet { spell: s } => {
             format!("{} has no effect yet", spell(game, *s))
         }
@@ -347,6 +357,7 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
         }
         B::SpellImmune { unit } => format!("Unit {unit} takes no harm from the spell"),
         B::SpellHealed { unit, healed } => format!("Unit {unit} heals {healed}"),
+        B::HeroRecalled { unit } => format!("Unit {unit} is recalled to the summoning circle"),
         B::SpellEnchanted { unit, spell: s } => format!("Unit {unit} is under {}", spell(game, *s)),
         B::SpellDispelled { unit, removed } => {
             format!("Dispel takes {removed} spells off unit {unit}")

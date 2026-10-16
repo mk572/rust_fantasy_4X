@@ -21,6 +21,10 @@ pub enum HeroError {
     NotAvailable,
     /// The wizard has six heroes.
     NoRoom,
+    /// The wizard has no summoning circle for the hero to appear in.
+    NoCircle,
+    /// The wizard cannot pay the hero's price.
+    NoGold,
 }
 
 impl Units<'_> {
@@ -178,7 +182,7 @@ impl Game {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::hero::Tier;
     use crate::map::{Grid, Map, Plane};
@@ -188,10 +192,10 @@ mod tests {
     };
     use crate::testutil::{content_with_magic, unit};
 
-    const P0: PlayerId = PlayerId(0);
-    const P1: PlayerId = PlayerId(1);
+    pub(crate) const P0: PlayerId = PlayerId(0);
+    pub(crate) const P1: PlayerId = PlayerId(1);
 
-    fn at(x: u32, y: u32) -> Position {
+    pub(crate) fn at(x: u32, y: u32) -> Position {
         Position {
             plane: Plane::Arcanus,
             x,
@@ -213,7 +217,7 @@ mod tests {
 
     /// Seven heroes (the last costs 600 and needs a death book), one wizard-less neutral and
     /// two wizards on a small map. Heroes cost 100 to 160 gold, upkeep 2.
-    fn world() -> Game {
+    pub(crate) fn world() -> Game {
         let mut c = content_with_magic();
         let mut units = c.rules.units.defs().to_vec();
         let mut templates = Vec::new();

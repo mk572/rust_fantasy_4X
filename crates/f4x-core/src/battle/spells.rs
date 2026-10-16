@@ -42,6 +42,7 @@ pub const CREATURE_BINDING: &str = "creature_binding";
 pub const POSSESSION: &str = "possession";
 /// The hook of Raise Dead: a fallen normal unit returns with half its figures.
 pub const RAISE_DEAD: &str = "raise_dead";
+pub const RECALL_HERO: &str = "recall_hero";
 /// The hook of Warp Wood: a missile unit's ammunition is destroyed.
 pub const WARP_WOOD: &str = "warp_wood";
 /// The hook of Warp Creature.
@@ -110,6 +111,8 @@ enum Kind {
     Raise,
     /// Destroy a missile unit's ammunition (Warp Wood).
     WarpWood,
+    /// Take one of the wizard's heroes off the field to the summoning circle (Recall Hero).
+    Recall,
     /// A unit changes sides after a resistance check: for good until a dispel (Creature
     /// Binding, fantastic creatures) or just for the battle (Possession, normal units).
     Turn {
@@ -286,6 +289,7 @@ impl Game {
             Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
             Effect::Custom(h) if h == RAISE_DEAD => Some(Kind::Raise),
             Effect::Custom(h) if h == WARP_WOOD => Some(Kind::WarpWood),
+            Effect::Custom(h) if h == RECALL_HERO => Some(Kind::Recall),
             Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
                 save: def.save.clone(),
             }),
@@ -631,6 +635,14 @@ impl Game {
                         return Err(SpellError::BadTarget);
                     }
                 }
+                // Recall Hero takes one of the wizard's own heroes, and needs a place to send it.
+                if matches!(kind, Kind::Recall)
+                    && (!own
+                        || !self.battle_unit_is_hero(u)
+                        || self.summon_point(battle.player_of(side)).is_none())
+                {
+                    return Err(SpellError::BadTarget);
+                }
                 if matches!(kind, Kind::Enchant { .. }) && u.enchantments.contains(&def.id) {
                     return Err(SpellError::BadTarget);
                 }
@@ -895,6 +907,13 @@ impl Game {
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
             (Kind::CallChaos, _) => self.call_chaos(side, player),
+            (Kind::Recall, SpellAim::Unit(target)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                active.battle.units[target].status = super::Status::Recalled;
+                vec![BattleEvent::HeroRecalled { unit: target }]
+            }
             (Kind::WarpWood, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
