@@ -189,13 +189,10 @@ impl Game {
                     .city_at(at)
                     .filter(|&c| self.economy().city_owner(c) != Some(player))?
             }
-            (SpellTarget::Tile, Target::Tile(at))
-                if self.spell_has_hook(spell, crate::wizard_spells::BLACK_WIND) =>
-            {
-                self.economy()
-                    .city_at(at)
-                    .filter(|&c| self.economy().city_owner(c) != Some(player))?
-            }
+            (SpellTarget::Tile, Target::Tile(at)) if self.is_square_spell(spell) => self
+                .economy()
+                .city_at(at)
+                .filter(|&c| self.economy().city_owner(c) != Some(player))?,
             _ => return None,
         };
         self.economy()

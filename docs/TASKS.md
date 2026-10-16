@@ -23,7 +23,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 62 | Magic | Player-chosen losses when mana runs short |
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
-| 71 | Meta | Advisors |
 | 72 | Meta | Fame effects |
 | 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
@@ -128,7 +127,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 269 | Client | Settings: City Spell Events |
 | 270 | Client | Settings: Overland Spell Events |
 | 271 | Client | Settings: Summoning Events |
-| 272 | Client | Settings: End of Turn Summary |
 | 273 | Client | Settings: Raze City |
 | 274 | Rules | Settings: Random Events |
 | 275 | Client | Settings: End of Turn Wait |
@@ -140,6 +138,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 281 | Client | Settings: Movement Animations |
 | 282 | Client | Settings: Show Node Owners |
 | 283 | Client | Settings: Expanding Help |
+| 284 | Client | Advice messages at the turn change (a city starving, a hero available) |
 
 ## Descriptions
 
@@ -160,7 +159,7 @@ disagree: `help-vs-implementation-conflicts.md` B30 to B33; Death Wish has no re
 on the square, each failure costing one figure's hit points; the original's relations penalty for it is not applied: its call
 is garbled) and Lycanthropy (the unit becomes Werewolves with no experience; ships are refused, the original does not) are in too.
 The spells still to wire, with what each needs first, are in [`spells_to_implement.md`](spells_to_implement.md). Still open here: the AI casting any
-of the new spells, and Fire Storm and Ice Storm.
+of the new spells. Fire Storm and Ice Storm are done: a strength 6 cold and a strength 8 fire attack on every figure of every unit on the chosen square, a city's garrison included, through the new `UnitsOnChosenSquare` selector (`rules-framework.md`); the original's own code for them is not in ReMoM, so they follow the help.
 
 **58. Unit enchantments needing non-stat effects.** 20 spells with movement types, immunities,
 conditional bonuses and regeneration. **Done so far:** the movement spells grant the abilities the
@@ -199,12 +198,6 @@ here yet.
 **68. Random events.** Plague, population boom, conjunctions, moons, mana short and others, each
 ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow intent for B18
 (count from the real turn, not from game start or load).
-
-**71. Advisors.** The original's advisors (surveyor, cartographer, historian, astrologer, chancellor,
-tax collector, grand vizier, war and mage advisors) give information screens and messages about
-the player's progress and surroundings [764, 216, 221]. Add an advisor menu and screens fed by
-`Game` queries, plus the end-of-turn advice messages (a city starving, a spell learned, a hero
-available).
 
 **72. Fame effects.** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
 and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.7: `fame::total` (earned fame, Legendary heroes, Just Cause) replaces the plain `Player.fame` in `finance.rs` and the offers.
@@ -401,7 +394,7 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.8 (task 220 makes the offers; this task shows them). Hero names are placeholders until the original's are imported (task 218): the hire box names the hero, with the unit's own name as the default. **Built with task 220:** plain boxes over the map for the hero, mercenary and merchant offers (`offer_prompt.rs`; Enter or the buttons answer, a hero is named in the box, `--offer KIND` with `--shot` shows one). **Drawn as the original does** (`offer_prompt.rs`, after `HIRE.c`): the hero and mercenary boxes are the unit sheet (`draw_sheet_panel`) under the `HIRE.LBX` banner with the price in the title and the Hire and Reject buttons, a hero is named in the `BACKGRND` 33 box after Hire; the merchant has the merchant banner, his words and the item card with its picture. Left: the level-up announcement, the event messages, the item card's power texts and the hire box variants, in task 264.
 
-**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list.
+**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list; the Chancellor's scroll (task 272) is built.
 
 **146. Palette cycling: the pulsing colour of index 198.** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 
@@ -525,8 +518,6 @@ Parity task, low priority.
 
 **271. Settings: Summoning Events.** Show a message when a wizard summons a creature, hero or champion (Summon Hero, Summon Champion, Summoning Circle and the realm summons); off hides them. Includes the player's own summons if the original shows them. The switch is `Pref::SummoningEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
-**272. Settings: End of Turn Summary.** The report at the start of a turn of what happened since the last one (cities grown, buildings and units finished, research done, gold and mana shortfalls). Check what the client prints to the log today, build the original-style list if it is missing, and let the switch turn it off. The switch is `Pref::EndofTurnSummary` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
 **273. Settings: Raze City.** Whether the player is asked to keep or raze a conquered city. The prompt exists (`raze_prompt` in `view.rs`); read the original's help for what Off does (probably keeps the city without asking) and make the switch decide. Note the rules half: whether the human may raze at all is a game rule, not a preference, if the original treats it so. The switch is `Pref::RazeCity` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **274. Settings: Random Events.** Whether random events (task 68) can happen in this game. Unlike the other switches this changes the rules, so it belongs in the game's own settings (`GameSettings`, saved with the game; the event group exists in the record from task 247) and is chosen when the game is made; the preferences page entry should set the default for new games, or point at the game settings. Decide which with the user, then wire it. Needs 68. The switch is `Pref::RandomEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
@@ -548,3 +539,5 @@ Parity task, low priority.
 **282. Settings: Show Node Owners.** Show who owns each magic node (a marker or colour on the node square) when on. Needs the node counter and aura of task 160 for ownership to exist as a per-node answer, and the map overlay for the marker. The switch is `Pref::ShowNodeOwners` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **283. Settings: Expanding Help.** The original's help pop-up grows (opens with an expanding animation) when on. Check how the help pop-up works in the client today and whether the animation is wanted; low priority. The switch is `Pref::ExpandingHelp` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**284. Advice messages at the turn change.** Short advisor notes when a turn ends: a city that starves or has no food surplus, a spell finished, a hero or mercenaries on offer, units that will desert next turn. The first task text of 71 asked for them; the original's own advisor list (`AdvsrScr.c`) has no such messages, so check what the original does say at the turn change (the building-complete and evict messages of task 144 are the nearest) before inventing any. Keep it small.

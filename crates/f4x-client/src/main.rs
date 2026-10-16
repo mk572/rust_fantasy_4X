@@ -1,6 +1,8 @@
 //! The desktop client: reads the core's state and draws it, never mutating the
 //! world except by sending commands.
 
+mod advisor_screens;
+mod advisors;
 mod army_screen;
 mod art;
 mod attack_prompt;
@@ -8,6 +10,7 @@ mod battle_anim;
 mod battle_ground;
 mod battle_screen;
 mod bigbook;
+mod chancellor;
 mod city_screen;
 mod cityscape;
 mod console_screen;
@@ -25,6 +28,7 @@ mod preferences;
 mod road_plan;
 mod settings_screen;
 mod spellbook;
+mod surveyor;
 mod terrain_pick;
 mod ui;
 mod unit_screen;
@@ -72,6 +76,12 @@ struct Options {
     slots: bool,
     /// With `--shot`, show the Settings screen.
     settings: bool,
+    /// With `--shot`, open an advisor: 0 to 8 for the advisors, 9 for the list.
+    advisor: Option<usize>,
+    /// With `--advisor 0`: describe the square at this column and row.
+    survey_at: Option<(u32, u32)>,
+    /// With `--shot`, show the Chancellor's scroll with made-up news (`--long` for a tall one).
+    scroll: Option<bool>,
     /// Skip the creation screen and play the default wizard.
     quick: bool,
     /// With `--shot`, fight a test battle first.
@@ -115,6 +125,9 @@ fn parse_args() -> Result<Options, String> {
         options: false,
         slots: false,
         settings: false,
+        advisor: None,
+        survey_at: None,
+        scroll: None,
         reveal: false,
         at: None,
         quick: false,
@@ -173,6 +186,28 @@ fn parse_args() -> Result<Options, String> {
             "--options" => o.options = true,
             "--slots" => o.slots = true,
             "--settings" => o.settings = true,
+            "--survey-at" => {
+                let v = value("--survey-at")?;
+                // "city" is the first city's square.
+                o.survey_at = if v == "city" {
+                    Some((u32::MAX, 0))
+                } else {
+                    v.split_once(',')
+                        .and_then(|(x, y)| Some((x.parse().ok()?, y.parse().ok()?)))
+                };
+                if o.survey_at.is_none() {
+                    return Err("--survey-at takes X,Y or city".into());
+                }
+            }
+            "--advisor" => {
+                o.advisor = Some(
+                    value("--advisor")?
+                        .parse()
+                        .map_err(|_| "--advisor must be a number, 0 to 9")?,
+                )
+            }
+            "--scroll" => o.scroll = Some(false),
+            "--scroll-long" => o.scroll = Some(true),
             "--reveal" => o.reveal = true,
             "--at" => {
                 let v = value("--at")?;
@@ -211,7 +246,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -286,6 +321,27 @@ async fn main() {
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n);
+    }
+    if let Some((x, y)) = options.survey_at {
+        app.survey_probe = if x == u32::MAX {
+            app.game.economy().cities().first().map(|c| c.2)
+        } else {
+            Some(f4x_core::city::Position {
+                plane: f4x_core::map::Plane::Arcanus,
+                x,
+                y,
+            })
+        };
+    }
+    if let Some(n) = options.advisor {
+        if n > 8 {
+            app.open_advisor_menu();
+        } else {
+            app.open_advisor(n);
+        }
+    }
+    if let Some(long) = options.scroll {
+        app.open_test_chancellor(long);
     }
     if options.create {
         app.open_creation();

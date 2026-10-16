@@ -9,14 +9,14 @@ sensitive. "Not yet" means the screen or action does not exist in our game.
 
 | Key | Original | Client |
 |---|---|---|
-| F1 | Advisor: Surveyor | not yet (screen missing) |
-| F2 | Advisor: Cartographer | not yet |
+| F1 | Advisor: Surveyor | done (a map mode; C, Esc or Cancel leave, a click centres the map) |
+| F2 | Advisor: Cartographer | done (N flips the plane, a click moves the map there, C or Esc close) |
 | F3 | Advisor: Apprentice | done |
-| F4 | Advisor: History | not yet |
-| F5 | Advisor: Astrologer | not yet |
-| F6 | Advisor: Chancellor | not yet |
-| F7 | Advisor: Tax Collector | not yet |
-| F8 | Advisor: Grand Vizier | toggles the Grand Vizier (the screen's one setting) |
+| F4 | Advisor: History | done |
+| F5 | Advisor: Astrologer | done |
+| F6 | Advisor: Chancellor | done (the last turn's scroll) |
+| F7 | Advisor: Tax Collector | done (a list box; click a rate) |
+| F8 | Advisor: Grand Vizier | off at once; on after a Y or N question |
 | F9 | Advisor: Mirror (your wizard sheet) | done (a rival's sheet: right-click its gem on the Magic screen) |
 | F10 | Quick-save (save slot 9) | done |
 | N | Next turn | done (**extra:** Enter does the same) |
@@ -24,7 +24,7 @@ sensitive. "Not yet" means the screen or action does not exist in our game.
 | S | Spells button (the spell book) | done |
 | A | Armies button (army list) | done (task 138) |
 | M | Magic button | done |
-| I | Info button (the advisor menu) | not yet |
+| I | Info button (the advisor menu) | done (also the Info button) |
 | P | Plane button: show the other plane | done (shifts the selected units first, if they can) |
 | (none) | Cities button (no key) | not yet |
 | D | Done: the selected stack is finished for this turn | clears the stack's orders only (no idle-stack cycling yet) |
@@ -76,6 +76,7 @@ Production screen (`ProdScr.c`): C Cancel, O OK, Esc.
 | Spell book (`Spellbook.c`, `SBookScr.c`) | F next page, B previous page, Esc |
 | Advisor screens (`AdvsrScr.c`) | N next, C close, Esc |
 | Mirror (`WIZVIEW.c`), Surveyor, Score, Item screen | Esc leaves (the Mirror also on a click) |
+| Chancellor's scroll (after a turn) | Esc, Enter or a click closes; U, D, arrows or the wheel scroll |
 | Settings | Click a row to flip it; O, Enter or Esc leave (and save) |
 | Hire dialog (`HIRE.c`) | H or A for the Hire button (the key depends on its text) |
 | After taking a city (`Combat.c`) | R raze, N keep |

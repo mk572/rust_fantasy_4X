@@ -51,6 +51,12 @@ pub enum Screen {
     /// The settings of the game being played (read-only), or the options for the next game when
     /// there is none; opened from the Settings screen's Game button (task 94).
     GameSettings,
+    /// The world map of one plane, zoomed out (F2).
+    Cartographer,
+    /// "History Of Wizards Power" (F4).
+    History,
+    /// "Current Status Of Wizards" (F5).
+    Astrologer,
     /// The game has ended: result and score.
     GameOver,
     /// The text console (backquote key).
@@ -71,8 +77,18 @@ pub struct App {
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
     pub(crate) options: OptionsState,
+    /// The Chancellor's scroll, up after a turn change (task 272).
+    pub(crate) chancellor: Option<crate::chancellor::Chancellor>,
     /// The player's preferences (the Settings screen), shared by every game.
     pub(crate) prefs: crate::preferences::Preferences,
+    /// A list box over the map: the advisors, the tax rates (task 71).
+    pub(crate) list_box: Option<crate::advisors::SelectionBox>,
+    /// The question before the Grand Vizier is switched on.
+    pub(crate) vizier_ask: bool,
+    /// The plane the Cartographer shows.
+    pub(crate) cart_plane: Plane,
+    /// The news of the last turn change, for the Chancellor to show again.
+    pub(crate) last_news: Vec<crate::chancellor::Section>,
     pub(crate) seed: u64,
     pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
@@ -109,6 +125,10 @@ pub struct App {
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
     /// A road being planned (task 102).
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
+    /// The Surveyor is describing the square under the mouse (F1, task 71).
+    pub(crate) surveyor: bool,
+    /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
+    pub(crate) survey_probe: Option<Position>,
     /// The key list is shown (F1 shows it while held).
     pub(crate) show_keys: bool,
     /// The wizard creation screen's state.
@@ -168,6 +188,11 @@ impl App {
             params,
             options,
             prefs: Default::default(),
+            chancellor: None,
+            list_box: None,
+            vizier_ask: false,
+            cart_plane: Plane::Arcanus,
+            last_news: Vec::new(),
             seed,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
@@ -190,6 +215,8 @@ impl App {
             help: Default::default(),
             targeting: None,
             road_plan: None,
+            surveyor: false,
+            survey_probe: None,
             show_keys: false,
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
@@ -644,7 +671,10 @@ impl App {
         }
         let events = self.game.apply(Command::EndTurn);
         let turn = self.game.turn;
+        let news = self.collect_report(&events);
+        self.last_news = news.clone();
         self.note(events);
+        self.open_chancellor(news);
         self.log.push(format!("Turn {turn}"));
     }
 
@@ -653,6 +683,7 @@ impl App {
         for _ in 0..turns {
             self.end_turn();
         }
+        self.chancellor = None;
     }
 
     pub fn select_first_stack(&mut self) {
@@ -677,7 +708,7 @@ impl App {
         (r.w / t.x, r.h / t.y)
     }
 
-    fn tile_at(&self, screen: Vec2) -> Option<Position> {
+    pub(crate) fn tile_at(&self, screen: Vec2) -> Option<Position> {
         let r = self.map_rect();
         if !r.contains(screen) {
             return None;
@@ -789,6 +820,15 @@ impl App {
         {
             return true;
         }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.chancellor_frame() {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && (self.selection_frame() || self.vizier_ask_frame())
+        {
+            return true;
+        }
         self.maybe_ask_for_research();
         if self.game.game_over.is_some()
             && !self.game_over_seen
@@ -814,6 +854,9 @@ impl App {
             Screen::Battle => self.battle_screen(),
             Screen::Create => self.create_screen(),
             Screen::Options => self.options_screen(),
+            Screen::Cartographer => self.cartographer_screen(),
+            Screen::History => self.history_screen(),
+            Screen::Astrologer => self.astrologer_screen(),
             Screen::Settings => self.settings_screen(),
             Screen::GameSettings => self.game_settings_screen(),
             Screen::MainMenu => return self.main_menu_screen(),
@@ -824,6 +867,8 @@ impl App {
                         self.log.push("Cast cancelled".into());
                     } else if self.road_plan.is_some() {
                         self.road_plan_cancel();
+                    } else if self.surveyor {
+                        self.stop_surveyor();
                     } else {
                         self.open_slots(false);
                     }
@@ -833,6 +878,7 @@ impl App {
                 self.draw_map();
                 self.draw_bars();
                 self.road_plan_bar();
+                self.surveyor_bar();
             }
         }
         true
@@ -1075,19 +1121,6 @@ impl App {
         if is_key_pressed(KeyCode::F10) {
             self.save_to(Path::new(QUICKSAVE));
         }
-        if is_key_pressed(KeyCode::F8) {
-            let on = !self.game.player(HUMAN).is_some_and(|p| p.grand_vizier);
-            self.game
-                .apply(Command::SetGrandVizier { player: HUMAN, on });
-            self.log.push(
-                if on {
-                    "Grand Vizier on: your cities choose their next building"
-                } else {
-                    "Grand Vizier off"
-                }
-                .into(),
-            );
-        }
         if command_key && is_key_pressed(KeyCode::L) {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
                 self.log.push(format!("Load failed: {e}"));
@@ -1105,11 +1138,23 @@ impl App {
         if is_key_pressed(KeyCode::G) {
             self.open_slots(false);
         }
-        if is_key_pressed(KeyCode::F3) {
-            self.open_apprentice();
+        for (key, advisor) in [
+            (KeyCode::F1, 0),
+            (KeyCode::F2, 1),
+            (KeyCode::F3, 2),
+            (KeyCode::F4, 3),
+            (KeyCode::F5, 4),
+            (KeyCode::F6, 5),
+            (KeyCode::F7, 6),
+            (KeyCode::F8, 7),
+            (KeyCode::F9, 8),
+        ] {
+            if is_key_pressed(key) {
+                self.open_advisor(advisor);
+            }
         }
-        if is_key_pressed(KeyCode::F9) {
-            self.open_wizard(HUMAN);
+        if is_key_pressed(KeyCode::I) && !command_key {
+            self.open_advisor_menu();
         }
         if command_key && is_key_pressed(KeyCode::N) {
             self.new_map(self.seed + 1);
@@ -1192,7 +1237,9 @@ impl App {
                 .iter()
                 .find(|(r, _)| r.contains(mouse_position().into()))
                 .map(|&(_, u)| u);
-            if is_mouse_button_pressed(MouseButton::Right) && self.road_plan.is_some() {
+            if is_mouse_button_pressed(MouseButton::Right) && self.surveyor {
+                self.stop_surveyor();
+            } else if is_mouse_button_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
             } else if is_mouse_button_pressed(MouseButton::Right) && row.is_some() {
                 if let Some(unit) = row {
@@ -1217,6 +1264,13 @@ impl App {
             if !self.road_plan_on_button() {
                 self.road_plan_click(pos);
             }
+            return;
+        }
+        if self.surveyor {
+            // A click takes the map there.
+            let (cols, rows) = self.visible_tiles();
+            self.cam = vec2(pos.x as f32 - cols / 2.0, pos.y as f32 - rows / 2.0);
+            self.clamp_camera();
             return;
         }
         let has_mine = self
@@ -1478,6 +1532,7 @@ impl App {
             Some(1) => self.open_spellbook(),
             Some(2) => self.open_army_list(),
             Some(4) => self.open_magic(),
+            Some(5) => self.open_advisor_menu(),
             Some(3) => self.open_first_city(),
             Some(6) => {
                 self.plane = if self.plane == Plane::Arcanus {

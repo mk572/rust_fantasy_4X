@@ -101,34 +101,46 @@ impl Game {
         slain
     }
 
-    /// Black Wind: every unit on the square, whoever owns it, rolls a resistance check against
-    /// death at -1 for each of its figures, and each failure costs the unit one figure's hit
-    /// points. A unit with no hit points left dies. Returns the units killed.
-    pub(crate) fn black_wind(&mut self, at: crate::city::Position, rng: &mut GameRng) -> u32 {
+    /// Black Wind on one unit (the spell reaches every unit on the square through
+    /// `TargetSel::UnitsOnChosenSquare`): it rolls a resistance check against death at -1 for
+    /// each of its figures, and each failure costs it one figure's hit points. Returns whether
+    /// the unit died.
+    pub(crate) fn black_wind_unit(&mut self, unit: hecs::Entity, rng: &mut GameRng) -> bool {
         use crate::units::Hurt;
-        let mut killed = 0;
-        for unit in self.units().units_at(at) {
-            let units = self.units();
-            if units.unit_protected_from(unit, Some(Realm::Death)) {
-                continue;
-            }
-            let figures = units.unit_stat(unit, crate::rules::Stat::Figures).max(1);
-            let hits_each = units.unit_stat(unit, crate::rules::Stat::MaxHp).max(0) as u32;
-            let resistance = units.unit_resistance_against(unit, Some(Realm::Death));
-            let (left, _) = units.unit_hits(unit);
-            let failed = (0..figures)
-                .filter(|_| resistance_failure(resistance, BLACK_WIND_MODIFIER, rng) > 0)
-                .count() as u32;
-            let damage = failed * hits_each;
-            if damage >= left {
-                self.remove_unit(unit, crate::roster::Fate::Slain);
-                killed += 1;
-            } else if damage > 0 {
-                let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
-                let _ = self.world.insert_one(unit, Hurt(hurt + damage));
-            }
+        let units = self.units();
+        if units.unit_protected_from(unit, Some(Realm::Death)) {
+            return false;
         }
-        killed
+        let figures = units.unit_stat(unit, crate::rules::Stat::Figures).max(1);
+        let hits_each = units.unit_stat(unit, crate::rules::Stat::MaxHp).max(0) as u32;
+        let resistance = units.unit_resistance_against(unit, Some(Realm::Death));
+        let (left, _) = units.unit_hits(unit);
+        let failed = (0..figures)
+            .filter(|_| resistance_failure(resistance, BLACK_WIND_MODIFIER, rng) > 0)
+            .count() as u32;
+        let damage = failed * hits_each;
+        if damage >= left {
+            self.remove_unit(unit, crate::roster::Fate::Slain);
+            return true;
+        }
+        if damage > 0 {
+            let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+            let _ = self.world.insert_one(unit, Hurt(hurt + damage));
+        }
+        false
+    }
+
+    /// Whether a spell is aimed at a square and hits what stands on it, in a city or not: any
+    /// spell with an effect on `TargetSel::UnitsOnChosenSquare` (Black Wind, Ice Storm, Fire
+    /// Storm). Such a spell needs an enemy unit on the square to be cast.
+    pub fn is_square_spell(&self, spell: crate::rules::SpellId) -> bool {
+        self.content
+            .rules
+            .spells
+            .get(spell)
+            .effects
+            .iter()
+            .any(|e| e.target == crate::rules::effects::TargetSel::UnitsOnChosenSquare)
     }
 
     /// Whether Lycanthropy may be cast on the unit: a normal land unit that is not undead.

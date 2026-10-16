@@ -80,6 +80,19 @@ pub trait EffectHost {
     fn remove_ability(&mut self, who: Target, ability: &str);
     /// Returns the damage actually dealt (after hp clamping), for the event log.
     fn damage(&mut self, who: Target, amount: i32, kind: DamageKind) -> i32;
+    /// A damage spell of `strength` struck by the dice of a battle (every figure of the unit is
+    /// attacked), when the effect asks for it with `traits.area`; otherwise plain damage. Returns
+    /// the hit points lost.
+    fn strike(
+        &mut self,
+        who: Target,
+        strength: i32,
+        kind: DamageKind,
+        _realm: Option<Realm>,
+        _traits: &crate::rules::effects::DamageTraits,
+    ) -> i32 {
+        self.damage(who, strength, kind)
+    }
     fn heal(&mut self, who: Target, amount: i32) -> i32;
     fn add_resources(&mut self, who: Target, gold: i32, food: i32, mana: i32, research: i32);
     fn summon(&mut self, owner: PlayerId, at: Position, unit: &str, count: u8);
@@ -221,6 +234,13 @@ pub fn resolve_targets(sel: TargetSel, ctx: &Context, host: &dyn EffectHost) -> 
         },
         TargetSel::Tile => here.map(Target::Tile).into_iter().collect(),
         TargetSel::Chosen => ctx.chosen.into_iter().collect(),
+        TargetSel::UnitsOnChosenSquare => match ctx.chosen.and_then(|t| tile_of(t, host)) {
+            Some(p) => units()
+                .map(Target::Unit)
+                .filter(|t| host.position(*t) == Some(p))
+                .collect(),
+            None => Vec::new(),
+        },
     }
 }
 
@@ -264,7 +284,7 @@ fn run_effect(
             immune,
             realm,
             resist_modifier,
-            ..
+            traits,
         } => {
             let realm = realm.as_deref().and_then(Realm::from_id);
             let abilities = host.facts(who).abilities;
@@ -276,7 +296,7 @@ fn run_effect(
             } {
                 out.push(Outcome::Resisted { who });
             } else {
-                let dealt = host.damage(who, *amount, *kind);
+                let dealt = host.strike(who, *amount, *kind, realm, traits);
                 out.push(Outcome::Damaged {
                     who,
                     amount: dealt,

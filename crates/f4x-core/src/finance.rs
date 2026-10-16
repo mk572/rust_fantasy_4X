@@ -76,6 +76,8 @@ impl Treasury {
 pub struct Settlement {
     /// Units let go, the newest first.
     pub disbanded: Vec<hecs::Entity>,
+    /// How many of the first `disbanded` went for lack of food; the rest, for lack of gold.
+    pub for_food: usize,
     /// The gold left after income and upkeep.
     pub gold: i32,
 }
@@ -96,6 +98,7 @@ pub fn settle(t: &Treasury, gold: i32, fame: i32, troops: &[Troop]) -> Settlemen
             disbanded.push(unit.id);
         }
     }
+    let for_food = disbanded.len();
     let upkeep_without = |gone: &[hecs::Entity]| -> i32 {
         let total: i32 = troops
             .iter()
@@ -116,6 +119,7 @@ pub fn settle(t: &Treasury, gold: i32, fame: i32, troops: &[Troop]) -> Settlemen
     }
     Settlement {
         disbanded,
+        for_food,
         gold: (gold - upkeep).max(0),
     }
 }
@@ -242,16 +246,29 @@ impl Game {
         };
         let settled = settle(&t, p.gold, fame, &troops);
         p.gold = settled.gold;
-        for unit in &settled.disbanded {
+        let mut events = Vec::new();
+        for (i, unit) in settled.disbanded.iter().enumerate() {
+            if let Some(kind) = self.units().unit_kind_id(*unit) {
+                events.push(Event::UnitLost {
+                    player,
+                    unit: kind,
+                    cause: if i < settled.for_food {
+                        crate::LossCause::Food
+                    } else {
+                        crate::LossCause::Gold
+                    },
+                });
+            }
             self.remove_unit(*unit, crate::roster::Fate::Released);
         }
         if settled.disbanded.is_empty() {
             return Vec::new();
         }
-        vec![Event::UnitsDisbanded {
+        events.push(Event::UnitsDisbanded {
             player,
             units: settled.disbanded.len() as u32,
-        }]
+        });
+        events
     }
 }
 

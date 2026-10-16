@@ -38,7 +38,7 @@ Abilities, spells, buildings and items all describe what they do with the same t
 **Condition** (a small enum, evaluated against a context):
 `Always`, `HasAbility(id)`, `TerrainIs(class)`, `OnPlane(plane)`, `RaceIs(id)`, `RealmIs(id)`, `InBattle`, `InCity`, `All([..])`, `Any([..])`, `Not(..)`.
 
-**Target selector**: `This`, `Owner`, `AllOwnUnits`, `AllEnemyUnits`, `UnitsInTile`, `UnitsInArea(radius)`, `City`, `Tile`, `Chosen` (the target picked when casting).
+**Target selector**: `This`, `Owner`, `AllOwnUnits`, `AllEnemyUnits`, `UnitsInTile`, `UnitsInArea(radius)`, `City`, `Tile`, `Chosen` (the target picked when casting), `UnitsOnChosenSquare` (every unit on the square of the chosen target, whoever owns it and a city's garrison too: Ice Storm and Fire Storm; such a spell needs an enemy unit there, `Game::is_square_spell`). A `Damage` effect with `traits: (area: true)` strikes every figure of the unit with the dice of a battle (`EffectHost::strike`); without it the damage is flat.
 
 **Effect** (the primitives; each is a Rust function with tests):
 

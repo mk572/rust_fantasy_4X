@@ -356,3 +356,53 @@ the original's ways. Kept there; listed so this file is a complete index.
   hero on the fortress square, added to the skill that pays for a spell over turns, for that turn
   only. The spell book's displayed limit in the original includes it; the limit for casting at once
   here does not.
+
+## 14. Advisors, the Chancellor and the Settings page (tasks 71, 89 and 272)
+
+Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `Settings.c`.
+
+- **The Surveyor's numbers come from the rules' data**, not the original's fixed strings. The
+  original writes each terrain's food and bonuses as text (`Surveyor_IDK_Print_Terrain_And_Effect`);
+  we print the terrain's name, its food in halves and its production percent from the content, and
+  the shore, river and river-mouth gold bonus (10, 20, 30) as a line of its own, since those are not
+  terrain types here. Minerals and sites say what their `CityBonus` gives.
+- **An existing city's survey shows its real maximum size** but not the original's added guild,
+  road, Inspirations and Prosperity bonuses (`Compute_Base_Values_For_Map_Square`); the percent
+  figures are those of the land around it.
+- **A lair's guards show only on squares in sight now**; elsewhere the panel says "Unexplored". The
+  original keeps a scouted flag per lair (`Misc_Flags`), which we do not have.
+- **The Surveyor is a map mode** (the side panel over the right column, the map live), a click
+  centres the map. The original is a screen of its own with the same panel; the look is the same.
+- **The Astrologer's Spell Research** counts a spell's place in its realm in the order of our
+  content, not the original's spell table (`Astrologer_Research`); the scores are only a comparison.
+  Only wizards are compared, never the independent players.
+- **The History screen prints the real month** in its corner. ReMoM's reconstruction always prints
+  the ninth month name (`months[8]`); we have not checked the original's code, so this may be its
+  behaviour copied, or a reconstruction slip.
+- **The Tax Collector's rows come from the rules' tax table** (`tax_unrest_percent`), gold a half per
+  rate step, so a changed table shows up there. The original has the seven rows written in.
+- **The Grand Vizier's question is a plain Y or N box**, not the original's confirmation box
+  (task 143 is about those boxes). Switching it off asks nothing, as in the original.
+- **The list box's colours are chosen by eye**: the original sets font colours by palette index
+  (`COL_ListSel_Titles`), which we do not have.
+- **The Chancellor's scroll** lists what the player has lost and gained, but not everything the
+  original does: no per-unit names for drowned units and none for units killed by spells (our events
+  count them and do not say whose they were), no dedupe of a city that grew and shrank in one
+  turn, and no random events until task 68. Its building heading is "Destroyed Buildings", the
+  original's unused string; the original's code prints "UNITS KILLED" over that list, which reads
+  as a slip. U, D, the arrows and the wheel scroll a long scroll; the original has the keys as an
+  empty TODO. Colours and the speed of the unrolling are chosen by eye.
+- **The Settings page keeps its switches in `saves/preferences.txt`** (one `name=0|1` line each),
+  not in a binary `MAGIC.SET` with the hall of fame and save names beside them. Escape saves them
+  too; the original writes only on OK. A **Game...** button leads to the game's own settings
+  (task 94), which the original keeps on the new-game screens. Random Events is a rules switch here
+  as in the original, but it is stored with the preferences until task 274 decides where it lives.
+
+## 15. Ice Storm and Fire Storm (task 56)
+
+- **They follow the help text.** ReMoM has no code for either spell's effect (only their animations
+  and the AI's wish to cast them), so there is no original rule to copy. Ice Storm is a strength 6
+  magic cold attack and Fire Storm a strength 8 magic fire attack, each on every figure of every unit
+  on the chosen square, the caster's own units and a city's garrison included, rolled with a battle's
+  dice. Magic immunity and cold or fire immunity stop them. Decided 16 October 2026; they use the
+  rules framework's `UnitsOnChosenSquare` selector, as Black Wind now does.

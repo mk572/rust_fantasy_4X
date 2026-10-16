@@ -37,6 +37,8 @@ struct GameHost<'a> {
     rng: GameRng,
     /// What hooks and other changes report back to the event log.
     events: Vec<Event>,
+    /// Units destroyed by the spell's strikes (`strike`), reported once the spell is done.
+    slain: u32,
 }
 
 impl GameHost<'_> {
@@ -85,13 +87,11 @@ impl GameHost<'_> {
                     count,
                 }]
             }
-            (BLACK_WIND, Target::Tile(at)) => {
-                let count = self.game.black_wind(at, &mut self.rng);
-                vec![Event::UnitsSlain {
-                    player,
-                    spell,
-                    count,
-                }]
+            (BLACK_WIND, Target::Unit(unit)) => {
+                if self.game.black_wind_unit(unit, &mut self.rng) {
+                    self.slain += 1;
+                }
+                Vec::new()
             }
             (LYCANTHROPY, Target::Unit(unit)) => match self.game.lycanthropy(unit) {
                 Some((from, to)) => vec![Event::UnitTransformed { unit, from, to }],
@@ -253,6 +253,36 @@ impl EffectHost for GameHost<'_> {
             self.game.remove_unit(u, crate::roster::Fate::Slain);
         }
         dealt
+    }
+
+    fn strike(
+        &mut self,
+        who: Target,
+        strength: i32,
+        kind: DamageKind,
+        realm: Option<crate::battle::immunity::Realm>,
+        traits: &crate::rules::effects::DamageTraits,
+    ) -> i32 {
+        let Target::Unit(u) = who else {
+            return 0;
+        };
+        if !traits.area {
+            return self.damage(who, strength, kind);
+        }
+        let nature = crate::battle::immunity::AttackNature {
+            stopped_by: Default::default(),
+            realm,
+            armor_piercing: traits.armor_piercing,
+        };
+        let before = self.game.units().unit_hits(u).0 as i32;
+        if self
+            .game
+            .spell_hit_overland_unit(u, strength, traits, nature, &mut self.rng)
+        {
+            self.slain += 1;
+            return before;
+        }
+        before - self.game.units().unit_hits(u).0 as i32
     }
 
     fn heal(&mut self, who: Target, amount: i32) -> i32 {
@@ -574,7 +604,7 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::wizard_spells::BLACK_WIND) {
+        if self.is_square_spell(spell) {
             return match target {
                 Some(Target::Tile(at))
                     if self
@@ -714,11 +744,13 @@ impl Game {
             game: self,
             rng,
             events: Vec::new(),
+            slain: 0,
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
         let GameHost {
             rng,
             events: hook_events,
+            slain,
             ..
         } = host;
         self.rng = rng;
@@ -743,6 +775,13 @@ impl Game {
             }
         }
         events.extend(hook_events);
+        if slain > 0 {
+            events.push(Event::UnitsSlain {
+                player,
+                spell,
+                count: slain,
+            });
+        }
         if def.duration != Duration::Instant {
             self.attach_enchantment(this, spell, player);
         }
@@ -843,8 +882,15 @@ impl Game {
                 vec![Event::EnchantmentLapsed { player, spell: s }]
             }
             UpkeepKind::Unit(u) => {
+                let lost = self.units().unit_kind_id(u).map(|unit| Event::UnitLost {
+                    player,
+                    unit,
+                    cause: crate::LossCause::Mana,
+                });
                 self.remove_unit(u, crate::roster::Fate::Released);
-                vec![Event::UnitsDisbanded { player, units: 1 }]
+                lost.into_iter()
+                    .chain([Event::UnitsDisbanded { player, units: 1 }])
+                    .collect()
             }
         }
     }
@@ -861,6 +907,7 @@ pub(crate) mod tests_support {
             game,
             rng,
             events: Vec::new(),
+            slain: 0,
         }
     }
 }

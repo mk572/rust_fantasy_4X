@@ -8,7 +8,8 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 22 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 15 spells are listed, the ones `content/spells.ron` still marks `unimplemented` (checked 16 October
+  2026). The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` in step. Spells are edited directly in `content/spells.ron` (the
   importer no longer writes it).
 - Where help and code disagree for a spell, add a row to
@@ -17,17 +18,12 @@ their own lists.
 The spells wired so far are not listed: see tasks 25, 56 and 58 in `TASKS.md` and `wizard_spells.rs`,
 `special_spells.rs`, `city_spells.rs`.
 
-## A. Heroes and items (not implemented)
+## A. Heroes and items
 
-| No. | Spell | Realm | Needs first |
-|---|---|---|---|
-| 133 | Resurrection | life | Heroes that can die and be kept as dead (task 219), a summoning circle with room |
-| 142 | Incarnation | life | The hero roster and Torin as a hero (tasks 218, 219) |
-| 205 | Recall Hero | arcane | Heroes (task 219), taking a unit out of a fight |
-| 208 | Summon Hero | arcane | Hero data and roster (tasks 218, 219), six-hero limit |
-| 212 | Summon Champion | arcane | The same as Summon Hero, with the greater heroes |
-| 207 | Enchant Item | arcane | Rules done (task 50: `Command::CraftItem`); the screen to design the item is task 260 |
-| 211 | Create Artifact | arcane | The same as Enchant Item, with all powers |
+None left: Resurrection, Incarnation, Recall Hero, Summon Hero and Summon Champion are wired
+(`hero_spells.rs`, `battle/spells.rs`, tasks 218 and 219), and Enchant Item and Create Artifact cast
+through `Command::CraftItem` (task 50). What is still missing for those two is the client's design
+screen, which is task 260, not a spell.
 
 ## B. Unit enchantments the combat code must read
 
@@ -79,4 +75,4 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 2. (Done: the realm-aware defence bonus of task 156, with Elemental Armor, Bless, Righteousness and Invulnerability.)
 3. A per-unit battle state (section C): about ten spells share it.
 4. Corruption and volcano turns (task 123): Great Wasting, Armageddon, Call the Void.
-5. Heroes and items (section A) come with their own tasks.
+5. (Done: the heroes and items spells of section A.)

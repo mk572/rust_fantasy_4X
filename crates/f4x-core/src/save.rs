@@ -150,6 +150,9 @@ pub struct PlayerSave {
     /// An independent city's player; absent in older saves.
     #[serde(default)]
     pub neutral: bool,
+    /// The wizard's power over the turns; absent in older saves.
+    #[serde(default)]
+    pub history: Vec<u8>,
     pub capital_race: Option<String>,
     pub fame: i32,
     /// Absent in saves from before wizards existed.
@@ -603,6 +606,7 @@ impl Game {
                 tax_rate: p.tax_rate,
                 grand_vizier: p.grand_vizier,
                 neutral: p.neutral,
+                history: p.history.clone(),
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
@@ -838,6 +842,7 @@ impl Snapshot {
                 .transpose()?;
             game.players.push(Player {
                 bonus: crate::player::Bonus::default(),
+                history: p.history,
                 id: PlayerId(p.id),
                 name: p.name,
                 gold: p.gold,

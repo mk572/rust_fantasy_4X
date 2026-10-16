@@ -5,6 +5,7 @@
 
 mod access;
 mod ai_wizards;
+pub mod astrology;
 pub mod battle;
 pub mod cast;
 pub mod cheat;
@@ -58,6 +59,7 @@ pub mod serial;
 pub mod settings;
 pub mod setup;
 pub mod special_spells;
+pub mod survey;
 pub mod temp_effects;
 pub mod terraform;
 #[cfg(test)]
@@ -269,6 +271,17 @@ pub enum Command {
     Diplomacy(diplomacy::DiplomacyCommand),
 }
 
+/// Why a unit left its owner's army at the turn change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LossCause {
+    /// Deserted for lack of food.
+    Food,
+    /// Deserted for lack of gold.
+    Gold,
+    /// A summoned creature dispelled for lack of mana.
+    Mana,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     TurnStarted {
@@ -295,6 +308,13 @@ pub enum Event {
     CityShrank {
         city: hecs::Entity,
         figures: u32,
+    },
+    /// One unit let go at the turn change, for the Chancellor's report (task 272); the
+    /// `UnitsDisbanded` of the same turn counts them.
+    UnitLost {
+        player: city::PlayerId,
+        unit: rules::UnitId,
+        cause: LossCause,
     },
     /// Units dismissed because their owner could not feed or pay them.
     UnitsDisbanded {
@@ -1123,6 +1143,7 @@ impl Game {
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.append(&mut corruption);
         events.extend(self.process_turn());
+        self.record_history();
         self.process_diplomacy();
         events.extend(self.process_purify());
         events.extend(self.drown_stranded());

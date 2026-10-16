@@ -901,6 +901,13 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() {
         player: P0,
         units: 1
     }));
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::UnitLost {
+            cause: crate::LossCause::Food,
+            ..
+        }
+    )));
     assert_eq!(g.units().player_units(P0).len(), 2);
     // Broke: upkeep above the treasury sends the rest home.
     g.player_mut(P0).unwrap().gold = 0;

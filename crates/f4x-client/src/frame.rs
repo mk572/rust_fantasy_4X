@@ -266,21 +266,12 @@ impl App {
                 ) {
                     continue;
                 }
-                let class = grid
+                let Some(c) = grid
                     .get(x as i32, y as i32)
                     .and_then(|t| content.terrains.get(t))
-                    .map(|d| d.class);
-                let c = match class {
-                    Some(f4x_core::content::TerrainClass::Ocean) => Color::new(0.1, 0.2, 0.6, 1.0),
-                    Some(f4x_core::content::TerrainClass::Mountains) => {
-                        Color::new(0.6, 0.6, 0.6, 1.0)
-                    }
-                    Some(f4x_core::content::TerrainClass::Desert) => Color::new(0.8, 0.7, 0.4, 1.0),
-                    Some(f4x_core::content::TerrainClass::Tundra) => {
-                        Color::new(0.85, 0.9, 0.95, 1.0)
-                    }
-                    Some(_) => Color::new(0.2, 0.5, 0.2, 1.0),
-                    None => continue,
+                    .map(|d| mini_terrain_color(d.class))
+                else {
+                    continue;
                 };
                 draw_rectangle(
                     r.x + x as f32 * cw,
@@ -319,6 +310,18 @@ impl App {
             let (tx, ty) = ((mx - r.x) / cw, (my - r.y) / ch);
             self.cam = vec2(tx - cols / 2.0, ty - rows / 2.0);
         }
+    }
+}
+
+/// The colour of a terrain on the minimap and the Cartographer's map.
+pub(crate) fn mini_terrain_color(class: f4x_core::content::TerrainClass) -> Color {
+    use f4x_core::content::TerrainClass as T;
+    match class {
+        T::Ocean => Color::new(0.1, 0.2, 0.6, 1.0),
+        T::Mountains => Color::new(0.6, 0.6, 0.6, 1.0),
+        T::Desert => Color::new(0.8, 0.7, 0.4, 1.0),
+        T::Tundra => Color::new(0.85, 0.9, 0.95, 1.0),
+        _ => Color::new(0.2, 0.5, 0.2, 1.0),
     }
 }
 

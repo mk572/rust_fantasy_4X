@@ -172,6 +172,11 @@ impl<'a> Units<'a> {
         entities.sort_by_cached_key(|&e| (self.serial_of(e), e.id()));
     }
 
+    /// The kind of unit this is, as the rules know it.
+    pub fn unit_kind_id(&self, unit: hecs::Entity) -> Option<UnitId> {
+        self.world.get::<&Unit>(unit).ok().map(|u| u.0)
+    }
+
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
         let id = self.world.get::<&Unit>(unit).ok()?.0;
         Some(self.content.rules.units.get(id))

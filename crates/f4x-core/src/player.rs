@@ -48,6 +48,8 @@ pub struct Player {
     /// The computer wizards' difficulty bonuses (percents of what a human would get). Set from
     /// the game's settings (`Game::apply_wizard_settings`), not saved.
     pub bonus: Bonus,
+    /// The wizard's power at each turn, for the History screen (task 71); the last 288 turns.
+    pub history: Vec<u8>,
 }
 
 /// What a wizard's cities and army are multiplied by, in percent (100 changes nothing). The
@@ -134,6 +136,7 @@ impl Player {
             grand_vizier: false,
             neutral: false,
             bonus: Bonus::default(),
+            history: Vec::new(),
         }
     }
 

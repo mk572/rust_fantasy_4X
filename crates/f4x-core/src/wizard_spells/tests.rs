@@ -2,7 +2,7 @@ use super::*;
 use crate::city::Position;
 use crate::map::{Grid, Map, Plane};
 use crate::player::Player;
-use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+use crate::rules::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget, UnitKind};
 use crate::testutil::content_with_magic;
@@ -100,6 +100,35 @@ fn world() -> Game {
         ("lycanthropy", "death", SpellTarget::OwnUnit, LYCANTHROPY),
     ] {
         spells.push(spell(id, realm, target, hook));
+    }
+    // Black Wind reaches every unit on the square, one by one.
+    for s in spells.iter_mut().filter(|s| s.id == "black_wind") {
+        s.effects[0].target = TargetSel::UnitsOnChosenSquare;
+    }
+    // The storms, as the content has them: a strength attack on every figure on the square.
+    for (id, realm, strength, kind, immune) in [
+        ("ice_storm", "nature", 6, DamageKind::Cold, "cold_immunity"),
+        ("fire_storm", "chaos", 8, DamageKind::Fire, "fire_immunity"),
+    ] {
+        let mut storm = spell(id, realm, SpellTarget::Tile, "");
+        storm.effects = vec![EffectRule {
+            when: Trigger::OnCast,
+            target: TargetSel::UnitsOnChosenSquare,
+            condition: Condition::Always,
+            effect: Effect::Damage {
+                amount: strength,
+                kind,
+                resistible: false,
+                immune: vec![immune.into(), "magic_immunity".into()],
+                realm: Some(realm.into()),
+                resist_modifier: 0,
+                traits: crate::rules::effects::DamageTraits {
+                    area: true,
+                    ..Default::default()
+                },
+            },
+        }];
+        spells.push(storm);
     }
     c.rules.spells = Registry::new(spells);
     let mut realms = c.rules.realms.defs().to_vec();
@@ -339,6 +368,15 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() {
     );
 }
 
+/// Black Wind on every unit of a square, as the spell does; the units destroyed.
+fn black_wind_square(g: &mut Game, at: Position, rng: &mut crate::rng::GameRng) -> u32 {
+    g.units()
+        .units_at(at)
+        .into_iter()
+        .filter(|&u| g.black_wind_unit(u, rng))
+        .count() as u32
+}
+
 #[test]
 fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
     let mut g = world();
@@ -352,7 +390,7 @@ fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
     let mut rng = crate::rng::GameRng::new(3);
     for i in 0..9 {
         let before = g.units().units_at(at(i, 1)).len();
-        let killed = g.black_wind(at(i, 1), &mut rng);
+        let killed = black_wind_square(&mut g, at(i, 1), &mut rng);
         dead += killed;
         if before == 1 && killed == 0 {
             hurt += 1;
@@ -381,7 +419,7 @@ fn black_wind_wounds_a_unit_that_resists_some_figures() {
     let mut killed = 0;
     for _ in 0..200 {
         let u = unit(&mut g, P1, "squad", at(6, 6));
-        killed += g.black_wind(at(6, 6), &mut rng);
+        killed += black_wind_square(&mut g, at(6, 6), &mut rng);
         if g.world.contains(u) && g.units().unit_hits(u).0 < 10 {
             wounded += 1;
         }
@@ -459,4 +497,122 @@ fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
         events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
     );
+}
+
+/// Total hit points the units on a square have left.
+fn hits_left(g: &Game, at: Position) -> u32 {
+    g.units()
+        .units_at(at)
+        .into_iter()
+        .map(|u| g.units().unit_hits(u).0)
+        .sum()
+}
+
+#[test]
+fn a_storm_hits_every_unit_on_the_square_and_only_that_square() {
+    for storm in ["ice_storm", "fire_storm"] {
+        let mut g = world();
+        let (mine, theirs, far) = (at(5, 5), at(5, 5), at(9, 9));
+        unit(&mut g, P0, "squad", mine);
+        unit(&mut g, P1, "squad", theirs);
+        unit(&mut g, P1, "squad", far);
+        let (before_here, before_far) = (hits_left(&g, mine), hits_left(&g, far));
+        let events = cast(&mut g, storm, Some(Target::Tile(at(5, 5))));
+        assert!(
+            events.iter().any(|e| matches!(e, Event::SpellCast { .. })),
+            "{storm}: {events:?}"
+        );
+        assert!(hits_left(&g, mine) < before_here, "{storm} did nothing");
+        assert_eq!(hits_left(&g, far), before_far, "{storm} spilled over");
+        // Both owners' units were in it: the caster's own is hurt too.
+        let own = g
+            .units()
+            .units_at(mine)
+            .into_iter()
+            .find(|&u| g.units().unit_owner(u) == Some(P0));
+        assert!(own.is_none_or(|u| g.units().unit_hits(u).0 < g.units().unit_hits(u).1));
+    }
+}
+
+#[test]
+fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
+    let mut g = world();
+    let mut defs = g.content.rules.units.defs().to_vec();
+    for (id, ability) in [
+        ("walker", "magic_immunity"),
+        ("scout", "cold_immunity"),
+        ("spirit", "fire_immunity"),
+    ] {
+        defs.iter_mut()
+            .filter(|d| d.id == id)
+            .for_each(|d| d.abilities.push(ability.to_string()));
+    }
+    g.content.rules.units = Registry::new(defs);
+    for (storm, safe, hurt) in [
+        ("ice_storm", ["walker", "scout"], "spirit"),
+        ("fire_storm", ["walker", "spirit"], "scout"),
+    ] {
+        let square = at(6, 6);
+        let safe_units: Vec<_> = safe.iter().map(|s| unit(&mut g, P1, s, square)).collect();
+        let weak = unit(&mut g, P1, hurt, square);
+        for _ in 0..5 {
+            cast(&mut g, storm, Some(Target::Tile(square)));
+        }
+        for u in safe_units {
+            assert_eq!(
+                g.units().unit_hits(u).0,
+                g.units().unit_hits(u).1,
+                "{storm}"
+            );
+            let _ = g.world.despawn(u);
+        }
+        let _ = g.world.despawn(weak);
+    }
+}
+
+#[test]
+fn a_storm_reaches_the_units_in_a_city() {
+    let mut g = world();
+    let city = g.world.spawn((
+        crate::city::City {
+            name: "Test".into(),
+            owner: P1,
+        },
+        at(7, 7),
+    ));
+    let _ = city;
+    let u = unit(&mut g, P1, "squad", at(7, 7));
+    let before = g.units().unit_hits(u).0;
+    let mut hurt = false;
+    for _ in 0..5 {
+        cast(&mut g, "fire_storm", Some(Target::Tile(at(7, 7))));
+        hurt |= !g.world.contains(u) || g.units().unit_hits(u).0 < before;
+    }
+    assert!(hurt, "the garrison was untouched");
+}
+
+#[test]
+fn a_storm_needs_a_square_with_an_enemy_on_it() {
+    let mut g = world();
+    unit(&mut g, P0, "walker", at(2, 2));
+    let events = cast(&mut g, "ice_storm", Some(Target::Tile(at(2, 2))));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn a_storm_that_destroys_a_unit_says_so() {
+    let mut g = world();
+    let mut told = false;
+    for i in 0..20 {
+        unit(&mut g, P1, "squad", at(3, 3));
+        let events = cast(&mut g, "fire_storm", Some(Target::Tile(at(3, 3))));
+        told |= events
+            .iter()
+            .any(|e| matches!(e, Event::UnitsSlain { count, .. } if *count > 0));
+        let _ = i;
+    }
+    assert!(told, "twenty fire storms destroyed nothing");
 }

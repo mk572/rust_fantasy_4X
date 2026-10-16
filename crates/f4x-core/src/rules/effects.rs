@@ -97,6 +97,9 @@ pub enum TargetSel {
     Tile,
     /// The target picked when casting.
     Chosen,
+    /// Every unit on the square of the chosen target (a square, a unit or a city), whoever
+    /// owns it, a city's garrison included. For spells that rain on a whole square.
+    UnitsOnChosenSquare,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
