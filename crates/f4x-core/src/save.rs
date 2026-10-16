@@ -33,9 +33,15 @@ use crate::Game;
 /// Bumped when the snapshot layout changes in a way old files cannot be read.
 pub const SAVE_VERSION: u32 = 1;
 
+/// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
+pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub version: u32,
+    /// The game version that wrote the save (empty in a save from before versions were tracked).
+    #[serde(default)]
+    pub game_version: String,
     pub seed: u64,
     /// Values drawn from the random generator so far.
     pub draws: u64,
@@ -752,6 +758,7 @@ impl Game {
             .collect();
         Snapshot {
             version: SAVE_VERSION,
+            game_version: GAME_VERSION.to_string(),
             seed: self.rng.seed(),
             draws: self.rng.draws(),
             turn: self.turn,
@@ -791,7 +798,9 @@ impl Snapshot {
         let body =
             ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default().depth_limit(8))
                 .map_err(|e| LoadError::Parse(e.to_string()))?;
-        Ok(format!("// f4x save, version {SAVE_VERSION}\n{body}\n"))
+        Ok(format!(
+            "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}\n{body}\n"
+        ))
     }
 
     pub fn from_text(text: &str) -> Result<Self, LoadError> {

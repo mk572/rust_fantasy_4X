@@ -269,6 +269,16 @@ fn missing_content_is_reported_by_name() {
 }
 
 #[test]
+fn a_save_carries_the_game_version() {
+    let snap = game().snapshot();
+    assert_eq!(snap.game_version, crate::save::GAME_VERSION);
+    let text = snap.to_text().unwrap();
+    assert!(text.contains(&format!("game {}", crate::save::GAME_VERSION)));
+    let back = Snapshot::from_text(&text).unwrap();
+    assert_eq!(back.game_version, crate::save::GAME_VERSION);
+}
+
+#[test]
 fn unreadable_and_foreign_saves_are_refused() {
     assert!(matches!(
         Snapshot::from_text("not a save"),

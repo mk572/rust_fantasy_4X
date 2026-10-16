@@ -227,7 +227,13 @@ damages an existing one. Saves live in `saves/` (gitignored).
 
 **Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional
 fields does not need a bump. Migrating older versions would be added as a conversion step
-before `restore`.
+before `restore`. No migration is planned while there are no old saves (task 73 was dropped).
+
+**Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.1),
+read as `save::GAME_VERSION`. Every save records it in `Snapshot.game_version` and in the header
+comment (`// f4x save, version 1, game 0.0.1`). A load does not compare it: only `SAVE_VERSION`
+decides whether a file is readable. The game version says which build wrote a save, for bug reports
+and for a later migration step. Bump it in `Cargo.toml` for each release.
 
 ## 9. What the client does with this
 
