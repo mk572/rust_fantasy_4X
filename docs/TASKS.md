@@ -122,6 +122,24 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 260 | Client | Item crafting screen (Enchant Item and Create Artifact) |
 | 263 | Magic | Audit every immunity against the spells and effects it should cover |
 | 264 | Client | Pop-up leftovers: level-up and event messages, item power texts, hire variants, attack box |
+| 266 | Client | Settings: Sound Effects |
+| 267 | Client | Settings: Background Music |
+| 268 | Client | Settings: Event Music |
+| 269 | Client | Settings: City Spell Events |
+| 270 | Client | Settings: Overland Spell Events |
+| 271 | Client | Settings: Summoning Events |
+| 272 | Client | Settings: End of Turn Summary |
+| 273 | Client | Settings: Raze City |
+| 274 | Rules | Settings: Random Events |
+| 275 | Client | Settings: End of Turn Wait |
+| 276 | Client | Settings: Auto Unit Information |
+| 277 | Client | Settings: Enemy Moves |
+| 278 | Client | Settings: Enemy Spells |
+| 279 | Client | Settings: Spell Book Ordering |
+| 280 | Client | Settings: Spell Animations |
+| 281 | Client | Settings: Movement Animations |
+| 282 | Client | Settings: Show Node Owners |
+| 283 | Client | Settings: Expanding Help |
 
 ## Descriptions
 
@@ -267,6 +285,8 @@ switches, strategic-only combat, animation and message speeds, and so on. Store 
 settings record, `serde(default)` and saved with the game where they change rules (events,
 Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
 change presentation. Reachable from the start menu (86) and in game. The rules half is designed in [`game-settings.md`](game-settings.md) (draft); built in tasks 246 to 249.
+Built: the presentation half, as the original's Settings page (19 switches, `preferences.rs`,
+`settings_screen.rs`), saved in `saves/preferences.txt`; wiring them is tasks 266 to 283, one for each switch except Strategic Combat Only (done).
 
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
@@ -492,3 +512,39 @@ Parity task, low priority.
 **263. Audit the immunities.** Check every immunity in the game (Magic Immunity, Elemental/Fire/Cold/Poison/Stoning/Death/Illusion/Weapon Immunity, Resist Elements, Righteousness, Invulnerability, Bless, the Large Shield and the like, Non-Corporeal, Wraith Form, city and node protections) against the spells, attacks and effects it should and should not stop, using the original's rules (ReMoM, manual) and what the community wikis document. Several bugs in this area are known from wikis and not yet listed here, so start by collecting them (wiki pages, the manual's tables, `help.ron`), then write a table of immunity x effect in `magic.md`, test each cell, and fix the mismatches (record deliberate departures in `divergences.md`; fixed original bugs go there too). Also check the effects that ignore immunities in the original (for example Disenchant, Wrack and Cracks Call) and whether they still do. Asked for by the user, 16 October 2026.
 
 **264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`) and the **random-event messages** (`Show_Event_Message`; the events themselves are task 68), drawn from `HIRE.c` and `Events.c` in ReMoM with the art in `HIRE.LBX` and `EVENTS.LBX`; (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.
+
+**266. Settings: Sound Effects.** Play the effects of task 97 only when Sound Effects is on; the switch also mutes any sound played by other tasks (spell casting, combat). Needs 97. The switch is `Pref::SoundEffects` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**267. Settings: Background Music.** Play the music of task 76 only when Background Music is on; switching it off in the Settings page stops the track at once and switching it on starts the one for the current screen. Needs 76. The switch is `Pref::BackgroundMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**268. Settings: Event Music.** The short pieces the original plays for events (a wizard's victory or defeat, a city falling, a new spell or hero) play only when Event Music is on. Needs 76 for the audio layer; find the triggers among the `Event` values. The switch is `Pref::EventMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**269. Settings: City Spell Events.** Show a message when a city spell (an enchantment on a city, a spell that hits one) is cast that the player can see; off hides them. Check what the client shows now for spells cast on the player's cities and by the computer wizards, and what the original's help says about whose spells count. The switch is `Pref::CitySpellEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**270. Settings: Overland Spell Events.** Show a message when an overland spell (a global enchantment, a curse, a spell cast on a unit or on the map) is cast by a wizard the player can see; off hides them. Related to 87 (remaining global enchantments). The switch is `Pref::OverlandSpellEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**271. Settings: Summoning Events.** Show a message when a wizard summons a creature, hero or champion (Summon Hero, Summon Champion, Summoning Circle and the realm summons); off hides them. Includes the player's own summons if the original shows them. The switch is `Pref::SummoningEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**272. Settings: End of Turn Summary.** The report at the start of a turn of what happened since the last one (cities grown, buildings and units finished, research done, gold and mana shortfalls). Check what the client prints to the log today, build the original-style list if it is missing, and let the switch turn it off. The switch is `Pref::EndofTurnSummary` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**273. Settings: Raze City.** Whether the player is asked to keep or raze a conquered city. The prompt exists (`raze_prompt` in `view.rs`); read the original's help for what Off does (probably keeps the city without asking) and make the switch decide. Note the rules half: whether the human may raze at all is a game rule, not a preference, if the original treats it so. The switch is `Pref::RazeCity` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**274. Settings: Random Events.** Whether random events (task 68) can happen in this game. Unlike the other switches this changes the rules, so it belongs in the game's own settings (`GameSettings`, saved with the game; the event group exists in the record from task 247) and is chosen when the game is made; the preferences page entry should set the default for new games, or point at the game settings. Decide which with the user, then wire it. Needs 68. The switch is `Pref::RandomEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**275. Settings: End of Turn Wait.** Whether the turn waits for the player after the end-of-turn steps (the messages and the computer wizards' turns) before the next turn begins. Read the original's help for exactly what it pauses on, then add the pause and the switch. Needs 135 if it concerns the computer wizards' turns. The switch is `Pref::EndofTurnWait` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**276. Settings: Auto Unit Information.** Show a unit's information automatically when it is selected, as the original's help describes. Check which panel it means (the side column's unit box or the unit statistics sheet) and wire the switch. The switch is `Pref::AutoUnitInformation` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**277. Settings: Enemy Moves.** Show the computer wizards' unit movements during their turn (the map follows and the moves play) when on; off skips straight to the result. Needs 135 (running the AI in the client) and 281 for the movement display. The switch is `Pref::EnemyMoves` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**278. Settings: Enemy Spells.** Show the computer wizards' spells being cast during their turn (the cast spell and its target) when on. Needs 135. Related to 269 to 271, which are about messages; this is about showing the cast itself. The switch is `Pref::EnemySpells` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**279. Settings: Spell Book Ordering.** Spells in the spell book listed in categories (the original's help says so) when on, in one long list when off. Check `spellbook.rs` for the current order, add the other layout, and reset the page to the first when the switch changes (the original does; the Settings page already resets `book_ui`). The switch is `Pref::SpellBookOrdering` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**280. Settings: Spell Animations.** Play the animations of spells cast on the map and in battle when on (task 159 lists the spell animation work); off skips them. Needs the animations themselves first. The switch is `Pref::SpellAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**281. Settings: Movement Animations.** Animate units stepping from square to square on the map (an eased slide) when on; off jumps. Check what the client does today; it also feeds 277's following of enemy moves. The switch is `Pref::MovementAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**282. Settings: Show Node Owners.** Show who owns each magic node (a marker or colour on the node square) when on. Needs the node counter and aura of task 160 for ownership to exist as a per-node answer, and the map overlay for the marker. The switch is `Pref::ShowNodeOwners` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**283. Settings: Expanding Help.** The original's help pop-up grows (opens with an expanding animation) when on. Check how the help pop-up works in the client today and whether the animation is wanted; low priority. The switch is `Pref::ExpandingHelp` in `preferences.rs` (stored by task 89); read the original's help for it before building.

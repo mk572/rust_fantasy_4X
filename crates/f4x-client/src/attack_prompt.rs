@@ -62,7 +62,11 @@ impl App {
         } else if fight || auto {
             self.attack_prompt = None;
             let (attackers, defenders) = (attack.attackers, attack.defenders);
-            if auto || self.options.strategic_only {
+            if auto
+                || self
+                    .prefs
+                    .get(crate::preferences::Pref::StrategicCombatOnly)
+            {
                 self.auto_battle(Command::AutoResolve {
                     attackers,
                     defenders,

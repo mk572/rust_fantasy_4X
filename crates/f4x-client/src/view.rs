@@ -45,9 +45,12 @@ pub enum Screen {
     Create,
     /// The new-game options (difficulty, opponents, land size, magic power).
     Options,
-    /// The settings of the game being played (read-only), or the options for the next game when
-    /// there is none; opened from the save slots' Settings button (task 94).
+    /// The player's preferences: the original's Settings screen, opened from the save slots
+    /// (task 89).
     Settings,
+    /// The settings of the game being played (read-only), or the options for the next game when
+    /// there is none; opened from the Settings screen's Game button (task 94).
+    GameSettings,
     /// The game has ended: result and score.
     GameOver,
     /// The text console (backquote key).
@@ -68,6 +71,8 @@ pub struct App {
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
     pub(crate) options: OptionsState,
+    /// The player's preferences (the Settings screen), shared by every game.
+    pub(crate) prefs: crate::preferences::Preferences,
     pub(crate) seed: u64,
     pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
@@ -162,6 +167,7 @@ impl App {
             art,
             params,
             options,
+            prefs: Default::default(),
             seed,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
@@ -809,6 +815,7 @@ impl App {
             Screen::Create => self.create_screen(),
             Screen::Options => self.options_screen(),
             Screen::Settings => self.settings_screen(),
+            Screen::GameSettings => self.game_settings_screen(),
             Screen::MainMenu => return self.main_menu_screen(),
             Screen::Slots => self.slots_screen(),
             Screen::Map => {

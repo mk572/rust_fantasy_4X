@@ -75,7 +75,8 @@ Production screen (`ProdScr.c`): C Cancel, O OK, Esc.
 | Magic screen (`MagicScr.c`) | A Alchemy, Esc leave. Typed strings (RVL, PWR, DESTIN) are debug codes. |
 | Spell book (`Spellbook.c`, `SBookScr.c`) | F next page, B previous page, Esc |
 | Advisor screens (`AdvsrScr.c`) | N next, C close, Esc |
-| Mirror (`WIZVIEW.c`), Surveyor, Settings, Score, Item screen | Esc leaves (the Mirror also on a click) |
+| Mirror (`WIZVIEW.c`), Surveyor, Score, Item screen | Esc leaves (the Mirror also on a click) |
+| Settings | Click a row to flip it; O, Enter or Esc leave (and save) |
 | Hire dialog (`HIRE.c`) | H or A for the Hire button (the key depends on its text) |
 | After taking a city (`Combat.c`) | R raze, N keep |
 | Lair dialog (`Lair.c`) | Y yes, N no |

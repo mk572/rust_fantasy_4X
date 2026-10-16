@@ -21,7 +21,9 @@ mod map_draw;
 mod menu_screen;
 mod offer_prompt;
 mod options_screen;
+mod preferences;
 mod road_plan;
+mod settings_screen;
 mod spellbook;
 mod terrain_pick;
 mod ui;
@@ -68,6 +70,8 @@ struct Options {
     options: bool,
     /// With `--shot`, show the save slots (as if opened from the start menu).
     slots: bool,
+    /// With `--shot`, show the Settings screen.
+    settings: bool,
     /// Skip the creation screen and play the default wizard.
     quick: bool,
     /// With `--shot`, fight a test battle first.
@@ -110,6 +114,7 @@ fn parse_args() -> Result<Options, String> {
         menu: false,
         options: false,
         slots: false,
+        settings: false,
         reveal: false,
         at: None,
         quick: false,
@@ -167,6 +172,7 @@ fn parse_args() -> Result<Options, String> {
             "--menu" => o.menu = true,
             "--options" => o.options = true,
             "--slots" => o.slots = true,
+            "--settings" => o.settings = true,
             "--reveal" => o.reveal = true,
             "--at" => {
                 let v = value("--at")?;
@@ -205,7 +211,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -228,6 +234,7 @@ async fn main() {
         }
     };
     app.help = help;
+    app.prefs = preferences::Preferences::load(Path::new(preferences::FILE));
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
             eprintln!("could not load {}: {e}", path.display());
@@ -286,6 +293,8 @@ async fn main() {
         app.open_options();
     } else if options.slots {
         app.open_slots(true);
+    } else if options.settings {
+        app.screen = view::Screen::Settings;
     } else if options.menu || (options.shot.is_none() && options.load.is_none() && !options.quick) {
         app.open_main_menu();
     }

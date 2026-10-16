@@ -26,9 +26,6 @@ pub(crate) struct OptionsState {
     pub land: u8,
     /// Index into [`MAGIC_LEVELS`].
     pub magic: u8,
-    /// "Strategic combat only" (the original's help [685]): the human's battles are fought by
-    /// the computer, without the battle screen. A preference, not saved with a game.
-    pub strategic_only: bool,
 }
 
 impl Default for OptionsState {
@@ -38,7 +35,6 @@ impl Default for OptionsState {
             opponents: 1,
             land: 2,
             magic: 1,
-            strategic_only: false,
         }
     }
 }
@@ -100,10 +96,10 @@ impl App {
 }
 
 impl App {
-    /// The Settings screen (task 94), opened from the save slots. In a game it shows what the
-    /// game is played with and changes nothing; from the start menu there is no game, so it is
-    /// the options for the next one. Back returns to the slots.
-    pub(crate) fn settings_screen(&mut self) {
+    /// What the game is played with (task 94), opened from the Settings screen's Game button.
+    /// In a game it shows the settings and changes nothing; from the start menu there is no
+    /// game, so it is the options for the next one. Back returns to the Settings screen.
+    pub(crate) fn game_settings_screen(&mut self) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, w, h, PANEL);
@@ -126,7 +122,6 @@ impl App {
             let lands = LAND_SIZES.map(|(name, _)| name);
             o.land = choose(x, &mut y, "Land size", &lands, o.land);
             o.magic = choose(x, &mut y, "Magic power", &MAGIC_LEVELS, o.magic);
-            o.strategic_only = strategic_choice(x, &mut y, o.strategic_only);
             button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
         } else {
             draw_text("This game (cannot be changed)", x, y - 6.0, 20.0, GRAY);
@@ -136,12 +131,10 @@ impl App {
                 y += 30.0;
             }
             y += 10.0;
-            let o = &mut self.options;
-            o.strategic_only = strategic_choice(x, &mut y, o.strategic_only);
             button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
         };
         if back || is_key_pressed(KeyCode::Escape) {
-            self.screen = Screen::Slots;
+            self.screen = Screen::Settings;
         }
     }
 }
@@ -193,11 +186,6 @@ fn choose(x: f32, y: &mut f32, label: &str, names: &[&str], current: u8) -> u8 {
     }
     *y += 46.0;
     chosen
-}
-
-/// The "Strategic combat only" switch, shown in both modes: it is a preference.
-fn strategic_choice(x: f32, y: &mut f32, on: bool) -> bool {
-    choose(x, y, "Strategic combat only", &["Off", "On"], u8::from(on)) == 1
 }
 
 #[cfg(test)]
