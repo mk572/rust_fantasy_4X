@@ -71,11 +71,49 @@ pub enum Site {
     City,
 }
 
+/// What stands on the structure square of a field with a [`Site::Outpost`] (`CS_*` of the
+/// original): an outpost, or the building of a lair, tower or node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Structure {
+    Outpost,
+    Cave,
+    Tower,
+    Dungeon,
+    Fort,
+    Temple,
+    Ruins,
+    /// The nodes: nature has a picture, sorcery and chaos an animation over the ground.
+    NatureNode,
+    SorceryNode,
+    ChaosNode,
+}
+
+impl Structure {
+    /// The structure a site of the map stands for (`clt_*` to `CS_*` in `Build_Battlefield`; the
+    /// original's ruins are a dungeon and its fallen temple the ruins), by the feature's id.
+    pub fn of_feature(id: &str) -> Option<Structure> {
+        Some(match id {
+            "tower" => Structure::Tower,
+            "chaos_node" => Structure::ChaosNode,
+            "nature_node" => Structure::NatureNode,
+            "sorcery_node" => Structure::SorceryNode,
+            "mysterious_cave" | "monster_lair" => Structure::Cave,
+            "dungeon" | "ruins" => Structure::Dungeon,
+            "ancient_temple" => Structure::Temple,
+            "abandoned_keep" => Structure::Fort,
+            "fallen_temple" => Structure::Ruins,
+            _ => return None,
+        })
+    }
+}
+
 /// What the overland square says about the field.
 #[derive(Debug, Clone)]
 pub struct Spec {
     pub set: Set,
     pub site: Site,
+    /// What the structure square holds when `site` is [`Site::Outpost`].
+    pub structure: Structure,
     /// Citizens (the number of houses, twelve at most).
     pub population: u32,
     pub walled: bool,
@@ -98,6 +136,7 @@ impl Spec {
         Spec {
             set,
             site: Site::Open,
+            structure: Structure::Outpost,
             population: 0,
             walled: false,
             house_style: 0,
@@ -128,6 +167,7 @@ pub struct Prop {
 pub struct Look {
     pub set: Set,
     pub site: Site,
+    pub structure: Structure,
     pub enchanted_roads: bool,
     /// Ground picture of each cell, `cgy * 21 + cgx`: 0 to 3 grass, 4 to 7 dirt, 8 to 31 grass
     /// edged by dirt, 32 to 47 rough ground edged by its neighbours.
@@ -788,6 +828,7 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
             look: Look {
                 set: spec.set,
                 site: spec.site,
+                structure: spec.structure,
                 enchanted_roads: false,
                 tiles,
                 roads: vec![0; n],
@@ -820,6 +861,7 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
         look: Look {
             set: spec.set,
             site: spec.site,
+            structure: spec.structure,
             enchanted_roads: spec.enchanted_roads,
             tiles,
             roads,

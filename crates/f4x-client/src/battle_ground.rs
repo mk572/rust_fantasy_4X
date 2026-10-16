@@ -9,7 +9,7 @@
 //! (the cell's top-left plus (14, 0), plus the offset inside the cell for trees and rocks) and
 //! the shift of its anchor from the picture's top-left.
 
-use f4x_core::battle::map::layout::{self, Set, Site, H, W};
+use f4x_core::battle::map::layout::{self, Set, Site, Structure, H, W};
 use f4x_core::battle::map::{Pos, Wall, GRID_W};
 use f4x_core::battle::Battle;
 use f4x_core::map::Plane;
@@ -27,6 +27,33 @@ const CITY_BASE: usize = 0;
 const DIRT_TILE: usize = 1;
 const HOUSES: usize = 2;
 const OUTPOST: usize = 18;
+/// The buildings of lairs, towers and nodes in the same file, and the sorcery node's animation
+/// (eight frames); the chaos node is a volcano of `chriver` 24 to 31.
+const CAVE: usize = 19;
+const TOWER: usize = 20;
+const DUNGEON: usize = 21;
+const FORT: usize = 22;
+const TEMPLE: usize = 23;
+const RUINS: usize = 121;
+const NATURE_NODE: usize = 65;
+const SORCERY_NODE: usize = 66;
+const VOLCANO: usize = 24;
+
+/// The picture of a structure's building, if it has one (the sorcery and chaos nodes are
+/// animations on the ground instead).
+fn structure_entry(structure: Structure) -> Option<usize> {
+    match structure {
+        Structure::Outpost => Some(OUTPOST),
+        Structure::Cave => Some(CAVE),
+        Structure::Tower => Some(TOWER),
+        Structure::Dungeon => Some(DUNGEON),
+        Structure::Fort => Some(FORT),
+        Structure::Temple => Some(TEMPLE),
+        Structure::Ruins => Some(RUINS),
+        Structure::NatureNode => Some(NATURE_NODE),
+        Structure::SorceryNode | Structure::ChaosNode => None,
+    }
+}
 const ROAD_GRID: usize = 69;
 const WATER: usize = 109;
 const FORTRESS_CLOUD: usize = 113;
@@ -180,7 +207,27 @@ impl App {
         match look.site {
             Site::Outpost => {
                 let (sx, sy) = at(layout::STRUCTURE.0, layout::STRUCTURE.1);
-                self.draw_native("cmbtcity", DIRT_TILE, 0, (sx, sy), scale);
+                let frame = (get_time() * 8.0) as usize % 8;
+                match look.structure {
+                    Structure::Outpost => {
+                        self.draw_native("cmbtcity", DIRT_TILE, 0, (sx, sy), scale);
+                    }
+                    Structure::SorceryNode => self.draw_native(
+                        "cmbtcity",
+                        SORCERY_NODE,
+                        frame,
+                        (sx - 46.0 * scale, sy - 15.0 * scale),
+                        scale,
+                    ),
+                    Structure::ChaosNode => self.draw_native(
+                        "chriver",
+                        VOLCANO + frame,
+                        0,
+                        (sx - 10.0 * scale, sy - 2.0 * scale),
+                        scale,
+                    ),
+                    _ => {}
+                }
             }
             Site::City => {
                 // The city's base (or the cloud under a flying fortress), anchored to the cell
@@ -245,7 +292,7 @@ impl App {
                     Piece::House(i),
                 ));
             }
-            if look.site == Site::Outpost {
+            if look.site == Site::Outpost && structure_entry(look.structure).is_some() {
                 let (x, y) = layout::STRUCTURE;
                 out.push((depth_of(x, y, 0), 0, core_pos(x, y), Piece::Structure));
             }
@@ -327,10 +374,23 @@ impl App {
             }
             Piece::Structure => {
                 let (px, py) = point(layout::STRUCTURE.0, layout::STRUCTURE.1, (0, 0));
-                let Some(size) = self.art.picture("cmbtcity", OUTPOST, 0).map(|t| t.size()) else {
+                let structure = battle
+                    .map
+                    .look()
+                    .map_or(Structure::Outpost, |l| l.structure);
+                let Some(entry) = structure_entry(structure) else {
                     return;
                 };
-                ("cmbtcity", OUTPOST, 0, (px - 15.0, py - (size.y - 21.0)))
+                let Some(size) = self.art.picture("cmbtcity", entry, 0).map(|t| t.size()) else {
+                    return;
+                };
+                // The nature node's picture hangs from a different spot.
+                let (hang_x, hang_y) = if structure == Structure::NatureNode {
+                    (16.0, 15.0)
+                } else {
+                    (15.0, size.y - 21.0)
+                };
+                ("cmbtcity", entry, 0, (px - hang_x, py - hang_y))
             }
             Piece::Wall(pos) => {
                 let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);

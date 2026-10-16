@@ -490,6 +490,26 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
 }
 
 #[test]
+fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
+    use crate::battle::map::layout::Structure;
+    let mut g = world(5);
+    put_feature(&mut g, Plane::Arcanus, 5, 5, "tower");
+    let mut tower = lair(5, 5, vec![("skeletons", 1)]);
+    tower.site = "tower".into();
+    g.map.as_mut().unwrap().set_lairs(vec![tower]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    let active = g.battle.as_ref().expect("a battle is on");
+    let look = active.battle.map.look().expect("the field has a look");
+    assert_eq!(look.structure, Structure::Tower);
+    assert!(!active.battle.map.is_playable(crate::battle::map::STRUCTURE));
+}
+
+#[test]
 fn a_guard_drained_to_death_joins_the_victors_as_undead() {
     use crate::battle::Status;
     let mut g = world(5);

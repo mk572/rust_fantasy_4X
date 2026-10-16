@@ -334,6 +334,32 @@ impl App {
         }
     }
 
+    /// For the screenshot check: move the human's units three squares east and put the feature
+    /// `id` (a tower, node or encounter site) there, so the battle has its building.
+    pub fn set_test_feature(&mut self, id: &str) {
+        let Some(pos) = self
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| self.game.units().unit_position(u))
+        else {
+            return;
+        };
+        let Some(feature) = self.game.content().features.id_of(id) else {
+            return;
+        };
+        // Out of the city, which would have the field to itself.
+        let to = f4x_core::city::Position {
+            x: pos.x + 3,
+            ..pos
+        };
+        for unit in self.game.units().player_units(HUMAN) {
+            self.game.cheat_move_unit(unit, to);
+        }
+        self.game.cheat_set_feature(to, Some(feature));
+    }
+
     /// Pit the human's units against monsters on the same square (for screenshots and tests).
     pub fn open_test_battle(&mut self) {
         let mine = self.game.units().player_units(HUMAN);

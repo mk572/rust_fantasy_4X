@@ -105,6 +105,7 @@ struct Options {
     capital_name: bool,
     unit_list: bool,
     site: Option<String>,
+    battle_site: Option<String>,
     enemy_city: bool,
     score: bool,
     items: bool,
@@ -163,6 +164,7 @@ fn parse_args() -> Result<Options, String> {
         capital_name: false,
         unit_list: false,
         site: None,
+        battle_site: None,
         enemy_city: false,
         score: false,
         items: false,
@@ -191,6 +193,7 @@ fn parse_args() -> Result<Options, String> {
             "--enemy-city" => o.enemy_city = true,
             "--capital-name" => o.capital_name = true,
             "--unit-list" => o.unit_list = true,
+            "--battle-site" => o.battle_site = Some(value("--battle-site")?),
             "--site" => o.site = Some(value("--site")?),
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
@@ -289,7 +292,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -352,6 +355,9 @@ async fn main() {
     }
     if options.research {
         app.open_research_choice();
+    }
+    if let Some(id) = &options.battle_site {
+        app.set_test_feature(id);
     }
     if options.battle {
         app.open_test_battle();

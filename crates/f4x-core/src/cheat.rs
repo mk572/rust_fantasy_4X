@@ -74,6 +74,23 @@ impl Game {
         true
     }
 
+    /// Put a feature (or none) on a square.
+    pub fn cheat_set_feature(
+        &mut self,
+        pos: Position,
+        feature: Option<crate::map::FeatureId>,
+    ) -> bool {
+        let Some(map) = self.map.as_mut() else {
+            return false;
+        };
+        let grid = map.plane_mut(pos.plane);
+        if pos.x >= grid.width() || pos.y >= grid.height() {
+            return false;
+        }
+        grid.set_feature(pos.x, pos.y, feature);
+        true
+    }
+
     /// Give a city a building at no cost and without its requirements.
     pub fn cheat_add_building(&mut self, city: hecs::Entity, building: BuildingId) -> bool {
         if self.economy().city_owner(city).is_none() {

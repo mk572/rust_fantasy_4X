@@ -407,6 +407,19 @@ impl Game {
                     .map_or(0, |r| self.content.rules.races.get(r).house_type),
             );
         }
+        // A tower, node or encounter site on the square puts its building in the middle of the
+        // field (`Build_Battlefield`), which nobody can enter.
+        if city.is_none() && spec.set != layout::Set::Water {
+            let feature = self.map().and_then(|m| {
+                m.plane(site.plane)
+                    .feature(site.x as i32, site.y as i32)
+                    .and_then(|f| self.content.features.get(f))
+            });
+            if let Some(structure) = feature.and_then(|d| layout::Structure::of_feature(&d.id)) {
+                spec.site = Site::Outpost;
+                spec.structure = structure;
+            }
+        }
         if let Some(map) = self.map() {
             let grid = map.plane(site.plane);
             for (i, (dx, dy)) in [
