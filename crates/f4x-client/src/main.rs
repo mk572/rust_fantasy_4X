@@ -21,6 +21,7 @@ mod diplomacy_text;
 mod enemy_city_screen;
 mod frame;
 mod game_over_screen;
+mod hall_of_fame;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
@@ -96,6 +97,8 @@ struct Options {
     cities: bool,
     outpost: Option<bool>,
     enemy_city: bool,
+    score: bool,
+    hall: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
@@ -147,6 +150,8 @@ fn parse_args() -> Result<Options, String> {
         cities: false,
         outpost: None,
         enemy_city: false,
+        score: false,
+        hall: false,
         offer: None,
     };
     let mut args = std::env::args().skip(1);
@@ -165,6 +170,8 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--armies" => o.armies = true,
             "--cities" => o.cities = true,
+            "--score" => o.score = true,
+            "--hall" => o.hall = true,
             "--enemy-city" => o.enemy_city = true,
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
@@ -259,7 +266,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--score] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -328,6 +335,12 @@ async fn main() {
     }
     if options.armies {
         app.open_army_list();
+    }
+    if options.score {
+        app.open_test_game_over();
+    }
+    if options.hall {
+        app.open_hall_of_fame();
     }
     if options.enemy_city {
         app.open_first_enemy_city();

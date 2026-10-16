@@ -72,6 +72,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 87 | Magic | Remaining global enchantments (low priority) (done) |
+| 88 | Meta | Hall of fame (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
 | 91 | Client | Diplomacy screen (done) |
 | 92 | Client | Spell-research dialogs (done) |
@@ -506,6 +507,10 @@ extracted wizard pictures locally (`assets-local`).
 **86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed on the new-game options step (148); land size and opponents are there now (10).
 
 **87. Remaining global enchantments (done).** All the global spells now have an effect (the list that was in [`spells_to_implement.md`](spells_to_implement.md) is empty; the engine reads them from the wizard's list, `globals.rs`). Holy Arms also makes the living normal units' weapons magical (`unit_has_magical_weapon`), so they hit weapon-immune creatures. Low priority: only needed for specific units or abilities.
+
+**88. Hall of fame (done).** The list of best finished games with wizard, race, score, turns and
+difficulty [628-641, 798], stored outside the saves (for example `saves/hall_of_fame.ron`),
+shown from the start menu (86) and after a game ends (victory and score, 70). Needs 70 first.
 
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
 command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness

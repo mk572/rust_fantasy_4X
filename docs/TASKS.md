@@ -28,7 +28,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 82 | Meta | Wizard defeat aftermath and fortress display |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
-| 88 | Meta | Hall of fame |
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
 | 97 | Client | Sound effects |
@@ -225,10 +224,6 @@ in the client at start-up, skippable with any key and switchable off in the sett
 movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
 for the sound.
 
-**88. Hall of fame.** The list of best finished games with wizard, race, score, turns and
-difficulty [628-641, 798], stored outside the saves (for example `saves/hall_of_fame.ron`),
-shown from the start menu (86) and after a game ends (victory and score, 70). Needs 70 first.
-
 **89. Game settings.** The options screens of the original [675-692]: automatic saving, event
 switches, strategic-only combat, animation and message speeds, and so on. Store them as a
 settings record, `serde(default)` and saved with the game where they change rules (events,
@@ -310,7 +305,7 @@ greyed, and Wait, Done and Flee work), the unit and info windows, enchantment ic
 pointers by action and sound. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
 
-**134. Game-end cut-scenes and the original's score screen.** The game-over screen is plain text
+**134. Game-end cut-scenes and the original's score screen.** **Done: the score screen** (`game_over_screen.rs`, on `halofam` with the icon rows and the bar, `--score`) **and the Hall of Fame** (task 88, `hall_of_fame.rs`, `saves/hall_of_fame.txt`, `--hall`, from the start menu and after the score). **Left:** the win, lose and conquest animations and the parade of portraits (`conquest`, `win`, `lose` in `assets-local/screens/`), the music, and the old buttons are gone: after the table the game returns to the start menu as the original does. The game-over screen is plain text
 and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
 a conquest, a conquest animation; announces when a wizard *starts* casting the Spell of Mastery
 (full-screen, with a two-line caption) and, when it completes, parades each surviving wizard's

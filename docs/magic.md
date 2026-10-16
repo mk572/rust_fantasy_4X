@@ -187,7 +187,22 @@ retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; 
 Myrran), at most six retorts, with the prerequisites in `retort_available`. A realm with `n`
 books lets the wizard choose `n - 1` common spells at the start (more are filled from
 `RealmDef::default_spells`); with eleven books in one realm the wizard knows all ten commons and
-chooses two uncommon and one rare (`WizardBuild::spell_choices_of`). Ready-made wizards skip the budget check (the original's Lo Pan
+chooses two uncommon and one rare (`WizardBuild::spell_choices_of`).
+
+The original's rule (`Init_Computer_Players_Spell_Library`, `Newgame_Screen_5`, `Human_Player_Wizard_Profile`
+in ReMoM), per realm and number of books: **0 books** nothing; **1 book** no spell is known (but the realm's
+research pool opens: 3 commons researchable); **2 to 10 books** the first `books - 1` common spells are known
+(the human chooses them on the custom screen; presets, the computer wizards and anyone who does not choose
+get the first ones of the realm's default list, `_default_spells`); the other commons become researchable up to
+5, 6, 7, 8, 9, 10, 10, 10, 10 for 2 to 10 books, and with more than 7 books every uncommon, with more than 9
+every rare and very rare spell; **11 books** all ten commons are known, plus two uncommons (default list
+slots 11 and 12) and one rare (slot 13), and everything else in the realm is researchable. Besides, every wizard
+gets the Arcane pool and Spell of Mastery as researchable, the computer wizards a spell of their main realm
+(Water Walking, Counter Magic, Fire Bolt, True Light or Black Sleep) and, on Hard and Impossible, one more
+creature spell to research. Our `WizardBuild::spell_choices_of` follows the first rule; the research pools are
+`research.rs`'s own.
+
+Ready-made wizards skip the budget check (the original's Lo Pan
 spent twelve; ours has four sorcery books and spends eleven). The client's creation screen is `create_screen.rs`.
 
 ## 14. Global enchantments

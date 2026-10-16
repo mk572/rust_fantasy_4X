@@ -75,6 +75,8 @@ pub enum Screen {
     Outpost(hecs::Entity),
     /// Another wizard's city (`enemy_city_screen.rs`).
     EnemyCity(hecs::Entity),
+    /// The table of best games (`hall_of_fame.rs`).
+    HallOfFame,
 }
 
 pub struct App {
@@ -149,6 +151,7 @@ pub struct App {
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
+    pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     unit_rows: Vec<(Rect, hecs::Entity)>,
@@ -235,6 +238,7 @@ impl App {
             army_ui: Default::default(),
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
+            hall: Vec::new(),
             unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
@@ -904,6 +908,7 @@ impl App {
             Screen::CityList => self.city_list_screen(),
             Screen::Outpost(city) => self.outpost_screen(city),
             Screen::EnemyCity(city) => self.enemy_city_screen(city),
+            Screen::HallOfFame => self.hall_of_fame_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),

@@ -250,7 +250,7 @@ impl App {
                 Entry::Quit => ("Quit", 3, KeyCode::Q),
             };
             let y = top + 12.0 * i as f32;
-            let enabled = entry != Entry::Fame; // task 88
+            let enabled = true;
             let clicked = self.menu_button(
                 &lay,
                 (108.0, y - 2.0, 103.0, 12.0),
@@ -290,7 +290,7 @@ impl App {
             }
             Some(Entry::Load) => self.open_slots(true),
             Some(Entry::New) => self.open_options(),
-            Some(Entry::Fame) => {}
+            Some(Entry::Fame) => self.open_hall_of_fame(),
             Some(Entry::Quit) => return false,
             None => {}
         }

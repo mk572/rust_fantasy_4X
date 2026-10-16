@@ -37,8 +37,10 @@ pub struct GameOver {
 pub struct Score {
     /// Spells known, 1 point each.
     pub spells: i32,
-    /// Citizens in the wizard's cities, half a point each.
+    /// Citizens in the wizard's cities, half a point each (in thousands, as the cities count).
     pub townsfolk: i32,
+    /// The citizens themselves, before they are halved into points (the score screen names them).
+    pub people: i32,
     /// Wizards defeated, 50 points each.
     pub conquests: i32,
     /// Fame, 2 points each.
@@ -56,6 +58,7 @@ impl Default for Score {
         Self {
             spells: 0,
             townsfolk: 0,
+            people: 0,
             conquests: 0,
             fame: 0,
             time: 0,
@@ -96,6 +99,22 @@ impl Game {
     }
 
     /// The final score of `player` as the game stands.
+    /// The wizards `player` has beaten: those it defeated and, once it has cast the Spell of
+    /// Mastery, every wizard still standing, who count as banished too.
+    pub fn banished_wizards(&self, player: PlayerId) -> Vec<PlayerId> {
+        let mastery = self
+            .game_over
+            .is_some_and(|g| g.kind == EndKind::SpellOfMastery && g.winner == player);
+        self.players
+            .iter()
+            .filter(|q| {
+                q.defeated_by == Some(player)
+                    || (mastery && self.is_wizard(q.id) && q.id != player && !q.defeated)
+            })
+            .map(|q| q.id)
+            .collect()
+    }
+
     pub fn score(&self, player: PlayerId) -> Score {
         let Some(p) = self.player(player) else {
             return Score::default();
@@ -115,19 +134,7 @@ impl Game {
                     .map_or(0, |pop| pop.figures)
             })
             .sum();
-        let mut conquests = self
-            .players
-            .iter()
-            .filter(|q| q.defeated_by == Some(player))
-            .count();
-        if mastery_by == Some(player) {
-            // Casting the spell counts every wizard still standing as beaten.
-            conquests += self
-                .players
-                .iter()
-                .filter(|q| self.is_wizard(q.id) && q.id != player && !q.defeated)
-                .count();
-        }
+        let conquests = self.banished_wizards(player).len();
         let time = if p.fortress.is_some() && mastery_by.is_none_or(|w| w == player) {
             2000 - self.turn as i32 * 2
         } else {
@@ -136,6 +143,7 @@ impl Game {
         Score {
             spells: p.magic.known.len() as i32,
             townsfolk: (townsfolk / 2) as i32,
+            people: townsfolk as i32,
             conquests: conquests as i32 * 50,
             fame: self.fame(player) * 2,
             time,
@@ -273,6 +281,7 @@ mod tests {
         let s = Score {
             spells: 10,
             townsfolk: 20,
+            people: 40,
             conquests: 50,
             fame: 4,
             time: -6,
