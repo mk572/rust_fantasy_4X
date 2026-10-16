@@ -281,6 +281,8 @@ pub(crate) struct SpecialsInput<'a> {
     /// The mana of a spell caster unit.
     pub mana: i32,
     pub undead: bool,
+    /// How many land units a ship carries (0 for everything else).
+    pub transport: i32,
     /// Display name of an ability id.
     pub ability_name: &'a dyn Fn(&str) -> String,
     /// Lasting spells on the unit: spell, id, name.
@@ -315,6 +317,9 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
     }
     if input.scouting > 1 {
         out.push(plain(format!("Scouting {}", input.scouting), Some(37)));
+    }
+    if input.transport > 0 {
+        out.push(plain(format!("Carries {}", input.transport), None));
     }
     let has = |a: &str| input.abilities.iter().any(|x| x == a);
     for &(id, icon) in LISTED {
@@ -502,6 +507,7 @@ impl App {
             scouting: stat(Stat::Sight),
             mana,
             undead: units.unit_is_undead(unit),
+            transport: stat(Stat::Transport),
             ability_name: &ability_name,
             enchantments,
         });
@@ -605,6 +611,7 @@ impl App {
             scouting: stat(Stat::Sight),
             mana,
             undead: abilities.iter().any(|a| a == "undead"),
+            transport: stat(Stat::Transport),
             ability_name: &ability_name,
             enchantments: Vec::new(),
         });
@@ -699,6 +706,7 @@ impl App {
                 0
             },
             undead: u.undead,
+            transport: 0,
             ability_name: &ability_name,
             enchantments,
         });
@@ -796,6 +804,7 @@ mod tests {
             scouting: 0,
             mana: 0,
             undead: false,
+            transport: 0,
             ability_name: &name,
             enchantments: Vec::new(),
         });
@@ -828,6 +837,7 @@ mod tests {
             scouting: 0,
             mana: 0,
             undead: false,
+            transport: 0,
             ability_name: &name,
             enchantments: Vec::new(),
         });
@@ -850,6 +860,7 @@ mod tests {
             scouting: 0,
             mana: 20,
             undead: false,
+            transport: 0,
             ability_name: &name,
             enchantments: Vec::new(),
         });
@@ -868,11 +879,15 @@ mod tests {
             scouting,
             mana: 0,
             undead: false,
+            transport: 0,
             ability_name: &name,
             enchantments: Vec::new(),
         };
         assert!(specials(&input(1)).is_empty());
         assert_eq!(names(&specials(&input(3))), ["Scouting 3"]);
+        let mut ship = input(1);
+        ship.transport = 5;
+        assert_eq!(names(&specials(&ship)), ["Carries 5"]);
     }
 
     #[test]

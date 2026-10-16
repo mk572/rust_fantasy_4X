@@ -84,6 +84,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
 | 102 | Map | Road-building path selection in the client (done) |
 | 103 | Units | Scouting levels and unit sight (done) |
+| 104 | Units | Ship tiers by building and ship movement estimates (done) |
 | 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
 | 109 | Housekeeping | Importer clean-up (done) |
 | 110 | Combat | Battle map generation parity with the original (done) |
@@ -177,6 +178,8 @@ original task numbers. Newest work is merged in ascending order by number.
 **73. Save-format migration (done).** Dropped, not built: there are no old save games to convert, so a
 conversion step before `restore` has no use. Version 1 is the only format; saves from an older layout are
 simply not loaded.
+
+**104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 
 **160. Battlefield node counter and node auras (done).** A battle fought on a magic node (the battle map's centre square holds a node of the sorcery, chaos or nature realm; `Combat_Cast_Spell` reads `battlefield->center_square_structure`) works against spells of other realms: every spell the wizard casts that is not of the node's realm must first beat a dispel of strength 50 against the mana put in (`Combat_Spell_Dispel_Attempt(50, ...)`), unless the caster has Node Mastery; a stopped spell still costs its mana and the turn, like Counter Magic. The node also gives the auras (help 615 to 617): +2 attack and +2 defence to creatures of the node's realm (the original's `Calc_Battlefield_Bonuses`), which fits the `FieldBonus` of `battle/field.rs`. Needs the battle to know the node under it (`Game::start_battle` has the site; `nodes.rs` has the node's realm and the owner's melding) and a way to show it. Hard to say which realm: the original reads the structure type; ours would use the node's kind. See `combat.md` sections 8 and 9. **Done (17 October 2026):** `Battle::node_aura` (the node whose aura covers the square) gives its realm's creatures on both sides +2 to melee, ranged (if any), defence and resistance (the code's +2; the manual says +1); `Battle::node_site` (the battle is on the node) makes every spell of another realm beat a strength-50 dispel first, unless the caster has Node Mastery (`Game::battle_spell_stopped`, before Counter Magic, for wizard and unit casts); the field's ground follows the node (nature forest, chaos mountains, sorcery grassland); the side panel names both. See `combat.md` section 6.
 

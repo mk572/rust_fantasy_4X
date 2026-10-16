@@ -31,7 +31,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 95 | Client | Tutorial |
 | 97 | Client | Sound effects |
 | 99 | Combat | Saving during a battle |
-| 104 | Units | Ship tiers by building and ship movement estimates (low priority) |
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
@@ -240,8 +239,6 @@ generator state (seed plus draw count, as for the game), plus the list of overla
 fighters were copied from (by creation number). Restore it on load, check it for consistency
 (units on the map, sources still alive), keep old saves loading, and test that a save in the
 middle of a battle continues exactly like the unsaved one.
-
-**104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 

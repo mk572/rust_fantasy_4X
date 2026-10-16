@@ -184,7 +184,9 @@ impl Game {
         seen
     }
 
-    /// Turns the stack needs for `path` at its slowest unit's full allowance.
+    /// Turns the stack needs for `path` at its slowest mover's full allowance. Land units that
+    /// ride a ship of the stack (aboard it, or boarding as it sails out) cost nothing and do
+    /// not slow it: the ship's speed decides.
     pub fn path_turns(&self, units: &[hecs::Entity], path: &[Position]) -> u32 {
         let Some(&first) = units.first() else {
             return 0;
@@ -193,13 +195,25 @@ impl Game {
             return 0;
         };
         let flies = self.economy().stack_traits(units);
-        let allowance = units
+        let economy = self.economy();
+        let sails = flies.sea_lift && path.iter().any(|&p| economy.is_sea(p));
+        let movers: Vec<hecs::Entity> = units
+            .iter()
+            .copied()
+            .filter(|&u| {
+                let rides = economy.carrier_of(u).is_some_and(|c| units.contains(&c));
+                let boards = sails && economy.needs_ship(u, flies.flies);
+                !(rides || boards)
+            })
+            .collect();
+        let movers = if movers.is_empty() { units } else { &movers };
+        let allowance = movers
             .iter()
             .map(|&u| self.units().unit_max_moves(u))
             .min()
             .unwrap_or(2)
             .max(1);
-        let mut left = units
+        let mut left = movers
             .iter()
             .map(|&u| self.units().unit_moves_left(u))
             .min()
@@ -210,7 +224,7 @@ impl Game {
                 turns += 1;
                 left = allowance;
             }
-            let cost = units
+            let cost = movers
                 .iter()
                 .filter_map(|&u| self.economy().step_cost(u, at, next, flies).ok())
                 .max()

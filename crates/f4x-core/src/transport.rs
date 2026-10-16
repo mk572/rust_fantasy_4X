@@ -304,6 +304,21 @@ mod tests {
     }
 
     #[test]
+    fn path_estimates_use_the_ships_speed_not_the_passengers() {
+        let mut g = world();
+        let boat = unit(&mut g, "boat", at(5, 4));
+        let w = unit(&mut g, "walker", at(4, 4));
+        g.move_stack(&[w], at(5, 4)).unwrap();
+        let path: Vec<_> = (6..10).map(|x| at(x, 4)).collect();
+        let alone = g.path_turns(&[boat], &path);
+        assert_eq!(g.path_turns(&[boat, w], &path), alone);
+        assert_eq!(
+            alone, 0,
+            "four sea squares fit in the ship's eight half-moves"
+        );
+    }
+
+    #[test]
     fn a_ship_holds_only_so_many() {
         let mut g = world();
         let boat = unit(&mut g, "boat", at(5, 4));

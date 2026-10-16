@@ -101,7 +101,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 ### 3.2 Routes and standing orders
 - `find_path` is A\* on the eight-neighbour grid (wrapping sideways), costing each step as
   the **slowest unit's** cost. Tiles holding hostile units are avoided unless they are the
-  destination. `path_turns` estimates turns from the stack's allowance.
+  destination. `path_turns` estimates turns from the allowance of the units that move: land units riding a ship of the stack cost nothing and do not slow it, so the ship's speed decides.
 - `GoTo` stores the path in an `Order::GoTo` component on every unit of the stack and
   immediately follows it as far as moves allow.
 - At each turn change, units with an order continue (section 4, step 5). Units on the same
