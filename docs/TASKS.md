@@ -284,6 +284,8 @@ many rolls and adopt its exact odds where they differ. Also: Famous gives +10 fa
 Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroes and magic items need
 tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
 
+**Checked against ReMoM on 17 October 2026:** `WIZ_RollSpellReward` and `EZ_SpecialTreasure` do not give a usable result as written (the spell index arithmetic always lands on the first ten spells; the special treasure never counts its points spent, so a book would repeat until the wizard has thirteen), so the intent stays. Done now: Famous gives its 10 fame, a wizard with six retorts is given a book and one with twelve books a retort (the original's two limits), and a book or retort hoard that finds nothing to give pays an item of 1200 or 1000 mana. The realm of a hoard's book is the original's `Lair_Magic_Realm` (nodes their own realm, caves and lairs any, dungeons, keeps and ruins death, temples life). Left: nothing known; the Alchemy/Warlord "arcane" quirk is not copied.
+
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
 cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
@@ -410,7 +412,7 @@ Parity task, low priority.
 
 **240. Terrain tables.** `TERRSTAT.LBX` (770 six-byte records and a 196-byte table) and `TERRTYPE.LBX` (five 512-byte tables of tile indexes) are not read by the importer. Find out what they hold (per-tile terrain type, food, movement cost, the tile-to-terrain map), compare with `content/terrain.ron` (14 hand-written rows) and the map generator, and note differences in `divergences.md` or fix the data. Nothing is known yet beyond the sizes.
 
-**241. Lairs, monsters and events.** `MONSTER.LBX` (48 entries of 47 records of 80 bytes, not decoded; the lair guard and treasure tables are the likely content) and `EVENTS.LBX` (18 entries of 41 records of 43 bytes) are not read. Decode them, compare the guard sets, treasures and event chances with `lairs.rs` and the event code, and fix the data or record the difference.
+**241. Lairs, monsters and events.** `MONSTER.LBX` (checked 17 October 2026: it holds the creatures' pictures, `MONSTER1` to `MONSTER4`, not guard tables; the guards come from `Create_Lair` over the unit table, which `lairs.rs` follows, see `docs/lairs.md`) and `EVENTS.LBX` (18 entries of 41 records of 43 bytes) are not read. Decode them, compare the guard sets, treasures and event chances with `lairs.rs` and the event code, and fix the data or record the difference.
 
 **242. Other text and list tables.** `DESC.LBX` (241 descriptions of 110 bytes), `BUILDESC.LBX` (36 of 200), `LISTDAT.LBX` (75 of 200), `RESOURCE.LBX`, `EVENTMSG.LBX`, `DIPLOMSG.LBX` and `MESSAGE.LBX` are text; the original's prose stays in `content-local/` like the help text. Decide for each whether the game or the client needs it (screens, event and diplomacy messages), check that no rule hides in the numbers beside the text, and import what is used.
 

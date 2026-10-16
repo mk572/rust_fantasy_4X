@@ -822,6 +822,33 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
 }
 
 #[test]
+fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort() {
+    use crate::magic::Retort::*;
+    let mut l = lair(1, 1, vec![]);
+    l.site = "nature_node".into();
+    // Six retorts: only books can come.
+    let mut magic = crate::magic::Magic::new(
+        &[("nature", 3)],
+        &[Alchemy, Warlord, Charismatic, Famous, Artificer, Conjurer],
+    );
+    let mut rng = crate::rng::GameRng::new(9);
+    for _ in 0..40 {
+        let mut loot = Loot::default();
+        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        assert!(loot.retorts.is_empty());
+    }
+    assert_eq!(magic.retorts.len(), 6);
+    // Twelve books: only retorts can come.
+    let mut magic = crate::magic::Magic::new(&[("nature", 6), ("sorcery", 6)], &[]);
+    for _ in 0..40 {
+        let mut loot = Loot::default();
+        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        assert!(loot.books.is_empty());
+    }
+    assert_eq!(magic.total_books(), 12);
+}
+
+#[test]
 fn a_spell_award_teaches_a_spell_from_a_realm_without_books() {
     let c = content();
     let mut magic = crate::magic::Magic::new(&[("life", 2)], &[]);

@@ -509,7 +509,15 @@ pub(crate) fn award_special(
         "dungeon" | "abandoned_keep" | "ruins" => "death".to_string(),
         _ => ["nature", "sorcery", "chaos", "life", "death"][rng.roll(5) as usize - 1].to_string(),
     };
-    let wants_retort = rng.roll(100) > 75;
+    // Three times in four a book; the original turns to the other kind when the wizard is at
+    // the limit of six retorts or twelve books.
+    let wants_retort = if magic.retorts.len() >= crate::wizard::MAX_RETORTS {
+        false
+    } else if magic.total_books() >= 12 {
+        true
+    } else {
+        rng.roll(100) > 75
+    };
     if wants_retort {
         let double = |r| retort_cost(r) == 2;
         let options: Vec<_> = ALL_RETORTS
@@ -642,6 +650,10 @@ impl Game {
                 5 | 6 => {
                     let picks = i32::from(lair.special) - 4;
                     award_special(&mut p.magic, &mut self.rng, &lair, picks, &mut loot);
+                    // Famous brings its ten points of fame with it.
+                    if loot.retorts.contains(&crate::magic::Retort::Famous) {
+                        p.fame += 10;
+                    }
                 }
                 _ => {}
             }
