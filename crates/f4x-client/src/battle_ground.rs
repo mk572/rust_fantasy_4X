@@ -26,6 +26,7 @@ const CELL_H: f32 = 16.0;
 const CITY_BASE: usize = 0;
 const DIRT_TILE: usize = 1;
 const HOUSES: usize = 2;
+const FORTRESS: usize = 17;
 const OUTPOST: usize = 18;
 /// The buildings of lairs, towers and nodes in the same file, and the sorcery node's animation
 /// (eight frames); the chaos node is a volcano of `chriver` 24 to 31.
@@ -44,6 +45,7 @@ const VOLCANO: usize = 24;
 fn structure_entry(structure: Structure) -> Option<usize> {
     match structure {
         Structure::Outpost => Some(OUTPOST),
+        Structure::Fortress => Some(FORTRESS),
         Structure::Cave => Some(CAVE),
         Structure::Tower => Some(TOWER),
         Structure::Dungeon => Some(DUNGEON),
@@ -56,6 +58,12 @@ fn structure_entry(structure: Structure) -> Option<usize> {
 }
 const ROAD_GRID: usize = 69;
 const WATER: usize = 109;
+/// Myrror's ocean is in `chriver`.
+const MYRROR_WATER: usize = 12;
+/// The river pictures (twelve in the original, six of them in the files), in `cmbtcity`.
+const RIVER: usize = 97;
+const MUD: usize = 118;
+
 const FORTRESS_CLOUD: usize = 113;
 
 /// What the depth sort puts in order: scenery, walls and units.
@@ -66,8 +74,31 @@ pub(crate) enum Piece {
     House(usize),
     Structure,
     Wall(Pos),
+    /// A section of a Wall of Fire (`0`) or Wall of Darkness (`1`): which of the fourteen.
+    MagicWall(u8, usize),
     Unit(usize),
 }
+
+/// The fourteen pictures of a magic wall (`citywall` 36 for fire, 50 for darkness) and where each
+/// stands: the cell, the point's offset, the anchor (`None` for half the picture's width), and
+/// whether it is drawn in front of the units (`Spawn_Fire_Wall_Entities` and the dark one).
+type MagicSection = ((i32, i32), (f32, f32), (Option<f32>, f32), bool);
+
+fn magic_section(itr: usize) -> MagicSection {
+    use layout::{MAX_CGX_CITY as X1, MAX_CGY_CITY as Y1, MIN_CGX_CITY as X0, MIN_CGY_CITY as Y0};
+    let i = itr as i32;
+    match itr {
+        0 => ((X0, Y0), (1.0, 1.0), (None, 19.0), false),
+        1..=3 => ((X0, Y0 + i), (1.0, 1.0), (Some(17.0), 18.0), false),
+        4..=6 => (((2 + i), Y0), (1.0, 0.0), (Some(17.0), 17.0), false),
+        7..=9 => (((i - 1), Y1), (0.0, 14.0), (Some(16.0), 29.0), true),
+        10 | 11 => ((X1, i + 1), (0.0, 14.0), (Some(16.0), 29.0), true),
+        12 => ((X0, Y1), (0.0, 14.0), (Some(16.0), 30.0), true),
+        _ => ((X1, Y0), (0.0, 14.0), (Some(16.0), 30.0), true),
+    }
+}
+const FIRE_WALL: usize = 36;
+const DARK_WALL: usize = 50;
 
 /// The picture file of the ground for a terrain set on a plane (the `c` files are Myrror's).
 pub(crate) fn ground_file(set: Set, plane: Plane) -> &'static str {
@@ -81,6 +112,11 @@ pub(crate) fn ground_file(set: Set, plane: Plane) -> &'static str {
         Plane::Arcanus => arcanus,
         Plane::Myrror => myrror,
     }
+}
+
+/// The grass picture file of a plane.
+fn file_grass(plane: Plane) -> &'static str {
+    ground_file(Set::Plains, plane)
 }
 
 /// The core's square for a cell of the original's frame.
@@ -151,9 +187,23 @@ impl App {
                 let size = Some(vec2(CELL_W * scale, CELL_H * scale));
                 let tile = look.map_or(0, |l| l.tiles[(cgy * W + cgx) as usize]) as usize;
                 let water = look.is_some_and(|l| l.set == Set::Water);
-                let tex = if water {
+                let river = !water && tile >= layout::RIVER_TILE as usize;
+                // A floating island's deck: its picture in the files (`cmbtcity` 117) is blank,
+                // so the deck is shown as grass.
+                let deck = look.is_some_and(|l| l.roads[(cgy * W + cgx) as usize] == layout::DECK);
+                // The ocean's pictures (Myrror's are in `chriver`); a river's ground is the
+                // base square `(cgx + cgy) & 3`, with the river drawn over it.
+                let tex = if deck {
                     self.art
-                        .picture("cmbtcity", WATER + tile.saturating_sub(48), anim)
+                        .picture(file_grass(plane), ((cgx + cgy) & 3) as usize, 0)
+                } else if water {
+                    let n = tile.saturating_sub(48);
+                    match plane {
+                        Plane::Arcanus => self.art.picture("cmbtcity", WATER + n, anim),
+                        Plane::Myrror => self.art.picture("chriver", MYRROR_WATER + n, anim),
+                    }
+                } else if river {
+                    self.art.picture(file, ((cgx + cgy) & 3) as usize, 0)
                 } else {
                     self.art.picture(file, tile, 0)
                 };
@@ -175,6 +225,19 @@ impl App {
                         CELL_H * scale,
                         Color::new(0.2, 0.4, 0.2, 1.0),
                     ),
+                }
+                if river {
+                    // The shipped files hold only the second variant of each shape (`cmbtcity`
+                    // 103 to 108; entries 97 to 102 and all of Myrror's `chriver` 0 to 11 are
+                    // empty, which is why the original never shows a river), so both planes
+                    // use those.
+                    let shape = (tile - layout::RIVER_TILE as usize) % 6;
+                    self.draw_native("cmbtcity", RIVER + 6 + shape, anim, (sx, sy), scale);
+                }
+                // Mud (Earth to Mud) covers whatever the ground was.
+                if battle.map.is_mud(core_pos(cgx, cgy)) {
+                    let frame = (cgx + cgy) as usize + anim;
+                    self.draw_native("cmbtcity", MUD, frame % 5, (sx, sy), scale);
                 }
             }
         }
@@ -292,23 +355,61 @@ impl App {
                     Piece::House(i),
                 ));
             }
-            if look.site == Site::Outpost && structure_entry(look.structure).is_some() {
+            let has_building = matches!(look.site, Site::Outpost)
+                || (look.site == Site::City && look.structure == Structure::Fortress);
+            if has_building && structure_entry(look.structure).is_some() {
                 let (x, y) = layout::STRUCTURE;
                 out.push((depth_of(x, y, 0), 0, core_pos(x, y), Piece::Structure));
             }
         }
-        for cgy in 0..H {
-            for cgx in 0..W {
-                let pos = core_pos(cgx, cgy);
-                if battle.map.wall(pos) == Wall::None {
-                    continue;
-                }
-                if let Some((_, (_, dy), _)) = wall_sprite(cgx, cgy) {
-                    let extra = if dy > 1.0 { 50 } else { 10 };
-                    out.push((depth_of(cgx, cgy, extra), 1, pos, Piece::Wall(pos)));
+        // Walls, back to front: the stone wall's far side, the darkness, the fire, then (over the
+        // units standing there) the fire, the darkness and the stone wall's near side. Equal
+        // depths keep the order they were pushed in.
+        let stone = |near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
+            for cgy in 0..H {
+                for cgx in 0..W {
+                    let pos = core_pos(cgx, cgy);
+                    if battle.map.wall(pos) == Wall::None {
+                        continue;
+                    }
+                    if let Some((_, (_, dy), _)) = wall_sprite(cgx, cgy) {
+                        if (dy > 1.0) == near {
+                            let extra = if near { 50 } else { 10 };
+                            out.push((depth_of(cgx, cgy, extra), 1, pos, Piece::Wall(pos)));
+                        }
+                    }
                 }
             }
-        }
+        };
+        let magic = |kind: u8, near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
+            let on = if kind == 0 {
+                battle.wall_of_fire
+            } else {
+                battle.wall_of_darkness
+            };
+            if !on {
+                return;
+            }
+            for itr in 0..14 {
+                let ((cgx, cgy), _, _, front) = magic_section(itr);
+                if front == near {
+                    let extra = if near { 50 } else { 10 };
+                    let pos = core_pos(cgx, cgy);
+                    out.push((
+                        depth_of(cgx, cgy, extra),
+                        1,
+                        pos,
+                        Piece::MagicWall(kind, itr),
+                    ));
+                }
+            }
+        };
+        stone(false, &mut out);
+        magic(1, false, &mut out);
+        magic(0, false, &mut out);
+        magic(0, true, &mut out);
+        magic(1, true, &mut out);
+        stone(true, &mut out);
         out
     }
 
@@ -410,6 +511,21 @@ impl App {
                     entry,
                     frame,
                     (px + dx - shift_x.unwrap_or(size.x / 2.0), py + dy - shift_y),
+                )
+            }
+            Piece::MagicWall(kind, itr) => {
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
+                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
+                let frame = (get_time() * 6.0) as usize % 4;
+                let Some(size) = self.art.picture("citywall", entry, 0).map(|t| t.size()) else {
+                    return;
+                };
+                let (px, py) = point(cgx, cgy, (0, 0));
+                (
+                    "citywall",
+                    entry,
+                    frame,
+                    (px + dx - hang_x.unwrap_or(size.x / 2.0), py + dy - hang_y),
                 )
             }
             Piece::Unit(_) => return,

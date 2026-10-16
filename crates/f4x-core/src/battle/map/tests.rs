@@ -85,7 +85,7 @@ fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
                 );
                 if m.is_playable((x, y)) {
                     playable += 1;
-                    if m.enter_cost((x, y), false).unwrap() > OPEN_COST {
+                    if m.enter_cost((x, y), false).is_some_and(|c| c > OPEN_COST) {
                         dear += 1;
                     }
                 }
@@ -156,7 +156,7 @@ fn flier() -> Mover {
     Mover {
         flying: true,
         through_walls: true,
-        ignores_mud: false,
+        ..Mover::default()
     }
 }
 
@@ -225,7 +225,7 @@ fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
     let teleporter = Mover {
         flying: false,
         through_walls: true,
-        ignores_mud: false,
+        ..Mover::default()
     };
     let r = m.reachable_as((10, 11), 6, teleporter, &none);
     assert!(r.contains_key(&(12, 11)));
@@ -268,13 +268,13 @@ fn a_unit_inside_can_only_leave_by_the_gate() {
 
 #[test]
 fn city_battles_deploy_the_defenders_inside_and_the_attackers_outside() {
-    let def = city_deployment(false, 12, true);
+    let def = city_deployment(false, 12, true, false);
     assert_eq!(def.len(), 10, "the two corner towers are skipped");
     assert_eq!(def[0], GATE, "the first defender holds the gate");
     assert!(def.iter().all(|&p| in_city_area(p) && !is_wall_corner(p)));
-    let open = city_deployment(false, 12, false);
+    let open = city_deployment(false, 12, false, false);
     assert_eq!(open.len(), 12);
-    let att = city_deployment(true, 9, true);
+    let att = city_deployment(true, 9, true, false);
     assert_eq!(att.len(), 9);
     assert!(att.iter().all(|&p| !in_city_area(p) && p.0 < CITY_X0));
     let mut all = att.clone();
@@ -282,4 +282,42 @@ fn city_battles_deploy_the_defenders_inside_and_the_attackers_outside() {
     all.sort();
     all.dedup();
     assert_eq!(all.len(), 19, "nobody shares a square");
+}
+
+#[test]
+fn defenders_at_a_wizards_fortress_keep_off_the_fortress_square() {
+    let def = city_deployment(false, 12, false, true);
+    assert_eq!(def.len(), 11);
+    assert!(!def.contains(&STRUCTURE));
+    assert!(city_deployment(true, 12, false, true).len() == 12);
+}
+
+#[test]
+fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
+    let ocean = BattleMap::generate(None, &mut Pcg64Mcg::seed_from_u64(1));
+    let ship = Mover {
+        sails: true,
+        ..Mover::default()
+    };
+    let swimmer = Mover {
+        swims: true,
+        ..Mover::default()
+    };
+    let cell = (10, 10);
+    assert_eq!(ocean.enter_cost_as(cell, ship), Some(2));
+    assert_eq!(ocean.enter_cost_as(cell, swimmer), Some(2));
+    assert_eq!(ocean.enter_cost_as(cell, walker()), None);
+    assert_eq!(ocean.enter_cost_as(cell, flier()), Some(OPEN_COST));
+    assert_eq!(ocean.enter_cost_as((20, 0), flier()), None);
+    // On land it is the other way about.
+    let land = BattleMap::generate(
+        Some(TerrainClass::Grassland),
+        &mut Pcg64Mcg::seed_from_u64(1),
+    );
+    assert_eq!(land.enter_cost_as(cell, ship), None);
+    assert!(land.enter_cost_as(cell, swimmer).is_some());
+    // A ship can cross the ocean from edge to edge.
+    let reach = ocean.reachable_as((14, 10), 20, ship, &|_| false);
+    assert!(reach.len() > 30);
+    assert!(ocean.reachable_as((14, 10), 20, walker(), &|_| false).len() == 1);
 }

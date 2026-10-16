@@ -244,10 +244,40 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   the square: terrain set, roads on it and its eight neighbours, the city with its houses and
   walls. Rough ground, dirt, roads, trees and rocks are laid as the original lays them; walking
   costs are grass and dirt 2 half-moves, rough 4, road 1, plus 1 for each tree or rock on the
-  square (to 4); the corners outside the band and an outpost's structure square are shut to
-  everyone. The seed comes from the square (`x * y * (plane + 5) + 10039`), as in the original,
-  so a fight on one square is fought on the same ground. It has no rivers, as the original's
-  (it never sets the flags the generator takes). Water battles keep open ground (task 254).
+  square (to 4); the corners outside the band and the structure square (an outpost's, a lair's,
+  a tower's, a node's, a wizard's fortress) are shut to everyone. The seed comes from the
+  square (`x * y * (plane + 5) + 10039`), as in the original, so a fight on one square is
+  fought on the same ground.
+- **A wizard's fortress** (task 290): the capital's field has the fortress (`cmbtcity` 17) on the
+  structure square, which is shut; houses keep off that cell (eleven fill the area from eleven
+  citizens, below that as many as the citizens) and the defenders' deployment skips it.
+- **Rivers** (task 255): the original has `Carve_River_Terrain` and never calls it. Ours does: a
+  battle on plains with a river on the overland square (and its neighbours deciding which way it
+  runs) has a river walked across the field. A river square costs a walker 4 half-moves and a
+  ship 2; a road over it is a bridge (1); trees, rocks and the city's ground keep off it. The
+  files hold only six of the twelve river pictures (`cmbtcity` 103 to 108; 97 to 102 and all of
+  Myrror's `chriver` 0 to 11 are empty, which is why the original never shows one), so both
+  planes use those six. Deviations: the first kind of river starts at (6, 15) and the second at
+  the band's top edge, because the original's start squares lie outside the playable band (or
+  end after one step).
+- **Water battles** (task 254): a fight on a sea square is all ocean. Walkers cannot enter it,
+  ships sail it (2 half-moves a square), swimmers take the cheaper way, fliers cross it. Only
+  ships, fliers and swimmers take part; land units aboard sit the fight out, and go down with
+  their side if it loses (`ActiveBattle::left_out`). A side with a Floating Island, or a unit
+  with Wind Walking, brings its land units: the island's 3 by 3 deck (a road-cost block, drawn
+  as grass because the island's own picture, `cmbtcity` 117, is blank in the files) is where they
+  stand; the island itself does not fight. The decks are where `Generate_Combat_Map` puts them
+  (`island_decks`). Summoning onto the sea is not possible.
+- **Deployment order** (`deployment_order`): units without a ranged attack take the front squares,
+  shooters the squares behind; with more than five shooters the strongest in melee move forward
+  until the front has four (the original picks the wrong list for that search; ours picks the
+  shooters, as meant). At a wizard's fortress the defenders also keep off the fortress's square.
+- **Nodes** (task 160): a fight in a node's aura gives its realm's creatures, on both sides,
+  +2 to melee, ranged (if any), defence and resistance (`Battle::node_aura`); a fight on the node
+  itself also dispels every spell of another realm against a strength-50 dispel, unless the
+  caster has Node Mastery (`node_site`, `battle_spell_stopped`). A nature node's ground is
+  forest, a chaos node's mountains and a sorcery node's grassland, as in the original.
+  The side panel names the node and the aura.
 - **Art** (`battle_ground.rs`, task 112): ground from `cmbgrass`/`cmbdesrt`/`cmbmount`/`cmbtundr`
   (Myrror: the `c` variants), entries 0 to 47 picked by the field (grass 0-3, dirt 4-7, grass
   edged by dirt 8-31, rough ground edged by its neighbours 32-47), trees 48-52 and rocks 53-57 at
@@ -276,7 +306,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 
 ## 7. Differences from the original and open work
 
-- The original's melee-before-ranged deployment order and the water, mud and wall effects on the field: task 254.
+- The cell effect (`cmbtcity` 120) and the wall-rise animation belong to the spell animations (task 159(6)).
 - No unit figures, animation, projectiles or combat frame (task 132); the field's art is task 112 (done).
 - No experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and

@@ -106,6 +106,7 @@ struct Options {
     unit_list: bool,
     site: Option<String>,
     battle_site: Option<String>,
+    battle_field: Option<String>,
     enemy_city: bool,
     score: bool,
     items: bool,
@@ -165,6 +166,7 @@ fn parse_args() -> Result<Options, String> {
         unit_list: false,
         site: None,
         battle_site: None,
+        battle_field: None,
         enemy_city: false,
         score: false,
         items: false,
@@ -194,6 +196,7 @@ fn parse_args() -> Result<Options, String> {
             "--capital-name" => o.capital_name = true,
             "--unit-list" => o.unit_list = true,
             "--battle-site" => o.battle_site = Some(value("--battle-site")?),
+            "--battle-field" => o.battle_field = Some(value("--battle-field")?),
             "--site" => o.site = Some(value("--site")?),
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
@@ -359,8 +362,14 @@ async fn main() {
     if let Some(id) = &options.battle_site {
         app.set_test_feature(id);
     }
+    if let Some(kind) = &options.battle_field {
+        app.set_test_field(kind);
+    }
     if options.battle {
         app.open_test_battle();
+    }
+    if let Some(kind) = &options.battle_field {
+        app.set_test_effects(kind);
     }
     if options.armies {
         app.open_army_list();

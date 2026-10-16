@@ -219,6 +219,10 @@ mod tests {
                 u.stats.insert(Stat::Transport, 2);
             }
         }
+        let mut island = units.iter().find(|u| u.id == "boat").unwrap().clone();
+        island.id = "floating_island".into();
+        island.stats.insert(Stat::Transport, 8);
+        units.push(island);
         c.rules.units = Registry::new(units);
         let (grass, ocean) = (
             c.terrains.id_of("grassland").unwrap(),
@@ -366,6 +370,75 @@ mod tests {
         g.move_stack(&[boat, w], at(10, 3)).unwrap();
         assert_eq!(g.economy().carrier_of(w), None, "ashore in the port");
         assert_eq!(g.units().unit_position(w), Some(at(10, 3)));
+    }
+
+    #[test]
+    fn at_sea_only_ships_and_fliers_fight_and_the_passengers_sit_out() {
+        let mut g = world();
+        let boat = unit(&mut g, "boat", at(6, 4));
+        let walker = unit(&mut g, "walker", at(6, 4));
+        let attacker_boat = {
+            let u = g.content.rules.units.id_of("boat").unwrap();
+            g.spawn_unit(P1, at(7, 4), u)
+        };
+        g.move_stack(&[walker], at(6, 4)).ok();
+        g.start_battle(&[attacker_boat], &[boat, walker]).unwrap();
+        let b = g.battle().unwrap();
+        assert_eq!(b.units.len(), 2, "the passenger is not in the fight");
+        assert!(b.units.iter().all(|u| u.sails));
+        let look = b.map.look().unwrap();
+        assert_eq!(look.set, crate::battle::map::layout::Set::Water);
+        // A ship moves on the water; a walker would not.
+        let ship = b
+            .units
+            .iter()
+            .find(|u| u.side == crate::battle::Side::Defender)
+            .unwrap();
+        assert!(!b.reachable(ship.id).is_empty());
+        assert_eq!(b.map.enter_cost((10, 10), false), None);
+        assert_eq!(b.map.enter_cost_as((10, 10), ship.mover()), Some(2));
+        // The attackers win: the passenger of the beaten ship goes down with it.
+        g.battle.as_mut().unwrap().battle.winner = Some(crate::battle::Side::Attacker);
+        g.finish_battle();
+        assert!(g.units().unit_position(walker).is_none());
+    }
+
+    #[test]
+    fn a_floating_island_carries_its_land_units_into_a_sea_fight() {
+        let mut g = world();
+        let island = {
+            let u = g.content.rules.units.id_of("floating_island").unwrap();
+            g.spawn_unit(P0, at(6, 4), u)
+        };
+        let walkers: Vec<_> = (0..2).map(|_| unit(&mut g, "walker", at(6, 4))).collect();
+        let enemy = {
+            let u = g.content.rules.units.id_of("boat").unwrap();
+            g.spawn_unit(P1, at(7, 4), u)
+        };
+        let mut defenders = vec![island];
+        defenders.extend(&walkers);
+        g.start_battle(&[enemy], &defenders).unwrap();
+        let b = g.battle().unwrap();
+        let own: Vec<_> = b
+            .units
+            .iter()
+            .filter(|u| u.side == crate::battle::Side::Defender)
+            .collect();
+        assert_eq!(
+            own.len(),
+            2,
+            "the island itself does not fight, its passengers do"
+        );
+        let decks = crate::battle::map::layout::island_decks(false, true);
+        for u in own {
+            let cell = (20 - u.cell.0, u.cell.1);
+            assert!(decks.defenders.contains(&cell), "{:?}", u.cell);
+            assert_eq!(
+                b.map.enter_cost(u.cell, false),
+                Some(1),
+                "a deck walks like a road"
+            );
+        }
     }
 
     #[test]

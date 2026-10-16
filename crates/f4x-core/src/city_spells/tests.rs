@@ -554,3 +554,38 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
     g.magic_mut(P1).unwrap().global.clear();
     assert_eq!(eco(&g).food, blighted.food);
 }
+
+#[test]
+fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
+    use crate::battle::immunity::Realm;
+    let mut g = world();
+    g.map.as_mut().unwrap().set_nodes(vec![crate::map::Node {
+        plane: Plane::Arcanus,
+        x: 7,
+        y: 6,
+        realm: "chaos".into(),
+        power: 2,
+        aura: vec![(7, 6), (8, 6)],
+        owner: None,
+        guardian: false,
+        warped: false,
+    }]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    for (x, aura, site) in [
+        (7, Some(Realm::Chaos), Some(Realm::Chaos)),
+        (8, Some(Realm::Chaos), None),
+        (12, None, None),
+    ] {
+        let a = g.spawn_unit(P1, at(x, 6), walker);
+        let d = g.spawn_unit(P0, at(x, 6), walker);
+        g.start_battle(&[a], &[d]).unwrap();
+        let b = g.battle().unwrap();
+        assert_eq!((b.node_aura, b.node_site), (aura, site), "at x = {x}");
+        if site.is_some() {
+            // A chaos node's ground is mountains, as in the original.
+            let set = b.map.look().unwrap().set;
+            assert_eq!(set, crate::battle::map::layout::Set::Mountains);
+        }
+        g.battle = None;
+    }
+}

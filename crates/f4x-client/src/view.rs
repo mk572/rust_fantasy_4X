@@ -160,6 +160,8 @@ pub struct App {
     pub(crate) site_notices: std::collections::VecDeque<crate::site_prompt::SiteNotice>,
     pub(crate) items_after_treasure: bool,
     pub(crate) capital_naming: Option<(hecs::Entity, String)>,
+    /// The test battle is fought at sea (`--battle-field sea`).
+    pub(crate) test_sea: bool,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
@@ -249,6 +251,7 @@ impl App {
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
             capital_naming: None,
+            test_sea: false,
             site_notices: Default::default(),
             items_after_treasure: false,
             unit_list: Vec::new(),

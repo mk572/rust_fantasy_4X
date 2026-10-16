@@ -8,7 +8,7 @@ use crate::{Event, Game};
 
 use super::field::Field;
 use super::immunity::Realm;
-use super::map::{city_deployment, deployment, BattleMap};
+use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
 use super::{
     Battle, BattleCommand, BattleError, BattleEvent, BattleUnit, RangedKind, Side, Status,
 };
@@ -18,6 +18,9 @@ pub struct ActiveBattle {
     pub battle: Battle,
     /// `BattleUnit::source` indexes this list.
     pub sources: Vec<hecs::Entity>,
+    /// Units that stayed out of a fight on the sea (land units aboard a ship): they share the
+    /// fate of their side.
+    pub left_out: Vec<(Side, hecs::Entity)>,
     /// The lair being assaulted, if this is a fight against a site's guards.
     pub site: Option<usize>,
 }
@@ -233,6 +236,8 @@ impl Game {
             casting: self.unit_casting(unit, &abilities),
             ranged_kind,
             flies,
+            sails: def.movement == MovementType::Sailing,
+            swims: def.movement == MovementType::Swimming,
             first_strike: has("first_strike"),
             negate_first_strike: has("negate_first_strike"),
             long_range: has("long_range"),
@@ -327,26 +332,104 @@ impl Game {
         // A fight at a city is fought round its walls, if it has them.
         let city = self.economy().city_at(site);
         let walled = city.is_some_and(|c| self.economy().city_has_building(c, "city_walls"));
+        let fortress = city.is_some_and(|c| self.economy().is_fortress_city(c));
+        // A fight on the sea: only ships, fliers and swimmers take part, unless the side has a
+        // Floating Island or Wind Walking, which carry the rest (`Undeployable_Battle_Units_On_Water`).
+        let ocean = city.is_none()
+            && self.economy().terrain_class_at(site) == Some(crate::content::TerrainClass::Ocean);
+        let is_island = |g: &Game, u: hecs::Entity| {
+            g.units()
+                .unit_def(u)
+                .is_some_and(|d| d.id == "floating_island")
+        };
+        let has_island =
+            |g: &Game, group: &[hecs::Entity]| ocean && group.iter().any(|&u| is_island(g, u));
+        let (attacker_island, defender_island) =
+            (has_island(self, attackers), has_island(self, defenders));
+        let mut left_out = Vec::new();
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
-            let cells = if city.is_some() {
-                city_deployment(side == Side::Attacker, group.len(), walled)
+            let island = if side == Side::Attacker {
+                attacker_island
             } else {
-                deployment(side == Side::Attacker, group.len())
+                defender_island
             };
-            for (&unit, cell) in group.iter().zip(cells) {
-                let index = sources.len();
+            let carried = ocean
+                && group
+                    .iter()
+                    .any(|&u| self.units().unit_has_ability(u, "wind_walking"));
+            let fighters: Vec<hecs::Entity> = group
+                .iter()
+                .copied()
+                .filter(|&u| {
+                    let keep = !ocean
+                        || (!is_island(self, u) && (island || carried || self.can_fight_at_sea(u)));
+                    if !keep {
+                        left_out.push((side, u));
+                    }
+                    keep
+                })
+                .collect();
+            let deck: Vec<Pos> = if island {
+                let decks = layout::island_decks(attacker_island, defender_island);
+                let cells = if side == Side::Attacker {
+                    decks.attackers
+                } else {
+                    decks.defenders
+                };
+                cells.into_iter().map(|(x, y)| (20 - x, y)).collect()
+            } else {
+                Vec::new()
+            };
+            let cells = if city.is_some() {
+                city_deployment(side == Side::Attacker, fighters.len(), walled, fortress)
+            } else {
+                deployment(side == Side::Attacker, fighters.len() + deck.len())
+            };
+            let mut bus = Vec::new();
+            for (n, &unit) in fighters.iter().enumerate() {
                 let mut bu = self
-                    .battle_unit_from(unit, side, index)
+                    .battle_unit_from(unit, side, sources.len() + n)
                     .ok_or(BattleStartError::BadSides)?;
-                bu.cell = cell;
-                sources.push(unit);
-                units.push(bu);
+                // Wind Walking carries the whole stack through the air.
+                bu.flies |= carried;
+                bus.push(bu);
+            }
+            // Melee units take the front squares, shooters the ones behind them. Walkers on a
+            // Floating Island stand on its deck.
+            let order = deployment_order(&bus);
+            let mut placed = vec![false; bus.len()];
+            let mut taken: Vec<Pos> = Vec::new();
+            let mut deck = deck.into_iter();
+            for &i in &order {
+                let u = &bus[i];
+                if !(u.flies || u.sails || u.swims) {
+                    if let Some(cell) = deck.next() {
+                        bus[i].cell = cell;
+                        placed[i] = true;
+                        taken.push(cell);
+                    }
+                }
+            }
+            let mut free = cells.into_iter().filter(|c| !taken.contains(c));
+            for &i in &order {
+                if !placed[i] {
+                    if let Some(cell) = free.next() {
+                        bus[i].cell = cell;
+                        placed[i] = true;
+                    }
+                }
+            }
+            for ((&unit, bu), placed) in fighters.iter().zip(bus).zip(placed) {
+                if placed {
+                    sources.push(unit);
+                    units.push(bu);
+                }
             }
         }
         let seed = self.next_u64();
         // The field is built from the square alone, as the original seeds it from the square's
         // place, so a fight on the same square is fought on the same ground.
-        let mut map = self.battle_field(site, city, walled);
+        let mut map = self.battle_field(site, city, walled, (attacker_island, defender_island));
         let has = |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);
@@ -356,6 +439,8 @@ impl Game {
         }
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
+        (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
+        battle.refresh_fields();
         battle.wall_of_fire = has("wall_of_fire");
         battle.wall_of_darkness = has("wall_of_darkness");
         if let Some(c) = city {
@@ -378,6 +463,7 @@ impl Game {
             battle,
             sources,
             site: None,
+            left_out,
         });
         self.attack_relations(a_owner, d_owner);
         Ok(vec![Event::BattleStarted {
@@ -387,12 +473,51 @@ impl Game {
         }])
     }
 
+    /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
+    /// swimmer.
+    fn can_fight_at_sea(&self, unit: hecs::Entity) -> bool {
+        let abilities = self.units().unit_abilities(unit);
+        self.units().unit_def(unit).is_some_and(|d| {
+            matches!(
+                d.movement,
+                MovementType::Flying | MovementType::Sailing | MovementType::Swimming
+            )
+        }) || abilities.iter().any(|a| a == "flying")
+            || self.units().unit_stat(unit, Stat::Transport) > 0
+    }
+
+    /// The realms of the node a fight on `site` is under: the one whose aura covers the square,
+    /// and (when `open_ground`, no city) the one that stands on it (`Combat_Node_Type` and the
+    /// centre structure of `Build_Battlefield`).
+    fn node_realms_at(&self, site: Position, open_ground: bool) -> (Option<Realm>, Option<Realm>) {
+        let Some(map) = self.map() else {
+            return (None, None);
+        };
+        let aura = map
+            .nodes()
+            .iter()
+            .find(|n| n.plane == site.plane && n.aura.contains(&(site.x, site.y)))
+            .and_then(|n| Realm::from_id(&n.realm));
+        let on = open_ground
+            .then(|| self.node_at(site))
+            .flatten()
+            .and_then(|n| Realm::from_id(&n.realm));
+        (aura, on)
+    }
+
     /// The ground of a fight on `site`: the original's field for the square's terrain, roads,
     /// city and walls (`Build_Battlefield`).
-    fn battle_field(&self, site: Position, city: Option<hecs::Entity>, walled: bool) -> BattleMap {
-        use super::map::layout::{self, Site, Spec};
+    fn battle_field(
+        &self,
+        site: Position,
+        city: Option<hecs::Entity>,
+        walled: bool,
+        islands: (bool, bool),
+    ) -> BattleMap {
+        use super::map::layout::{Site, Spec};
         let economy = self.economy();
         let mut spec = Spec::open(super::map::set_of(economy.terrain_class_at(site)));
+        (spec.attacker_island, spec.defender_island) = islands;
         if let Some(c) = city {
             let pop = self.city_population(c);
             spec.site = if pop.figures == 0 {
@@ -402,6 +527,10 @@ impl Game {
             };
             spec.population = pop.figures;
             spec.walled = walled && spec.site == Site::City;
+            // The wizard's capital has the fortress on its structure square.
+            if spec.site == Site::City && self.economy().is_fortress_city(c) {
+                spec.structure = layout::Structure::Fortress;
+            }
             spec.house_type_from(
                 self.city_race(c)
                     .map_or(0, |r| self.content.rules.races.get(r).house_type),
@@ -409,6 +538,16 @@ impl Game {
         }
         // A tower, node or encounter site on the square puts its building in the middle of the
         // field (`Build_Battlefield`), which nobody can enter.
+        // The original's nodes are terrain of their own: a nature node counts as forest, a chaos
+        // node as mountains and a sorcery node as grassland (`Square_Is_Forest` and the like).
+        if city.is_none() {
+            match self.node_at(site).map(|n| n.realm.as_str()) {
+                Some("nature") => spec.set = layout::Set::Forest,
+                Some("chaos") => spec.set = layout::Set::Mountains,
+                Some("sorcery") => spec.set = layout::Set::Plains,
+                _ => {}
+            }
+        }
         if city.is_none() && spec.set != layout::Set::Water {
             let feature = self.map().and_then(|m| {
                 m.plane(site.plane)
@@ -438,6 +577,7 @@ impl Game {
             {
                 let (x, y) = (site.x as i32 + dx, site.y as i32 + dy);
                 spec.roads[i] = y >= 0 && grid.has_road(x, y);
+                spec.rivers[i] = y >= 0 && grid.has_river(x, y);
             }
             spec.enchanted_roads = grid.has_enchanted_road(site.x as i32, site.y as i32);
         }
@@ -478,7 +618,7 @@ impl Game {
     }
 
     /// Write a finished battle back: wounds, deaths, and who won.
-    pub(super) fn finish_battle(&mut self) -> Vec<Event> {
+    pub(crate) fn finish_battle(&mut self) -> Vec<Event> {
         let Some(active) = self.battle.take() else {
             return Vec::new();
         };
@@ -486,7 +626,16 @@ impl Game {
             battle,
             sources,
             site,
+            left_out,
         } = active;
+        // The units that sat the fight out go down with a side that lost it.
+        if let Some(winner) = battle.winner {
+            for (side, unit) in left_out {
+                if side != winner {
+                    self.remove_unit(unit, crate::roster::Fate::Slain);
+                }
+            }
+        }
         let mut events = Vec::new();
         let spoils = self.battle_spoils(&battle, &sources);
         let survivors: Vec<hecs::Entity> = battle
@@ -796,4 +945,29 @@ fn revived(battle: &Battle, u: &BattleUnit) -> bool {
         && u.regenerates()
         && battle.winner == Some(u.side)
         && u.fate() == super::Fate::Slain
+}
+
+/// The order a side's units take their squares in, front first (`Deploy_Battle_Units`): the
+/// units without a ranged attack, then the shooters. With more than five shooters the strongest
+/// in melee move forward, until the front has four units or four shooters are left.
+pub(super) fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
+    let shoots = |u: &BattleUnit| u.ranged > 0 && u.ammo > 0;
+    let mut melee: Vec<usize> = (0..units.len()).filter(|&i| !shoots(&units[i])).collect();
+    let mut ranged: Vec<usize> = (0..units.len()).filter(|&i| shoots(&units[i])).collect();
+    if ranged.len() > 5 {
+        let to_move = ranged.len() - 4;
+        for _ in 0..to_move {
+            if melee.len() >= 4 {
+                break;
+            }
+            // The original looks the strongest up in the wrong list; this takes it from the
+            // shooters, as meant. The first of equals goes.
+            let best = (0..ranged.len())
+                .max_by_key(|&k| (units[ranged[k]].melee, std::cmp::Reverse(k)))
+                .unwrap_or(0);
+            melee.push(ranged.remove(best));
+        }
+    }
+    melee.extend(ranged);
+    melee
 }

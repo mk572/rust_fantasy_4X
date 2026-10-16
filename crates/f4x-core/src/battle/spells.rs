@@ -541,6 +541,28 @@ impl Game {
         out
     }
 
+    /// Whether a spell cast by `player` on `side` is stopped before it takes effect: by the magic
+    /// node the battle is fought on (not for a caster with Node Mastery), or by the enemy's
+    /// Counter Magic. A stopped spell still costs what it cost.
+    pub(super) fn battle_spell_stopped(
+        &mut self,
+        side: Side,
+        player: PlayerId,
+        realm: &str,
+        difficulty: u32,
+    ) -> bool {
+        let mastery = self
+            .magic(player)
+            .is_some_and(|m| m.has(crate::magic::Retort::NodeMastery));
+        let Some(active) = self.battle.as_mut() else {
+            return false;
+        };
+        if !mastery && active.battle.node_stops(Realm::from_id(realm), difficulty) {
+            return true;
+        }
+        active.battle.counter_magic_stops(side, difficulty)
+    }
+
     /// The wizard whose turn it is casts a spell.
     pub(super) fn battle_cast(
         &mut self,
@@ -566,12 +588,9 @@ impl Game {
             mana: paid,
         }];
 
-        // The enemy's Counter Magic reserve tries to stop it.
+        // The node under the battle, then the enemy's Counter Magic reserve, try to stop it.
         let difficulty = pool as u32 * self.dispel_multiplier(&def.realm, Some(player));
-        let stopped = self
-            .battle
-            .as_mut()
-            .is_some_and(|a| a.battle.counter_magic_stops(side, difficulty));
+        let stopped = self.battle_spell_stopped(side, player, &def.realm, difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {

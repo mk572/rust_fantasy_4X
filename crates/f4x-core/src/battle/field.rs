@@ -273,6 +273,15 @@ impl Battle {
         }
         b.defense += holy;
         b.resistance += holy + resist_all;
+        // A node's aura: its own realm's creatures fight harder, on either side.
+        if u.realm.is_some() && u.realm == self.node_aura {
+            b.melee += super::NODE_AURA_BONUS;
+            if u.ranged > 0 {
+                b.ranged += super::NODE_AURA_BONUS;
+            }
+            b.defense += super::NODE_AURA_BONUS;
+            b.resistance += super::NODE_AURA_BONUS;
+        }
         b.invisible = own(Field::MassInvisibility);
         b.blur = own(Field::Blur);
         b

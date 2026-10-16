@@ -901,6 +901,79 @@ fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
 }
 
 #[test]
+fn units_deploy_melee_first_and_shooters_behind_them() {
+    use super::game::deployment_order;
+    let mut units: Vec<BattleUnit> = (0..8)
+        .map(|_| BattleUnit::simple(Side::Attacker, "u", 1, 10, 2, 0))
+        .collect();
+    for (i, u) in units.iter_mut().enumerate() {
+        if i % 2 == 0 {
+            u.ranged = 3;
+            u.ammo = 4;
+        }
+    }
+    assert_eq!(deployment_order(&units), vec![1, 3, 5, 7, 0, 2, 4, 6]);
+    // Six shooters and one melee unit: the two strongest in melee move up front.
+    let mut units: Vec<BattleUnit> = (0..7)
+        .map(|_| BattleUnit::simple(Side::Attacker, "u", 1, 10, 2, 0))
+        .collect();
+    for (i, u) in units.iter_mut().enumerate().skip(1) {
+        u.ranged = 3;
+        u.ammo = 4;
+        u.melee = i as i32;
+    }
+    assert_eq!(deployment_order(&units), vec![0, 6, 5, 1, 2, 3, 4]);
+}
+
+#[test]
+fn a_nodes_aura_helps_its_realms_creatures_on_both_sides() {
+    let mut chaos = spearman(Side::Attacker, (3, 10));
+    chaos.realm = Some(Realm::Chaos);
+    chaos.ranged = 3;
+    let mut nature = spearman(Side::Defender, (17, 10));
+    nature.realm = Some(Realm::Nature);
+    let mut b = duel(chaos, nature, 4);
+    let (melee, defense, resist) = (b.units[0].melee, b.units[0].defense, b.units[0].resistance);
+    b.node_aura = Some(Realm::Chaos);
+    b.refresh_fields();
+    assert_eq!(b.units[0].melee, melee + 2);
+    assert_eq!(b.units[0].ranged, 5);
+    assert_eq!(b.units[0].defense, defense + 2);
+    assert_eq!(b.units[0].resistance, resist + 2);
+    assert_eq!(
+        b.units[1].defense,
+        spearman(Side::Defender, (17, 10)).defense
+    );
+    // Gone with the aura.
+    b.node_aura = None;
+    b.refresh_fields();
+    assert_eq!(b.units[0].melee, melee);
+}
+
+#[test]
+fn a_node_stops_spells_of_other_realms_but_not_its_own() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (17, 10)),
+        4,
+    );
+    assert!(
+        !b.node_stops(Some(Realm::Life), 1000),
+        "no node, no counter"
+    );
+    b.node_site = Some(Realm::Sorcery);
+    assert!(!b.node_stops(Some(Realm::Sorcery), 1000));
+    let stopped = (0..100)
+        .filter(|_| b.node_stops(Some(Realm::Life), 50))
+        .count();
+    assert!(
+        (30..=70).contains(&stopped),
+        "strength 50 against 50: {stopped}"
+    );
+    assert!(b.node_stops(Some(Realm::Life), 0));
+}
+
+#[test]
 fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
@@ -2679,7 +2752,7 @@ fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() 
     let flier = Mover {
         flying: true,
         through_walls: true,
-        ignores_mud: false,
+        ..Mover::default()
     };
     assert_eq!(
         map.reachable_as((7, 11), 8, flier, &none)[&(8, 11)].0,

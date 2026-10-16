@@ -360,6 +360,84 @@ impl App {
         self.game.cheat_set_feature(to, Some(feature));
     }
 
+    /// For the screenshot check: the kind of field the test battle is fought on. `river` and
+    /// `sea` change the square under it (call this before [`App::open_test_battle`]), `walls` and
+    /// `mud` put the city's magic walls and a patch of mud on the field (after it).
+    pub fn set_test_field(&mut self, kind: &str) {
+        let Some(pos) = self
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| self.game.units().unit_position(u))
+        else {
+            return;
+        };
+        if !matches!(kind, "river" | "sea") {
+            return;
+        }
+        let to = f4x_core::city::Position {
+            x: pos.x + 3,
+            ..pos
+        };
+        for unit in self.game.units().player_units(HUMAN) {
+            self.game.cheat_move_unit(unit, to);
+        }
+        if kind == "river" {
+            let grass = self.game.content().terrains.id_of("grassland");
+            if let Some(t) = grass {
+                self.game.cheat_set_terrain(to, t);
+            }
+            for dx in [-1i32, 0, 1] {
+                let at = f4x_core::city::Position {
+                    x: (to.x as i32 + dx) as u32,
+                    ..to
+                };
+                self.game.cheat_set_river(at, true);
+            }
+        } else {
+            if let Some(t) = self.game.content().terrains.id_of("ocean") {
+                self.game.cheat_set_terrain(to, t);
+            }
+            // The human sails a galley and a warship and brings a Floating Island.
+            let rules = &self.game.content().rules;
+            let ships: Vec<_> = ["galley", "warship", "floating_island"]
+                .iter()
+                .filter_map(|id| rules.units.id_of(id))
+                .collect();
+            for id in ships {
+                self.game.spawn_unit(HUMAN, to, id);
+            }
+            self.test_sea = true;
+        }
+    }
+
+    /// After the test battle has begun: the walls of fire and darkness round the city, and
+    /// mud over the middle of the field.
+    pub fn set_test_effects(&mut self, kind: &str) {
+        let Some(active) = self.game.battle.as_mut() else {
+            return;
+        };
+        let battle = &mut active.battle;
+        match kind {
+            "walls" => {
+                battle.wall_of_fire = true;
+                battle.wall_of_darkness = true;
+                let map =
+                    std::mem::replace(&mut battle.map, f4x_core::battle::map::BattleMap::open());
+                battle.map = map.with_city(true);
+            }
+            "mud" => {
+                for y in 8..13 {
+                    for x in 8..13 {
+                        battle.map.make_mud((x, y));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Pit the human's units against monsters on the same square (for screenshots and tests).
     pub fn open_test_battle(&mut self) {
         let mine = self.game.units().player_units(HUMAN);
@@ -378,6 +456,15 @@ impl App {
             .take(6)
             .filter_map(|d| rules.units.id_of(&d.id))
             .collect();
+        let mut ids = ids;
+        // A fight at sea needs ships on both sides.
+        if self.test_sea {
+            ids.extend(
+                ["warship", "trireme"]
+                    .iter()
+                    .filter_map(|id| rules.units.id_of(id)),
+            );
+        }
         let defenders: Vec<_> = ids
             .into_iter()
             .map(|id| self.game.spawn_unit(f4x_core::units::NEUTRAL, pos, id))
@@ -1486,6 +1573,28 @@ impl App {
                 );
                 y += 17.0;
             }
+        }
+
+        // The magic node under the battle: its counter and its aura.
+        for line in [
+            battle
+                .node_site
+                .map(|r| format!("{r:?} node: dispels other realms")),
+            battle
+                .node_aura
+                .map(|r| format!("{r:?} aura: +2 to {r:?} creatures")),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            draw_text(
+                &line,
+                x + 12.0,
+                y - 4.0,
+                16.0,
+                Color::new(0.8, 0.7, 1.0, 1.0),
+            );
+            y += 17.0;
         }
 
         // The unit under the pointer, else the selected one.

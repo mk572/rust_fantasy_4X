@@ -395,6 +395,13 @@ sees and does):
   game now, or has none, is refused with the differences listed (16 October; before that a
   mismatch panicked, and the first runs' checkpoints have no record). Carrying a checkpoint over
   to a grown set of abilities or spells is not built: the network must be trained again.
+- **Which field a run was on** (17 October 2026): every checkpoint and bank made before this date
+  was trained on the field of tasks 110 and 111 (open ground, walkers' costs only, melee and
+  shooters deployed in the order the units came, no structures or rivers). Since then the field
+  has rivers on river squares, the buildings of lairs, towers, nodes and the wizard's fortress
+  (a shut structure square), melee-first deployment, a node's aura and counter, and sea fights
+  with ships. The old checkpoints still load (no shape changed) but should be retrained before
+  any result is compared with a new one.
 - **What the agent knows of the enemy wizard** is what the battle view shows a player (the
   `battle` query lists each wizard's skill, mana and range cost, and the field enchantments are
   public); not their spell list. Task 169 checks this against the view.

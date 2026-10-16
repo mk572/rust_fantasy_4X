@@ -338,11 +338,7 @@ impl Game {
         // The enemy's Counter Magic tries to stop it (not the Web an ability casts).
         let exempt = source == SpellSource::Ability && def.id == "web";
         let difficulty = pool as u32 * self.dispel_multiplier(&def.realm, Some(player));
-        let stopped = !exempt
-            && self
-                .battle
-                .as_mut()
-                .is_some_and(|a| a.battle.counter_magic_stops(side, difficulty));
+        let stopped = !exempt && self.battle_spell_stopped(side, player, &def.realm, difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {

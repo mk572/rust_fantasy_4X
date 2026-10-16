@@ -12,9 +12,14 @@
 //! piece chosen from its four neighbours) and its movement cost, and last trees and rocks are
 //! scattered, each making the cell it stands on dearer to enter (never forbidden).
 //!
-//! The original never fills in the river flags it passes down (`Build_Battlefield` zeroes
-//! them), so a battle has no river, and neither has ours. Water battles (`Set::Water`) keep the
-//! old open ground.
+//! Rivers: the original has `Carve_River_Terrain` and never uses it (`Build_Battlefield` zeroes
+//! the river flags it passes down). Ours fills the flags from the overland square and its
+//! neighbours, so a battle on a river square, on plains, has a river walked across it.
+//!
+//! Water battles (`Set::Water`) are all ocean: nobody can walk on it, ships sail it for two
+//! half-moves a square, fliers cross it. A side with a Floating Island has its deck (a block of
+//! squares marked `0x80` in the road layer, with `0x81` where the island's picture hangs) to stand
+//! land units on.
 
 use rand::Rng;
 
@@ -23,6 +28,12 @@ pub const H: i32 = 22;
 
 /// Half-moves for a cell nobody can enter (outside the band, or a lair's structure).
 pub const INF: u8 = 255;
+/// Half-moves for a ship to sail a square of ocean or river.
+pub const SAIL_COST: u8 = 2;
+/// The road-layer value of a floating island's deck, and of the square its picture hangs from
+/// (which stays ocean).
+pub const DECK: u8 = 0x80;
+pub const DECK_PICTURE: u8 = 0x81;
 
 /// The original's city area, in its own frame.
 pub const MIN_CGX_CITY: i32 = 5;
@@ -72,10 +83,13 @@ pub enum Site {
 }
 
 /// What stands on the structure square of a field with a [`Site::Outpost`] (`CS_*` of the
-/// original): an outpost, or the building of a lair, tower or node.
+/// original): an outpost, or the building of a lair, tower or node; or, at a [`Site::City`], the
+/// wizard's fortress.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Structure {
     Outpost,
+    /// The wizard's fortress city: a city with the fortress on its structure square.
+    Fortress,
     Cave,
     Tower,
     Dungeon,
@@ -112,7 +126,8 @@ impl Structure {
 pub struct Spec {
     pub set: Set,
     pub site: Site,
-    /// What the structure square holds when `site` is [`Site::Outpost`].
+    /// What the structure square holds when `site` is [`Site::Outpost`]; [`Structure::Fortress`]
+    /// at a wizard's capital ([`Site::City`]).
     pub structure: Structure,
     /// Citizens (the number of houses, twelve at most).
     pub population: u32,
@@ -123,6 +138,11 @@ pub struct Spec {
     /// west: index 4 is the square itself.
     pub roads: [bool; 9],
     pub enchanted_roads: bool,
+    /// Whether a river runs on the square and on its eight neighbours, in the order of `roads`.
+    pub rivers: [bool; 9],
+    /// A Floating Island under the attackers, and under the defenders (water battles).
+    pub attacker_island: bool,
+    pub defender_island: bool,
 }
 
 impl Spec {
@@ -142,6 +162,9 @@ impl Spec {
             house_style: 0,
             roads: [false; 9],
             enchanted_roads: false,
+            rivers: [false; 9],
+            attacker_island: false,
+            defender_island: false,
         }
     }
 }
@@ -186,9 +209,26 @@ pub struct Layout {
     pub look: Look,
     /// Half-moves to enter each cell on foot (`INF` for none), `cgy * 21 + cgx`.
     pub cost: Vec<u8>,
+    /// Half-moves to enter each cell by ship (`INF` for none).
+    pub sail: Vec<u8>,
 }
 
 impl Layout {
+    /// Whether nobody can enter the cell, flying or not: outside the band, or a structure's.
+    pub fn is_void(&self, cgx: i32, cgy: i32) -> bool {
+        !in_band(cgx, cgy)
+            || ((cgx, cgy) == STRUCTURE
+                && (self.look.site == Site::Outpost || self.look.structure == Structure::Fortress))
+    }
+
+    pub fn sail_at(&self, cgx: i32, cgy: i32) -> u8 {
+        if inside(cgx, cgy) {
+            self.sail[at(cgx, cgy)]
+        } else {
+            INF
+        }
+    }
+
     pub fn cost_at(&self, cgx: i32, cgy: i32) -> u8 {
         if (0..W).contains(&cgx) && (0..H).contains(&cgy) {
             self.cost[(cgy * W + cgx) as usize]
@@ -201,6 +241,12 @@ impl Layout {
 const GRASS: u8 = 0;
 const ROUGH: u8 = 1;
 const DIRT: u8 = 2;
+const RIVER: u8 = 3;
+const OCEAN: u8 = 4;
+
+/// The ground picture of a river cell's tile is one of these (`56 + 6 * variant + shape`), over
+/// grass picture `(cgx + cgy) & 3`.
+pub const RIVER_TILE: u8 = 56;
 
 /// `step_delta_cgx` and `step_delta_cgy` of the original, indexed 1 to 4 (south, west, north,
 /// east).
@@ -466,6 +512,102 @@ fn build_roads(site: Site, roads_in: &[bool; 9], rng: &mut impl Rng) -> Vec<u8> 
     roads
 }
 
+/// `Carve_River_Terrain`: a river walked across the field from the sides the overland river
+/// leaves by, only where the square has a river (`rivers[4]`). A river leaving to the east or
+/// west starts at the left corner of the playable band and winds towards the right one (never
+/// stepping west or south); one leaving to the north or south winds from top to bottom. The
+/// original starts the first kind at (7, 20), outside the band, so most of it is never seen, and
+/// the second on the field's last row, where it ends after a step; ours starts them at (6, 15)
+/// and at the band's top edge (`x + y == 11`).
+fn carve_river(group: &mut [u8], rivers: &[bool; 9], rng: &mut impl Rng) {
+    if !rivers[4] {
+        return;
+    }
+    let mut alternate = false;
+    if rivers[5] || rivers[2] || rivers[3] || rivers[6] {
+        let (mut x, mut y) = (6, 15);
+        while x < W - 1 && y > 0 {
+            let dir = if random(rng, 2) == 1 {
+                random(rng, 4) - 1
+            } else if !alternate {
+                3
+            } else {
+                2
+            };
+            alternate = !alternate;
+            let (nx, ny) = (
+                x + STEP_X[(dir + 1) as usize],
+                y + STEP_Y[(dir + 1) as usize],
+            );
+            // Forward is anything but west and south.
+            if inside(nx, ny) && dir != 1 && dir != 0 {
+                x = nx;
+                y = ny;
+                group[at(x, y)] = RIVER;
+            }
+        }
+    } else if rivers[0] || rivers[1] || rivers[7] || rivers[8] {
+        let x0 = 3 + random(rng, 6);
+        let (mut x, mut y) = (x0, 11 - x0);
+        while x < W - 1 && y < H - 1 {
+            let dir = if random(rng, 2) == 1 {
+                random(rng, 4) - 1
+            } else if !alternate {
+                3
+            } else {
+                0
+            };
+            alternate = !alternate;
+            let (nx, ny) = (
+                x + STEP_X[(dir + 1) as usize],
+                y + STEP_Y[(dir + 1) as usize],
+            );
+            // Forward is anything but west and north.
+            if inside(nx, ny) && dir != 1 && dir != 2 {
+                x = nx;
+                y = ny;
+                group[at(x, y)] = RIVER;
+            }
+        }
+    }
+}
+
+/// The squares a Floating Island's deck covers, in the original's frame, for the defenders and
+/// for the attackers, and the square each island's picture hangs from. When both sides have one
+/// the attackers' sits in the middle, with one more square towards the defenders.
+pub fn island_decks(attacker: bool, defender: bool) -> IslandDecks {
+    let mut decks = IslandDecks::default();
+    let block = |x0: i32, y0: i32| -> Vec<(i32, i32)> {
+        (y0..y0 + 3)
+            .flat_map(|y| (x0..x0 + 3).map(move |x| (x, y)))
+            .collect()
+    };
+    if defender {
+        decks.defenders = block(MIN_CGX_CITY, 11);
+        decks.pictures.push((MAX_CGX_CITY, 13));
+    }
+    if attacker {
+        if defender {
+            decks.attackers = block(9, 11);
+            decks.attackers.push((8, 12));
+            decks.pictures.push((12, 13));
+        } else {
+            decks.attackers = block(16, 10);
+            decks.pictures.push((19, 12));
+        }
+    }
+    decks
+}
+
+/// See [`island_decks`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IslandDecks {
+    pub defenders: Vec<(i32, i32)>,
+    pub attackers: Vec<(i32, i32)>,
+    /// The squares the island pictures hang from (the road layer's `0x81`).
+    pub pictures: Vec<(i32, i32)>,
+}
+
 /// `Remove_Rough_Terrain`: rough ground beside dirt, or on a road, becomes grass; so does all of
 /// the city area.
 fn remove_rough(group: &mut [u8], roads: &[u8], site: Site) {
@@ -585,6 +727,27 @@ fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
                     };
                     32 + variant
                 }
+                RIVER => {
+                    // Beyond the field's edge a river goes on.
+                    let r = |dx: i32, dy: i32| !inside(x + dx, y + dy) || g(dx, dy) == RIVER;
+                    let (u, d, l, rt) = (r(0, -1), r(0, 1), r(-1, 0), r(1, 0));
+                    let variant = ((random(rng, 2) - 1) * 6) as u8;
+                    // The original tests the shapes in turn and the last that fits wins.
+                    let shape = if l && d {
+                        5
+                    } else if d && rt {
+                        4
+                    } else if rt && u {
+                        3
+                    } else if u && l {
+                        2
+                    } else if u && d {
+                        1
+                    } else {
+                        0
+                    };
+                    RIVER_TILE + shape + variant
+                }
                 _ => 0,
             };
         }
@@ -592,29 +755,49 @@ fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
     tiles
 }
 
-/// `Set_Movement_Cost_Maps` (the walkers' map): grass and dirt 2, rough ground 4, roads 1,
-/// the corners outside the band and the structure of a lair none.
-fn movement_costs(group: &[u8], roads: &[u8], site: Site) -> Vec<u8> {
-    let mut cost = vec![2u8; (W * H) as usize];
+/// `Set_Movement_Cost_Maps`: the walkers' map (grass and dirt 2, rough ground and rivers 4,
+/// roads 1, ocean none) and the ships' (ocean and rivers 2, nothing on land or a road), with the
+/// corners outside the band and the structure of a lair shut on both. A floating island's deck
+/// walks like a road.
+fn movement_costs(
+    group: &[u8],
+    roads: &[u8],
+    site: Site,
+    structure: Structure,
+) -> (Vec<u8>, Vec<u8>) {
+    let n = (W * H) as usize;
+    let mut cost = vec![2u8; n];
+    let mut sail = vec![INF; n];
     for y in 0..H {
         for x in 0..W {
             let i = at(x, y);
-            cost[i] = match group[i] {
-                ROUGH => 4,
-                _ => 2,
-            };
-            if roads[i] != 0 {
+            match group[i] {
+                ROUGH => cost[i] = 4,
+                RIVER => {
+                    cost[i] = 4;
+                    sail[i] = SAIL_COST;
+                }
+                OCEAN => {
+                    cost[i] = INF;
+                    sail[i] = SAIL_COST;
+                }
+                _ => {}
+            }
+            if roads[i] != 0 && roads[i] != DECK_PICTURE {
                 cost[i] = 1;
+                sail[i] = INF;
             }
             if !in_band(x, y) {
                 cost[i] = INF;
+                sail[i] = INF;
             }
         }
     }
-    if site == Site::Outpost {
+    if site == Site::Outpost || structure == Structure::Fortress {
         cost[at(STRUCTURE.0, STRUCTURE.1)] = INF;
+        sail[at(STRUCTURE.0, STRUCTURE.1)] = INF;
     }
-    cost
+    (cost, sail)
 }
 
 /// Whether the cell is in the city area.
@@ -779,11 +962,14 @@ fn houses_of(spec: &Spec, rng: &mut impl Rng) -> Vec<House> {
         s => s,
     } as i32;
     let corner = |i: i32, j: i32| (i == 0 || i == 3) && (j == 0 || j == 3);
+    // The fortress stands on the structure square, which is the city area's cell (1, 1).
+    let fortress = spec.structure == Structure::Fortress;
     let picture = |rng: &mut dyn rand::RngCore| (style * 5 + rng.gen_range(0..5)) as u8;
-    if spec.population >= 12 {
+    // A city fills the area from twelve citizens; a fortress city has one cell less, so eleven do.
+    if spec.population >= 12 - u32::from(fortress) {
         for j in 0..4 {
             for i in 0..4 {
-                if corner(i, j) && spec.walled {
+                if (corner(i, j) && spec.walled) || (fortress && (i, j) == (1, 1)) {
                     continue;
                 }
                 houses.push(House {
@@ -794,12 +980,15 @@ fn houses_of(spec: &Spec, rng: &mut impl Rng) -> Vec<House> {
         }
     } else {
         // Few citizens: random squares, each used once. A walled city's corners are refused.
-        let room = 16 - if spec.walled { 4 } else { 0 };
+        let room = 16 - if spec.walled { 4 } else { 0 } - usize::from(fortress);
         let wanted = (spec.population as usize).min(room);
         while houses.len() < wanted {
             let (i, j) = (random(rng, 4) - 1, random(rng, 4) - 1);
             let cell = (MIN_CGX_CITY + i, MIN_CGY_CITY + j);
-            if (spec.walled && corner(i, j)) || houses.iter().any(|h| h.cell == cell) {
+            if (spec.walled && corner(i, j))
+                || (fortress && (i, j) == (1, 1))
+                || houses.iter().any(|h| h.cell == cell)
+            {
                 continue;
             }
             houses.push(House {
@@ -815,15 +1004,18 @@ fn houses_of(spec: &Spec, rng: &mut impl Rng) -> Vec<House> {
 pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
     let n = (W * H) as usize;
     if spec.set == Set::Water {
-        let mut cost = vec![2u8; n];
-        for y in 0..H {
-            for x in 0..W {
-                if !in_band(x, y) {
-                    cost[at(x, y)] = INF;
-                }
-            }
+        // All ocean; a Floating Island's deck is marked in the road layer.
+        let tiles: Vec<u8> = (0..n).map(|_| (48 + rng.gen_range(0..4)) as u8).collect();
+        let group = vec![OCEAN; n];
+        let mut roads = vec![0u8; n];
+        let decks = island_decks(spec.attacker_island, spec.defender_island);
+        for &(x, y) in decks.defenders.iter().chain(&decks.attackers) {
+            roads[at(x, y)] = DECK;
         }
-        let tiles = (0..n).map(|_| (48 + rng.gen_range(0..4)) as u8).collect();
+        for &(x, y) in &decks.pictures {
+            roads[at(x, y)] = DECK_PICTURE;
+        }
+        let (cost, sail) = movement_costs(&group, &roads, Site::Open, Structure::Outpost);
         return Layout {
             look: Look {
                 set: spec.set,
@@ -831,12 +1023,13 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
                 structure: spec.structure,
                 enchanted_roads: false,
                 tiles,
-                roads: vec![0; n],
+                roads,
                 houses: Vec::new(),
                 trees: Vec::new(),
                 rocks: Vec::new(),
             },
             cost,
+            sail,
         };
     }
     let houses = houses_of(spec, rng);
@@ -850,11 +1043,24 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
     };
     scatter_patches(&mut group, ROUGH, rough, 8, 3, rng);
     scatter_patches(&mut group, DIRT, 8, 4, 0, rng);
+    if spec.set == Set::Plains {
+        carve_river(&mut group, &spec.rivers, rng);
+        // A city's ground and its structure keep dry.
+        if spec.site != Site::Open {
+            for y in MIN_CGY_CITY..=MAX_CGY_CITY {
+                for x in MIN_CGX_CITY..=MAX_CGX_CITY {
+                    if group[at(x, y)] == RIVER {
+                        group[at(x, y)] = GRASS;
+                    }
+                }
+            }
+        }
+    }
     let roads = build_roads(spec.site, &spec.roads, rng);
     remove_rough(&mut group, &roads, spec.site);
     merge_dirt(&mut group);
     let tiles = tile_types(&group, rng);
-    let mut cost = movement_costs(&group, &roads, spec.site);
+    let (mut cost, sail) = movement_costs(&group, &roads, spec.site, spec.structure);
     let trees = scatter_trees(spec.set, spec.site, &group, &roads, &mut cost, rng);
     let rocks = scatter_rocks(spec.set, spec.site, &group, &roads, &mut cost, rng);
     Layout {
@@ -870,6 +1076,7 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
             rocks,
         },
         cost,
+        sail,
     }
 }
 
@@ -1015,6 +1222,40 @@ mod tests {
     }
 
     #[test]
+    fn a_fortress_city_keeps_its_structure_cell_clear_and_shut() {
+        let mut spec = Spec::open(Set::Plains);
+        spec.site = Site::City;
+        spec.structure = Structure::Fortress;
+        spec.population = 11;
+        spec.walled = true;
+        let full = generate(&spec, &mut rng(1));
+        assert_eq!(
+            full.look.houses.len(),
+            11,
+            "sixteen squares less four corners and the fortress"
+        );
+        assert!(full.look.houses.iter().all(|h| h.cell != STRUCTURE));
+        assert_eq!(full.cost_at(STRUCTURE.0, STRUCTURE.1), INF);
+        // Few citizens: as many houses as citizens, never on the fortress's cell.
+        for seed in 0..20 {
+            let small = Spec {
+                population: 7,
+                walled: false,
+                ..spec.clone()
+            };
+            let l = generate(&small, &mut rng(seed));
+            assert_eq!(l.look.houses.len(), 7);
+            assert!(l.look.houses.iter().all(|h| h.cell != STRUCTURE));
+        }
+        // A plain city leaves the square open.
+        spec.structure = Structure::Outpost;
+        assert_ne!(
+            generate(&spec, &mut rng(1)).cost_at(STRUCTURE.0, STRUCTURE.1),
+            INF
+        );
+    }
+
+    #[test]
     fn an_outpost_shuts_its_structure_cell() {
         let mut spec = Spec::open(Set::Plains);
         spec.site = Site::Outpost;
@@ -1024,9 +1265,113 @@ mod tests {
     }
 
     #[test]
-    fn water_stays_open_and_bare() {
+    fn water_is_bare_ocean_for_ships_and_fliers_only() {
         let l = generate(&Spec::open(Set::Water), &mut rng(1));
         assert!(l.look.trees.is_empty() && l.look.rocks.is_empty());
-        assert_eq!(l.cost_at(10, 10), 2);
+        assert_eq!(l.cost_at(10, 10), INF, "nobody walks on the sea");
+        assert_eq!(l.sail_at(10, 10), SAIL_COST);
+        assert_eq!(l.sail_at(0, 0), INF, "the corners are shut to ships too");
+        assert!(!l.is_void(10, 10) && l.is_void(0, 0));
+        assert!(l.look.tiles.iter().all(|&t| (48..52).contains(&t)));
+    }
+
+    #[test]
+    fn a_floating_island_has_a_deck_to_walk_on_and_a_picture_square_that_stays_sea() {
+        let mut spec = Spec::open(Set::Water);
+        spec.defender_island = true;
+        let l = generate(&spec, &mut rng(1));
+        let decks = island_decks(false, true);
+        assert_eq!(decks.defenders.len(), 9);
+        for &(x, y) in &decks.defenders {
+            assert_eq!(l.look.roads[at(x, y)], DECK);
+            assert_eq!(l.cost_at(x, y), 1, "a deck walks like a road");
+            assert_eq!(l.sail_at(x, y), INF);
+        }
+        let (px, py) = decks.pictures[0];
+        assert_eq!(l.look.roads[at(px, py)], DECK_PICTURE);
+        assert_eq!(l.cost_at(px, py), INF);
+        assert_eq!(l.sail_at(px, py), SAIL_COST);
+        // Both sides: the attackers' island is in the middle, and nothing overlaps.
+        let both = island_decks(true, true);
+        assert!(both.attackers.len() == 10 && both.pictures.len() == 2);
+        assert!(both
+            .attackers
+            .iter()
+            .all(|c| !both.defenders.contains(c) && !both.pictures.contains(c)));
+        // The attackers alone have theirs on the far side.
+        let alone = island_decks(true, false);
+        assert!(alone.attackers.iter().all(|&(x, _)| x >= 16));
+    }
+
+    fn river_spec(rivers: [bool; 9]) -> Spec {
+        let mut spec = Spec::open(Set::Plains);
+        spec.rivers = rivers;
+        spec
+    }
+
+    #[test]
+    fn a_river_square_has_a_river_across_the_field_and_others_have_none() {
+        let east_west = [false, false, false, true, true, true, false, false, false];
+        let north_south = [false, true, false, false, true, false, false, true, false];
+        let mut across = 0;
+        for seed in 0..20 {
+            for rivers in [east_west, north_south] {
+                let l = generate(&river_spec(rivers), &mut rng(seed));
+                let wet = (0..H)
+                    .flat_map(|y| (0..W).map(move |x| (x, y)))
+                    .filter(|&(x, y)| in_band(x, y) && l.look.tiles[at(x, y)] >= RIVER_TILE)
+                    .count();
+                assert!(wet >= 8, "seed {seed}: {wet} river squares in view");
+                across += 1;
+                for y in 0..H {
+                    for x in 0..W {
+                        let i = at(x, y);
+                        if l.look.tiles[i] >= RIVER_TILE && l.look.roads[i] == 0 {
+                            assert_eq!(l.cost_at(x, y), if in_band(x, y) { 4 } else { INF });
+                            if in_band(x, y) {
+                                assert_eq!(l.sail_at(x, y), SAIL_COST);
+                            }
+                        }
+                    }
+                }
+                for t in l.look.trees.iter().chain(&l.look.rocks) {
+                    assert!(l.look.tiles[at(t.cell.0, t.cell.1)] < RIVER_TILE);
+                }
+            }
+        }
+        assert_eq!(across, 40);
+        // No river on the square, none on the field; and none on other ground.
+        for set in [Set::Plains, Set::Hills] {
+            let mut spec = Spec::open(set);
+            spec.rivers = [false; 9];
+            let l = generate(&spec, &mut rng(3));
+            assert!(l.look.tiles.iter().all(|&t| t < RIVER_TILE));
+        }
+        let mut hills = Spec::open(Set::Hills);
+        hills.rivers = east_west;
+        assert!(generate(&hills, &mut rng(3))
+            .look
+            .tiles
+            .iter()
+            .all(|&t| t < RIVER_TILE));
+    }
+
+    #[test]
+    fn a_river_keeps_out_of_a_citys_area_and_leaves_the_deployment_squares_reachable() {
+        let mut spec = river_spec([false, false, false, true, true, true, false, false, false]);
+        spec.site = Site::City;
+        spec.population = 8;
+        for seed in 0..20 {
+            let l = generate(&spec, &mut rng(seed));
+            for y in MIN_CGY_CITY..=MAX_CGY_CITY {
+                for x in MIN_CGX_CITY..=MAX_CGX_CITY {
+                    assert!(l.look.tiles[at(x, y)] < RIVER_TILE);
+                }
+            }
+            // Every cell a unit may deploy on can be entered on foot.
+            for (x, y) in [(14, 12), (15, 11), (16, 13), (8, 12), (7, 11)] {
+                assert_ne!(l.cost_at(x, y), INF, "seed {seed} ({x},{y})");
+            }
+        }
     }
 }

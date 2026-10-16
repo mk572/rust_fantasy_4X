@@ -74,6 +74,19 @@ impl Game {
         true
     }
 
+    /// Put a river on a square, or take it off.
+    pub fn cheat_set_river(&mut self, pos: Position, river: bool) -> bool {
+        let Some(map) = self.map.as_mut() else {
+            return false;
+        };
+        let grid = map.plane_mut(pos.plane);
+        if pos.x >= grid.width() || pos.y >= grid.height() {
+            return false;
+        }
+        grid.set_river(pos.x, pos.y, river);
+        true
+    }
+
     /// Put a feature (or none) on a square.
     pub fn cheat_set_feature(
         &mut self,

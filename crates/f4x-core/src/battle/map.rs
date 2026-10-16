@@ -4,8 +4,9 @@
 //! Units move in eight directions. Open ground costs one move (two half-moves), rough ground
 //! two moves, a road half a move, trees and rocks add half a move each (to four at most),
 //! squares outside the band and a lair's structure cannot be entered, and flying units pay
-//! one move everywhere and cross everything but those. The ground comes from [`layout`], the
-//! port of the original's field generator.
+//! one move everywhere and cross everything but those. Ships sail the ocean and rivers (two
+//! half-moves a square) and swimmers take the cheaper of the two ways. The ground comes from
+//! [`layout`], the port of the original's field generator.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -92,6 +93,10 @@ pub enum Wall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Mover {
     pub flying: bool,
+    /// A ship: it sails the squares of water and nothing else.
+    pub sails: bool,
+    /// A swimmer: it takes the cheaper of the walkers' and the ships' cost of a square.
+    pub swims: bool,
     pub through_walls: bool,
     /// Mud does not slow it: the non-corporeal (fliers pass over it anyway).
     pub ignores_mud: bool,
@@ -108,6 +113,8 @@ pub struct BattleMap {
     cells: Vec<Cell>,
     /// Half-moves to enter each square on foot (`layout::INF` for none).
     costs: Vec<u8>,
+    /// Half-moves to enter each square by ship (`layout::INF` for none).
+    sail: Vec<u8>,
     /// What the screen draws, in the original's frame; `None` on a map made by hand.
     look: Option<Box<Look>>,
     /// The walls of the city, indexed by the square's place in the city area; `None` outside
@@ -126,6 +133,7 @@ impl BattleMap {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
             costs: vec![OPEN_COST as u8; (GRID_W * GRID_H) as usize],
+            sail: vec![layout::INF; (GRID_W * GRID_H) as usize],
             look: None,
             walls: None,
             fortress: false,
@@ -239,11 +247,15 @@ impl BattleMap {
         let mut map = Self::open();
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                let cost = layout.cost_at(GRID_W - 1 - x, y);
+                let (cgx, cgy) = (GRID_W - 1 - x, y);
+                let cost = layout.cost_at(cgx, cgy);
                 let i = Self::index((x, y));
                 map.costs[i] = cost;
+                map.sail[i] = layout.sail_at(cgx, cgy);
                 map.cells[i] = match cost {
-                    layout::INF => Cell::Void,
+                    _ if layout.is_void(cgx, cgy) => Cell::Void,
+                    // Ocean: walkers cannot enter it, ships and fliers can.
+                    layout::INF => Cell::Blocked,
                     c if c > OPEN_COST as u8 => Cell::Rough,
                     _ => Cell::Open,
                 };
@@ -291,6 +303,7 @@ impl BattleMap {
                 Cell::Rough => ROUGH_COST as u8,
                 Cell::Blocked | Cell::Void => layout::INF,
             };
+            self.sail[i] = layout::INF;
         }
     }
 
@@ -303,6 +316,28 @@ impl BattleMap {
             (Cell::Blocked, false) => None,
             _ => Some(u32::from(self.costs[Self::index(pos)])),
         }
+    }
+
+    /// Half-moves for `mover` to enter `pos`, or `None` if it cannot: fliers pay two anywhere
+    /// they can go, ships the sailing cost, swimmers the lesser of that and the walking one.
+    pub fn enter_cost_as(&self, pos: Pos, mover: Mover) -> Option<u32> {
+        let cell = self.get(pos)?;
+        if cell == Cell::Void {
+            return None;
+        }
+        if mover.flying {
+            return Some(OPEN_COST);
+        }
+        let i = Self::index(pos);
+        let (walk, sail) = (self.costs[i], self.sail[i]);
+        let cost = if mover.swims {
+            walk.min(sail)
+        } else if mover.sails {
+            sail
+        } else {
+            walk
+        };
+        (cost != layout::INF).then_some(u32::from(cost))
     }
 
     /// Whether the walls of the city shut `pos` to a unit that starts its move `inside` the
@@ -386,7 +421,7 @@ impl BattleMap {
         let mover = Mover {
             flying,
             through_walls: flying,
-            ignores_mud: false,
+            ..Mover::default()
         };
         self.reachable_as(from, points, mover, occupied)
     }
@@ -414,7 +449,7 @@ impl BattleMap {
                         continue;
                     }
                     let next = (at.0 + dx, at.1 + dy);
-                    let Some(mut step) = self.enter_cost(next, mover.flying) else {
+                    let Some(mut step) = self.enter_cost_as(next, mover) else {
                         continue;
                     };
                     if self.is_mud(next) && !mover.flying && !mover.ignores_mud {
@@ -454,8 +489,9 @@ pub fn set_of(terrain: Option<TerrainClass>) -> Set {
 /// Squares where a side's units start in a city battle, as the original deploys them
 /// (`Deploy_Battle_Units`, mirrored): the defenders inside the city in three columns of four
 /// (the gate's first), skipping the wall's corner towers when there are walls, the attackers in
-/// three columns of four outside. The first `count` places in order.
-pub fn city_deployment(attacker: bool, count: usize, walled: bool) -> Vec<Pos> {
+/// three columns of four outside. At a wizard's fortress the defenders also keep off the square
+/// the fortress stands on. The first `count` places in order.
+pub fn city_deployment(attacker: bool, count: usize, walled: bool, fortress: bool) -> Vec<Pos> {
     // Rows from the front column back, and within a column the original's order of rows.
     let (columns, rows): ([i32; 3], [i32; 4]) = if attacker {
         ([6, 5, 4], [12, 11, 13, 10])
@@ -466,6 +502,9 @@ pub fn city_deployment(attacker: bool, count: usize, walled: bool) -> Vec<Pos> {
     for &x in &columns {
         for &y in &rows {
             if !attacker && walled && is_wall_corner((x, y)) {
+                continue;
+            }
+            if !attacker && fortress && (x, y) == STRUCTURE {
                 continue;
             }
             out.push((x, y));

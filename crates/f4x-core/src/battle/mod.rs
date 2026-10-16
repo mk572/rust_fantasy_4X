@@ -42,6 +42,10 @@ pub const TURN_LIMIT: u32 = 100;
 
 /// The strength of a Wall of Fire's attack.
 pub const WALL_OF_FIRE_STRENGTH: i32 = 5;
+/// The strength of the dispel a magic node puts against the spells of other realms.
+pub const NODE_COUNTER_STRENGTH: u32 = 50;
+/// What a node's aura adds to its realm's creatures: attack, defence and resistance.
+pub const NODE_AURA_BONUS: i32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Side {
@@ -160,6 +164,10 @@ pub struct BattleUnit {
     pub casting: UnitCasting,
     pub ranged_kind: RangedKind,
     pub flies: bool,
+    /// A ship: it sails water and cannot leave it.
+    pub sails: bool,
+    /// A swimmer: it moves on land and water alike.
+    pub swims: bool,
     pub first_strike: bool,
     pub negate_first_strike: bool,
     pub long_range: bool,
@@ -258,6 +266,8 @@ impl BattleUnit {
             casting: UnitCasting::default(),
             ranged_kind: RangedKind::None,
             flies: false,
+            sails: false,
+            swims: false,
             first_strike: false,
             negate_first_strike: false,
             long_range: false,
@@ -351,6 +361,8 @@ impl BattleUnit {
     pub fn mover(&self) -> Mover {
         Mover {
             flying: self.flies,
+            sails: self.sails,
+            swims: self.swims,
             through_walls: self.flies || self.moves_instantly() || self.has("non_corporeal"),
             ignores_mud: self.has("non_corporeal"),
         }
@@ -763,6 +775,12 @@ pub struct Battle {
     /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
     /// of them. (The help says "including combat spells"; the original's code does not check.)
     pub warded_realms: Vec<String>,
+    /// The realm of the magic node whose aura the battle is fought in: its creatures fight with
+    /// +2 to attack, defence and resistance (`Battle_Unit_Special_Stats`).
+    pub node_aura: Option<Realm>,
+    /// The realm of the node the battle is fought on (the centre structure): every spell of
+    /// another realm must first beat a dispel of strength 50 (`Combat_Cast_Spell`).
+    pub node_site: Option<Realm>,
     /// The Magic Vortices on the field (`vortex.rs`).
     pub vortices: Vec<vortex::Vortex>,
     /// The spell save of the unit that is casting: it makes the resistance checks of its spell
@@ -787,6 +805,19 @@ impl Battle {
         let strength = *reserve;
         *reserve = reserve.saturating_sub(crate::dispel::COUNTER_MAGIC_DRAIN);
         crate::dispel::dispel_roll(strength, difficulty, &mut self.rng)
+    }
+
+    /// Whether the node under the battle stops a spell of `realm` and `difficulty`: a dispel of
+    /// strength [`NODE_COUNTER_STRENGTH`] must beat it, unless the spell is of the node's own
+    /// realm. (The caster's Node Mastery is checked by the caller.)
+    pub fn node_stops(&mut self, realm: Option<Realm>, difficulty: u32) -> bool {
+        let Some(node) = self.node_site else {
+            return false;
+        };
+        if realm == Some(node) {
+            return false;
+        }
+        crate::dispel::dispel_roll(NODE_COUNTER_STRENGTH, difficulty, &mut self.rng)
     }
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
@@ -816,6 +847,8 @@ impl Battle {
             wall_of_fire: false,
             wall_of_darkness: false,
             warded_realms: Vec::new(),
+            node_aura: None,
+            node_site: None,
             vortices: Vec::new(),
             save_penalty: 0,
             spell_caster: None,
