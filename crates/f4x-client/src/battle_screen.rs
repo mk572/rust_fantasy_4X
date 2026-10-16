@@ -373,17 +373,20 @@ impl App {
         else {
             return;
         };
-        if !matches!(kind, "river" | "sea") {
+        if !matches!(kind, "river" | "river-myrror" | "sea") {
             return;
         }
-        let to = f4x_core::city::Position {
+        let mut to = f4x_core::city::Position {
             x: pos.x + 3,
             ..pos
         };
+        if kind == "river-myrror" {
+            to.plane = f4x_core::map::Plane::Myrror;
+        }
         for unit in self.game.units().player_units(HUMAN) {
             self.game.cheat_move_unit(unit, to);
         }
-        if kind == "river" {
+        if kind.starts_with("river") {
             let grass = self.game.content().terrains.id_of("grassland");
             if let Some(t) = grass {
                 self.game.cheat_set_terrain(to, t);

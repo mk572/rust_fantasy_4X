@@ -257,7 +257,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   ship 2; a road over it is a bridge (1); trees, rocks and the city's ground keep off it. The
   files hold only six of the twelve river pictures (`cmbtcity` 103 to 108; 97 to 102 and all of
   Myrror's `chriver` 0 to 11 are empty, which is why the original never shows one), so both
-  planes use those six. Deviations: the first kind of river starts at (6, 15) and the second at
+  planes use those six; Myrror's are repainted at load (`Art::myrror_river`: the blue water takes the
+  colour of Myrror's ocean, `chriver` 12, which is purple, and the grassy banks that of its ground). Deviations: the first kind of river starts at (6, 15) and the second at
   the band's top edge, because the original's start squares lie outside the playable band (or
   end after one step).
 - **Water battles** (task 254): a fight on a sea square is all ocean. Walkers cannot enter it,

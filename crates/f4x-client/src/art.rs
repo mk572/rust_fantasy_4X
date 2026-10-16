@@ -439,6 +439,68 @@ impl Art {
         PathBuf::from(format!("map/tiles/{folder}/tile_{tile:04}.png"))
     }
 
+    /// A river picture for Myrror: Arcanus's (`cmbtcity` `entry`, which the files hold; Myrror's
+    /// own `chriver` 0 to 11 are empty) with its blue water repainted in the colour of Myrror's
+    /// ocean (`chriver` 12), keeping the water's light and dark shades and the banks.
+    pub fn myrror_river(&mut self, entry: usize, frame: usize) -> Option<&Texture2D> {
+        let key = PathBuf::from(format!("myrror_river/{entry}_{frame}"));
+        if !self.textures.contains_key(&key) {
+            let tex = self.recoloured_river(entry, frame);
+            self.textures.insert(key.clone(), tex);
+        }
+        self.textures.get(&key)?.as_ref()
+    }
+
+    fn recoloured_river(&self, entry: usize, frame: usize) -> Option<Texture2D> {
+        let load = |lbx: &str, entry: usize, frame: usize| -> Option<Image> {
+            let base = picture_base(&self.placed, lbx, entry, frame);
+            let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
+            Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
+        };
+        let mut img = load("cmbtcity", entry, frame).or_else(|| load("cmbtcity", entry, 0))?;
+        let ocean = load("chriver", 12, 0)?;
+        // The target: the mean colour of Myrror's water, and of the river's water now.
+        let mean = |bytes: &[u8], pick: &dyn Fn(&[u8]) -> bool| -> Option<[f32; 4]> {
+            let (mut sum, mut n) = ([0f32; 3], 0f32);
+            for p in bytes.chunks_exact(4).filter(|p| p[3] > 0 && pick(p)) {
+                for k in 0..3 {
+                    sum[k] += f32::from(p[k]);
+                }
+                n += 1.0;
+            }
+            (n > 0.0).then(|| [sum[0] / n, sum[1] / n, sum[2] / n, n])
+        };
+        let blue = |p: &[u8]| p[2] > p[0].saturating_add(20) && p[2] > p[1];
+        let green = |p: &[u8]| p[1] > p[0] && p[1] >= p[2] && !blue(p);
+        let ground = load("cmbgrasc", 0, 0)?;
+        // Repaint each kind of pixel (water, grassy banks) in the colour of the Myrror picture
+        // that stands for it, keeping its light and dark shades.
+        let light = |c: [f32; 4]| (c[0] + c[1] + c[2]).max(1.0);
+        let jobs: [(&dyn Fn(&[u8]) -> bool, &Image); 2] = [(&blue, &ocean), (&green, &ground)];
+        let mut painted = img.bytes.clone();
+        for (pick, target) in jobs {
+            let (Some(to), Some(from)) = (mean(&target.bytes, &|_| true), mean(&img.bytes, pick))
+            else {
+                continue;
+            };
+            for (p, out) in img
+                .bytes
+                .chunks_exact(4)
+                .zip(painted.chunks_exact_mut(4))
+                .filter(|(p, _)| p[3] > 0 && pick(p))
+            {
+                let k = (f32::from(p[0]) + f32::from(p[1]) + f32::from(p[2])) / light(from);
+                for c in 0..3 {
+                    out[c] = (to[c] * k).clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        img.bytes = painted;
+        let tex = Texture2D::from_image(&img);
+        tex.set_filter(FilterMode::Nearest);
+        Some(tex)
+    }
+
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
     pub fn picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
         let path = picture_path(&self.placed, lbx, entry, frame);
