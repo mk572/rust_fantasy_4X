@@ -25,8 +25,9 @@ cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of
 ```
 
 Decodes every picture in the original `.lbx` files to PNG (`<lbx>/<entry>_<frame>.png`,
-index 0 transparent) plus `manifest.tsv`, and the terrain tiles (`terrain/tile_NNNN.png`,
-`terrain/types.tsv` mapping terrain type -> tile, `terrain/sheet.png` overview).
+index 0 transparent; the ones that belong to a single screen go to `assets-local/screens/<screen>/`
+and unit art to `assets-local/art/units/<unit id>/`; see `extract-art.md` section 3) plus `manifest.tsv`, and the terrain tiles (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
+`map/tiles/types.tsv` mapping terrain type -> tile, `map/tiles/sheet.png` overview).
 Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner recolouring and where each file is used: [`extract-art.md`](extract-art.md).
 
 ## Rules data: `content/` (committed)
@@ -64,7 +65,7 @@ to hold is now `crates/f4x-data/testdata/`, the fixture for the data loader's te
 ## Local Mac app
 
 `scripts/make_app.sh [--open]` builds `target/Fantasy4X.app`: the release client plus copies of
-`content/`, `content-local/` and `assets-local/art`. A launcher script links them into
+`content/`, `content-local/` and `assets-local/art` and `screens`. A launcher script links them into
 `~/Library/Application Support/Fantasy4X/` and runs the game from there, so saves land in
 `~/Library/Application Support/Fantasy4X/saves/`. It contains the local-only original art and
 text: for play on this machine, not for sharing. No icon, signing or universal binary yet (task 81).

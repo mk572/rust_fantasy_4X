@@ -2,13 +2,16 @@
 //!
 //! The output is for local development only (it goes in the gitignored
 //! `assets-local/`). A `manifest.tsv` lists `lbx  entry  frames  width  height`
-//! so the client can find what it needs.
+//! so the client can find what it needs. A picture that belongs to one screen alone
+//! (`screens.tsv`) goes to `assets-local/screens/<screen>/` instead of `art/<lbx>/`, unit art
+//! to `art/units/<unit id>/`, and `assets-local/index.tsv` says where each such `lbx  entry` went.
 
 use std::fs;
 use std::path::Path;
 
 use crate::image::{decode, to_rgba};
 use crate::lbx::Lbx;
+use crate::screens::{self, Placer, UnitArt};
 
 /// FONTS.LBX entry 2 starts with the 256-colour base palette (6-bit RGB).
 const PALETTE_ENTRY: usize = 2;
@@ -143,6 +146,50 @@ fn terrain_tiles(entry: &[u8]) -> Vec<Vec<u8>> {
     out
 }
 
+/// Terrain types per plane (`TerType_Count`); Myrror's types follow Arcanus's.
+const TYPES_PER_PLANE: usize = 762;
+
+/// What kind of ground a terrain type number is, from the ranges of `TerrType.h` (ReMoM): the
+/// folder its tiles go to under `map/tiles/<plane>/`. Edge and shore pieces go with their kind.
+fn terrain_kind(ty: usize) -> &'static str {
+    match ty % TYPES_PER_PLANE {
+        0 | 0x259 => "ocean",
+        0x12 | 0xC5..=0xC8 => "lakes",
+        0x2..=0xA1 | 0xC9..=0xE8 | 0x1C4..=0x1D3 | 0x1D9..=0x258 => "shore",
+        0x1 | 0xA2 | 0xAC | 0xAD | 0xB4 => "grassland",
+        0xA3 | 0xB7 | 0xB8 => "forest",
+        0xA4 | 0x103..=0x112 => "mountains",
+        0xA5 | 0xAE..=0xB0 | 0x124..=0x1C3 => "desert",
+        0xA6 | 0xB1 | 0xB2 => "swamp",
+        0xA7 | 0xB5 | 0xB6 | 0x25A..=0x2F9 => "tundra",
+        0xA8..=0xAA => "nodes",
+        0xAB | 0x113..=0x123 => "hills",
+        0xB3 => "volcano",
+        0xB9..=0xC4 | 0xE9..=0x102 | 0x1D4..=0x1D8 => "rivers",
+        _ => "other",
+    }
+}
+
+/// The folder (`arcanus/shore`) of every tile a terrain type uses (an animated type's four
+/// tiles); a tile two types share stays with the first.
+fn tile_folders(map: &[(usize, bool)]) -> std::collections::HashMap<usize, String> {
+    let mut folders = std::collections::HashMap::new();
+    for (ty, &(tile, animated)) in map.iter().enumerate() {
+        let plane = if ty >= TYPES_PER_PLANE {
+            "myrror"
+        } else {
+            "arcanus"
+        };
+        let folder = format!("{plane}/{}", terrain_kind(ty));
+        for frame in 0..if animated { 4 } else { 1 } {
+            folders
+                .entry(tile + frame)
+                .or_insert_with(|| folder.clone());
+        }
+    }
+    folders
+}
+
 fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize, String> {
     let Some(path) = find(game_dir, "TERRAIN.LBX") else {
         return Ok(0);
@@ -152,15 +199,24 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
     if lbx.len() == 0 {
         return Ok(0);
     }
-    let dir = out_dir.join("terrain");
+    let dir = out_dir.join("map/tiles");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let tiles = terrain_tiles(lbx.entry(0));
-    if lbx.len() > 1 {
-        let map = terrain_type_map(lbx.entry(1));
+    let map = if lbx.len() > 1 {
+        terrain_type_map(lbx.entry(1))
+    } else {
+        Vec::new()
+    };
+    let folders = tile_folders(&map);
+    if !map.is_empty() {
+        // `type  first tile  animated  folder under map/tiles/`
         let rows: String = map
             .iter()
             .enumerate()
-            .map(|(t, (tile, anim))| format!("{t}\t{tile}\t{}\n", u8::from(*anim)))
+            .map(|(t, (tile, anim))| {
+                let folder = folders.get(tile).map_or("other", String::as_str);
+                format!("{t}\t{tile}\t{}\t{folder}\n", u8::from(*anim))
+            })
             .collect();
         fs::write(dir.join("types.tsv"), rows).map_err(|e| e.to_string())?;
     }
@@ -172,7 +228,14 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
                 rgba[k * 4 + 3] = 255;
             }
         }
-        write_png(&dir.join(format!("tile_{i:04}.png")), TILE_W, TILE_H, &rgba)?;
+        let folder = dir.join(folders.get(&i).map_or("other", String::as_str));
+        fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        write_png(
+            &folder.join(format!("tile_{i:04}.png")),
+            TILE_W,
+            TILE_H,
+            &rgba,
+        )?;
     }
     // One sheet of every tile (40 per row) for quick browsing.
     let cols = 40;
@@ -268,7 +331,7 @@ fn banner_mask(pixels: &[u8]) -> Vec<u8> {
     out
 }
 
-pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
+pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
         .map_err(|e| format!("{}: {e}", game_dir.display()))?
@@ -282,6 +345,11 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
         .collect();
     lbx_files.sort();
     fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
+    let placer = Placer::new(screens::rules()?, units);
+    let root = out_dir.with_file_name("");
+    // An earlier version kept the index in `screens/`.
+    let _ = fs::remove_file(root.join("screens/index.tsv"));
+    let mut index = String::new();
     let mut manifest = String::new();
     let (mut pictures, mut frames) = (0usize, 0usize);
     for path in &lbx_files {
@@ -301,7 +369,18 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
             let Some(pic) = decode(lbx.entry(i)) else {
                 continue;
             };
-            fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            // A picture with a place of its own goes there; a copy left in `art/` by an earlier
+            // run is removed.
+            let placed = placer.place(&stem, i);
+            let (target, name) = match &placed {
+                Some(place) => {
+                    let (folder, name) = place.rsplit_once('/').unwrap_or(("", place));
+                    index.push_str(&format!("{stem}\t{i}\t{place}\n"));
+                    (root.join(folder), name.to_string())
+                }
+                None => (dir.clone(), format!("{i:03}")),
+            };
+            fs::create_dir_all(&target).map_err(|e| e.to_string())?;
             let mut pal = file_palette.clone();
             if let Some((start, colours)) = &pic.palette {
                 pal[start * 3..start * 3 + colours.len()].copy_from_slice(colours);
@@ -309,16 +388,22 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
             for (f, frame) in pic.frames.iter().enumerate() {
                 let rgba = to_rgba(&frame.pixels, &pal);
                 write_png(
-                    &dir.join(format!("{i:03}_{f:02}.png")),
+                    &target.join(format!("{name}_{f:02}.png")),
                     pic.width,
                     pic.height,
                     &rgba,
                 )?;
+                if placed.is_some() {
+                    let _ = fs::remove_file(dir.join(format!("{i:03}_{f:02}.png")));
+                }
                 frames += 1;
                 if stem.starts_with("figure") {
                     let mask = banner_mask(&frame.pixels);
+                    if placed.is_some() {
+                        let _ = fs::remove_file(dir.join(format!("{i:03}_{f:02}_banner.png")));
+                    }
                     write_png(
-                        &dir.join(format!("{i:03}_{f:02}_banner.png")),
+                        &target.join(format!("{name}_{f:02}_banner.png")),
                         pic.width,
                         pic.height,
                         &mask,
@@ -334,6 +419,13 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
             pictures += 1;
         }
     }
+    for path in &lbx_files {
+        // Drop `art/<lbx>/` when every picture in it has moved out.
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            let _ = fs::remove_dir(out_dir.join(stem.to_lowercase()));
+        }
+    }
+    fs::write(root.join("index.tsv"), index).map_err(|e| e.to_string())?;
     let tiles = extract_terrain(game_dir, out_dir, &base)?;
     println!("extracted {tiles} terrain tiles");
     extract_font_atlases(game_dir, out_dir, &base)?;
@@ -357,6 +449,22 @@ mod tests {
         assert_eq!(palette_entry_for("vortex"), Some(4));
         assert_eq!(palette_entry_for("lose"), Some(8));
         assert_eq!(palette_entry_for("cityscap"), None);
+    }
+
+    #[test]
+    fn terrain_types_are_sorted_into_kinds_on_both_planes() {
+        assert_eq!(terrain_kind(0), "ocean");
+        assert_eq!(terrain_kind(0x12), "lakes");
+        assert_eq!(terrain_kind(0x40), "shore");
+        assert_eq!(terrain_kind(0xA4), "mountains");
+        assert_eq!(terrain_kind(0x124), "desert");
+        assert_eq!(terrain_kind(0x2F9), "tundra");
+        // Myrror's types are Arcanus's plus 762.
+        assert_eq!(terrain_kind(762 + 0xA3), "forest");
+        let folders = tile_folders(&[(5, true), (9, false), (5, false)]);
+        assert_eq!(folders[&5], "arcanus/ocean");
+        assert_eq!(folders[&8], "arcanus/ocean");
+        assert_eq!(folders[&9], "arcanus/grassland");
     }
 
     #[test]

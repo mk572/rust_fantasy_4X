@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build a local macOS app: target/Fantasy4X.app (release build of f4x-client plus a copy of
-# content/, content-local/ and assets-local/art). For play on this machine only: it carries the
+# content/, content-local/ and assets-local/art and screens). For play on this machine only: it carries the
 # local-only original art and text, so do not share it. Saves go to
 # ~/Library/Application Support/Fantasy4X/saves.
 #
@@ -13,7 +13,7 @@ Usage: make_app.sh [--open]
        make_app.sh -h | --help
 
 Build a local macOS app, target/Fantasy4X.app: a release build of f4x-client plus a copy of
-content/, content-local/ and assets-local/art. For play on this machine only: it carries the
+content/, content-local/ and assets-local/art and screens. For play on this machine only: it carries the
 local-only original art and text, so do not share it. Saves go to
 ~/Library/Application Support/Fantasy4X/saves.
 
@@ -45,6 +45,8 @@ cp target/release/f4x-client "$app/Contents/MacOS/f4x-client"
 cp -R content "$app/Contents/Resources/content"
 [ -d content-local ] && cp -R content-local "$app/Contents/Resources/content-local"
 [ -d assets-local/art ] && cp -R assets-local/art "$app/Contents/Resources/assets-local/art"
+[ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
+[ -d assets-local/screens ] && cp -R assets-local/screens "$app/Contents/Resources/assets-local/screens"
 
 # The game finds content/, content-local/, assets-local/ and saves/ relative to the working
 # directory, so the launcher runs it from a folder that links to the bundled copies.

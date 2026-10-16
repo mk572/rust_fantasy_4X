@@ -1,0 +1,252 @@
+# Which of the original's pictures belong to one screen alone.
+#
+# `extract-art` writes a picture listed here to `assets-local/screens/<screen>/` and not to
+# `assets-local/art/<lbx>/`; every other picture stays in `art/` (shared pictures, figures,
+# terrain, map sprites, spell effects). Only numbers and names: no art in this file.
+#
+# Columns: lbx (lower-case file name), first entry, last entry, screen (folder name), label.
+# A label names a single entry's file (`<label>_<frame>.png`); without one the file is
+# `<lbx>_<entry>_<frame>.png`. Ranges may name entries the file does not have; the entry
+# numbers are the original's own (`LBX_Load(main_lbx_file, 8)` is `main 8`). Where the
+# original loads a picture is in ReMoM's LOADER.c and the screen's own file (named below).
+#
+# lbx	first	last	screen	label
+
+# Main menu (MainMenu.c)
+mainscrn	0	0	main_menu	title
+mainscrn	5	5	main_menu	background
+mainscrn	1	4	main_menu
+mainscrn	6	999	main_menu
+vortex	1	1	main_menu	button_continue
+vortex	2	2	main_menu	button_hall_of_fame
+vortex	3	3	main_menu	button_quit
+vortex	4	4	main_menu	button_new_game
+vortex	5	5	main_menu	button_load_game
+
+# A picture that several screens use lives with its main screen; the others find it through
+# `screens/index.tsv` (entries marked "also" below).
+#
+# Load / Save (LoadScr.c) and Settings (Settings.c); entry 4 (OK) is also Settings'
+load	0	0	load_save	background
+load	1	1	load_save	button_load
+load	2	2	load_save	button_quit
+load	3	3	load_save	button_save
+load	4	4	load_save	button_ok
+load	5	5	load_save	button_load_inactive_menu
+load	6	6	load_save	button_load_inactive
+load	7	7	load_save	button_save_inactive
+load	9	9	load_save	text_field
+load	10	10	load_save	selection_marker
+load	12	12	load_save	button_settings
+load	11	11	settings	background
+load	13	21	settings
+
+# New game (NewGame.c)
+newgame	0	0	new_game	background
+newgame	1	999	new_game
+
+# Hall of fame (SCORE.c)
+halofam	0	0	hall_of_fame	background
+halofam	1	999	hall_of_fame
+
+# Opening movie (INTRO.c)
+intro	0	999	intro
+
+# End of game (CONQUEST.c); Spell of Mastery (SPLMASTR.c)
+conquest	0	999	conquest
+vortex	0	0	conquest	effect
+win	0	999	win
+lose	0	999	lose
+splmastr	0	999	spell_of_mastery
+spellose	0	999	spell_of_mastery_lost
+
+# Overland screen (LOADER.c, MainScr.c); the spell cast, road and surveyor screens have their own
+main	0	0	main_screen	background
+main	1	1	main_screen	button_game
+main	2	2	main_screen	button_spells
+main	3	3	main_screen	button_armies
+main	4	4	main_screen	button_cities
+main	5	5	main_screen	button_magic
+main	6	6	main_screen	button_info
+main	7	7	main_screen	button_plane
+main	8	8	main_screen	button_done
+main	9	9	main_screen	button_patrol
+main	10	10	main_screen	button_wait
+main	11	11	main_screen	button_build
+main	12	12	main_screen	button_done_locked
+main	13	13	main_screen	button_patrol_locked
+main	14	14	main_screen	button_wait_locked
+main	15	15	main_screen	button_build_locked
+main	16	17	main_screen
+main	18	18	main_screen	icon_sail
+main	19	19	main_screen	icon_swim
+main	20	20	main_screen	icon_mountain
+main	21	21	main_screen	icon_forest
+main	22	22	main_screen	icon_fly
+main	23	23	main_screen	icon_path
+main	24	33	main_screen
+main	34	34	main_screen	deselect_background
+main	35	35	main_screen	next_turn_background
+main	36	36	main_screen	icon_astral
+main	37	37	main_screen	icon_wind
+main	38	38	main_screen	icon_boots
+main	39	39	main_screen
+main	40	40	spell_cast	background
+main	41	41	spell_cast	button_cancel
+main	42	42	main_screen	button_purify
+main	43	43	main_screen	button_purify_locked
+main	44	44	main_screen	deselect_blockout
+main	45	45	road_build	background
+main	46	46	road_build	button_ok
+main	47	47	spell_cast	button_border
+main	48	48	road_build	button_border
+main	49	49	main_screen	button_meld
+main	50	50	main_screen	icon_goto_booty
+main	51	56	main_screen
+main	57	57	surveyor	background
+main	58	58	main_screen	button_next_turn
+main	59	999	main_screen
+
+# City screen (CityScr.c, LOADER.c): backgrnd 24 (red button), 42 and 73 (gold) are used elsewhere.
+# The city picture (`cityscap`: backdrop, houses, trees, buildings) is also the outpost and enemy
+# city screens'
+backgrnd	6	6	city_screen	background
+backgrnd	7	7	city_screen	button_buy
+backgrnd	8	8	city_screen	button_change
+backgrnd	9	9	city_screen	button_ok
+backgrnd	10	13	city_screen
+backgrnd	14	14	city_screen	button_buy_locked
+backgrnd	15	15	city_screen	button_scroll_up
+backgrnd	16	16	city_screen	button_scroll_down
+backgrnd	40	41	city_screen
+backgrnd	43	72	city_screen
+backgrnd	74	95	city_screen
+cityscap	0	999	city_screen/cityscape
+unitview	30	30	city_screen	build_button_background
+unitview	31	31	city_screen	left_building_tab
+unitview	32	32	city_screen	right_building_tab
+
+# Outpost screen (Outpost.c)
+backgrnd	32	32	outpost_screen	background
+backgrnd	33	33	outpost_screen	name_background
+backgrnd	34	39	outpost_screen
+
+# Site encounter and treasure (Lair.c)
+backgrnd	25	25	site_encounter	border
+backgrnd	26	26	site_encounter	bottom_with_button
+backgrnd	27	27	site_encounter	bottom_without_button
+reload	9	19	site_encounter
+reload	20	20	site_encounter	treasure
+
+# Wizard sheet / mirror (WIZVIEW.c)
+backgrnd	4	4	wizard_sheet	background
+
+# Magic screen (MagicScr.c) and its alchemy window; entries 6 and 51 (grey gems) are also
+# the Spell of Mastery's and a spell animation's
+magic	0	0	magic_screen	background
+magic	7	7	magic_screen	mana_staff_empty
+magic	8	8	magic_screen	mana_staff_full
+magic	9	9	magic_screen	research_staff_empty
+magic	10	10	magic_screen	research_staff_full
+magic	11	11	magic_screen	skill_staff_empty
+magic	12	12	magic_screen	skill_staff_full
+magic	13	13	magic_screen	button_alchemy
+magic	6	6	magic_screen	grey_gem
+magic	51	51	magic_screen	grey_gem_broken
+magic	14	14	magic_screen	button_ok
+magic	15	15	magic_screen	mana_staff_locked
+magic	16	16	magic_screen	research_staff_locked
+magic	17	17	magic_screen	skill_staff_locked
+magic	52	52	alchemy	background
+magic	53	53	alchemy	button_cancel
+magic	54	54	alchemy	button_ok
+magic	55	55	alchemy	button_arrow_right
+magic	56	56	alchemy	button_arrow_left
+magic	57	57	alchemy	bar
+magic	58	58	alchemy	star
+magic	59	59	alchemy	power_to_gold
+
+# Diplomacy (DIPLOMAC.c); diplomac 1 and backgrnd 18 (the mirror) are also used by spell animations
+diplomac	0	0	diplomacy	background
+diplomac	1	999	diplomacy
+backgrnd	18	18	diplomacy	mirror
+
+# Spell book (Spellbook.c)
+book	0	999	spell_book
+
+# Unit statistics (UnitStat.c) and the enemy stack list (UnitList.c)
+unitview	0	0	unit_statistics	background_small
+unitview	1	1	unit_statistics	background_large
+unitview	2	2	unit_statistics	button_background
+unitview	3	3	unit_statistics	arrow_up
+unitview	4	4	unit_statistics	arrow_down
+unitview	33	33	unit_statistics	portrait_border
+unitview	34	34	unit_statistics	water_diamond
+unitview	28	28	unit_list	background
+unitview	29	29	unit_list	bottom
+
+# Offers (HIRE.c) and random events (EVENTS.c)
+hire	0	0	offers	hire_banner
+hire	1	1	offers	merchant_buttons
+hire	2	2	offers	merchant_banner
+hire	4	4	offers	name_box
+hire	3	3	offers
+hire	5	999	offers
+events	0	999	random_events
+
+# Hero level-up (LVLMAKE.c), enemy city (City_ovr55.c), advisors (AdvsrScr.c)
+reload	23	23	level_up	background
+reload	24	24	level_up	bottom
+reload	26	26	enemy_city	background
+reload	0	0	history	background
+reload	1	1	astrologer	background
+reload	2	8	cartographer
+
+# Combat (Combat.c, LOADER.c Reload_Combat_Graphics_Cache); the battlefield ground (cmbgrass and the
+# like) is filed as battle tiles by `Placer` (screens.rs), not here
+backgrnd	3	3	combat/interface	bottom_background
+compix	1	1	combat/interface	button_spell
+compix	2	2	combat/interface	button_wait
+compix	3	3	combat/interface	button_done
+compix	4	4	combat/interface	button_auto
+compix	18	18	combat/interface	unit_hit_bar
+compix	20	20	combat/interface	button_info
+compix	21	21	combat/interface	button_flee
+compix	22	22	combat/interface	button_cancel
+compix	23	23	combat/interface	button_spell_locked
+compix	24	24	combat/interface	button_wait_locked
+compix	25	25	combat/interface	button_info_locked
+compix	26	26	combat/interface	button_auto_locked
+compix	27	27	combat/interface	button_flee_locked
+compix	28	28	combat/interface	button_done_locked
+compix	56	56	combat/interface	info_window_bottom
+compix	57	57	combat/interface	info_window_middle
+compix	58	58	combat/interface	info_window_top
+compix	59	59	combat/interface	info_window_box
+compix	81	81	combat/interface	button_yes
+compix	82	82	combat/interface	button_no
+compix	0	0	combat/interface
+compix	5	17	combat/interface
+compix	19	19	combat/interface
+compix	29	55	combat/interface
+compix	60	80	combat/interface
+compix	83	999	combat/interface
+cmbtcity	0	999	combat/city
+cmbtwall	0	999	combat/cmbtwall_unknown
+cmbmagic	0	999	combat/spell_effects
+chriver	0	999	combat/rivers
+citywall	0	999	combat/walls
+wallrise	0	999	combat/walls
+
+# Army list (ArmyList.c) and Item screen (ItemScrn.c); entries 1 and 2 (the arrows) are the City
+# list's (CityList.c, which also loads reload 21 and 22) and the Army list's also
+armylist	1	1	city_list	button_up
+armylist	2	2	city_list	button_down
+reload	21	22	city_list
+armylist	0	0	army_list	background
+armylist	3	3	army_list	button_items
+armylist	4	4	army_list	button_ok
+armylist	5	5	item_screen	hero_background
+armylist	6	6	item_screen	hero_outline
+armylist	7	7	item_screen	button_alchemy
+armylist	8	8	item_screen	button_ok

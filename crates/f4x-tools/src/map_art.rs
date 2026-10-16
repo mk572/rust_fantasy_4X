@@ -2,7 +2,8 @@
 //!
 //! Almost everything the map draws besides terrain tiles sits in `MAPBACK.LBX`. This module
 //! writes `map/catalog.tsv` (a name for every sprite, with its entry, frame count and size),
-//! and for the pictures the game recolours at run time (cities, towers) one PNG per banner:
+//! and for the pictures the game recolours at run time (cities, towers) one PNG per banner in
+//! `map/locations/`:
 //! the indices `214..=218` (and `224..=228` on towers) are replaced with the banner's five
 //! shades, as `Draw_Map_Cities` does.
 
@@ -91,6 +92,33 @@ pub fn catalog_names() -> Vec<(String, usize)> {
     v
 }
 
+/// The folder under `art/map/` a named sprite goes to: places on the map (cities, towers, the
+/// encounter sites, magic nodes) in `locations`, the rest in a folder of `overlays` by kind.
+pub fn folder(name: &str) -> &'static str {
+    let starts = |prefixes: &[&str]| prefixes.iter().any(|p| name.starts_with(p));
+    if starts(&["city_walled", "city_open", "tower_", "site_", "node_"]) {
+        "locations"
+    } else if starts(&["road_", "enchanted_road_"]) {
+        "overlays/roads"
+    } else if starts(&[
+        "mineral_",
+        "mine",
+        "lumber_camp",
+        "hunters_lodge",
+        "nightshade",
+        "wild_game",
+    ]) {
+        "overlays/resources"
+    } else if starts(&["unexplored_mask_"]) {
+        "overlays/fog"
+    } else if starts(&["unit_background_"]) {
+        "overlays/unit_backgrounds"
+    } else {
+        // Corruption, mud, the city work area.
+        "overlays/ground"
+    }
+}
+
 /// Replace the indexes `from..from + 5` with `to`.
 fn recolor(pixels: &[u8], from: u8, to: [u8; 5]) -> Vec<u8> {
     pixels
@@ -114,7 +142,7 @@ pub fn extract_map_art(
 ) -> Result<usize, String> {
     let lbx = Lbx::parse(mapback).map_err(|e| format!("MAPBACK.LBX: {e}"))?;
     let dir = out_dir.join("map");
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(dir.join("locations")).map_err(|e| e.to_string())?;
     let mut catalog = String::from("# name\tlbx\tentry\tframes\twidth\theight\n");
     let mut count = 0;
     for (name, entry) in catalog_names() {
@@ -150,7 +178,7 @@ pub fn extract_map_art(
                 }
                 let rgba = to_rgba(&px, pal);
                 write_png(
-                    &dir.join(format!("{name}_{banner}_{f:02}.png")),
+                    &dir.join(format!("locations/{name}_{banner}_{f:02}.png")),
                     pic.width,
                     pic.height,
                     &rgba,
@@ -189,6 +217,22 @@ mod tests {
         let px = [0u8, 5, 214, 216, 218, 219, 224];
         let out = recolor(&px, 214, [10, 20, 30, 40, 50]);
         assert_eq!(out, vec![0, 5, 9, 29, 49, 219, 224]);
+    }
+
+    #[test]
+    fn places_go_to_locations_and_the_rest_to_overlays_by_kind() {
+        assert_eq!(folder("city_open"), "locations");
+        assert_eq!(folder("site_cave"), "locations");
+        assert_eq!(folder("node_aura_blue"), "locations");
+        assert_eq!(folder("tower_owned"), "locations");
+        assert_eq!(folder("city_work_area"), "overlays/ground");
+        assert_eq!(folder("road_n"), "overlays/roads");
+        assert_eq!(folder("enchanted_road_s"), "overlays/roads");
+        assert_eq!(folder("mineral_gold"), "overlays/resources");
+        assert_eq!(folder("mine"), "overlays/resources");
+        assert_eq!(folder("unexplored_mask_3"), "overlays/fog");
+        assert_eq!(folder("unit_background_red"), "overlays/unit_backgrounds");
+        assert_eq!(folder("corruption"), "overlays/ground");
     }
 
     #[test]

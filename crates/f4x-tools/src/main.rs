@@ -6,6 +6,7 @@ mod fonts;
 mod image;
 mod lbx;
 mod map_art;
+mod screens;
 mod soak;
 
 use std::path::{Path, PathBuf};
@@ -35,12 +36,15 @@ fn main() -> ExitCode {
         Some("console") => console_cmd::run(&args[1..]),
         Some("soak") => soak::run(&args[1..]),
         Some("extract-art") => match args.get(1) {
-            Some(game) => art::extract(
-                &PathBuf::from(game),
-                &args
-                    .get(2)
-                    .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from),
-            ),
+            Some(game) => unit_art().and_then(|units| {
+                art::extract(
+                    &PathBuf::from(game),
+                    &args
+                        .get(2)
+                        .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from),
+                    &units,
+                )
+            }),
             None => Err(USAGE.to_string()),
         },
         _ => Err(USAGE.to_string()),
@@ -58,6 +62,24 @@ fn main() -> ExitCode {
 fn content(dir: Option<&String>) -> Result<Content, String> {
     let dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
     f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())
+}
+
+/// The units' ids and original picture numbers, for filing their art under their names.
+fn unit_art() -> Result<Vec<screens::UnitArt>, String> {
+    let c = content(None)?;
+    Ok(c.rules
+        .units
+        .defs()
+        .iter()
+        .map(|u| screens::UnitArt {
+            id: u.id.clone(),
+            art: u
+                .art
+                .as_ref()
+                .map(|(lbx, e)| (lbx.clone(), usize::from(*e))),
+            portrait: u.hero.as_ref().map(|h| h.portrait as usize),
+        })
+        .collect())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {

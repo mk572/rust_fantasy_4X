@@ -43,19 +43,52 @@ RGB triples)`.
 assets-local/art/
   manifest.tsv            lbx <TAB> entry <TAB> frames <TAB> width <TAB> height  (one row a picture)
   <lbx>/NNN_FF.png        entry NNN (3 digits), frame FF (2 digits), RGBA, index 0 transparent
+                          (pictures shared by several screens, spell effects, icons)
+  battle/tiles/<terrain>/ the battlefield ground, trees and rocks: grassland, desert, mountains,
+                          tundra; <lbx>_NNN_FF.png from `cmbgrass`..`cmbtundc`, `desert`, `tundra`
+  units/<unit id>/        a unit's art: picture_FF.png (overland, `units1`/`units2`),
+                          figure_D_FF.png and figure_D_FF_banner.png (combat figure, direction D,
+                          section 6), portrait_FF.png (heroes, `portrait`)
   figure*/NNN_FF_banner.png   a mask beside every combat figure frame (section 6)
-  terrain/                tile_NNNN.png, types.tsv, autotile.tsv, sheet.png (section 7)
   fonts/                  style0..7.png, metrics.tsv (section 5)
-  map/                    catalog.tsv, banners.tsv, <name>_<banner>_<frame>.png (section 6)
+  map/                    catalog.tsv, banners.tsv (section 6) and three folders:
+    tiles/                <plane>/<kind>/tile_NNNN.png (arcanus/shore/ ...), types.tsv,
+                          autotile.tsv, sheet.png (section 7)
+    locations/            cities, towers, encounter sites and magic nodes: <name>_FF.png and, for
+                          cities and towers, <name>_<banner>_FF.png (sections 6, 8)
+    overlays/             roads/, resources/ (minerals, mines, camps, wild game), fog/ (unexplored
+                          masks), unit_backgrounds/, ground/ (corruption, mud, city work area):
+                          `mapback`, named as in catalog.tsv
 ```
+
+Pictures that belong to one screen alone are written next to `art/`, not in it:
+
+```
+assets-local/
+  index.tsv               lbx <TAB> entry <TAB> path from assets-local/ without _FF.png
+                          (where each filed picture went: screens/..., art/units/..., art/map/...)
+  screens/<screen>/<name>_FF.png   main_menu, load_save, main_screen, city_screen, combat, ...
+                          (combat/ has folders: interface, city, walls, rivers, spell_effects and
+                          cmbtwall_unknown, a file nothing loads)
+```
+
+`crates/f4x-tools/screens.tsv` is the table (lbx, first and last entry, screen, label; numbers
+and names only). A labelled single entry is `<label>_FF.png` (`main_screen/button_done_00.png`),
+anything else `<lbx>_NNN_FF.png`. Shared pictures (the grey gems, the OK button of Load and
+Settings, `items`, `special`, `wizards`, `cityscap`) stay in `art/`. A picture two screens use lives with its main screen. To move more, add rows and run
+`extract-art` again: it writes the picture in its new place and deletes the old copy in `art/`.
+Unit art is filed by the unit's id from `content/units.ron` (its `art` and hero `portrait`;
+unit type numbers: `unit_type_number`), so the extractor must run from the project directory.
+The client finds every place through `Art::picture(lbx, entry, frame)` and `Art::figure`, which read
+`index.tsv`, so the call sites keep the original's numbers.
 
 Rules to remember:
 
-- The directory is the lower-case file name (`MAINSCRN.LBX` becomes `mainscrn/`); the entry number
+- In `art/` the directory is the lower-case file name (`MAINSCRN.LBX` becomes `mainscrn/`); the entry number
   is the original's own, so the numbers in ReMoM's source (`LBX_Load(mainscrn_lbx_file, 5)`)
   are the numbers in the file names. An animation has one PNG per frame.
-- A directory exists only for files with at least one decodable picture. `terrain/`, `fonts/` and
-  `map/` come from special passes; `FONTS.LBX`, `TERRAIN.LBX` and the terrain tables are not
+- A directory exists only for files with at least one decodable picture. `map/`, `fonts/` and the
+  `units/` folders come from special passes; `FONTS.LBX`, `TERRAIN.LBX` and the terrain tables are not
   pictures in the normal sense.
 - Pictures are not cropped or reordered, and positions are not stored: where a picture sits on
   the 320 by 200 screen is in the original's code (section 9).
@@ -139,7 +172,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 Player colour is painted in at run time by replacing five fixed palette indexes with the banner's
 five shades; the extractor does this ahead of time or leaves a mask:
 
-- **Cities and towers on the map** (`MAPBACK.LBX`): `map/<name>_<banner>_<frame>.png` for the six
+- **Cities and towers on the map** (`MAPBACK.LBX`): `map/locations/<name>_<banner>_<frame>.png` for the six
   banners in the game's order (blue, green, purple, red, yellow, neutral/brown), made with
   `COL_City_Banner`. Indexes 214 to 218 (and 224 to 228 on towers) are swapped for the banner's
   shades, as `Draw_Map_Cities` does. `map/banners.tsv` has each banner's five shades as r,g,b.
@@ -151,9 +184,9 @@ five shades; the extractor does this ahead of time or leaves a mask:
 
 ## 7. Terrain
 
-`TERRAIN.LBX` entry 0 holds the 20 by 18 ground tiles (`terrain/tile_NNNN.png`, opaque, plus
+`TERRAIN.LBX` entry 0 holds the 20 by 18 ground tiles (`map/tiles/<plane>/<kind>/tile_NNNN.png`, opaque, plus
 `sheet.png` with all of them 40 to a row); entry 1 says which tile each of the 762 terrain *type
-numbers* uses and whether it animates (`types.tsv`: type, first tile, animated flag; an animated
+numbers* uses and whether it animates (`types.tsv`: type, first tile, animated flag, folder under `map/tiles/`, from the ranges in ReMoM's `TerrType.h`; an animated
 tile's next three tiles are the other frames). `TERRTYPE.LBX` gives `autotile.tsv` (table, mask,
 type): five tables of 256 entries indexed by a mask of the eight neighbours (NW 1, N 2, NE 4, E 8,
 SE 16, S 32, SW 64, W 128), used to pick shore, mountain and desert edge pieces. The client
@@ -202,14 +235,14 @@ it, and place the picture where the draw call puts it on the 320 by 200 screen.
 | What | File and entries | Notes |
 |---|---|---|
 | Overland frame, buttons, side panels | `main` 0 frame; 1 to 7 menu buttons (Game, Spells, Armies, Cities, Magic, Info, Plane); 8 to 15 Done, Patrol, Wait, Build and their locked versions; 18 to 23, 36 to 38 movement icons; 24 to 29 unit backgrounds; 34, 35 next-turn parts; 58 Next Turn button; 59 on little event icons | positions: `frame.rs` `spot` |
-| Overland map sprites | `mapback` (named in `map/catalog.tsv`) | section 8 |
-| Terrain | `terrain/` | section 7 |
-| Unit pictures (list and stack) | `units1`, `units2` | by unit type |
-| Combat figures | `figures1` to `figure16`: 15 unit types to a file, 8 directions each, 4 frames | `figure_entry(unit_type, direction)` |
+| Overland map sprites | `mapback` (named in `map/catalog.tsv`; now in `map/locations/` and `map/overlays/`) | section 8 |
+| Terrain | `map/tiles/` | section 7 |
+| Unit pictures (list and stack) | `units1`, `units2` | by unit type; now `art/units/<id>/picture` |
+| Combat figures | `figures1` to `figure16`: 15 unit types to a file, 8 directions each, 4 frames | `figure_entry(unit_type, direction)`; now `art/units/<id>/figure_D` |
 | City screen background and parts | `backgrnd` 6 background, 7 to 9 Buy, Change, OK; icon runs starting at 40 (small resources), 45 (workers), 59 (farmers), 74 (rebels), 88 (big resources), 94 and 95 (grey bread) | `city_screen.rs`; `LOADER.c` |
-| City picture | `cityscap`: 0 to 5, 8 to 10, 115, 116 are the backdrop layers of the Arcanus and Myrror city picture; the rest are buildings, houses and trees | `city_screen.rs`; layout: `cityscape.rs` (`Cityscape_Make_Buildings_Array`) |
+| City picture | `cityscap` (now `screens/city_screen/cityscape/`): 0 to 5, 8 to 10, 115, 116 are the backdrop layers of the Arcanus and Myrror city picture; the rest are buildings, houses and trees | `city_screen.rs`; layout: `cityscape.rs` (`Cityscape_Make_Buildings_Array`) |
 | City walls, rivers in combat | `citywall`, `chriver`, `cmbtcity`, `wallrise` | combat city battles (task 41) |
-| Battle ground | `cmbgrass`, `cmbdesrt`, `cmbmount`, `cmbtundr`; the `c` variants (`cmbgrasc` ...) are Myrror | entries 0 to 3 plain ground, 48 to 52 trees, 53 to 57 rocks |
+| Battle ground | `cmbgrass`, `cmbdesrt`, `cmbmount`, `cmbtundr`; the `c` variants (`cmbgrasc` ...) are Myrror | entries 0 to 3 plain ground, 48 to 52 trees, 53 to 57 rocks; filed as `art/battle/tiles/<terrain>/<lbx>_NNN_FF.png` (grassland, desert, mountains, tundra) |
 | Battle buttons | `compix` (frame 1 is pressed) | `battle_screen.rs` |
 | Spell effects | `cmbmagic` (ranged attacks, 8 directions each), `cmbtfx`, `specfx` | combat and overland spell animations |
 | Start menu | `mainscrn` 0 title (320x41), 5 background (320x159) at y = 41; `vortex` 1 Continue, 2 Hall of Fame, 3 Quit, 4 New Game, 5 Load Game (frame 0 hover, 1 idle) | `menu_screen.rs`; entries at x = 123, y = 141 plus 12 a row |
@@ -224,7 +257,7 @@ it, and place the picture where the draw call puts it on the 320 by 200 screen.
 | End of game | `win`, `lose`, `conquest`, `wizlab`, `splmastr`, `spellose`, `halofam`, `intro` | tasks 85, 88, 134 |
 | Events and offers | `events` (event pictures), `hire` (mercenary and hero offers), `resource` | tasks 68, 143 |
 | Help | `help` (two pictures) | |
-| Files with no reference in ReMoM's loader | `combat`, `desert`, `tundra`, `cmbtwall` | they extract fine; their use in the original is not found, so treat as unknown |
+| Files with no reference in ReMoM's loader | `combat`, `desert`, `tundra`, `cmbtwall` (`desert` and `tundra` are battlefield ground sets like `cmbdesrt`, filed under `art/battle/tiles/desert` and `tundra`) | they extract fine; their use in the original is not found, so treat as unknown |
 
 The table is a guide. For anything with an index not listed here read the loader or the screen's
 `Load` function in ReMoM; entries often depend on the player's wizard, banner or race.

@@ -37,10 +37,16 @@ struct FontStyle {
 pub struct Art {
     dir: PathBuf,
     styles: Vec<Option<FontStyle>>,
-    /// Terrain type -> first tile, from `terrain/types.tsv`.
+    /// Terrain type -> first tile, from `map/tiles/types.tsv`.
     type_tiles: Vec<usize>,
+    /// Terrain type -> the folder under `map/tiles/` its tiles are in (`arcanus/shore`).
+    type_dirs: Vec<String>,
     textures: HashMap<PathBuf, Option<Texture2D>>,
-    /// Terrain type by neighbour mask, five tables of 256 (`terrain/autotile.tsv`): 0 for
+    /// Pictures filed away from `art/<lbx>/`: lbx -> entry -> path from `assets-local/` without
+    /// the frame (`screens/<screen>/<name>`, `art/units/<id>/<name>`; `index.tsv`, written by
+    /// `extract-art`).
+    placed: HashMap<String, HashMap<usize, String>>,
+    /// Terrain type by neighbour mask, five tables of 256 (`map/tiles/autotile.tsv`): 0 for
     /// ocean shores, deserts and tundra, 1 for mountains and hills.
     autotile: Vec<Vec<usize>>,
     /// Whether a terrain type animates (its next three tiles are the other frames).
@@ -58,17 +64,22 @@ pub const BANNER_NAMES: [&str; 6] = ["blue", "green", "purple", "red", "yellow",
 
 impl Art {
     pub fn load(dir: PathBuf) -> Self {
-        let types = std::fs::read_to_string(dir.join("terrain/types.tsv")).unwrap_or_default();
+        let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
         let type_tiles = types
             .lines()
             .filter_map(|l| l.split('\t').nth(1)?.parse().ok())
+            .collect();
+        // The folder under `map/tiles/` of each type's tiles (`arcanus/shore`).
+        let type_dirs = types
+            .lines()
+            .map(|l| l.split('\t').nth(3).unwrap_or("other").trim().to_string())
             .collect();
         let type_anim = types
             .lines()
             .map(|l| l.split('\t').nth(2).is_some_and(|v| v.trim() == "1"))
             .collect();
         let mut autotile = vec![vec![0usize; 256]; 5];
-        if let Ok(text) = std::fs::read_to_string(dir.join("terrain/autotile.tsv")) {
+        if let Ok(text) = std::fs::read_to_string(dir.join("map/tiles/autotile.tsv")) {
             for line in text.lines() {
                 let mut f = line.split('\t').map(|v| v.parse::<usize>().ok());
                 if let (Some(Some(table)), Some(Some(mask)), Some(Some(t))) =
@@ -98,10 +109,15 @@ impl Art {
             }
         }
         let styles = Self::load_font_metrics(&dir);
+        let placed = parse_placed(
+            &std::fs::read_to_string(dir.with_file_name("index.tsv")).unwrap_or_default(),
+        );
         Self {
             dir,
+            placed,
             styles,
             type_tiles,
+            type_dirs,
             textures: HashMap::new(),
             autotile,
             type_anim,
@@ -319,13 +335,15 @@ impl Art {
             .map_or_else(|| default_banner_color(banner), |s| s[2])
     }
 
-    /// A picture recoloured for a banner by `extract-art` (`map/<name>_<banner>_<frame>.png`).
+    /// A picture recoloured for a banner by `extract-art` (`map/locations/<name>_<banner>_<frame>.png`).
     pub fn banner_picture(&mut self, name: &str, banner: u8, frame: usize) -> Option<&Texture2D> {
         let colour = BANNER_NAMES
             .get(usize::from(banner))
             .copied()
             .unwrap_or("neutral");
-        self.texture(PathBuf::from(format!("map/{name}_{colour}_{frame:02}.png")))
+        self.texture(PathBuf::from(format!(
+            "map/locations/{name}_{colour}_{frame:02}.png"
+        )))
     }
 
     /// The ground tile for a terrain type at an animation frame (0 to 3; fixed tiles ignore it).
@@ -333,7 +351,8 @@ impl Art {
         let tile = *self.type_tiles.get(terrain_type)?;
         let animated = self.type_anim.get(terrain_type).copied().unwrap_or(false);
         let tile = if animated { tile + frame % 4 } else { tile };
-        self.texture(PathBuf::from(format!("terrain/tile_{tile:04}.png")))
+        let path = self.tile_path(terrain_type, tile);
+        self.texture(path)
     }
 
     /// A river tile with only its water kept, so it can be laid over forest, desert and the rest.
@@ -341,7 +360,7 @@ impl Art {
         if !self.river_overlays.contains_key(&terrain_type) {
             let tex = self.type_tiles.get(terrain_type).and_then(|&tile| {
                 let bytes =
-                    std::fs::read(self.dir.join(format!("terrain/tile_{tile:04}.png"))).ok()?;
+                    std::fs::read(self.dir.join(self.tile_path(terrain_type, tile))).ok()?;
                 let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
                 for px in img.bytes.as_chunks_mut::<4>().0.iter_mut() {
                     let water = i32::from(px[2]) > i32::from(px[0]) + 40
@@ -386,7 +405,7 @@ impl Art {
         banner: u8,
     ) -> Option<Texture2D> {
         let (lbx, entry) = figure_entry(unit_type, direction);
-        let base = format!("{lbx}/{entry:03}_{frame:02}");
+        let base = picture_base(&self.placed, &lbx, entry, usize::from(frame));
         let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
         let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
         if let Some(shades) = self.banners.get(usize::from(banner)) {
@@ -406,13 +425,65 @@ impl Art {
     /// The ground tile for a terrain type number (see [`terrain_type`]).
     pub fn terrain(&mut self, terrain_type: usize) -> Option<&Texture2D> {
         let tile = *self.type_tiles.get(terrain_type)?;
-        self.texture(PathBuf::from(format!("terrain/tile_{tile:04}.png")))
+        let path = self.tile_path(terrain_type, tile);
+        self.texture(path)
+    }
+
+    /// A ground tile's file under the art directory (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
+    /// where `extract-art` put it).
+    fn tile_path(&self, terrain_type: usize, tile: usize) -> PathBuf {
+        let folder = self
+            .type_dirs
+            .get(terrain_type)
+            .map_or("other", String::as_str);
+        PathBuf::from(format!("map/tiles/{folder}/tile_{tile:04}.png"))
     }
 
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
     pub fn picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
-        self.texture(PathBuf::from(format!("{lbx}/{entry:03}_{frame:02}.png")))
+        let path = picture_path(&self.placed, lbx, entry, frame);
+        self.texture(path)
     }
+}
+
+/// Read `screens/index.tsv`: `lbx  entry  <screen>/<name>` a row.
+fn parse_placed(text: &str) -> HashMap<String, HashMap<usize, String>> {
+    let mut placed: HashMap<String, HashMap<usize, String>> = HashMap::new();
+    for line in text.lines() {
+        let mut f = line.split('\t');
+        if let (Some(lbx), Some(Ok(entry)), Some(place)) =
+            (f.next(), f.next().map(str::parse::<usize>), f.next())
+        {
+            placed
+                .entry(lbx.to_string())
+                .or_default()
+                .insert(entry, place.to_string());
+        }
+    }
+    placed
+}
+
+/// Where a picture's file is, relative to the art directory and without `.png`: in
+/// `art/<lbx>/`, or in the folder `extract-art` filed it under (a screen's, a unit's).
+fn picture_base(
+    placed: &HashMap<String, HashMap<usize, String>>,
+    lbx: &str,
+    entry: usize,
+    frame: usize,
+) -> String {
+    match placed.get(lbx).and_then(|e| e.get(&entry)) {
+        Some(place) => format!("../{place}_{frame:02}"),
+        None => format!("{lbx}/{entry:03}_{frame:02}"),
+    }
+}
+
+fn picture_path(
+    placed: &HashMap<String, HashMap<usize, String>>,
+    lbx: &str,
+    entry: usize,
+    frame: usize,
+) -> PathBuf {
+    PathBuf::from(format!("{}.png", picture_base(placed, lbx, entry, frame)))
 }
 
 /// The picture file and entry of a unit type's figure facing `direction`: fifteen unit
@@ -468,6 +539,23 @@ fn default_banner_color(banner: u8) -> Color {
 #[cfg(test)]
 mod figure_tests {
     use super::*;
+
+    #[test]
+    fn a_picture_of_one_screen_is_found_in_that_screens_folder() {
+        let placed = parse_placed("main\t8\tscreens/main_screen/button_done\nbad line\n");
+        assert_eq!(
+            picture_path(&placed, "main", 8, 1),
+            PathBuf::from("../screens/main_screen/button_done_01.png")
+        );
+        assert_eq!(
+            picture_path(&placed, "main", 9, 0),
+            PathBuf::from("main/009_00.png")
+        );
+        assert_eq!(
+            picture_path(&placed, "backgrnd", 24, 0),
+            PathBuf::from("backgrnd/024_00.png")
+        );
+    }
 
     #[test]
     fn figures_are_fifteen_types_to_a_file_with_eight_directions() {
