@@ -153,6 +153,8 @@ pub struct App {
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
+    /// The capital and the name typed so far, while the first-turn naming box is up.
+    pub(crate) capital_naming: Option<(hecs::Entity, String)>,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
@@ -241,6 +243,7 @@ impl App {
             army_ui: Default::default(),
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
+            capital_naming: None,
             hall: Vec::new(),
             item_ui: Default::default(),
             unit_rows: Vec::new(),
@@ -802,6 +805,7 @@ impl App {
                 self.selection.clear();
                 self.log.clear();
                 self.start_game();
+                self.offer_capital_naming();
                 self.log.push(format!("New map, seed {seed}"));
             }
             Err(e) => self.log.push(format!("Map generation failed: {e}")),
@@ -847,6 +851,13 @@ impl App {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.ward_prompt_frame(prompt);
             }
+        }
+        if self.capital_naming.is_some()
+            && !self.game.in_battle()
+            && matches!(self.screen, Screen::Map)
+            && self.capital_name_frame()
+        {
+            return true;
         }
         // A wizard has started casting the Spell of Mastery: announced over the whole screen.
         if !self.mastery_notice.is_empty()

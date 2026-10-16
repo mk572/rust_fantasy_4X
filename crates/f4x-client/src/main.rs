@@ -100,6 +100,7 @@ struct Options {
     armies: bool,
     cities: bool,
     outpost: Option<bool>,
+    capital_name: bool,
     enemy_city: bool,
     score: bool,
     items: bool,
@@ -155,6 +156,7 @@ fn parse_args() -> Result<Options, String> {
         armies: false,
         cities: false,
         outpost: None,
+        capital_name: false,
         enemy_city: false,
         score: false,
         items: false,
@@ -181,6 +183,7 @@ fn parse_args() -> Result<Options, String> {
             "--items" => o.items = true,
             "--hall" => o.hall = true,
             "--enemy-city" => o.enemy_city = true,
+            "--capital-name" => o.capital_name = true,
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
             "--offer" => o.offer = Some(value("--offer")?),
@@ -278,7 +281,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -362,6 +365,9 @@ async fn main() {
     }
     if let Some(new) = options.outpost {
         app.open_first_outpost(new);
+    }
+    if options.capital_name {
+        app.offer_capital_naming();
     }
     if options.cities {
         app.open_city_list();

@@ -234,27 +234,80 @@ impl App {
     /// `Change_City_Name_Popup`: the box with "New Outpost" and a field for the name. Enter
     /// keeps what is typed (an empty name keeps the one the game chose).
     fn outpost_name_box(&mut self, lay: &Layout, city: hecs::Entity) {
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (x, y) = NAME_BOX;
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        self.draw_pic(lay, "backgrnd", 33, 0, x, y);
-        self.bm_text(view, 4, gold, "New Outpost", x + 10.0, y + 6.0, Align::Left);
-        while let Some(c) = get_char_pressed() {
-            if !c.is_control() && self.outpost_ui.name.chars().count() < f4x_core::city::NAME_LEN {
-                self.outpost_ui.name.push(c);
-            }
-        }
-        if is_key_pressed(KeyCode::Backspace) {
-            self.outpost_ui.name.pop();
-        }
-        let shown = format!("{}_", self.outpost_ui.name);
-        self.bm_text(view, 4, light, &shown, x + 16.0, y + 21.0, Align::Left);
-        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+        let mut name = std::mem::take(&mut self.outpost_ui.name);
+        let done = self.name_box(lay, NAME_BOX, "New Outpost", &mut name);
+        self.outpost_ui.name = name;
+        if done {
             let name = std::mem::take(&mut self.outpost_ui.name);
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
             self.outpost_ui.naming = false;
+        }
+    }
+
+    /// The original's name box (`outpost_name_background`, `backgrnd` 33) with `title` at `at`:
+    /// types into `name`, and returns true when Enter ends it.
+    pub(crate) fn name_box(
+        &mut self,
+        lay: &Layout,
+        (x, y): (f32, f32),
+        title: &str,
+        name: &mut String,
+    ) -> bool {
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        self.draw_pic(lay, "backgrnd", 33, 0, x, y);
+        self.bm_text(view, 4, gold, title, x + 10.0, y + 6.0, Align::Left);
+        while let Some(c) = get_char_pressed() {
+            if !c.is_control() && name.chars().count() < f4x_core::city::NAME_LEN {
+                name.push(c);
+            }
+        }
+        if is_key_pressed(KeyCode::Backspace) {
+            name.pop();
+        }
+        self.bm_text(
+            view,
+            4,
+            light,
+            &format!("{name}_"),
+            x + 16.0,
+            y + 21.0,
+            Align::Left,
+        );
+        is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)
+    }
+
+    /// Turn 1: the box over the map that lets the player rename the capital
+    /// (`Change_Home_City_Name_Popup`, the box at (60,30) titled "Name Starting City").
+    pub(crate) fn capital_name_frame(&mut self) -> bool {
+        let Some((city, mut name)) = self.capital_naming.take() else {
+            return false;
+        };
+        let lay = Layout::new();
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        if self.name_box(&lay, (60.0, 30.0), "Name Starting City", &mut name) {
+            let events = self.game.apply(Command::RenameCity { city, name });
+            self.note(events);
+        } else {
+            self.capital_naming = Some((city, name));
+        }
+        true
+    }
+
+    /// Offer the naming box for the human capital, if there is one.
+    pub(crate) fn offer_capital_naming(&mut self) {
+        let capital = self
+            .game
+            .economy()
+            .cities()
+            .into_iter()
+            .find(|(e, c, _)| c.owner == HUMAN && self.game.economy().is_fortress_city(*e));
+        if let Some((city, ..)) = capital {
+            self.capital_naming = Some((city, self.city_name(city)));
         }
     }
 }
