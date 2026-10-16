@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 15 spells are listed, the ones `content/spells.ron` still marks `unimplemented` (checked 16 October
+- 10 spells are listed, the ones `content/spells.ron` still marks `unimplemented` (checked 16 October
   2026). The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` in step. Spells are edited directly in `content/spells.ron` (the
   importer no longer writes it).
@@ -51,17 +51,12 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 
 | No. | Spell | Realm | Needs first |
 |---|---|---|---|
-| 57 | Wind Mastery | sorcery | Movement rules that depend on the owner: double for own ships and sky units, half for everyone else's |
 | 80 | Time Stop | sorcery | Turn flow where only the caster moves and pays upkeep (and a combat part) |
-| 156 | Life Force | life | A spell-resistance check for other wizards' non-combat death spells, like Suppress Magic's (`suppressed_by`) |
-| 157 | Tranquility | life | The same for chaos spells |
 | 113 | Meteor Storm | chaos | A strike each turn on units outside cities (strength 4 fire) and a 1 percent chance for each building elsewhere; the caster's cities are safe |
 | 114 | Great Wasting | chaos | Corrupting several squares each turn, away from the caster's cities (task 123) |
 | 120 | Armageddon | chaos | A volcano each turn with the caster gaining power from each (task 123) |
 | 119 | Call the Void | chaos | An instant spell: 50 percent of a city's buildings, 10 damage to each unit inside, corruption around (tasks 123, 158) |
 | 40 | Nature's Wrath | nature | Triggering on every non-combat death or chaos spell the caster casts, then shaking the caster's cities: units that do not fly or lack a body, and buildings. Check help against code when wired |
-| 188 | Zombie Mastery | death | Normal creatures that die in a won battle become the caster's zombies afterwards (the dead of a battle, which Animate Dead and Raise Dead already read) |
-| 197 | Eternal Night | death | Every battle treated as under Darkness, except in cities with Heavenly Light |
 
 ## G. Overland instants needing new state
 

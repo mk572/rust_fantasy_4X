@@ -230,15 +230,29 @@ impl Game {
         Some((spell, spent))
     }
 
-    /// Suppress Magic: another wizard's standing dispel of strength 500 against every overland
-    /// spell cast. Returns the wizard whose Suppress Magic stopped `spell`, if any.
+    /// Another wizard's standing dispel of strength 500 against every overland spell cast:
+    /// Suppress Magic against all spells, Life Force against death spells, Tranquility against
+    /// chaos spells. Returns the wizard whose enchantment stopped `spell`, if any.
     pub(crate) fn suppressed_by(&mut self, caster: PlayerId, spell: SpellId) -> Option<PlayerId> {
-        let suppress = self.content.rules.spells.id_of("suppress_magic")?;
+        let realm = self.content.rules.spells.get(spell).realm.clone();
+        let guards: Vec<&str> = ["suppress_magic", "life_force", "tranquility"]
+            .into_iter()
+            .filter(|&g| match g {
+                "life_force" => realm == "death",
+                "tranquility" => realm == "chaos",
+                _ => true,
+            })
+            .collect();
         let holders: Vec<PlayerId> = self
             .players
             .iter()
-            .filter(|p| p.id != caster && p.magic.global.contains(&suppress))
-            .map(|p| p.id)
+            .filter(|p| p.id != caster)
+            .flat_map(|p| {
+                guards
+                    .iter()
+                    .filter(|&&g| self.has_global(p.id, g))
+                    .map(move |_| p.id)
+            })
             .collect();
         let difficulty = self.dispel_difficulty(spell, Some(caster));
         for holder in holders {

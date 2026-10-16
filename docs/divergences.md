@@ -406,3 +406,12 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   on the chosen square, the caster's own units and a city's garrison included, rolled with a battle's
   dice. Magic immunity and cold or fire immunity stop them. Decided 16 October 2026; they use the
   rules framework's `UnitsOnChosenSquare` selector, as Black Wind now does.
+
+## 16. Wind Mastery (spell 57)
+
+- **Our own rule, decided by the user on 16 October 2026.** The original scales only ships (the
+  owner's Wind Mastery gives x1.5, each rival's halves; see B37 in
+  `help-vs-implementation-conflicts.md`). Here a wizard with Wind Mastery gets x1.5 movement for all
+  their ships and flying units, overland and in battle (`unit_max_moves`). While any wizard holds the
+  spell, every wizard without it gets x0.5 for ships and fliers. Nothing stacks: two holders both get
+  the bonus and no one is halved.

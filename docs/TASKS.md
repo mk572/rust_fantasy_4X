@@ -265,8 +265,8 @@ for the sound.
 
 **87. Remaining global enchantments.** The global spells still without effect are listed in [`spells_to_implement.md`](spells_to_implement.md)
 (section F), with what each needs. This task keeps the shared machinery: the engine reads them from the wizard's list (`globals.rs`); some need
-battle code (Eternal Night, Zombie Mastery, Nature's Wrath, Time Stop's combat part: 33-46), the corruption layer, a condition on movement type
-(Wind Mastery), the mutation of new units (Doom Mastery: temporary effects store 30) or the dispel mathematics (Life Force, Tranquility: 59).
+battle code (Nature's Wrath, Time Stop's combat part: 33-46), the corruption layer, the mutation of new units (Doom Mastery: temporary effects
+store 30). Done: Wind Mastery (ships and fliers, overland and in battle), Life Force, Tranquility, Eternal Night, Zombie Mastery.
 Holy Arms' magic weapons are not done either. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **88. Hall of fame.** The list of best finished games with wizard, race, score, turns and

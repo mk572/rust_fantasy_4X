@@ -360,6 +360,12 @@ impl Game {
                 battle.raise_field(Side::Defender, Field::Darkness, cloud);
             }
         }
+        // Eternal Night covers every fight in Darkness, except at a city with Heavenly Light.
+        if let Some(night) = self.content.rules.spells.id_of("eternal_night") {
+            if self.any_global("eternal_night") && !has("heavenly_light") {
+                battle.raise_field(Side::Defender, Field::Darkness, night);
+            }
+        }
         self.battle_casters(&mut battle, site);
         self.battle = Some(ActiveBattle {
             battle,
@@ -564,15 +570,23 @@ impl Game {
     }
 
     /// Whether the winner takes this dead unit as an undead one: the loser's, drained to death
-    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero.
+    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero; or,
+    /// with the winner's Zombie Mastery, any normal unit that fell on either side but was not
+    /// destroyed.
     fn is_raised_by(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
-        battle.winner.is_some_and(|w| w != u.side)
-            && u.fate() == super::Fate::Drained
-            && u.realm != Some(Realm::Death)
-            && self
-                .units()
-                .unit_def(entity)
-                .is_some_and(|d| d.kind != crate::rules::UnitKind::Hero)
+        use crate::rules::UnitKind;
+        let Some(winner) = battle.winner else {
+            return false;
+        };
+        let kind = self.units().unit_def(entity).map(|d| d.kind);
+        let zombies = u.fate() != super::Fate::Gone
+            && kind == Some(UnitKind::Normal)
+            && self.has_global(battle.player_of(winner), "zombie_mastery");
+        zombies
+            || (winner != u.side
+                && u.fate() == super::Fate::Drained
+                && u.realm != Some(Realm::Death)
+                && kind.is_some_and(|k| k != UnitKind::Hero))
     }
 
     /// Put the drained dead on the winner's square as undead units, as many as it has room for.

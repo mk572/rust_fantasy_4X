@@ -549,6 +549,58 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
 }
 
 #[test]
+fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
+    use crate::battle::Status;
+    let mut g = world(7);
+    g.map
+        .as_mut()
+        .unwrap()
+        .set_lairs(vec![lair(5, 5, vec![("skeletons", 2)])]);
+    // Make the guards normal units, and give the winner Zombie Mastery.
+    let mut units = g.content.rules.units.defs().to_vec();
+    for d in units.iter_mut().filter(|d| d.id == "skeletons") {
+        d.kind = crate::rules::UnitKind::Normal;
+    }
+    g.content.rules.units = Registry::new(units);
+    let mut spells = g.content.rules.spells.defs().to_vec();
+    let mut zm = spells[0].clone();
+    zm.id = "zombie_mastery".into();
+    spells.push(zm);
+    g.content.rules.spells = Registry::new(spells);
+    let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
+    g.magic_mut(P0).unwrap().global.push(zm);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    let guards: Vec<(usize, hecs::Entity)> = {
+        let a = g.battle.as_ref().unwrap();
+        a.battle
+            .units
+            .iter()
+            .filter(|u| u.side == Side::Defender)
+            .map(|u| (u.id, a.sources[u.source.unwrap()]))
+            .collect()
+    };
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        // One struck down, one destroyed.
+        for (i, (id, _)) in guards.iter().enumerate() {
+            b.units[*id].status = Status::Dead;
+            b.units[*id].figures = 0;
+            b.units[*id].damage_kinds = if i == 0 { [4, 0, 0] } else { [0, 0, 1] };
+            b.units[*id].realm = None;
+        }
+    }
+    g.apply(Command::Battle(BattleCommand::EndTurn));
+    assert_eq!(g.units().unit_owner(guards[0].1), Some(P0));
+    assert!(g.units().unit_is_undead(guards[0].1));
+    assert!(!g.world.contains(guards[1].1), "the destroyed one is gone");
+}
+
+#[test]
 fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     use crate::battle::Status;
     let mut g = world(5);

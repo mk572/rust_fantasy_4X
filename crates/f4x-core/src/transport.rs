@@ -200,6 +200,7 @@ mod tests {
     use crate::Command;
 
     const P0: PlayerId = PlayerId(0);
+    const P1: PlayerId = PlayerId(1);
 
     fn at(x: u32, y: u32) -> Position {
         Position {
@@ -239,6 +240,36 @@ mod tests {
     fn unit(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
         let u = g.content.rules.units.id_of(id).unwrap();
         g.spawn_unit(P0, pos, u)
+    }
+
+    #[test]
+    fn wind_mastery_speeds_the_owners_ships_and_slows_the_others() {
+        let mut g = world();
+        let mut wm = crate::testutil::content_with_magic().rules.spells.defs()[0].clone();
+        wm.id = "wind_mastery".into();
+        g.content.rules.spells = Registry::new(vec![wm]);
+        let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
+        for id in [P0, P1] {
+            g.players.push(crate::player::Player::new(id, "W"));
+            g.init_wizard(id, &[("life", 1)], &[], None).ok();
+        }
+        let boat = unit(&mut g, "boat", at(5, 4));
+        let scout = unit(&mut g, "scout", at(4, 4));
+        let walker = unit(&mut g, "walker", at(4, 3));
+        let max = |g: &Game, u| g.units().unit_max_moves(u);
+        assert_eq!((max(&g, boat), max(&g, scout)), (8, 6));
+        // The owner's Wind Mastery: half as far again, for ships and fliers only.
+        g.magic_mut(P0).unwrap().global.push(wm);
+        assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
+        assert_eq!(max(&g, walker), 4);
+        // A rival's: halved for the wizard without it.
+        g.magic_mut(P0).unwrap().global.clear();
+        g.magic_mut(P1).unwrap().global.push(wm);
+        assert_eq!((max(&g, boat), max(&g, scout)), (4, 3));
+        assert_eq!(max(&g, walker), 4);
+        // Both have it: both get the bonus, nothing stacks.
+        g.magic_mut(P0).unwrap().global.push(wm);
+        assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
     }
 
     #[test]

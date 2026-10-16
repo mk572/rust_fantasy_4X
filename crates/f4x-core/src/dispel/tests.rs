@@ -87,6 +87,10 @@ fn world() -> Game {
             true,
             None,
         ),
+        spell("life_force", "life", 1000, SpellTarget::None, true, None),
+        spell("tranquility", "life", 1000, SpellTarget::None, true, None),
+        spell("death_bolt", "death", 100, SpellTarget::None, false, None),
+        spell("chaos_bolt", "chaos", 100, SpellTarget::None, false, None),
         spell(
             "disjunction",
             "arcane",
@@ -443,6 +447,28 @@ fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
         stopped_big < 400,
         "a costly spell mostly gets through: {stopped_big}"
     );
+}
+
+#[test]
+fn life_force_and_tranquility_guard_against_their_realms_only() {
+    let mut g = world();
+    let (death, chaos, life) = (
+        sp(&g, "death_bolt"),
+        sp(&g, "chaos_bolt"),
+        sp(&g, "life_force"),
+    );
+    g.attach_enchantment(Target::Player(P1), life, P1);
+    let n = |g: &mut Game, s| {
+        (0..400)
+            .filter(|_| g.suppressed_by(P0, s).is_some())
+            .count()
+    };
+    assert!(n(&mut g, death) > 200, "death spells are checked");
+    assert_eq!(n(&mut g, chaos), 0, "chaos spells are not");
+    assert!(g.suppressed_by(P1, death).is_none(), "never its own wizard");
+    let tranq = sp(&g, "tranquility");
+    g.attach_enchantment(Target::Player(P1), tranq, P1);
+    assert!(n(&mut g, chaos) > 200, "Tranquility guards against chaos");
 }
 
 #[test]

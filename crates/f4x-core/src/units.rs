@@ -331,7 +331,34 @@ impl<'a> Units<'a> {
         if whole == 0 {
             return 0;
         }
-        whole * 2 + self.unit_stat(unit, Stat::HalfMoves).max(0) as u32
+        let moves = whole * 2 + self.unit_stat(unit, Stat::HalfMoves).max(0) as u32;
+        // Wind Mastery (our rule, not the original's): ships and fliers of a wizard who keeps it
+        // go half as far again; those of a wizard without it, while anyone else keeps it, go
+        // half as far. Nothing stacks.
+        if self.is_ship_or_flier(unit) {
+            if let Some(owner) = self.unit_owner(unit) {
+                if self.has_global(owner, "wind_mastery") {
+                    return moves * 3 / 2;
+                }
+                if self
+                    .players
+                    .iter()
+                    .any(|p| self.has_global(p.id, "wind_mastery"))
+                {
+                    return moves / 2;
+                }
+            }
+        }
+        moves
+    }
+
+    /// A ship (sails, or carries others) or a flier (flies by nature or by a spell).
+    fn is_ship_or_flier(&self, unit: hecs::Entity) -> bool {
+        use crate::rules::MovementType;
+        self.unit_def(unit)
+            .is_some_and(|d| matches!(d.movement, MovementType::Sailing | MovementType::Flying))
+            || self.unit_stat(unit, Stat::Transport) > 0
+            || self.unit_has_ability(unit, "flying")
     }
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {

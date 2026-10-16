@@ -41,6 +41,8 @@ fn world() -> Game {
         ("flying_fortress", CITY_FLAG, own, lasting, "sorcery"),
         ("cloud_of_shadow", CITY_FLAG, own, lasting, "death"),
         ("spell_ward", SPELL_WARD, own, lasting, "sorcery"),
+        ("heavenly_light", CITY_FLAG, own, lasting, "life"),
+        ("eternal_night", CITY_FLAG, own, lasting, "death"),
     ] {
         spells.push(SpellDef {
             id: id.into(),
@@ -312,6 +314,30 @@ fn a_battle_at_an_enchanted_city_starts_with_its_walls_and_shadow() {
         .iter()
         .any(|&(f, _)| f == Field::Darkness));
     assert!(b.fields[Side::Attacker.index()].is_empty());
+}
+
+#[test]
+fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() {
+    use crate::battle::field::Field;
+    use crate::battle::Side;
+    let mut g = world();
+    let city = found(&mut g, P0, at(10, 6), 4);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let defender = g.spawn_unit(P0, at(10, 6), walker);
+    let attacker = g.spawn_unit(P1, at(11, 6), walker);
+    let night = g.content.rules.spells.id_of("eternal_night").unwrap();
+    g.magic_mut(P1).unwrap().global.push(night);
+    let dark = |g: &Game| {
+        g.battle().unwrap().fields[Side::Defender.index()]
+            .iter()
+            .any(|&(f, _)| f == Field::Darkness)
+    };
+    g.start_battle(&[attacker], &[defender]).unwrap();
+    assert!(dark(&g), "anyone's Eternal Night darkens the fight");
+    g.battle = None;
+    enchant(&mut g, city, "heavenly_light", P0);
+    g.start_battle(&[attacker], &[defender]).unwrap();
+    assert!(!dark(&g), "Heavenly Light keeps the city out of it");
 }
 
 fn realm(g: &Game, id: &str) -> crate::rules::RealmId {
