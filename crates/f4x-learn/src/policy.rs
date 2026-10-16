@@ -10,7 +10,9 @@ fn class(c: &BattleCommand) -> usize {
         BattleCommand::Attack { .. } => 1,
         BattleCommand::Shoot { .. } => 2,
         BattleCommand::AttackWall { .. } | BattleCommand::ShootWall { .. } => 3,
-        BattleCommand::Cast { .. } => 4,
+        BattleCommand::Cast { .. }
+        | BattleCommand::UnitCast { .. }
+        | BattleCommand::SummonDemon { .. } => 4,
         BattleCommand::Done { .. } => 5,
         BattleCommand::EndTurn => 6,
         BattleCommand::Flee => 7,

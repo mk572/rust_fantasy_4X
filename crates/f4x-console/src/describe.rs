@@ -384,6 +384,11 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             "{side:?} wizard casts {} (skill {skill}, mana {mana})",
             spell(game, *s)
         ),
+        B::UnitSpellCast {
+            unit,
+            spell: s,
+            mana,
+        } => format!("Unit {unit} casts {} (mana {mana})", spell(game, *s)),
         B::SpellCountered { side, spell: s } => {
             format!(
                 "Counter Magic stops the {side:?} wizard's {}",

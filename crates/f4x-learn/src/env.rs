@@ -185,6 +185,32 @@ impl BattleEnv {
                 }
             }
         }
+        let summoners: Vec<usize> = b
+            .active_units(b.active)
+            .map(|u| u.id)
+            .filter(|&u| self.game.can_summon_demon(u))
+            .collect();
+        out.extend(
+            summoners
+                .into_iter()
+                .map(|unit| BattleCommand::SummonDemon { unit }),
+        );
+        for (unit, lc) in self.game.legal_unit_casts() {
+            let mut manas = vec![lc.least_mana];
+            if lc.most_mana > lc.least_mana {
+                manas.push(lc.most_mana);
+            }
+            for &aim in &lc.aims {
+                for &mana in &manas {
+                    out.push(BattleCommand::UnitCast {
+                        unit,
+                        spell: lc.spell,
+                        aim,
+                        mana,
+                    });
+                }
+            }
+        }
         out
     }
 

@@ -255,8 +255,10 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             f4x_core::battle::BattleCommand::ShootWall { unit, cell } => {
                 format!("bshootwall {unit} {},{}", cell.0, cell.1)
             }
-            f4x_core::battle::BattleCommand::Cast { .. } => {
-                unreachable!("the AI casts nothing yet")
+            f4x_core::battle::BattleCommand::Cast { .. }
+            | f4x_core::battle::BattleCommand::UnitCast { .. }
+            | f4x_core::battle::BattleCommand::SummonDemon { .. } => {
+                unreachable!("the plain unit AI casts nothing")
             }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
@@ -1433,6 +1435,20 @@ fn arm_human(g: &mut Game, spells: &[&str]) {
 fn cast(g: &mut Game, line: &str) -> crate::Reply {
     let mut c = console();
     c.execute(g, line)
+}
+
+#[test]
+fn units_list_and_cast_their_own_spells_by_text() {
+    let mut g = casting_siege(&["fire_bolt"]);
+    let mine = battle_units_of(&g, f4x_core::battle::Side::Attacker)[0];
+    let r = cast(&mut g, &format!("uspells {mine}"));
+    assert!(r.ok, "{}", r.text());
+    assert!(r.text().contains("mana"), "{}", r.text());
+    // A plain unit knows no spell of its own: the order is refused, not misread.
+    let r = cast(&mut g, &format!("ucast {mine} fire bolt unit:0 mana:10"));
+    assert!(!r.ok, "{}", r.text());
+    assert!(cast(&mut g, "ucast 99 fire bolt").error.is_some());
+    assert!(cast(&mut g, "blegal").ok);
 }
 
 /// The human side ends its turn and the rival's does too, so the human wizard casts again.

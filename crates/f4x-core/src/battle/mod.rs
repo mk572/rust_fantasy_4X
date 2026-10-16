@@ -155,6 +155,8 @@ pub struct BattleUnit {
     pub mana: i32,
     /// A hero with casting skill: its spell shots are paid for with its mana too.
     pub hero_caster: bool,
+    /// What the unit can cast on its own (a hero's spells and items, a caster's abilities).
+    pub casting: UnitCasting,
     pub ranged_kind: RangedKind,
     pub flies: bool,
     pub first_strike: bool,
@@ -200,6 +202,23 @@ pub struct BattleUnit {
     pub bound_from: Option<Side>,
 }
 
+/// What a unit casts with its own mana rather than the wizard's skill (task 265).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UnitCasting {
+    /// A hero's innate spells: they cost the unit's mana.
+    pub innate: Vec<SpellId>,
+    /// The spells of a hero's items, with the slot of the item and the charges left: they cost
+    /// no mana.
+    pub item_charges: Vec<(usize, SpellId, u32)>,
+    /// The spells its abilities cast (`casts_healing`, `casts_fireball`, ...): once a battle
+    /// each, for no mana.
+    pub abilities: Vec<SpellId>,
+    /// The penalty to the resistance of what its spells hit (its items' spell save).
+    pub spell_save: i32,
+    /// Demons it can still summon this battle (`summon_demon`: three for a Demon Lord).
+    pub demons: u32,
+}
+
 impl BattleUnit {
     /// A plain unit for tests and simple scenarios: one dice per melee point, no specials.
     pub fn simple(
@@ -235,6 +254,7 @@ impl BattleUnit {
             ammo: 0,
             mana: 0,
             hero_caster: false,
+            casting: UnitCasting::default(),
             ranged_kind: RangedKind::None,
             flies: false,
             first_strike: false,
@@ -331,6 +351,7 @@ impl BattleUnit {
         Mover {
             flying: self.flies,
             through_walls: self.flies || self.moves_instantly() || self.has("non_corporeal"),
+            ignores_mud: self.has("non_corporeal"),
         }
     }
 
@@ -499,6 +520,18 @@ pub enum BattleCommand {
         aim: SpellAim,
         mana: u32,
     },
+    /// A unit casts a spell of its own (a hero's, an item's or an ability's) instead of the
+    /// wizard. `mana` is the total put into a spell that takes extra mana; it comes from the
+    /// unit's mana. The unit ends its turn.
+    UnitCast {
+        unit: usize,
+        spell: SpellId,
+        aim: SpellAim,
+        mana: u32,
+    },
+    /// A unit with the Creature Summoning ability (the Demon Lord) calls a demon to its side.
+    /// It costs no mana and uses up the unit's turn.
+    SummonDemon { unit: usize },
     /// Give up the rest of the unit's turn.
     Done { unit: usize },
     /// End the side's turn.
@@ -573,6 +606,13 @@ pub enum BattleEvent {
         side: Side,
         spell: SpellId,
         skill: i32,
+        mana: i32,
+    },
+    /// A unit cast a spell of its own, paying `mana` of its mana (none for an item's charge or
+    /// an ability).
+    UnitSpellCast {
+        unit: usize,
+        spell: SpellId,
         mana: i32,
     },
     /// The enemy's Counter Magic stopped the spell.
@@ -654,6 +694,23 @@ pub enum BattleEvent {
     Fled {
         side: Side,
     },
+    /// Disrupt or Cracks Call destroyed a section of the city wall.
+    WallDestroyed {
+        cell: Pos,
+    },
+    /// Earth to Mud turned the ground round a square to mud.
+    MudMade {
+        cell: Pos,
+    },
+    /// Cracks Call opened a fissure on the square.
+    FissureOpened {
+        cell: Pos,
+    },
+    /// Life Drain took `points` of life from a unit and gave it to the caster.
+    LifeDrained {
+        unit: usize,
+        points: i32,
+    },
     /// Recall Hero took the hero (a battle unit id) off the field.
     HeroRecalled {
         unit: usize,
@@ -694,6 +751,11 @@ pub struct Battle {
     /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
     /// of them. (The help says "including combat spells"; the original's code does not check.)
     pub warded_realms: Vec<String>,
+    /// The spell save of the unit that is casting: it makes the resistance checks of its spell
+    /// harder. 0 outside a cast.
+    pub(super) save_penalty: i32,
+    /// The battle unit that is casting, if a unit and not the wizard: Life Drain heals it.
+    pub(super) spell_caster: Option<usize>,
     rng: Pcg64Mcg,
 }
 
@@ -740,6 +802,8 @@ impl Battle {
             wall_of_fire: false,
             wall_of_darkness: false,
             warded_realms: Vec::new(),
+            save_penalty: 0,
+            spell_caster: None,
             rng: Pcg64Mcg::seed_from_u64(seed),
         };
         let _ = b.begin_side_turn();
@@ -1164,7 +1228,11 @@ impl Battle {
                 events.extend(self.attack_wall(unit, cell, true));
             }
             // Spells need the rules, which only the game has (`spells.rs`).
-            BattleCommand::Cast { .. } => return Err(BattleError::Spell(SpellError::NeedsGame)),
+            BattleCommand::Cast { .. }
+            | BattleCommand::UnitCast { .. }
+            | BattleCommand::SummonDemon { .. } => {
+                return Err(BattleError::Spell(SpellError::NeedsGame))
+            }
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
                 self.units[unit].moves_left = 0;

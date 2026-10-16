@@ -465,7 +465,7 @@ Each step is testable without a screen; later steps add the client screens.
 8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
    prefab items, `Make_Item`, are task 262; the crafting screen 260).
 9. **Offers**: hero, mercenary, merchant. (48, 143)
-10. **Hero casting**: mana, spell shots and the fortress skill **done** (task 51); the hero's own spells, item charges and spell save are task 265; the AI rules, console commands.
+10. **Hero casting** **Done** (tasks 51 and 265): mana, spell shots, the fortress skill, the hero's own spells, item charges and spell save (`battle/spells/unit_cast.rs`), the AI rule (`brain::unit_cast_choice`) and the console commands `uspells` and `ucast`. Left: the AI rules for hiring and equipping.
 11. **Client**: army list, unit window, item screen, crafting screen, offer pop-ups (138 to 143).
 
 Verification for every step: workspace tests, clippy, the soak diffed against the baseline (steps 1

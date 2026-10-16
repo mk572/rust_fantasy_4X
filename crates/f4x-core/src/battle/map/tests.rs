@@ -156,6 +156,7 @@ fn flier() -> Mover {
     Mover {
         flying: true,
         through_walls: true,
+        ignores_mud: false,
     }
 }
 
@@ -224,6 +225,7 @@ fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
     let teleporter = Mover {
         flying: false,
         through_walls: true,
+        ignores_mud: false,
     };
     let r = m.reachable_as((10, 11), 6, teleporter, &none);
     assert!(r.contains_key(&(12, 11)));

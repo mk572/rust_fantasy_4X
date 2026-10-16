@@ -137,15 +137,26 @@ fn power(content: &Content, army: &[UnitPick]) -> f32 {
     army.iter().map(|u| rough_strength(content, &u.unit)).sum()
 }
 
-/// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`).
+/// Spells the game can cast in a battle that the agent has not been trained with: they aim at
+/// a square of the field or at a wall, and the observation has no place for the walls and mud
+/// they act on. They stay out of the generated wizards, so the learned brains keep their shape.
+const NOT_TRAINED: [&str; 5] = [
+    "earth_to_mud",
+    "cracks_call",
+    "disrupt",
+    "life_drain",
+    "word_of_recall",
+];
+
+/// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`), and one
+/// the agent trains with.
 pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
     use f4x_core::rules::defs::CastContext;
     use f4x_core::rules::effects::Effect;
     d.contexts.contains(&CastContext::Battle)
-        && !d
-            .effects
-            .iter()
-            .any(|r| matches!(&r.effect, Effect::Custom(h) if h == "unimplemented"))
+        && !d.effects.iter().any(|r| {
+            matches!(&r.effect, Effect::Custom(h) if h == "unimplemented" || NOT_TRAINED.contains(&h.as_str()))
+        })
 }
 
 /// The realms a wizard's books can be in.

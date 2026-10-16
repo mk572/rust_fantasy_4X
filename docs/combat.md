@@ -336,7 +336,7 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   - *Cloud of Shadow*: the city's owner has Darkness up for the whole battle (a field spell of the defender).
   - *Spell Ward* (`Battle::warded_realms`): the attackers cannot cast spells of a warded realm.
   - Walls from *Wall of Stone* are the City Walls building, built overland (the spell is instant).
-- **Not here** (tasks 158, 163, 164): Wall of Stone and Disrupt cast in battle, the AI's decision to raze,
+- **Not here** (tasks 158, 163, 164): Wall of Stone cast in battle, the AI's decision to raze,
   the diplomatic effects of attacking a city, monsters and raiders taking a city, and Heavenly Light's True
   Light.
 
@@ -395,14 +395,36 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   nothing is left on the map afterwards.
 - **A spell that kills the last enemy ends the battle** at once, with the usual results.
 - **Console:** `battle` shows each wizard's skill, mana and range cost; `bspells` lists the
-  spells that can be cast; `bcast <spell> [unit:N | tile:x,y] [mana:N]` casts.
+  spells that can be cast; `bcast <spell> [unit:N | tile:x,y] [mana:N]` casts; `uspells <unit>` lists what a unit can cast on its own and `ucast <unit> <spell> [aim] [mana:N]` casts it.
 - **Client:** the Spell button opens the list (cost, `+` where extra mana helps); picking one
   waits for a target (purple squares), Up/Down or Page Up/Down change the mana, Enter casts a spell
   with no target, Esc cancels. The panel shows the wizard's skill, mana and range cost.
 
-**Not here** (task 159): the spells that need new effects (Web, Earth to Mud, Cracks Call, Disrupt, Black Sleep, Life Drain, ...),
+**Not here** (task 159): the spells that need new effects (Magic Vortex, ...),
 the battlefield node counter (a node of another realm may stop the spell), the AI wizard's
-casting (task 46), the heroes' own spells and the items' spells (265; a hero's mana and spell shots are in, task 51), and the original's rule that Hit points added by Lionheart are lost with the spell.
+casting (task 46), and the original's rule that Hit points added by Lionheart are lost with the spell.
+
+### Units casting (task 265)
+
+A battle unit casts on its own with `BattleCommand::UnitCast` (`battle/spells/unit_cast.rs`), not
+using the wizard's skill or reserve, and not the wizard's one cast a turn:
+
+- a **hero** casts its four innate spells for the spell's plain cost in its own mana
+  (`Game::hero_mana`), and the spell of an **item** for one charge, from any slot; the charges left
+  are written back to the item after the battle;
+- a **creature caster** (`spellcaster` 20 mana, `spellcaster_major` 40) casts the spells of its realm;
+- a unit with `casts_doom_bolt`, `casts_fireball`, `casts_healing` or `casts_web` casts that spell
+  once a battle, for no mana (Counter Magic does not stop the Web);
+- a unit with Creature Summoning (`summon_demon`, the Demon Lord) calls a demon with
+  `BattleCommand::SummonDemon`, three times a battle, for no mana (console `summondemon <unit>`);
+- a cast uses up the unit's turn; the items' spell save makes the resistance checks of the unit's
+  spell harder; extra mana makes a bolt or a Life Drain stronger, up to the unit's mana.
+
+`Game::battle_unit_spells(unit)` lists them, `legal_unit_casts()` the legal casts for the AI and the
+console (`uspells`, `ucast`, `blegal`). Spells of the other kinds added with it: Earth to Mud (a 5 by 5
+area of open ground; walkers pay 12 half-moves to enter, fliers and the bodiless do not), Cracks Call
+(one square: a walker or crawler there is destroyed one time in four, a wall on it falls), Disrupt
+(one wall section), Life Drain and Word of Recall (any of the wizard's units, not only a hero).
 
 ## 9. Battlefield enchantments and destroying spells (tasks 44 and part of 159)
 
@@ -454,6 +476,6 @@ Console: `battle` lists the field enchantments' effects through the units' numbe
 are described. The client's panel names the enchantments over the field.
 
 **Not here** (task 159): dispelling battlefield enchantments (Dispel Magic aims at a unit; the
-original's also reaches the field), the node auras and counter, Wall of Stone and Disrupt in battle (tasks 158 and 163),
+original's also reaches the field), the node auras and counter, Wall of Stone in battle (tasks 158 and 163),
 true sight (it cancels invisibility), the Mass Invisibility rule that an invisible unit next to an
 enemy is seen, Entangle's exemption for fliers in the help text.

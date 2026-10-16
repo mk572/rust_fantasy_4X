@@ -1,5 +1,6 @@
 use super::game::BattleStartError;
 use super::map::{distance, Cell, GRID_H, GRID_W};
+use super::spells::SpellSource;
 use super::*;
 use crate::city::PlayerId;
 use crate::map::{Grid, Map, Plane};
@@ -2370,6 +2371,484 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     assert_eq!((armed.mana, armed.ammo), (9, 3));
     armed.leak_mana(5);
     assert_eq!((armed.mana, armed.ammo), (4, 1));
+}
+
+/// A game with two spells a battle unit can cast: "zap" (10 mana, 3 damage) and "mend" (10, heals).
+fn casting_game() -> Game {
+    use crate::rules::defs::CastContext;
+    let mut g = game();
+    let mut spells = crate::testutil::content_with_magic()
+        .rules
+        .spells
+        .defs()
+        .to_vec();
+    for s in spells.iter_mut() {
+        s.contexts = vec![CastContext::Battle];
+    }
+    let mut healing = spells.iter().find(|s| s.id == "mend").unwrap().clone();
+    healing.id = "healing".into();
+    spells.push(healing);
+    g.content.rules.spells = crate::rules::Registry::new(spells);
+    g
+}
+
+fn a_caster(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
+    use crate::hero::{Hero, HeroAbilities};
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let _ = g.world.insert_one(
+        unit,
+        Hero {
+            name: "Ann".into(),
+            abilities: HeroAbilities::from_names::<&str>(&[]),
+            casting_skill: skill,
+            spells: spells.iter().map(|s| s.to_string()).collect(),
+        },
+    );
+    unit
+}
+
+fn begin(g: &mut Game, attacker: hecs::Entity) {
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let d1 = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: vec![attacker],
+        defenders: vec![d1],
+    });
+    assert!(g.in_battle());
+}
+
+#[test]
+fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
+    let mut g = casting_game();
+    let hero = a_caster(&mut g, &["zap", "mend"], 2);
+    begin(&mut g, hero);
+    let zap = g.content.rules.spells.id_of("zap").unwrap();
+    let before = g.battle().unwrap().unit(0).unwrap().mana;
+    assert_eq!(before, 7);
+    // Both spells are on the list; the hero has the mana for neither (10 each), so no cast.
+    let list = g.battle_unit_spells(0);
+    assert_eq!(list.len(), 2);
+    assert!(list
+        .iter()
+        .all(|s| s.source == SpellSource::Mana && !s.castable));
+    let refused = g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: zap,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    });
+    assert_eq!(refused, Err(BattleError::Spell(SpellError::TooExpensive)));
+    // With mana for one, it casts, pays and cannot cast again.
+    g.battle.as_mut().unwrap().battle.units[0].mana = 25;
+    let hp = g.battle().unwrap().unit(1).unwrap().hit_points();
+    let events = g
+        .battle_command(BattleCommand::UnitCast {
+            unit: 0,
+            spell: zap,
+            aim: SpellAim::Unit(1),
+            mana: 0,
+        })
+        .unwrap();
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::Battle(BattleEvent::UnitSpellCast {
+            unit: 0,
+            mana: 10,
+            ..
+        })
+    )));
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::Battle(
+            BattleEvent::SpellDamaged { unit: 1, .. } | BattleEvent::SpellImmune { unit: 1 }
+        )
+    )));
+    let b = g.battle().unwrap();
+    assert_eq!(b.unit(0).unwrap().mana, 15);
+    assert!(b.unit(1).unwrap().hit_points() <= hp);
+    assert_eq!(b.unit(0).unwrap().moves_left, 0);
+    assert!(
+        b.caster(Side::Attacker).is_none(),
+        "the wizard did not cast"
+    );
+    let again = g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: zap,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    });
+    assert_eq!(again, Err(BattleError::NoMovesLeft));
+}
+
+#[test]
+fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
+    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::rules::ItemKind;
+    let mut g = casting_game();
+    let hero = a_caster(&mut g, &[], 0);
+    let wand = |slot_name: &str| Item {
+        name: slot_name.into(),
+        kind: ItemKind::Wand,
+        cost: 100,
+        icon: 0,
+        bonus: ItemBonus {
+            spell_save: 2,
+            ..ItemBonus::default()
+        },
+        powers: Vec::new(),
+        charges: Some(("zap".into(), 2)),
+        prefab: None,
+    };
+    // The spell is in the second slot: any slot works, not only the first.
+    let _ = g
+        .world
+        .insert_one(hero, HeroItems([None, Some(wand("Wand")), None]));
+    begin(&mut g, hero);
+    let zap = g.content.rules.spells.id_of("zap").unwrap();
+    let b = g.battle().unwrap();
+    assert_eq!(b.unit(0).unwrap().mana, 0, "no casting skill, no mana");
+    assert_eq!(b.unit(0).unwrap().casting.spell_save, 2);
+    let list = g.battle_unit_spells(0);
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].source, SpellSource::Item(1));
+    assert!(list[0].castable);
+    g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: zap,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    })
+    .unwrap();
+    assert_eq!(
+        g.battle().unwrap().unit(0).unwrap().casting.item_charges,
+        vec![(1, zap, 1)]
+    );
+    // The battle ends with the defender's flight; one charge is left on the item.
+    g.battle_command(BattleCommand::EndTurn).unwrap();
+    g.battle_command(BattleCommand::Flee).unwrap();
+    assert!(!g.in_battle());
+    let items = g.world.get::<&HeroItems>(hero).unwrap();
+    assert_eq!(
+        items.0[1].as_ref().unwrap().charges,
+        Some(("zap".into(), 1))
+    );
+}
+
+#[test]
+fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it() {
+    let mut g = casting_game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let mut defs = g.content.rules.units.defs().to_vec();
+    for d in defs.iter_mut().filter(|d| d.id == "walker") {
+        d.abilities.push("casts_healing".into());
+    }
+    g.content.rules.units = crate::rules::Registry::new(defs);
+    begin(&mut g, unit);
+    let healing = g.content.rules.spells.id_of("healing").unwrap();
+    // It is cast on a friend only: the enemy is a bad target.
+    let bad = g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: healing,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    });
+    assert_eq!(bad, Err(BattleError::Spell(SpellError::BadTarget)));
+    g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: healing,
+        aim: SpellAim::Unit(0),
+        mana: 0,
+    })
+    .unwrap();
+    assert!(g.battle_unit_spells(0).is_empty() || !g.battle_unit_spells(0)[0].castable);
+    assert!(g
+        .battle()
+        .unwrap()
+        .unit(0)
+        .unwrap()
+        .casting
+        .abilities
+        .is_empty());
+}
+
+#[test]
+fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
+    let mut unit = BattleUnit::simple(Side::Defender, "t", 1, 1, 1, 0);
+    unit.resistance = 6;
+    let mut b = Battle::new(
+        A,
+        D,
+        BattleMap::open(),
+        vec![
+            BattleUnit::simple(Side::Attacker, "a", 1, 1, 1, 0).at((1, 1)),
+            unit.at((5, 5)),
+        ],
+        3,
+    );
+    let resisted = |b: &mut Battle| (0..200).filter(|_| !b.resist_fails(1, None, 0)).count();
+    assert!(resisted(&mut b) > 50);
+    b.save_penalty = 10;
+    assert_eq!(resisted(&mut b), 0);
+}
+
+/// A game whose hero (casting skill 4, so mana for several casts) has the spell `id`, which runs
+/// the given hook. The battle is on; the enemy is battle unit 1.
+fn hook_game(id: &str, hook: &str, target: crate::rules::defs::SpellTarget, cost: u32) -> Game {
+    use crate::rules::effects::{Effect, EffectRule, TargetSel, Trigger};
+    let mut g = casting_game();
+    let mut spells = g.content.rules.spells.defs().to_vec();
+    let mut spell = spells.iter().find(|s| s.id == "zap").unwrap().clone();
+    spell.id = id.into();
+    spell.name = id.into();
+    spell.cost = cost;
+    spell.target = target;
+    spell.effects = vec![EffectRule {
+        when: Trigger::OnCast,
+        target: TargetSel::Chosen,
+        condition: crate::rules::effects::Condition::Always,
+        effect: Effect::Custom(hook.into()),
+    }];
+    spells.push(spell);
+    g.content.rules.spells = crate::rules::Registry::new(spells);
+    let hero = a_caster(&mut g, &[id], 4);
+    begin(&mut g, hero);
+    g.battle.as_mut().unwrap().battle.units[0].mana = 1000;
+    g
+}
+
+fn cast_unit(
+    g: &mut Game,
+    spell: &str,
+    aim: SpellAim,
+    mana: u32,
+) -> Result<Vec<Event>, BattleError> {
+    let spell = g.content.rules.spells.id_of(spell).unwrap();
+    // The unit may cast again in the next test step.
+    g.battle.as_mut().unwrap().battle.units[0].moves_left = 4;
+    g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell,
+        aim,
+        mana,
+    })
+}
+
+#[test]
+fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("earth_to_mud", "earth_to_mud", SpellTarget::Tile, 15);
+    // Any playable square may be aimed at.
+    let centre = (10, 11);
+    let events = cast_unit(&mut g, "earth_to_mud", SpellAim::Tile(centre), 0).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::MudMade { cell }) if *cell == centre)));
+    let map = &g.battle().unwrap().map;
+    for (dx, dy, mud) in [
+        (0, 0, true),
+        (2, 2, true),
+        (-2, -2, true),
+        (3, 0, false),
+        (0, -3, false),
+    ] {
+        let at = (centre.0 + dx, centre.1 + dy);
+        if map.get(at) == Some(Cell::Open) {
+            assert_eq!(map.is_mud(at), mud, "{at:?}");
+        }
+    }
+    // A walker pays all it has to enter; a flier or a bodiless unit does not notice.
+    let none = |_: Pos| false;
+    let walk = map.reachable_as((6, 11), 8, Mover::walker(), &none);
+    assert_eq!(
+        walk[&(7, 11)].0,
+        OPEN_COST,
+        "the square before the mud costs the usual"
+    );
+    let into = map.reachable_as((7, 11), 8, Mover::walker(), &none);
+    assert!(into[&(8, 11)].0 >= 8, "{:?}", into[&(8, 11)]);
+    let ghost = Mover {
+        ignores_mud: true,
+        ..Mover::walker()
+    };
+    assert_eq!(
+        map.reachable_as((7, 11), 8, ghost, &none)[&(8, 11)].0,
+        OPEN_COST
+    );
+    let flier = Mover {
+        flying: true,
+        through_walls: true,
+        ignores_mud: false,
+    };
+    assert_eq!(
+        map.reachable_as((7, 11), 8, flier, &none)[&(8, 11)].0,
+        OPEN_COST
+    );
+}
+
+#[test]
+fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("disrupt", "disrupt", SpellTarget::Tile, 15);
+    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
+    let walls = g.battle().unwrap().map.standing_walls();
+    assert!(walls.len() > 2);
+    let bad = cast_unit(&mut g, "disrupt", SpellAim::Tile((3, 3)), 0);
+    assert_eq!(bad, Err(BattleError::Spell(SpellError::BadTarget)));
+    let target = walls[1];
+    let events = cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0).unwrap();
+    assert!(events.iter().any(
+        |e| matches!(e, Event::Battle(BattleEvent::WallDestroyed { cell }) if *cell == target)
+    ));
+    let map = &g.battle().unwrap().map;
+    assert!(!map.has_wall(target));
+    assert_eq!(map.standing_walls().len(), walls.len() - 1);
+    // The broken section cannot be struck again.
+    let again = cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0);
+    assert_eq!(again, Err(BattleError::Spell(SpellError::BadTarget)));
+}
+
+#[test]
+fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("cracks_call", "cracks_call", SpellTarget::Tile, 20);
+    let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
+    // A flier is never touched; a walker falls in sooner or later.
+    g.battle.as_mut().unwrap().battle.units[1].flies = true;
+    for _ in 0..40 {
+        cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0).unwrap();
+        assert!(g.battle().unwrap().unit(1).unwrap().is_active());
+    }
+    g.battle.as_mut().unwrap().battle.units[1].flies = false;
+    let mut died = false;
+    for _ in 0..60 {
+        let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0).unwrap();
+        if !g.in_battle()
+            || events
+                .iter()
+                .any(|e| matches!(e, Event::Battle(BattleEvent::UnitDied { unit: 1 })))
+        {
+            died = true;
+            break;
+        }
+    }
+    assert!(died, "one time in four, sixty times");
+    // A wall on the square comes down.
+    let mut g = hook_game("cracks_call", "cracks_call", SpellTarget::Tile, 20);
+    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
+    let wall = g.battle().unwrap().map.standing_walls()[0];
+    let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(wall), 0).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::WallDestroyed { .. }))));
+    assert!(!g.battle().unwrap().map.has_wall(wall));
+}
+
+#[test]
+fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("life_drain", "life_drain", SpellTarget::EnemyUnit, 10);
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        b.units[1].resistance = 0;
+        b.units[0].front_damage = 3;
+    }
+    let before = g.battle().unwrap().unit(1).unwrap().hit_points();
+    let hurt = g.battle().unwrap().unit(0).unwrap().hit_points();
+    let events = cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10).unwrap();
+    let drained = events.iter().find_map(|e| match e {
+        Event::Battle(BattleEvent::LifeDrained { points, .. }) => Some(*points),
+        _ => None,
+    });
+    let points = drained.expect("a resistance 0 unit loses life");
+    let b = g.battle().unwrap();
+    assert_eq!(b.unit(1).unwrap().hit_points(), before - points);
+    assert!(
+        b.unit(0).unwrap().hit_points() > hurt,
+        "the hero took the life"
+    );
+    // Death creatures cannot be aimed at.
+    g.battle.as_mut().unwrap().battle.units[1].realm = Some(Realm::Death);
+    let refused = cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10);
+    assert_eq!(refused, Err(BattleError::Spell(SpellError::BadTarget)));
+}
+
+#[test]
+fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("word_of_recall", "word_of_recall", SpellTarget::OwnUnit, 20);
+    g.players.push(crate::player::Player::new(A, "A"));
+    let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
+    assert_eq!(no_circle, Err(BattleError::Spell(SpellError::BadTarget)));
+    g.players[0].summon_at = Some(at(1, 1));
+    let enemy = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(1), 0);
+    assert_eq!(enemy, Err(BattleError::Spell(SpellError::BadTarget)));
+    let events = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::HeroRecalled { unit: 0 }))));
+    // The only unit left the field, so the battle is over and the unit stands at the circle.
+    assert!(!g.in_battle());
+    let unit = g.units().hero_units(A)[0];
+    assert_eq!(g.units().unit_position(unit), Some(at(1, 1)));
+}
+
+#[test]
+fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
+    let mut g = game();
+    let mut defs = g.content.rules.units.defs().to_vec();
+    let mut demon = defs.iter().find(|d| d.id == "walker").unwrap().clone();
+    demon.id = "demon".into();
+    demon.name = "Demon".into();
+    defs.push(demon);
+    for d in defs.iter_mut().filter(|d| d.id == "walker") {
+        d.abilities.push("summon_demon".into());
+    }
+    g.content.rules.units = crate::rules::Registry::new(defs);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let lord = g.spawn_unit(A, at(4, 4), walker);
+    g.players.push(crate::player::Player::new(A, "A"));
+    begin(&mut g, lord);
+    assert!(g.can_summon_demon(0));
+    // Not the other side's unit, not a unit without the ability.
+    assert_eq!(
+        g.battle_command(BattleCommand::SummonDemon { unit: 1 }),
+        Err(BattleError::NotYours)
+    );
+    for turn in 0..3 {
+        g.battle.as_mut().unwrap().battle.units[0].moves_left = 2;
+        let before = g.battle().unwrap().units.len();
+        let events = g
+            .battle_command(BattleCommand::SummonDemon { unit: 0 })
+            .unwrap();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::Battle(BattleEvent::Summoned { .. }))));
+        let b = g.battle().unwrap();
+        assert_eq!(b.units.len(), before + 1, "turn {turn}");
+        let demon = b.units.last().unwrap();
+        assert_eq!(
+            (demon.side, demon.unit_id.as_str()),
+            (Side::Attacker, "demon")
+        );
+        assert!(demon.moves_left > 0, "it arrives ready to act");
+        assert_eq!(
+            b.unit(0).unwrap().moves_left,
+            0,
+            "the summoner's turn is over"
+        );
+        assert_eq!(
+            g.battle_command(BattleCommand::SummonDemon { unit: 0 }),
+            Err(BattleError::NoMovesLeft)
+        );
+    }
+    g.battle.as_mut().unwrap().battle.units[0].moves_left = 2;
+    assert_eq!(
+        g.battle_command(BattleCommand::SummonDemon { unit: 0 }),
+        Err(BattleError::Spell(SpellError::NotKnown)),
+        "three is all"
+    );
 }
 
 // ---- city enchantments (task 25) ---------------------------------------------------------

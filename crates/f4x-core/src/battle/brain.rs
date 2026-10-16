@@ -24,7 +24,57 @@ const MANA_SOFTENING: f32 = 12.0;
 /// The next command for the side to play: a cast if one is worth it, else a unit order.
 pub fn next_command(game: &Game) -> Option<BattleCommand> {
     let battle = game.battle()?;
-    Some(cast_choice(game, battle).unwrap_or_else(|| ai::next_command(battle)))
+    Some(
+        cast_choice(game, battle)
+            .or_else(|| unit_cast_choice(game, battle))
+            .unwrap_or_else(|| ai::next_command(battle)),
+    )
+}
+
+/// The cast a unit of the side to play should make now, if one is worth it (a hero's spell, an
+/// item's charge, a creature caster, an ability): scored as the wizard's casts are, against
+/// the unit's own mana. A free cast (a charge, an ability) costs nothing.
+pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
+    let side = battle.active;
+    let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
+    let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
+    let floor = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max) * WORTH_FLOOR;
+    // A demon is worth calling whenever the unit can: it is free and strong.
+    if let Some(unit) = friends
+        .iter()
+        .map(|u| u.id)
+        .find(|&u| game.can_summon_demon(u))
+    {
+        return Some(BattleCommand::SummonDemon { unit });
+    }
+    let mut best: Option<(f32, BattleCommand)> = None;
+    for (unit, cast) in game.legal_unit_casts() {
+        let free = game
+            .battle_unit_spells(unit)
+            .iter()
+            .any(|s| s.spell == cast.spell && s.cost == 0);
+        let mana = if free { 0 } else { cast.least_mana };
+        let def = game.content().rules.spells.get(cast.spell);
+        for &aim in &cast.aims {
+            let value = cast_value(game, def, aim, side, &friends, &enemies);
+            if value < floor {
+                continue;
+            }
+            let score = value / (mana as f32 + MANA_SOFTENING);
+            if best.as_ref().is_none_or(|(s, _)| score > *s) {
+                best = Some((
+                    score,
+                    BattleCommand::UnitCast {
+                        unit,
+                        spell: cast.spell,
+                        aim,
+                        mana: cast.least_mana,
+                    },
+                ));
+            }
+        }
+    }
+    best.map(|(_, c)| c)
 }
 
 /// The cast the wizard of the side to play should make now, if there is one.

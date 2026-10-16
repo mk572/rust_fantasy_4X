@@ -117,6 +117,43 @@ impl Game {
     }
 
     /// Copy an overland unit into battle form.
+    /// What a unit can cast in a battle on its own: a hero's innate spells, the charges of its
+    /// items' spells and its spell save, and the spells its abilities cast (once a battle).
+    fn unit_casting(&self, unit: hecs::Entity, abilities: &[String]) -> super::UnitCasting {
+        let spells = &self.content.rules.spells;
+        let mut casting = super::UnitCasting::default();
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            if hero.casting_skill > 0 {
+                casting.innate = hero.spells.iter().filter_map(|s| spells.id_of(s)).collect();
+            }
+        }
+        if let Ok(items) = self.world.get::<&crate::items::HeroItems>(unit) {
+            for (slot, item) in items.0.iter().enumerate() {
+                let Some(item) = item else { continue };
+                casting.spell_save += item.bonus.spell_save;
+                if let Some((spell, charges)) = &item.charges {
+                    if let (Some(id), true) = (spells.id_of(spell), *charges > 0) {
+                        casting.item_charges.push((slot, id, *charges));
+                    }
+                }
+            }
+        }
+        if abilities.iter().any(|a| a == "summon_demon") {
+            casting.demons = 3;
+        }
+        for ability in abilities {
+            let spell = match ability.as_str() {
+                "casts_doom_bolt" => "doom_bolt",
+                "casts_fireball" => "fireball",
+                "casts_healing" => "healing",
+                "casts_web" => "web",
+                _ => continue,
+            };
+            casting.abilities.extend(spells.id_of(spell));
+        }
+        casting
+    }
+
     pub(super) fn battle_unit_from(
         &self,
         unit: hecs::Entity,
@@ -193,6 +230,7 @@ impl Game {
             ammo,
             mana,
             hero_caster: hero_mana > 0,
+            casting: self.unit_casting(unit, &abilities),
             ranged_kind,
             flies,
             first_strike: has("first_strike"),
@@ -387,6 +425,18 @@ impl Game {
         if let BattleCommand::Cast { spell, aim, mana } = command {
             return self.battle_cast(spell, aim, mana);
         }
+        if let BattleCommand::SummonDemon { unit } = command {
+            return self.battle_summon_demon(unit);
+        }
+        if let BattleCommand::UnitCast {
+            unit,
+            spell,
+            aim,
+            mana,
+        } = command
+        {
+            return self.battle_unit_cast(unit, spell, aim, mana);
+        }
         let active = self.battle.as_mut().ok_or(BattleError::Over)?;
         let events = active.battle.apply(command)?;
         // Mana Leak and the like change the wizards' reserves.
@@ -428,6 +478,18 @@ impl Game {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
             };
+            // The charges an item's spell has left stay on the item.
+            if !u.casting.item_charges.is_empty() {
+                if let Ok(mut items) = self.world.get::<&mut crate::items::HeroItems>(entity) {
+                    for &(slot, _, left) in &u.casting.item_charges {
+                        if let Some((_, charges)) =
+                            items.0[slot].as_mut().and_then(|i| i.charges.as_mut())
+                        {
+                            *charges = left;
+                        }
+                    }
+                }
+            }
             // Regeneration heals the unit completely after the fight, and brings back one that
             // was slain (not drained or destroyed) if its side won.
             let regenerates = u.regenerates();

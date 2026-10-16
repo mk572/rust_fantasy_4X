@@ -304,6 +304,44 @@ impl Battle {
         Some(dmg)
     }
 
+    /// Destroy a unit outright, no defence or resistance helping (Cracks Call). Nothing is left
+    /// to raise.
+    pub fn destroy_unit(&mut self, target: usize) -> Damage {
+        let mut state = self.units[target].defender_state();
+        let all = state.hit_points();
+        let dmg = unblockable(&mut state, all).all_gone();
+        self.units[target].set_from(&state);
+        self.units[target].record(dmg);
+        dmg
+    }
+
+    /// Life Drain: a death resistance check with `modifier` added (the extra mana makes it
+    /// harder to resist), and the unit loses that many hit points as drained life, which can
+    /// raise it as undead. `None` if the unit is immune: a death creature, or immune to death.
+    pub fn drain_life(&mut self, target: usize, modifier: i32) -> Option<Damage> {
+        let unit = &self.units[target];
+        if unit.realm == Some(Realm::Death) || unit.has("death_immunity") {
+            return None;
+        }
+        let mut state = unit.defender_state();
+        let rng: &mut dyn RngCore = &mut self.rng;
+        let amount =
+            state.resistance_failure(Some(Realm::Death), modifier - self.save_penalty, rng);
+        let dmg = unblockable(&mut state, amount).all_drained();
+        self.units[target].set_from(&state);
+        self.units[target].record(dmg);
+        Some(dmg)
+    }
+
+    /// Turn the 5 by 5 squares round `center` to mud (Earth to Mud).
+    pub fn spread_mud(&mut self, center: Pos) {
+        for dy in -2..=2 {
+            for dx in -2..=2 {
+                self.map.make_mud((center.0 + dx, center.1 + dy));
+            }
+        }
+    }
+
     /// Heal a unit by `points`, bringing dead figures back; returns the hit points it gained.
     pub fn spell_heal(&mut self, target: usize, points: i32) -> i32 {
         self.units[target].heal_points(points, false)

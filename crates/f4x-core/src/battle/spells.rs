@@ -33,6 +33,9 @@ use crate::rules::SpellId;
 use crate::units::UnitEnchantments;
 use crate::{Event, Game};
 
+mod unit_cast;
+pub use unit_cast::{SpellSource, UnitSpell};
+
 /// The hook of the Animate Dead spell.
 pub const ANIMATE_DEAD: &str = "animate_dead";
 /// The hook of Creature Binding: a fantastic creature fights for the caster until the battle
@@ -43,6 +46,16 @@ pub const POSSESSION: &str = "possession";
 /// The hook of Raise Dead: a fallen normal unit returns with half its figures.
 pub const RAISE_DEAD: &str = "raise_dead";
 pub const RECALL_HERO: &str = "recall_hero";
+/// The hook of Word of Recall in a battle: any of the wizard's units goes to the summoning circle.
+pub const WORD_OF_RECALL: &str = crate::special_spells::WORD_OF_RECALL;
+/// The hook of Earth to Mud: a 5 by 5 area of open ground turns to mud.
+pub const EARTH_TO_MUD: &str = "earth_to_mud";
+/// The hook of Cracks Call: a fissure on one square.
+pub const CRACKS_CALL: &str = "cracks_call";
+/// The hook of Disrupt: one section of city wall is destroyed.
+pub const DISRUPT: &str = "disrupt";
+/// The hook of Life Drain: the target's life goes to the caster.
+pub const LIFE_DRAIN: &str = "life_drain";
 /// The hook of Warp Wood: a missile unit's ammunition is destroyed.
 pub const WARP_WOOD: &str = "warp_wood";
 /// The hook of Warp Creature.
@@ -111,8 +124,19 @@ enum Kind {
     Raise,
     /// Destroy a missile unit's ammunition (Warp Wood).
     WarpWood,
-    /// Take one of the wizard's heroes off the field to the summoning circle (Recall Hero).
-    Recall,
+    /// Take one of the wizard's units off the field to the summoning circle: only a hero for
+    /// Recall Hero, any unit for Word of Recall.
+    Recall {
+        anyone: bool,
+    },
+    /// Mud on a 5 by 5 area (Earth to Mud).
+    EarthToMud,
+    /// A fissure on a square (Cracks Call).
+    CracksCall,
+    /// A section of the city wall is destroyed (Disrupt).
+    Disrupt,
+    /// Life from the target to the caster (Life Drain); extra mana makes it harder to resist.
+    LifeDrain,
     /// A unit changes sides after a resistance check: for good until a dispel (Creature
     /// Binding, fantastic creatures) or just for the battle (Possession, normal units).
     Turn {
@@ -131,7 +155,7 @@ impl Kind {
         match self {
             Kind::Damage { traits, .. } => traits.mana_per_point > 0,
             Kind::Slay { mana_per_step, .. } => *mana_per_step > 0,
-            Kind::Dispel(_) | Kind::CounterMagic => true,
+            Kind::Dispel(_) | Kind::CounterMagic | Kind::LifeDrain => true,
             _ => false,
         }
     }
@@ -289,7 +313,12 @@ impl Game {
             Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
             Effect::Custom(h) if h == RAISE_DEAD => Some(Kind::Raise),
             Effect::Custom(h) if h == WARP_WOOD => Some(Kind::WarpWood),
-            Effect::Custom(h) if h == RECALL_HERO => Some(Kind::Recall),
+            Effect::Custom(h) if h == RECALL_HERO => Some(Kind::Recall { anyone: false }),
+            Effect::Custom(h) if h == WORD_OF_RECALL => Some(Kind::Recall { anyone: true }),
+            Effect::Custom(h) if h == EARTH_TO_MUD => Some(Kind::EarthToMud),
+            Effect::Custom(h) if h == CRACKS_CALL => Some(Kind::CracksCall),
+            Effect::Custom(h) if h == DISRUPT => Some(Kind::Disrupt),
+            Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
             Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
                 save: def.save.clone(),
             }),
@@ -571,6 +600,22 @@ impl Game {
                 }
                 Ok(())
             }
+            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Disrupt) => {
+                if battle.map.has_wall(cell) {
+                    Ok(())
+                } else {
+                    Err(SpellError::BadTarget)
+                }
+            }
+            (SpellTarget::Tile, SpellAim::Tile(cell))
+                if matches!(kind, Kind::EarthToMud | Kind::CracksCall) =>
+            {
+                if battle.map.is_playable(cell) {
+                    Ok(())
+                } else {
+                    Err(SpellError::BadTarget)
+                }
+            }
             (SpellTarget::Tile, SpellAim::Tile(cell)) => {
                 if battle.active_units(side).count() >= MAX_SIDE_UNITS
                     || !battle.is_summon_square(side, cell)
@@ -636,10 +681,16 @@ impl Game {
                     }
                 }
                 // Recall Hero takes one of the wizard's own heroes, and needs a place to send it.
-                if matches!(kind, Kind::Recall)
-                    && (!own
-                        || !self.battle_unit_is_hero(u)
-                        || self.summon_point(battle.player_of(side)).is_none())
+                if let Kind::Recall { anyone } = kind {
+                    if !own
+                        || (!anyone && !self.battle_unit_is_hero(u))
+                        || self.summon_point(battle.player_of(side)).is_none()
+                    {
+                        return Err(SpellError::BadTarget);
+                    }
+                }
+                if matches!(kind, Kind::LifeDrain)
+                    && (u.realm == Some(Realm::Death) || u.has("death_immunity"))
                 {
                     return Err(SpellError::BadTarget);
                 }
@@ -907,7 +958,74 @@ impl Game {
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
             (Kind::CallChaos, _) => self.call_chaos(side, player),
-            (Kind::Recall, SpellAim::Unit(target)) => {
+            (Kind::EarthToMud, SpellAim::Tile(cell)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                active.battle.spread_mud(cell);
+                vec![BattleEvent::MudMade { cell }]
+            }
+            (Kind::Disrupt, SpellAim::Tile(cell)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                active.battle.map.break_wall(cell);
+                vec![BattleEvent::WallDestroyed { cell }]
+            }
+            (Kind::CracksCall, SpellAim::Tile(cell)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                let mut events = vec![BattleEvent::FissureOpened { cell }];
+                // A walker or crawler over the fissure falls in one time in four, whatever its
+                // defence; fliers and the bodiless stand clear.
+                let over = battle
+                    .unit_at(cell)
+                    .filter(|u| !u.flies && !u.has("non_corporeal"))
+                    .map(|u| u.id);
+                if let Some(id) = over {
+                    if battle.roll(4) == 1 {
+                        let dmg = battle.destroy_unit(id);
+                        events.extend(battle.spell_events_for_damage(id, Some(dmg)));
+                    }
+                }
+                if battle.map.has_wall(cell) {
+                    battle.map.break_wall(cell);
+                    events.push(BattleEvent::WallDestroyed { cell });
+                }
+                events
+            }
+            (Kind::LifeDrain, SpellAim::Unit(target)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                let extra = ((pool - def.cost as i32) / 5).max(0);
+                let dmg = battle.drain_life(target, -extra);
+                let mut events = battle.spell_events_for_damage(target, dmg);
+                if let Some(d) = dmg.filter(|d| d.points > 0) {
+                    events.push(BattleEvent::LifeDrained {
+                        unit: target,
+                        points: d.points,
+                    });
+                    match battle.spell_caster {
+                        // A hero or creature that cast it takes the life as hit points.
+                        Some(c) => {
+                            battle.units[c].heal_points(d.points, true);
+                        }
+                        // A wizard turns it into mana.
+                        None => {
+                            if let Some(caster) = battle.casters[side.index()].as_mut() {
+                                caster.mana += d.points * 3;
+                            }
+                        }
+                    }
+                }
+                self.sync_battle_mana();
+                events
+            }
+            (Kind::Recall { .. }, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1266,7 +1384,7 @@ impl Battle {
     pub fn resist_fails(&mut self, target: usize, realm: Option<Realm>, modifier: i32) -> bool {
         let state = self.units[target].defender_state();
         let rng: &mut dyn rand::RngCore = &mut self.rng;
-        state.resistance_failure(realm, modifier, rng) > 0
+        state.resistance_failure(realm, modifier - self.save_penalty, rng) > 0
     }
 }
 

@@ -24,6 +24,8 @@ pub const GRID_H: i32 = 22;
 pub const OPEN_COST: u32 = 2;
 /// Half-moves to enter rough ground.
 pub const ROUGH_COST: u32 = 4;
+/// Half-moves to enter mud (Earth to Mud): the original's 12, which is more than any unit has.
+pub const MUD_COST: u32 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cell {
@@ -91,6 +93,8 @@ pub enum Wall {
 pub struct Mover {
     pub flying: bool,
     pub through_walls: bool,
+    /// Mud does not slow it: the non-corporeal (fliers pass over it anyway).
+    pub ignores_mud: bool,
 }
 
 impl Mover {
@@ -112,6 +116,8 @@ pub struct BattleMap {
     /// The city is a Flying Fortress: it is shut to anyone who cannot fly or pass through walls,
     /// from the outside and from the inside alike.
     fortress: bool,
+    /// Squares Earth to Mud turned to mud.
+    mud: Vec<bool>,
 }
 
 impl BattleMap {
@@ -123,7 +129,23 @@ impl BattleMap {
             look: None,
             walls: None,
             fortress: false,
+            mud: vec![false; (GRID_W * GRID_H) as usize],
         }
+    }
+
+    /// Whether the square is mud.
+    pub fn is_mud(&self, pos: Pos) -> bool {
+        Self::in_bounds(pos) && self.mud[Self::index(pos)]
+    }
+
+    /// Turn the square to mud if it is open ground (grass or dirt in the original; forest,
+    /// rocks and the like stay as they are). Returns whether it changed.
+    pub fn make_mud(&mut self, pos: Pos) -> bool {
+        if self.get(pos) == Some(Cell::Open) && !self.is_mud(pos) {
+            self.mud[Self::index(pos)] = true;
+            return true;
+        }
+        false
     }
 
     /// Make the city a Flying Fortress (the original's `Update_Move_Map_City_Area_Restrictions`
@@ -364,6 +386,7 @@ impl BattleMap {
         let mover = Mover {
             flying,
             through_walls: flying,
+            ignores_mud: false,
         };
         self.reachable_as(from, points, mover, occupied)
     }
@@ -391,9 +414,12 @@ impl BattleMap {
                         continue;
                     }
                     let next = (at.0 + dx, at.1 + dy);
-                    let Some(step) = self.enter_cost(next, mover.flying) else {
+                    let Some(mut step) = self.enter_cost(next, mover.flying) else {
                         continue;
                     };
+                    if self.is_mud(next) && !mover.flying && !mover.ignores_mud {
+                        step = MUD_COST;
+                    }
                     if occupied(next) || self.shut_by_walls(next, mover, inside) {
                         continue;
                     }

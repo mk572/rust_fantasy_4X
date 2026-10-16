@@ -101,6 +101,13 @@ pub const TABLE: &[CommandDef] = &[
         run: blegal,
     },
     CommandDef {
+        name: "uspells",
+        kind: Kind::Query,
+        usage: "uspells <unit>",
+        help: "The spells a battle unit can cast on its own (a hero's spells and items, a creature caster, an ability), where each comes from and what it must be aimed at.",
+        run: uspells,
+    },
+    CommandDef {
         name: "bspells",
         kind: Kind::Query,
         usage: "bspells",
@@ -730,6 +737,74 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 aims.join(" ")
             ));
         }
+    }
+    {
+        let rules = &ctx.game.content().rules;
+        for (unit, lc) in ctx.game.legal_unit_casts() {
+            if only.is_some_and(|o| o != unit) {
+                continue;
+            }
+            let aims: Vec<String> = lc
+                .aims
+                .iter()
+                .map(|a| match a {
+                    SpellAim::None => "none".to_string(),
+                    SpellAim::Unit(u) => format!("unit:{u}"),
+                    SpellAim::Tile(c) => format!("tile:{},{}", c.0, c.1),
+                })
+                .collect();
+            lines.push(format!(
+                "unit {unit} casts {}: mana {}..{}; aims {}",
+                rules.spells.get(lc.spell).id,
+                lc.least_mana,
+                lc.most_mana,
+                aims.join(" ")
+            ));
+        }
+    }
+    for l in lines {
+        ctx.say(l);
+    }
+    Ok(())
+}
+
+fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::battle::spells::SpellSource;
+    use f4x_core::rules::defs::SpellTarget;
+    let unit = a.int(0, "battle unit number")?.max(0) as usize;
+    let b = ctx
+        .game
+        .battle()
+        .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
+    let u = b
+        .unit(unit)
+        .ok_or_else(|| ConsoleError::NoSuch(format!("battle unit {unit}")))?;
+    let mut lines = vec![format!("unit {unit} ({}) has {} mana", u.name, u.mana)];
+    let rules = &ctx.game.content().rules;
+    for s in ctx.game.battle_unit_spells(unit) {
+        let d = rules.spells.get(s.spell);
+        let aim = match s.target {
+            SpellTarget::OwnUnit => "own unit",
+            SpellTarget::EnemyUnit => "enemy unit",
+            SpellTarget::AnyUnit => "any unit",
+            SpellTarget::Tile => "a square",
+            _ => "no target",
+        };
+        let from = match s.source {
+            SpellSource::Item(slot) => format!("item charge (slot {})", slot + 1),
+            SpellSource::Ability => "ability, once".to_string(),
+            SpellSource::Mana => format!(
+                "costs {}{} mana",
+                s.cost,
+                if s.takes_extra_mana { "+" } else { "" }
+            ),
+        };
+        lines.push(format!(
+            "{} ({}): {from}, aimed at {aim}{}",
+            d.id,
+            d.name,
+            if s.castable { "" } else { " [cannot cast now]" }
+        ));
     }
     for l in lines {
         ctx.say(l);

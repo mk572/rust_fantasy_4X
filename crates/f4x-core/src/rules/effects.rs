@@ -60,6 +60,10 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::battle::spells::POSSESSION,
     crate::battle::spells::RAISE_DEAD,
     crate::battle::spells::RECALL_HERO,
+    crate::battle::spells::EARTH_TO_MUD,
+    crate::battle::spells::CRACKS_CALL,
+    crate::battle::spells::DISRUPT,
+    crate::battle::spells::LIFE_DRAIN,
     crate::battle::spells::WARP_WOOD,
     crate::battle::spells::WARP_CREATURE,
 ];

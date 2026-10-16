@@ -8,7 +8,7 @@ their own lists.
   number of the spell's help topic and the `spl_*` constant in ReMoM (`Spellbook.h`).
 - **Needs first** names what has to exist before the spell can work. A spell with a heroes or items
   prerequisite waits for those tasks (48, 50, 218 onward).
-- 25 spells are listed. The count should drop as they are done: when a spell is wired, delete its
+- 22 spells are listed. The count should drop as they are done: when a spell is wired, delete its
   row, and keep `docs/TASKS.md` in step. Spells are edited directly in `content/spells.ron` (the
   importer no longer writes it).
 - Where help and code disagree for a spell, add a row to
@@ -42,9 +42,6 @@ None left: Immolation, Cloak of Fear, True Sight, Eldritch Weapon, Spell Lock, E
 
 | No. | Spell | Realm | Needs first |
 |---|---|---|---|
-| 1 | Earth to Mud | nature | Mud on a five by five area of the battlefield that costs all movement; flyers and bodiless units pass |
-| 11 | Cracks Call | nature | A fissure on the field: 25 percent death to units over it that walk, and breaking stone walls (tasks 158, 163); items of dead heroes (task 221) |
-| 82 | Disrupt | chaos | Wall sections that can be broken one at a time (tasks 158, 163) |
 | 105 | Magic Vortex | chaos | A moving battlefield object with controlled moves, damage to units in its way and to a city it crosses (task 158 item 5) |
 
 ## E. Mutations

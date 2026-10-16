@@ -336,3 +336,23 @@ the original's ways. Kept there; listed so this file is a complete index.
   movement left may always step): check each against the original before relying on it.
 - Saves are snapshots, not command logs.
 - Help text rewritten where it disagrees with the game's code (`[Updated from game code: ...]`).
+
+## 13. Casting in battle (tasks 51, 159 and 265)
+
+- **Life Drain gives a wizard mana, not skill.** The help says "converts the drained life into mana
+  for a spell caster wizard"; the original's code adds three casting-skill points for each point
+  drained (`Apply_Life_Drain`). Here a wizard gets 3 mana for each point; a hero or creature that
+  cast it heals that many hit points, as in the original.
+- **Every item's spell can be cast**, not only the first slot's (`COMBINIT.c`, bug H22), and the
+  charges stay on the item after the battle.
+- **A cast by a unit costs the spell's plain cost** in the unit's mana, as the original's does; the
+  original's check that a unit has "at least 5 mana to cast anything" is not kept (the spell button
+  needs only the mana of the spell).
+- **Earth to Mud** follows the original's 12 half-moves to enter (the help says "all its movement
+  points"), and turns open ground only, where the original tests the terrain group (grass and dirt).
+- **Cracks Call** works on the one square aimed at (as `Apply_Cracks_Call` does); the help's
+  "fissure" suggests more.
+- **Heroes' skill at the fortress** (`Player_Hero_Casting_Skill`): half a hero's mana for each
+  hero on the fortress square, added to the skill that pays for a spell over turns, for that turn
+  only. The spell book's displayed limit in the original includes it; the limit for casting at once
+  here does not.

@@ -58,6 +58,8 @@ pub const TABLE: &[CommandDef] = &[
     legal!("bshoot", "bshoot <unit> <target>", "In battle: fire at an enemy at a distance.", bshoot),
     legal!("bwall", "bwall <unit> <x,y>", "In battle: a wall crusher strikes the wall section at that square, next to it.", bwall),
     legal!("bshootwall", "bshootwall <unit> <x,y>", "In battle: a wall crusher fires at the wall section at that square.", bshootwall),
+    legal!("ucast", "ucast <unit> <spell> [unit:N | tile:x,y] [mana:N]", "In battle: a unit casts a spell of its own (a hero's spell with its mana, an item's charge, a creature caster or an ability), instead of the wizard. The unit ends its turn (`uspells` lists what it can cast).", ucast),
+    legal!("summondemon", "summondemon <unit>", "In battle: a unit with Creature Summoning (the Demon Lord) calls a demon to its side, for no mana; the unit ends its turn. A Demon Lord can do it three times a battle.", summondemon),
     legal!("bcast", "bcast <spell> [unit:N | tile:x,y] [mana:N]", "In battle: your wizard casts a spell (once a turn). Aim it at a battle unit or a square; extra mana makes a bolt, a dispel or Counter Magic stronger (`bspells` lists what you can cast).", bcast),
     legal!("bdone", "bdone <unit>", "In battle: give up the rest of a unit's turn.", bdone),
     legal!("bend", "bend", "In battle: end your side's turn.", bend),
@@ -416,12 +418,15 @@ fn bshootwall(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     battle_order(ctx, order)
 }
 
-fn bcast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+/// The aim, mana and spell name of a `bcast` or `ucast`.
+fn cast_words(
+    words: &[String],
+) -> Result<(f4x_core::battle::SpellAim, u32, Vec<&str>), ConsoleError> {
     use f4x_core::battle::SpellAim;
     let mut aim = SpellAim::None;
     let mut mana = 0;
     let mut name = Vec::new();
-    for word in a.words {
+    for word in words {
         if let Some(n) = word.strip_prefix("mana:") {
             mana = n
                 .parse()
@@ -437,8 +442,33 @@ fn bcast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             name.push(word.as_str());
         }
     }
+    Ok((aim, mana, name))
+}
+
+fn bcast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let (aim, mana, name) = cast_words(a.words)?;
     let spell = spell_arg(ctx, &name.join(" "))?;
     battle_order(ctx, BattleCommand::Cast { spell, aim, mana })
+}
+
+fn summondemon(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let unit = battle_unit(a, 0)?;
+    battle_order(ctx, BattleCommand::SummonDemon { unit })
+}
+
+fn ucast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let unit = battle_unit(a, 0)?;
+    let (aim, mana, name) = cast_words(a.words.get(1..).unwrap_or(&[]))?;
+    let spell = spell_arg(ctx, &name.join(" "))?;
+    battle_order(
+        ctx,
+        BattleCommand::UnitCast {
+            unit,
+            spell,
+            aim,
+            mana,
+        },
+    )
 }
 
 fn bdone(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

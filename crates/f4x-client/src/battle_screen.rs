@@ -57,8 +57,10 @@ pub(crate) struct BattleUi {
     playing: Option<(Anim, f32)>,
     /// Which way each unit looks (0 north, clockwise), by unit id.
     facing: HashMap<usize, u8>,
-    /// The wizard's spell list is open.
+    /// The spell list is open: the wizard's, or the unit's when `spell_unit` is set.
     spell_list: bool,
+    /// The unit whose own spells the list shows (a hero, a creature caster).
+    spell_unit: Option<usize>,
     /// A spell chosen and waiting for its target (and the mana put into it).
     aiming: Option<Aiming>,
     /// Animate Dead or Raise Dead chosen: the list of the fallen to pick from.
@@ -69,19 +71,36 @@ pub(crate) struct BattleUi {
 }
 
 /// A spell the player has picked.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Aiming {
+    /// The unit casting it, if it is not the wizard.
+    unit: Option<usize>,
     spell: SpellId,
     /// Mana put into it, between its cost and the most the wizard can afford.
     mana: i32,
     most: i32,
     target: SpellTarget,
     takes_extra_mana: bool,
+    /// For a spell aimed at a square: the squares the game accepts.
+    tiles: Vec<Pos>,
 }
 
 impl BattleUi {
     fn animating(&self) -> bool {
         self.shown.is_some()
+    }
+}
+
+/// The order for a spell cast by the wizard (`unit` none) or by a battle unit.
+fn cast_order(unit: Option<usize>, spell: SpellId, aim: SpellAim, mana: u32) -> BattleCommand {
+    match unit {
+        Some(unit) => BattleCommand::UnitCast {
+            unit,
+            spell,
+            aim,
+            mana,
+        },
+        None => BattleCommand::Cast { spell, aim, mana },
     }
 }
 
@@ -175,6 +194,15 @@ pub(crate) fn describe(
         ),
         BattleEvent::UnitDied { unit } => format!("{} is destroyed", name(*unit)),
         BattleEvent::SpellCast { spell: s, .. } => format!("{} is cast", spell(*s)),
+        BattleEvent::UnitSpellCast { unit, spell: s, .. } => {
+            format!("{} casts {}", name(*unit), spell(*s))
+        }
+        BattleEvent::WallDestroyed { .. } => "A section of the wall is destroyed".to_string(),
+        BattleEvent::MudMade { .. } => "The ground turns to mud".to_string(),
+        BattleEvent::FissureOpened { .. } => "The earth cracks open".to_string(),
+        BattleEvent::LifeDrained { unit, points } => {
+            format!("{} loses {points} life", name(*unit))
+        }
         BattleEvent::SpellCountered { spell: s, .. } => {
             format!("Counter Magic stops {}", spell(*s))
         }
@@ -672,13 +700,10 @@ impl App {
     fn pick_spell(&mut self, spell: &f4x_core::battle::spells::BattleSpell) {
         self.battle_ui.spell_list = false;
         let cost = self.game.content().rules.spells.get(spell.spell).cost as i32;
+        let unit = self.battle_ui.spell_unit.take();
         let aimless = matches!(spell.target, SpellTarget::None | SpellTarget::Battlefield);
         if aimless && !spell.takes_extra_mana {
-            self.battle_order(BattleCommand::Cast {
-                spell: spell.spell,
-                aim: SpellAim::None,
-                mana: 0,
-            });
+            self.battle_order(cast_order(unit, spell.spell, SpellAim::None, 0));
             self.battle_ui.selected = None;
             return;
         }
@@ -690,14 +715,52 @@ impl App {
         .into_iter()
         .any(|h| self.game.spell_has_hook(spell.spell, h))
         {
-            self.battle_ui.fallen_list = Some(spell.spell);
+            // Only the wizard raises the fallen.
+            if unit.is_none() {
+                self.battle_ui.fallen_list = Some(spell.spell);
+            }
             return;
         }
-        let most = self
-            .game
-            .battle_spell_most_mana(HUMAN, spell.spell)
-            .max(cost);
+        let most = match unit {
+            Some(u) => self
+                .game
+                .battle()
+                .and_then(|b| b.unit(u))
+                .map_or(cost, |u| u.mana.max(cost)),
+            None => self
+                .game
+                .battle_spell_most_mana(HUMAN, spell.spell)
+                .max(cost),
+        };
+        let tiles = if spell.target == SpellTarget::Tile {
+            let aims: Vec<SpellAim> = match unit {
+                Some(u) => self
+                    .game
+                    .legal_unit_casts()
+                    .into_iter()
+                    .filter(|(id, c)| *id == u && c.spell == spell.spell)
+                    .flat_map(|(_, c)| c.aims)
+                    .collect(),
+                None => self
+                    .game
+                    .legal_battle_casts()
+                    .into_iter()
+                    .filter(|c| c.spell == spell.spell)
+                    .flat_map(|c| c.aims)
+                    .collect(),
+            };
+            aims.into_iter()
+                .filter_map(|a| match a {
+                    SpellAim::Tile(cell) => Some(cell),
+                    _ => None,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         self.battle_ui.aiming = Some(Aiming {
+            tiles,
+            unit,
             spell: spell.spell,
             mana: cost,
             most,
@@ -711,10 +774,11 @@ impl App {
         if is_key_pressed(KeyCode::Escape) {
             self.battle_ui.aiming = None;
             self.battle_ui.spell_list = false;
+            self.battle_ui.spell_unit = None;
             self.battle_ui.fallen_list = None;
             return;
         }
-        let Some(mut aim) = self.battle_ui.aiming else {
+        let Some(mut aim) = self.battle_ui.aiming.clone() else {
             return;
         };
         // More or less mana: Up/Down by one, Page Up/Down by five.
@@ -727,7 +791,7 @@ impl App {
                 + step(KeyCode::PageUp, KeyCode::PageDown, 5)
                 + step(KeyCode::Equal, KeyCode::Minus, 1);
             aim.mana = (aim.mana + change).clamp(cost, aim.most);
-            self.battle_ui.aiming = Some(aim);
+            self.battle_ui.aiming = Some(aim.clone());
         }
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let target = if aimless {
@@ -746,15 +810,16 @@ impl App {
         };
         if let Some(target) = target {
             self.battle_ui.aiming = None;
-            self.battle_order(BattleCommand::Cast {
-                spell: aim.spell,
-                aim: target,
-                mana: if aim.takes_extra_mana {
+            self.battle_order(cast_order(
+                aim.unit,
+                aim.spell,
+                target,
+                if aim.takes_extra_mana {
                     aim.mana as u32
                 } else {
                     0
                 },
-            });
+            ));
             self.battle_ui.selected = None;
         }
     }
@@ -765,7 +830,7 @@ impl App {
             return false;
         };
         match aim.target {
-            SpellTarget::Tile => battle.is_summon_square(side, cell),
+            SpellTarget::Tile => aim.tiles.contains(&cell),
             target => battle.unit_at(cell).is_some_and(|u| match target {
                 SpellTarget::OwnUnit => u.side == side,
                 SpellTarget::EnemyUnit => u.side != side,
@@ -776,18 +841,41 @@ impl App {
 
     /// The list of spells the wizard can cast, drawn over the field.
     fn draw_spell_list(&mut self, battle: &Battle) {
-        let spells = self.game.battle_spells(HUMAN);
+        let unit = self.battle_ui.spell_unit;
+        let spells = match unit {
+            Some(u) => self
+                .game
+                .battle_unit_spells(u)
+                .into_iter()
+                .map(|s| f4x_core::battle::spells::BattleSpell {
+                    spell: s.spell,
+                    cost: s.cost,
+                    takes_extra_mana: s.takes_extra_mana,
+                    target: s.target,
+                    castable: s.castable,
+                })
+                .collect(),
+            None => self.game.battle_spells(HUMAN),
+        };
         let (row_h, width) = (26.0, 360.0);
-        let height = (spells.len().max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
+        // A unit with Creature Summoning also calls demons.
+        let demons = unit
+            .and_then(|u| battle.unit(u))
+            .map_or(0, |u| u.casting.demons);
+        let rows = spells.len() + usize::from(demons > 0);
+        let height = (rows.max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
         let (x, y) = (20.0, 20.0);
         draw_rectangle(x, y, width, height, PANEL);
         draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
         let caster = Self::my_caster(battle);
-        let head = caster.map_or("No wizard".to_string(), |c| {
-            format!("Skill {}   Mana {}   Esc closes", c.skill_left, c.mana)
-        });
+        let head = match unit.and_then(|u| battle.unit(u)) {
+            Some(u) => format!("{}   Mana {}   Esc closes", u.name, u.mana),
+            None => caster.map_or("No wizard".to_string(), |c| {
+                format!("Skill {}   Mana {}   Esc closes", c.skill_left, c.mana)
+            }),
+        };
         draw_text(&head, x + 10.0, y + 22.0, 18.0, WHITE);
-        if spells.is_empty() {
+        if spells.is_empty() && demons == 0 {
             draw_text("No spell to cast here", x + 10.0, y + 50.0, 18.0, LIGHTGRAY);
         }
         let room = ((height - 34.0) / row_h) as usize;
@@ -807,6 +895,21 @@ impl App {
             );
             if button(rect, &label, spell.castable) {
                 self.pick_spell(spell);
+            }
+        }
+        if let (Some(u), true) = (unit, demons > 0) {
+            let rect = Rect::new(
+                x + 8.0,
+                y + 30.0 + spells.len() as f32 * row_h,
+                width - 16.0,
+                row_h - 2.0,
+            );
+            let label = format!("Summon Demon   ({demons} left)");
+            if button(rect, &label, self.game.can_summon_demon(u)) {
+                self.battle_ui.spell_list = false;
+                self.battle_ui.spell_unit = None;
+                self.battle_order(BattleCommand::SummonDemon { unit: u });
+                self.battle_ui.selected = None;
             }
         }
     }
@@ -880,7 +983,7 @@ impl App {
 
     /// The prompt for the spell waiting for its target, and the squares it can be aimed at.
     fn draw_aiming(&mut self, battle: &Battle, hovered: Option<Pos>, origin: (f32, f32, f32)) {
-        let Some(aim) = self.battle_ui.aiming else {
+        let Some(aim) = self.battle_ui.aiming.clone() else {
             return;
         };
         let (ox, oy, scale) = origin;
@@ -1370,13 +1473,22 @@ impl App {
         let mut order = None;
         let col = |i: f32| x + 12.0 + i * 92.0;
         // The information window is not built yet (task 132).
+        // The selected unit casts its own spells when it has any it can cast now (a hero, a
+        // creature caster); otherwise the Spell button is the wizard's.
+        let unit_caster = sel.filter(|&u| {
+            my_turn
+                && (self.game.battle_unit_spells(u).iter().any(|s| s.castable)
+                    || self.game.can_summon_demon(u))
+        });
         let can_cast = my_turn
             && self.battle_ui.aiming.is_none()
             && self.battle_ui.fallen_list.is_none()
-            && Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn);
+            && (unit_caster.is_some()
+                || Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn));
         let spell = self.compix_button(1, "Spell", (col(0.0), by), can_cast);
         if spell || (can_cast && is_key_pressed(KeyCode::S)) {
             self.battle_ui.spell_list = !self.battle_ui.spell_list;
+            self.battle_ui.spell_unit = unit_caster.filter(|_| self.battle_ui.spell_list);
         }
         let wait = self.compix_button(2, "Wait", (col(1.0), by), my_turn);
         if wait || (my_turn && is_key_pressed(KeyCode::W)) {
@@ -1392,6 +1504,7 @@ impl App {
             self.battle_ui.auto = !auto;
             self.battle_ui.aiming = None;
             self.battle_ui.spell_list = false;
+            self.battle_ui.spell_unit = None;
             self.battle_ui.fallen_list = None;
         }
         self.compix_button(20, "Info", (col(1.0), by + 40.0), false);
