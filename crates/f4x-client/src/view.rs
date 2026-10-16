@@ -156,6 +156,9 @@ pub struct App {
     /// The capital and the name typed so far, while the first-turn naming box is up.
     /// The units of the foreign stack whose list window is up.
     pub(crate) unit_list: Vec<hecs::Entity>,
+    /// The site boxes waiting to be shown, and whether the item screen follows the treasure.
+    pub(crate) site_notices: std::collections::VecDeque<crate::site_prompt::SiteNotice>,
+    pub(crate) items_after_treasure: bool,
     pub(crate) capital_naming: Option<(hecs::Entity, String)>,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
@@ -246,6 +249,8 @@ impl App {
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
             capital_naming: None,
+            site_notices: Default::default(),
+            items_after_treasure: false,
             unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
@@ -352,7 +357,6 @@ impl App {
     /// Turn events into log lines; returns whether a city was founded.
     pub(crate) fn note(&mut self, events: Vec<Event>) -> bool {
         let mut founded = false;
-        let mut follow = Vec::new();
         for event in events {
             let line = match event {
                 Event::CityFounded { city, .. } => {
@@ -411,11 +415,22 @@ impl App {
                         .first()
                         .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
-                        follow.push(Command::EnterSite { units, to });
+                        self.site_encounter(units, to);
                     }
                     None
                 }
-                Event::SiteCleared { loot, .. } => Some(loot_line(&loot)),
+                Event::SiteCleared {
+                    player,
+                    site,
+                    guarded,
+                    loot,
+                    ..
+                } => {
+                    if player == HUMAN {
+                        self.site_cleared(&site, guarded, &loot);
+                    }
+                    Some(loot_line(&loot))
+                }
                 Event::CityLooted {
                     city,
                     gold,
@@ -611,9 +626,6 @@ impl App {
         }
         if self.log.len() > 40 {
             self.log.drain(..self.log.len() - 40);
-        }
-        for command in follow {
-            self.begin_battle(command);
         }
         founded
     }
@@ -854,6 +866,9 @@ impl App {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.ward_prompt_frame(prompt);
             }
+        }
+        if self.site_notice_frame() {
+            return true;
         }
         if !self.unit_list.is_empty()
             && !self.game.in_battle()

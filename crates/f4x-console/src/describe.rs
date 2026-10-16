@@ -365,6 +365,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             player: p,
             pos: at,
             loot,
+            ..
         } => {
             format!(
                 "{} cleared the site at {} ({loot:?})",

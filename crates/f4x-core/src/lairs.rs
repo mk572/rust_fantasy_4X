@@ -14,6 +14,7 @@ use rand_pcg::Pcg64Mcg;
 
 use crate::city::{PlayerId, Position};
 use crate::content::{Content, FeatureKind};
+use crate::items::make::{make_item, Grade};
 use crate::map::{Lair, Map, Plane};
 use crate::mapgen::GenParams;
 use crate::movement::MoveError;
@@ -392,9 +393,9 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
 pub struct Loot {
     pub gold: u32,
     pub mana: u32,
-    /// Values of magic items found; the items themselves wait for the hero tasks.
-    pub items: Vec<u32>,
-    /// A prisoner hero was found (hiring waits for the hero tasks).
+    /// The magic items found, made from the values in the hoard; they are in the armory.
+    pub items: Vec<crate::items::Item>,
+    /// A prisoner hero was found: a free offer of the hero waits on the wizard's offers.
     pub prisoner: bool,
     pub spell: Option<SpellId>,
     /// Spell books gained, by realm.
@@ -614,10 +615,18 @@ impl Game {
         let mut loot = Loot {
             gold: lair.gold,
             mana: lair.mana,
-            items: lair.items.clone(),
-            prisoner: lair.prisoner,
             ..Loot::default()
         };
+        let mut items: Vec<crate::items::Item> = Vec::new();
+        for &value in &lair.items {
+            items.push(make_item(
+                &mut self.rng,
+                &self.content.rules,
+                Grade::Any,
+                value,
+                &mut self.prefab_taken,
+            ));
+        }
         if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
             p.gold += lair.gold as i32;
             p.mana += lair.mana as i32;
@@ -637,7 +646,46 @@ impl Game {
                 _ => {}
             }
         }
-        let mut events = vec![Event::SiteCleared { player, pos, loot }];
+        // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
+        // worth 1200 instead, or 1000 mana when the hoard already has three items (the original
+        // writes the item past the end of its list: ReMoM marks it a bug).
+        if matches!(lair.special, 5 | 6) && loot.books.is_empty() && loot.retorts.is_empty() {
+            if items.len() < 3 {
+                items.push(make_item(
+                    &mut self.rng,
+                    &self.content.rules,
+                    Grade::Any,
+                    1200,
+                    &mut self.prefab_taken,
+                ));
+            } else {
+                loot.mana = 1000;
+                if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
+                    p.mana += 1000;
+                }
+            }
+        }
+        for item in &items {
+            self.give_item(player, item.clone());
+        }
+        loot.items = items;
+        // A prisoner is a hero offered for nothing, when the wizard has a slot for one.
+        if lair.prisoner && self.units().open_hero_slots(player) > 0 {
+            if let Some(kind) = self.pick_hero(player, true, crate::roster::Class::Any) {
+                if let Some(p) = self.player_mut(player) {
+                    p.offers
+                        .insert(0, crate::offers::Offer::Hero { kind, price: 0 });
+                    loot.prisoner = true;
+                }
+            }
+        }
+        let mut events = vec![Event::SiteCleared {
+            player,
+            pos,
+            site: lair.site.clone(),
+            guarded: !lair.guards.is_empty(),
+            loot,
+        }];
         if let Some(Event::SiteCleared { loot, .. }) = events.first() {
             if let Some(spell) = loot.spell {
                 events.push(Event::SpellLearned { player, spell });

@@ -374,13 +374,19 @@ impl Game {
             return Err(OfferError::NoGold);
         }
         let events = match offer {
-            Offer::Hero { kind, .. } => {
+            Offer::Hero { kind, price } => {
                 if let Some(name) = name.filter(|n| !n.trim().is_empty()) {
                     if let Some(r) = self.player_mut(player).and_then(|p| p.roster.get_mut(kind)) {
                         r.name = name;
                     }
                 }
-                let unit = self.hire_hero(player, kind).map_err(OfferError::Hero)?;
+                // A prisoner freed in a lair costs nothing.
+                let unit = if price == 0 {
+                    self.arrive(player, kind)
+                } else {
+                    self.hire_hero(player, kind)
+                }
+                .map_err(OfferError::Hero)?;
                 vec![Event::HeroJoined { player, unit, kind }]
             }
             Offer::Mercenaries {

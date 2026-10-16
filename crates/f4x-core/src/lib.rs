@@ -624,6 +624,10 @@ pub enum Event {
     SiteCleared {
         player: city::PlayerId,
         pos: city::Position,
+        /// The site's feature id (`ruins`, `chaos_node`, `tower`).
+        site: String,
+        /// The site had guards, which were fought; an unguarded site is taken on arrival.
+        guarded: bool,
         loot: lairs::Loot,
     },
     /// Something happened between wizards: a meeting, a change of relations, a treaty, war.

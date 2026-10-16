@@ -240,6 +240,36 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
 }
 
 #[test]
+fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
+    let mut g = world();
+    g.players[0].offers.clear();
+    g.map.as_mut().unwrap().set_lairs(vec![crate::map::Lair {
+        plane: crate::map::Plane::Arcanus,
+        x: 5,
+        y: 5,
+        site: "lair".into(),
+        intact: true,
+        guards: Vec::new(),
+        gold: 0,
+        mana: 0,
+        items: Vec::new(),
+        prisoner: true,
+        special: 0,
+    }]);
+    let events = g.claim_lair(0, P0);
+    let Some(Event::SiteCleared { loot, .. }) = events.first() else {
+        panic!("{events:?}");
+    };
+    assert!(loot.prisoner);
+    assert!(matches!(g.offers(P0)[0], Offer::Hero { price: 0, .. }));
+    let gold = g.players[0].gold;
+    let joined = g.accept_offer(P0, 0, None).unwrap();
+    assert!(matches!(joined[..], [Event::HeroJoined { .. }]));
+    assert_eq!(g.players[0].gold, gold, "a freed prisoner costs nothing");
+    assert_eq!(g.units().hero_units(P0).len(), 1);
+}
+
+#[test]
 fn a_hero_the_wizard_cannot_pay_for_stays_on_offer() {
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));

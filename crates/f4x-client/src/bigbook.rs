@@ -493,7 +493,7 @@ impl App {
     }
 }
 
-fn capitalise(s: &str) -> String {
+pub(crate) fn capitalise(s: &str) -> String {
     let mut c = s.chars();
     c.next()
         .map(|f| f.to_uppercase().collect::<String>() + c.as_str())

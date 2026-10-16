@@ -307,8 +307,10 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     };
     assert_eq!(*player, P0);
     assert_eq!((loot.gold, loot.mana), (120, 30));
-    assert_eq!(loot.items, vec![400]);
-    assert!(loot.prisoner);
+    assert_eq!(loot.items.len(), 1, "the 400 hoard is made into an item");
+    assert_eq!(g.player(P0).unwrap().armory.items().count(), 1);
+    // The test rules have no heroes to free.
+    assert!(!loot.prisoner);
     assert_eq!(
         (g.player(P0).unwrap().gold, g.player(P0).unwrap().mana),
         (220, 130)

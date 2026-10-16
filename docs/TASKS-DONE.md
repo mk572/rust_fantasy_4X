@@ -91,6 +91,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 122 | Map | River mouths and shore pieces with rivers (done) |
 | 123 | Map | Call the Void, Great Wasting and Armageddon corruption (done) |
+| 128 | Client | Site encounter dialogs and treasure popup (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
 | 138 | Client | Army list screen (done) |
@@ -582,6 +583,14 @@ the ward and enchantment icons along the bottom, rubble, and selling by clicking
 **122. River mouths and shore pieces with rivers (done).** `terrain_pick::shore_with_rivers`: a sea square with a river on a land square at its north, east, south or west takes the `_ShoreNNNNNNNN` piece with an `R` for those sides (176 pieces, from `TerrType.h`; the plain pieces agree with table 0 of `autotile.tsv`), as the original's `River_Autotile` does. Combinations without a piece fall back to fewer sides, then the plain shore. Not done, now task 253: lakes with an inflow and the original's rewriting of extra inflows. The look was not compared with the original, because the client cannot be run from here. Original text: The original has terrain types (`_Shore..R..`) for a river reaching the sea; we lay the plain river piece over the shore. Pick the river-mouth shore pieces and check against the original's look.
 
 **123. Call the Void, Great Wasting and Armageddon corruption (done).** Wired in `world_spells.rs` (see `divergences.md` 17 and the leftovers in task 286).
+
+**128. Site encounter dialogs and treasure popup (done).** The client should answer `SiteEncounter` with the
+original's confirm box ("You have found a ruins.  Scouts have spotted 4 Skeletons within the ruins.
+Do you wish to enter?", node pictures per realm, Y/N), send `EnterSite`, and after a win show
+"Inside you find ..." with the gold, mana, items, prisoner and spell lines. Unguarded sites pay out
+on arrival without a prompt. The fight itself uses the battle screen (done); the prompt is what is missing.
+
+**Done** (`site_prompt.rs`): the Yes/No question with the site's picture, the unguarded-site box, the treasure box and the item screen after it; the music `MUSIC_Site_Discovery` and the colour slide of the node pictures are left (see `docs/lairs.md`).
 
 **129. Lair generation parity (done).** A world now has the original's 99 lairs instead of about 190: 6 towers on each plane (12 lairs, shared coordinates), one lair at each of the 30 nodes, and 25 strong plus 32 weak random sites (`featuregen::place_random_sites`; `GenParams::strong_sites` and `weak_sites` replace the per-plane `encounter_ratio` of one site per 10 land squares). Each random site rolls its plane, then a square from 2 inside the top and bottom edges, skipping ocean and anything within one square of a tower, node or other site on either plane; the kind comes from the terrain's feature weights. Exactly 25 of them, picked at random, get the strong budget (Arcanus `50 + 50 * d29`, Myrror `100 + 100 * d24`), the other 32 the weak one (`10 * d10`, `10 * d20`). Not copied: the original's three trailing empty slots, and its random square range (2 to 55 by 2 to 35 of 60 by 40) is scaled to the map's size. Test in `f4x-console`.
 

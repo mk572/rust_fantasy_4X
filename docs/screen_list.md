@@ -133,8 +133,8 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Hero offer (`Hire_Hero_Popup`) | A hero offers service for gold; the player names the hero. | `Determine_Offer`; hero spells (Summon Hero, Incarnation); lair rewards. | **Missing.** Tasks 143, 48. |
 | Hero level-up (`Hero_LevelUp_Popup`) | Announces a hero's new level and its gains. | When a hero levels up in `Do_All_Units_XP_Check`. | **Missing.** Task 143. |
 | Event message (`Show_Event_Message`, `EVENTS.c`) | The random events (earthquake, plague, conjunction and so on) with a picture and text. | When a random event starts. | **Missing.** Tasks 68 (the events) and 143. |
-| Lair treasure (`Lair_Treasure_Popup`, `Lair.c`) | Lists the gold, mana, items, spells and heroes won from a cleared site. | After winning a fight in a lair, tower or node. | **Missing.** Task 128. |
-| Site encounter prompt (`Lair.c`) | A box naming the site and its kind, "... Do you wish to enter?". | Moving onto a guarded site. | **Missing.** Task 128. |
+| Lair treasure (`Lair_Treasure_Popup`, `Lair.c`) | Lists the gold, mana, items, spells and heroes won from a cleared site. | After winning a fight in a lair, tower or node. | **Done** (`site_prompt.rs`, task 128). |
+| Site encounter prompt (`Lair.c`) | A box naming the site and its kind, "... Do you wish to enter?". | Moving onto a guarded site. | **Done** (`site_prompt.rs`, task 128). |
 
 ### 5.3 Combat
 

@@ -116,7 +116,11 @@ impl Game {
     }
 
     /// Bring the hero `kind` in at the summoning circle, with nothing charged.
-    fn arrive(&mut self, player: PlayerId, kind: usize) -> Result<hecs::Entity, HeroError> {
+    pub(crate) fn arrive(
+        &mut self,
+        player: PlayerId,
+        kind: usize,
+    ) -> Result<hecs::Entity, HeroError> {
         let at = self.summon_point(player).ok_or(HeroError::NoCircle)?;
         self.spawn_hero(player, at, kind)
     }
