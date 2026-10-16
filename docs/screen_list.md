@@ -51,7 +51,7 @@ Two things worth knowing before the tables:
 | **Main menu** (`Main_Menu_Screen`, `MainMenu.c`) | The title page: Continue, Load Game, New Game, Quit to DOS, Hall of Fame. Plays the credits when left alone. | At start (after the opening movie); from the Load screen's Quit (it saves to slot 9 first); after the Hall of Fame; after a cancelled new game; when a game ends (win or lose). | **Done** (`menu_screen.rs`, task 86), on the original's art; Hall of Fame is greyed (88) and there is no credits roll or opening movie (85). |
 | **Continue** (`scr_Continue`, no picture) | Loads the last auto-save (slot 9) and goes to the main screen. | "Continue" on the main menu; when the new-game steps finish (the new game is created, then continued). | **Done:** the client auto-saves at every end of turn and Continue loads it. F9 loads the quick-save. Console: `load`. |
 | **Load / Save** (`Load_Screen`, `LoadScr.c`) | One screen for both: the list of save slots, buttons Load, Save, Settings, Quit (saves, then to the main menu) and OK. | The **Game** button on the main screen; "Load Game" on the main menu. | **Done** (`menu_screen.rs`, task 145): eight slots on the original's art. A slot's name is not typed; it shows wizard, turn and save time. Settings opens the preferences page (89). F10 and Ctrl-L quick-save and load. |
-| **New game** (`Newgame_Control`, `NewGame.c`) | Walks through the eight creation steps of section 3, then builds the world. | "New Game" on the main menu. | **Partial.** One creation screen covers wizard, picks, spells and race (section 3), with a Back button to the menu. |
+| **New game** (`Newgame_Control`, `NewGame.c`) | Walks through the eight creation steps of section 3, then builds the world. | "New Game" on the main menu. | **Done** as the steps of section 3 (`newgame_flow.rs`, `newgame_picks.rs`), Esc going a step back. |
 | **Quit to DOS** (`scr_Quit_To_DOS`) | Ends the program (the source marks an auto-save here as to do). | Main menu Quit; the quit-game flag on the main screen. | **Done** (Esc quits; there is no confirmation or auto-save). |
 | **Hall of fame** (`Hall_Of_Fame_Screen`, `SCORE.c`) | The table of best scores, with the winner's name, race and score, kept between games in `MAGIC.SET`. | "Hall of Fame" on the main menu; after the end-of-game score (`End_Of_Game_Score`). | **Done** (`hall_of_fame.rs`, task 88): ten entries in `saves/hall_of_fame.txt`, from the main menu and after the score screen. |
 | **Settings** (`Settings_Screen`, `Settings.c`) | The game options as check boxes: music, sound effects and event music; animations of movement and spells; show enemy moves and spells; end-of-turn summary and wait; random events; strategic combat only; ask before razing a city; show node owners; show unit information automatically; spell book ordering; and what the hall of fame records (names, races, scores). | The Settings button on the Load / Save screen; it returns there. | **Done as a page** (`settings_screen.rs`, `preferences.rs`, task 89): the original's 19 check boxes in its four groups (Sound and Music, Messages, Combat, Display) on its art, saved to `saves/preferences.txt`; O, Enter and Escape leave. Only Strategic Combat Only does anything yet; the rest are stored for tasks 266 to 283. A **Game...** button opens the game's own settings (task 94). The hall-of-fame data the original keeps in the same file is task 88. |
@@ -76,14 +76,14 @@ and forth between them (Cancel goes back one step).
 
 | Step | Original | What it does | Status here |
 |---|---|---|---|
-| 0 Options | `Newgame_Screen_0` | Difficulty, opponents, land size, magic power (the game options). | **Done** (`options_screen.rs`, plain widgets rather than the original's art): difficulty, opponents, land size, magic power. The map seed is still a launch option. |
-| 1 Wizard | `Newgame_Screen_1__WIP` | Choose one of the 14 ready-made wizards, or "Custom". | **Partial** (the creation screen offers ready-made wizards). |
-| 2 Portrait | `Newgame_Screen_2__WIP` | Custom only: pick the wizard's picture. | **Missing.** Task 83 (portraits and banners). |
-| 3 Name | `Newgame_Screen_3__WIP` | Type the wizard's name. | **Missing** (the wizard has a fixed name). Task 83. |
-| 4 Picks | `Newgame_Screen_4__WIP` | Custom only: spend eleven picks on spell books, retorts and extras. | **Done** in the creation screen (eleven picks, task 101 for the eleven-book realms). |
-| 5 Spells | `Newgame_Screen_5` | Custom only: choose the starting spells for each realm. | **Done.** |
-| 6 Race | `Newgame_Screen_6__WIP` | Choose the wizard's race (home city race). | **Done.** |
-| 7 Banner | `Newgame_Screen_7__WIP` | Choose the banner colour. | **Missing.** Task 83. |
+| 0 Options | `Newgame_Screen_0` | Difficulty, opponents, land size, magic power (the game options). | **Done** (`options_screen.rs`, on `newgame.lbx`: four buttons cycling the choice, OK, Cancel). The map seed is still a launch option. |
+| 1 Wizard | `Newgame_Screen_1__WIP` | Choose one of the 14 ready-made wizards, or "Custom". | **Done** (`newgame_flow.rs`: the two columns, hover shows portrait, books and retort; Custom). |
+| 2 Portrait | `Newgame_Screen_2__WIP` | Custom only: pick the wizard's picture. | **Done** (`newgame_flow.rs`: the same lists as Select Picture). |
+| 3 Name | `Newgame_Screen_3__WIP` | Type the wizard's name. | **Done** (the name box, ten characters, Enter keeps it). |
+| 4 Picks | `Newgame_Screen_4__WIP` | Custom only: spend eleven picks on spell books, retorts and extras. | **Done** (`newgame_picks.rs`: drag in a realm's row for its books, click a retort; the refusals are the original's). |
+| 5 Spells | `Newgame_Screen_5` | Custom only: choose the starting spells for each realm. | **Done** (`newgame_picks.rs`, a screen for each realm with two or more books). |
+| 6 Race | `Newgame_Screen_6__WIP` | Choose the wizard's race (home city race). | **Done** (`newgame_flow.rs`; the Myrran races need the Myrran retort). |
+| 7 Banner | `Newgame_Screen_7__WIP` | Choose the banner colour. | **Done** (`newgame_flow.rs`: five flags; a click starts the game). |
 
 ## 4. The advisors (`Advisor_Screen`, `AdvsrScr.c`)
 
@@ -165,7 +165,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 |---|---|---|
 | **Console** (`console_screen.rs`, `f4x-console`) | The text interface to the game: every action as a command, with legal and override modes. See [`console.md`](console.md). | The backquote key in the client (F2 is the Cartographer); the `f4x-tools` binary runs it without the client. |
 | **Game over** (`game_over_screen.rs`) | Plain result and score; stands in for sections 6's screens until task 134. | When the core reports the game ended. |
-| **Wizard creation** (`create_screen.rs`) | One screen for steps 1, 4, 5 and 6 of section 3. | At start. |
+| **Wizard creation** (`create_screen.rs`) | Only the state of the steps now; the steps are the original's, section 3. | At start. |
 
 ## 8. What is missing, by task
 

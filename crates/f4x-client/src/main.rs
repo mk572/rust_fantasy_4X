@@ -25,6 +25,8 @@ mod hall_of_fame;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
+mod newgame_flow;
+mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
@@ -72,6 +74,7 @@ struct Options {
     at: Option<(f32, f32)>,
     /// Open the wizard creation screen at once, skipping the start menu.
     create: bool,
+    create_step: Option<String>,
     /// With `--shot`, show the start menu.
     menu: bool,
     /// With `--shot`, show the new-game options.
@@ -130,6 +133,7 @@ fn parse_args() -> Result<Options, String> {
         apprentice: false,
         research: false,
         create: false,
+        create_step: None,
         menu: false,
         options: false,
         slots: false,
@@ -202,6 +206,10 @@ fn parse_args() -> Result<Options, String> {
             "--apprentice" => o.apprentice = true,
             "--research" => o.research = true,
             "--create" => o.create = true,
+            "--create-step" => {
+                o.create = true;
+                o.create_step = Some(value("--create-step")?);
+            }
             "--menu" => o.menu = true,
             "--options" => o.options = true,
             "--slots" => o.slots = true,
@@ -266,7 +274,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--score] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--score] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -380,6 +388,9 @@ async fn main() {
     }
     if options.create {
         app.open_creation();
+        if let Some(step) = &options.create_step {
+            app.test_create_step(step);
+        }
     } else if options.options {
         app.open_options();
     } else if options.slots {

@@ -55,10 +55,6 @@ impl Lines {
         draw_text(text, self.x, self.y, self.size, color);
         self.y += self.size * 1.2;
     }
-
-    pub fn gap(&mut self, pixels: f32) {
-        self.y += pixels;
-    }
 }
 
 /// A horizontal progress bar.
