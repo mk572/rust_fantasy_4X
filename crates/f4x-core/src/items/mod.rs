@@ -16,6 +16,7 @@
 
 pub mod armory;
 pub mod crafting;
+pub mod make;
 
 use serde::{Deserialize, Serialize};
 

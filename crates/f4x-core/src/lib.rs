@@ -44,6 +44,7 @@ pub mod neutral_cities;
 pub mod nightshade;
 pub mod nodes;
 pub mod objective;
+pub mod offers;
 pub mod pathing;
 pub mod player;
 pub mod player_view;
@@ -171,6 +172,18 @@ pub enum Command {
     ScrapItem {
         player: city::PlayerId,
         from: items::armory::Spot,
+    },
+    /// Take one of the offers made at the turn change (the merchant's item, mercenaries or a
+    /// hero for hire); `name` renames a hero before it joins.
+    AcceptOffer {
+        player: city::PlayerId,
+        index: usize,
+        name: Option<String>,
+    },
+    /// Turn one of the offers down.
+    RejectOffer {
+        player: city::PlayerId,
+        index: usize,
     },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
@@ -451,6 +464,16 @@ pub enum Event {
         unit: hecs::Entity,
         kind: usize,
     },
+    /// The turn change made the wizard an offer (`Game::offers` lists the ones waiting).
+    OfferMade {
+        player: city::PlayerId,
+        offer: offers::Offer,
+    },
+    /// A company of mercenaries joined the army at the summoning circle.
+    MercenariesHired {
+        player: city::PlayerId,
+        units: Vec<hecs::Entity>,
+    },
     /// A summoning spell was cast and found no hero to bring.
     HeroSpellFailed {
         player: city::PlayerId,
@@ -574,6 +597,7 @@ pub enum Rejection {
     Item(items::armory::ItemError),
     Craft(items::crafting::CraftingError),
     Hero(HeroError),
+    Offer(offers::OfferError),
     /// The game has ended; nothing more can be done.
     GameOver,
 }
@@ -614,6 +638,8 @@ pub struct Game {
     pub diplomacy: diplomacy::Diplomacy,
     /// Every override (cheat) command that changed the game, oldest first.
     pub(crate) override_log: Vec<String>,
+    /// The prefab items given out so far, by id (`Make_Item` gives each once a game).
+    pub(crate) prefab_taken: Vec<String>,
     /// Players of battles that play for some wizards (a learned one; see `battle::game`).
     pub(crate) battle_brains: Vec<(city::PlayerId, Box<dyn battle::game::BattleBrain>)>,
     undo_on: bool,
@@ -640,6 +666,7 @@ impl Game {
             human: None,
             diplomacy: diplomacy::Diplomacy::default(),
             override_log: Vec::new(),
+            prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
             undo_on: false,
             undo_stack: Vec::new(),
@@ -815,6 +842,17 @@ impl Game {
                 None => vec![Event::Rejected(Rejection::Item(
                     items::armory::ItemError::Empty,
                 ))],
+            },
+            Command::AcceptOffer {
+                player,
+                index,
+                name,
+            } => self
+                .accept_offer(player, index, name)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Offer(e))]),
+            Command::RejectOffer { player, index } => match self.reject_offer(player, index) {
+                Ok(()) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Offer(e))],
             },
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {

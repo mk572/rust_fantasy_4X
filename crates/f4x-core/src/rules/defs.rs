@@ -428,11 +428,6 @@ pub struct ItemDef {
     /// The spell the hero can cast from the item, and how many times (Spell Charges).
     #[serde(default)]
     pub charges: Option<(String, u32)>,
-    /// The original's book counts of the item, as stored (`ITEMDATA.LBX`, five bytes). They
-    /// decide which wizards the random item generator may give it to. The order of the realms
-    /// and the way the counts come about are not worked out yet (task 218).
-    #[serde(default)]
-    pub books: Vec<u8>,
     /// The original's flag byte: set items are left out of the Enchant Item grade, unset ones out
     /// of the Create Artifact grade (`Make_Item`).
     #[serde(default)]

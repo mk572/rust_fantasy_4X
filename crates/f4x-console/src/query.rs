@@ -73,6 +73,13 @@ pub const TABLE: &[CommandDef] = &[
         run: map,
     },
     CommandDef {
+        name: "offers",
+        kind: Kind::Query,
+        usage: "offers",
+        help: "The hero, mercenaries and merchant's item offered to you this turn; `accept` or `reject` one by its number.",
+        run: offers,
+    },
+    CommandDef {
         name: "spells",
         kind: Kind::Query,
         usage: "spells",
@@ -844,5 +851,23 @@ fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         s.percent,
         s.total()
     ));
+    Ok(())
+}
+
+fn offers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let me = ctx.session.player;
+    let mut lines: Vec<String> = ctx
+        .game
+        .offers(me)
+        .iter()
+        .enumerate()
+        .map(|(i, o)| format!("{}: {}", i + 1, describe::offer(ctx.game, o)))
+        .collect();
+    if lines.is_empty() {
+        lines.push("no offers".into());
+    }
+    for line in lines {
+        ctx.say(line);
+    }
     Ok(())
 }

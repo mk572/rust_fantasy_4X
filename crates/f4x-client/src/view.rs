@@ -90,6 +90,8 @@ pub struct App {
     pub(crate) greetings: std::collections::VecDeque<PlayerId>,
     /// Wizards met since the turn began: their greeting comes with the next turn.
     pub(crate) greetings_due: Vec<PlayerId>,
+    /// The box that shows the offers made at the turn change (task 220).
+    pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// The small spell book's pages.
     pub(crate) book_ui: crate::spellbook::BookUi,
     /// The big spell book: the library, the research choice, spells just learned.
@@ -171,6 +173,7 @@ impl App {
             diplo_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),
+            offer_ui: Default::default(),
             book_ui: Default::default(),
             big_ui: Default::default(),
             help: Default::default(),
@@ -762,6 +765,11 @@ impl App {
                 return true;
             }
         }
+        // The offers made at the turn change wait over the map until they are answered.
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.offer_prompt_frame()
+        {
+            return true;
+        }
         self.maybe_ask_for_research();
         if self.game.game_over.is_some()
             && !self.game_over_seen
@@ -1234,7 +1242,7 @@ impl App {
         self.note(events);
     }
 
-    fn draw_map(&mut self) {
+    pub(crate) fn draw_map(&mut self) {
         let Some(map) = self.game.map() else {
             return;
         };
@@ -1431,7 +1439,7 @@ impl App {
         }
     }
 
-    fn draw_bars(&mut self) {
+    pub(crate) fn draw_bars(&mut self) {
         let click = self.draw_frame();
         // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
         match click.menu {

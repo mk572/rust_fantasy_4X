@@ -43,6 +43,8 @@ pub const TABLE: &[CommandDef] = &[
     legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
+    legal!("accept", "accept <offer> [name]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one.", accept),
+    legal!("reject", "reject <offer>", "Turn an offer down.", reject),
     legal!("vizier", "vizier <on|off>", "The Grand Vizier chooses what your cities build when they finish a building.", vizier),
     legal!("power", "power <mana> <research> <skill>", "Split your power base between mana, research and casting skill (percent, summing to 100).", power),
     legal!("research", "research <spell>", "Choose the spell to research.", research),
@@ -452,4 +454,27 @@ fn bend(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn bflee(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     battle_order(ctx, BattleCommand::Flee)
+}
+
+/// The 0-based index of the offer a player numbered from 1.
+fn offer_index(a: &Args) -> Result<usize, ConsoleError> {
+    let n = a.int(0, "offer number")?;
+    usize::try_from(n - 1).map_err(|_| ConsoleError::Parse(format!("no offer number {n}")))
+}
+
+fn accept(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let index = offer_index(a)?;
+    let name = (a.len() > 1).then(|| a.words[1..].join(" "));
+    let player = ctx.session.player;
+    ctx.apply(Command::AcceptOffer {
+        player,
+        index,
+        name,
+    })
+}
+
+fn reject(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let index = offer_index(a)?;
+    let player = ctx.session.player;
+    ctx.apply(Command::RejectOffer { player, index })
 }

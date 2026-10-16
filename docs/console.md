@@ -132,6 +132,7 @@ give the same information.
 | `newcity <pos> <name> [player] [race=] [pop=]`, `build <city> <building>` | found a city, add a building without cost |
 | `terrain <pos> <terrain-id>` | change a square |
 | `learn <spell> [player]`, `reveal [player]` | teach a spell, explore the map |
+| `offer <hero\|mercenaries\|item> [player]` | make the wizard that offer now, whatever the chance (task 220); answer with `accept` or `reject` |
 | `eliminate <player>`, `win <player>` | defeat a wizard on the spot (the usual aftermath and game-end checks follow), or end the game with this wizard winning by the Spell of Mastery |
 | `as <player>` | play as another wizard from now on |
 

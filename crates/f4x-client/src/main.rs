@@ -18,6 +18,7 @@ mod game_over_screen;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
+mod offer_prompt;
 mod options_screen;
 mod spellbook;
 mod terrain_pick;
@@ -73,6 +74,8 @@ struct Options {
     select: bool,
     /// With `--shot`, open the army list first.
     armies: bool,
+    /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
+    offer: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
     sheet: Option<usize>,
     /// With `--shot`, end this many turns first.
@@ -115,6 +118,7 @@ fn parse_args() -> Result<Options, String> {
         save: None,
         sheet: None,
         armies: false,
+        offer: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -131,6 +135,7 @@ fn parse_args() -> Result<Options, String> {
             "--city" => o.city = true,
             "--select" => o.select = true,
             "--armies" => o.armies = true,
+            "--offer" => o.offer = Some(value("--offer")?),
             "--sheet" => {
                 o.sheet = Some(
                     value("--sheet")?
@@ -198,7 +203,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--armies] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--armies] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -266,6 +271,9 @@ async fn main() {
     }
     if options.armies {
         app.open_army_list();
+    }
+    if let Some(kind) = &options.offer {
+        app.open_test_offer(kind);
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n);

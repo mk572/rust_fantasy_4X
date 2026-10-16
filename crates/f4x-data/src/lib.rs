@@ -238,6 +238,11 @@ mod tests {
         parse_features(&std::fs::read_to_string(path).unwrap()).unwrap()
     }
 
+    /// The game's own `content/` folder (the files tests of the rules data read).
+    fn real_content() -> Content {
+        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+    }
+
     fn shipped_content() -> Content {
         load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
     }
@@ -666,6 +671,58 @@ mod tests {
                     power.id
                 );
             }
+        }
+    }
+
+    #[test]
+    fn any_wizard_can_be_given_any_prefab_item_once() {
+        use f4x_core::items::make::{make_item, Grade};
+        let c = real_content();
+        let rules = &c.rules;
+        // The wizard's books play no part in generating an item, only in crafting.
+        let mut rng = f4x_core::rng::GameRng::new(3);
+        let mut taken = Vec::new();
+        let mut ids = Vec::new();
+        for _ in 0..2000 {
+            let item = make_item(&mut rng, rules, Grade::Any, 0, &mut taken);
+            assert!(item.cost > 0 && !item.name.is_empty());
+            if let Some(id) = item.prefab {
+                assert!(!ids.contains(&id), "{id} given twice");
+                ids.push(id);
+            }
+        }
+        assert!(ids.len() > 150, "{}", ids.len());
+        // A prefab item of a value lies between half of it and all of it.
+        for seed in 0..100 {
+            let mut taken = Vec::new();
+            let item = make_item(
+                &mut f4x_core::rng::GameRng::new(seed),
+                rules,
+                Grade::Artifact,
+                1200,
+                &mut taken,
+            );
+            if item.prefab.is_some() {
+                assert!((600..=1200).contains(&item.cost), "{item:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn random_items_stay_within_their_grade() {
+        use f4x_core::items::make::{random_item, Grade};
+        let c = real_content();
+        let rules = &c.rules;
+        for seed in 0..300 {
+            let mut rng = f4x_core::rng::GameRng::new(seed);
+            // An Enchant Item grade item has at most two plain powers, each of 200 or less.
+            let item = random_item(&mut rng, rules, Grade::Enchant, 0);
+            assert!(
+                item.powers.is_empty() && item.cost < 300 + 2 * 400 + 100,
+                "{item:?}"
+            );
+            let item = random_item(&mut rng, rules, Grade::Artifact, 0);
+            assert!(item.powers.is_empty() && !item.name.is_empty(), "{item:?}");
         }
     }
 

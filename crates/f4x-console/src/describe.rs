@@ -63,6 +63,35 @@ fn units(game: &Game, list: &[hecs::Entity]) -> String {
         .join(",")
 }
 
+/// One line for an offer waiting for an answer.
+pub fn offer(game: &Game, o: &f4x_core::offers::Offer) -> String {
+    use f4x_core::offers::Offer;
+    let rules = &game.content().rules;
+    match o {
+        Offer::Hero { kind, price } => {
+            let name = rules
+                .hero_templates
+                .get(*kind)
+                .and_then(|t| rules.units.by_name(&t.unit))
+                .map_or("a hero", |u| u.name.as_str());
+            format!("{name} asks {price} gold to join you")
+        }
+        Offer::Mercenaries {
+            unit,
+            count,
+            level,
+            price,
+        } => {
+            let name = rules
+                .units
+                .by_name(unit)
+                .map_or(unit.as_str(), |u| u.name.as_str());
+            format!("{count} {name} of level {} for {price} gold", level + 1)
+        }
+        Offer::Item { item, price } => format!("the item {} for {price} gold", item.name),
+    }
+}
+
 /// One line for an event.
 pub fn event(game: &Game, e: &Event) -> String {
     match e {
@@ -326,6 +355,15 @@ pub fn event(game: &Game, e: &Event) -> String {
                 player(game, *p),
                 pos(*at)
             )
+        }
+        Event::OfferMade { player: p, offer: o } => {
+            format!("{} is offered: {}", player(game, *p), offer(game, o))
+        }
+        Event::MercenariesHired { player: p, units } => {
+            format!("{} hires {} mercenaries", player(game, *p), units.len())
+        }
+        Event::ItemMade { player: p, name, .. } => {
+            format!("{} gets the item {name}", player(game, *p))
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
         Event::Diplomacy(d) => diplomacy(game, d),

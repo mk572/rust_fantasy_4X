@@ -36,7 +36,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 - **Record.** `s_ITEM`, 50 bytes (`MOM_DAT.h`): name[30], icon (`ITEMS.LBX` entry), slot type, item type,
   cost, attack, to hit, defense, moves in half-moves, resistance, spell skill, spell save, embedded
   spell and its charges, a 32-bit power mask. `ITEMDATA.LBX` has 250 of them, each followed by six
-  bytes: the books needed per realm (5; their meaning is task 244) and a flag (`Make_Item` leaves flagged records out of the Enchant Item grade and unflagged ones out of the Create Artifact grade).
+  bytes and a flag. The five bytes are the book need of each power of the item in a scrambled position, not a need per realm (task 244: 137 of the 159 items with bytes carry exactly the needs of their powers, none in a realm order). `Make_Item` compares them per realm with the wizard's books, which is a bug: books limit only what a wizard may craft. Ours drops the bytes and ignores books when an item is made (`divergences.md` section 10). The flag (`Make_Item` leaves flagged records out of the Enchant Item grade and unflagged ones out of the Create Artifact grade).
 - **Types** (10): sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail. **Slot
   types** (6, `e_ITEM_SLOT_TYPES`): 1 sword (sword, mace, axe), 2 bow, 3 sword or staff, 4 staff
   (staff, wand), 5 armour (shield, mail), 6 misc. An item's slot type is set by its type
@@ -84,8 +84,8 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
   winner's award list; dismissed, they are destroyed. Banish, Cracks Call, Disintegrate, Dispel
   Evil, Holy Word and Unsummon destroy the hero and its items (manual, p. 79).
 - **Merchant** (`NEXTTURN.c:Determine_Offer`). Each turn the human has `2 + fame / 25` percent (doubled
-  with Famous, then capped at 10) to be offered a random item (`Make_Item(0, ...)` with 12 books in every
-  realm) at three times its cost, half for a Charismatic wizard.
+  with Famous, then capped at 10) to be offered a random item (`Make_Item(0, ...)`; the 12 books it passes in every realm
+  are a bug's workaround we do not need: books play no part) at three times its cost, half for a Charismatic wizard.
 
 ### 2.2 Heroes
 
@@ -196,15 +196,17 @@ pub fn base_cost(kind: ItemKind) -> u32;
 pub fn cost(design: &ItemDesign, rules: &Rules) -> u32;                 // the formula of 2.1
 pub fn check(design: &ItemDesign, craft: Craft, magic: &Magic, rules: &Rules) -> Result<(), CraftError>;
 pub fn build(design: &ItemDesign, rules: &Rules) -> Item;               // Create_Item_Record, incl. chain +1, plate +2 defence
-pub fn random_item(rng: &mut GameRng, rules: &Rules, books: &Books, value: u32, craft: Craft) -> Item;
-pub fn prefab(rng: &mut GameRng, rules: &Rules, books: &Books, taken: &BTreeSet<ItemId>, grade: Grade) -> Option<Item>;
+pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -> Item;
+pub fn make_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32, taken: &mut Vec<String>) -> Item;   // items/make.rs; no books
 ```
 
 The wizard's casting of the spell pays `cost` (Artificer: 50% less, help 697, a casting-cost reduction). `Magic.casting` is `Copy` today; the pending design goes in a new field
 `Magic.crafting: Option<Item>` (the original's reserved record) so `Casting` stays as it is.
 Random items follow `Create_Random_Item` (type 1 to 10, powers drawn from the plain 33, no repeated
 group, stop at the value or the power count); prefab items follow `Make_Item` (250 records, each
-once per game, the wizard's books must cover the record's book needs).
+once per game; the wizard's books are not looked at).
+
+**Built (tasks 244 and 262)** in `items/make.rs`: `make_item(rng, rules, grade, value, taken)` with `Grade::{Any, Enchant, Artifact}` (the original's `Power` 0, 1, 2) and `random_item`, as `Make_Item` and `Create_Random_Item` with the fixes of `divergences.md` section 10 (value test, no book check, a power count that follows the kind). `taken` is `Game::prefab_taken` (saved). A prefab item is found by up to 50 draws; the random item draws a kind, then plain powers (one per group, at most 200 each for Enchant) until the count (Enchant 2; else 4 for sword, mace, axe, staff, wand, 3 for the rest), the value or 50 draws; no value means 700 to 1700. Icons are task 261.
 
 ### 3.4 `armory` (where a wizard's items are)
 
@@ -286,6 +288,16 @@ is, so it is tested with a fake. The commands `AcceptOffer` and `RejectOffer` ap
 hero or unit created at the fortress, item to the armory). Computer wizards accept by the AI's rule.
 Mercenaries are not heroes; they ride on this system because they share the schedule, fame and the
 pop-up (task 143).
+
+**Built (task 220)** in `offers.rs`, with these differences from the sketch: there is no `OfferView`
+trait (the chances, prices and the computer's answers are plain functions, tested without a game, and
+`Game` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
+waits in `Player::offers` (saved) until `AcceptOffer { player, index, name }` or `RejectOffer`, and
+lapses at the next turn change. `determine_offers` runs last in `process_turn`. Every wizard
+meets the merchant; the computer wizards answer in `f4x-ai/src/offers.rs`. The console has `offers`,
+`accept`, `reject` and the override `offer <hero|mercenaries|item>`; the client shows a box over the map
+(`offer_prompt.rs`, `--offer KIND` with `--shot`). The fixes of the original's bugs are in
+`divergences.md` section 11.
 
 ### 3.9 Hero spells (resolve through the existing effect host)
 

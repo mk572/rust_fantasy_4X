@@ -55,6 +55,9 @@ pub struct Snapshot {
     /// Override (cheat) commands used in this game.
     #[serde(default)]
     pub override_log: Vec<String>,
+    /// The prefab items already given out (`Make_Item` gives each once a game).
+    #[serde(default)]
+    pub prefab_taken: Vec<String>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
     pub players: Vec<PlayerSave>,
@@ -158,6 +161,9 @@ pub struct PlayerSave {
     /// The hero records; absent in saves from before heroes.
     #[serde(default)]
     pub roster: crate::roster::Roster,
+    /// The offers waiting for an answer; absent in saves from before offers.
+    #[serde(default)]
+    pub offers: Vec<crate::offers::Offer>,
     #[serde(default)]
     pub fortress: Option<Position>,
     #[serde(default)]
@@ -602,6 +608,7 @@ impl Game {
                 magic: p.magic.to_save(rules),
                 armory: p.armory.clone(),
                 roster: p.roster.clone(),
+                offers: p.offers.clone(),
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
@@ -742,6 +749,7 @@ impl Game {
             human: self.human.map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
             override_log: self.override_log.clone(),
+            prefab_taken: self.prefab_taken.clone(),
             map,
             fog,
             players,
@@ -801,6 +809,7 @@ impl Snapshot {
         game.game_over = self.game_over;
         game.human = self.human.map(PlayerId);
         game.override_log = self.override_log;
+        game.prefab_taken = self.prefab_taken;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::rng::GameRng::resume(self.seed, self.draws);
@@ -841,6 +850,7 @@ impl Snapshot {
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
                 armory: p.armory,
                 roster: p.roster,
+                offers: p.offers,
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,

@@ -67,6 +67,11 @@ impl<'a> PlayerView<'a> {
         self.game.player(self.me)
     }
 
+    /// The offers made to the player at the turn change that wait for an answer.
+    pub fn offers(&self) -> &'a [crate::offers::Offer] {
+        self.game.offers(self.me)
+    }
+
     pub fn magic(&self) -> Option<&'a Magic> {
         self.game.magic(self.me)
     }
@@ -155,6 +160,36 @@ impl<'a> PlayerView<'a> {
     }
 
     // ---- its own units and cities --------------------------------------------------
+
+    /// The player's heroes.
+    pub fn my_heroes(&self) -> Vec<hecs::Entity> {
+        self.game.units().hero_units(self.me)
+    }
+
+    /// The player's vault and the items waiting after a reward.
+    pub fn armory(&self) -> Option<&'a crate::items::armory::Armory> {
+        self.game.items().armory(self.me)
+    }
+
+    /// The empty slots of one of the player's heroes: the slot number and what it takes.
+    pub fn hero_free_slots(&self, hero: hecs::Entity) -> Vec<(usize, crate::rules::SlotKind)> {
+        use crate::items::armory::ItemWorld;
+        let items = self.game.items();
+        let Some(slots) = items.hero_slots(self.me, hero) else {
+            return Vec::new();
+        };
+        let used: Vec<u8> = items.carried(hero).iter().map(|(s, _)| *s).collect();
+        slots
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| !used.contains(&(*i as u8)))
+            .collect()
+    }
+
+    /// The player's own fortress.
+    pub fn fortress(&self) -> Option<Position> {
+        self.player().and_then(|p| p.fortress)
+    }
 
     pub fn my_units(&self) -> Vec<hecs::Entity> {
         self.game.units().player_units(self.me)

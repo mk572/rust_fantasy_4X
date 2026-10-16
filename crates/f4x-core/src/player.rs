@@ -20,6 +20,9 @@ pub struct Player {
     /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
     /// hired, is serving, dead or gone, and the experience it keeps.
     pub roster: crate::roster::Roster,
+    /// What this turn's merchant, mercenaries and hero asked of the wizard and is waiting for
+    /// an answer (task 220); they lapse at the next turn change.
+    pub offers: Vec<crate::offers::Offer>,
     /// Where the wizard's fortress stands (a city); `None` before it is placed or while
     /// banished.
     pub fortress: Option<crate::city::Position>,
@@ -116,6 +119,7 @@ impl Player {
             magic: crate::magic::Magic::default(),
             armory: crate::items::armory::Armory::default(),
             roster: crate::roster::Roster::default(),
+            offers: Vec::new(),
             fortress: None,
             summon_at: None,
             banished: false,

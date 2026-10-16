@@ -34,6 +34,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("terrain", "terrain <x,y[,plane]> <terrain-id>", "Change a square's terrain.", terrain),
     cheat!("learn", "learn <spell> [player]", "Teach a wizard a spell.", learn),
     cheat!("reveal", "reveal [player]", "Explore the whole map for a player.", reveal),
+    cheat!("offer", "offer <hero|mercenaries|item> [player]", "Make a wizard the offer now, whatever the chance (it still needs a free slot, turn 30 or gold).", offer),
     cheat!("eliminate", "eliminate <player>", "Defeat a wizard on the spot (their cities turn neutral).", eliminate),
     cheat!("win", "win <player>", "End the game with this wizard winning by the Spell of Mastery.", win),
     cheat!("as", "as <player>", "Play as another wizard from now on.", act_as),
@@ -349,4 +350,30 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         race,
         population: 3,
     })
+}
+
+fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::offers::OfferKind;
+    let what = match a.need(0, "hero, mercenaries or item")? {
+        "hero" => OfferKind::Hero,
+        "mercenaries" | "merc" => OfferKind::Mercenaries,
+        "item" => OfferKind::Item,
+        other => {
+            return Err(ConsoleError::Usage(format!(
+                "offer hero, mercenaries or item, not {other:?}"
+            )))
+        }
+    };
+    let id = player_arg(ctx, a, 1)?;
+    match ctx.game.cheat_offer(id, what) {
+        Some(o) => {
+            let line = describe::offer(ctx.game, &o);
+            ctx.say(format!(
+                "{} is offered: {line}",
+                describe::player(ctx.game, id)
+            ));
+            Ok(())
+        }
+        None => Err(ConsoleError::Failed("there is nothing to offer".into())),
+    }
 }

@@ -216,12 +216,6 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
                 p.push(format!("{who} has a spell with no charges"));
             }
         }
-        if !item.books.is_empty() && item.books.len() != 5 {
-            p.push(format!(
-                "{who} lists {} book counts, expected 5",
-                item.books.len()
-            ));
-        }
     }
 }
 
@@ -738,7 +732,7 @@ mod tests {
             (
                 "items.ron",
                 "slot: Weapon, kind: Sword, cost: 100,",
-                "slot: Armor, kind: Sword, cost: 100, powers: [\"nope\"], charges: Some((\"nowhere\", 0)), books: [1],",
+                "slot: Armor, kind: Sword, cost: 100, powers: [\"nope\"], charges: Some((\"nowhere\", 0)),",
             ),
             ("item_powers.ron", "realm: Some(\"chaos\")", "realm: Some(\"void\")"),
         ]);
@@ -746,7 +740,6 @@ mod tests {
         assert!(has(&p, "unknown power \"nope\""), "{p:?}");
         assert!(has(&p, "unknown spell \"nowhere\""), "{p:?}");
         assert!(has(&p, "spell with no charges"), "{p:?}");
-        assert!(has(&p, "lists 1 book counts"), "{p:?}");
         assert!(has(&p, "unknown realm \"void\""), "{p:?}");
     }
 

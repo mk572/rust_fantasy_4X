@@ -207,6 +207,34 @@ Where the item rules differ from the original's code or are read from ReMoM with
 - **Item movement** in `content/items.ron` was whole moves under the name of half-moves until
   task 49 doubled it.
 
+### Random and prefab items (tasks 244 and 262): original bugs fixed
+
+- **Books play no part in making an item (task 244).** `Make_Item` leaves out a prefab item when
+  any of the five bytes that end its `ITEMDATA.LBX` record is above the wizard's books in nature,
+  sorcery, chaos, life, death order. The bytes are not a per-realm requirement: each holds the book
+  need of one power of the item in a position that follows no realm (137 of the 159 items with
+  bytes carry exactly the needs of their powers; a Death 3 power sits in slot 0 on the
+  Deathbringer, 2 on the Undertaker and 3 on a staff). The original therefore gives wizards items
+  by books that have nothing to do with the item, and the merchant is asked for with twelve books in
+  every realm anyway. Books are meant to limit what a wizard may *craft* (Enchant Item and Create
+  Artifact, `crafting::check`), not what they are offered, found or given. **Ours:** the bytes are
+  not kept in `items.ron` and `make_item` takes no books: any wizard can be offered or given any
+  item, from the merchant, a lair or an event.
+- **The value test.** `Make_Item` rejects a prefab item when `cost > value || value / 2 > cost`
+  but only `if value == 0`: so with no value (the merchant) every prefab is rejected and a random
+  item is always rolled, and with a value (a lair's 1200) the value is ignored. **Ours:** the test
+  is what it was meant to be: with a value, the item's cost must lie between half of it and all of
+  it; with none, any prefab item that fits the books may come. The merchant therefore also sells
+  prefab items (their price is three times the cost, so the great ones are dear). **Check** with
+  play.
+- **A random artifact's power count.** `Create_Random_Item` reads the item kind before it is drawn,
+  so every non-Enchant item gets four powers (its comment says melee weapons four, the rest
+  three). **Ours:** the count follows the kind drawn (sword, mace, axe, staff and wand four; the
+  rest three).
+- **A merchant's prefab item not bought goes back** to the pool (declined, lapsed or too dear); the
+  original keeps it taken once drawn. Prefab items are otherwise given once a game, as in the
+  original.
+
 ## 11. Heroes (task 219)
 
 - **Availability is a state.** The original keeps whether a hero can be hired in its level (0 or
@@ -255,6 +283,46 @@ Where the item rules differ from the original's code or are read from ReMoM with
   inside battle checks, so its sheet shows nothing). A hero has one tier of an ability, never both the plain and the
   greater one as the original's two flags would allow. Leadership leaves out the undead as well as
   the fantastic creatures (the original tests the race only); the help says undead.
+
+### Offers each turn (task 220): original bugs fixed
+
+- **The computer wizards meet the merchant too.** The original offers the merchant's item to the
+  human only, which leaves the computer wizards without a source of items. **Ours:** every wizard
+  rolls it, with the same chance, price and Charismatic discount. A computer wizard buys when it
+  has a hero to carry the item and the price is at most half its gold, and puts items on heroes at
+  the fortress (`f4x-ai/src/offers.rs`; the first fit, a better choice is task 222).
+- **Every wizard's chances use their own fame.** The original computes the fame once, in the
+  human's merchant branch, and reuses it for every wizard's mercenary and hero chances, so the
+  computer wizards were offered by the human's fame (or 0 when the human is skipped). **Ours:**
+  each wizard's own.
+- **The price is tested after the Charismatic discount** (the merchant's item and the
+  mercenaries: the original tests the full price, then halves it). A wizard who can pay the half
+  price is offered the item or company.
+- **A level 2 company can be offered.** The original tests "above 90" twice, so the level is 3 or
+  1. **Ours:** above 90 level 3, above 60 level 2, else level 1 (the same steps as the company's
+  size). **Check** the intent against the help text.
+- **The mercenary pool is drawn from a list.** The original draws a random unit number and tries
+  again up to twenty times, with a test against an unset variable (`_turn / 2 < Total_Cost`, which
+  reads an uninitialised cost) and tests on towers' owners that read as the wrong way round.
+  **Ours:** a unit is drawn uniformly from the ordinary race units that are not settlers or
+  boats and not the Draconian engineers (Draconians fly and need no roads; the original leaves out
+  Draconian units with a construction value, which I take to mean these, not checked), of the races of the
+  planes the wizard has a city or unit on (Myrror races need a Myrror presence). No offer before
+  turn 30, as in the original; the unset-variable test is dropped; towers do not widen the pool.
+- **The unit cap and eviction.** The original drops the weakest unit when the units at the
+  fortress pass nine (`Evict_Weakest_Unit`). **Ours:** a company is not offered when the
+  summoning circle's square cannot hold it, so nobody is lost.
+- **The computer wizard's hero test** (`AI_Accept_Hero`): its comment says "cost less than 90% of
+  gold", its arithmetic accepts a hero up to a ninth over the gold (`gold * 100 / 90 >= cost`) and
+  reads the hero's base cost, not the price with its level. **Ours:** the price (with level and
+  Charismatic) must be at most nine tenths of the gold. The computer wizards' mercenary test is the
+  original's: from turn 50, a price of at most half the gold.
+- **Offers wait for an answer** in `Player::offers` (saved) instead of being a modal call inside
+  the turn change; what is not answered by the next turn change lapses. The computer wizards
+  answer in `f4x-ai` at the start of their turn.
+- **A hero's offer needs the fame the original asks of a hire** (`(cost - 100) / 10 < fame`) and is
+  priced with the kept level, as `Hire_Hero_Popup` does; the offer is made even when the wizard
+  cannot pay, as in the original.
 
 ## 12. Recorded elsewhere
 

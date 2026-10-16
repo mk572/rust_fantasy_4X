@@ -2602,3 +2602,38 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
         "a recalled hero is not lost"
     );
 }
+
+#[test]
+fn an_offer_can_be_forced_listed_and_taken_by_number() {
+    let (mut g, mut c) = (game(), console());
+    assert!(c.execute(&mut g, "offers").text().contains("no offers"));
+    // A forced offer is an override, so it is logged.
+    assert!(!c.execute(&mut g, "offer hero").ok);
+    c.execute(&mut g, "mode override");
+    c.execute(&mut g, "give fame 100");
+    c.execute(&mut g, "give gold 5000");
+    let made = c.execute(&mut g, "offer hero");
+    assert!(made.ok, "{}", made.text());
+    let listed = c.execute(&mut g, "offers");
+    assert!(listed.text().contains("1: "), "{}", listed.text());
+    assert!(
+        listed.text().contains("gold to join you"),
+        "{}",
+        listed.text()
+    );
+    let taken = c.execute(&mut g, "accept 1 Rex the Bold");
+    assert!(taken.ok, "{}", taken.text());
+    assert!(
+        taken.text().contains("Rex the Bold joins"),
+        "{}",
+        taken.text()
+    );
+    assert!(c.execute(&mut g, "offers").text().contains("no offers"));
+    // An answer to an offer that is gone is refused, and so is a number below one.
+    assert!(c.execute(&mut g, "accept 1").error.is_some());
+    assert!(c.execute(&mut g, "reject 0").error.is_some());
+    // The merchant's item and a rejection.
+    assert!(c.execute(&mut g, "offer item").ok);
+    assert!(c.execute(&mut g, "reject 1").ok);
+    assert!(g.override_log().iter().any(|l| l.contains("offer hero")));
+}

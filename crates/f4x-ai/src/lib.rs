@@ -13,6 +13,7 @@ mod economy;
 mod expand;
 mod military;
 mod naval;
+mod offers;
 mod scouts;
 #[cfg(test)]
 mod testworld;
@@ -158,6 +159,8 @@ impl Ai {
             }
         }
         diplomacy::answer(self, game, &mut events);
+        offers::answer(self, game, &mut events);
+        offers::equip(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
         wizardry::run(self, game, &mut events);
