@@ -13,6 +13,8 @@ use f4x_core::content::Content;
 use f4x_core::rules::defs::SpellTarget;
 use f4x_core::Game;
 
+use crate::reward::{is_hurt, unit_value, FLEE_SURVIVAL, HURT_ENEMY_CREDIT, HURT_OWN_DISCOUNT};
+
 /// Channels of the field picture.
 pub const GRID_CHANNELS: usize = 6;
 /// Most unit tokens (two stacks of nine and what is summoned).
@@ -228,16 +230,24 @@ impl ObsSpec {
             spell_ids.push(s.spell);
         }
         let caster = b.caster(side);
-        // What fleeing now would score (`reward.rs`): the units of both sides count.
+        // What fleeing now would score (`reward.rs`): the value of the units of both sides
+        // counts, only `FLEE_SURVIVAL` of the units that flee gets away, and units below half
+        // their hit points count as the reward says.
         let flee_value = {
-            let count = |s: Side, f: &dyn Fn(&f4x_core::battle::BattleUnit) -> bool| {
-                b.units.iter().filter(|u| u.side == s && f(u)).count() as f32
+            let content = game.content();
+            let sum = |s: Side, f: &dyn Fn(&f4x_core::battle::BattleUnit) -> bool| {
+                b.units
+                    .iter()
+                    .filter(|u| u.side == s && f(u))
+                    .map(|u| unit_value(content, u))
+                    .sum::<f32>()
             };
-            let mine = count(side, &|_| true);
-            let theirs = count(side.other(), &|_| true);
-            let saved = count(side, &|u| u.is_active());
-            let killed = count(side.other(), &|u| !u.is_active());
-            -1.0 + ((saved + killed) / (mine + theirs).max(1.0)).clamp(0.0, 1.0)
+            let all = sum(side, &|_| true) + sum(side.other(), &|_| true);
+            let own = sum(side, &|u| u.is_active())
+                - HURT_OWN_DISCOUNT * sum(side, &|u| u.is_active() && is_hurt(u));
+            let killed = sum(side.other(), &|u| !u.is_active())
+                + HURT_ENEMY_CREDIT * sum(side.other(), &|u| u.is_active() && is_hurt(u));
+            -1.0 + ((FLEE_SURVIVAL * own + killed) / all.max(1.0)).clamp(0.0, 1.0)
         };
         let globals = [
             caster.map_or(0.0, |c| c.skill_left as f32 / 50.0),

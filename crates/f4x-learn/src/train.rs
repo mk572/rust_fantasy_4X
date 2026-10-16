@@ -934,7 +934,6 @@ pub fn evaluate(
         advice_chance: if advice { 1.0 } else { 0.0 },
         greedy: true,
         attacker_only: true,
-        spell_bonus: 0.0,
         ..RolloutConfig::default()
     };
     let (_, st) = rollout(

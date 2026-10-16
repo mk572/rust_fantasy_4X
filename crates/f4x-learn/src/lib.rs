@@ -53,7 +53,7 @@ mod tests {
     fn random_play_finishes_generated_battles_without_a_refused_command() {
         let content = content();
         let mut winners = [0u32; 2];
-        let (mut cast, mut unique) = (0, 0);
+        let (mut cast, mut unique, mut dear, mut worn) = (0, 0, 0, 0);
         for seed in 0..24 {
             let env = play_random(&content, seed);
             assert!(
@@ -73,10 +73,20 @@ mod tests {
                 );
             }
             unique += env.outcome.unique_spells.iter().sum::<u32>();
+            let o = &env.outcome;
+            for i in 0..2 {
+                // A unit is worth at least one, so value is at least the count.
+                assert!(o.sent_value[i] >= o.sent[i] as f32 - 1e-3, "seed {seed}");
+                assert!(o.lost_value[i] >= o.lost[i] as f32 - 1e-3, "seed {seed}");
+                dear += i32::from(o.sent_value[i] > o.sent[i] as f32 + 0.5);
+                worn += i32::from(o.standing_hurt_value[i] > 0.0);
+            }
         }
         assert!(winners[0] > 0 && winners[1] > 0, "{winners:?}");
         assert!(cast > 0, "no battle ever cast a spell");
         assert!(unique > 0, "no different spell was ever counted");
+        assert!(dear > 0, "no unit was ever worth more than one");
+        assert!(worn > 0, "no unit was ever left below half health");
     }
 
     #[test]

@@ -324,9 +324,13 @@ lost:  reward = -1 + (enemy units destroyed + own units saved by fleeing)
        - small * (mana spent / mana_budget)          (both cases)
 ```
 
-- Units are **counted** (a unit destroyed is one, whatever it is). The game has no unit-value
-  logic yet; when it has (task 107's neighbours, the unit cost in the rules would be the first
-  candidate), the two counts become value-weighted sums and nothing else changes.
+- Units are **valued**: a unit is worth `1 + 0.01 * cost`, the cost the rules give it
+  (production or gold, or the mana of a summoning), so losing or destroying a dear unit counts
+  for more than a cheap one (`unit_value`). The formulas above use these values in place of
+  counts. Units *standing below half their hit points* count in two small ways: in a loss an
+  enemy left below half health gives a tenth of its kill value, and an own unit that survives
+  below half health (by fleeing, or standing at the end of a win) counts nine tenths as
+  survived (a tenth as lost). Before 16 October units were counted one each.
 - A win is always better than a loss of the same battle: the loss term is at most 0, and a
   win with every unit lost and `stakes` 1 is 0 too, never below it.
 - Losing with the most enemy units destroyed is therefore the aim when the fight is
@@ -443,10 +447,13 @@ What `f4x-learn` does today (the numbers are in section 7.8):
   strength estimate from the units' numbers did not predict who wins. A tenth is held out for
   evaluation.
 - **Reward** (`reward.rs`): section 7.4, plus a mana term of at most 0.025 for the share of the
-  budget spent (0.05 until 16 October), and, in training only, 0.01 for each different spell
-  the wizard cast in the battle (`SPELL_BONUS`, to push the agent to try spells; evaluations
-  leave it out, so their scores stay comparable with earlier ones). The runs of 7.8 and the
-  first run of 16 October were trained without it.
+  budget spent (0.05 until 16 October), and 0.01 for each different spell
+  the wizard cast in the battle (`SPELL_BONUS`, to push the agent to try spells and so to be
+  more interesting to fight). Evaluations include the bonus too (the aim is an AI that casts),
+  so their scores are not comparable with the baselines' (which never cast) or with the runs
+  before it; the baselines in a log show the plain reward. The runs of 7.8 and the first run
+  of 16 October were trained without it, and the run `run-20261016-v2c` with it but with
+  evaluations that left it out, and with units counted one each.
 - **In the game** (`brain.rs`): `LearnedBrain` plays a wizard's battles through the core's
   `BattleBrain` hook (`Game::set_battle_brain`; auto-resolve and the battle screen's AI side
   ask `Game::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with

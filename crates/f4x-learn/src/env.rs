@@ -10,10 +10,12 @@ use f4x_core::content::Content;
 use f4x_core::Game;
 
 use crate::build::{build, ATTACKER, DEFENDER};
+use crate::reward::{is_hurt, unit_value};
 use crate::scenario::BattleScenario;
 
-/// What a battle came to, counted in units (the game has no unit value yet).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// What a battle came to: units counted, and their value (`reward::unit_value`: one plus a
+/// hundredth of the cost).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Outcome {
     /// `None` while the battle goes on.
     pub winner: Option<Side>,
@@ -28,6 +30,26 @@ pub struct Outcome {
     pub fled: [bool; 2],
     /// Different spells each side's wizard cast (a spell cast twice counts once).
     pub unique_spells: [u32; 2],
+    /// The same in value: of the units each side began with, of those that died, and of those
+    /// that got away when the side fled (after the units lost on the way: see `UnitsLostFleeing`,
+    /// the lost ones are taken in proportion, the event does not say which).
+    pub sent_value: [f32; 2],
+    pub lost_value: [f32; 2],
+    pub saved_value: [f32; 2],
+    /// Of `saved_value`, the value of those below half their hit points.
+    pub saved_hurt_value: [f32; 2],
+    /// The value of each side's units still standing below half their hit points when the
+    /// battle ended (as the last command before it left them; a side that fled has none).
+    pub standing_hurt_value: [f32; 2],
+}
+
+/// A battle unit as it stood before the last command.
+#[derive(Debug, Clone, Copy)]
+struct Note {
+    side: Side,
+    value: f32,
+    active: bool,
+    hurt: bool,
 }
 
 impl Outcome {
@@ -51,8 +73,15 @@ pub struct BattleEnv {
     alive: [u32; 2],
     /// The spells each side has cast so far, to count the different ones.
     cast: [Vec<f4x_core::rules::SpellId>; 2],
-    /// The side of each battle unit, by number (kept so the dead of the last step are known).
-    sides: Vec<Side>,
+    /// Each battle unit by number as it stood before the last command (so the dead of the step
+    /// are known with their side and value).
+    notes: Vec<Note>,
+    died: Vec<bool>,
+    /// The value and number of the units of a side when it fled, before the lost ones.
+    fled_value: [f32; 2],
+    fled_hurt_value: [f32; 2],
+    fled_count: [u32; 2],
+    alive_value: [f32; 2],
     pub steps: u32,
 }
 
@@ -65,28 +94,48 @@ impl BattleEnv {
         let game = build(content, &scenario)?;
         let battle = game.battle().ok_or("no battle")?;
         let mut sent = [0u32; 2];
+        let mut sent_value = [0.0f32; 2];
         for u in &battle.units {
             sent[u.side.index()] += 1;
+            sent_value[u.side.index()] += unit_value(content, u);
         }
         let mut env = Self {
             game,
             scenario,
             outcome: Outcome {
                 sent,
+                sent_value,
                 ..Outcome::default()
             },
             alive: sent,
             cast: [Vec::new(), Vec::new()],
-            sides: Vec::new(),
+            notes: Vec::new(),
+            died: Vec::new(),
+            fled_value: [0.0; 2],
+            fled_hurt_value: [0.0; 2],
+            fled_count: [0; 2],
+            alive_value: sent_value,
             steps: 0,
         };
-        env.note_sides();
+        env.note_units();
         Ok(env)
     }
 
-    fn note_sides(&mut self) {
+    fn note_units(&mut self) {
         if let Some(b) = self.game.battle() {
-            self.sides = b.units.iter().map(|u| u.side).collect();
+            let content = self.game.content();
+            let notes: Vec<Note> = b
+                .units
+                .iter()
+                .map(|u| Note {
+                    side: u.side,
+                    value: unit_value(content, u),
+                    active: u.is_active(),
+                    hurt: is_hurt(u),
+                })
+                .collect();
+            self.died.resize(notes.len(), false);
+            self.notes = notes;
         }
     }
 
@@ -133,7 +182,7 @@ impl BattleEnv {
         if self.done() {
             return Err("the battle is over".into());
         }
-        self.note_sides();
+        self.note_units();
         let events = self
             .game
             .battle_command(command)
@@ -148,15 +197,31 @@ impl BattleEnv {
         for b in &seen {
             match b {
                 BattleEvent::UnitDied { unit } => {
-                    if let Some(&s) = self.sides.get(*unit) {
-                        self.outcome.lost[s.index()] += 1;
-                        self.alive[s.index()] = self.alive[s.index()].saturating_sub(1);
+                    if let Some(&n) = self.notes.get(*unit) {
+                        let i = n.side.index();
+                        self.outcome.lost[i] += 1;
+                        self.outcome.lost_value[i] += n.value;
+                        self.alive[i] = self.alive[i].saturating_sub(1);
+                        self.alive_value[i] -= n.value;
+                        self.died[*unit] = true;
                     }
                 }
                 BattleEvent::Fled { side } => {
-                    self.outcome.fled[side.index()] = true;
-                    self.outcome.saved_by_fleeing[side.index()] = self.alive[side.index()];
-                    self.alive[side.index()] = 0;
+                    let i = side.index();
+                    self.outcome.fled[i] = true;
+                    self.outcome.saved_by_fleeing[i] = self.alive[i];
+                    self.fled_count[i] = self.alive[i];
+                    self.alive[i] = 0;
+                    for (k, n) in self.notes.iter().enumerate() {
+                        if n.side == *side && n.active && !self.died[k] {
+                            self.fled_value[i] += n.value;
+                            if n.hurt {
+                                self.fled_hurt_value[i] += n.value;
+                            }
+                        }
+                    }
+                    self.outcome.saved_value[i] = self.fled_value[i];
+                    self.outcome.saved_hurt_value[i] = self.fled_hurt_value[i];
                 }
                 BattleEvent::SpellCast {
                     side, mana, spell, ..
@@ -181,8 +246,21 @@ impl BattleEnv {
                 } else {
                     Side::Defender
                 };
-                let saved = &mut self.outcome.saved_by_fleeing[side.index()];
+                let i = side.index();
+                let saved = &mut self.outcome.saved_by_fleeing[i];
                 *saved = saved.saturating_sub(*units);
+                // Which units were lost is not said: take them in proportion.
+                let kept = self.fled_count[i].saturating_sub(*units) as f32
+                    / self.fled_count[i].max(1) as f32;
+                self.outcome.saved_value[i] = self.fled_value[i] * kept;
+                self.outcome.saved_hurt_value[i] = self.fled_hurt_value[i] * kept;
+            }
+        }
+        if self.outcome.winner.is_some() && self.outcome.standing_hurt_value == [0.0; 2] {
+            for (k, n) in self.notes.iter().enumerate() {
+                if n.active && n.hurt && !self.died[k] && !self.outcome.fled[n.side.index()] {
+                    self.outcome.standing_hurt_value[n.side.index()] += n.value;
+                }
             }
         }
         Ok(Step {
