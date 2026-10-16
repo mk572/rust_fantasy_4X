@@ -60,6 +60,11 @@ impl Units<'_> {
         base + items
     }
 
+    /// A hero's own name (what the wizard called it).
+    pub fn hero_name(&self, unit: hecs::Entity) -> Option<String> {
+        self.world.get::<&Hero>(unit).ok().map(|h| h.name.clone())
+    }
+
     /// How many more heroes the wizard may have (`Hero_Slot_Open`).
     pub fn open_hero_slots(&self, player: PlayerId) -> usize {
         MAX_HEROES.saturating_sub(self.hero_units(player).len())

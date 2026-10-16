@@ -195,11 +195,12 @@ impl App {
         }
 
         // Buttons and leaving.
-        let items = self.army_button(&lay, 3, 273.0, 163.0, false);
+        let items = self.army_button(&lay, 3, 273.0, 163.0, true);
         let ok = self.army_button(&lay, 4, 273.0, 182.0, true);
-        let _ = items;
         self.army_ui = ui;
-        if ok || is_key_pressed(KeyCode::Escape) {
+        if items {
+            self.open_item_screen();
+        } else if ok || is_key_pressed(KeyCode::Escape) {
             self.screen = Screen::Map;
         } else if let Some(unit) = left {
             self.army_go_to(unit);
