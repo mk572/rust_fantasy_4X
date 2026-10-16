@@ -450,6 +450,57 @@ mod tests {
     }
 
     #[test]
+    fn item_movement_is_in_half_moves_whole_moves_doubled() {
+        use f4x_core::rules::effects::Effect;
+        use f4x_core::rules::{ModOp, Stat};
+        let c =
+            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+                .unwrap();
+        let mut seen = 0;
+        for item in c.rules.items.defs() {
+            for rule in &item.effects {
+                if let Effect::Modify {
+                    stat: Stat::HalfMoves,
+                    op: ModOp::Add,
+                    value,
+                } = rule.effect
+                {
+                    seen += 1;
+                    assert!(
+                        (2..=8).contains(&value) && value % 2 == 0,
+                        "{} has {value} half-moves",
+                        item.id
+                    );
+                }
+            }
+        }
+        assert_eq!(seen, 58);
+    }
+
+    #[test]
+    fn every_special_item_power_does_something_and_its_spell_exists() {
+        let c =
+            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+                .unwrap();
+        for power in c.rules.item_powers.defs() {
+            if power.bonus.is_none() {
+                assert!(
+                    f4x_core::items::power_is_handled(&power.id),
+                    "item power {} has no effect in the rules",
+                    power.id
+                );
+            }
+            if let Some(spell) = f4x_core::items::power_spell(&power.id) {
+                assert!(
+                    c.rules.spells.id_of(spell).is_some(),
+                    "item power {} names the missing spell {spell}",
+                    power.id
+                );
+            }
+        }
+    }
+
+    #[test]
     fn generated_maps_obey_placement_rules() {
         let c = shipped_content();
         let p = f4x_core::mapgen::GenParams::default();

@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::defs::{AbilityDef, BuildingDef, ItemDef, RaceDef, SpellDef};
+use super::defs::{AbilityDef, BuildingDef, RaceDef, SpellDef};
 use super::effects::{Condition, Effect, EffectRule, Trigger};
 use super::ids::Id;
 
@@ -27,6 +27,10 @@ pub enum Stat {
     Sight,
     /// Pluses added to the to-hit chance, ten percentage points each (may be negative).
     ToHit,
+    /// Pluses to hit that count for the melee attack only (a sword's; see `items::modifiers`).
+    MeleeToHit,
+    /// Pluses to hit that count for the ranged attack only (a bow's).
+    RangedToHit,
     Ammo,
     /// The number that goes with a unit's special attack or ability: poison strength, or the
     /// resistance penalty of its gaze, touch or life steal (the original stores a penalty as a
@@ -74,6 +78,8 @@ impl Stat {
     pub fn floor(self) -> Option<i32> {
         match self {
             Stat::ToHit
+            | Stat::MeleeToHit
+            | Stat::RangedToHit
             | Stat::CityUnrest
             | Stat::CityGrowth
             | Stat::CityUnrestPercent
@@ -106,7 +112,8 @@ pub enum Source {
     Ability(Id<AbilityDef>),
     Building(Id<BuildingDef>),
     Spell(Id<SpellDef>),
-    Item(Id<ItemDef>),
+    /// The item in this slot of a hero (0 to 2); crafted items have no id of their own.
+    Item(u8),
     /// Experience level reached, 0-based.
     Level(u8),
     Other,

@@ -74,7 +74,7 @@ Each of the winner's surviving normal units and heroes gains 2 xp for every enem
 gains 1 fame for four or more kills and 1 for a very rare foe (an enemy unit of cost 600 or
 more); the loser loses `(level + 1) / 2` fame for each hero it lost, and a human loser with more
 than 20 fame loses one more when the winner got the four-kill point (the original's rule). A
-neutral winner gets nothing. The fallen heroes' items are loot in the original (task 49).
+neutral winner gets nothing. The fallen heroes' items are loot in the original (task 221).
 
 ### 2.1 Immunities and resistance (task 35)
 

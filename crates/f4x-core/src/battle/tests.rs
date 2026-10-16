@@ -2195,6 +2195,60 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
     }
 }
 
+#[test]
+fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
+    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::rules::ItemKind;
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let item = |kind, bonus: ItemBonus, powers: &[&str]| Item {
+        name: "Test".into(),
+        kind,
+        cost: 100,
+        bonus,
+        powers: powers.iter().map(|p| p.to_string()).collect(),
+        charges: None,
+        prefab: None,
+    };
+    let sword = item(
+        ItemKind::Sword,
+        ItemBonus {
+            attack: 2,
+            to_hit: 1,
+            ..ItemBonus::default()
+        },
+        &["vampiric", "flaming"],
+    );
+    let shield = item(
+        ItemKind::Shield,
+        ItemBonus {
+            defense: 2,
+            resistance: 1,
+            ..ItemBonus::default()
+        },
+        &[],
+    );
+    let _ = g
+        .world
+        .insert_one(unit, HeroItems([Some(sword), Some(shield), None]));
+    let armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    assert_eq!(armed.melee, plain.melee + 2 + 3, "attack and Flaming");
+    assert_eq!(armed.melee_plus, 1);
+    assert_eq!(armed.ranged_plus, 0);
+    assert_eq!(armed.defense, plain.defense + 2);
+    assert_eq!(armed.resistance, plain.resistance + 1);
+    assert!(armed.has("life_steal"));
+    assert!(armed.has("large_shield"));
+    assert!(!plain.has("life_steal"));
+    // The plus to hit counts for the melee blow, not for a shot.
+    assert_eq!(
+        armed.melee_combatant().to_hit,
+        plain.melee_combatant().to_hit + 1
+    );
+}
+
 // ---- city enchantments (task 25) ---------------------------------------------------------
 
 fn city_map() -> BattleMap {

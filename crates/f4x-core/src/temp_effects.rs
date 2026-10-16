@@ -141,6 +141,24 @@ impl<'a> Units<'a> {
                 }
             }
         }
+        for (_, item) in self.unit_items(unit) {
+            for a in item.granted_abilities() {
+                if !out.iter().any(|x| x == a) {
+                    out.push(a.to_string());
+                }
+            }
+        }
+        for spell in self.item_spells(unit) {
+            for rule in &self.content.rules.spells.get(spell).effects {
+                if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
+                    (rule.when, &rule.condition, &rule.effect)
+                {
+                    if !out.contains(a) {
+                        out.push(a.clone());
+                    }
+                }
+            }
+        }
         if self.unit_counts_as_undead(unit) {
             for a in crate::undead::UNDEAD_IMMUNITIES {
                 if !out.iter().any(|x| x == a) {
@@ -176,7 +194,8 @@ impl<'a> Units<'a> {
 
     /// The ids of the lasting spells on a unit.
     pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
-        self.world
+        let mut ids: Vec<String> = self
+            .world
             .get::<&crate::units::UnitEnchantments>(unit)
             .map(|list| {
                 list.0
@@ -184,7 +203,15 @@ impl<'a> Units<'a> {
                     .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
                     .collect()
             })
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // What its items put on the hero counts as well.
+        for spell in self.item_spells(unit) {
+            let id = &self.content.rules.spells.get(spell).id;
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        ids
     }
 
     /// The unit's resistance against a spell or attack of `realm`: its own, plus what magic

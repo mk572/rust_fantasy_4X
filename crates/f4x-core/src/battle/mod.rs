@@ -127,6 +127,10 @@ pub struct BattleUnit {
     pub resistance: i32,
     /// Pluses to hit (each ten percentage points).
     pub to_hit: i32,
+    /// Pluses to hit that only the melee attack gets (a hero's sword), and only the ranged or
+    /// thrown attack (its bow): the plus to hit of its items.
+    pub melee_plus: i32,
+    pub ranged_plus: i32,
     pub to_block: i32,
     /// Hit points of one figure.
     pub hits: i32,
@@ -208,6 +212,8 @@ impl BattleUnit {
             defense,
             resistance: 4,
             to_hit: 0,
+            melee_plus: 0,
+            ranged_plus: 0,
             to_block: 0,
             hits,
             extra_hits: 0,
@@ -431,7 +437,11 @@ impl BattleUnit {
     }
 
     fn melee_combatant(&self) -> Combatant {
-        self.combatant(Mode::Melee, self.melee, self.to_hit + self.weapon_plus())
+        self.combatant(
+            Mode::Melee,
+            self.melee,
+            self.to_hit + self.weapon_plus() + self.melee_plus,
+        )
     }
 
     /// The plus to hit the unit's weapons give.
@@ -447,7 +457,11 @@ impl BattleUnit {
             } else {
                 0
             };
-            self.combatant(Mode::ThrownOrBreath, self.ranged, self.to_hit + plus)
+            self.combatant(
+                Mode::ThrownOrBreath,
+                self.ranged,
+                self.to_hit + plus + self.ranged_plus,
+            )
         })
     }
 }
@@ -1241,7 +1255,11 @@ impl Battle {
         } else {
             0
         };
-        let shooter = a.combatant(Mode::Ranged, a.ranged, a.to_hit + plus - penalty);
+        let shooter = a.combatant(
+            Mode::Ranged,
+            a.ranged,
+            a.to_hit + plus + a.ranged_plus - penalty,
+        );
         let figures = a.figures;
         let mut state = self.units[def].defender_state();
         state.defense += self.city_defense_bonus(def, att);

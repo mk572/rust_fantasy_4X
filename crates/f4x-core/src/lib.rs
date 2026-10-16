@@ -5,6 +5,7 @@
 
 mod access;
 mod ai_wizards;
+pub mod armory;
 pub mod battle;
 pub mod cast;
 pub mod cheat;
@@ -14,6 +15,7 @@ pub mod city_spells;
 pub mod conquest;
 pub mod content;
 pub mod corruption;
+pub mod crafting;
 pub mod diplomacy;
 pub mod dispel;
 pub mod economy;
@@ -27,6 +29,7 @@ pub mod gates;
 pub mod globals;
 mod healing;
 pub mod help;
+pub mod items;
 pub mod lairs;
 pub mod magic;
 mod magic_commands;
@@ -141,6 +144,25 @@ pub enum Command {
     /// The unit sheet's Dismiss: a unit leaves its owner's service for good (not heroes yet).
     DismissUnit {
         unit: hecs::Entity,
+    },
+    /// The item screen: move an item between the vault, the award list and a hero's slots.
+    /// `pay` agrees to the mana a transfer to a far-off hero costs.
+    MoveItem {
+        player: city::PlayerId,
+        from: armory::ItemSpot,
+        to: armory::ItemSpot,
+        pay: bool,
+    },
+    /// Enchant Item or Create Artifact: design an item and start casting it.
+    CraftItem {
+        player: city::PlayerId,
+        craft: crafting::Craft,
+        design: crafting::ItemDesign,
+    },
+    /// The anvil: destroy a vault or award item for half its value in mana.
+    ScrapItem {
+        player: city::PlayerId,
+        from: armory::Spot,
     },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
@@ -406,6 +428,12 @@ pub enum Event {
         spell: rules::SpellId,
     },
     /// The spell was cast but part of what it does is not implemented.
+    /// An item a wizard made is ready: where it went.
+    ItemMade {
+        player: city::PlayerId,
+        name: String,
+        placed: armory::Placed,
+    },
     SpellHasNoEffectYet {
         spell: rules::SpellId,
     },
@@ -524,6 +552,8 @@ pub enum Rejection {
     BattleStart(battle::game::BattleStartError),
     Raze(conquest::RazeError),
     Battle(battle::BattleError),
+    Item(armory::ItemError),
+    Craft(crafting::CraftingError),
     /// The game has ended; nothing more can be done.
     GameOver,
 }
@@ -740,6 +770,27 @@ impl Game {
                 .place_fortress(player, pos, name, race, population)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::DismissUnit { unit } => self.dismiss_unit(unit),
+            Command::MoveItem {
+                player,
+                from,
+                to,
+                pay,
+            } => match self.move_item(player, from, to, pay) {
+                Ok(()) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Item(e))],
+            },
+            Command::CraftItem {
+                player,
+                craft,
+                design,
+            } => match self.craft_item(player, craft, &design) {
+                Ok(events) => events,
+                Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
+            },
+            Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
+                Some(_) => Vec::new(),
+                None => vec![Event::Rejected(Rejection::Item(armory::ItemError::Empty))],
+            },
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),

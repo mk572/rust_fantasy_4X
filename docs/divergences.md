@@ -167,7 +167,7 @@ The numbering follows the original's table order. The original shows the plain n
 places, so a player cannot tell them apart there; in ours the names carry I and II.
 
 Two other points about the item data that are not departures but are easy to mistake for bugs:
-movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit), and
+movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit: the data file holds whole moves and the original doubles them when it makes the item, so the values in `content/items.ron` are doubled; task 49 corrected them), and
 to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
 The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
 
@@ -182,7 +182,31 @@ opposite, as does common sense about the weapons. We follow the weapons: `elven_
 (the bow, Alorra) and `knight` is type 31 (Sir Harold); the stats, pictures and starting records stay
 with their numbers, only the two names and ids differ from the original's table.
 
-## 10. Recorded elsewhere
+## 10. Items and crafting (tasks 49 and 50)
+
+Where the item rules differ from the original's code or are read from ReMoM with a doubt:
+
+- **Attack powers go to both attacks.** The original puts a power such as Vampiric, Lightning or
+  Chaos on the melee or the ranged attack by the item's kind (`Item_Powers_To_Attack_Attributes`).
+  Ours give the carrying hero the matching ability (`life_steal`, `armor_piercing`, `doom_damage`,
+  ...), which holds for both attacks; a hero with a sword and a bow gets a shot with it too.
+  The attack and to-hit bonuses are kept apart by kind as in the original (`MeleeToHit`,
+  `RangedToHit`).
+- **The award list is free to place from.** Items waiting after a reward are put on any hero at
+  no cost; the original remembers where the reward was won and charges 20 mana to move it to a
+  hero elsewhere (the vault is charged the same way for a hero away from the fortress, which we copy).
+- **The made item is the designed one.** ReMoM's `Cast_Spell_Overland_Do` calls `Make_Item` after
+  the item screen, which reads as if the made item came out of the random generator; the help
+  (207, 211) says the wizard designs it, so the design is what is made. Unresolved in ReMoM.
+- **Charges.** The spell of a staff or wand must be known and castable in battle (the original
+  excludes eligibility 1 and 5; ours has no such number). One to four charges.
+- **The item keeps its full value.** Artificer and the books lower the mana of the cast, as in the
+  original, but the made item is worth (to the anvil, to merchants) the full cost.
+- **Default names** are cut at 30 characters; the original blanks a long one.
+- **Item movement** in `content/items.ron` was whole moves under the name of half-moves until
+  task 49 doubled it.
+
+## 11. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

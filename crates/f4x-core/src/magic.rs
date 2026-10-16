@@ -105,6 +105,9 @@ pub struct Magic {
     /// Research points still to pay for `researching`.
     pub research_remaining: i32,
     pub casting: Option<Casting>,
+    /// The item Enchant Item or Create Artifact is making while its cost is paid (the
+    /// original's reserved item record); it goes to the armory when the spell is done.
+    pub crafting: Option<crate::items::Item>,
     /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
     pub global: Vec<SpellId>,
     /// Casting skill still available this turn for instant casting (the original's
@@ -127,6 +130,7 @@ impl Default for Magic {
             researching: None,
             research_remaining: 0,
             casting: None,
+            crafting: None,
             global: Vec::new(),
             skill_left: 0,
         }
@@ -754,6 +758,7 @@ impl Magic {
     /// Give up the spell being cast; the mana already paid is lost.
     pub fn cancel_casting(&mut self) {
         self.casting = None;
+        self.crafting = None;
     }
 
     /// Turn off one of the wizard's own global enchantments.

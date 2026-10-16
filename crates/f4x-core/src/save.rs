@@ -152,6 +152,9 @@ pub struct PlayerSave {
     /// Absent in saves from before wizards existed.
     #[serde(default)]
     pub magic: MagicSave,
+    /// The vault and the award list; absent in saves from before items.
+    #[serde(default)]
+    pub armory: crate::armory::Armory,
     #[serde(default)]
     pub fortress: Option<Position>,
     #[serde(default)]
@@ -188,6 +191,9 @@ pub struct MagicSave {
     pub research_remaining: i32,
     /// `(spell, mana still to pay)`.
     pub casting: Option<(String, i32)>,
+    /// The item being made by Enchant Item or Create Artifact; absent in older saves.
+    #[serde(default)]
+    pub crafting: Option<crate::items::Item>,
     pub global: Vec<String>,
     pub skill_left: i32,
 }
@@ -208,6 +214,7 @@ impl Default for MagicSave {
             researching: None,
             research_remaining: 0,
             casting: None,
+            crafting: None,
             global: Vec::new(),
             skill_left: 0,
         }
@@ -230,6 +237,7 @@ impl Magic {
             researching: self.researching.as_ref().map(name),
             research_remaining: self.research_remaining,
             casting: self.casting.map(|c| (name(&c.spell), c.remaining)),
+            crafting: self.crafting.clone(),
             global: self.global.iter().map(name).collect(),
             skill_left: self.skill_left,
         }
@@ -272,6 +280,7 @@ impl Magic {
                 .casting
                 .map(|(s, remaining)| id(&s).map(|spell| Casting { spell, remaining }))
                 .transpose()?,
+            crafting: m.crafting,
             global: ids(&m.global)?,
             skill_left: m.skill_left,
         })
@@ -306,6 +315,9 @@ pub struct UnitSave {
     /// Temporary modifiers and abilities.
     #[serde(default)]
     pub effects: Vec<TempSave>,
+    /// A hero's three items; absent in older saves.
+    #[serde(default)]
+    pub items: Option<crate::items::HeroItems>,
 }
 
 /// A temporary effect as saved; stats are named by their own serialisation.
@@ -576,6 +588,7 @@ impl Game {
                 capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
+                armory: p.armory.clone(),
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
@@ -623,6 +636,12 @@ impl Game {
                         .ok()
                         .map(|w| (w.at, w.left, w.rest.clone())),
                     effects: effects_save(self, u),
+                    items: self
+                        .world
+                        .get::<&crate::items::HeroItems>(u)
+                        .ok()
+                        .filter(|i| !i.is_empty())
+                        .map(|i| (*i).clone()),
                     undead: self.units().unit_is_undead(u),
                 })
             })
@@ -802,6 +821,7 @@ impl Snapshot {
                 capital_race,
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
+                armory: p.armory,
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
@@ -872,6 +892,9 @@ impl Snapshot {
                     .insert_one(entity, crate::transport::Aboard(Serial(ship)));
             }
             effects_load(&mut game.world, entity, u.effects);
+            if let Some(items) = u.items {
+                let _ = game.world.insert_one(entity, items);
+            }
             if u.undead {
                 let _ = game.world.insert_one(entity, crate::undead::Undead);
             }

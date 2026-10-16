@@ -1,7 +1,9 @@
 # Heroes and items: design
 
 Plan for tasks 47 to 51 and the parts of 72, 127, 128, 138 to 143, 174 and 175 that wait for them.
-Nothing here is built yet. It follows the base rule of `design.md`: each system is plain data plus
+Built so far: the data (task 218), the item rules and armory (task 49: `items.rs`, `armory.rs`) and
+crafting (task 50: `crafting.rs`); see section 1. The roster, hero component, offers, hero spells and
+loot are not. It follows the base rule of `design.md`: each system is plain data plus
 functions over the pieces they need, not methods on `Game` (`ecs-structure.md`, guideline 12).
 
 Sources, so every number can be checked: the original's data files (`ITEMDATA.LBX`, `ITEMPOW.LBX`,
@@ -16,12 +18,14 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 |---|---|
 | 35 hero units in `content/units.ron`, `content/heroes.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (kind: Warrior / Bow / SwordOrStaff / Mage, portrait, hire_cost)` (task 218: the type fixes the three slots, `HeroKind::slots`, `SlotKind::fits`) and the 35 starting records of `NewGame.c:_hero_premade_table` (picks, fixed abilities by `HSA_*` name, casting skill, four innate spells), loaded into `Rules::hero_templates` and checked by `validate`. |
 | 250 items in `content/items.ron`, 66 powers in `content/item_powers.ron` | Hand-kept data of every original item and power (task 218 steps 1 and 2): `ItemDef {id, name, slot, kind, cost, effects, spell_skill, spell_save, powers, charges, books, flag}`; plain bonuses are effects (movement as `HalfMoves`, to hit in pluses). What the special powers do, and the books' meaning, are open. |
-| `Source::Item(Id<ItemDef>)` in `rules/stats.rs` | Exists, nothing uses it. |
+| `items.rs` (task 49) | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies), `HeroItems` (the three slots, a component), `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities` (large shield, special attacks), `power_is_handled`. `Source::Item(slot)`. The unit's stats, abilities, lasting spells and battle form read them (`Units::unit_items`, `item_spells`, `item_modifiers`). New stats `MeleeToHit`, `RangedToHit`. |
+| `armory.rs` (task 49) | `Armory` on `Player` (vault of four, award list of six), `Game::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`. |
+| `crafting.rs` (task 50) | `ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `default_name`, `Game::craft_item` / `Command::CraftItem`, `Magic::crafting` (the pending item), the hook `craft_item` of the two spells, `Event::ItemMade`. Not built: random and prefab items (task 262), the screen (260), icons (261). |
 | `experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
 | `battle/spoils.rs` | Fame for fallen heroes. Their items are not looted. |
 | `lairs.rs` | `Loot {items: Vec<u32>, prisoner: bool}`: a value and a flag, no item and no hero. |
 | `Player.fame` | Plain number; `finance.rs` takes it off the troop upkeep. |
-| Spells `summon_hero`, `summon_champion`, `incarnation`, `resurrection`, `recall_hero`, `enchant_item`, `create_artifact` | In `content/spells.ron`, on the `unimplemented` hook. |
+| Spells `summon_hero`, `summon_champion`, `incarnation`, `resurrection`, `recall_hero` | In `content/spells.ron`, on the `unimplemented` hook. (`enchant_item` and `create_artifact` run the hook `craft_item`.) |
 | `help.ron` topics 133, 142, 205, 207, 208, 211, 212, 240, 243, 246, 357, 515 to 526, 532, 533, 697, 702, 704, 765, 802 | The hero and item help. |
 
 ## 2. How the original works
@@ -393,10 +397,10 @@ comment or one read of the code and need a second look before they are built (th
 | H15 | Resurrection [133] | "if six other heroes have been hired the spell fails" | Same (checks `Hero_Slot_Open`) | As help. |
 | H16 | Recall Hero [205] | "instantly summons the target hero to your summoning circle, removing her from the current combat" | not read yet | Battle only, as the spell data has it. **Check** |
 | H17 | Anvil [246] | half the base creation cost in mana | Same | As help. |
-| H18 | Enchant Item [207] | "only powers that cost 200 mana or less" | `Itam_Make_Screen_Build_Weapon_Powers_List` takes a maximum cost for a power (the player's crafting); random items for Power 1 use cost 200 and **at most 2** powers; how many powers the player may pick (`NUM_ITEM_POWERS` is 4) I have not checked | Limit each power as the help says; four powers at most. **Check** |
+| H18 | Enchant Item [207] | "only powers that cost 200 mana or less" | `Itam_Make_Screen_Build_Weapon_Powers_List` takes a maximum cost for a power (the player's crafting); random items for Power 1 use cost 200 and **at most 2** powers; the player may pick four (`NUM_ITEM_POWERS`; the screen warns "only 4 powers may be enchanted into an item") | Limit each power as the help says; four powers at most. **Done** (task 50, `crafting::check`). |
 | H19 | Artificer [697] | cost of making magical items -50% | A 50 percent reduction of the crafting spells' casting cost, in the same function as the other books' reductions (`NEXTTURN.c:1343`) | As help. |
 | H20 | Item power Merging | not in the help | Needs 22 books in `ITEMPOW.LBX`, so no wizard can craft it | Import it with the 22 as it is. |
-| H21 | Item attack and to hit | "attack" on every item | Goes to melee or to ranged by item kind (2.1); to hit is per attack | Port the kind rule; the current import puts every bonus on `Melee`. |
+| H21 | Item attack and to hit | "attack" on every item | Goes to melee or to ranged by item kind (2.1); to hit is per attack | Port the kind rule; the current import puts every bonus on `Melee`. **Done** (task 49, `items::modifiers`; the plain bonuses are the item's `ItemBonus`, the import's `Melee` effect is read as its attack). |
 | H22 | Embedded spells | any slot | Only `Items[0]` is ever usable (`COMBINIT.c:511`, marked OGBUG) | Allow every slot (the bug is not copied); say so in `divergences.md`. |
 | H23 | Spells of a dead hero's owner | item and hero spells | Several places use the current battle controller, not the hero's owner (OGBUG notes at `CMBMAGIC.c:543` and others) | Use the owner. |
 | H24 | Fame and upkeep [765] | "decreases the total amount paid for troop maintenance by one gold per fame point" | `Player_Fame` + the upkeep subtraction (`CITYCALC.c:312`) | Ours (`finance.rs`); only the fame total changes with heroes. |
@@ -430,15 +434,17 @@ Each step is testable without a screen; later steps add the client screens.
 
 1. **Data**: extend the importer (items 250 with all fields, `item_powers.ron`, hero type, portrait, `heroes.ron`
    from `NewGame.c`); validators in `f4x-data`. No game change. (part of 49)
-2. **`items`, `item_powers`, `armory`**: types, fits, modifiers, equip rules, tests by fake data. (49)
+2. **`items`, `item_powers`, `armory`**: types, fits, modifiers, equip rules, tests by fake data. (49) **Done.**
 3. **Items in the rules**: `Source::Item` modifiers, item abilities and attack traits in
-   `unit_modifiers`, `unit_abilities`, `battle_unit_from`; item to hit per attack. (49)
+   `unit_modifiers`, `unit_abilities`, `battle_unit_from`; item to hit per attack. (49) **Done**
+   (spell skill, spell save and charges are with the hero's casting, task 51).
 4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (48, 47)
 5. **Hero abilities in battle and overland**: stat abilities, leadership and prayermaster, Sage, Legendary and
    `fame::total`; hero level bonuses (with 174). (47, 72, 174)
 6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48)
 7. **Loot**: fallen heroes' items, the removal spells, lair items and prisoners (127). (49)
-8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50)
+8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
+   prefab items, `Make_Item`, are task 262; the crafting screen 260).
 9. **Offers**: hero, mercenary, merchant. (48, 143)
 10. **Hero casting** (task 51), the AI rules, console commands.
 11. **Client**: army list, unit window, item screen, crafting screen, offer pop-ups (138 to 143).

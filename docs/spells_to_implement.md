@@ -26,7 +26,7 @@ The spells wired so far are not listed: see tasks 25, 56 and 58 in `TASKS.md` an
 | 205 | Recall Hero | arcane | Heroes (task 219), taking a unit out of a fight |
 | 208 | Summon Hero | arcane | Hero data and roster (tasks 218, 219), six-hero limit |
 | 212 | Summon Champion | arcane | The same as Summon Hero, with the greater heroes |
-| 207 | Enchant Item | arcane | Items and the vault (tasks 49, 50, 218) |
+| 207 | Enchant Item | arcane | Rules done (task 50: `Command::CraftItem`); the screen to design the item is task 260 |
 | 211 | Create Artifact | arcane | The same as Enchant Item, with all powers |
 
 ## B. Unit enchantments the combat code must read

@@ -174,6 +174,8 @@ impl Game {
                 + if quality > 0 { extra } else { 0 },
             resistance: self.units().unit_stat(unit, Stat::Resistance) + lucky,
             to_hit: self.units().unit_stat(unit, Stat::ToHit) + lucky,
+            melee_plus: self.units().unit_stat(unit, Stat::MeleeToHit),
+            ranged_plus: self.units().unit_stat(unit, Stat::RangedToHit),
             to_block: lucky,
             hits,
             extra_hits: 0,

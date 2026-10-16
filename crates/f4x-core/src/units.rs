@@ -254,6 +254,13 @@ impl<'a> Units<'a> {
                 ));
             }
         }
+        for spell in self.item_spells(unit) {
+            mods.extend(passive_modifiers(
+                &rules.spells.get(spell).effects,
+                Source::Spell(spell),
+            ));
+        }
+        mods.extend(self.item_modifiers(unit));
         mods.extend(self.temp_modifiers(unit));
         mods.extend(self.global_unit_modifiers(unit));
         mods
