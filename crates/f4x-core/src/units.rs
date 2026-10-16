@@ -17,7 +17,7 @@ use crate::player::Player;
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
 use crate::serial::Serial;
-use crate::Game;
+use crate::{Event, Game};
 
 /// Marks an entity as a unit of this definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,7 +233,16 @@ impl<'a> Units<'a> {
             let level = self.unit_level(unit);
             for i in 0..=level {
                 if let Some((_, effects)) = path.level(i) {
-                    mods.extend(passive_modifiers(effects, Source::Level(i as u8)));
+                    // A level's attack plus only counts for a unit that has the attack
+                    // (`Battle_Unit_Level_Stats`).
+                    mods.extend(
+                        passive_modifiers(effects, Source::Level(i as u8))
+                            .into_iter()
+                            .filter(|m| {
+                                !matches!(m.stat, Stat::Melee | Stat::Ranged)
+                                    || def.stats.get(&m.stat).copied().unwrap_or(0) > 0
+                            }),
+                    );
                 }
             }
         }
@@ -269,6 +278,27 @@ impl<'a> Units<'a> {
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
         self.world.get::<&MovesLeft>(unit).map_or(0, |m| m.0)
+    }
+
+    /// How far the unit sees on the map: its `Sight` stat (the original's scouting level), at
+    /// least 2 for a flier or a Wind Walker (`Update_Scouted_And_Contacted`).
+    pub fn unit_sight(&self, unit: hecs::Entity) -> i32 {
+        let sight = self.unit_stat(unit, Stat::Sight).max(1);
+        let flies = self
+            .unit_def(unit)
+            .is_some_and(|d| d.movement == crate::rules::MovementType::Flying)
+            || self.unit_has_ability(unit, "flying")
+            || self.unit_has_ability(unit, "wind_walking");
+        if flies {
+            sight.max(2)
+        } else {
+            sight
+        }
+    }
+
+    /// The unit's experience points.
+    pub fn unit_experience(&self, unit: hecs::Entity) -> u32 {
+        self.world.get::<&Experience>(unit).map_or(0, |x| x.0)
     }
 
     /// `(current, maximum)` hit points over all figures.
@@ -388,11 +418,31 @@ impl Game {
             pos,
             unit,
         );
-        let sight = self.units().unit_stat(e, Stat::Sight).max(1) as u32;
+        let sight = self.units().unit_sight(e) as u32;
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
         }
         e
+    }
+
+    /// The unit sheet's Dismiss button: the unit leaves its owner's service for good. Heroes
+    /// are refused until they have a roster to go back to (task 48).
+    pub fn dismiss_unit(&mut self, unit: hecs::Entity) -> Vec<Event> {
+        let Some(owner) = self.units().unit_owner(unit) else {
+            return Vec::new();
+        };
+        if self
+            .units()
+            .unit_def(unit)
+            .is_none_or(|d| d.kind == crate::rules::UnitKind::Hero)
+        {
+            return Vec::new();
+        }
+        let _ = self.world.despawn(unit);
+        vec![Event::UnitsDisbanded {
+            player: owner,
+            units: 1,
+        }]
     }
 }
 

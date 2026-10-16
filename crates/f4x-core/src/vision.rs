@@ -29,8 +29,7 @@ impl Economy<'_> {
             units.unit_has_ability(u, "illusion_immunity")
                 && units.unit_position(u).is_some_and(|p| {
                     p.plane == at.plane
-                        && grid.chebyshev((p.x, p.y), (at.x, at.y))
-                            <= units.unit_stat(u, Stat::Sight).max(1) as u32
+                        && grid.chebyshev((p.x, p.y), (at.x, at.y)) <= units.unit_sight(u) as u32
                 })
         })
     }
@@ -69,7 +68,7 @@ impl Economy<'_> {
         let units = self.units();
         for unit in units.player_units(player) {
             if let Some(at) = units.unit_position(unit) {
-                reveal(at, units.unit_stat(unit, Stat::Sight).max(1));
+                reveal(at, units.unit_sight(unit));
             }
         }
         for (entity, city, at) in self.cities() {

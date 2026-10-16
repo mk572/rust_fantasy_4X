@@ -175,6 +175,14 @@ impl Economy<'_> {
         Ok(cost)
     }
 
+    /// The unit of the stack that carries it through the air (Wind Walking), if any.
+    pub fn wind_walker(&self, units: &[hecs::Entity]) -> Option<hecs::Entity> {
+        units
+            .iter()
+            .copied()
+            .find(|&u| self.units().unit_has_ability(u, "wind_walking"))
+    }
+
     /// Whether any unit in `units` carries its stack through the air.
     pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
         units
@@ -235,6 +243,7 @@ impl Economy<'_> {
         }
         let flies = self.stack_traits(units);
         let to_sea = self.is_sea(to);
+        let walker = self.wind_walker(units);
         let mut costs = Vec::with_capacity(units.len());
         let mut boarding = 0u32;
         for &u in units {
@@ -249,7 +258,12 @@ impl Economy<'_> {
                 costs.push(0);
                 continue;
             }
-            if self.units().unit_moves_left(u) == 0 {
+            // A stack with a Wind Walker moves as far as the Wind Walker can.
+            let left = walker.map_or_else(
+                || self.units().unit_moves_left(u),
+                |w| self.units().unit_moves_left(w),
+            );
+            if left == 0 {
                 return Err(MoveError::NoMovesLeft);
             }
             costs.push(self.step_cost(u, from, to, flies)?);
@@ -387,8 +401,15 @@ impl Game {
             let left = self.units().unit_moves_left(u).saturating_sub(cost);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.units().unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
+            let sight = self.units().unit_sight(u) as u32;
             self.explore(owner, to, sight);
+        }
+        // The Wind Walker's allowance is the whole stack's: the others have what it has left.
+        if let Some(w) = self.economy().wind_walker(units) {
+            let left = self.units().unit_moves_left(w);
+            for &u in units.iter().filter(|&&u| u != w) {
+                let _ = self.world.insert_one(u, MovesLeft(left));
+            }
         }
         self.claim_tower(units, to);
         // Passengers follow a ship that sails on without them being selected.
@@ -431,7 +452,7 @@ impl Game {
             let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.units().unit_stat(u, crate::rules::Stat::Sight).max(1) as u32;
+            let sight = self.units().unit_sight(u) as u32;
             self.explore(owner, to, sight);
         }
         Ok(to)

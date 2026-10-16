@@ -560,6 +560,14 @@ impl App {
             }
             return;
         }
+        if is_mouse_button_pressed(MouseButton::Right) {
+            // A right-click on a unit opens its statistics sheet.
+            if let Some(u) = hovered.and_then(|cell| battle.unit_at(cell)) {
+                let id = u.id;
+                self.open_battle_sheet(battle, id);
+                return;
+            }
+        }
         if is_mouse_button_pressed(MouseButton::Left) {
             let (w, h) = (screen_width(), screen_height());
             // Clicks on the side panel are the buttons' business.

@@ -65,6 +65,17 @@ impl App {
         }
         let lay = Layout::new();
         let choosing = self.choosing;
+        // A right-click on a unit of the garrison opens its statistics sheet.
+        if is_mouse_button_pressed(MouseButton::Right) && !choosing {
+            let over = self
+                .garrison_cells(city, lay)
+                .into_iter()
+                .find(|(r, _)| r.contains(mouse_position().into()));
+            if let Some((_, unit)) = over {
+                self.open_unit_sheet(unit);
+                return;
+            }
+        }
         if is_key_pressed(KeyCode::Escape)
             || (is_mouse_button_pressed(MouseButton::Right) && !choosing)
         {
@@ -641,6 +652,23 @@ impl App {
                 }
             }
         }
+    }
+
+    /// The garrison's unit squares and the unit on each (at most nine).
+    fn garrison_cells(&self, city: hecs::Entity, lay: Layout) -> Vec<(Rect, hecs::Entity)> {
+        let at = self.city_position(city);
+        self.game
+            .units()
+            .units_at(at)
+            .into_iter()
+            .take(9)
+            .enumerate()
+            .map(|(i, u)| {
+                let (col, row) = ((i % 5) as f32, (i / 5) as f32);
+                let (x, y) = (216.0 + col * 19.0, 105.0 + row * 17.0);
+                (lay.rect(x - 1.0, y - 1.0, 18.0, 16.0), u)
+            })
+            .collect()
     }
 
     fn draw_city_garrison(&mut self, city: hecs::Entity, lay: Layout) {

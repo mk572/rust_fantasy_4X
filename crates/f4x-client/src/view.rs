@@ -56,6 +56,8 @@ pub enum Screen {
     MainMenu,
     /// The save slots: load, save, and leave the game.
     Slots,
+    /// One unit's statistics sheet (`unit_screen.rs`).
+    UnitSheet,
 }
 
 pub struct App {
@@ -102,6 +104,11 @@ pub struct App {
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
+    /// The unit statistics sheet that is open, if any.
+    pub(crate) sheet_ui: crate::unit_screen::SheetUi,
+    /// Where the selected units' lines were drawn last frame: a right-click on one opens the
+    /// unit's sheet instead of sending the stack anywhere.
+    unit_rows: Vec<(Rect, hecs::Entity)>,
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
@@ -168,6 +175,8 @@ impl App {
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
             battle_ui: Default::default(),
+            sheet_ui: Default::default(),
+            unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
             console: Default::default(),
@@ -699,7 +708,10 @@ impl App {
             if !self.battle_ui.ready {
                 self.init_battle_ui();
             }
-            if !matches!(self.screen, Screen::Battle | Screen::Console) {
+            if !matches!(
+                self.screen,
+                Screen::Battle | Screen::Console | Screen::UnitSheet
+            ) {
                 self.screen = Screen::Battle;
             }
         } else {
@@ -749,6 +761,7 @@ impl App {
             }
             Screen::Magic => self.magic_screen(),
             Screen::Wizard => self.wizard_screen(),
+            Screen::UnitSheet => self.unit_sheet_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
@@ -1119,7 +1132,16 @@ impl App {
             if is_mouse_button_pressed(MouseButton::Left) {
                 self.click(pos);
             }
-            if is_mouse_button_pressed(MouseButton::Right) && !self.selection.is_empty() {
+            let row = self
+                .unit_rows
+                .iter()
+                .find(|(r, _)| r.contains(mouse_position().into()))
+                .map(|&(_, u)| u);
+            if is_mouse_button_pressed(MouseButton::Right) && row.is_some() {
+                if let Some(unit) = row {
+                    self.open_unit_sheet(unit);
+                }
+            } else if is_mouse_button_pressed(MouseButton::Right) && !self.selection.is_empty() {
                 let events = self.game.apply(Command::GoTo {
                     units: self.selection.clone(),
                     to: pos,
@@ -1488,6 +1510,7 @@ impl App {
             return;
         }
         lines.line("Selected stack", GOLD);
+        self.unit_rows.clear();
         for &unit in &self.selection {
             let Some(def) = self.game.units().unit_def(unit) else {
                 continue;
@@ -1499,6 +1522,16 @@ impl App {
             } else {
                 ""
             };
+            // Right-click on a unit's line opens its statistics sheet.
+            self.unit_rows.push((
+                Rect::new(
+                    lines.x,
+                    lines.y - lines.size,
+                    lines.size * 20.0,
+                    lines.size * 1.2,
+                ),
+                unit,
+            ));
             lines.line(
                 &format!("{}  hp {hp}/{max}  mv {moves}{order}", def.name),
                 WHITE,

@@ -138,6 +138,10 @@ pub enum Command {
         race: Option<rules::RaceId>,
         population: u32,
     },
+    /// The unit sheet's Dismiss: a unit leaves its owner's service for good (not heroes yet).
+    DismissUnit {
+        unit: hecs::Entity,
+    },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
         unit: hecs::Entity,
@@ -735,6 +739,7 @@ impl Game {
             } => self
                 .place_fortress(player, pos, name, race, population)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
+            Command::DismissUnit { unit } => self.dismiss_unit(unit),
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),

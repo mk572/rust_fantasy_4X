@@ -238,6 +238,38 @@ fn wind_walking_carries_the_whole_stack_over_water() {
 }
 
 #[test]
+fn a_stack_with_a_wind_walker_moves_as_far_as_the_wind_walker_can() {
+    let mut g = world();
+    let mage = unit(&mut g, P0, "mage", at(5, 4));
+    let walker = unit(&mut g, P0, "walker", at(5, 4));
+    // The Wind Walker has three moves (the spell's Min), the walker only the one it was given.
+    let _ = g.world.insert_one(mage, MovesLeft(6));
+    let _ = g.world.insert_one(walker, MovesLeft(2));
+    for x in [6, 7, 8] {
+        assert_eq!(g.move_stack(&[mage, walker], at(x, 4)), Ok(Entry::Free));
+    }
+    assert_eq!(g.units().unit_position(walker), Some(at(8, 4)));
+    assert_eq!(
+        g.units().unit_moves_left(walker),
+        0,
+        "it has what the walker has left"
+    );
+    assert_eq!(
+        g.move_stack(&[mage, walker], at(9, 4)),
+        Err(MoveError::NoMovesLeft)
+    );
+}
+
+#[test]
+fn fliers_and_wind_walkers_see_two_squares_at_least() {
+    let mut g = world();
+    let mage = unit(&mut g, P0, "mage", at(5, 4));
+    let walker = unit(&mut g, P0, "walker", at(5, 4));
+    assert_eq!(g.units().unit_sight(walker), 1);
+    assert_eq!(g.units().unit_sight(mage), 2);
+}
+
+#[test]
 fn water_walking_carries_only_the_walker_over_water() {
     let mut g = world();
     let strider = unit(&mut g, P0, "strider", at(6, 2));

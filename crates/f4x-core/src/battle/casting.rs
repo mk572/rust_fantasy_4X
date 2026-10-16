@@ -236,6 +236,7 @@ impl Battle {
         unit.attacked = false;
         unit.status = Status::Active;
         self.units.push(unit);
+        self.refresh_fields();
         id
     }
 

@@ -242,6 +242,65 @@ mod tests {
         load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
     }
 
+    /// The bonus a level path gives in all up to `level`, for a stat (task 174).
+    fn level_total(
+        content: &Content,
+        path: &str,
+        level: usize,
+        stat: f4x_core::rules::Stat,
+    ) -> i32 {
+        use f4x_core::rules::effects::Effect;
+        use f4x_core::rules::ModOp;
+        let path = content.rules.level_paths.by_name(path).unwrap();
+        (0..=level)
+            .filter_map(|i| path.level(i))
+            .flat_map(|(_, effects)| effects.iter())
+            .map(|r| match r.effect {
+                Effect::Modify {
+                    stat: s,
+                    op: ModOp::Add,
+                    value,
+                } if s == stat => value,
+                _ => 0,
+            })
+            .sum()
+    }
+
+    #[test]
+    fn the_level_paths_are_the_originals_level_bonuses() {
+        use f4x_core::rules::Stat::*;
+        let c =
+            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
+                .unwrap();
+        // A normal unit at Champion (level 5): resistance +5, attacks +3, defence +2, to hit +3.
+        let at = |stat| level_total(&c, "standard_xp", 5, stat);
+        assert_eq!(
+            [
+                at(Resistance),
+                at(Melee),
+                at(Ranged),
+                at(Defense),
+                at(ToHit)
+            ],
+            [5, 3, 3, 2, 3]
+        );
+        // Veteran gains defence, not attacks.
+        assert_eq!(level_total(&c, "standard_xp", 2, Defense), 1);
+        assert_eq!(level_total(&c, "standard_xp", 2, Melee), 1);
+        // A hero at level 8: resistance +8, attacks +8, defence +4, to hit +3, hit points +8.
+        let hero = |stat| level_total(&c, "hero_xp", 8, stat);
+        assert_eq!(
+            [
+                hero(Resistance),
+                hero(Melee),
+                hero(Defense),
+                hero(ToHit),
+                hero(MaxHp)
+            ],
+            [8, 8, 4, 3, 8]
+        );
+    }
+
     #[test]
     fn shipped_terrain_file_is_valid() {
         let t = parse_terrains(&shipped()).unwrap();

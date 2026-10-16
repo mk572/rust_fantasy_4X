@@ -869,6 +869,25 @@ fn spare_food_is_sold_for_gold() {
 }
 
 #[test]
+fn dismissing_a_unit_removes_it_and_says_so() {
+    let mut g = world();
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let keep = g.spawn_unit(P0, at(11, 6), spear);
+    let go = g.spawn_unit(P0, at(11, 6), spear);
+    let events = g.apply(Command::DismissUnit { unit: go });
+    assert_eq!(
+        events,
+        vec![Event::UnitsDisbanded {
+            player: P0,
+            units: 1
+        }]
+    );
+    assert_eq!(g.units().player_units(P0), vec![keep]);
+    // Dismissing it again does nothing.
+    assert!(g.apply(Command::DismissUnit { unit: go }).is_empty());
+}
+
+#[test]
 fn an_army_that_cannot_be_fed_or_paid_is_disbanded() {
     let mut g = world();
     found(&mut g, at(10, 6), "elf", 4);

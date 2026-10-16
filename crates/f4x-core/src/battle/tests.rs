@@ -1708,6 +1708,56 @@ mod fields {
     }
 
     #[test]
+    fn holy_bonus_and_resistance_to_all_help_the_whole_side_and_do_not_add_up() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        let plain = b.units[0].clone();
+        let enemy = b.units[1].clone();
+        let with = |ability: &str, level: i32| {
+            let mut u = of(Side::Attacker, None, (3, 6));
+            u.abilities.push(ability.to_string());
+            u.special_level = level;
+            u
+        };
+        // An archer without melee gets defence and resistance but no attack.
+        let mut archer = of(Side::Attacker, None, (3, 7));
+        archer.melee = 0;
+        let archer_id = b.add_summoned(Side::Attacker, archer, (3, 7));
+        let angel = b.add_summoned(Side::Attacker, with("holy_bonus", 2), (3, 6));
+        let (p, a) = (&b.units[0], &b.units[archer_id]);
+        assert_eq!(
+            (p.melee, p.defense, p.resistance),
+            (plain.melee + 2, plain.defense + 2, plain.resistance + 2)
+        );
+        assert_eq!((a.melee, a.defense), (0, plain.defense + 2));
+        assert_eq!(
+            b.units[angel].melee,
+            plain.melee + 2,
+            "the bearer gets it too"
+        );
+        assert_eq!(b.units[1].defense, enemy.defense, "the enemy gets nothing");
+        // A second, weaker holy unit does not add, and Resistance to All adds to resistance only.
+        b.add_summoned(Side::Attacker, with("holy_bonus", 1), (4, 6));
+        assert_eq!(b.units[0].defense, plain.defense + 2);
+        b.add_summoned(Side::Attacker, with("resist_all", 1), (4, 7));
+        let p = &b.units[0];
+        assert_eq!(
+            (p.melee, p.resistance),
+            (plain.melee + 2, plain.resistance + 3)
+        );
+        // When the bearer falls the bonus goes at the next refresh.
+        b.units[angel].status = Status::Dead;
+        b.refresh_fields();
+        assert_eq!(
+            b.units[0].defense,
+            plain.defense + 1,
+            "the weaker one still stands"
+        );
+    }
+
+    #[test]
     fn refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again() {
         let mut b = pair(
             of(Side::Attacker, None, (3, 5)),

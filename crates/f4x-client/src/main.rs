@@ -21,6 +21,8 @@ mod options_screen;
 mod spellbook;
 mod terrain_pick;
 mod ui;
+mod unit_screen;
+mod unit_sheet;
 mod view;
 mod wizard_screen;
 
@@ -68,6 +70,8 @@ struct Options {
     battle: bool,
     /// With `--shot`, select the starting stack first.
     select: bool,
+    /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
+    sheet: Option<usize>,
     /// With `--shot`, end this many turns first.
     turns: u32,
     /// Start from a saved game.
@@ -106,6 +110,7 @@ fn parse_args() -> Result<Options, String> {
         turns: 0,
         load: None,
         save: None,
+        sheet: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -121,6 +126,13 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--select" => o.select = true,
+            "--sheet" => {
+                o.sheet = Some(
+                    value("--sheet")?
+                        .parse()
+                        .map_err(|_| "--sheet must be a unit number")?,
+                )
+            }
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
             "--wizard" => {
@@ -181,7 +193,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -246,6 +258,9 @@ async fn main() {
     }
     if options.battle {
         app.open_test_battle();
+    }
+    if let Some(n) = options.sheet {
+        app.open_test_sheet(n);
     }
     if options.create {
         app.open_creation();

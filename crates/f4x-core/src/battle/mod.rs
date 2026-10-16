@@ -788,6 +788,8 @@ impl Battle {
                 u.side = owner;
             }
         }
+        // Holy Bonus and Resistance to All follow whoever is still standing.
+        self.refresh_fields();
         for u in self
             .units
             .iter_mut()

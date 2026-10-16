@@ -235,6 +235,24 @@ impl Battle {
             }
             b.magical = true;
         }
+        // Holy Bonus and Resistance to All: the highest level among the side's standing units,
+        // never added up. Holy Bonus gives attack (melee), defence and resistance, and counts
+        // towards resistance to all (`Update_Battlefield_Bonuses`, `COMBINIT.c`).
+        let level = |ability: &str| {
+            self.units
+                .iter()
+                .filter(|x| x.side == mine && x.is_active() && x.has(ability))
+                .map(|x| x.special_level)
+                .max()
+                .unwrap_or(0)
+        };
+        let holy = level("holy_bonus");
+        let resist_all = level("resist_all");
+        if holy > 0 && u.melee > 0 {
+            b.melee += holy;
+        }
+        b.defense += holy;
+        b.resistance += holy + resist_all;
         b.invisible = own(Field::MassInvisibility);
         b.blur = own(Field::Blur);
         b

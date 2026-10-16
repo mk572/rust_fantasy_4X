@@ -421,6 +421,8 @@ so they never pile up and never push a stat below nothing:
 | Black Prayer | the caster's enemies: -1 melee, ranged and defence, -2 resistance |
 | Prayer | the caster's units: +1 to hit, +1 to block, +1 resistance |
 | High Prayer | instead of Prayer: +1 to hit, +1 to block, +3 resistance, +2 melee (if it has any), +2 defence (the code; the help said more) |
+| Holy Bonus (a unit ability: Angel, Arch Angel, High Men Paladins; level `SpecialLevel`) | the unit's side, from the highest level among its standing units (never added up): +level melee (if it has any), defence and resistance, the same bonus also counting as Resistance to All. Only the attack of melee, as in the original (the help says "attack strength") |
+| Resistance to All (Unicorns, Guardian Spirit) | the unit's side: +level resistance, highest level only, on top of any Holy Bonus. Both are recomputed at each side's turn start and when a creature is summoned, so a fallen bearer's bonus goes at the next turn |
 | Metal Fires | the caster's units that are not fantastic and have no Flame Blade: +1 melee (if any), +1 missile and thrown attack, magical weapons |
 | Mass Invisibility | the caster's units are invisible: attackers not immune to illusions are -1 to hit them (also the `invisibility` ability, the Invisibility spell: its game name is `Invisiblity`) |
 | Blur | each point of an enemy attack's hits against the caster's units misses one time in ten, from attackers that do not see through illusions (the original checks the *defender's* immunity, an OGBUG) |

@@ -248,6 +248,20 @@ mod tests {
     }
 
     #[test]
+    fn a_levels_attack_plus_only_counts_for_a_unit_that_has_the_attack() {
+        let mut g = world();
+        let mut defs = g.content.rules.units.defs().to_vec();
+        for d in defs.iter_mut().filter(|d| d.id == "walker") {
+            d.stats.insert(Stat::Melee, 0);
+        }
+        g.content.rules.units = Registry::new(defs);
+        let unit = spawn(&mut g, "walker", at(3, 3));
+        set_xp(&mut g, unit, 120);
+        assert_eq!(g.units().unit_level(unit), 3);
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), 0);
+    }
+
+    #[test]
     fn warlord_and_crusade_each_add_a_level_and_only_they_reach_the_top() {
         let mut g = world();
         let unit = spawn(&mut g, "walker", at(3, 3));
