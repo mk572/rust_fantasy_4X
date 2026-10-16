@@ -38,6 +38,7 @@ mod spellbook;
 mod surveyor;
 mod terrain_pick;
 mod ui;
+mod unit_list_screen;
 mod unit_screen;
 mod unit_sheet;
 mod view;
@@ -101,6 +102,7 @@ struct Options {
     cities: bool,
     outpost: Option<bool>,
     capital_name: bool,
+    unit_list: bool,
     enemy_city: bool,
     score: bool,
     items: bool,
@@ -157,6 +159,7 @@ fn parse_args() -> Result<Options, String> {
         cities: false,
         outpost: None,
         capital_name: false,
+        unit_list: false,
         enemy_city: false,
         score: false,
         items: false,
@@ -184,6 +187,7 @@ fn parse_args() -> Result<Options, String> {
             "--hall" => o.hall = true,
             "--enemy-city" => o.enemy_city = true,
             "--capital-name" => o.capital_name = true,
+            "--unit-list" => o.unit_list = true,
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
             "--offer" => o.offer = Some(value("--offer")?),
@@ -281,7 +285,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -365,6 +369,9 @@ async fn main() {
     }
     if let Some(new) = options.outpost {
         app.open_first_outpost(new);
+    }
+    if options.unit_list {
+        app.open_first_unit_list();
     }
     if options.capital_name {
         app.offer_capital_naming();

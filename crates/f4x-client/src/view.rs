@@ -154,6 +154,8 @@ pub struct App {
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
     /// The capital and the name typed so far, while the first-turn naming box is up.
+    /// The units of the foreign stack whose list window is up.
+    pub(crate) unit_list: Vec<hecs::Entity>,
     pub(crate) capital_naming: Option<(hecs::Entity, String)>,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
@@ -244,6 +246,7 @@ impl App {
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
             capital_naming: None,
+            unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
             unit_rows: Vec::new(),
@@ -852,6 +855,13 @@ impl App {
                 return self.ward_prompt_frame(prompt);
             }
         }
+        if !self.unit_list.is_empty()
+            && !self.game.in_battle()
+            && matches!(self.screen, Screen::Map)
+            && self.unit_list_frame()
+        {
+            return true;
+        }
         if self.capital_naming.is_some()
             && !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
@@ -1323,6 +1333,11 @@ impl App {
                 if let Some(unit) = row {
                     self.open_unit_sheet(unit);
                 }
+            } else if is_mouse_button_pressed(MouseButton::Right)
+                && self.game.is_explored(HUMAN, pos)
+                && self.foreign_stack_at(pos)
+                && self.open_unit_list(pos)
+            {
             } else if is_mouse_button_pressed(MouseButton::Right) && !self.selection.is_empty() {
                 let events = self.game.apply(Command::GoTo {
                     units: self.selection.clone(),
@@ -1369,6 +1384,15 @@ impl App {
         } else {
             self.selection.clear();
         }
+    }
+
+    /// Whether the square holds units of another wizard or of the neutral player.
+    fn foreign_stack_at(&self, pos: Position) -> bool {
+        self.game
+            .units()
+            .units_at(pos)
+            .iter()
+            .any(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
     }
 
     fn settle(&mut self) {
