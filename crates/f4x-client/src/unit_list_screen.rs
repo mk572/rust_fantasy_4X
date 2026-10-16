@@ -8,7 +8,7 @@ use f4x_core::city::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
-use crate::view::{App, Screen};
+use crate::view::App;
 
 /// The window's left edge, its width, and the height of a unit's row.
 const LEFT: f32 = 45.0;
