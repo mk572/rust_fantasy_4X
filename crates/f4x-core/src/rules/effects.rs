@@ -29,7 +29,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::special_spells::NATURES_CURES,
     crate::special_spells::WORD_OF_RECALL,
     crate::special_spells::PLANE_SHIFT,
-    crate::crafting::CRAFT_ITEM,
+    crate::items::crafting::CRAFT_ITEM,
     crate::wizard_spells::DRAIN_POWER,
     crate::wizard_spells::CRUEL_UNMINDING,
     crate::wizard_spells::SUBVERSION,

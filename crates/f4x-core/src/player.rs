@@ -16,7 +16,7 @@ pub struct Player {
     pub fame: i32,
     pub magic: crate::magic::Magic,
     /// The wizard's items that are not on a hero: the vault and the award list.
-    pub armory: crate::armory::Armory,
+    pub armory: crate::items::armory::Armory,
     /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
     /// hired, is serving, dead or gone, and the experience it keeps.
     pub roster: crate::roster::Roster,
@@ -114,7 +114,7 @@ impl Player {
             capital_race: None,
             fame: 0,
             magic: crate::magic::Magic::default(),
-            armory: crate::armory::Armory::default(),
+            armory: crate::items::armory::Armory::default(),
             roster: crate::roster::Roster::default(),
             fortress: None,
             summon_at: None,

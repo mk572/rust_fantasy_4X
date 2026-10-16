@@ -102,6 +102,22 @@ impl<'a> Units<'a> {
             .is_some_and(|m| crate::globals::magic_has_global(m, self.content, id))
     }
 
+    /// A wizard's fame as the rules count it: what they have earned, and ten more while Just
+    /// Cause is kept going.
+    pub fn fame(&self, player: PlayerId) -> i32 {
+        let earned = self
+            .players
+            .iter()
+            .find(|p| p.id == player)
+            .map_or(0, |p| p.fame);
+        earned
+            + if self.has_global(player, "just_cause") {
+                crate::globals::JUST_CAUSE_FAME
+            } else {
+                0
+            }
+    }
+
     /// The entity with this creation number, if it is still alive.
     pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
         self.world
@@ -254,13 +270,13 @@ impl<'a> Units<'a> {
                 ));
             }
         }
-        for spell in self.item_spells(unit) {
+        for spell in self.items().spells(unit) {
             mods.extend(passive_modifiers(
                 &rules.spells.get(spell).effects,
                 Source::Spell(spell),
             ));
         }
-        mods.extend(self.item_modifiers(unit));
+        mods.extend(self.items().modifiers(unit));
         mods.extend(self.temp_modifiers(unit));
         mods.extend(self.global_unit_modifiers(unit));
         mods

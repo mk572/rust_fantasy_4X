@@ -2200,6 +2200,10 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
     use crate::items::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
+    g.content.rules.item_powers = crate::rules::Registry::new(vec![
+        crate::testutil::item_power("vampiric", None, Some("life_steal")),
+        crate::testutil::item_power("flaming", None, None),
+    ]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();

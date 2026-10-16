@@ -7,17 +7,30 @@
 //! ([`modifiers`]) and the unit's abilities and lasting spells ([`Item::granted_spells`],
 //! [`Item::granted_abilities`]), so no rule needs a special case for items.
 //!
+//! The module has three parts, as units have: this file (the item, the hero's slots, the stat
+//! rules and the [`Items`] view the other rules ask), [`armory`] (where a wizard's items are and the
+//! item screen's rules) and [`crafting`] (Enchant Item and Create Artifact).
+//!
 //! The rules are those of the original (`COMBINIT.c:Battle_Unit_Item_Stats`, `ItemScrn.c`):
 //! design in `docs/heroes-items-design.md` sections 2.1, 3.1 and 3.4.
 
+pub mod armory;
+pub mod crafting;
+
 use serde::{Deserialize, Serialize};
 
+use self::armory::Armory;
 use crate::battle::game::ranged_kind_of;
 use crate::battle::RangedKind;
+use crate::city::PlayerId;
+use crate::content::Content;
+use crate::player::Player;
 use crate::rules::effects::Effect;
 use crate::rules::stats::{Modifier, Source};
-use crate::rules::{ItemDef, ItemKind, ModOp, SlotKind, SpellId, Stat};
+use crate::rules::{ItemDef, ItemKind, ItemPowerDef, ModOp, Rules, SlotKind, SpellId, Stat};
 use crate::units::Units;
+use crate::Game;
+use hecs::World;
 
 /// The plain bonuses of an item (the original's record: attack, to hit, defence, movement in
 /// half-moves, resistance, spell skill and spell save).
@@ -103,21 +116,28 @@ impl Item {
     /// The lasting spells its powers put on the hero that carries it (the original turns them
     /// into unit enchantments, `Item_Powers_To_Unit_Enchantments`; they are not the wizard's, so
     /// dispelling does not touch them). The ids are those of `spells.ron`.
-    pub fn granted_spells(&self) -> Vec<&'static str> {
-        self.powers.iter().filter_map(|p| power_spell(p)).collect()
+    pub fn granted_spells<'a>(&self, rules: &'a Rules) -> Vec<&'a str> {
+        self.powers
+            .iter()
+            .filter_map(|p| rules.item_powers.by_name(p)?.spell.as_deref())
+            .collect()
     }
 
     /// The abilities the item gives its carrier: a shield gives the large shield, and the attack
     /// powers give the matching special attack (`Item_Powers_To_Attack_Attributes`). The original
     /// puts an attack power on the melee or the ranged attack by the kind of the item; here the
     /// carrier has it for both.
-    pub fn granted_abilities(&self) -> Vec<&'static str> {
-        let mut out = Vec::new();
+    pub fn granted_abilities<'a>(&self, rules: &'a Rules) -> Vec<&'a str> {
+        let mut out: Vec<&'a str> = Vec::new();
         if self.kind == ItemKind::Shield {
             out.push("large_shield");
         }
         for p in &self.powers {
-            if let Some(ability) = power_ability(p) {
+            if let Some(ability) = rules
+                .item_powers
+                .by_name(p)
+                .and_then(|d| d.attack.as_deref())
+            {
                 if !out.contains(&ability) {
                     out.push(ability);
                 }
@@ -182,66 +202,11 @@ impl HeroItems {
 /// lasting spell or an ability, or that do nothing to a unit.
 pub const OTHER_POWERS: &[&str] = &["flaming", "giant_strength", "merging", "spell_charges"];
 
-/// The id in `spells.ron` of the lasting spell a power puts on the carrier.
-pub fn power_spell(power: &str) -> Option<&'static str> {
-    POWER_SPELLS
-        .iter()
-        .find(|(p, _)| *p == power)
-        .map(|&(_, spell)| spell)
+/// Whether the rules do something with a special power: it puts a lasting spell on the carrier,
+/// gives an attack ability, or is one of [`OTHER_POWERS`].
+pub fn power_is_handled(power: &ItemPowerDef) -> bool {
+    power.spell.is_some() || power.attack.is_some() || OTHER_POWERS.contains(&power.id.as_str())
 }
-
-/// The special attack ability a power gives.
-pub fn power_ability(power: &str) -> Option<&'static str> {
-    POWER_ATTACKS
-        .iter()
-        .find(|(p, _)| *p == power)
-        .map(|&(_, ability)| ability)
-}
-
-/// Whether the rules do something with a special power (a lasting spell, an attack ability or
-/// one of [`OTHER_POWERS`]).
-pub fn power_is_handled(power: &str) -> bool {
-    power_spell(power).is_some() || power_ability(power).is_some() || OTHER_POWERS.contains(&power)
-}
-
-/// Item power to the unit enchantment it becomes (the spell ids of `spells.ron`; Holy Avenger
-/// gives Bless). Haste is the combat effect of that name.
-const POWER_SPELLS: &[(&str, &str)] = &[
-    ("cloak_of_fear", "cloak_of_fear"),
-    ("wraithform", "wraith_form"),
-    ("regeneration", "regeneration"),
-    ("pathfinding", "path_finding"),
-    ("water_walking", "water_walking"),
-    ("resist_elements", "resist_elements"),
-    ("elemental_armor", "elemental_armor"),
-    ("endurance", "endurance"),
-    ("invisibility", "invisiblity"),
-    ("flight", "flight"),
-    ("resist_magic", "resist_magic"),
-    ("guardian_wind", "guardian_wind"),
-    ("magic_immunity", "magic_immunity"),
-    ("true_sight", "true_sight"),
-    ("bless", "bless"),
-    ("lion_heart", "lionheart"),
-    ("planar_travel", "planar_travel"),
-    ("righteousness", "righteousness"),
-    ("invulnerability", "invulnerability"),
-    ("holy_avenger", "bless"),
-    ("haste", "haste"),
-];
-
-/// Item power to the special attack ability it gives.
-const POWER_ATTACKS: &[(&str, &str)] = &[
-    ("vampiric", "life_steal"),
-    ("lightning", "armor_piercing"),
-    ("destruction", "destruction"),
-    ("chaos", "doom_damage"),
-    ("death", "death_touch"),
-    ("power_drain", "power_drain"),
-    ("holy_avenger", "dispel_evil"),
-    ("phantasmal", "illusion_attack"),
-    ("stoning", "stoning_touch"),
-];
 
 /// The stat modifiers of the item in slot `slot` of a hero whose abilities are `abilities` and
 /// who has a ranged attack if `has_ranged`. Defence, resistance and movement count for all
@@ -281,9 +246,31 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[String], has_ranged: bool) 
     mods
 }
 
-impl Units<'_> {
+/// The item rules' view of the game, as [`Units`] is the unit rules': the world, the content and
+/// the players, read-only. Get one with `Game::items()`; the unit rules build one from their own
+/// view to ask what a unit carries.
+#[derive(Clone, Copy)]
+pub struct Items<'a> {
+    world: &'a World,
+    content: &'a Content,
+    players: &'a [Player],
+}
+
+impl<'a> Items<'a> {
+    pub fn new(world: &'a World, content: &'a Content, players: &'a [Player]) -> Self {
+        Items {
+            world,
+            content,
+            players,
+        }
+    }
+
+    fn units(&self) -> Units<'a> {
+        Units::new(self.world, self.content, self.players)
+    }
+
     /// The items a unit carries with the slot each is in (only heroes carry any).
-    pub fn unit_items(&self, unit: hecs::Entity) -> Vec<(u8, Item)> {
+    pub fn carried(&self, unit: hecs::Entity) -> Vec<(u8, Item)> {
         let Ok(items) = self.world.get::<&HeroItems>(unit) else {
             return Vec::new();
         };
@@ -296,10 +283,10 @@ impl Units<'_> {
     }
 
     /// The lasting spells the unit's items put on it (see [`Item::granted_spells`]).
-    pub fn item_spells(&self, unit: hecs::Entity) -> Vec<SpellId> {
+    pub fn spells(&self, unit: hecs::Entity) -> Vec<SpellId> {
         let mut out = Vec::new();
-        for (_, item) in self.unit_items(unit) {
-            for name in item.granted_spells() {
+        for (_, item) in self.carried(unit) {
+            for name in item.granted_spells(&self.content.rules) {
                 if let Some(id) = self.content.rules.spells.id_of(name) {
                     if !out.contains(&id) {
                         out.push(id);
@@ -310,20 +297,57 @@ impl Units<'_> {
         out
     }
 
+    /// The special attack and shield abilities the unit's items give (see
+    /// [`Item::granted_abilities`]), each once.
+    pub fn abilities(&self, unit: hecs::Entity) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for (_, item) in self.carried(unit) {
+            for a in item.granted_abilities(&self.content.rules) {
+                if !out.iter().any(|x| x == a) {
+                    out.push(a.to_string());
+                }
+            }
+        }
+        out
+    }
+
     /// The stat modifiers of the unit's items (see [`modifiers`]).
-    pub(crate) fn item_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
-        let items = self.unit_items(unit);
+    pub(crate) fn modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        let items = self.carried(unit);
         if items.is_empty() {
             return Vec::new();
         }
-        let abilities = self.unit_abilities(unit);
-        let has_ranged = self
+        let units = self.units();
+        let abilities = units.unit_abilities(unit);
+        let has_ranged = units
             .unit_def(unit)
             .is_some_and(|d| d.stats.get(&Stat::Ranged).copied().unwrap_or(0) > 0);
         items
             .iter()
             .flat_map(|(slot, item)| modifiers(item, *slot, &abilities, has_ranged))
             .collect()
+    }
+
+    /// A wizard's vault and award list.
+    pub fn armory(&self, player: PlayerId) -> Option<&'a Armory> {
+        self.players
+            .iter()
+            .find(|p| p.id == player)
+            .map(|p| &p.armory)
+    }
+}
+
+impl Game {
+    /// The item rules' view of the game.
+    pub fn items(&self) -> Items<'_> {
+        Items::new(&self.world, &self.content, &self.players)
+    }
+}
+
+impl Units<'_> {
+    /// The item rules' view, built from this one.
+    pub(crate) fn items(&self) -> Items<'_> {
+        Items::new(self.world, self.content, self.players)
     }
 }
 
@@ -452,9 +476,17 @@ mod tests {
             "vampiric".into(),
             "merging".into(),
         ];
-        assert_eq!(thing.granted_spells(), ["bless", "righteousness"]);
+        let mut rules = Rules::default();
+        let power = crate::testutil::item_power;
+        rules.item_powers = crate::rules::Registry::new(vec![
+            power("holy_avenger", Some("bless"), Some("dispel_evil")),
+            power("righteousness", Some("righteousness"), None),
+            power("vampiric", None, Some("life_steal")),
+            power("merging", None, None),
+        ]);
+        assert_eq!(thing.granted_spells(&rules), ["bless", "righteousness"]);
         assert_eq!(
-            thing.granted_abilities(),
+            thing.granted_abilities(&rules),
             ["large_shield", "dispel_evil", "life_steal"]
         );
     }

@@ -487,6 +487,12 @@ pub struct ItemPowerDef {
     /// Plain bonuses: what it adds (movement in half-moves; spell save is the size of the penalty).
     #[serde(default)]
     pub bonus: Option<(PowerBonus, i32)>,
+    /// The lasting spell (an id of `spells.ron`) the power puts on the hero that carries the item.
+    #[serde(default)]
+    pub spell: Option<String>,
+    /// The special attack ability the power gives the carrier.
+    #[serde(default)]
+    pub attack: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

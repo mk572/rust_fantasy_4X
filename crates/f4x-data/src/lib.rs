@@ -654,12 +654,12 @@ mod tests {
         for power in c.rules.item_powers.defs() {
             if power.bonus.is_none() {
                 assert!(
-                    f4x_core::items::power_is_handled(&power.id),
+                    f4x_core::items::power_is_handled(power),
                     "item power {} has no effect in the rules",
                     power.id
                 );
             }
-            if let Some(spell) = f4x_core::items::power_spell(&power.id) {
+            if let Some(spell) = power.spell.as_deref() {
                 assert!(
                     c.rules.spells.id_of(spell).is_some(),
                     "item power {} names the missing spell {spell}",

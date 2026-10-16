@@ -5,7 +5,6 @@
 
 mod access;
 mod ai_wizards;
-pub mod armory;
 pub mod battle;
 pub mod cast;
 pub mod cheat;
@@ -15,7 +14,6 @@ pub mod city_spells;
 pub mod conquest;
 pub mod content;
 pub mod corruption;
-pub mod crafting;
 pub mod diplomacy;
 pub mod dispel;
 pub mod economy;
@@ -152,20 +150,20 @@ pub enum Command {
     /// `pay` agrees to the mana a transfer to a far-off hero costs.
     MoveItem {
         player: city::PlayerId,
-        from: armory::ItemSpot,
-        to: armory::ItemSpot,
+        from: items::armory::ItemSpot,
+        to: items::armory::ItemSpot,
         pay: bool,
     },
     /// Enchant Item or Create Artifact: design an item and start casting it.
     CraftItem {
         player: city::PlayerId,
-        craft: crafting::Craft,
-        design: crafting::ItemDesign,
+        craft: items::crafting::Craft,
+        design: items::crafting::ItemDesign,
     },
     /// The anvil: destroy a vault or award item for half its value in mana.
     ScrapItem {
         player: city::PlayerId,
-        from: armory::Spot,
+        from: items::armory::Spot,
     },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
@@ -435,7 +433,7 @@ pub enum Event {
     ItemMade {
         player: city::PlayerId,
         name: String,
-        placed: armory::Placed,
+        placed: items::armory::Placed,
     },
     SpellHasNoEffectYet {
         spell: rules::SpellId,
@@ -555,8 +553,8 @@ pub enum Rejection {
     BattleStart(battle::game::BattleStartError),
     Raze(conquest::RazeError),
     Battle(battle::BattleError),
-    Item(armory::ItemError),
-    Craft(crafting::CraftingError),
+    Item(items::armory::ItemError),
+    Craft(items::crafting::CraftingError),
     /// The game has ended; nothing more can be done.
     GameOver,
 }
@@ -792,7 +790,9 @@ impl Game {
             },
             Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
                 Some(_) => Vec::new(),
-                None => vec![Event::Rejected(Rejection::Item(armory::ItemError::Empty))],
+                None => vec![Event::Rejected(Rejection::Item(
+                    items::armory::ItemError::Empty,
+                ))],
             },
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {

@@ -9,7 +9,7 @@ use crate::city::{PlayerId, Position};
 use crate::hero::Hero;
 use crate::magic::Retort;
 use crate::roster::{self, Availability, Class, Fate, Roster, Standing, MAX_HEROES};
-use crate::units::{Experience, Owner, Unit};
+use crate::units::{Experience, Owner, Unit, Units};
 use crate::Game;
 
 /// Why a hero could not be brought into service.
@@ -23,28 +23,7 @@ pub enum HeroError {
     NoRoom,
 }
 
-impl Game {
-    /// Roll every wizard's hero roster, in player order (`Init_Heroes`). Independent cities'
-    /// players have none. Called once when a game is made, after everything else is placed, so
-    /// the map and the starting cities of a seed stay as they were.
-    pub(crate) fn init_heroes(&mut self) {
-        let mut rosters = Vec::new();
-        for (k, id) in self
-            .players
-            .iter()
-            .filter(|p| !p.neutral)
-            .map(|p| p.id)
-            .enumerate()
-        {
-            rosters.push((id, roster::roll(&mut self.rng, &self.content.rules, k)));
-        }
-        for (id, roster) in rosters {
-            if let Some(p) = self.player_mut(id) {
-                p.roster = roster;
-            }
-        }
-    }
-
+impl Units<'_> {
     /// The wizard's hero units.
     pub fn hero_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
         let mut out: Vec<hecs::Entity> = self
@@ -80,9 +59,51 @@ impl Game {
         }
     }
 
+    /// What the wizard pays to hire this hero type now: the cost plus a quarter of it for
+    /// each level the hero kept from earlier service, half for a Charismatic wizard.
+    pub fn hero_hire_price(&self, player: PlayerId, kind: usize) -> Option<i32> {
+        let rules = &self.content.rules;
+        let record = self
+            .players
+            .iter()
+            .find(|p| p.id == player)?
+            .roster
+            .get(kind)?;
+        let unit = roster::unit_of(rules, kind)?;
+        let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
+        let level = roster::level_of(rules, unit, record.xp);
+        let charismatic = self
+            .magic(player)
+            .is_some_and(|m| m.has(Retort::Charismatic));
+        Some(roster::hire_cost(cost, level, charismatic))
+    }
+}
+
+impl Game {
+    /// Roll every wizard's hero roster, in player order (`Init_Heroes`). Independent cities'
+    /// players have none. Called once when a game is made, after everything else is placed, so
+    /// the map and the starting cities of a seed stay as they were.
+    pub(crate) fn init_heroes(&mut self) {
+        let mut rosters = Vec::new();
+        for (k, id) in self
+            .players
+            .iter()
+            .filter(|p| !p.neutral)
+            .map(|p| p.id)
+            .enumerate()
+        {
+            rosters.push((id, roster::roll(&mut self.rng, &self.content.rules, k)));
+        }
+        for (id, roster) in rosters {
+            if let Some(p) = self.player_mut(id) {
+                p.roster = roster;
+            }
+        }
+    }
+
     /// A random hero type the wizard can be offered or summon (`Pick_Random_Hero`).
     pub fn pick_hero(&mut self, player: PlayerId, zero_cost: bool, class: Class) -> Option<usize> {
-        let standing = self.hero_standing(player);
+        let standing = self.units().hero_standing(player);
         let roster = &self.players.iter().find(|p| p.id == player)?.roster;
         roster::pick(
             &mut self.rng,
@@ -92,20 +113,6 @@ impl Game {
             zero_cost,
             class,
         )
-    }
-
-    /// What the wizard pays to hire this hero type now: the cost plus a quarter of it for
-    /// each level the hero kept from earlier service, half for a Charismatic wizard.
-    pub fn hero_hire_price(&self, player: PlayerId, kind: usize) -> Option<i32> {
-        let rules = &self.content.rules;
-        let record = self.player(player)?.roster.get(kind)?;
-        let unit = roster::unit_of(rules, kind)?;
-        let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
-        let level = roster::level_of(rules, unit, record.xp);
-        let charismatic = self
-            .magic(player)
-            .is_some_and(|m| m.has(Retort::Charismatic));
-        Some(roster::hire_cost(cost, level, charismatic))
     }
 
     /// Bring a hero into the wizard's army at `pos`: a free hero (hired, summoned) or a dead one
@@ -125,7 +132,7 @@ impl Game {
         if !matches!(record.state, Availability::Free | Availability::Dead) {
             return Err(HeroError::NotAvailable);
         }
-        if self.open_hero_slots(player) == 0 {
+        if self.units().open_hero_slots(player) == 0 {
             return Err(HeroError::NoRoom);
         }
         let unit = roster::unit_of(&self.content.rules, kind).ok_or(HeroError::Unknown)?;
@@ -153,7 +160,9 @@ impl Game {
     /// summon (`battle/spells.rs`), settlers founding a city and the engineer that melds with a
     /// node.
     pub(crate) fn remove_unit(&mut self, unit: hecs::Entity, fate: Fate) {
-        if let (Some(kind), Some(owner)) = (self.hero_kind(unit), self.units().unit_owner(unit)) {
+        if let (Some(kind), Some(owner)) =
+            (self.units().hero_kind(unit), self.units().unit_owner(unit))
+        {
             let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
             if let Some(p) = self.player_mut(owner) {
                 p.roster.on_dead(kind, xp, fate);
@@ -263,7 +272,7 @@ mod tests {
         assert_eq!(hero.name, "Ann");
         assert_eq!(hero.abilities.might, Tier::Super);
         assert_eq!(hero.spells, vec!["healing".to_string()]);
-        assert_eq!(g.hero_kind(h), Some(2));
+        assert_eq!(g.units().hero_kind(h), Some(2));
         assert_eq!(
             g.players[0].roster.get(2).unwrap().state,
             Availability::Serving
@@ -290,14 +299,14 @@ mod tests {
         for k in 0..6 {
             g.spawn_hero(P0, at(1, 1), k).unwrap();
         }
-        assert_eq!(g.open_hero_slots(P0), 0);
-        assert_eq!(g.hero_units(P0).len(), 6);
+        assert_eq!(g.units().open_hero_slots(P0), 0);
+        assert_eq!(g.units().hero_units(P0).len(), 6);
         assert_eq!(g.spawn_hero(P0, at(1, 1), 6), Err(HeroError::NoRoom));
-        assert_eq!(g.open_hero_slots(P1), 6);
+        assert_eq!(g.units().open_hero_slots(P1), 6);
         // Taking one away opens a slot.
-        let first = g.hero_units(P0)[0];
+        let first = g.units().hero_units(P0)[0];
         g.remove_unit(first, Fate::Released);
-        assert_eq!(g.open_hero_slots(P0), 1);
+        assert_eq!(g.units().open_hero_slots(P0), 1);
     }
 
     #[test]
@@ -362,7 +371,7 @@ mod tests {
     #[test]
     fn the_price_follows_the_kept_level_and_the_retort() {
         let mut g = world();
-        let cost = g.hero_hire_price(P0, 0).unwrap();
+        let cost = g.units().hero_hire_price(P0, 0).unwrap();
         assert_eq!(cost, 100);
         g.players[0].roster.get_mut(0).unwrap().xp = 10_000;
         let level = crate::roster::level_of(
@@ -370,16 +379,19 @@ mod tests {
             crate::roster::unit_of(&g.content.rules, 0).unwrap(),
             10_000,
         );
-        assert_eq!(g.hero_hire_price(P0, 0), Some(100 + level as i32 * 100 / 4));
+        assert_eq!(
+            g.units().hero_hire_price(P0, 0),
+            Some(100 + level as i32 * 100 / 4)
+        );
         g.players[0]
             .magic
             .retorts
             .insert(crate::magic::Retort::Charismatic);
         assert_eq!(
-            g.hero_hire_price(P0, 0),
+            g.units().hero_hire_price(P0, 0),
             Some((100 + level as i32 * 100 / 4) / 2)
         );
-        assert_eq!(g.hero_hire_price(P0, 99), None);
+        assert_eq!(g.units().hero_hire_price(P0, 99), None);
     }
 
     #[test]
@@ -431,13 +443,13 @@ mod tests {
             .unwrap();
         assert_eq!(back.players[0].roster, g.players[0].roster);
         assert_eq!(back.players[1].roster, g.players[1].roster);
-        let heroes = back.hero_units(P0);
+        let heroes = back.units().hero_units(P0);
         assert_eq!(heroes.len(), 1);
         assert_eq!(
             *back.world.get::<&Hero>(heroes[0]).unwrap(),
             *g.world.get::<&Hero>(h).unwrap()
         );
-        assert_eq!(back.hero_kind(heroes[0]), Some(2));
+        assert_eq!(back.units().hero_kind(heroes[0]), Some(2));
         assert!(back.units().unit_has_ability(heroes[0], "noble"));
         assert_eq!(back.players[0].roster.dead(), vec![1]);
     }

@@ -154,7 +154,7 @@ pub struct PlayerSave {
     pub magic: MagicSave,
     /// The vault and the award list; absent in saves from before items.
     #[serde(default)]
-    pub armory: crate::armory::Armory,
+    pub armory: crate::items::armory::Armory,
     /// The hero records; absent in saves from before heroes.
     #[serde(default)]
     pub roster: crate::roster::Roster,

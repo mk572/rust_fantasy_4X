@@ -872,3 +872,24 @@ impl crate::view::WorldView for FakeView {
         self.cities.iter().filter(|&&c| c == player).count()
     }
 }
+
+/// An item power for tests that is not a plain bonus: the lasting spell and the attack ability
+/// it gives the carrier (either may be none).
+pub fn item_power(
+    id: &str,
+    spell: Option<&str>,
+    attack: Option<&str>,
+) -> crate::rules::ItemPowerDef {
+    crate::rules::ItemPowerDef {
+        id: id.into(),
+        name: id.into(),
+        group: 9,
+        cost: 0,
+        kinds: Vec::new(),
+        realm: None,
+        books: 0,
+        bonus: None,
+        spell: spell.map(Into::into),
+        attack: attack.map(Into::into),
+    }
+}

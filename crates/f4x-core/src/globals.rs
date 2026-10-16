@@ -32,7 +32,7 @@ pub(crate) fn magic_has_global(
 pub const GLOBAL_EFFECT: &str = "global_effect";
 
 /// The fame Just Cause adds while it lasts.
-const JUST_CAUSE_FAME: i32 = 10;
+pub(crate) const JUST_CAUSE_FAME: i32 = 10;
 
 impl Game {
     /// Does `player` keep the global spell with this id going?
@@ -49,13 +49,7 @@ impl Game {
     /// A wizard's fame as the rules count it: what they have earned, and ten more while Just
     /// Cause is kept going.
     pub fn fame(&self, player: PlayerId) -> i32 {
-        let earned = self.player(player).map_or(0, |p| p.fame);
-        earned
-            + if self.has_global(player, "just_cause") {
-                JUST_CAUSE_FAME
-            } else {
-                0
-            }
+        self.units().fame(player)
     }
 
     /// Is another wizard's Evil Omens making `player`'s life and nature spells dearer?

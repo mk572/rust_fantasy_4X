@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::city::{PlayerId, Position};
-use crate::items::{HeroItems, Item};
+use crate::items::{HeroItems, Item, Items};
 use crate::rules::SlotKind;
 use crate::Game;
 
@@ -106,9 +106,132 @@ pub enum ItemError {
     WouldDrown,
 }
 
-impl Game {
-    /// The three slot kinds of a hero unit of `player` (`None` for anything else).
-    fn hero_slot_kinds(&self, player: PlayerId, unit: hecs::Entity) -> Option<[SlotKind; 3]> {
+/// What the item screen's rules ask of the world: a hero's slots, items and place, and where
+/// a wizard's fortress is. [`Items`] answers for the game; a test can answer with a fake.
+pub trait ItemWorld {
+    /// The three slot kinds of `unit`, if it is a hero of `player`.
+    fn hero_slots(&self, player: PlayerId, unit: hecs::Entity) -> Option<[SlotKind; 3]>;
+    /// The item in a slot (0 to 2) of a hero.
+    fn hero_item(&self, unit: hecs::Entity, slot: usize) -> Option<Item>;
+    /// The square a hero stands on.
+    fn hero_position(&self, unit: hecs::Entity) -> Option<Position>;
+    /// Where the wizard's fortress is.
+    fn fortress(&self, player: PlayerId) -> Option<Position>;
+}
+
+/// A move the rules have allowed, ready to be applied.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MovePlan {
+    /// The item being moved.
+    pub moving: Item,
+    /// What it swaps with, which goes back to where `moving` came from.
+    pub other: Option<Item>,
+    /// The mana it costs (0 when the move is free).
+    pub cost: i32,
+}
+
+/// The item at a spot (`Ok(None)` when the slot is empty).
+fn item_at(
+    world: &dyn ItemWorld,
+    armory: &Armory,
+    player: PlayerId,
+    spot: ItemSpot,
+) -> Result<Option<Item>, ItemError> {
+    match spot {
+        ItemSpot::Vault(i) => armory.vault.get(i).cloned().ok_or(ItemError::NoSuchPlace),
+        ItemSpot::Award(i) => Ok(armory.awards.get(i).cloned()),
+        ItemSpot::Hero(unit, i) => {
+            world
+                .hero_slots(player, unit)
+                .ok_or(ItemError::NoSuchPlace)?;
+            if i >= 3 {
+                return Err(ItemError::NoSuchPlace);
+            }
+            Ok(world.hero_item(unit, i))
+        }
+    }
+}
+
+/// Whether `item` may be put in the spot: the vault takes anything, the award list nothing, a
+/// hero's slot what [`SlotKind::fits`] says.
+fn fits(world: &dyn ItemWorld, player: PlayerId, spot: ItemSpot, item: &Item) -> bool {
+    match spot {
+        ItemSpot::Vault(_) => true,
+        ItemSpot::Award(_) => false,
+        ItemSpot::Hero(unit, i) => world
+            .hero_slots(player, unit)
+            .is_some_and(|kinds| kinds[i].fits(item.kind)),
+    }
+}
+
+/// Whether moving an item between the two spots is free: into the vault always; from the
+/// vault to a hero standing in the fortress; between two heroes on one square. The award
+/// list is where the wizard is, which the game does not track, so it is free everywhere.
+fn move_is_free(world: &dyn ItemWorld, player: PlayerId, from: ItemSpot, to: ItemSpot) -> bool {
+    let place = |spot: ItemSpot| match spot {
+        ItemSpot::Hero(unit, _) => world.hero_position(unit),
+        _ => None,
+    };
+    match (from, to) {
+        (_, ItemSpot::Vault(_)) => true,
+        (ItemSpot::Award(_), _) => true,
+        (ItemSpot::Vault(_), ItemSpot::Hero(..)) => {
+            place(to).is_some() && place(to) == world.fortress(player)
+        }
+        (ItemSpot::Hero(..), ItemSpot::Hero(..)) => {
+            place(from).is_some() && place(from) == place(to)
+        }
+        _ => true,
+    }
+}
+
+/// The item screen's rules for moving the item at `from` to `to`, swapping with what is there if
+/// it can go back (`Item_Screen`'s pick up and put down, in one step). A hero's slot takes what
+/// [`SlotKind::fits`] says; the award list takes nothing; an item that would be swapped back must
+/// fit the slot it comes from. Moving to a hero somewhere else costs [`TRANSFER_MANA`], which
+/// `pay` agrees to and `mana` (the wizard's) must cover. Nothing is changed: the caller applies
+/// the plan, and checks what the plan cannot see (a hero left to drown at sea).
+pub fn plan_move(
+    world: &dyn ItemWorld,
+    armory: &Armory,
+    mana: i32,
+    player: PlayerId,
+    from: ItemSpot,
+    to: ItemSpot,
+    pay: bool,
+) -> Result<MovePlan, ItemError> {
+    let moving = item_at(world, armory, player, from)?.ok_or(ItemError::Empty)?;
+    let other = item_at(world, armory, player, to)?;
+    if !fits(world, player, to, &moving) {
+        return Err(ItemError::WrongSlot);
+    }
+    if let Some(other) = &other {
+        // What comes out goes back where the first item was (an award slot takes it back).
+        let back = matches!(from, ItemSpot::Award(_)) || fits(world, player, from, other);
+        if !back {
+            return Err(ItemError::WrongSlot);
+        }
+    }
+    let cost = if move_is_free(world, player, from, to) {
+        0
+    } else {
+        if !pay {
+            return Err(ItemError::Transfer);
+        }
+        if mana < TRANSFER_MANA {
+            return Err(ItemError::NoMana);
+        }
+        TRANSFER_MANA
+    };
+    Ok(MovePlan {
+        moving,
+        other,
+        cost,
+    })
+}
+
+impl ItemWorld for Items<'_> {
+    fn hero_slots(&self, player: PlayerId, unit: hecs::Entity) -> Option<[SlotKind; 3]> {
         let units = self.units();
         if units.unit_owner(unit) != Some(player) {
             return None;
@@ -116,34 +239,26 @@ impl Game {
         Some(units.unit_def(unit)?.hero.as_ref()?.kind.slots())
     }
 
-    fn player_index(&self, player: PlayerId) -> Option<usize> {
-        self.players.iter().position(|p| p.id == player)
+    fn hero_item(&self, unit: hecs::Entity, slot: usize) -> Option<Item> {
+        self.world
+            .get::<&HeroItems>(unit)
+            .ok()
+            .and_then(|items| items.0[slot].clone())
     }
 
-    /// The item at a spot (`Ok(None)` when the slot is empty).
-    fn item_at(&self, player: PlayerId, spot: ItemSpot) -> Result<Option<Item>, ItemError> {
-        let armory = &self.players[self.player_index(player).ok_or(ItemError::NoSuchPlace)?].armory;
-        match spot {
-            ItemSpot::Vault(i) => armory.vault.get(i).cloned().ok_or(ItemError::NoSuchPlace),
-            ItemSpot::Award(i) => Ok(armory.awards.get(i).cloned()),
-            ItemSpot::Hero(unit, i) => {
-                self.hero_slot_kinds(player, unit)
-                    .ok_or(ItemError::NoSuchPlace)?;
-                if i >= 3 {
-                    return Err(ItemError::NoSuchPlace);
-                }
-                Ok(self
-                    .world
-                    .get::<&HeroItems>(unit)
-                    .ok()
-                    .and_then(|items| items.0[i].clone()))
-            }
-        }
+    fn hero_position(&self, unit: hecs::Entity) -> Option<Position> {
+        self.units().unit_position(unit)
     }
 
+    fn fortress(&self, player: PlayerId) -> Option<Position> {
+        self.players.iter().find(|p| p.id == player)?.fortress
+    }
+}
+
+impl Game {
     /// Put an item (or nothing) in a spot, which has been checked to exist.
     fn set_item_at(&mut self, player: PlayerId, spot: ItemSpot, item: Option<Item>) {
-        let Some(pi) = self.player_index(player) else {
+        let Some(pi) = self.players.iter().position(|p| p.id == player) else {
             return;
         };
         match spot {
@@ -170,40 +285,9 @@ impl Game {
         }
     }
 
-    fn spot_position(&self, spot: ItemSpot) -> Option<Position> {
-        match spot {
-            ItemSpot::Hero(unit, _) => self.units().unit_position(unit),
-            _ => None,
-        }
-    }
-
-    /// Whether moving an item between the two spots is free: into the vault always; from the
-    /// vault to a hero standing in the fortress; between two heroes on one square. The award
-    /// list is where the wizard is, which the game does not track, so it is free everywhere.
-    fn move_is_free(&self, player: PlayerId, from: ItemSpot, to: ItemSpot) -> bool {
-        let fortress = self
-            .player_index(player)
-            .and_then(|i| self.players[i].fortress);
-        match (from, to) {
-            (_, ItemSpot::Vault(_)) => true,
-            (ItemSpot::Award(_), _) => true,
-            (ItemSpot::Vault(_), ItemSpot::Hero(..)) => {
-                self.spot_position(to).is_some() && self.spot_position(to) == fortress
-            }
-            (ItemSpot::Hero(..), ItemSpot::Hero(..)) => {
-                self.spot_position(from).is_some()
-                    && self.spot_position(from) == self.spot_position(to)
-            }
-            _ => true,
-        }
-    }
-
-    /// Move the item at `from` to `to`, swapping with what is there if it is back in the old
-    /// place's reach (`Item_Screen`'s pick up and put down, in one step). A hero's slot takes
-    /// what [`SlotKind::fits`] says; the award list takes nothing; an item that would be
-    /// swapped back must fit the slot it comes from. Moving to a hero somewhere else costs
-    /// [`TRANSFER_MANA`], which `pay` agrees to; taking away an item that keeps a hero afloat
-    /// at sea is refused.
+    /// The item screen: move the item at `from` to `to` by the rules of [`plan_move`], then
+    /// apply it. The one thing checked here is the drowning of a hero that loses its flight or
+    /// water walking over the sea, which is refused and put back.
     pub fn move_item(
         &mut self,
         player: PlayerId,
@@ -214,38 +298,12 @@ impl Game {
         if from == to {
             return Ok(());
         }
-        let moving = self.item_at(player, from)?.ok_or(ItemError::Empty)?;
-        let other = self.item_at(player, to)?;
-        let fits = |game: &Game, spot: ItemSpot, item: &Item| match spot {
-            ItemSpot::Vault(_) => true,
-            ItemSpot::Award(_) => false,
-            ItemSpot::Hero(unit, i) => game
-                .hero_slot_kinds(player, unit)
-                .is_some_and(|kinds| kinds[i].fits(item.kind)),
-        };
-        if !fits(self, to, &moving) {
-            return Err(ItemError::WrongSlot);
-        }
-        if let Some(other) = &other {
-            // What comes out goes back where the first item was (an award slot takes it back).
-            let back = match from {
-                ItemSpot::Award(_) => true,
-                _ => fits(self, from, other),
-            };
-            if !back {
-                return Err(ItemError::WrongSlot);
-            }
-        }
-        let free = self.move_is_free(player, from, to);
-        if !free {
-            if !pay {
-                return Err(ItemError::Transfer);
-            }
-            let mana = self.players[self.player_index(player).ok_or(ItemError::NoSuchPlace)?].mana;
-            if mana < TRANSFER_MANA {
-                return Err(ItemError::NoMana);
-            }
-        }
+        let p = self
+            .players
+            .iter()
+            .find(|p| p.id == player)
+            .ok_or(ItemError::NoSuchPlace)?;
+        let plan = plan_move(&self.items(), &p.armory, p.mana, player, from, to, pay)?;
         let heroes: Vec<hecs::Entity> = [from, to]
             .iter()
             .filter_map(|s| match s {
@@ -262,26 +320,23 @@ impl Game {
                 .collect()
         };
         let before = stranded(self);
-        self.set_item_at(player, from, other.clone());
-        self.set_item_at(player, to, Some(moving.clone()));
-        // A hero that loses its flight or water walking over the sea would drown.
+        self.set_item_at(player, from, plan.other.clone());
+        self.set_item_at(player, to, Some(plan.moving.clone()));
         if stranded(self).iter().any(|unit| !before.contains(unit)) {
-            self.set_item_at(player, to, other);
-            self.set_item_at(player, from, Some(moving));
+            self.set_item_at(player, to, plan.other);
+            self.set_item_at(player, from, Some(plan.moving));
             return Err(ItemError::WouldDrown);
         }
-        if !free {
-            if let Some(pi) = self.player_index(player) {
-                self.players[pi].mana -= TRANSFER_MANA;
-            }
+        if let Some(p) = self.player_mut(player) {
+            p.mana -= plan.cost;
         }
         Ok(())
     }
 
     /// Hand a wizard an item (a reward, a made item): the vault, else the award list.
     pub fn give_item(&mut self, player: PlayerId, item: Item) -> Placed {
-        match self.player_index(player) {
-            Some(pi) => self.players[pi].armory.place(item),
+        match self.player_mut(player) {
+            Some(p) => p.armory.place(item),
             None => Placed::Lost,
         }
     }
@@ -289,9 +344,9 @@ impl Game {
     /// The anvil: destroy the item in a vault slot or on the award list for half its value in
     /// mana. Returns the mana gained.
     pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Option<i32> {
-        let pi = self.player_index(player)?;
-        let mana = self.players[pi].armory.scrap(from)?;
-        self.players[pi].mana += mana;
+        let p = self.player_mut(player)?;
+        let mana = p.armory.scrap(from)?;
+        p.mana += mana;
         Some(mana)
     }
 }
@@ -358,6 +413,10 @@ mod tests {
             units.push(u);
         }
         c.rules.units = Registry::new(units);
+        c.rules.item_powers = Registry::new(vec![
+            crate::testutil::item_power("flight", Some("flight"), None),
+            crate::testutil::item_power("flaming", None, None),
+        ]);
         let (grass, ocean) = (
             c.terrains.id_of("grassland").unwrap(),
             c.terrains.id_of("ocean").unwrap(),
@@ -431,7 +490,7 @@ mod tests {
             Ok(())
         );
         assert_eq!(g.players[0].armory.vault[1], None);
-        assert_eq!(g.units().unit_items(w).len(), 2);
+        assert_eq!(g.items().carried(w).len(), 2);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 1), false),
             Err(ItemError::Empty)
@@ -471,13 +530,13 @@ mod tests {
         g.move_item(P0, ItemSpot::Vault(1), ItemSpot::Hero(w, 0), false)
             .unwrap();
         assert_eq!(g.players[0].armory.vault[1].as_ref().unwrap().name, "Sword");
-        assert_eq!(g.units().unit_items(w)[0].1.name, "Axe");
+        assert_eq!(g.items().carried(w)[0].1.name, "Axe");
         // Armour does not go in the sword slot, and nothing changes.
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 0), false),
             Err(ItemError::WrongSlot)
         );
-        assert_eq!(g.units().unit_items(w)[0].1.name, "Axe");
+        assert_eq!(g.items().carried(w)[0].1.name, "Axe");
         assert_eq!(g.players[0].armory.vault[2].as_ref().unwrap().name, "Plate");
     }
 
@@ -556,7 +615,7 @@ mod tests {
             g.move_item(P0, ItemSpot::Hero(m, 2), ItemSpot::Vault(0), false),
             Err(ItemError::WouldDrown)
         );
-        assert_eq!(g.units().unit_items(m).len(), 1);
+        assert_eq!(g.items().carried(m).len(), 1);
         assert_eq!(g.players[0].armory.vault[0], None);
     }
 
@@ -585,8 +644,179 @@ mod tests {
         let carried = back.units().all_units();
         let hero = carried
             .iter()
-            .find(|&&u| !back.units().unit_items(u).is_empty())
+            .find(|&&u| !back.items().carried(u).is_empty())
             .unwrap();
-        assert_eq!(back.units().unit_items(*hero), g.units().unit_items(w));
+        assert_eq!(back.items().carried(*hero), g.items().carried(w));
+    }
+
+    struct FakeHero {
+        unit: hecs::Entity,
+        slots: [SlotKind; 3],
+        at: Position,
+        items: [Option<Item>; 3],
+    }
+
+    /// A world of two heroes, answered from plain data: no `Game`.
+    struct Fake {
+        hero: [FakeHero; 2],
+        fortress: Position,
+    }
+
+    impl ItemWorld for Fake {
+        fn hero_slots(&self, player: PlayerId, unit: hecs::Entity) -> Option<[SlotKind; 3]> {
+            self.hero
+                .iter()
+                .find(|h| h.unit == unit && player == P0)
+                .map(|h| h.slots)
+        }
+
+        fn hero_item(&self, unit: hecs::Entity, slot: usize) -> Option<Item> {
+            self.hero.iter().find(|h| h.unit == unit)?.items[slot].clone()
+        }
+
+        fn hero_position(&self, unit: hecs::Entity) -> Option<Position> {
+            self.hero.iter().find(|h| h.unit == unit).map(|h| h.at)
+        }
+
+        fn fortress(&self, _: PlayerId) -> Option<Position> {
+            Some(self.fortress)
+        }
+    }
+
+    fn fake() -> (Fake, hecs::Entity, hecs::Entity) {
+        let mut w = hecs::World::new();
+        let (a, b) = (w.spawn(()), w.spawn(()));
+        let kinds = HeroKind::Warrior.slots();
+        let hero = |unit, items| FakeHero {
+            unit,
+            slots: kinds,
+            at: at(1, 1),
+            items,
+        };
+        let fake = Fake {
+            hero: [
+                hero(a, [None, None, None]),
+                hero(b, [Some(item("Old", ItemKind::Sword)), None, None]),
+            ],
+            fortress: at(1, 1),
+        };
+        (fake, a, b)
+    }
+
+    fn vault_with(items: &[(usize, ItemKind)]) -> Armory {
+        let mut a = Armory::default();
+        for &(i, kind) in items {
+            a.vault[i] = Some(item("V", kind));
+        }
+        a
+    }
+
+    #[test]
+    fn the_rules_need_no_game_to_allow_or_refuse_a_move() {
+        let (w, a, _) = fake();
+        let armory = vault_with(&[(0, ItemKind::Bow), (1, ItemKind::Sword)]);
+        let plan = |from, to, mana, pay| plan_move(&w, &armory, mana, P0, from, to, pay);
+        // A bow does not fit a warrior's sword slot; a sword does, free in the fortress.
+        assert_eq!(
+            plan(ItemSpot::Vault(0), ItemSpot::Hero(a, 0), 0, false),
+            Err(ItemError::WrongSlot)
+        );
+        let ok = plan(ItemSpot::Vault(1), ItemSpot::Hero(a, 0), 0, false).unwrap();
+        assert_eq!((ok.cost, ok.other), (0, None));
+        // Nothing there, no such slot, someone else's hero.
+        assert_eq!(
+            plan(ItemSpot::Vault(2), ItemSpot::Hero(a, 0), 0, false),
+            Err(ItemError::Empty)
+        );
+        assert_eq!(
+            plan(ItemSpot::Vault(1), ItemSpot::Hero(a, 3), 0, false),
+            Err(ItemError::NoSuchPlace)
+        );
+        assert_eq!(
+            plan_move(
+                &w,
+                &armory,
+                0,
+                P1,
+                ItemSpot::Vault(1),
+                ItemSpot::Hero(a, 0),
+                false
+            ),
+            Err(ItemError::NoSuchPlace)
+        );
+        // The award list takes nothing.
+        assert_eq!(
+            plan(ItemSpot::Vault(1), ItemSpot::Award(0), 0, false),
+            Err(ItemError::WrongSlot)
+        );
+    }
+
+    #[test]
+    fn a_swap_must_fit_the_old_place_and_the_cost_needs_consent_and_mana() {
+        let (mut w, a, b) = fake();
+        let armory = vault_with(&[(0, ItemKind::Sword), (1, ItemKind::Bow)]);
+        // The hero b already holds a sword: swapping gives it back to the vault.
+        let swap = plan_move(
+            &w,
+            &armory,
+            0,
+            P0,
+            ItemSpot::Vault(0),
+            ItemSpot::Hero(b, 0),
+            false,
+        )
+        .unwrap();
+        assert_eq!(swap.other.as_ref().map(|i| i.name.as_str()), Some("Old"));
+        // Heroes on one square trade for free; the sword cannot go into a misc slot.
+        let trade = plan_move(
+            &w,
+            &armory,
+            0,
+            P0,
+            ItemSpot::Hero(b, 0),
+            ItemSpot::Hero(a, 0),
+            false,
+        );
+        assert_eq!(trade.map(|p| p.cost), Ok(0));
+        assert_eq!(
+            plan_move(
+                &w,
+                &armory,
+                0,
+                P0,
+                ItemSpot::Hero(b, 0),
+                ItemSpot::Hero(a, 2),
+                false
+            ),
+            Err(ItemError::WrongSlot)
+        );
+        // Move a hero away: the vault is no longer in reach, and a transfer must be agreed to
+        // and paid for.
+        w.hero[0].at = at(9, 9);
+        let go = |mana, pay| {
+            plan_move(
+                &w,
+                &armory,
+                mana,
+                P0,
+                ItemSpot::Vault(0),
+                ItemSpot::Hero(a, 0),
+                pay,
+            )
+        };
+        assert_eq!(go(100, false), Err(ItemError::Transfer));
+        assert_eq!(go(19, true), Err(ItemError::NoMana));
+        assert_eq!(go(20, true).map(|p| p.cost), Ok(TRANSFER_MANA));
+        // Back into the vault is always free.
+        let back = plan_move(
+            &w,
+            &armory,
+            0,
+            P0,
+            ItemSpot::Hero(b, 0),
+            ItemSpot::Vault(3),
+            false,
+        );
+        assert_eq!(back.map(|p| p.cost), Ok(0));
     }
 }

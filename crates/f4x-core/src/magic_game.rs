@@ -181,7 +181,7 @@ impl Game {
             return Err(MagicError::NotOverland);
         }
         let needs_target = self.spell_needs_target(player, spell);
-        if self.spell_has_hook(spell, crate::crafting::CRAFT_ITEM) {
+        if self.spell_has_hook(spell, crate::items::crafting::CRAFT_ITEM) {
             // The items are designed first: `Command::CraftItem`.
             return Err(MagicError::NotAvailable);
         }

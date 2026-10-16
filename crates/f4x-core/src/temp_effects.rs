@@ -148,14 +148,12 @@ impl<'a> Units<'a> {
                 }
             }
         }
-        for (_, item) in self.unit_items(unit) {
-            for a in item.granted_abilities() {
-                if !out.iter().any(|x| x == a) {
-                    out.push(a.to_string());
-                }
+        for a in self.items().abilities(unit) {
+            if !out.contains(&a) {
+                out.push(a);
             }
         }
-        for spell in self.item_spells(unit) {
+        for spell in self.items().spells(unit) {
             for rule in &self.content.rules.spells.get(spell).effects {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
@@ -212,7 +210,7 @@ impl<'a> Units<'a> {
             })
             .unwrap_or_default();
         // What its items put on the hero counts as well.
-        for spell in self.item_spells(unit) {
+        for spell in self.items().spells(unit) {
             let id = &self.content.rules.spells.get(spell).id;
             if !ids.contains(id) {
                 ids.push(id.clone());

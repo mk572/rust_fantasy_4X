@@ -336,7 +336,7 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
-        if hook == crate::crafting::CRAFT_ITEM {
+        if hook == crate::items::crafting::CRAFT_ITEM {
             let events = self.game.complete_crafting(ctx.owner);
             self.events.extend(events);
             return;

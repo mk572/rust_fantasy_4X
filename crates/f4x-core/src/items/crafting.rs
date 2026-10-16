@@ -427,8 +427,8 @@ impl crate::Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::armory::Placed;
     use crate::city::PlayerId;
+    use crate::items::armory::Placed;
     use crate::map::{Grid, Map};
     use crate::player::Player;
     use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
@@ -455,6 +455,8 @@ mod tests {
             realm: realm.map(|(r, _)| r.into()),
             books: realm.map_or(0, |(_, b)| b),
             bonus,
+            spell: None,
+            attack: None,
         }
     }
 
