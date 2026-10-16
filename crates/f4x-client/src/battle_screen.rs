@@ -63,6 +63,9 @@ pub(crate) struct BattleUi {
     aiming: Option<Aiming>,
     /// Animate Dead or Raise Dead chosen: the list of the fallen to pick from.
     fallen_list: Option<SpellId>,
+    /// The Auto button is on: the computer plays the human's side too, until the battle ends
+    /// or the button is pressed again.
+    auto: bool,
 }
 
 /// A spell the player has picked.
@@ -259,6 +262,25 @@ impl App {
         if self.game.in_battle() {
             self.screen = Screen::Battle;
         }
+    }
+
+    /// Fight a battle to the end without the battle screen (strategic combat only, or an
+    /// attack the player left to the computer).
+    pub(crate) fn auto_battle(&mut self, command: Command) {
+        let events = self.game.apply(command);
+        let won = events.iter().find_map(|e| match e {
+            Event::BattleEnded { winner, .. } => Some(*winner == HUMAN),
+            _ => None,
+        });
+        if let Some(won) = won {
+            self.log
+                .push(if won { "Victory!" } else { "Defeat" }.to_string());
+        }
+        let rest: Vec<Event> = events
+            .into_iter()
+            .filter(|e| !matches!(e, Event::Battle(_) | Event::BattleEnded { .. }))
+            .collect();
+        self.note(rest);
     }
 
     /// Set the screen up for the battle in progress (it may have been started by the console).
@@ -500,10 +522,11 @@ impl App {
         self.battle_ui.ai_timer -= dt;
 
         let mine = Self::human_side(&battle);
-        let my_turn = mine == Some(battle.active) && !animating;
-        // The other side plays by itself, once nothing is moving.
+        let auto = self.battle_ui.auto;
+        let my_turn = mine == Some(battle.active) && !animating && !auto;
+        // The other side plays by itself, once nothing is moving; so does yours under Auto.
         if !animating
-            && mine != Some(battle.active)
+            && (auto || mine != Some(battle.active))
             && self.battle_ui.ai_timer <= 0.0
             && self.game.in_battle()
         {
@@ -1346,7 +1369,7 @@ impl App {
         let sel = self.battle_ui.selected;
         let mut order = None;
         let col = |i: f32| x + 12.0 + i * 92.0;
-        // Auto-play and the information window are not built yet (tasks 133, 132).
+        // The information window is not built yet (task 132).
         let can_cast = my_turn
             && self.battle_ui.aiming.is_none()
             && self.battle_ui.fallen_list.is_none()
@@ -1362,7 +1385,15 @@ impl App {
         if self.compix_button(3, "Done", (col(2.0), by), my_turn && sel.is_some()) {
             order = sel.map(|u| BattleCommand::Done { unit: u });
         }
-        self.compix_button(4, "Auto", (col(0.0), by + 40.0), false);
+        // Auto hands your side to the computer; pressed again, it takes it back.
+        let auto = self.battle_ui.auto;
+        let auto_on = self.compix_button(4, "Auto", (col(0.0), by + 40.0), my_turn || auto);
+        if auto_on || ((my_turn || auto) && is_key_pressed(KeyCode::A)) {
+            self.battle_ui.auto = !auto;
+            self.battle_ui.aiming = None;
+            self.battle_ui.spell_list = false;
+            self.battle_ui.fallen_list = None;
+        }
         self.compix_button(20, "Info", (col(1.0), by + 40.0), false);
         let sure = self.battle_ui.confirm_flee;
         let flee = self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn);

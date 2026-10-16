@@ -41,6 +41,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 34 | Combat | ~~Attack resolution: to-hit, damage, defence, attack order~~ (done) |
 | 37 | Combat | Combat ability rules (done) |
 | 38 | Combat | Ranged ammunition and spell shots (done) |
+| 39 | Combat | Auto-resolve (low priority) (done) |
 | 40 | Combat | ~~Tactical battle map, walls and turn flow~~ (done) |
 | 42 | Combat | Fleeing and after-battle results (done) |
 | 46 | Combat | Battle AI (done) |
@@ -319,6 +320,8 @@ tasks 35-37.
 **37. Combat ability rules (done).** Large shield (+2 defence against everything but melee blows, spells included), lucky (+1 to hit, to block and resistance in battle), regeneration (one hit at the start of the unit's side's turn, full healing after the fight, a slain unit comes back if its side won; the Regeneration spell grants the ability), wall crusher, long range, negate first strike, invisibility, healer and mana leak were already in. Differences kept in mind: the shield an item gives (a hero's shield makes the hero carry a large shield) waits for task 49; the help says invisibility makes a unit "susceptible only to ranged attacks when adjacent", which the original's code does not do (it takes 1 off the attacker's to hit, as here).
 
 **38. Ranged ammunition and spell shots (done).** The quiver is refilled for every battle (a battle unit takes its ammunition from the unit definition). A spell caster unit (`spellcaster` 20 mana, `spellcaster_major` 40; Efreet, Djinn, Arch Angel...) shoots its spell shots with its mana, 3 a shot, and its shots are what its mana pays for (`BattleUnit::mana`, `shoots_with_mana`); Mana Leak takes 5 mana from each unit and one shot from a unit with spell shots but no mana. Left for the heroes: their mana comes from their casting skill and level (task 51), which gives them spell shots only through an item (49).
+
+**39. Auto-resolve (done).** `Command::AutoResolve` (console `auto`) fights a battle to the end with the battle AI (`battle/ai.rs`, `brain.rs`) playing both sides, from an adjacent square, with the usual aftermath. The battle screen's Auto button (key A) hands the human's side to the computer until the battle ends or it is pressed again, and the Settings screen has "Strategic combat only" [685]: the human's attacks are then auto-resolved with no battle screen (a preference, kept for the session).
 
 **40. Tactical battle map, walls and turn flow (done).** `battle/map.rs` and
 `battle/mod.rs`: the 21 by 22 grid with open, rough and blocked squares generated from the

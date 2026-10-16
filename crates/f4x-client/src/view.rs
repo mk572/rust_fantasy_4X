@@ -332,9 +332,17 @@ impl App {
                         .first()
                         .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
-                        follow.push(Command::BeginBattle {
-                            attackers,
-                            defenders,
+                        // Strategic combat only: the computer fights it, with no battle screen.
+                        follow.push(if self.options.strategic_only {
+                            Command::AutoResolve {
+                                attackers,
+                                defenders,
+                            }
+                        } else {
+                            Command::BeginBattle {
+                                attackers,
+                                defenders,
+                            }
                         });
                     }
                     None
@@ -527,7 +535,10 @@ impl App {
             self.log.drain(..self.log.len() - 40);
         }
         for command in follow {
-            self.begin_battle(command);
+            match command {
+                Command::AutoResolve { .. } => self.auto_battle(command),
+                _ => self.begin_battle(command),
+            }
         }
         founded
     }

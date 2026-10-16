@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 39 | Combat | Auto-resolve (low priority) |
 | 51 | Heroes | Heroes' casting contribution and sage heroes (low priority) |
 | 56 | Magic | Implement the 37 "special" spells (low priority) |
 | 58 | Magic | Unit enchantments needing non-stat effects (low priority) |
@@ -128,10 +127,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 263 | Magic | Audit every immunity against the spells and effects it should cover |
 
 ## Descriptions
-
-### Combat
-
-**39. Auto-resolve.** Done: `Command::AutoResolve` (console `auto`) fights a battle to the end with the placeholder battle AI (`battle/ai.rs`) playing both sides, from an adjacent square, with the usual aftermath. Open: the strategic-combat-only option [685], a button for it on the battle screen (the Auto button is drawn greyed; task 133), and a better battle AI (46) so the result is not just whoever the placeholder favours.
 
 ### Heroes and items
 
@@ -362,7 +357,7 @@ pointers by action and sound. Terrain autotile edges, dirt patches, roads, river
 **133. Prompt before attacking, and battles between AI players.** A human move into an enemy
 stack or a city starts the battle at once; the original asks first (attack, or cancel). AI
 attacks (`AttackRequested` for a non-human attacker) are ignored by the client, and nothing
-resolves a fight between two AI players in the client. The AI crate attacks with `Command::AutoResolve` (39) and `f4x-tools soak` runs it, but the client does not run the AI (task 135). Still open here: the attack prompt, the Auto button on the battle screen (greyed) and the option to auto-resolve a battle the human does not want to fight by hand.
+resolves a fight between two AI players in the client. The AI crate attacks with `Command::AutoResolve` (39) and `f4x-tools soak` runs it, but the client does not run the AI (task 135). Still open here: the attack prompt (attack or cancel). The Auto button and the strategic-combat-only option are done (task 39).
 
 **134. Game-end cut-scenes and the original's score screen.** The game-over screen is plain text
 and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
