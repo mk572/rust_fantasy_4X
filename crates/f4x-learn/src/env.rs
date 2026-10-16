@@ -26,6 +26,8 @@ pub struct Outcome {
     /// Mana each side's wizard spent from the reserve.
     pub mana_spent: [i32; 2],
     pub fled: [bool; 2],
+    /// Different spells each side's wizard cast (a spell cast twice counts once).
+    pub unique_spells: [u32; 2],
 }
 
 impl Outcome {
@@ -47,6 +49,8 @@ pub struct BattleEnv {
     pub scenario: BattleScenario,
     pub outcome: Outcome,
     alive: [u32; 2],
+    /// The spells each side has cast so far, to count the different ones.
+    cast: [Vec<f4x_core::rules::SpellId>; 2],
     /// The side of each battle unit, by number (kept so the dead of the last step are known).
     sides: Vec<Side>,
     pub steps: u32,
@@ -72,6 +76,7 @@ impl BattleEnv {
                 ..Outcome::default()
             },
             alive: sent,
+            cast: [Vec::new(), Vec::new()],
             sides: Vec::new(),
             steps: 0,
         };
@@ -153,8 +158,15 @@ impl BattleEnv {
                     self.outcome.saved_by_fleeing[side.index()] = self.alive[side.index()];
                     self.alive[side.index()] = 0;
                 }
-                BattleEvent::SpellCast { side, mana, .. } => {
+                BattleEvent::SpellCast {
+                    side, mana, spell, ..
+                } => {
                     self.outcome.mana_spent[side.index()] += *mana;
+                    let seen = &mut self.cast[side.index()];
+                    if !seen.contains(spell) {
+                        seen.push(*spell);
+                        self.outcome.unique_spells[side.index()] += 1;
+                    }
                 }
                 BattleEvent::Ended { winner } => self.outcome.winner = Some(*winner),
                 _ => {}

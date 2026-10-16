@@ -11,7 +11,7 @@ pub fn reward(o: &Outcome, side: Side, stakes: f32) -> f32 {
     reward_with_budget(o, side, stakes, None)
 }
 
-/// The reward with the mana term: a small cost for the share of the mana budget spent.
+/// The reward with the mana term: a small cost for the share of the mana budget spent (at most [`MANA_COST`]).
 pub fn reward_with_budget(o: &Outcome, side: Side, stakes: f32, budget: Option<u32>) -> f32 {
     let mana = budget.filter(|&b| b > 0).map_or(0.0, |b| {
         MANA_COST * (o.mana_spent[side.index()] as f32 / b as f32).clamp(0.0, 1.0)
@@ -20,7 +20,12 @@ pub fn reward_with_budget(o: &Outcome, side: Side, stakes: f32, budget: Option<u
 }
 
 /// The most the mana term takes off.
-pub const MANA_COST: f32 = 0.05;
+pub const MANA_COST: f32 = 0.025;
+
+/// What each different spell a wizard casts in a battle adds, for training only (evaluations
+/// leave it out, so their scores stay comparable): a push to try spells, not part of what a
+/// battle is worth.
+pub const SPELL_BONUS: f32 = 0.01;
 
 fn base_reward(o: &Outcome, side: Side, stakes: f32) -> f32 {
     let me = side.index();
@@ -48,6 +53,15 @@ mod tests {
             saved_by_fleeing: saved,
             ..Outcome::default()
         }
+    }
+
+    #[test]
+    fn the_spell_bonus_counts_different_spells_not_casts() {
+        let mut o = outcome(Some(Side::Attacker), [0, 6], [0, 0]);
+        o.unique_spells = [3, 0];
+        assert_eq!(o.unique_spells[Side::Attacker.index()], 3);
+        let bonus = SPELL_BONUS * o.unique_spells[Side::Attacker.index()] as f32;
+        assert!((bonus - 0.03).abs() < 1e-6);
     }
 
     #[test]

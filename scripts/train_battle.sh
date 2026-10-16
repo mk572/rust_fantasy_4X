@@ -9,6 +9,7 @@ set -u
 usage() {
     cat <<'USAGE'
 Usage: train_battle.sh [--name NAME] [--iters N] [--bc N] [--battles N] [--seed N]
+                       [--resume FILE] [--start-iter N]
                        [--no-advice] [--no-briefs] [--until WHEN] [--tz ZONE] [--bank FILE]
                        [--threads N]
                        [--detach] [--notify] [--dry-run]
@@ -24,6 +25,10 @@ Options:
   --bc N          scripted battles for the warm start, 0 to skip it (default 200)
   --battles N     battles per iteration (default 64)
   --seed N        seed of the run (default 1)
+  --resume FILE   start from a checkpoint's weights (a .bpk with its .shape.ron; the optimiser
+                  starts afresh and the warm start is skipped); with --start-iter N the
+                  iterations are numbered from N + 1
+  --start-iter N  see --resume
   --no-advice     never show the scripted AI's advice (the control run)
   --no-briefs     train without random briefs
   --until WHEN    stop at a time: HH:MM today, or "YYYY-MM-DD HH:MM", in --tz (default
@@ -43,7 +48,9 @@ Files in the run folder:
   STATUS          running | done | failed (exit code) | interrupted, and when
   command.txt     the options, the git commit and the date the run started
   build.txt       the build's output;  stdout.txt  the trainer's output
-  log.txt         the trainer's own log (one line per iteration, evals every 5 iterations)
+  log.txt         the trainer's own log (one line per iteration, evals every 5 iterations,
+                  with the casts and mana of each evaluation)
+  casts.txt       each evaluation's casts by spell, in full
   net_NNNN.bpk    a checkpoint every 5 iterations, each with net_NNNN.shape.ron
   best.bpk        a copy of the checkpoint with the best "advice hidden" held-out reward
                   (with best.shape.ron), and summary.txt saying which and how it scored
@@ -72,7 +79,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
         --name) name="${2:?--name needs a value}"; shift ;;
-        --iters|--bc|--battles|--seed) train_opts+=("$1" "${2:?$1 needs a value}"); shift ;;
+        --iters|--bc|--battles|--seed|--resume|--start-iter) train_opts+=("$1" "${2:?$1 needs a value}"); shift ;;
         --no-advice|--no-briefs) train_opts+=("$1") ;;
         --until) until="${2:?--until needs a value}"; shift ;;
         --tz) tz="${2:?--tz needs a value}"; shift ;;

@@ -442,8 +442,11 @@ What `f4x-learn` does today (the numbers are in section 7.8):
   were *measured* by letting the scripted AI play each four times (`make_bank`), since a
   strength estimate from the units' numbers did not predict who wins. A tenth is held out for
   evaluation.
-- **Reward** (`reward.rs`): section 7.4, plus a mana term of at most 0.05 for the share of the
-  budget spent.
+- **Reward** (`reward.rs`): section 7.4, plus a mana term of at most 0.025 for the share of the
+  budget spent (0.05 until 16 October), and, in training only, 0.01 for each different spell
+  the wizard cast in the battle (`SPELL_BONUS`, to push the agent to try spells; evaluations
+  leave it out, so their scores stay comparable with earlier ones). The runs of 7.8 and the
+  first run of 16 October were trained without it.
 - **In the game** (`brain.rs`): `LearnedBrain` plays a wizard's battles through the core's
   `BattleBrain` hook (`Game::set_battle_brain`; auto-resolve and the battle screen's AI side
   ask `Game::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with

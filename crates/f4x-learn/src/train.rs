@@ -320,6 +320,8 @@ pub struct RolloutConfig {
     pub attacker_only: bool,
     /// Give every side a random brief (stakes, mana budget, whether it may flee).
     pub random_briefs: bool,
+    /// Added to a side's reward for each different spell its wizard cast in the battle.
+    pub spell_bonus: f32,
 }
 
 impl Default for RolloutConfig {
@@ -335,6 +337,7 @@ impl Default for RolloutConfig {
             greedy: false,
             attacker_only: false,
             random_briefs: false,
+            spell_bonus: crate::reward::SPELL_BONUS,
         }
     }
 }
@@ -353,6 +356,10 @@ pub struct Stats {
     pub wizard_asks: usize,
     pub flees: usize,
     pub casts: usize,
+    /// Mana the agent's wizards spent from their reserves, summed over the battles.
+    pub mana_spent: i64,
+    /// How often each spell (by its id) was cast.
+    pub by_spell: std::collections::BTreeMap<String, usize>,
     /// By odds: (battles, wins, reward sum) for the agent's side as the attacker.
     pub by_odds: [(usize, usize, f32); 3],
 }
@@ -484,6 +491,16 @@ pub fn rollout(
                 stats.wizard_asks += 1;
                 stats.flees += usize::from(c.index == act::FLEE);
                 stats.casts += usize::from(c.index >= act::SPELL);
+                if let Some(&spell) = c
+                    .index
+                    .checked_sub(act::SPELL)
+                    .and_then(|k| p.obs.spell_ids.get(k))
+                {
+                    *stats
+                        .by_spell
+                        .entry(content.rules.spells.get(spell).id.clone())
+                        .or_default() += 1;
+                }
             }
             let side = p.side.index();
             let advice_on = s.advice_on;
@@ -511,9 +528,11 @@ fn finish(mut s: Slot, cfg: &RolloutConfig, samples: &mut Vec<Sample>, stats: &m
             continue;
         }
         let brief = s.briefs[side.index()];
-        let r = reward_with_budget(&outcome, side, brief.stakes, brief.mana_budget);
+        let r = reward_with_budget(&outcome, side, brief.stakes, brief.mana_budget)
+            + cfg.spell_bonus * outcome.unique_spells[side.index()] as f32;
         stats.games += 1;
         stats.reward += r;
+        stats.mana_spent += i64::from(outcome.mana_spent[side.index()]);
         if cfg.opponent == Opponent::Scripted {
             stats.wins += usize::from(outcome.winner == Some(side));
         }
@@ -889,6 +908,12 @@ pub struct Evaluation {
     /// (games, wins, reward) by odds: even, overwhelming, overwhelmed, with the network as the
     /// attacker.
     pub by_odds: [(usize, usize, f32); 3],
+    /// The wizard's decisions, flees and casts, the mana spent, and each spell's casts.
+    pub wizard_asks: usize,
+    pub flees: usize,
+    pub casts: usize,
+    pub mana_spent: i64,
+    pub by_spell: std::collections::BTreeMap<String, usize>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -909,6 +934,7 @@ pub fn evaluate(
         advice_chance: if advice { 1.0 } else { 0.0 },
         greedy: true,
         attacker_only: true,
+        spell_bonus: 0.0,
         ..RolloutConfig::default()
     };
     let (_, st) = rollout(
@@ -919,6 +945,11 @@ pub fn evaluate(
         wins: st.wins,
         reward: st.reward,
         by_odds: st.by_odds,
+        wizard_asks: st.wizard_asks,
+        flees: st.flees,
+        casts: st.casts,
+        mana_spent: st.mana_spent,
+        by_spell: st.by_spell,
     })
 }
 
