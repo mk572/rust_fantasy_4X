@@ -439,25 +439,14 @@ impl Art {
         PathBuf::from(format!("map/tiles/{folder}/tile_{tile:04}.png"))
     }
 
-    /// A river picture of a battlefield: one of the six shapes (see [`crate::river_art`]), as
-    /// Arcanus has it, or for Myrror (whose own pictures are empty in the original's files) with
-    /// the blue water repainted in the colour of Myrror's ocean (`chriver` 12) and the grassy banks
-    /// in that of its ground, keeping the shades. Without that art Myrror gets Arcanus's.
+    /// A river picture of a battlefield: one of the six shapes of Arcanus or of Myrror (see
+    /// [`crate::river_art`]), from the embedded files.
     pub fn river(&mut self, shape: usize, frame: usize, myrror: bool) -> Option<&Texture2D> {
         let frame = frame % crate::river_art::FRAMES;
         let key = PathBuf::from(format!("river/{}_{shape}_{frame}", u8::from(myrror)));
         if !self.textures.contains_key(&key) {
-            let tex = if myrror {
-                self.recoloured_river(shape, frame)
-            } else {
-                None
-            }
-            .or_else(|| {
-                let img = Image::from_file_with_format(
-                    crate::river_art::png(shape, frame)?,
-                    Some(ImageFormat::Png),
-                )
-                .ok()?;
+            let tex = crate::river_art::png(shape, frame, myrror).and_then(|bytes| {
+                let img = Image::from_file_with_format(bytes, Some(ImageFormat::Png)).ok()?;
                 let tex = Texture2D::from_image(&img);
                 tex.set_filter(FilterMode::Nearest);
                 Some(tex)
@@ -467,76 +456,12 @@ impl Art {
         self.textures.get(&key)?.as_ref()
     }
 
-    fn recoloured_river(&self, shape: usize, frame: usize) -> Option<Texture2D> {
-        let load = |lbx: &str, entry: usize, frame: usize| -> Option<Image> {
-            let base = picture_base(&self.placed, lbx, entry, frame);
-            let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
-            Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
-        };
-        let mut img = Image::from_file_with_format(
-            crate::river_art::png(shape, frame)?,
-            Some(ImageFormat::Png),
-        )
-        .ok()?;
-        let ocean = load("chriver", 12, 0)?;
-        // The target: the mean colour of Myrror's water, and of the river's water now.
-        let mean = |bytes: &[u8], pick: &dyn Fn(&[u8]) -> bool| -> Option<[f32; 4]> {
-            let (mut sum, mut n) = ([0f32; 3], 0f32);
-            for p in bytes
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .filter(|p| p[3] > 0 && pick(*p))
-            {
-                for k in 0..3 {
-                    sum[k] += f32::from(p[k]);
-                }
-                n += 1.0;
-            }
-            (n > 0.0).then(|| [sum[0] / n, sum[1] / n, sum[2] / n, n])
-        };
-        let blue = |p: &[u8]| p[2] > p[0].saturating_add(20) && p[2] > p[1];
-        let green = |p: &[u8]| p[1] > p[0] && p[1] >= p[2] && !blue(p);
-        let ground = load("cmbgrasc", 0, 0)?;
-        // Repaint each kind of pixel (water, grassy banks) in the colour of the Myrror picture
-        // that stands for it, keeping its light and dark shades.
-        let light = |c: [f32; 4]| (c[0] + c[1] + c[2]).max(1.0);
-        let jobs: [(&Pick<'_>, &Image); 2] = [(&blue, &ocean), (&green, &ground)];
-        let mut painted = img.bytes.clone();
-        for (pick, target) in jobs {
-            let (Some(to), Some(from)) = (mean(&target.bytes, &|_| true), mean(&img.bytes, pick))
-            else {
-                continue;
-            };
-            for (p, out) in img
-                .bytes
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .zip(painted.as_chunks_mut::<4>().0.iter_mut())
-                .filter(|(p, _)| p[3] > 0 && pick(*p))
-            {
-                let k = (f32::from(p[0]) + f32::from(p[1]) + f32::from(p[2])) / light(from);
-                for c in 0..3 {
-                    out[c] = (to[c] * k).clamp(0.0, 255.0) as u8;
-                }
-            }
-        }
-        img.bytes = painted;
-        let tex = Texture2D::from_image(&img);
-        tex.set_filter(FilterMode::Nearest);
-        Some(tex)
-    }
-
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
     pub fn picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
         let path = picture_path(&self.placed, lbx, entry, frame);
         self.texture(path)
     }
 }
-
-/// Whether a pixel (RGBA) is of the kind being repainted.
-type Pick<'a> = dyn Fn(&[u8]) -> bool + 'a;
 
 /// Read `screens/index.tsv`: `lbx  entry  <screen>/<name>` a row.
 fn parse_placed(text: &str) -> HashMap<String, HashMap<usize, String>> {

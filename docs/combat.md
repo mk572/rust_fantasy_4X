@@ -259,8 +259,10 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   Myrror's `chriver` 0 to 11 are empty, which is why the original never shows one), so both
   planes use those six, which are saved as PNG files in `crates/f4x-client/assets/rivers/`
   (`river_<shape>_<frame>.png`, embedded by `river_art.rs`) and committed, the one piece of the
-  original's art in the repository, at the project owner's choice (17 October 2026); Myrror's are repainted at load (`Art::myrror_river`: the blue water takes the
-  colour of Myrror's ocean, `chriver` 12, which is purple, and the grassy banks that of its ground). Deviations: the first kind of river starts at (6, 15) and the second at
+  original's art in the repository, at the project owner's choice (17 October 2026); Myrror's
+  (`river_myrror_<shape>_<frame>.png`) were generated once from them, the blue water repainted in
+  the colour of Myrror's ocean (`chriver` 12, purple) and the grassy banks in that of its
+  ground, and are kept as files too. Deviations: the first kind of river starts at (6, 15) and the second at
   the band's top edge, because the original's start squares lie outside the playable band (or
   end after one step).
 - **Water battles** (task 254): a fight on a sea square is all ocean. Walkers cannot enter it,

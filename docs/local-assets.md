@@ -74,5 +74,7 @@ text: for play on this machine, not for sharing. No icon, signing or universal b
 
 The six river pictures of a battlefield (`cmbtcity` 103 to 108, five frames each) are committed as
 `crates/f4x-client/assets/rivers/river_<shape>_<frame>.png` and embedded in the client
-(`river_art.rs`), so rivers show without the local art. They are the original's art, kept in the
+(`river_art.rs`), so rivers show without the local art. Myrror's set
+(`river_myrror_<shape>_<frame>.png`) was generated once from Arcanus's, by repainting the water
+in the colour of Myrror's ocean and the banks in that of its ground, and kept as files. They are the original's art, kept in the
 repository at the project owner's choice (17 October 2026); everything else stays local-only.
