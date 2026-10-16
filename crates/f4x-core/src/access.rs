@@ -174,9 +174,14 @@ impl Game {
             .insert_one(unit, crate::units::UnitEnchantments(list));
     }
 
+    /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).
+    pub fn scenario_set_safe_flee(&mut self, safe: bool) {
+        self.settings.rules.safe_flee = crate::settings::Split::both(safe);
+    }
+
     /// Remove a unit from the game.
     pub fn scenario_remove_unit(&mut self, unit: hecs::Entity) {
-        let _ = self.world.despawn(unit);
+        self.remove_unit(unit, crate::roster::Fate::Released);
     }
 
     /// Put a building in a city, or take it out, as a scenario sets it up (no cost, no

@@ -1772,6 +1772,8 @@ fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
 fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["lionheart"]);
+    // Fleeing may lose the unit by chance; this test is about its hit points, not that roll.
+    g.scenario_set_safe_flee(true);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     let entity = {
         let a = g.battle.as_ref().unwrap();

@@ -243,7 +243,7 @@ impl Game {
         let settled = settle(&t, p.gold, fame, &troops);
         p.gold = settled.gold;
         for unit in &settled.disbanded {
-            let _ = self.world.despawn(*unit);
+            self.remove_unit(*unit, crate::roster::Fate::Released);
         }
         if settled.disbanded.is_empty() {
             return Vec::new();

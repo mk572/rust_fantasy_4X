@@ -155,6 +155,9 @@ pub struct PlayerSave {
     /// The vault and the award list; absent in saves from before items.
     #[serde(default)]
     pub armory: crate::armory::Armory,
+    /// The hero records; absent in saves from before heroes.
+    #[serde(default)]
+    pub roster: crate::roster::Roster,
     #[serde(default)]
     pub fortress: Option<Position>,
     #[serde(default)]
@@ -318,6 +321,9 @@ pub struct UnitSave {
     /// A hero's three items; absent in older saves.
     #[serde(default)]
     pub items: Option<crate::items::HeroItems>,
+    /// A hero's own record; absent for other units and in older saves.
+    #[serde(default)]
+    pub hero: Option<crate::hero::Hero>,
 }
 
 /// A temporary effect as saved; stats are named by their own serialisation.
@@ -589,6 +595,7 @@ impl Game {
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
                 armory: p.armory.clone(),
+                roster: p.roster.clone(),
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
@@ -642,6 +649,11 @@ impl Game {
                         .ok()
                         .filter(|i| !i.is_empty())
                         .map(|i| (*i).clone()),
+                    hero: self
+                        .world
+                        .get::<&crate::hero::Hero>(u)
+                        .ok()
+                        .map(|h| (*h).clone()),
                     undead: self.units().unit_is_undead(u),
                 })
             })
@@ -822,6 +834,7 @@ impl Snapshot {
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
                 armory: p.armory,
+                roster: p.roster,
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
@@ -894,6 +907,9 @@ impl Snapshot {
             effects_load(&mut game.world, entity, u.effects);
             if let Some(items) = u.items {
                 let _ = game.world.insert_one(entity, items);
+            }
+            if let Some(hero) = u.hero {
+                let _ = game.world.insert_one(entity, hero);
             }
             if u.undead {
                 let _ = game.world.insert_one(entity, crate::undead::Undead);

@@ -290,6 +290,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         game.generate_neutral_cities(plane);
     }
     game.assign_temperaments();
+    // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
+    game.init_heroes();
     game.set_undo(true);
     Ok(game)
 }

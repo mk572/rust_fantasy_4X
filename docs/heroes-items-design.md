@@ -1,9 +1,9 @@
 # Heroes and items: design
 
 Plan for tasks 47 to 51 and the parts of 72, 127, 128, 138 to 143, 174 and 175 that wait for them.
-Built so far: the data (task 218), the item rules and armory (task 49: `items.rs`, `armory.rs`) and
-crafting (task 50: `crafting.rs`); see section 1. The roster, hero component, offers, hero spells and
-loot are not. It follows the base rule of `design.md`: each system is plain data plus
+Built so far: the data (task 218), the item rules and armory (task 49: `items.rs`, `armory.rs`),
+crafting (task 50: `crafting.rs`) and the roster and hero component (task 219: `roster.rs`, `hero.rs`,
+`hero_game.rs`); see section 1. Offers, hero spells, the abilities' effects and loot are not. It follows the base rule of `design.md`: each system is plain data plus
 functions over the pieces they need, not methods on `Game` (`ecs-structure.md`, guideline 12).
 
 Sources, so every number can be checked: the original's data files (`ITEMDATA.LBX`, `ITEMPOW.LBX`,
@@ -21,6 +21,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 | `items.rs` (task 49) | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies), `HeroItems` (the three slots, a component), `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities` (large shield, special attacks), `power_is_handled`. `Source::Item(slot)`. The unit's stats, abilities, lasting spells and battle form read them (`Units::unit_items`, `item_spells`, `item_modifiers`). New stats `MeleeToHit`, `RangedToHit`. |
 | `armory.rs` (task 49) | `Armory` on `Player` (vault of four, award list of six), `Game::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`. |
 | `crafting.rs` (task 50) | `ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `default_name`, `Game::craft_item` / `Command::CraftItem`, `Magic::crafting` (the pending item), the hook `craft_item` of the two spells, `Event::ItemMade`. Not built: random and prefab items (task 262), the screen (260), icons (261). |
+| `hero.rs`, `roster.rs`, `hero_game.rs` (task 219) | `Hero` (name, `HeroAbilities`, casting skill, innate spells) is the component of a hero unit and `HeroAbilities::ids` feeds `unit_abilities` (so Noble, Armsmaster and the rest are unit abilities already). `Roster` of `HeroRecord`s on `Player` (state `Free`/`Serving`/`Dead`/`Gone`, abilities, skill, spells, name, xp), `roll` (`Init_Heroes`, called last in `new_game`), `pick` (`Pick_Random_Hero`), `hire_cost`, `level_of`. `Game::spawn_hero`, `pick_hero`, `hero_hire_price`, `hero_units`, `open_hero_slots` (six), and `remove_unit(unit, Fate)`, which every place that takes a unit out of the game uses so the roster follows. Saved with the players and the units. |
 | `experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
 | `battle/spoils.rs` | Fame for fallen heroes. Their items are not looted. |
 | `lairs.rs` | `Loot {items: Vec<u32>, prisoner: bool}`: a value and a flag, no item and no hero. |
@@ -222,6 +223,8 @@ stranded rule to reuse).
 
 ### 3.5 `roster` (per-wizard hero records)
 
+**Built (task 219)** in `roster.rs` with these differences from the sketch: the hero type is the index into `Rules::hero_templates` (the order of the hero units), spells are spell-id strings, `Fate` is `Slain`/`Released`/`Gone`, `pick` takes a `Standing` (fame and life and death books) and a `Class`, and the game's side (`spawn_hero`, `remove_unit`, `hero_hire_price`) is in `hero_game.rs`. Sketch:
+
 ```rust
 pub struct HeroRecord { pub state: Availability, pub abilities: HeroAbilities,
                         pub casting_skill: u8, pub spells: [Option<SpellId>; 4], pub name: String, pub xp: u32 }
@@ -240,6 +243,8 @@ pub fn dead(roster: &Roster) -> Vec<HeroKindId>;                           // fo
 Dead, free and gone are separate states instead of the original's level coding (2.4).
 
 ### 3.6 `hero` (the unit component and the abilities)
+
+**Built (task 219)** in `hero.rs`: `Hero {name, abilities, casting_skill, spells}` and `HeroAbilities` with `Tier`; the items stay in their own `HeroItems` component, and the effect functions below are task 47. Sketch:
 
 ```rust
 pub struct Hero { pub kind: HeroKindId, pub name: String, pub abilities: HeroAbilities,
@@ -438,7 +443,7 @@ Each step is testable without a screen; later steps add the client screens.
 3. **Items in the rules**: `Source::Item` modifiers, item abilities and attack traits in
    `unit_modifiers`, `unit_abilities`, `battle_unit_from`; item to hit per attack. (49) **Done**
    (spell skill, spell save and charges are with the hero's casting, task 51).
-4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (48, 47)
+4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (219) **Done** (hiring with gold, the offers and dismissing a hero are 48, 220 and 221).
 5. **Hero abilities in battle and overland**: stat abilities, leadership and prayermaster, Sage, Legendary and
    `fame::total`; hero level bonuses (with 174). (47, 72, 174)
 6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48)

@@ -128,6 +128,13 @@ impl<'a> Units<'a> {
             .unit_def(unit)
             .map(|d| d.abilities.clone())
             .unwrap_or_default();
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            for a in hero.abilities.ids() {
+                if !out.contains(&a) {
+                    out.push(a);
+                }
+            }
+        }
         if let Ok(list) = self.world.get::<&crate::units::UnitEnchantments>(unit) {
             for &(spell, _) in &list.0 {
                 for rule in &self.content.rules.spells.get(spell).effects {

@@ -230,7 +230,7 @@ impl Game {
         };
         let _ = super::casting::damage_unit_with_spell(&mut bu, strength, traits, nature, rng);
         if bu.figures == 0 {
-            let _ = self.world.despawn(unit);
+            self.remove_unit(unit, crate::roster::Fate::Slain);
             return true;
         }
         let hurt = (bu.max_hit_points() - bu.hit_points()).max(0);
@@ -425,7 +425,7 @@ impl Game {
                 if self.is_raised_by(&battle, u, entity) {
                     drained.push(entity);
                 } else {
-                    let _ = self.world.despawn(entity);
+                    self.remove_unit(entity, crate::roster::Fate::Slain);
                 }
             } else {
                 let mut hurt = (u.max_hit_points() - u.hit_points()).max(0);
@@ -505,7 +505,7 @@ impl Game {
         let winner = battle.winner.map(|side| (side, battle.player_of(side)));
         let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
             for u in dead {
-                let _ = self.world.despawn(u);
+                self.remove_unit(u, crate::roster::Fate::Slain);
             }
             return Vec::new();
         };
@@ -515,7 +515,7 @@ impl Game {
         let mut raised = 0;
         for unit in dead {
             if room == 0 {
-                let _ = self.world.despawn(unit);
+                self.remove_unit(unit, crate::roster::Fate::Slain);
                 continue;
             }
             room -= 1;
@@ -573,7 +573,7 @@ impl Game {
                     _ => 50,
                 };
                 if held || (!safe && self.roll(100) <= percent) {
-                    let _ = self.world.despawn(unit);
+                    self.remove_unit(unit, crate::roster::Fate::Slain);
                     lost += 1;
                 }
             }

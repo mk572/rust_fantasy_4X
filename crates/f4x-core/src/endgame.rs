@@ -191,7 +191,7 @@ impl Game {
         // A defeated wizard has no city left, so none of their units is garrisoned: they are
         // all dismissed (the original turns garrisoned normal units neutral first).
         for u in self.units().player_units(loser) {
-            let _ = self.world.despawn(u);
+            self.remove_unit(u, crate::roster::Fate::Gone);
         }
         // Their enchantments on other wizards' cities and units.
         for (city, ..) in self.economy().cities() {

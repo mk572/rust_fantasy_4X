@@ -268,7 +268,7 @@ impl Game {
             // An independent city's player goes with its city: the garrison is gone or
             // dismissed, and the treasury stays behind.
             for u in self.units().player_units(loser) {
-                let _ = self.world.despawn(u);
+                self.remove_unit(u, crate::roster::Fate::Released);
             }
             self.players.retain(|p| p.id != loser);
         } else if self.economy().city_count(loser) == 0 {

@@ -1,9 +1,10 @@
 # Deliberate departures from the original
 
 A register of places where the game does **not** do what the original does, and why. The
-rule (`rules-framework.md`, decision 5) is parity first, departures by decision. When we
-decide to depart, or find that we must, it goes here with the reason, so later work does not
-"fix" it back or wonder whether it was an oversight.
+rule (`design.md` section 1, `rules-framework.md` decision 5) is that play, logic and balance
+come before the help text, and the help text before the original's code. When we decide to
+depart, or find that we must, it goes here with the reason, so later work does not "fix" it
+back or wonder whether it was an oversight.
 
 Not in this file: places where we simply have not got to the original's rule yet (those are
 tasks in `TASKS.md`), conflicts between the original's help and its code (see
@@ -206,7 +207,36 @@ Where the item rules differ from the original's code or are read from ReMoM with
 - **Item movement** in `content/items.ron` was whole moves under the name of half-moves until
   task 49 doubled it.
 
-## 11. Recorded elsewhere
+## 11. Heroes (task 219)
+
+- **Availability is a state.** The original keeps whether a hero can be hired in its level (0 or
+  more free, `-20` gone, other negatives dead). Ours has `Free`, `Serving`, `Dead` and `Gone` and
+  keeps the experience separately, which gives the same results without the coding.
+- **Arcane Power needs a magic ranged attack.** The original lets any hero but the Knight draw
+  it (its own comment says the Elven Archer was meant), and doubles it only for the fireball,
+  sorcery, death, ice, shaman and nature attacks, leaving the lightning attack out. Ours skips
+  the draw for a hero with no magic ranged attack (lightning included) and doubles it for the
+  rest.
+- **Lucky stops at Lucky.** The original has no `break` after the Lucky case, so a Lucky draw
+  also tries to raise Agility (a missing `break`, ReMoM's OGBUG note). Ours does not: Lucky, like
+  Noble and Charmed, is open to every hero type and costs one pick, and Agility is a warrior
+  ability drawn on its own.
+- **Noble, Charmed and Lucky are general.** As in the original they ignore the warrior and mage
+  budgets (any hero type can draw them); Torin never draws Noble.
+- **Which wizards roll.** Every wizard gets a roster, in player order; the original rolls its
+  five wizard slots. Independent cities' players have none. The roll comes last in `new_game`,
+  after the map and the starting cities, so those stay as they were; every later draw of a seed
+  moves once, and the soak numbers in `ai-design.md` were not regenerated.
+- **A hero that flees and is lost, or is killed by a spell, is `Dead`** and can be resurrected
+  (the design doc's open question 4: whether the original makes the fled ones revivable is not
+  settled). Unpaid upkeep and dismissal make a hero `Free` (hireable again with its experience);
+  a defeated wizard's heroes are `Gone`.
+- **Heroes cannot be dismissed yet**: the Dismiss button refuses them until the items they carry
+  have somewhere to go (task 221).
+- **Names.** A hero's name comes from `content-local/hero_names.ron` (five a hero, one per wizard
+  number), or the unit's own name without it.
+
+## 12. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.

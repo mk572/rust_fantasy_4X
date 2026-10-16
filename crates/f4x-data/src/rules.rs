@@ -54,12 +54,43 @@ fn apply_city_names(dirs: &[&Path], races: &mut [RaceDef]) -> Result<(), Content
     Ok(())
 }
 
+/// The hero names, kept apart from the hero table because the original's are local only.
+#[derive(serde::Deserialize)]
+struct HeroNames {
+    unit: String,
+    names: Vec<String>,
+}
+
+/// Fill in each hero template's `names` from `hero_names.ron`, if any directory has it. A hero
+/// the file does not mention keeps no names (the game then uses the unit's own).
+fn apply_hero_names(dirs: &[&Path], templates: &mut [HeroTemplate]) -> Result<(), ContentError> {
+    if find(dirs, "hero_names.ron").is_none() {
+        return Ok(());
+    }
+    for list in parse::<Vec<HeroNames>>(dirs, "hero_names.ron")? {
+        let Some(t) = templates.iter_mut().find(|t| t.unit == list.unit) else {
+            return Err(ContentError::Invalid(vec![format!(
+                "hero_names.ron names unknown hero {:?}",
+                list.unit
+            )]));
+        };
+        t.names = list.names;
+    }
+    Ok(())
+}
+
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
 pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
     let dir = dirs;
     let mut races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
     apply_city_names(dir, &mut races)?;
+    let mut hero_templates = if find(dir, "heroes.ron").is_some() {
+        parse::<Vec<HeroTemplate>>(dir, "heroes.ron")?
+    } else {
+        Vec::new()
+    };
+    apply_hero_names(dir, &mut hero_templates)?;
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
         races: Registry::new(races),
@@ -78,11 +109,7 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
             Vec::new()
         }),
         // The starting records of the hero types, also optional.
-        hero_templates: if find(dir, "heroes.ron").is_some() {
-            parse::<Vec<HeroTemplate>>(dir, "heroes.ron")?
-        } else {
-            Vec::new()
-        },
+        hero_templates,
         // Fallback names for rival wizards, also optional.
         wizard_names: if find(dir, "wizard_names.ron").is_some() {
             parse::<Vec<Vec<String>>>(dir, "wizard_names.ron")?
@@ -762,6 +789,7 @@ mod tests {
             abilities: vec!["might".into()],
             casting_skill: 0,
             spells: Vec::new(),
+            names: Vec::new(),
         };
         // A hero without a template, once there are templates at all.
         rules.hero_templates = vec![template("archer"), template("nobody")];

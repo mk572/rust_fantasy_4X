@@ -250,7 +250,7 @@ impl EffectHost for GameHost<'_> {
         let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
         let _ = self.game.world.insert_one(u, Hurt(hurt + dealt as u32));
         if dealt as u32 >= left {
-            let _ = self.game.world.despawn(u);
+            self.game.remove_unit(u, crate::roster::Fate::Slain);
         }
         dealt
     }
@@ -839,7 +839,7 @@ impl Game {
                 vec![Event::EnchantmentLapsed { player, spell: s }]
             }
             UpkeepKind::Unit(u) => {
-                let _ = self.world.despawn(u);
+                self.remove_unit(u, crate::roster::Fate::Released);
                 vec![Event::UnitsDisbanded { player, units: 1 }]
             }
         }

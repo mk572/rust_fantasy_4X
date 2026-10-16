@@ -24,7 +24,9 @@ impl Game {
 
     /// Remove a unit from the game.
     pub fn cheat_remove_unit(&mut self, unit: hecs::Entity) -> bool {
-        self.world.despawn(unit).is_ok()
+        let there = self.world.contains(unit);
+        self.remove_unit(unit, crate::roster::Fate::Released);
+        there
     }
 
     /// Heal a unit completely and give it all its moves back.

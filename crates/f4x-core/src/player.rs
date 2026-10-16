@@ -17,6 +17,9 @@ pub struct Player {
     pub magic: crate::magic::Magic,
     /// The wizard's items that are not on a hero: the vault and the award list.
     pub armory: crate::armory::Armory,
+    /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
+    /// hired, is serving, dead or gone, and the experience it keeps.
+    pub roster: crate::roster::Roster,
     /// Where the wizard's fortress stands (a city); `None` before it is placed or while
     /// banished.
     pub fortress: Option<crate::city::Position>,
@@ -112,6 +115,7 @@ impl Player {
             fame: 0,
             magic: crate::magic::Magic::default(),
             armory: crate::armory::Armory::default(),
+            roster: crate::roster::Roster::default(),
             fortress: None,
             summon_at: None,
             banished: false,

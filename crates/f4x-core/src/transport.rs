@@ -179,7 +179,7 @@ impl Game {
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         for (owner, unit) in self.economy().stranded() {
-            let _ = self.world.despawn(unit);
+            self.remove_unit(unit, crate::roster::Fate::Slain);
             events.push(Event::UnitsDrowned {
                 player: owner,
                 units: 1,

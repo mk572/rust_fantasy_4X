@@ -5,7 +5,14 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
-- **Parity first.** The first target is every system working as in the original; departures are planned only once that is reached. Where we are unsure, we follow the original.
+- **Priorities, in this order:**
+  1. **Playability and gameplay experience.** The game should be good to play.
+  2. **Internal logic and consistency.** Rules that agree with each other, with no special cases that have no reason.
+  3. **Balance.**
+  4. **Adherence to the original's help text and documentation.** What the game tells the player is what it does.
+  5. **Code parity.** Matching what the original's code does.
+
+  So the original's code behaviour is followed when it gives better play, logic or balance, and not otherwise: a quirk or bug of the original is copied only if the result is better for one of the first three. Where a higher priority and the original disagree, we depart, and record it in [`divergences.md`](divergences.md). Where we are unsure, we follow the original until we know better.
 - Don't copy anything protected by IP into the repository: its art, music and sound, help text (and other prose), and code. The repository is CC0 and says so. Those exist only in gitignored local folders (see section 9 and `local-assets.md`). The game's *rules* (names, costs, stats, effects and numbers of races, units, buildings, spells, items and the global rule values) are not treated as protected and are committed in `content/`, as the importer makes them.
 - Targets are Mac and Linux, with low-res pixel graphics scaled by integer factors.
 - The simulation is deterministic: the same seed plus the same command log gives the same game. That gives replays, regression tests, and an optional path to multiplayer.

@@ -433,7 +433,7 @@ impl Game {
     }
 
     /// The unit sheet's Dismiss button: the unit leaves its owner's service for good. Heroes
-    /// are refused until they have a roster to go back to (task 48).
+    /// are refused until the items they carry have somewhere to go (task 221).
     pub fn dismiss_unit(&mut self, unit: hecs::Entity) -> Vec<Event> {
         let Some(owner) = self.units().unit_owner(unit) else {
             return Vec::new();
@@ -445,7 +445,7 @@ impl Game {
         {
             return Vec::new();
         }
-        let _ = self.world.despawn(unit);
+        self.remove_unit(unit, crate::roster::Fate::Released);
         vec![Event::UnitsDisbanded {
             player: owner,
             units: 1,

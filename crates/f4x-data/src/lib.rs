@@ -323,6 +323,175 @@ mod tests {
     }
 
     #[test]
+    fn rolled_hero_rosters_follow_init_heroes() {
+        use f4x_core::hero::{HeroAbilities, Tier};
+        use f4x_core::rng::GameRng;
+        use f4x_core::roster::{roll, Availability};
+        use f4x_core::rules::PickType;
+        let c =
+            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
+                .unwrap();
+        let rules = &c.rules;
+        // Steps of ability a record has beyond what its template gives: each tier is a step.
+        let steps = |a: &HeroAbilities| -> i32 {
+            [
+                a.leadership,
+                a.legendary,
+                a.blademaster,
+                a.armsmaster,
+                a.constitution,
+                a.might,
+                a.arcane_power,
+                a.prayermaster,
+                a.agility,
+                a.sage,
+            ]
+            .iter()
+            .map(|t| match t {
+                Tier::None => 0,
+                Tier::Normal => 1,
+                Tier::Super => 2,
+            })
+            .sum::<i32>()
+                + i32::from(a.lucky)
+                + i32::from(a.charmed)
+                + i32::from(a.noble)
+        };
+        let mut distinct = std::collections::BTreeSet::new();
+        for seed in 0..40 {
+            // The wizards are rolled one after the other from the game's stream.
+            let mut rng = GameRng::new(seed);
+            let rosters: Vec<_> = (0..5).map(|player| roll(&mut rng, rules, player)).collect();
+            let mut again = GameRng::new(seed);
+            for (player, roster) in rosters.into_iter().enumerate() {
+                assert_eq!(roster, roll(&mut again, rules, player));
+                assert_eq!(roster.0.len(), 35);
+                for (r, t) in roster.0.iter().zip(&rules.hero_templates) {
+                    assert_eq!(r.state, Availability::Free);
+                    let fixed = HeroAbilities::from_names(&t.abilities);
+                    let gained = steps(&r.abilities) - steps(&fixed)
+                        + (i32::from(r.casting_skill) - t.casting_skill as i32);
+                    // A pick that finds nothing to raise (a second Arcane Power on a hero
+                    // without a magic attack) still counts, so never more than the picks.
+                    assert!(
+                        (0..=t.picks as i32).contains(&gained),
+                        "{} gained {gained} of {} picks",
+                        t.unit,
+                        t.picks
+                    );
+                    assert_eq!(r.spells, t.spells);
+                    // Fixed abilities stay (a pick may double one).
+                    let a = &r.abilities;
+                    for name in [
+                        "leadership",
+                        "legendary",
+                        "blademaster",
+                        "armsmaster",
+                        "constitution",
+                        "might",
+                        "arcane_power",
+                        "prayermaster",
+                        "agility",
+                        "sage",
+                    ] {
+                        assert!(a.tier(name) >= fixed.tier(name), "{} lost {name}", t.unit);
+                    }
+                    assert!(a.lucky >= fixed.lucky && a.charmed >= fixed.charmed);
+                    assert!(a.noble >= fixed.noble && a.female == fixed.female);
+                    let martial = [
+                        a.leadership,
+                        a.legendary,
+                        a.blademaster,
+                        a.armsmaster,
+                        a.constitution,
+                        a.might,
+                        a.agility,
+                    ];
+                    let magic = [a.arcane_power, a.prayermaster, a.sage];
+                    let (f_martial, f_magic) = (
+                        [
+                            fixed.leadership,
+                            fixed.legendary,
+                            fixed.blademaster,
+                            fixed.armsmaster,
+                            fixed.constitution,
+                            fixed.might,
+                            fixed.agility,
+                        ],
+                        [fixed.arcane_power, fixed.prayermaster, fixed.sage],
+                    );
+                    match t.pick_type {
+                        PickType::Mage => {
+                            assert_eq!(martial, f_martial, "{} drew a warrior ability", t.unit)
+                        }
+                        PickType::Warrior => {
+                            assert_eq!(magic, f_magic, "{} drew a mage ability", t.unit);
+                            assert_eq!(i32::from(r.casting_skill), t.casting_skill as i32);
+                        }
+                        PickType::Any => {}
+                    }
+                    // The original's exclusions.
+                    // Arcane Power only goes to a hero with a magic ranged attack.
+                    let unit = rules.units.by_name(&t.unit).unwrap();
+                    if !unit
+                        .abilities
+                        .iter()
+                        .any(|x| f4x_core::roster::MAGIC_RANGED.contains(&x.as_str()))
+                    {
+                        assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
+                    }
+                    if t.unit == "chosen" {
+                        assert!(!a.noble);
+                    }
+                    if unit.abilities.iter().any(|x| x == "magic_immunity") {
+                        assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
+                    }
+                }
+                distinct.insert(format!(
+                    "{:?}",
+                    roster.0.iter().map(|r| r.abilities).collect::<Vec<_>>()
+                ));
+            }
+        }
+        assert!(
+            distinct.len() > 100,
+            "the draws are not varied: {}",
+            distinct.len()
+        );
+    }
+
+    #[test]
+    fn hero_names_come_from_the_local_file_when_there_is_one() {
+        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let over = std::env::temp_dir().join(format!("f4x_hero_names_{}", std::process::id()));
+        std::fs::create_dir_all(&over).unwrap();
+        std::fs::write(
+            over.join("hero_names.ron"),
+            r#"[(unit: "dwarf", names: ["Brax", "Dolgin"])]"#,
+        )
+        .unwrap();
+        let c = load_content_layers(&[&over, &committed]).unwrap();
+        let t = |id: &str| {
+            c.rules
+                .hero_templates
+                .iter()
+                .find(|t| t.unit == id)
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(t("dwarf").names, ["Brax", "Dolgin"]);
+        // A hero the file leaves out has none, and the game uses the unit's name.
+        assert!(t("barbarian").names.is_empty());
+        std::fs::write(
+            over.join("hero_names.ron"),
+            r#"[(unit: "nobody", names: [])]"#,
+        )
+        .unwrap();
+        assert!(load_content_layers(&[&over, &committed]).is_err());
+        let _ = std::fs::remove_dir_all(&over);
+    }
+
+    #[test]
     fn the_level_paths_are_the_originals_level_bonuses() {
         use f4x_core::rules::Stat::*;
         let c =

@@ -204,6 +204,10 @@ pub struct HeroTemplate {
     pub casting_skill: u32,
     /// The innate spells (ids in `spells.ron`), at most four.
     pub spells: Vec<String>,
+    /// The hero's name in each wizard's game, by the wizard's number (the original's
+    /// `NAMES.LBX`, local only, from `hero_names.ron`); empty uses the unit's own name.
+    #[serde(default)]
+    pub names: Vec<String>,
 }
 
 /// The hero abilities, by the name `heroes.ron` uses (`super_` is the doubled version of the

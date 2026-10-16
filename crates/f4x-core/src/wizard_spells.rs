@@ -94,7 +94,7 @@ impl Game {
             }
             let resistance = self.units().unit_resistance_against(unit, Some(realm));
             if resistance_failure(resistance, modifier, rng) > 0 {
-                let _ = self.world.despawn(unit);
+                self.remove_unit(unit, crate::roster::Fate::Slain);
                 slain += 1;
             }
         }
@@ -121,7 +121,7 @@ impl Game {
                 .count() as u32;
             let damage = failed * hits_each;
             if damage >= left {
-                let _ = self.world.despawn(unit);
+                self.remove_unit(unit, crate::roster::Fate::Slain);
                 killed += 1;
             } else if damage > 0 {
                 let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
@@ -215,7 +215,7 @@ impl Game {
                     continue;
                 }
                 if rng.roll(100) <= EARTHQUAKE_UNIT_PERCENT {
-                    let _ = self.world.despawn(unit);
+                    self.remove_unit(unit, crate::roster::Fate::Slain);
                     units_lost += 1;
                 }
             }
