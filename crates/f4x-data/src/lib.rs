@@ -301,6 +301,9 @@ mod tests {
         );
         let hero = |id: &str| units.by_name(id).unwrap().hero.clone().unwrap();
         assert_eq!(hero("ranger").kind, HeroKind::Bow);
+        // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
+        assert_eq!(hero("elven_archer").kind, HeroKind::Bow);
+        assert_eq!(hero("knight").kind, HeroKind::Warrior);
         assert_eq!(hero("chosen").portrait, 0);
         let t = |id: &str| {
             c.rules
@@ -313,7 +316,7 @@ mod tests {
         assert_eq!(t("sage").casting_skill, 2);
         assert_eq!(t("bard").abilities, ["leadership", "female"]);
         assert_eq!(
-            (t("knight").picks, t("knight").pick_type),
+            (t("elven_archer").picks, t("elven_archer").pick_type),
             (3, PickType::Any)
         );
         assert_eq!(t("chosen").spells.len(), 4);

@@ -171,7 +171,18 @@ movement bonuses of items are stored in half-moves (`HalfMoves`, the original's 
 to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
 The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
 
-## 9. Recorded elsewhere
+## 9. The Elven Archer and the Knight (task 218)
+
+The original's unit table (`UNITTYPE.c`) gives hero type 30 the name "Knight" and hero type 31 the
+name "Elven Archer". Type 30 is the hero with the bow (melee 5, defence 6, ranged 8 with 8 arrows,
+hero kind Bow), type 31 the melee hero (melee 8, hit points 9, no ranged attack). The hero names
+in `NAMES.LBX` (Alorra, a female blademaster, at 30; Sir Harold, a noble leader, at 31) and ReMoM's
+comments on the premade table (`NewGame.c`: "Alorra Elven Archer", "Sir Harold Knight") say the
+opposite, as does common sense about the weapons. We follow the weapons: `elven_archer` is type 30
+(the bow, Alorra) and `knight` is type 31 (Sir Harold); the stats, pictures and starting records stay
+with their numbers, only the two names and ids differ from the original's table.
+
+## 10. Recorded elsewhere
 
 Decisions already written down in `design.md` section 11 that depart from, or choose between,
 the original's ways. Kept there; listed so this file is a complete index.
