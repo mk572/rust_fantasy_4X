@@ -32,6 +32,7 @@ mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
 mod preferences;
+mod river_art;
 mod road_plan;
 mod settings_screen;
 mod site_prompt;

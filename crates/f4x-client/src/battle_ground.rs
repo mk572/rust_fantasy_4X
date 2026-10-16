@@ -60,8 +60,6 @@ const ROAD_GRID: usize = 69;
 const WATER: usize = 109;
 /// Myrror's ocean is in `chriver`.
 const MYRROR_WATER: usize = 12;
-/// The river pictures (twelve in the original, six of them in the files), in `cmbtcity`.
-const RIVER: usize = 97;
 const MUD: usize = 118;
 
 const FORTRESS_CLOUD: usize = 113;
@@ -227,30 +225,20 @@ impl App {
                     ),
                 }
                 if river {
-                    // The shipped files hold only the second variant of each shape (`cmbtcity`
-                    // 103 to 108; entries 97 to 102 and all of Myrror's `chriver` 0 to 11 are
-                    // empty, which is why the original never shows a river). Myrror uses
-                    // the same pictures with the water repainted.
+                    // Six pictures serve both planes (`river_art.rs`); Myrror's are repainted.
                     let shape = (tile - layout::RIVER_TILE as usize) % 6;
-                    let entry = RIVER + 6 + shape;
-                    match plane {
-                        Plane::Arcanus => {
-                            self.draw_native("cmbtcity", entry, anim, (sx, sy), scale)
-                        }
-                        Plane::Myrror => {
-                            if let Some(tex) = self.art.myrror_river(entry, anim).cloned() {
-                                draw_texture_ex(
-                                    &tex,
-                                    sx,
-                                    sy,
-                                    WHITE,
-                                    DrawTextureParams {
-                                        dest_size: Some(tex.size() * scale),
-                                        ..Default::default()
-                                    },
-                                );
-                            }
-                        }
+                    let myrror = plane == Plane::Myrror;
+                    if let Some(tex) = self.art.river(shape, anim, myrror).cloned() {
+                        draw_texture_ex(
+                            &tex,
+                            sx,
+                            sy,
+                            WHITE,
+                            DrawTextureParams {
+                                dest_size: Some(tex.size() * scale),
+                                ..Default::default()
+                            },
+                        );
                     }
                 }
                 // Mud (Earth to Mud) covers whatever the ground was.

@@ -69,3 +69,10 @@ to hold is now `crates/f4x-data/testdata/`, the fixture for the data loader's te
 `~/Library/Application Support/Fantasy4X/` and runs the game from there, so saves land in
 `~/Library/Application Support/Fantasy4X/saves/`. It contains the local-only original art and
 text: for play on this machine, not for sharing. No icon, signing or universal binary yet (task 81).
+
+## Exception: the battlefield river pictures
+
+The six river pictures of a battlefield (`cmbtcity` 103 to 108, five frames each) are committed as
+`crates/f4x-client/assets/rivers/river_<shape>_<frame>.png` and embedded in the client
+(`river_art.rs`), so rivers show without the local art. They are the original's art, kept in the
+repository at the project owner's choice (17 October 2026); everything else stays local-only.

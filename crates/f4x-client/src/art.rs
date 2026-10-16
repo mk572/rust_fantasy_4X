@@ -439,25 +439,45 @@ impl Art {
         PathBuf::from(format!("map/tiles/{folder}/tile_{tile:04}.png"))
     }
 
-    /// A river picture for Myrror: Arcanus's (`cmbtcity` `entry`, which the files hold; Myrror's
-    /// own `chriver` 0 to 11 are empty) with its blue water repainted in the colour of Myrror's
-    /// ocean (`chriver` 12), keeping the water's light and dark shades and the banks.
-    pub fn myrror_river(&mut self, entry: usize, frame: usize) -> Option<&Texture2D> {
-        let key = PathBuf::from(format!("myrror_river/{entry}_{frame}"));
+    /// A river picture of a battlefield: one of the six shapes (see [`crate::river_art`]), as
+    /// Arcanus has it, or for Myrror (whose own pictures are empty in the original's files) with
+    /// the blue water repainted in the colour of Myrror's ocean (`chriver` 12) and the grassy banks
+    /// in that of its ground, keeping the shades. Without that art Myrror gets Arcanus's.
+    pub fn river(&mut self, shape: usize, frame: usize, myrror: bool) -> Option<&Texture2D> {
+        let frame = frame % crate::river_art::FRAMES;
+        let key = PathBuf::from(format!("river/{}_{shape}_{frame}", u8::from(myrror)));
         if !self.textures.contains_key(&key) {
-            let tex = self.recoloured_river(entry, frame);
+            let tex = if myrror {
+                self.recoloured_river(shape, frame)
+            } else {
+                None
+            }
+            .or_else(|| {
+                let img = Image::from_file_with_format(
+                    crate::river_art::png(shape, frame)?,
+                    Some(ImageFormat::Png),
+                )
+                .ok()?;
+                let tex = Texture2D::from_image(&img);
+                tex.set_filter(FilterMode::Nearest);
+                Some(tex)
+            });
             self.textures.insert(key.clone(), tex);
         }
         self.textures.get(&key)?.as_ref()
     }
 
-    fn recoloured_river(&self, entry: usize, frame: usize) -> Option<Texture2D> {
+    fn recoloured_river(&self, shape: usize, frame: usize) -> Option<Texture2D> {
         let load = |lbx: &str, entry: usize, frame: usize| -> Option<Image> {
             let base = picture_base(&self.placed, lbx, entry, frame);
             let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
             Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
         };
-        let mut img = load("cmbtcity", entry, frame).or_else(|| load("cmbtcity", entry, 0))?;
+        let mut img = Image::from_file_with_format(
+            crate::river_art::png(shape, frame)?,
+            Some(ImageFormat::Png),
+        )
+        .ok()?;
         let ocean = load("chriver", 12, 0)?;
         // The target: the mean colour of Myrror's water, and of the river's water now.
         let mean = |bytes: &[u8], pick: &dyn Fn(&[u8]) -> bool| -> Option<[f32; 4]> {
