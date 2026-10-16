@@ -394,6 +394,29 @@ fn finishing_the_spell_of_mastery_wins_and_scores() {
 }
 
 #[test]
+fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() {
+    let mut g = world();
+    place(&mut g, P0, at(5, 5));
+    let s = spell(&g, "spell_of_mastery");
+    g.magic_mut(P0).unwrap().known.insert(s);
+    g.player_mut(P0).unwrap().mana = 500;
+    assert!(g.mastery_casters().is_empty());
+    let events = g.apply(Command::CastSpell {
+        player: P0,
+        spell: s,
+        target: None,
+    });
+    assert!(
+        events.contains(&Event::MasteryStarted { caster: P0 }),
+        "{events:?}"
+    );
+    let casters = g.mastery_casters();
+    assert_eq!(casters.len(), 1);
+    assert_eq!(casters[0].0, P0);
+    assert!(casters[0].1 > 0, "still to pay");
+}
+
+#[test]
 fn a_defeat_clears_the_losers_enchantments_and_nodes() {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));

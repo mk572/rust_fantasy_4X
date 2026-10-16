@@ -471,3 +471,11 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   (strength 5, one chance in three; the original's code says one in three, the manual one in four),
   and adds 5 to the city damage over the city area.
 - The learned brains do not cast it (`f4x-learn` `NOT_TRAINED`), so their input shape is unchanged.
+
+## 20. The Spell of Mastery announcement and the AI's answer (task 61)
+
+- The original shows the announcement to every player as a full-screen animation. Here it is
+  `Event::MasteryStarted`, a text notice for the human and a log line; the animation is task 287.
+- The original's AI only reads that a wizard is casting it (hostility +50, peace no protection).
+  Here the AI also reads how much mana the caster has left and weighs a race against a war
+  (`ai-design.md` section 7, step 4). That is a deliberate extension.

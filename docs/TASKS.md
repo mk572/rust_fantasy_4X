@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 61 | Magic | The Spell of Mastery's research cost and the AI casting it |
 | 62 | Magic | Player-chosen losses when mana runs short |
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
@@ -136,15 +135,11 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 284 | Client | Advice messages at the turn change (a city starving, a hero available) |
 | 285 | Client | Spell interface: Stasis, mutations, vortices, Time Stop |
 | 286 | Rules | Leftovers of the last ten spells (unrest, Time Stop, Call the Void) |
+| 287 | Client | Spell of Mastery announcement: the swirling animation and sound |
 
 ## Descriptions
 
 ### Magic (first pass done; see `magic.md`)
-
-**61. The Spell of Mastery's research cost and the AI casting it (engine and AI done; announcement open).** Finishing the spell wins
-the game and the Spell of Return works after banishment (tasks 70 and 15; `docs/game_end.md`).
-Done (tasks 226 and 228): the research cost is the listed 60,000 less half the research cost of every spell known (the importer used to read it as a signed number and give 1), the spell is offered for research when nothing else is left, and the AI researches it when it is within reach, splits its power for it and casts it until it is paid (`ai-design.md` section 7).
-Still open: the announcement when a wizard starts casting it (the player is told nothing today; `diplomacy.rs` already turns the other wizards against the caster).
 
 **62. Player-chosen losses when mana runs short.** The engine drops the newest upkeep items
 deterministically; the original asks the player. Add a prompt or a priority list, and the "mana
@@ -505,3 +500,5 @@ Parity task, low priority.
 **285. Spell interface for the last ten spells.** The core works; the client lacks: a Stasis marker and text on the unit sheet and a pale tint on the map; the vortices drawn as the original's animation (now rings) with a cursor for the steering move and a "Move Magic Vortex 1 Space" button as in `Combat.c`; the mutation (armour, wings or breath) named on the unit sheet; messages for Meteor Storm, Call the Void and Nature's Wrath in the Chancellor's scroll and the original's spell animations and sounds; a note when Time Stop is on (the Next Turn button, the other wizards frozen).
 
 **286. Leftovers of the last ten spells.** (1) Great Wasting's unrest in other wizards' cities (-1, `CITYCALC.c`, written there as an assignment that looks like a bug); Armageddon's own unrest effect is done in another form (no building calms any city). (2) Time Stop: block the other wizards' non-movement commands (founding a city, production and casting orders) and have the AI skip its turn. (3) Call the Void's loss of citizens, if wanted (conflicts B40). (4) Stasis in a battle is only "asleep"; check the original. (5) The AI casting and scoring the new spells (task 56) and steering a vortex.
+
+**287. Spell of Mastery announcement: animation and sound.** The notice is plain text over a dark screen. The original (`Cast_Spell_Of_Mastery`, `SPLMASTR.c`) plays the vortex animation `SPELLSCR.LBX` 67 to 70 (frames swapped at ticks 17, 33 and 49, 200 ticks in all, ESC skips) in the palette 4 with the two lines in outlined font 5 at y 160 and 180, and the music `MUSIC_SoM_Started`. Extract the animation to `assets-local/`, draw it, add the music and the palette. The AI's announcements for other things (Eternal Night and the like) are not shown at all yet.

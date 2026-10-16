@@ -326,6 +326,17 @@ Three changes make the Spell of Mastery winnable by the AI and by anyone else.
    (`diplomacy.rs` already does this), and a defending AI hits the caster's cities first when
    the announcement arrives (step 6 target value).
 
+4. **The race (task 61).** When a rival starts casting the Spell of Mastery everyone is told
+   (`Event::MasteryStarted`), and the AI can read the mana the caster has left (`Game::mastery_casters`;
+   the original's AI only reads that the spell is being cast, so this is more than it knows). Each turn
+   `race.rs` compares the turns the AI needs (casting at its skill and mana income; plus the research
+   when the spell is only offered) with the rival's (its mana left over the pace seen since the last
+   turn; a rival seen once is taken to pay as fast as the AI). If the AI is at least a quarter
+   faster it races: it cancels other casting and takes the spell first in research. If not, it declares
+   war on the caster whatever the treaty (the original also lets a treaty stand only when the
+   other is not casting it: `AIDATA.c`, +50 hostility) and `military.rs` campaigns against that
+   wizard's cities first. Not done: sabotage by spells, asking allies to join.
+
 What to expect: 60,000 research points is far past 200 turns of the income measured in section
 2.3 (about 10 a turn). Wins in the soak will come from conquest first; the Spell of Mastery
 shows up only in long games or with the research spell split. A test gives an AI wizard the

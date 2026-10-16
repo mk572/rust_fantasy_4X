@@ -59,6 +59,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 58 | Magic | Unit enchantments needing non-stat effects (low priority) (done) |
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) (done) |
+| 61 | Magic | The Spell of Mastery's research cost and the AI casting it (done) |
 | 63 | Meta | Diplomacy (done) |
 | 65 | Meta | AI v1: expansion, production, defence (done) |
 | 66 | Meta | AI research and spell use (done) |
@@ -441,6 +442,10 @@ melee, creature realm), immunity flags and movement grants; depends on 30 and th
 **60. Wizard-targeting, destruction and other special categories (done).** About 20 spells aimed at
 wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
 skill, fame, diplomacy) and spell ownership transfer. All are done (task 56). Low priority: only needed for specific spells, buildings, units or abilities.
+
+**61. The Spell of Mastery's research cost and the AI casting it (done).** Finishing the spell wins
+the game and the Spell of Return works after banishment (tasks 70 and 15; `docs/game_end.md`).
+Research cost, the AI researching and casting it: tasks 226 and 228 (`ai-design.md` section 7). The announcement: `Event::MasteryStarted` when a wizard starts casting it, shown to the human as a full-screen notice ("<name> has started casting the Spell of Mastery"; the original's `Cast_Spell_Of_Mastery`) and in the log. The AI sees who is casting it and how much mana they have left (`Game::mastery_casters`), and `f4x-ai/src/race.rs` weighs the race each turn: it races (drops other casting, researches the spell when offered) if it can finish at least a quarter sooner than the rival, otherwise declares war on the caster, treaty or not, and its armies go for that wizard's cities first.
 
 **63. Diplomacy (done).** Relations on an 11-step scale, pacts, alliances, war, treaty proposals
 [271, 782-794], in `diplomacy.rs`: a record per wizard pair (contact, treaty, relation, default) and per

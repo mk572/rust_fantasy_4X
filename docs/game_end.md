@@ -81,8 +81,8 @@ offers *New game*, *Look at the map* (the map stays visible; commands are refuse
 ## 6. Not done
 
 - The cut-scenes and the original's score screen drawing (task 134), the hall of fame (88).
-- The Spell of Mastery's research cost, the "has started casting" announcement and the AI
-  casting it (task 61); the AI conquest rules that would feed relations (63, 67).
+- The AI conquest rules that would feed relations (63, 67). The "has started casting"
+  announcement is in as plain text (animation: task 287).
 - Resignation of a banished AI wizard, neutral cities and garrisons (task 82).
 - A difficulty setting to scale the score (task 69).
 

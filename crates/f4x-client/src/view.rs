@@ -154,6 +154,8 @@ pub struct App {
     /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
     /// paid for (`Targeting::resolve`).
     pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
+    /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
+    pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::city::PlayerId>,
 }
 
 pub(crate) fn base_type(class: TerrainClass) -> usize {
@@ -229,6 +231,7 @@ impl App {
             console: Default::default(),
             raze_prompt: None,
             ward_prompt: None,
+            mastery_notice: std::collections::VecDeque::new(),
         };
         app.start_game();
         Ok(app)
@@ -495,6 +498,13 @@ impl App {
                 } => Some(format!(
                     "The earthquake kills {units_lost} units and destroys {buildings_lost} buildings"
                 )),
+                Event::MasteryStarted { caster } => {
+                    self.mastery_notice.push_back(caster);
+                    Some(format!(
+                        "{} has started casting the Spell of Mastery",
+                        self.game.player(caster).map_or("A rival", |p| p.name.as_str())
+                    ))
+                }
                 Event::StasisEnded { .. } => Some("A unit breaks free of stasis".to_string()),
                 Event::UnitMutated { .. } => Some("The unit is mutated by chaos".to_string()),
                 Event::WorldSpellStruck {
@@ -805,6 +815,14 @@ impl App {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.ward_prompt_frame(prompt);
             }
+        }
+        // A wizard has started casting the Spell of Mastery: announced over the whole screen.
+        if !self.mastery_notice.is_empty()
+            && !self.game.in_battle()
+            && matches!(self.screen, Screen::Map)
+            && self.mastery_notice_frame()
+        {
+            return true;
         }
         // A spell just learned is announced over the big book, and then the next research asked.
         if !self.big_ui.learned.is_empty()

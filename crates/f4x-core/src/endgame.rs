@@ -161,6 +161,33 @@ impl Game {
         }]
     }
 
+    /// The announcement that `player` has started casting `spell`, if it is the Spell of
+    /// Mastery.
+    pub(crate) fn mastery_announcement(
+        &self,
+        player: PlayerId,
+        spell: crate::rules::SpellId,
+    ) -> Vec<Event> {
+        if self.spell_has_hook(spell, SPELL_OF_MASTERY) {
+            vec![Event::MasteryStarted { caster: player }]
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// The wizards now casting the Spell of Mastery and the mana each still has to pay. Every
+    /// wizard is told when one starts, so this is public knowledge.
+    pub fn mastery_casters(&self) -> Vec<(PlayerId, i32)> {
+        self.players
+            .iter()
+            .filter_map(|p| {
+                let c = self.magic(p.id)?.casting?;
+                self.spell_has_hook(c.spell, SPELL_OF_MASTERY)
+                    .then_some((p.id, c.remaining))
+            })
+            .collect()
+    }
+
     /// The Spell of Mastery is finished: the caster wins at once.
     pub fn win_by_mastery(&mut self, caster: PlayerId) -> Vec<Event> {
         self.finish(caster, EndKind::SpellOfMastery)

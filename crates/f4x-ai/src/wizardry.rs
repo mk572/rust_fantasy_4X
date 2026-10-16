@@ -203,7 +203,13 @@ fn category(def: &SpellDef) -> (Kind, bool) {
 
 /// Turns of research a candidate costs, with the original's adjustments (cheaper when the AI has
 /// no spell of its sort yet and the sort wins battles or fights, dearer when it has one).
-fn research_score(view: &PlayerView, spell: SpellId, have: &[(Kind, bool)], income: i32) -> f32 {
+fn research_score(
+    view: &PlayerView,
+    spell: SpellId,
+    have: &[(Kind, bool)],
+    income: i32,
+    racing: bool,
+) -> f32 {
     let def = view.spell(spell);
     let turns = view.research_cost(spell) as f32 / income.max(1) as f32;
     let cat = category(def);
@@ -218,7 +224,8 @@ fn research_score(view: &PlayerView, spell: SpellId, have: &[(Kind, bool)], inco
     }
     // The Spell of Mastery takes thousands of points: the AI goes for it only when it is within
     // reach, and otherwise takes it last.
-    if cat.0 == Kind::Mastery && turns > 250.0 {
+    // (Unless another wizard is casting it and the AI can still beat them to it.)
+    if cat.0 == Kind::Mastery && turns > 250.0 && !racing {
         score = score * 100.0 + 1.0e6;
     }
     score
@@ -236,8 +243,8 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let have: Vec<(Kind, bool)> = m.known.iter().map(|&s| category(view.spell(s))).collect();
         let income = view.income().research;
         view.research_choices().into_iter().min_by(|&a, &b| {
-            research_score(&view, a, &have, income)
-                .total_cmp(&research_score(&view, b, &have, income))
+            research_score(&view, a, &have, income, ai.racing)
+                .total_cmp(&research_score(&view, b, &have, income, ai.racing))
                 .then(a.cmp(&b))
         })
     };

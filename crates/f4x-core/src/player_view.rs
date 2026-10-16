@@ -94,6 +94,13 @@ impl<'a> PlayerView<'a> {
         self.game.casting_cost(self.me, spell, false)
     }
 
+    /// The other wizards casting the Spell of Mastery and the mana each has still to pay.
+    pub fn rival_mastery_casters(&self) -> Vec<(PlayerId, i32)> {
+        let mut found = self.game.mastery_casters();
+        found.retain(|&(p, _)| p != self.me);
+        found
+    }
+
     /// Is the player another wizard (not the neutral player or the monsters)?
     pub fn is_rival_wizard(&self, other: PlayerId) -> bool {
         other != self.me && self.game.is_wizard(other)

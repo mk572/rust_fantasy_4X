@@ -448,6 +448,51 @@ impl App {
     }
 }
 
+impl App {
+    /// "<wizard> has started casting the Spell of Mastery" over a black screen, as the original
+    /// does (`Cast_Spell_Of_Mastery`; its swirling animation is local art not drawn here yet,
+    /// task 287); any key or click goes on.
+    pub(crate) fn mastery_notice_frame(&mut self) -> bool {
+        let Some(&caster) = self.mastery_notice.front() else {
+            return false;
+        };
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        clear_background(Color::new(0.02, 0.0, 0.06, 1.0));
+        let name = self
+            .game
+            .player(caster)
+            .map_or("A rival wizard".to_string(), |p| p.name.clone());
+        let ink = Color::new(0.95, 0.85, 0.6, 1.0);
+        self.bm_text(
+            view,
+            5,
+            ink,
+            &format!("{name} has started casting the"),
+            160.0,
+            90.0,
+            Align::Center,
+        );
+        self.bm_text(
+            view,
+            5,
+            ink,
+            "Spell of Mastery",
+            160.0,
+            110.0,
+            Align::Center,
+        );
+        if is_mouse_button_pressed(MouseButton::Left)
+            || is_key_pressed(KeyCode::Enter)
+            || is_key_pressed(KeyCode::Escape)
+            || is_key_pressed(KeyCode::Space)
+        {
+            self.mastery_notice.pop_front();
+        }
+        true
+    }
+}
+
 fn capitalise(s: &str) -> String {
     let mut c = s.chars();
     c.next()

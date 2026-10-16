@@ -14,6 +14,7 @@ mod expand;
 mod military;
 mod naval;
 mod offers;
+mod race;
 mod scouts;
 #[cfg(test)]
 mod testworld;
@@ -83,6 +84,12 @@ pub struct Ai {
     /// No reachable square shows anything new: scouting by land is over.
     frontier_closed: bool,
     /// Whether refused commands are kept (see [`Ai::take_refusals`]) and the ones kept so far.
+    /// What was last seen of each rival casting the Spell of Mastery (`race.rs`).
+    mastery_seen: HashMap<PlayerId, race::Sighting>,
+    /// The AI means to win the race for the Spell of Mastery, or has declared war on the wizard
+    /// it cannot beat to it.
+    racing: bool,
+    war_on: Option<PlayerId>,
     record_refusals: bool,
     refusals: RefCell<Vec<Refusal>>,
 }
@@ -113,6 +120,9 @@ impl Ai {
             city_memory: HashMap::new(),
             unreachable: Vec::new(),
             unreachable_since: 0,
+            mastery_seen: HashMap::new(),
+            racing: false,
+            war_on: None,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
         }
@@ -163,6 +173,7 @@ impl Ai {
         offers::equip(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
+        race::run(self, game, &mut events);
         wizardry::run(self, game, &mut events);
         expand::settlers(self, game, &mut events);
         scouts::scout(self, game, &mut events);

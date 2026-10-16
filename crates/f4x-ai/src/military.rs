@@ -3,13 +3,13 @@
 
 use std::collections::HashMap;
 
-use f4x_core::city::Position;
+use f4x_core::city::{PlayerId, Position};
 use f4x_core::player_view::PlayerView;
 use f4x_core::serial::Serial;
 use f4x_core::{Command, Event, Game};
 
 use crate::view::{distance, garrison_wanted, is_fighter, stack_strength, unit_strength};
-use crate::Ai;
+use crate::{race, Ai};
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
 fn attack_ratio() -> f32 {
@@ -240,9 +240,27 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }) {
             ai.campaign = None;
         }
+        // A campaign against another wizard's city gives way to one against the wizard casting
+        // the Spell of Mastery, when a city of theirs can be reached.
+        if let (Some(c), Some(f)) = (ai.campaign, race::war_target(ai)) {
+            let owner = view.city_at(c).and_then(|e| view.city_owner(e));
+            let other = view
+                .known_cities()
+                .iter()
+                .any(|&(_, o, p)| o == f && !ai.unreachable.contains(&p));
+            if owner != Some(f) && other {
+                ai.campaign = None;
+            }
+        }
         // The best city that can be walked to; those that cannot are put aside for the ships.
         while ai.campaign.is_none() {
-            let Some(c) = best_enemy_city(&view, capital, &ai.unreachable, &ai.city_memory) else {
+            let Some(c) = best_enemy_city(
+                &view,
+                capital,
+                &ai.unreachable,
+                &ai.city_memory,
+                race::war_target(ai),
+            ) else {
                 break;
             };
             if on_foot(&view, capital, c) {
@@ -416,11 +434,19 @@ fn best_enemy_city(
     from: Position,
     skip: &[Position],
     memory: &HashMap<Position, (f32, u32)>,
+    focus: Option<PlayerId>,
 ) -> Option<Position> {
     let average = average_strength(view).max(1.0);
-    view.known_cities()
+    let cities = view.known_cities();
+    // A wizard about to win with the Spell of Mastery comes first, if any of its cities is known.
+    let focus = focus.filter(|&f| {
+        cities
+            .iter()
+            .any(|&(_, owner, p)| owner == f && !skip.contains(&p))
+    });
+    cities
         .into_iter()
-        .filter(|(_, _, p)| !skip.contains(p))
+        .filter(|(_, owner, p)| !skip.contains(p) && focus.is_none_or(|f| *owner == f))
         .filter_map(|(_, _, p)| {
             let d = distance(view, from, p)? as f32;
             let held = memory.get(&p).map_or(GUESS_DEFENDERS, |m| m.0 / average);

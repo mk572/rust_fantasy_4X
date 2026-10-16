@@ -256,6 +256,10 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => format!("An earthquake kills {units_lost} units and destroys {buildings_lost} buildings"),
         Event::StasisEnded { .. } => "A unit breaks free of stasis".to_string(),
         Event::UnitMutated { mutation, .. } => format!("A unit is mutated by chaos: {mutation:?}"),
+        Event::MasteryStarted { caster } => format!(
+            "{} has started casting the Spell of Mastery",
+            player(game, *caster)
+        ),
         Event::WorldSpellStruck {
             spell: s,
             units_lost,

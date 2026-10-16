@@ -228,14 +228,16 @@ impl Game {
                     p.mana -= cost;
                 }
                 self.begin_cast_relations(player, spell);
-                Ok(self.resolve_cast(player, spell, target))
+                let mut events = self.mastery_announcement(player, spell);
+                events.extend(self.resolve_cast(player, spell, target));
+                Ok(events)
             }
             CastStart::Paid => {
                 if let Some(m) = self.magic_mut(player) {
                     m.begin_casting(spell, cost);
                 }
                 self.begin_cast_relations(player, spell);
-                Ok(Vec::new())
+                Ok(self.mastery_announcement(player, spell))
             }
         }
     }
