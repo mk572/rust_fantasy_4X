@@ -15,7 +15,7 @@ pub(crate) trait IncomeView {
     fn content(&self) -> &Content;
     /// Whether the wizard is casting the Spell of Return (then there is no income of any kind).
     fn casting_return(&self, player: PlayerId) -> bool;
-    /// The mana and the research points the wizard's cities make.
+    /// The mana and the research points the wizard's cities make (and its Sage heroes).
     fn city_yield(&self, player: PlayerId) -> (i32, i32);
     /// The plane of the wizard's fortress city, if it has one.
     fn fortress_plane(&self, player: PlayerId) -> Option<Plane>;
@@ -108,7 +108,9 @@ impl IncomeView for GameIncome<'_> {
     }
 
     fn city_yield(&self, player: PlayerId) -> (i32, i32) {
-        self.0
+        // Sage heroes add to the research share, as the cities' points do (`CITYCALC.c`).
+        let (mana, research) = self
+            .0
             .economy()
             .cities()
             .into_iter()
@@ -116,7 +118,8 @@ impl IncomeView for GameIncome<'_> {
             .filter_map(|(e, ..)| self.0.economy().city_economy(e))
             .fold((0, 0), |(mana, research), eco| {
                 (mana + eco.mana, research + eco.research)
-            })
+            });
+        (mana, research + self.0.units().sage_research(player))
     }
 
     fn fortress_plane(&self, player: PlayerId) -> Option<Plane> {

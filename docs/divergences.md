@@ -248,6 +248,13 @@ Where the item rules differ from the original's code or are read from ReMoM with
   have somewhere to go (task 221).
 - **Names.** A hero's name comes from `content-local/hero_names.ron` (five a hero, one per wizard
   number), or the unit's own name without it.
+- **Hero abilities (task 47).** Legendary adds fame (3 times level plus one; 4.5 times for the
+  greater one): the original's fame code for it is commented out, the help promises it, so ours
+  counts it (living hero units only). Charmed is +30 resistance as in the original, but ours is a
+  real stat: the unit sheet shows it and overland spells honour it (the original adds it only
+  inside battle checks, so its sheet shows nothing). A hero has one tier of an ability, never both the plain and the
+  greater one as the original's two flags would allow. Leadership leaves out the undead as well as
+  the fantastic creatures (the original tests the race only); the help says undead.
 
 ## 12. Recorded elsewhere
 

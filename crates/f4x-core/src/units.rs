@@ -102,20 +102,45 @@ impl<'a> Units<'a> {
             .is_some_and(|m| crate::globals::magic_has_global(m, self.content, id))
     }
 
-    /// A wizard's fame as the rules count it: what they have earned, and ten more while Just
-    /// Cause is kept going.
+    /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
+    /// add, and ten more while Just Cause is kept going.
     pub fn fame(&self, player: PlayerId) -> i32 {
         let earned = self
             .players
             .iter()
             .find(|p| p.id == player)
             .map_or(0, |p| p.fame);
+        let legendary: i32 = self
+            .hero_units(player)
+            .into_iter()
+            .filter_map(|h| {
+                let tier = self
+                    .world
+                    .get::<&crate::hero::Hero>(h)
+                    .ok()?
+                    .abilities
+                    .legendary;
+                Some(crate::hero::legendary(tier, self.unit_level(h)))
+            })
+            .sum();
         earned
+            + legendary
             + if self.has_global(player, "just_cause") {
                 crate::globals::JUST_CAUSE_FAME
             } else {
                 0
             }
+    }
+
+    /// Research points the wizard's Sage heroes add.
+    pub fn sage_research(&self, player: PlayerId) -> i32 {
+        self.hero_units(player)
+            .into_iter()
+            .filter_map(|h| {
+                let tier = self.world.get::<&crate::hero::Hero>(h).ok()?.abilities.sage;
+                Some(crate::hero::sage(tier, self.unit_level(h)))
+            })
+            .sum()
     }
 
     /// The entity with this creation number, if it is still alive.
@@ -241,6 +266,11 @@ impl<'a> Units<'a> {
         };
         let mut mods = Vec::new();
         mods.extend(self.ability_modifiers(unit));
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
+                == crate::battle::RangedKind::Magic;
+            mods.extend(hero.abilities.modifiers(self.unit_level(unit), magic));
+        }
         if let Some(path) = def
             .level_path
             .as_deref()

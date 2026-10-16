@@ -153,6 +153,8 @@ impl Game {
             0
         };
         let lucky = i32::from(has("lucky"));
+        let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
+        let level = self.units().unit_level(unit);
         let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
         if ranged_kind == RangedKind::Magic && mana > 0 {
             ammo = mana / super::SHOT_MANA;
@@ -194,6 +196,12 @@ impl Game {
             magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
+            leadership: hero.as_ref().map_or(0, |h| {
+                crate::hero::leadership(h.abilities.leadership, level)
+            }),
+            prayermaster: hero.as_ref().map_or(0, |h| {
+                crate::hero::prayermaster(h.abilities.prayermaster, level)
+            }),
             enchantments: self.units().unit_enchantment_ids(unit),
             realm: self
                 .units()

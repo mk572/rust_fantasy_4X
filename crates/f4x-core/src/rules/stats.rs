@@ -116,6 +116,8 @@ pub enum Source {
     Item(u8),
     /// Experience level reached, 0-based.
     Level(u8),
+    /// One of a hero's abilities (Might, Agility, ...; `hero.rs`).
+    Hero,
     Other,
 }
 

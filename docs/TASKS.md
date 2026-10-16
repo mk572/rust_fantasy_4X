@@ -17,7 +17,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | # | Area | Summary |
 |---|---|---|
 | 39 | Combat | Auto-resolve (low priority) |
-| 47 | Heroes | Hero abilities (low priority) |
 | 51 | Heroes | Heroes' casting contribution and sage heroes (low priority) |
 | 56 | Magic | Implement the 37 "special" spells (low priority) |
 | 58 | Magic | Unit enchantments needing non-stat effects (low priority) |
@@ -137,9 +136,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 **39. Auto-resolve.** Done: `Command::AutoResolve` (console `auto`) fights a battle to the end with the placeholder battle AI (`battle/ai.rs`) playing both sides, from an adjacent square, with the usual aftermath. Open: the strategic-combat-only option [685], a button for it on the battle screen (the Auto button is drawn greyed; task 133), and a better battle AI (46) so the result is not just whoever the placeholder favours.
 
 ### Heroes and items
-
-**47. Hero abilities.** 13 hero abilities with levels and "super" versions [515-526]; data exists
-as imported text, the effects mostly do not. Low priority: only needed for specific spells, buildings, units or abilities. Armsmaster itself is in the engine (task 27): give the heroes the `armsmaster` and `super_armsmaster` ability ids. Design: [`heroes-items-design.md`](heroes-items-design.md) section 2.3 (the formulas) and 3.6; step 5 of its section 9. The abilities are rolled per wizard and hero type (task 219) and carried by the hero, not by unit definitions. Task 219 gave the hero its `Hero` component and feeds `HeroAbilities::ids` into `unit_abilities`, so Noble (no upkeep, 10 gold a turn), Armsmaster and the rest are already unit abilities; what is left is the effects (Might, Agility, Blademaster, Constitution, Arcane Power, Lucky, Charmed, Leadership, Prayermaster, Legendary, Sage), to be read from the component in `unit_modifiers` and the battlefield step, not from ability records.
 
 **51. Heroes' casting contribution and sage heroes.** Heroes add to casting skill and sage heroes
 add research (level times 3, or 9 for the greater ability). The hooks (`Skill_Left` and the

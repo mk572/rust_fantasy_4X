@@ -1758,6 +1758,72 @@ mod fields {
     }
 
     #[test]
+    fn a_heros_leadership_and_prayermaster_help_the_side_and_only_the_best_counts() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        let plain = b.units[0].clone();
+        let enemy = b.units[1].clone();
+        let mut archer = of(Side::Attacker, None, (3, 7));
+        archer.ranged = 3;
+        archer.ranged_kind = RangedKind::Missile;
+        let archer = b.add_summoned(Side::Attacker, archer, (3, 7));
+        let mut mage = of(Side::Attacker, None, (3, 8));
+        mage.ranged = 3;
+        mage.ranged_kind = RangedKind::Magic;
+        let mage = b.add_summoned(Side::Attacker, mage, (3, 8));
+        let imp = b.add_summoned(
+            Side::Attacker,
+            of(Side::Attacker, Some(Realm::Chaos), (3, 9)),
+            (3, 9),
+        );
+        let mut hero = of(Side::Attacker, None, (3, 6));
+        hero.leadership = 3;
+        hero.prayermaster = 2;
+        let hero = b.add_summoned(Side::Attacker, hero, (3, 6));
+        let (p, a) = (&b.units[0], &b.units[archer]);
+        assert_eq!(p.melee, plain.melee + 3);
+        assert_eq!(p.resistance, plain.resistance + 2);
+        assert_eq!(a.ranged, 3 + 1, "half of it, rounded down, for a shot");
+        assert_eq!(b.units[mage].ranged, 3, "magic shots get none");
+        assert_eq!(b.units[imp].melee, plain.melee, "nor does a creature");
+        assert_eq!(b.units[hero].melee, plain.melee + 3, "the hero too");
+        assert_eq!(b.units[1].melee, enemy.melee, "the enemy gets nothing");
+        // A second hero with less, and Resistance to All below the Prayermaster, add nothing.
+        let mut second = of(Side::Attacker, None, (4, 6));
+        second.leadership = 1;
+        second.prayermaster = 1;
+        second.abilities.push("resist_all".into());
+        second.special_level = 1;
+        b.add_summoned(Side::Attacker, second, (4, 6));
+        assert_eq!(b.units[0].melee, plain.melee + 3);
+        assert_eq!(b.units[0].resistance, plain.resistance + 2);
+        // When the hero falls the bonus goes at the next refresh.
+        b.units[hero].status = Status::Dead;
+        b.refresh_fields();
+        assert_eq!(b.units[0].melee, plain.melee + 1);
+    }
+
+    #[test]
+    fn a_charmed_heros_resistance_passes_every_check() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[0].resistance = 2;
+        b.units[1].resistance = 2;
+        b.units[1].resistance += crate::hero::CHARMED_RESISTANCE;
+        let fails = |b: &mut Battle, i: usize| {
+            (0..40)
+                .filter(|_| b.resist_fails(i, Some(Realm::Death), 0))
+                .count()
+        };
+        assert!(fails(&mut b, 0) > 0);
+        assert_eq!(fails(&mut b, 1), 0);
+    }
+
+    #[test]
     fn refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again() {
         let mut b = pair(
             of(Side::Attacker, None, (3, 5)),

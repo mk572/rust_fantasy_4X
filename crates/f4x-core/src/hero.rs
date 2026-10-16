@@ -1,10 +1,14 @@
 //! Heroes (task 219): what a hero unit carries and the abilities it was rolled with.
 //!
-//! What the abilities do in play is task 47; this file only says what they are, so the roster,
-//! the save and `unit_abilities` read one type. A hero's three items are the separate
-//! [`HeroItems`](crate::items::HeroItems) component.
+//! What the abilities are, so the roster, the save and `unit_abilities` read one type, and what
+//! they do (task 47): one pure function per row of the table in `heroes-items-design.md` 2.3,
+//! which `units.rs` (the hero's own stats), `battle/field.rs` (Leadership, Prayermaster),
+//! `units.rs` (fame) and `magic_income.rs` (research) call. A hero's three items are the
+//! separate [`HeroItems`](crate::items::HeroItems) component.
 
 use serde::{Deserialize, Serialize};
+
+use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 
 /// How much of an ability a hero has: the plain one or the doubled ("super") one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
@@ -124,6 +128,91 @@ impl HeroAbilities {
     }
 }
 
+/// What Charmed adds to a hero's resistance: enough to pass every check. The original adds it
+/// only inside battle checks (`Combat_Effective_Resistance`), so the unit sheet never shows it.
+pub const CHARMED_RESISTANCE: i32 = 30;
+
+/// `x * n / d` for the plain tier, `x * sn / sd` for the doubled one, 0 without the ability
+/// (whole numbers, rounded down, as the original).
+fn by_tier(tier: Tier, x: i32, plain: (i32, i32), doubled: (i32, i32)) -> i32 {
+    match tier {
+        Tier::None => 0,
+        Tier::Normal => x * plain.0 / plain.1,
+        Tier::Super => x * doubled.0 / doubled.1,
+    }
+}
+
+/// `level` is the hero's 0-based experience level; the formulas of the table use `x = level + 1`.
+/// Leadership: the melee bonus of every normal unit on the battlefield (half of it, rounded down,
+/// for their ranged attack); only the best hero's counts.
+pub fn leadership(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 3), (1, 2))
+}
+
+/// Blademaster: pluses to hit.
+pub fn blademaster(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 2), (3, 4))
+}
+
+/// Constitution: hit points.
+pub fn constitution(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Might: melee attack.
+pub fn might(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Agility: defence.
+pub fn agility(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Arcane Power: magic ranged attack (only for a hero that has one).
+pub fn arcane_power(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Prayermaster: resistance of every unit on the battlefield; only the best of this and
+/// Resistance to All counts.
+pub fn prayermaster(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Legendary: fame for the wizard.
+pub fn legendary(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (3, 1), (9, 2))
+}
+
+/// Sage: research points for the wizard (here `level` itself, not one more).
+pub fn sage(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32, (3, 1), (9, 1))
+}
+
+impl HeroAbilities {
+    /// The changes to the hero's own stats: Might, Agility, Blademaster, Constitution and (with
+    /// a magic ranged attack) Arcane Power. Charmed is +30 resistance; Lucky acts in battle.
+    pub fn modifiers(&self, level: usize, magic_ranged: bool) -> Vec<Modifier> {
+        let add = |stat, value| Modifier::new(stat, ModOp::Add, value, Source::Hero);
+        let mut out = vec![
+            add(
+                Stat::Resistance,
+                if self.charmed { CHARMED_RESISTANCE } else { 0 },
+            ),
+            add(Stat::Melee, might(self.might, level)),
+            add(Stat::Defense, agility(self.agility, level)),
+            add(Stat::ToHit, blademaster(self.blademaster, level)),
+            add(Stat::MaxHp, constitution(self.constitution, level)),
+        ];
+        if magic_ranged {
+            out.push(add(Stat::Ranged, arcane_power(self.arcane_power, level)));
+        }
+        out.retain(|m| m.value != 0);
+        out
+    }
+}
+
 /// The component of a hero unit: what the roster knew of the hero when it was hired. (Its type
 /// is the unit's own `Unit` component; its level comes from its experience.)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +227,67 @@ pub struct Hero {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hero_game::tests::{at, world, P0};
+    use crate::units::Experience;
+    use crate::Game;
+
+    #[test]
+    fn the_formulas_follow_the_table() {
+        // Level 5 (the sixth): x = 6.
+        let (n, s) = (Tier::Normal, Tier::Super);
+        assert_eq!((leadership(n, 5), leadership(s, 5)), (2, 3));
+        assert_eq!((blademaster(n, 5), blademaster(s, 5)), (3, 4));
+        assert_eq!((constitution(n, 5), constitution(s, 5)), (6, 9));
+        assert_eq!((might(n, 5), might(s, 5)), (6, 9));
+        assert_eq!((agility(n, 5), agility(s, 5)), (6, 9));
+        assert_eq!((arcane_power(n, 5), arcane_power(s, 5)), (6, 9));
+        assert_eq!((prayermaster(n, 5), prayermaster(s, 5)), (6, 9));
+        assert_eq!((legendary(n, 5), legendary(s, 5)), (18, 27));
+        // Sage goes by the level itself.
+        assert_eq!((sage(n, 5), sage(s, 5)), (15, 45));
+        assert_eq!(might(Tier::None, 5), 0);
+        // Rounded down: x = 2.
+        assert_eq!((blademaster(s, 1), might(s, 1), legendary(s, 1)), (1, 3, 9));
+    }
+
+    #[test]
+    fn arcane_power_needs_a_magic_attack() {
+        let a = HeroAbilities::from_names(&["arcane_power", "super_might"]);
+        let find = |mods: &[Modifier], stat| mods.iter().find(|m| m.stat == stat).map(|m| m.value);
+        assert_eq!(find(&a.modifiers(1, false), Stat::Ranged), None);
+        assert_eq!(find(&a.modifiers(1, true), Stat::Ranged), Some(2));
+        assert_eq!(find(&a.modifiers(1, true), Stat::Melee), Some(3));
+        assert_eq!(find(&a.modifiers(1, true), Stat::Defense), None);
+        let charmed = HeroAbilities::from_names(&["charmed"]);
+        assert_eq!(
+            find(&charmed.modifiers(1, false), Stat::Resistance),
+            Some(30)
+        );
+    }
+
+    #[test]
+    fn a_hero_gets_its_abilities_as_stats_fame_and_research() {
+        let mut g = world();
+        let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
+        let stats = [Stat::Melee, Stat::Defense, Stat::ToHit, Stat::MaxHp];
+        let read = |g: &Game| stats.map(|s| g.units().unit_stat(h, s));
+        // Experience 20 is the second level (x = 2); the test path adds its own pluses there, so
+        // the ability's part is the difference to the same hero without abilities.
+        g.world.insert_one(h, Experience(20)).unwrap();
+        let (fame, research) = (g.fame(P0), g.income(P0).research);
+        let bare = read(&g);
+        g.world.get::<&mut Hero>(h).unwrap().abilities =
+            HeroAbilities::from_names(&["might", "super_agility", "blademaster", "constitution"]);
+        let with: Vec<i32> = read(&g).iter().zip(bare).map(|(n, b)| n - b).collect();
+        assert_eq!(with, vec![2, 3, 1, 2]);
+        // Super Legendary is 9 fame at x = 2, Sage 3 research at level 1.
+        g.world.get::<&mut Hero>(h).unwrap().abilities =
+            HeroAbilities::from_names(&["super_legendary", "sage"]);
+        assert_eq!(g.fame(P0), fame + 9);
+        assert_eq!(g.income(P0).research, research + 3);
+        let other = crate::city::PlayerId(1);
+        assert_eq!(g.fame(other), g.player(other).unwrap().fame);
+    }
 
     #[test]
     fn names_make_tiers_and_flags() {

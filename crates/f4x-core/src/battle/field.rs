@@ -247,9 +247,29 @@ impl Battle {
                 .unwrap_or(0)
         };
         let holy = level("holy_bonus");
-        let resist_all = level("resist_all");
+        let best = |f: fn(&BattleUnit) -> i32| {
+            self.units
+                .iter()
+                .filter(|x| x.side == mine && x.is_active())
+                .map(f)
+                .max()
+                .unwrap_or(0)
+        };
+        // A hero's Prayermaster counts as Resistance to All; the better of the two applies.
+        let resist_all = level("resist_all").max(best(|x| x.prayermaster));
         if holy > 0 && u.melee > 0 {
             b.melee += holy;
+        }
+        // Leadership: the best hero's bonus to the melee (and half of it to the ranged, but not
+        // magic) attack of every normal unit, not the fantastic ones or the undead.
+        let lead = best(|x| x.leadership);
+        if lead > 0 && !u.is_fantastic() && !u.undead {
+            if u.melee > 0 {
+                b.melee += lead;
+            }
+            if u.ranged > 0 && u.ranged_kind != RangedKind::Magic {
+                b.ranged += lead / 2;
+            }
         }
         b.defense += holy;
         b.resistance += holy + resist_all;

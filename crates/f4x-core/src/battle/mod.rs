@@ -165,6 +165,10 @@ pub struct BattleUnit {
     pub weapon_quality: u8,
     /// `Stat::SpecialLevel`: poison strength, or the penalty of its gaze and touches.
     pub special_level: i32,
+    /// A hero's Leadership and Prayermaster in this battle (`hero.rs`), 0 for anything else: the
+    /// best one on a side counts for all its units.
+    pub leadership: i32,
+    pub prayermaster: i32,
     /// The ids of its lasting spells, which add to resistance against some realms.
     pub enchantments: Vec<String>,
     /// The creature's realm (chaos and death creatures fear dispel evil), and whether it is
@@ -235,6 +239,8 @@ impl BattleUnit {
             magical_weapon: false,
             weapon_quality: 0,
             special_level: 0,
+            leadership: 0,
+            prayermaster: 0,
             enchantments: Vec::new(),
             realm: None,
             undead: false,
