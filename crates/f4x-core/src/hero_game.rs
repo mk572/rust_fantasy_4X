@@ -41,6 +41,25 @@ impl Units<'_> {
         out
     }
 
+    /// A hero's mana in battle (`COMBINIT.c`): `(casting skill + 1) * (level + 1) * 5 / 2`, and
+    /// the spell skill of its items when it has any mana. 0 for a hero with no casting skill
+    /// and for a unit that is no hero.
+    pub fn hero_mana(&self, unit: hecs::Entity) -> i32 {
+        let Ok(hero) = self.world.get::<&Hero>(unit) else {
+            return 0;
+        };
+        if hero.casting_skill == 0 {
+            return 0;
+        }
+        let x = self.unit_level(unit) as i32 + 1;
+        let base = (i32::from(hero.casting_skill) + 1) * x * 5 / 2;
+        let items: i32 = self
+            .world
+            .get::<&crate::items::HeroItems>(unit)
+            .map_or(0, |i| i.iter().map(|i| i.bonus.spell_skill).sum());
+        base + items
+    }
+
     /// How many more heroes the wizard may have (`Hero_Slot_Open`).
     pub fn open_hero_slots(&self, player: PlayerId) -> usize {
         MAX_HEROES.saturating_sub(self.hero_units(player).len())
@@ -84,6 +103,21 @@ impl Units<'_> {
 }
 
 impl Game {
+    /// Casting skill the wizard's heroes add (`Player_Hero_Casting_Skill`): half the mana of each
+    /// hero standing on the fortress square. It pays for a spell over turns, on top of the
+    /// wizard's own skill.
+    pub fn hero_casting_skill(&self, player: PlayerId) -> i32 {
+        let Some(fortress) = self.player(player).and_then(|p| p.fortress) else {
+            return 0;
+        };
+        self.units()
+            .hero_units(player)
+            .into_iter()
+            .filter(|&h| self.units().unit_position(h) == Some(fortress))
+            .map(|h| self.units().hero_mana(h) / 2)
+            .sum()
+    }
+
     /// Roll every wizard's hero roster, in player order (`Init_Heroes`). Independent cities'
     /// players have none. Called once when a game is made, after everything else is placed, so
     /// the map and the starting cities of a seed stay as they were.
@@ -295,6 +329,92 @@ pub(crate) mod tests {
             Availability::Free
         );
         assert_eq!(g.spawn_hero(P0, at(1, 1), 40), Err(HeroError::Unknown));
+    }
+
+    #[test]
+    fn a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress() {
+        use crate::items::{HeroItems, Item, ItemBonus};
+        use crate::rules::ItemKind;
+        let mut g = world();
+        g.players[0].fortress = Some(at(3, 3));
+        let h = g.spawn_hero(P0, at(3, 3), 0).unwrap();
+        // Casting skill 1 at level 0: (1 + 1) * 1 * 5 / 2.
+        assert_eq!(g.units().hero_mana(h), 5);
+        assert_eq!(g.hero_casting_skill(P0), 2);
+        // Level 3 (the fourth): (1 + 1) * 4 * 5 / 2.
+        let _ = g.world.insert_one(h, Experience(120));
+        let level = g.units().unit_level(h) as i32 + 1;
+        assert_eq!(g.units().hero_mana(h), 2 * level * 5 / 2);
+        // An item's spell skill adds to it.
+        let before = g.units().hero_mana(h);
+        let staff = Item {
+            name: "Staff".into(),
+            kind: ItemKind::Staff,
+            cost: 100,
+            icon: 0,
+            bonus: ItemBonus {
+                spell_skill: 7,
+                ..ItemBonus::default()
+            },
+            powers: Vec::new(),
+            charges: None,
+            prefab: None,
+        };
+        let _ = g.world.insert_one(h, HeroItems([Some(staff), None, None]));
+        assert_eq!(g.units().hero_mana(h), before + 7);
+        // Away from the fortress the hero adds nothing; another wizard's hero never does.
+        assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
+        let away = g.spawn_hero(P0, at(5, 5), 1).unwrap();
+        assert_eq!(g.units().hero_mana(away), 5);
+        assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
+        assert_eq!(g.hero_casting_skill(P1), 0);
+        // A hero with no casting skill has no mana, whatever its items.
+        g.world.get::<&mut Hero>(away).unwrap().casting_skill = 0;
+        let _ = g.world.insert_one(away, HeroItems::default());
+        assert_eq!(g.units().hero_mana(away), 0);
+    }
+
+    #[test]
+    fn sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns() {
+        use crate::magic::Casting;
+        let mut g = world();
+        g.players[0].fortress = Some(at(3, 3));
+        let sage = g.spawn_hero(P0, at(3, 3), 0).unwrap();
+        g.world.get::<&mut Hero>(sage).unwrap().abilities.sage = Tier::Normal;
+        let _ = g.world.insert_one(sage, Experience(120));
+        let level = g.units().unit_level(sage);
+        assert!(level > 0);
+        assert_eq!(
+            g.units().sage_research(P0),
+            crate::hero::sage(Tier::Normal, level)
+        );
+        assert_eq!(g.units().sage_research(P1), 0);
+        // A spell paid over turns gets the heroes' skill on top of the wizard's own.
+        g.players[0].magic = crate::magic::Magic::new(&[("life", 2)], &[]);
+        let spell = g.content.rules.spells.id_of("mend").unwrap();
+        let hero_skill = g.hero_casting_skill(P0);
+        assert!(hero_skill > 0);
+        let nominal = g.magic(P0).unwrap().casting_skill();
+        g.magic_mut(P0).unwrap().casting = Some(Casting {
+            spell,
+            remaining: 1000,
+        });
+        g.players[0].mana = 5000;
+        let _ = g.process_magic();
+        let left = g.magic(P0).unwrap().casting.unwrap().remaining;
+        assert_eq!(1000 - left, nominal + hero_skill);
+        // The heroes' skill counts for that turn only: the next payment is the wizard's alone.
+        let _ = g.process_magic();
+        let after = g.magic(P0).unwrap().casting.unwrap().remaining;
+        assert_eq!(
+            left - after,
+            nominal + hero_skill,
+            "the hero is still there"
+        );
+        g.remove_unit(sage, Fate::Released);
+        let _ = g.process_magic();
+        let last = g.magic(P0).unwrap().casting.unwrap().remaining;
+        assert_eq!(after - last, nominal);
     }
 
     #[test]

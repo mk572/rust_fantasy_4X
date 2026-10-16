@@ -16,7 +16,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 
 | # | Area | Summary |
 |---|---|---|
-| 51 | Heroes | Heroes' casting contribution and sage heroes (low priority) |
 | 56 | Magic | Implement the 37 "special" spells (low priority) |
 | 58 | Magic | Unit enchantments needing non-stat effects (low priority) |
 | 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) |
@@ -124,14 +123,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 260 | Client | Item crafting screen (Enchant Item and Create Artifact) |
 | 263 | Magic | Audit every immunity against the spells and effects it should cover |
 | 264 | Client | Pop-up leftovers: level-up and event messages, item power texts, hire variants, attack box |
+| 265 | Heroes | Heroes cast in battle: innate spells, item charges, item spell save |
 
 ## Descriptions
-
-### Heroes and items
-
-**51. Heroes' casting contribution and sage heroes.** Heroes add to casting skill and sage heroes
-add research (level times 3, or 9 for the greater ability). The hooks (`Skill_Left` and the
-research income) exist; heroes do not feed them yet. A hero's mana in battle (`(skill + 1) * (level + 1) * 5 / 2` plus the spell skill of its items, `ItemBonus::spell_skill`, `BattleUnit::mana`) and so its spell shots (3 mana a shot) and own spells come with this; so do the embedded spell of an item (`Item::charges`: cast without mana as many times as it has charges, from any slot, not only the first as in the original's bug H22, and the charges stay on the item after the battle) and the item's spell save, which lowers the resistance of what the hero's own spells hit (`ItemBonus::spell_save`). Low priority: only needed for specific spells, buildings, units or abilities. Design: [`heroes-items-design.md`](heroes-items-design.md) sections 3.6 and 5, step 10.
 
 ### Magic (first pass done; see `magic.md`)
 
@@ -502,3 +496,5 @@ Parity task, low priority.
 **263. Audit the immunities.** Check every immunity in the game (Magic Immunity, Elemental/Fire/Cold/Poison/Stoning/Death/Illusion/Weapon Immunity, Resist Elements, Righteousness, Invulnerability, Bless, the Large Shield and the like, Non-Corporeal, Wraith Form, city and node protections) against the spells, attacks and effects it should and should not stop, using the original's rules (ReMoM, manual) and what the community wikis document. Several bugs in this area are known from wikis and not yet listed here, so start by collecting them (wiki pages, the manual's tables, `help.ron`), then write a table of immunity x effect in `magic.md`, test each cell, and fix the mismatches (record deliberate departures in `divergences.md`; fixed original bugs go there too). Also check the effects that ignore immunities in the original (for example Disenchant, Wrack and Cracks Call) and whether they still do. Asked for by the user, 16 October 2026.
 
 **264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`) and the **random-event messages** (`Show_Event_Message`; the events themselves are task 68), drawn from `HIRE.c` and `Events.c` in ReMoM with the art in `HIRE.LBX` and `EVENTS.LBX`; (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.
+
+**265. Heroes cast in battle.** Left from task 51. A hero (and a creature caster, task 159 part 4) cast in the original with their own mana, not the wizard's skill: `Combat.c` offers the spell button when a unit has `mana >= 3`, a spell ability or item charges. The list (`AI_Build_Castable_Combat_Spell_List`, and the human spell book) holds the hero's four innate spells (`Hero::spells`, not the wizard's book) whose cost is at most the hero's mana; the cost is the spell's plain cost, with no wizard reduction or range multiplier. Needs: (1) a battle command that casts for a unit (caster unit, spell, aim) next to the wizard's, one cast a turn per unit and the unit spends its movement, with `check_cast`/`apply_battle_spell` reused and the unit's mana paid; (2) the item's embedded spell (`Item::charges`): cast with no mana as many times as there are charges, from any slot (the original reads only the first, its bug H22), the count staying on the item after the battle (the battle writes it back); (3) the item's spell save (`ItemBonus::spell_save`) lowers the resistance of what the hero's own spells hit; (4) legal casts for the AI and the console, and the battle screen's spell button for a hero. Design: [`heroes-items-design.md`](heroes-items-design.md) section 5 (Casting). Low priority: only the spells in the hero table need it.

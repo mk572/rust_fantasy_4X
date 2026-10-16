@@ -49,6 +49,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 48 | Heroes | Hiring, summoning, recall, resurrection and fame (done) |
 | 49 | Heroes | Item slots, powers and data schema (done) |
 | 50 | Heroes | Enchant Item, Create Artifact, the vault and the anvil (done) |
+| 51 | Heroes | Heroes' casting contribution and sage heroes (done) |
 | 52 | Magic | ~~Timed spell durations~~ (done) |
 | 53 | Magic | Remaining retort effects (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
@@ -365,6 +366,8 @@ Also: a hero's shield gives the hero a large shield in battle (the ability exist
 **50. Enchant Item, Create Artifact, the vault and the anvil (done).** Crafting UI and rules (power budget
 per book, mana cost, Artificer discount already in costs), the player's item vault, scrapping items
 at the anvil. Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.3, step 8 (cost formula, Enchant Item and Create Artifact, the pending item in `Magic`, random and prefab items, the anvil). **Done** (the rules, no screen): `crafting.rs` (`ItemDesign`, `Craft`, `base_cost`, `cost` with the original's formula, `check` with the four-power limit, one power of each group, the kind, the 200 limit of Enchant Item, the books of the realm and the spell for charges (known and castable in battle, one to four charges), `available_powers` for the screen, `build` (chain mail +1 and plate mail +2 defence, movement powers in half-moves), `default_name` after `Get_Item_Name`); `Game::craft_item` / `Command::CraftItem` start the cast at the item's value less the wizard's reduction (Artificer and the books, `Magic::cost_reduction`), make the item at once if skill and mana pay for it, else keep it in `Magic::crafting` while it is paid over turns (cancelling drops it); the spells `enchant_item` and `create_artifact` run the hook `craft_item` when paid and refuse the ordinary cast; the item goes to the vault, else the award list, else is lost (`Event::ItemMade`); `Game::scrap_item` / `Command::ScrapItem` is the anvil (half the value in mana); the save of the pending item. Tests: 13 in `crafting.rs`, 10 in `armory.rs`. **Left, as tasks:** the crafting screen (260), item icons (261), random and prefab items (`Make_Item`; 262), the AI crafting nothing (222).
+
+**51. Heroes' casting contribution and sage heroes (done).** A hero's battle mana is `(casting skill + 1) * (level + 1) * 5 / 2` plus the spell skill of its items (`Units::hero_mana`; none without casting skill), and it pays the hero's spell shots (3 a shot) like a creature caster's (`BattleUnit::hero_caster`). Each hero standing on the fortress square adds half its mana to the skill that pays for a spell over turns, that turn only (`Game::hero_casting_skill`, added in `process_magic` before the payment; the original's `Player_Hero_Casting_Skill`). Sage heroes were already in the research income (`Units::sage_research`, level times 3 or 9) and now have a test. The hero's own casting in battle is task 265.
 
 **52. Timed spell durations (done).** `timers.rs`: a spell with `Duration::Turns(n)` gets a timer
 (`Game::timers`, saved by creation number) when attached to a unit, a city or the wizard; each

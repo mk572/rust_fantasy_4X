@@ -2320,6 +2320,58 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
     );
 }
 
+#[test]
+fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
+    use crate::hero::{Hero, HeroAbilities};
+    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::rules::ItemKind;
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(A, at(4, 4), walker);
+    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    assert_eq!((plain.mana, plain.hero_caster), (0, false));
+    let hero = |skill| Hero {
+        name: "Ann".into(),
+        abilities: HeroAbilities::from_names::<&str>(&[]),
+        casting_skill: skill,
+        spells: Vec::new(),
+    };
+    // No casting skill, no mana, whatever the items bring.
+    let _ = g.world.insert_one(unit, hero(0));
+    assert_eq!(g.battle_unit_from(unit, Side::Attacker, 0).unwrap().mana, 0);
+    // Skill 2 at the first level: (2 + 1) * 1 * 5 / 2.
+    let _ = g.world.insert_one(unit, hero(2));
+    let bare = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    assert_eq!((bare.mana, bare.hero_caster), (7, true));
+    // An item's spell skill adds to it.
+    let staff = Item {
+        name: "Staff".into(),
+        kind: ItemKind::Staff,
+        cost: 100,
+        icon: 0,
+        bonus: ItemBonus {
+            spell_skill: 5,
+            ..ItemBonus::default()
+        },
+        powers: Vec::new(),
+        charges: None,
+        prefab: None,
+    };
+    let _ = g
+        .world
+        .insert_one(unit, HeroItems([Some(staff), None, None]));
+    let mut armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    assert_eq!(armed.mana, 12);
+    // A magic shot costs the hero three mana, and its shots follow its mana.
+    armed.ranged_kind = RangedKind::Magic;
+    armed.ammo = armed.mana / SHOT_MANA;
+    assert_eq!(armed.ammo, 4);
+    armed.spend_shot();
+    assert_eq!((armed.mana, armed.ammo), (9, 3));
+    armed.leak_mana(5);
+    assert_eq!((armed.mana, armed.ammo), (4, 1));
+}
+
 // ---- city enchantments (task 25) ---------------------------------------------------------
 
 fn city_map() -> BattleMap {

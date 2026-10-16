@@ -144,7 +144,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 | Lucky | +1 to hit, block and resistance | | the hero |
 | Charmed | never fails a resistance roll | | the hero |
 | Noble | no upkeep, +10 gold | | the wizard's treasury |
-| Casting skill | mana `(skill + 1) * x * 5 / 2` | | the hero in battle (task 51) |
+| Casting skill | mana `(skill + 1) * x * 5 / 2` (plus item spell skill); half of it per hero at the fortress adds to the wizard's skill that pays over turns | | the hero in battle (task 51) |
 
 ## 3. New self-contained systems
 
@@ -465,7 +465,7 @@ Each step is testable without a screen; later steps add the client screens.
 8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
    prefab items, `Make_Item`, are task 262; the crafting screen 260).
 9. **Offers**: hero, mercenary, merchant. (48, 143)
-10. **Hero casting** (task 51), the AI rules, console commands.
+10. **Hero casting**: mana, spell shots and the fortress skill **done** (task 51); the hero's own spells, item charges and spell save are task 265; the AI rules, console commands.
 11. **Client**: army list, unit window, item screen, crafting screen, offer pop-ups (138 to 143).
 
 Verification for every step: workspace tests, clippy, the soak diffed against the baseline (steps 1

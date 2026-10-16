@@ -124,7 +124,10 @@ impl Game {
             events.extend(self.apply_mana_upkeep(player));
         }
         for &player in &ids {
+            // Heroes at the fortress add to the skill that pays for a spell over turns.
+            let heroes = self.hero_casting_skill(player);
             if let Some(p) = self.player_mut(player) {
+                p.magic.skill_left += heroes;
                 pay_for_casting(p);
             }
         }

@@ -402,8 +402,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
 
 **Not here** (task 159): the spells that need new effects (Web, Earth to Mud, Cracks Call, Disrupt, Black Sleep, Life Drain, ...),
 the battlefield node counter (a node of another realm may stop the spell), the AI wizard's
-casting (task 46), the heroes' own spells and the items' spells (51, 49), the spell shots using
-the unit's own mana, and the original's rule that Hit points added by Lionheart are lost with the spell.
+casting (task 46), the heroes' own spells and the items' spells (265; a hero's mana and spell shots are in, task 51), and the original's rule that Hit points added by Lionheart are lost with the spell.
 
 ## 9. Battlefield enchantments and destroying spells (tasks 44 and part of 159)
 

@@ -139,7 +139,7 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 - The fortress is a location on the player, not a building; the original also has the fortress
   city act as a building in the city screen. Banishment, the circle and the Spell of Return work
   (section 12); the aftermath of a wizard's defeat (neutral units and cities) does not.
-- No heroes' casting contribution or sage heroes, no node power, no Evil Omens or other global
+- Heroes add to the casting skill that pays over turns and sage heroes to research (task 51); no node power, no Evil Omens or other global
   modifiers on cost, no Spell of Return handling, no spell research cost for the Spell of Mastery
   (placeholder data). Casting in battle is in `combat.md` section 8.
 - The importer keeps the original's eligibility (`spell_contexts` in `import_mom.py`): 0, 2 and

@@ -145,7 +145,11 @@ impl Game {
         let melee = self.units().unit_stat(unit, Stat::Melee);
         let ranged = self.units().unit_stat(unit, Stat::Ranged);
         // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
-        let mana = if has("spellcaster_major") {
+        // A hero's mana comes from its casting skill and level, and its items.
+        let hero_mana = self.units().hero_mana(unit);
+        let mana = if hero_mana > 0 {
+            hero_mana
+        } else if has("spellcaster_major") {
             40
         } else if has("spellcaster") {
             20
@@ -188,6 +192,7 @@ impl Game {
             moves_left: self.units().unit_max_moves(unit),
             ammo,
             mana,
+            hero_caster: hero_mana > 0,
             ranged_kind,
             flies,
             first_strike: has("first_strike"),

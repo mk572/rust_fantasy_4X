@@ -150,8 +150,11 @@ pub struct BattleUnit {
     /// Shots left. A spell caster with a magical ranged attack shoots with its mana instead
     /// (`SHOT_MANA` a shot): its shots are what its mana pays for.
     pub ammo: i32,
-    /// The mana of a spell caster unit (20, or 40 for a major one).
+    /// The mana of a spell caster unit (20, or 40 for a major one) or of a hero with casting
+    /// skill (`Game::hero_mana`).
     pub mana: i32,
+    /// A hero with casting skill: its spell shots are paid for with its mana too.
+    pub hero_caster: bool,
     pub ranged_kind: RangedKind,
     pub flies: bool,
     pub first_strike: bool,
@@ -231,6 +234,7 @@ impl BattleUnit {
             moves_left: 2 * OPEN_COST,
             ammo: 0,
             mana: 0,
+            hero_caster: false,
             ranged_kind: RangedKind::None,
             flies: false,
             first_strike: false,
@@ -392,7 +396,7 @@ impl BattleUnit {
     /// ranged attack (the original's rule for casters and heroes).
     pub fn shoots_with_mana(&self) -> bool {
         self.ranged_kind == RangedKind::Magic
-            && (self.has("spellcaster") || self.has("spellcaster_major"))
+            && (self.hero_caster || self.has("spellcaster") || self.has("spellcaster_major"))
     }
 
     /// Use up one shot (and the mana it costs a caster).
