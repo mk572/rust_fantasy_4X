@@ -462,7 +462,12 @@ impl Art {
         // The target: the mean colour of Myrror's water, and of the river's water now.
         let mean = |bytes: &[u8], pick: &dyn Fn(&[u8]) -> bool| -> Option<[f32; 4]> {
             let (mut sum, mut n) = ([0f32; 3], 0f32);
-            for p in bytes.chunks_exact(4).filter(|p| p[3] > 0 && pick(p)) {
+            for p in bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|p| p[3] > 0 && pick(*p))
+            {
                 for k in 0..3 {
                     sum[k] += f32::from(p[k]);
                 }
@@ -476,7 +481,7 @@ impl Art {
         // Repaint each kind of pixel (water, grassy banks) in the colour of the Myrror picture
         // that stands for it, keeping its light and dark shades.
         let light = |c: [f32; 4]| (c[0] + c[1] + c[2]).max(1.0);
-        let jobs: [(&dyn Fn(&[u8]) -> bool, &Image); 2] = [(&blue, &ocean), (&green, &ground)];
+        let jobs: [(&Pick<'_>, &Image); 2] = [(&blue, &ocean), (&green, &ground)];
         let mut painted = img.bytes.clone();
         for (pick, target) in jobs {
             let (Some(to), Some(from)) = (mean(&target.bytes, &|_| true), mean(&img.bytes, pick))
@@ -485,9 +490,11 @@ impl Art {
             };
             for (p, out) in img
                 .bytes
-                .chunks_exact(4)
-                .zip(painted.chunks_exact_mut(4))
-                .filter(|(p, _)| p[3] > 0 && pick(p))
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .zip(painted.as_chunks_mut::<4>().0.iter_mut())
+                .filter(|(p, _)| p[3] > 0 && pick(*p))
             {
                 let k = (f32::from(p[0]) + f32::from(p[1]) + f32::from(p[2])) / light(from);
                 for c in 0..3 {
@@ -507,6 +514,9 @@ impl Art {
         self.texture(path)
     }
 }
+
+/// Whether a pixel (RGBA) is of the kind being repainted.
+type Pick<'a> = dyn Fn(&[u8]) -> bool + 'a;
 
 /// Read `screens/index.tsv`: `lbx  entry  <screen>/<name>` a row.
 fn parse_placed(text: &str) -> HashMap<String, HashMap<usize, String>> {
