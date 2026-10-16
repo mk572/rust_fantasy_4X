@@ -35,6 +35,8 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 22 | Rules | Alternative effect for the Charismatic retort |
 | 23 | Platform | Packaging for Linux |
 | 24 | Content | Content pass and balance with AI-vs-AI soak runs |
+| 25 | AI | Battle AI tournament: neural against neural, with varied entries |
+| 26 | Rules | Hold command in battle: ends the unit's turn and gives a defensive bonus |
 
 ## Descriptions
 
@@ -249,3 +251,62 @@ local-assets workflow as the Mac build (T81). A release workflow on GitHub Actio
 
 **24. Content pass and balance.** Fill out races, units, buildings and spells from the imported
 data, then balance with AI-vs-AI soak runs (needs AI and combat).
+
+**25. Battle AI tournament.** The held-out score against the scripted AI says little about which
+trained network is strongest, so pit the networks against each other (`learning-ai.md`, section 7).
+*Entries:* a few parent checkpoints (picked by a neural-against-neural round robin among the
+checkpoints of a run, not by the score against the scripted AI) and many variants of each. A
+variant is a parent plus (a) a *directed nudge*: an offset added to the final-layer bias of one
+kind of output score of the policy (`net.rs`: the wizard head's bias on the spell slots against
+"skip" for more or fewer casts, on "flee" for earlier or later flight, the melee and shoot
+pointer biases and the "done" and move biases for aggressive or passive play, the mana head's bias
+for casting at full strength, the wall-attack biases), and/or (b) a small Gaussian noise on the
+weights, scaled per tensor. A nudge is a plain edit of numbers the checkpoint already holds
+(`PolicyNet::nudged`, with a test that a zero nudge changes nothing); how strongly each knob moves
+behaviour is measured, not assumed (try about 0.5, 1 and 2 per knob). Spell-slot nudges act more
+on wizards with many spells, and the game has no true "defend" order until item 26, so "defensive"
+means advancing less, passing sooner and fleeing more. Every variant is labelled by its *measured
+style profile* (casts and mana a game, flee rate, units lost and killed, battle length), not by
+what it was meant to do.
+*Format:* neural against neural only, advice hidden, on a fresh scenario bank. The unit is the
+*pair*: one scenario with the same dice, played twice with the sides swapped. The side with more
+wins takes the pair; when the wins are level (one win each, or two draws by the step limit; a win
+and a draw is a win for the winner), the *tie-breaks* decide, in order, taken over the two games: (1) more
+enemy units killed; (2) more own units surviving; (3) more total hit points at the end, own minus
+enemy (own positive, enemy negative); (4) less mana spent. If all four are level the pair is a true draw and
+counts half a win to each side. The match file says which step decided each pair. A *match* is a
+batch of pairs, and whoever has more pair points (1 for a pair won, half for a draw) wins the
+match. Only if the points are level after the whole batch is there a seeded, logged coin flip;
+the match file records that it was used. About 30 entries play a Swiss stage (short matches of 15 pairs, about 6 rounds),
+rated by a Bradley-Terry fit of the pair results; the top 8 play single-elimination knockout with
+longer matches of 101 pairs. The summed training reward is only logged. Report whether any variant beats its parent, which styles win, and (for information,
+not for selection) how the final 8 do against the scripted AI. Head-to-head results can go in
+circles between styles, and the winner is the best of its pool, not necessarily good against a
+human.
+*Code:* `examples/make_variants.rs` (recipes in, checkpoints with `.shape.ron` and a recipe note
+out), `examples/tournament.rs` (profiles, Swiss stage, rating, knockout), `scripts/tournament.sh`
+in the style of `train_battle.sh` (`-h`, fresh folder under `models-local/`, `--detach`,
+`--notify`, `--dry-run`, a row in `scripts.md`), and a test that one network on both seats splits
+a pair evenly. Time a batch of net-against-net games first to size the stages; run it when no
+training run is using the CPU. The timing and the other sizes (entries, rounds) are proposals; the match sizes of 15 and 101 pairs are agreed.
+*Status:* the tools are built (16 October 2026): `f4x_learn::duel` (pairs, tie-breaks, matches),
+`net::Nudge` and `PolicyNet::nudged`/`jittered`, the examples `make_variants` and `tournament`
+(`rank`, `run`, `vs`) and `scripts/tournament.sh`; see `learning-ai.md` section 7.9. The first
+full tournament has not been run, and the strengths of the nudges still have to be measured.
+
+
+**26. Hold command in battle.** A new order for a unit in battle, *Hold*: it ends the unit's turn
+without attacking and gives it a defensive bonus until its next turn. A rule beyond the original
+(which has only "done", with no bonus), so it is a rule-set option in the saved game settings, off
+while parity is the goal. Open points to decide: the size and form of the bonus (for example +1
+defence or a higher chance to block, not stacking with shields or defence spells, or stacking
+with a cap); whether a unit may hold after moving or only when it has not moved; whether it
+works for ranged units and units with no melee attack; and whether a held unit that is attacked
+in melee strikes back as usual. Needs: the command and its legality in `battle/` (shown by
+`Battle::legal_commands`, refused if the option is off), the bonus in the defence calculation and
+the battle view, a console and client control (a key and a button beside "done"), a plain
+description in the help text corrections (`HELP_CORRECTIONS`), and scripted-AI use (hold with
+units that guard a wizard or a wall, or when the odds say wait for the enemy to come). For the
+learning AI (`learning-ai.md`), Hold is a new order in the unit vocabulary (`act.rs`): the
+observation and checkpoint signature change, so older checkpoints are refused and the networks
+must be retrained; it also gives item 25's passive nudge a real "defend" order to push towards.

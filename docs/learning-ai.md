@@ -529,9 +529,37 @@ Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit
 | Unattended | `scripts/train_battle.sh --detach --name NAME [--iters N ...]` | The whole training run in the background: build, train through `cool_run.sh`, best checkpoint by held-out reward, `STATUS` and `summary.txt` in `models-local/NAME` (`--help` lists the options; default bank `bank-v2.ron`) |
 | Training | `RAYON_NUM_THREADS=4 ... --features train --example train_battle OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--no-briefs] [--seed N]` | Warm start, then PPO; writes `log.txt` and `net_NNNN.bpk` every 5 iterations; `BANK=` picks the bank |
 | Probe | `... --features train --example probe CHECKPOINT [BANK]` | How often a checkpoint flees at its first decision, by odds |
+| Variants | `... --features train --example make_variants OUT_DIR --parent NAME=CHECKPOINT ... [--auto N] [--recipes FILE]` | Parents and variants of them (nudged output biases, noise on the weights) as checkpoints, with an `entries.txt` of recipes |
+| Tournament | `scripts/tournament.sh --name NAME (--checkpoints LIST \| --entries FILE) [--detach]` | Neural against neural: round robin to pick parents, variants, a Swiss stage and a knockout (below) |
+| Tournament tool | `... --features train --example tournament rank\|run\|vs OUT_DIR --entries FILE ...` | The stages one at a time; `vs` plays every entry against one (to measure what a nudge does) |
 | In a game | `cargo run --release -p f4x-tools --features learned -- soak --battle-ai CHECKPOINT ...` | AI wizards fight their battles with the checkpoint |
 
 **Bank v2 (16 October).** `models-local/bank-v2.ron` was made on the current rules with the realm-limited wizards (1200 scenarios, 400 of each odds class, odds measured by the scripted AI); the old `bank.ron` is kept. No run has trained on it yet, and every old checkpoint is refused (their ability list and spell slots differ), so the next run starts from scratch with `BANK=models-local/bank-v2.ron`.
+
+**The tournament (16 October; `docs/PLANNED.md` item 25).** The held-out score against the scripted
+AI says little about which network is strongest, so `tournament.sh` has networks play each other.
+`f4x_learn::duel` plays a *pair*: one scenario with the same dice, twice, the networks swapping
+sides (greedy, no advice, the brief the game uses). The side with more wins takes the pair; when
+the wins are level (one each, or two battles stopped at the step limit) the tie-breaks decide over
+the two battles, in order: enemy units killed, own units left, hit points left (own minus enemy,
+as `Outcome::end_hit_points`, read just before the last command), less mana spent; a level pair is
+a draw (half each). A match is a batch of pairs and the side with more pair points wins; only a
+level batch is settled by a seeded coin flip, which the log marks. The stages are a round robin
+(`rank`, picks the parents), `make_variants`, a Swiss stage rated by a Bradley-Terry fit of the pair
+points, and a single-elimination knockout of the top entries seeded by that rating (15 pairs a
+match in the Swiss stage, 101 in the knockout). The champion's weights are copied to
+`winner.bpk`, and the finalists also play the scripted AI, for information only. Every match is
+written in full (`matches/*.txt`, `.ron`) and a stopped run continues with `--resume`.
+
+A *variant* is a parent plus a `net::Nudge` and/or noise. A nudge adds to the final-layer bias of
+one kind of output score (spell slots against skipping, fleeing, melee strikes, shots, walking,
+being done, walls, casting at the most mana), so it moves behaviour without training; noise is
+Gaussian, a fraction of each tensor's own spread. What a knob does is measured, not assumed: the
+tournament's `profiles.txt` gives each entry's casts, flees, mana, losses, kills and battle
+length per battle, and `tournament vs` with `--against PARENT` shows a variant's profile against its
+parent. The bank for a tournament should be a fresh one (`make_bank ... 1200 80000000`) so that no
+scenario was used in training. Only networks of the same rules play each other (the checkpoint
+records must match the game).
 
 What exists on disk after the first runs: the bank (1.3 MB), six run directories (`run0` to
 `run4` and `control`) with their logs and checkpoints, and `battle-v1.bpk`. A checkpoint is

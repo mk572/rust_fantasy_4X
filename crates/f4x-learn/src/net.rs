@@ -282,6 +282,136 @@ impl PolicyNet {
     }
 }
 
+// ---- variants of a trained network ----------------------------------------------------
+
+/// Offsets to the final-layer biases of the policy's output scores, to push a trained network
+/// towards a style without training (`docs/PLANNED.md` item 25). Each is added to every score of
+/// its kind, so a positive `attack` makes every melee strike likelier against the rest, and so
+/// on. All zero changes nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Nudge {
+    /// Every spell slot of the wizard's choice, against skipping and fleeing: casts more or less.
+    pub spell: f32,
+    /// The wizard's choice to flee.
+    pub flee: f32,
+    /// Melee strikes at enemy units.
+    pub attack: f32,
+    /// Shots at enemy units.
+    pub shoot: f32,
+    /// Walking (every square).
+    pub walk: f32,
+    /// Being done (ending the unit's turn).
+    pub done: f32,
+    /// Strikes and shots at walls.
+    pub wall: f32,
+    /// Casting with the most mana a spell takes, against the least.
+    pub more_mana: f32,
+}
+
+impl Nudge {
+    pub fn is_zero(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Add `delta` (one number per element of the bias, or one for all) to a layer's bias.
+fn bump(lin: &mut Linear, delta: &[f32]) {
+    if let Some(b) = lin.bias.take() {
+        let device = b.val().device();
+        let n = b.val().dims()[0];
+        let v: Vec<f32> = (0..n)
+            .map(|i| if delta.len() == 1 { delta[0] } else { delta[i] })
+            .collect();
+        let d = Tensor::<1>::from_data(TensorData::new(v, [n]), &device);
+        lin.bias = Some(b.map(|t| t + d));
+    }
+}
+
+/// Add Gaussian noise to a tensor: standard deviation `sigma` times the tensor's own.
+fn jitter<const D: usize>(t: Tensor<D>, sigma: f32, rng: &mut impl rand::Rng) -> Tensor<D> {
+    let device = t.device();
+    let dims = t.dims();
+    let mut v = t.into_data().try_to_vec::<f32>().unwrap_or_default();
+    let n = v.len().max(1) as f32;
+    let mean = v.iter().sum::<f32>() / n;
+    let sd = (v.iter().map(|x| (x - mean) * (x - mean)).sum::<f32>() / n).sqrt();
+    for x in &mut v {
+        // Box-Muller.
+        let (a, b): (f32, f32) = (rng.gen_range(1.0e-7..1.0), rng.gen());
+        let z = (-2.0 * a.ln()).sqrt() * (std::f32::consts::TAU * b).cos();
+        *x += sigma * sd * z;
+    }
+    Tensor::<D>::from_data(TensorData::new(v, dims), &device)
+}
+
+impl PolicyNet {
+    fn layers_mut(&mut self) -> Vec<&mut Linear> {
+        vec![
+            &mut self.grid_lin,
+            &mut self.unit_lin,
+            &mut self.spell_lin,
+            &mut self.glob_lin,
+            &mut self.ctx_lin,
+            &mut self.head_lin,
+            &mut self.move_lin,
+            &mut self.wall_a_lin,
+            &mut self.wall_s_lin,
+            &mut self.done_lin,
+            &mut self.att1,
+            &mut self.att2,
+            &mut self.sho1,
+            &mut self.sho2,
+            &mut self.val1,
+            &mut self.val2,
+            &mut self.wiz_lin,
+            &mut self.aim_hid,
+            &mut self.aim_cell,
+            &mut self.aim_none,
+            &mut self.ptr1,
+            &mut self.ptr2,
+            &mut self.mana_lin,
+        ]
+    }
+
+    /// This network with the offsets of `nudge` added to its output biases.
+    pub fn nudged(mut self, nudge: &Nudge) -> Self {
+        if nudge.is_zero() {
+            return self;
+        }
+        bump(&mut self.att2, &[nudge.attack]);
+        bump(&mut self.sho2, &[nudge.shoot]);
+        bump(&mut self.move_lin, &[nudge.walk]);
+        bump(&mut self.done_lin, &[nudge.done]);
+        bump(&mut self.wall_a_lin, &[nudge.wall]);
+        bump(&mut self.wall_s_lin, &[nudge.wall]);
+        let mut wiz = vec![0.0f32; WIZARD_VOCAB];
+        wiz[crate::act::FLEE] = nudge.flee;
+        for w in &mut wiz[crate::act::SPELL..] {
+            *w = nudge.spell;
+        }
+        bump(&mut self.wiz_lin, &wiz);
+        bump(&mut self.mana_lin, &[0.0, nudge.more_mana]);
+        self
+    }
+
+    /// This network with Gaussian noise added to every weight and bias of the policy and the
+    /// critic: `sigma` times the standard deviation of the tensor it is added to.
+    pub fn jittered(mut self, sigma: f32, rng: &mut impl rand::Rng) -> Self {
+        if sigma <= 0.0 {
+            return self;
+        }
+        for lin in self.layers_mut() {
+            let w = lin.weight.clone().map(|t| jitter(t, sigma, rng));
+            lin.weight = w;
+            if let Some(b) = lin.bias.take() {
+                lin.bias = Some(b.map(|t| jitter(t, sigma, rng)));
+            }
+        }
+        self
+    }
+}
+
 /// A `[rows, width]` tensor from rows of numbers.
 pub fn matrix(rows: Vec<Vec<f32>>, width: usize, device: &Device) -> Tensor<2> {
     let n = rows.len();
@@ -296,7 +426,11 @@ pub fn log_probs(logits: Tensor<2>, mask: Tensor<2>) -> Tensor<2> {
 
 /// Where the record of what a checkpoint reads is kept: beside it, as `NAME.shape.ron`.
 fn shape_file(checkpoint: &std::path::Path) -> std::path::PathBuf {
-    checkpoint.with_extension("shape.ron")
+    // `NAME` (as given to `save_checkpoint`) and `NAME.bpk` (the file) name the same record, also
+    // when NAME has a dot in it.
+    let name = checkpoint.to_string_lossy();
+    let stem = name.strip_suffix(".bpk").unwrap_or(&name);
+    std::path::PathBuf::from(format!("{stem}.shape.ron"))
 }
 
 /// Write a checkpoint (`path` without the `.bpk` that Burn adds) and, beside it, what the network
@@ -307,7 +441,15 @@ pub fn save_checkpoint(
     path: &std::path::Path,
 ) -> Result<(), String> {
     use burn::module::Module;
-    net.save_file(path).map_err(|e| format!("{e:?}"))?;
+    // Burn swaps whatever follows the last dot for `.bpk`, which would eat part of a name such as
+    // `a-noise.03`: give it the full file name.
+    let name = path.to_string_lossy();
+    let file = if name.ends_with(".bpk") {
+        path.to_path_buf()
+    } else {
+        std::path::PathBuf::from(format!("{name}.bpk"))
+    };
+    net.save_file(file).map_err(|e| format!("{e:?}"))?;
     let text = ron::ser::to_string_pretty(&spec.signature(), ron::ser::PrettyConfig::default())
         .map_err(|e| e.to_string())?;
     std::fs::write(shape_file(path), text).map_err(|e| e.to_string())
@@ -341,4 +483,104 @@ pub fn load_checkpoint(
         ));
     }
     Ok(PolicyNet::new(spec.unit_features(), device).load_file(path))
+}
+
+#[cfg(test)]
+mod variant_tests {
+    use super::*;
+    use rand::SeedableRng;
+
+    fn bias(lin: &Linear) -> Vec<f32> {
+        lin.bias
+            .as_ref()
+            .unwrap()
+            .val()
+            .into_data()
+            .try_to_vec::<f32>()
+            .unwrap()
+    }
+
+    fn weights(lin: &Linear) -> Vec<f32> {
+        lin.weight.val().into_data().try_to_vec::<f32>().unwrap()
+    }
+
+    fn all(net: &mut PolicyNet) -> Vec<Vec<f32>> {
+        net.layers_mut()
+            .into_iter()
+            .flat_map(|l| [weights(l), bias(l)])
+            .collect()
+    }
+
+    #[test]
+    fn a_zero_nudge_and_zero_noise_change_nothing() {
+        let device = Device::flex();
+        let mut net = PolicyNet::new(7, &device);
+        let before = all(&mut net);
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(1);
+        let mut same = net.nudged(&Nudge::default()).jittered(0.0, &mut rng);
+        assert_eq!(all(&mut same), before);
+    }
+
+    #[test]
+    fn a_nudge_adds_to_the_named_biases_and_only_those() {
+        let device = Device::flex();
+        let mut net = PolicyNet::new(7, &device);
+        let before = all(&mut net);
+        let nudge = Nudge {
+            spell: 1.0,
+            flee: -2.0,
+            attack: 0.5,
+            done: 3.0,
+            more_mana: 4.0,
+            ..Nudge::default()
+        };
+        let mut moved = net.nudged(&nudge);
+        let after = all(&mut moved);
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
+        let mut changed = 0;
+        for (k, (a, b)) in after.iter().zip(&before).enumerate() {
+            if a != b {
+                changed += 1;
+                // Only biases (odd positions) move; no weights.
+                assert_eq!(k % 2, 1, "a weight changed");
+            }
+        }
+        assert_eq!(changed, 4, "wizard, mana, attack and done biases");
+        let wiz = bias(&moved.wiz_lin);
+        let base = &before[2 * 16 + 1];
+        assert!(close(wiz[crate::act::SKIP], base[crate::act::SKIP]));
+        assert!(close(wiz[crate::act::FLEE], base[crate::act::FLEE] - 2.0));
+        for k in crate::act::SPELL..WIZARD_VOCAB {
+            assert!(close(wiz[k], base[k] + 1.0));
+        }
+        let mana = bias(&moved.mana_lin);
+        let base = &before[2 * 22 + 1];
+        assert!(close(mana[0], base[0]) && close(mana[1], base[1] + 4.0));
+        assert!(close(bias(&moved.att2)[0], before[2 * 11 + 1][0] + 0.5));
+        assert!(close(bias(&moved.done_lin)[0], before[2 * 9 + 1][0] + 3.0));
+    }
+
+    #[test]
+    fn noise_follows_its_seed_and_scales_with_sigma() {
+        let device = Device::flex();
+        let net = PolicyNet::new(7, &device);
+        let run = |sigma: f32, seed: u64| {
+            let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(seed);
+            let mut n = net.clone().jittered(sigma, &mut rng);
+            all(&mut n)
+        };
+        let mut base = net.clone();
+        let base = all(&mut base);
+        assert_eq!(run(0.05, 1), run(0.05, 1));
+        assert_ne!(run(0.05, 1), run(0.05, 2));
+        let spread = |v: Vec<Vec<f32>>| {
+            v.iter()
+                .flatten()
+                .zip(base.iter().flatten())
+                .map(|(a, b)| (a - b).abs())
+                .sum::<f32>()
+        };
+        assert!(spread(run(0.01, 1)) < spread(run(0.1, 1)));
+        assert!(spread(run(0.01, 1)) > 0.0);
+    }
 }

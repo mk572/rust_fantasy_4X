@@ -10,7 +10,7 @@ use f4x_core::content::Content;
 use f4x_core::Game;
 
 use crate::build::{build, ATTACKER, DEFENDER};
-use crate::reward::{is_hurt, unit_value};
+use crate::reward::{hit_points, is_hurt, unit_value};
 use crate::scenario::BattleScenario;
 
 /// What a battle came to: units counted, and their value (`reward::unit_value`: one plus a
@@ -41,6 +41,9 @@ pub struct Outcome {
     /// The value of each side's units still standing below half their hit points when the
     /// battle ended (as the last command before it left them; a side that fled has none).
     pub standing_hurt_value: [f32; 2],
+    /// The hit points of each side's units still standing at the end (as the last command before
+    /// it left them; a side that fled keeps those that got away).
+    pub end_hit_points: [i32; 2],
 }
 
 /// A battle unit as it stood before the last command.
@@ -50,6 +53,7 @@ struct Note {
     value: f32,
     active: bool,
     hurt: bool,
+    hit_points: i32,
 }
 
 impl Outcome {
@@ -82,7 +86,11 @@ pub struct BattleEnv {
     fled_hurt_value: [f32; 2],
     fled_count: [u32; 2],
     alive_value: [f32; 2],
+    /// The final tally has been taken.
+    ended: bool,
     pub steps: u32,
+    /// The commands after which the battle is stopped (`STEP_LIMIT` unless a caller lowers it).
+    pub step_limit: u32,
 }
 
 /// The most commands one battle may take before it is stopped (a policy that never ends its
@@ -115,7 +123,9 @@ impl BattleEnv {
             fled_hurt_value: [0.0; 2],
             fled_count: [0; 2],
             alive_value: sent_value,
+            ended: false,
             steps: 0,
+            step_limit: STEP_LIMIT,
         };
         env.note_units();
         Ok(env)
@@ -132,6 +142,7 @@ impl BattleEnv {
                     value: unit_value(content, u),
                     active: u.is_active(),
                     hurt: is_hurt(u),
+                    hit_points: hit_points(u).0,
                 })
                 .collect();
             self.died.resize(notes.len(), false);
@@ -144,7 +155,7 @@ impl BattleEnv {
     }
 
     pub fn done(&self) -> bool {
-        self.outcome.winner.is_some() || !self.game.in_battle() || self.steps >= STEP_LIMIT
+        self.outcome.winner.is_some() || !self.game.in_battle() || self.steps >= self.step_limit
     }
 
     /// The side to play.
@@ -254,6 +265,14 @@ impl BattleEnv {
                     / self.fled_count[i].max(1) as f32;
                 self.outcome.saved_value[i] = self.fled_value[i] * kept;
                 self.outcome.saved_hurt_value[i] = self.fled_hurt_value[i] * kept;
+            }
+        }
+        if self.outcome.winner.is_some() && !self.ended {
+            self.ended = true;
+            for (k, n) in self.notes.iter().enumerate() {
+                if n.active && !self.died[k] {
+                    self.outcome.end_hit_points[n.side.index()] += n.hit_points;
+                }
             }
         }
         if self.outcome.winner.is_some() && self.outcome.standing_hurt_value == [0.0; 2] {

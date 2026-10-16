@@ -31,3 +31,11 @@ required-features = ["train"]
 [[example]]
 name = "probe"
 required-features = ["train"]
+
+[[example]]
+name = "make_variants"
+required-features = ["train"]
+
+[[example]]
+name = "tournament"
+required-features = ["train"]

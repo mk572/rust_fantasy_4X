@@ -7,6 +7,8 @@ pub mod bank;
 #[cfg(feature = "train")]
 pub mod brain;
 pub mod build;
+#[cfg(feature = "train")]
+pub mod duel;
 pub mod env;
 #[cfg(feature = "train")]
 pub mod net;

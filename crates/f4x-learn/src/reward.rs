@@ -26,14 +26,20 @@ pub fn unit_value(content: &Content, unit: &BattleUnit) -> f32 {
     1.0 + COST_VALUE * cost as f32
 }
 
-/// Whether a standing unit has less than half its hit points left.
-pub fn is_hurt(u: &BattleUnit) -> bool {
+/// The hit points a unit has left (all its figures'), and the most it could have.
+pub fn hit_points(u: &BattleUnit) -> (i32, i32) {
     let most = u.figures_start as i32 * u.hits;
     if most <= 0 || u.figures == 0 {
-        return false;
+        return (0, most.max(0));
     }
     let left = (u.figures as i32 - 1) * u.hits + (u.hits - u.front_damage).max(0);
-    left * 2 < most
+    (left, most)
+}
+
+/// Whether a standing unit has less than half its hit points left.
+pub fn is_hurt(u: &BattleUnit) -> bool {
+    let (left, most) = hit_points(u);
+    most > 0 && left > 0 && left * 2 < most
 }
 
 /// A win scores `1 - stakes * (own value lost / own value sent)`, where an own unit that stands
