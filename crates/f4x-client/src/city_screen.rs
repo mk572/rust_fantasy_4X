@@ -13,14 +13,14 @@ use crate::view::{base_type, App, Screen};
 
 /// Virtual-to-screen mapping for the 320x200 layout.
 #[derive(Clone, Copy)]
-struct Layout {
-    ox: f32,
-    oy: f32,
-    scale: f32,
+pub(crate) struct Layout {
+    pub(crate) ox: f32,
+    pub(crate) oy: f32,
+    pub(crate) scale: f32,
 }
 
 impl Layout {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let scale = (screen_height() / 200.0)
             .min(screen_width() / 320.0)
             .floor()
@@ -32,7 +32,7 @@ impl Layout {
         }
     }
 
-    fn rect(self, x: f32, y: f32, w: f32, h: f32) -> Rect {
+    pub(crate) fn rect(self, x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect::new(
             self.ox + x * self.scale,
             self.oy + y * self.scale,
@@ -128,12 +128,12 @@ impl App {
         })
     }
 
-    fn view(lay: Layout) -> (f32, f32, f32) {
+    pub(crate) fn view(lay: Layout) -> (f32, f32, f32) {
         (lay.ox, lay.oy, lay.scale)
     }
 
     /// A picture from the local art at the original's `(x, y)`; false if it is missing.
-    fn city_pic(
+    pub(crate) fn city_pic(
         &mut self,
         lay: Layout,
         lbx: &str,
@@ -430,9 +430,19 @@ impl App {
     /// The city's picture: ground, water, hills, roads, then every cell from the back to the
     /// front (houses, trees, rocks, buildings), and the walls along the bottom.
     fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout) {
+        self.draw_city_buildings_at(city, lay, 4.0, 100.0);
+    }
+
+    /// The same picture with its top-left corner at `(x0, y0)` (the enemy city screen's).
+    pub(crate) fn draw_city_buildings_at(
+        &mut self,
+        city: hecs::Entity,
+        lay: Layout,
+        x0: f32,
+        y0: f32,
+    ) {
         use crate::cityscape as cs;
         let view = Self::view(lay);
-        let (x0, y0) = (4.0f32, 100.0f32);
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
         let enchanted = |name: &str| {

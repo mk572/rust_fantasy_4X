@@ -71,6 +71,10 @@ pub enum Screen {
     ArmyList,
     /// The list of the wizard's cities (`city_list_screen.rs`).
     CityList,
+    /// An outpost (`outpost_screen.rs`).
+    Outpost(hecs::Entity),
+    /// Another wizard's city (`enemy_city_screen.rs`).
+    EnemyCity(hecs::Entity),
 }
 
 pub struct App {
@@ -144,6 +148,7 @@ pub struct App {
     /// The army list's scroll and the unit under the mouse.
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
+    pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     unit_rows: Vec<(Rect, hecs::Entity)>,
@@ -229,6 +234,7 @@ impl App {
             sheet_ui: Default::default(),
             army_ui: Default::default(),
             city_list_ui: Default::default(),
+            outpost_ui: Default::default(),
             unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
@@ -613,6 +619,20 @@ impl App {
         }
     }
 
+    /// A city's screen, or an outpost's (a city with no figures yet).
+    pub(crate) fn open_city_or_outpost(&mut self, city: hecs::Entity) {
+        let outpost = self
+            .game
+            .economy()
+            .city_economy(city)
+            .is_some_and(|e| e.figures == 0);
+        if outpost {
+            self.open_outpost(city, false);
+        } else {
+            self.screen = Screen::City(city);
+        }
+    }
+
     pub fn open_first_city(&mut self) {
         if let Some((city, ..)) = self.game.economy().cities().first() {
             self.screen = Screen::City(*city);
@@ -882,6 +902,8 @@ impl App {
             Screen::UnitSheet => self.unit_sheet_screen(),
             Screen::ArmyList => self.army_screen(),
             Screen::CityList => self.city_list_screen(),
+            Screen::Outpost(city) => self.outpost_screen(city),
+            Screen::EnemyCity(city) => self.enemy_city_screen(city),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
@@ -1319,7 +1341,9 @@ impl App {
         } else if let Some(city) = self.game.economy().city_at(pos) {
             self.selection.clear();
             if self.game.economy().city_owner(city) == Some(HUMAN) {
-                self.screen = Screen::City(city);
+                self.open_city_or_outpost(city);
+            } else if self.game.is_explored(HUMAN, pos) {
+                self.open_enemy_city(city);
             }
         } else {
             self.selection.clear();
@@ -1358,7 +1382,14 @@ impl App {
         };
         let name = self.next_city_name();
         let events = self.game.apply(Command::SettleOutpost { unit, name });
+        let founded = events.iter().find_map(|e| match e {
+            Event::CityFounded { city, .. } => Some(*city),
+            _ => None,
+        });
         self.note(events);
+        if let Some(city) = founded {
+            self.open_outpost(city, true);
+        }
     }
 
     pub(crate) fn draw_map(&mut self) {

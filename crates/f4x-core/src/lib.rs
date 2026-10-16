@@ -219,6 +219,12 @@ pub enum Command {
         city: hecs::Entity,
         building: rules::BuildingId,
     },
+    /// Give a city a new name (the box that names a new outpost). The name is trimmed and cut to
+    /// twelve characters; an empty one changes nothing.
+    RenameCity {
+        city: hecs::Entity,
+        name: String,
+    },
     /// Raze a city just taken, instead of keeping it (until the end of the turn).
     RazeCity {
         player: city::PlayerId,
@@ -910,6 +916,15 @@ impl Game {
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
             Command::RazeCity { player, city } => self.raze_city(player, city),
+            Command::RenameCity { city, name } => {
+                let name: String = name.trim().chars().take(city::NAME_LEN).collect();
+                if !name.is_empty() {
+                    if let Ok(mut c) = self.world.get::<&mut city::City>(city) {
+                        c.name = name;
+                    }
+                }
+                Vec::new()
+            }
             Command::SellBuilding { city, building } => match self.sell_building(city, building) {
                 Ok(_) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],

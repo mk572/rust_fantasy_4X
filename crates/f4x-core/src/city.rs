@@ -16,6 +16,9 @@ pub struct Position {
     pub y: u32,
 }
 
+/// The longest a city's name can be (the original's name field holds twelve characters).
+pub const NAME_LEN: usize = 12;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct City {
     pub name: String,

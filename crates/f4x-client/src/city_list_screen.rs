@@ -1,8 +1,7 @@
 //! The City list (task 139), the original's `CityList_Screen` (`CityList.c`): the wizard's
 //! cities in a table of name, race, population, gold, production, what is being built and the
 //! turns it needs, nine rows at a time on the picture from `reload.lbx`, with a small map and
-//! the enchantments of the city under the mouse. A left-click opens the city (an outpost is
-//! shown on the map), a right-click its production menu. U and D (or the arrows, or the wheel)
+//! the enchantments of the city under the mouse. A left-click opens the city (an outpost has its own screen), a right-click its production menu. U and D (or the arrows, or the wheel)
 //! scroll five rows, Esc or OK leaves. Positions are the original's.
 
 use macroquad::prelude::*;
@@ -305,13 +304,13 @@ impl App {
         hover && is_mouse_button_pressed(MouseButton::Left)
     }
 
-    /// Go to a city: its screen (an outpost has none yet, so the map), with the production
-    /// menu open for a right-click.
+    /// Go to a city: its screen (an outpost's for an outpost), with the production menu open
+    /// for a right-click.
     fn city_list_open(&mut self, row: &Row, production: bool) {
         let at = self.city_position(row.city);
         self.center_on(at);
         if row.outpost {
-            self.screen = Screen::Map;
+            self.open_outpost(row.city, false);
         } else {
             self.choosing = production;
             self.screen = Screen::City(row.city);

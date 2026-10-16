@@ -18,6 +18,7 @@ mod console_screen;
 mod create_screen;
 mod diplomacy_screen;
 mod diplomacy_text;
+mod enemy_city_screen;
 mod frame;
 mod game_over_screen;
 mod magic_screen;
@@ -25,6 +26,7 @@ mod map_draw;
 mod menu_screen;
 mod offer_prompt;
 mod options_screen;
+mod outpost_screen;
 mod preferences;
 mod road_plan;
 mod settings_screen;
@@ -92,6 +94,8 @@ struct Options {
     /// With `--shot`, open the army list first.
     armies: bool,
     cities: bool,
+    outpost: Option<bool>,
+    enemy_city: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
@@ -141,6 +145,8 @@ fn parse_args() -> Result<Options, String> {
         sheet: None,
         armies: false,
         cities: false,
+        outpost: None,
+        enemy_city: false,
         offer: None,
     };
     let mut args = std::env::args().skip(1);
@@ -159,6 +165,9 @@ fn parse_args() -> Result<Options, String> {
             "--select" => o.select = true,
             "--armies" => o.armies = true,
             "--cities" => o.cities = true,
+            "--enemy-city" => o.enemy_city = true,
+            "--outpost" => o.outpost = Some(false),
+            "--outpost-new" => o.outpost = Some(true),
             "--offer" => o.offer = Some(value("--offer")?),
             "--sheet" => {
                 o.sheet = Some(
@@ -250,7 +259,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--enemy-city] [--offer KIND] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -319,6 +328,12 @@ async fn main() {
     }
     if options.armies {
         app.open_army_list();
+    }
+    if options.enemy_city {
+        app.open_first_enemy_city();
+    }
+    if let Some(new) = options.outpost {
+        app.open_first_outpost(new);
     }
     if options.cities {
         app.open_city_list();

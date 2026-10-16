@@ -417,6 +417,24 @@ fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() {
 }
 
 #[test]
+fn renaming_a_city_trims_and_cuts_the_name_and_ignores_an_empty_one() {
+    let mut g = world();
+    let town = city(&mut g, P0, at(5, 5));
+    let name = |g: &Game| g.city_name(town).unwrap();
+    let before = name(&g);
+    g.apply(Command::RenameCity {
+        city: town,
+        name: "  ".into(),
+    });
+    assert_eq!(name(&g), before);
+    g.apply(Command::RenameCity {
+        city: town,
+        name: "  Port Eversleeping  ".into(),
+    });
+    assert_eq!(name(&g), "Port Eversle");
+}
+
+#[test]
 fn a_defeat_clears_the_losers_enchantments_and_nodes() {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));

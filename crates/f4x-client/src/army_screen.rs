@@ -237,7 +237,7 @@ impl App {
     }
 
     /// One unit's square: its picture on its banner's colour, a damage bar under it.
-    fn draw_army_unit(&mut self, lay: &Layout, unit: hecs::Entity, x: f32, y: f32) {
+    pub(crate) fn draw_army_unit(&mut self, lay: &Layout, unit: hecs::Entity, x: f32, y: f32) {
         let owner = self.game.units().unit_owner(unit).map_or(0, |o| o.0);
         let c = self.banner_color(owner);
         let frame = lay.rect((x + 1.0, y + 1.0, 18.0, 16.0));
