@@ -179,7 +179,7 @@ impl App {
             let mark = if prompt.marked[i] { "[x]" } else { "[ ]" };
             let color = if prompt.marked[i] { RED } else { WHITE };
             draw_text(
-                &format!("{mark} {}", line.label),
+                format!("{mark} {}", line.label),
                 r.x + 8.0,
                 r.y + 19.0,
                 20.0,
