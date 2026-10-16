@@ -58,6 +58,8 @@ pub enum Screen {
     Slots,
     /// One unit's statistics sheet (`unit_screen.rs`).
     UnitSheet,
+    /// The list of the wizard's stacks (`army_screen.rs`).
+    ArmyList,
 }
 
 pub struct App {
@@ -106,6 +108,8 @@ pub struct App {
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// The unit statistics sheet that is open, if any.
     pub(crate) sheet_ui: crate::unit_screen::SheetUi,
+    /// The army list's scroll and the unit under the mouse.
+    pub(crate) army_ui: crate::army_screen::ArmyUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     unit_rows: Vec<(Rect, hecs::Entity)>,
@@ -176,6 +180,7 @@ impl App {
             human_build: None,
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
+            army_ui: Default::default(),
             unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
@@ -237,7 +242,7 @@ impl App {
         }
     }
 
-    fn center_on(&mut self, pos: Position) {
+    pub(crate) fn center_on(&mut self, pos: Position) {
         self.plane = pos.plane;
         let (cols, rows) = self.visible_tiles();
         self.cam = vec2(
@@ -762,6 +767,7 @@ impl App {
             Screen::Magic => self.magic_screen(),
             Screen::Wizard => self.wizard_screen(),
             Screen::UnitSheet => self.unit_sheet_screen(),
+            Screen::ArmyList => self.army_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),
@@ -969,7 +975,7 @@ impl App {
         self.note(events);
     }
 
-    fn select_at(&mut self, pos: Position) {
+    pub(crate) fn select_at(&mut self, pos: Position) {
         let mine: Vec<_> = self
             .game
             .units()
@@ -1049,6 +1055,9 @@ impl App {
         }
         if is_key_pressed(KeyCode::S) {
             self.open_spellbook();
+        }
+        if !command_key && is_key_pressed(KeyCode::A) {
+            self.open_army_list();
         }
         if is_key_pressed(KeyCode::G) {
             self.open_slots(false);
@@ -1416,6 +1425,7 @@ impl App {
         match click.menu {
             Some(0) => self.open_slots(false),
             Some(1) => self.open_spellbook(),
+            Some(2) => self.open_army_list(),
             Some(4) => self.open_magic(),
             Some(3) => self.open_first_city(),
             Some(6) => {

@@ -71,7 +71,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
 | 137 | Client | Teleport and merge animation in the battle screen (low priority) |
-| 138 | Client | Army list screen |
 | 139 | Client | City list screen |
 | 140 | Client | Unit statistics window and the enemy stack list |
 | 141 | Client | Outpost screen, enemy city screen and the naming boxes |
@@ -412,8 +411,6 @@ reinforce threatened cities and to cross planes. Low priority: only needed for s
 `Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
 the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
 and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**138. Army list screen.** The original's `ArmyList_Screen`: every stack of the wizard with its units and orders; opens a unit's details (140) and the Item screen (142). Reached from the Army button of the main screen. See [`screen_list.md`](screen_list.md).
 
 **139. City list screen.** `CityList_Screen`: all cities in a table (size, gold, production, what is being built) with a small map; opens the city screen or the production menu. The Cities button of the main screen.
 

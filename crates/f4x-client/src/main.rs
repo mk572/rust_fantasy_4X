@@ -1,6 +1,7 @@
 //! The desktop client: reads the core's state and draws it, never mutating the
 //! world except by sending commands.
 
+mod army_screen;
 mod art;
 mod battle_anim;
 mod battle_ground;
@@ -70,6 +71,8 @@ struct Options {
     battle: bool,
     /// With `--shot`, select the starting stack first.
     select: bool,
+    /// With `--shot`, open the army list first.
+    armies: bool,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
     sheet: Option<usize>,
     /// With `--shot`, end this many turns first.
@@ -111,6 +114,7 @@ fn parse_args() -> Result<Options, String> {
         load: None,
         save: None,
         sheet: None,
+        armies: false,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -126,6 +130,7 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--select" => o.select = true,
+            "--armies" => o.armies = true,
             "--sheet" => {
                 o.sheet = Some(
                     value("--sheet")?
@@ -193,7 +198,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--options] [--menu] [--slots] [--quick] [--select] [--armies] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -258,6 +263,9 @@ async fn main() {
     }
     if options.battle {
         app.open_test_battle();
+    }
+    if options.armies {
+        app.open_army_list();
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n);

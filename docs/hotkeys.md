@@ -22,7 +22,7 @@ sensitive. "Not yet" means the screen or action does not exist in our game.
 | N | Next turn | done (**extra:** Enter does the same) |
 | G | Game button (save, load, quit menu) | done (also Esc) |
 | S | Spells button (the spell book) | done |
-| A | Armies button (army list) | not yet |
+| A | Armies button (army list) | done (task 138) |
 | M | Magic button | done |
 | I | Info button (the advisor menu) | not yet |
 | P | Plane button: show the other plane | done (shifts the selected units first, if they can) |

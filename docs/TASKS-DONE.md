@@ -77,6 +77,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 122 | Map | River mouths and shore pieces with rivers (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
+| 138 | Client | Army list screen (done) |
 | 145 | Client | Save and load screen with slots (done) |
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities (done) |
 | 165 | Magic | Upkeep of enchantments cast on enemy cities (done) |
@@ -498,6 +499,8 @@ of 11 cells, which covers only the band of the 21 by 22 grid with about -9 <= x 
 west and east edges, so the client draws a full diamond. Port the original's playable squares,
 its deployment squares per side, the lair/structure square (6, 11) and `Combat_Grid_Screen_Coordinates`
 placement at 320 by 200, then restrict the core map and movement to them.
+
+**138. Army list screen (done).** The original's `ArmyList_Screen`: every stack of the wizard with its units and orders; opens a unit's details (140) and the Item screen (142). Reached from the Army button of the main screen. See [`screen_list.md`](screen_list.md). **Done** (`army_screen.rs`, from `ArmyList.c`): the Army button or A opens it; six rows of stacks, nine units each, with the unit under the mouse named, its lasting spells, a small map of where it stands, the army's gold, mana and food upkeep, scrolling by the arrows, U and D or the wheel; a left-click on a unit selects its stack and goes to it, a right-click opens the unit sheet (140), Esc or OK leaves. Left: the hero portraits (task 219), the Items button (task 142), the original's status letters on units (B, G, P, C), the unit pictures in their banner colours (the extracted unit icons have no recoloured copy, so a banner-coloured square stands behind them), and the unit enchantment outline animation. The mana upkeep counts units' and your unit enchantments' upkeep without the Channeler discount.
 
 **145. Save and load screen with slots (done).** `menu_screen.rs`: the original's Load / Save screen on its own art: eight slots (`saves/slot1.ron` to `slot8.ron`), each showing the wizard, the turn and the save time (UTC), with Quit (saves the auto-save and goes to the start menu), Load, Save (asks for a second click before replacing a filled slot), Settings (greyed, task 94) and OK. Reached by the Game button or Esc on the map, and from the start menu's Load Game. Not as in the original: a slot's name is not typed. F5 and F9 still quick-save and quick-load.
 
