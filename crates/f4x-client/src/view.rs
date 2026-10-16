@@ -102,6 +102,8 @@ pub struct App {
     pub(crate) help: f4x_core::help::Help,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
+    /// A road being planned (task 102).
+    pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
     /// The key list is shown (F1 shows it while held).
     pub(crate) show_keys: bool,
     /// The wizard creation screen's state.
@@ -181,6 +183,7 @@ impl App {
             big_ui: Default::default(),
             help: Default::default(),
             targeting: None,
+            road_plan: None,
             show_keys: false,
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
@@ -812,6 +815,8 @@ impl App {
                 if is_key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {
                         self.log.push("Cast cancelled".into());
+                    } else if self.road_plan.is_some() {
+                        self.road_plan_cancel();
                     } else {
                         self.open_slots(false);
                     }
@@ -820,6 +825,7 @@ impl App {
                 clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
                 self.draw_map();
                 self.draw_bars();
+                self.road_plan_bar();
             }
         }
         true
@@ -1107,7 +1113,10 @@ impl App {
             let name = self.race_name(self.race).to_string();
             self.log.push(format!("Playing as {name}"));
         }
-        if is_key_pressed(KeyCode::B) {
+        self.road_plan_keys();
+        if is_key_pressed(KeyCode::B) && self.road_plan.is_some() {
+            self.road_plan_confirm();
+        } else if is_key_pressed(KeyCode::B) {
             let settles = self.selection.iter().any(|&u| {
                 self.game.units().unit_has_ability(u, "create_outpost")
                     || self
@@ -1176,7 +1185,9 @@ impl App {
                 .iter()
                 .find(|(r, _)| r.contains(mouse_position().into()))
                 .map(|&(_, u)| u);
-            if is_mouse_button_pressed(MouseButton::Right) && row.is_some() {
+            if is_mouse_button_pressed(MouseButton::Right) && self.road_plan.is_some() {
+                self.road_plan_cancel();
+            } else if is_mouse_button_pressed(MouseButton::Right) && row.is_some() {
                 if let Some(unit) = row {
                     self.open_unit_sheet(unit);
                 }
@@ -1193,6 +1204,12 @@ impl App {
     fn click(&mut self, pos: Position) {
         if let Some(t) = self.targeting.take() {
             self.aim_at(t, pos);
+            return;
+        }
+        if self.road_plan.is_some() {
+            if !self.road_plan_on_button() {
+                self.road_plan_click(pos);
+            }
             return;
         }
         let has_mine = self
@@ -1214,7 +1231,7 @@ impl App {
     }
 
     fn settle(&mut self) {
-        // Engineers build a road where they stand; settlers found an outpost.
+        // Engineers plan a road (road_plan.rs); settlers found an outpost.
         let builders: Vec<_> = self
             .selection
             .iter()
@@ -1231,11 +1248,7 @@ impl App {
             .iter()
             .any(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
         if !builders.is_empty() && !has_settlers {
-            let events = self.game.apply(Command::BuildRoad {
-                units: self.selection.clone(),
-                path: Vec::new(),
-            });
-            self.note(events);
+            self.start_road_plan();
             return;
         }
         let settler = self
@@ -1388,6 +1401,7 @@ impl App {
             }
             stacks.entry((at.x, at.y)).or_default().push(unit);
         }
+        self.draw_road_plan(&screen_of, t);
         let blink = (get_time() * 3.0) as i64 % 2 == 0;
         for ((x, y), units) in stacks {
             let top = units

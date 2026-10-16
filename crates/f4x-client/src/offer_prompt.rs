@@ -306,7 +306,7 @@ impl App {
     }
 
     /// Words wrapped to `width` pixels in one of the original's bitmap fonts.
-    fn bm_wrap(&self, style: usize, text: &str, width: f32) -> Vec<String> {
+    pub(crate) fn bm_wrap(&self, style: usize, text: &str, width: f32) -> Vec<String> {
         let mut lines = Vec::new();
         let mut line = String::new();
         for word in text.split_whitespace() {

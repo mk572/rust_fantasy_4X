@@ -39,7 +39,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 95 | Client | Tutorial |
 | 97 | Client | Sound effects |
 | 99 | Combat | Saving during a battle |
-| 102 | Map | Road-building path selection in the client |
 | 104 | Units | Ship tiers by building and ship movement estimates (low priority) |
 | 106 | Combat | Battle views for the AI and for tools |
 | 107 | Content | Check assumptions made while implementing |
@@ -284,8 +283,6 @@ generator state (seed plus draw count, as for the game), plus the list of overla
 fighters were copied from (by creation number). Restore it on load, check it for consistency
 (units on the map, sources still alive), keep old saves loading, and test that a save in the
 middle of a battle continues exactly like the unsaved one.
-
-**102. Road-building path selection in the client.** The B key builds a road only on the square under the engineers. Add the original's road-building mode (topics 510-512): click a path, show valid squares in blue and invalid in red with the turns it will take, OK and Cancel buttons, using `find_path`-style planning and `Command::BuildRoad` with the whole path.
 
 **104. Ship tiers by building and ship movement estimates.** Which buildings allow which ship (ship wright's guild, shipyard, maritime guild: help 725-727) is only encoded as unit requirements in the data. Verify it for every ship, show the capacity in the unit and city screens, and make path-turn estimates (`turns_for_path`) use the ship's speed instead of the slowest passenger's. Low priority: only needed for specific spells, buildings, units or abilities.
 

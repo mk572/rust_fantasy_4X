@@ -29,7 +29,7 @@ sensitive. "Not yet" means the screen or action does not exist in our game.
 | (none) | Cities button (no key) | not yet |
 | D | Done: the selected stack is finished for this turn | clears the stack's orders only (no idle-stack cycling yet) |
 | W | Wait: skip to the next idle stack | not yet |
-| B | Build (outpost, road); the Purify and Meld buttons have no key | done (Meld also on B for a spirit) |
+| B | Build (outpost; with engineers a road: click the far end, a blue line (red if water blocks it) shows the path and the side panel the turns, then OK, O, Enter or B builds, Escape or right-click cancels); the Purify and Meld buttons have no key | done (Meld also on B for a spirit) |
 | C | Centre the map on the selected stack | done |
 | Q or U | Unselect the stack | done |
 | Numpad 1 to 9 and the arrow keys (the source calls them the eight direction keys) | Move the selected stack one square | done |

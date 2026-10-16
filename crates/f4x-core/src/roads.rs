@@ -84,6 +84,13 @@ impl Game {
             .sum()
     }
 
+    /// Turns the stack's engineers need for a road on `at`: 0 if it has one, `None` where none
+    /// can be built. For the client's road-building plan.
+    pub fn road_turns(&self, units: &[hecs::Entity], at: Position) -> Option<u8> {
+        self.turns_to_build_road(at)?;
+        Some(self.turns_for(at, self.construction_points(units)))
+    }
+
     fn turns_for(&self, at: Position, points: u32) -> u8 {
         let turns = u32::from(self.turns_to_build_road(at).unwrap_or(0));
         if turns == 0 {

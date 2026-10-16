@@ -21,6 +21,7 @@ mod map_draw;
 mod menu_screen;
 mod offer_prompt;
 mod options_screen;
+mod road_plan;
 mod spellbook;
 mod terrain_pick;
 mod ui;

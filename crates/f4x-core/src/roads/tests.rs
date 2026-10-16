@@ -272,3 +272,16 @@ fn road_work_and_enchanted_roads_survive_a_save() {
         .plane(Plane::Arcanus)
         .has_enchanted_road(2, 2));
 }
+
+#[test]
+fn road_turns_count_the_stack_and_say_none_on_water() {
+    let mut g = world();
+    let a = engineer(&mut g, "walker", at(5, 5));
+    let b = engineer(&mut g, "slow", at(5, 5));
+    set_terrain(&mut g, at(6, 5), TerrainClass::Ocean);
+    set_terrain(&mut g, at(7, 5), TerrainClass::Mountains);
+    assert_eq!(g.road_turns(&[a], at(5, 5)), Some(3));
+    assert_eq!(g.road_turns(&[a, b], at(5, 5)), Some(1));
+    assert_eq!(g.road_turns(&[a], at(7, 5)), Some(8));
+    assert_eq!(g.road_turns(&[a], at(6, 5)), None, "no road on water");
+}
