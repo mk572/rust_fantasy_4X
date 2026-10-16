@@ -41,6 +41,14 @@ impl Game {
             .is_some_and(|m| magic_has_global(m, &self.content, id))
     }
 
+    /// The wizard whose Time Stop is stopping everyone else's time, if any.
+    pub fn time_stopper(&self) -> Option<PlayerId> {
+        self.players
+            .iter()
+            .map(|p| p.id)
+            .find(|&p| self.has_global(p, "time_stop"))
+    }
+
     /// Does any wizard keep the global spell with this id going?
     pub fn any_global(&self, id: &str) -> bool {
         self.players.iter().any(|p| self.has_global(p.id, id))
@@ -313,6 +321,7 @@ mod tests {
         let melee = g.units().unit_stat(normal, Stat::Melee);
         grant(&mut g, P0, "holy_arms");
         assert_eq!(g.units().unit_stat(normal, Stat::Melee), melee);
+        assert!(!g.units().unit_has_magical_weapon(normal), "undead: no");
         // Herb Mastery does not heal it either.
         g.world.insert_one(normal, Hurt(3)).unwrap();
         grant(&mut g, P0, "herb_mastery");
@@ -330,8 +339,11 @@ mod tests {
         let rival = g.spawn_unit(P1, at(9, 5), walker);
         let melee = |g: &Game, u| g.units().unit_stat(u, Stat::Melee);
         let (m0, m1) = (melee(&g, normal), melee(&g, chaos));
+        assert!(!g.units().unit_has_magical_weapon(normal));
         grant(&mut g, P0, "holy_arms");
         assert_eq!(melee(&g, normal), m0 + 1);
+        assert!(g.units().unit_has_magical_weapon(normal), "blessed blades");
+        assert!(!g.units().unit_has_magical_weapon(rival), "not mine");
         assert_eq!(melee(&g, chaos), m1, "not a normal unit");
         assert_eq!(melee(&g, rival), m0, "not mine");
         grant(&mut g, P0, "chaos_surge");

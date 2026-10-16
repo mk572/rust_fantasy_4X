@@ -16,20 +16,29 @@ pub const CHANGE_TERRAIN: &str = "change_terrain";
 
 /// Each building in a city under a new volcano collapses with this chance (percent).
 const COLLAPSE_PERCENT: u32 = 15;
+/// A new volcano gets a mineral on its square with this chance (percent).
+const MINERAL_PERCENT: u32 = 20;
+/// A volcano cools into mountains with this chance each turn (the original's code rolls
+/// `Random(100) < 3`, which is two in a hundred; its comment says three).
+const COOL_PERCENT: u32 = 2;
+/// Armageddon's volcano under a city: the chance (percent) each building, unit and citizen is lost.
+const ARMAGEDDON_CITY_PERCENT: u32 = 25;
 
 impl Game {
-    /// Volcanoes `player` owns; each adds one to their magic power.
+    /// Volcanoes that add to `player`'s magic power, one each: the ones they own, or every
+    /// volcano on both planes, whoever's, while they keep Armageddon going.
     pub fn volcano_count(&self, player: PlayerId) -> i32 {
         let Some(map) = self.map.as_ref() else {
             return 0;
         };
+        let all = self.has_global(player, "armageddon");
         crate::map::Plane::ALL
             .iter()
             .map(|&p| {
                 map.plane(p)
                     .volcanoes()
                     .iter()
-                    .filter(|&&v| v == player.0 + 1)
+                    .filter(|&&v| v != 0 && (all || v == player.0 + 1))
                     .count() as i32
             })
             .sum()
@@ -79,6 +88,7 @@ impl Game {
             .volcano(at.x as i32, at.y as i32)
     }
 
+    /// Raise Volcano: a volcano on land that can take one.
     pub(crate) fn raise_volcano(
         &mut self,
         owner: PlayerId,
@@ -88,6 +98,48 @@ impl Game {
         if !self.can_raise_volcano(at) {
             return Vec::new();
         }
+        self.make_volcano(owner, at, rng, false)
+    }
+
+    /// Whether Armageddon may put a volcano on `at`: any square that is not a volcano already
+    /// and holds no node or other site, water and cities included.
+    pub fn can_armageddon_volcano(&self, at: Position) -> bool {
+        let Some(map) = self.map.as_ref() else {
+            return false;
+        };
+        self.economy().terrain_class_at(at).is_some()
+            && self.volcano_at(at).is_none()
+            && map
+                .plane(at.plane)
+                .feature(at.x as i32, at.y as i32)
+                .and_then(|f| self.content.features.get(f))
+                .is_none_or(|f| f.kind == FeatureKind::Mineral)
+    }
+
+    /// One of Armageddon's volcanoes, on land or sea (`can_armageddon_volcano`).
+    pub(crate) fn armageddon_volcano(
+        &mut self,
+        owner: PlayerId,
+        at: Position,
+        rng: &mut dyn RngCore,
+    ) -> Vec<Event> {
+        if !self.can_armageddon_volcano(at) {
+            return Vec::new();
+        }
+        self.make_volcano(owner, at, rng, true)
+    }
+
+    /// The square becomes a volcano of `owner`'s: mountains with an owner, its old feature gone
+    /// and, one time in five, a new mineral. Ships on the square sink. A city on the square
+    /// loses a tenth and a half of its buildings (a quarter of its buildings, units and
+    /// citizens in Armageddon's case); the squares around it are not touched.
+    fn make_volcano(
+        &mut self,
+        owner: PlayerId,
+        at: Position,
+        rng: &mut dyn RngCore,
+        armageddon: bool,
+    ) -> Vec<Event> {
         let Some(mountains) = self
             .content
             .terrains
@@ -96,31 +148,142 @@ impl Game {
             return Vec::new();
         };
         let mut events = Vec::new();
+        let mineral = if rng.next_u32() % 100 < MINERAL_PERCENT {
+            let weights = self.content.features.weighted(
+                FeatureKind::Mineral,
+                TerrainClass::Mountains,
+                at.plane,
+            );
+            let total: u32 = weights.iter().map(|&(_, w)| w).sum();
+            if total == 0 {
+                None
+            } else {
+                let mut roll = rng.next_u32() % total;
+                weights.iter().find_map(|&(id, w)| {
+                    if roll < w {
+                        Some(id)
+                    } else {
+                        roll -= w;
+                        None
+                    }
+                })
+            }
+        } else {
+            None
+        };
+        // A ship cannot sail on mountains: it goes down, and those aboard are left on the land.
+        let ships: Vec<hecs::Entity> = self
+            .units()
+            .units_at(at)
+            .into_iter()
+            .filter(|&u| {
+                self.units()
+                    .unit_def(u)
+                    .is_some_and(|d| d.movement == crate::rules::MovementType::Sailing)
+            })
+            .collect();
         if let Some(map) = self.map.as_mut() {
             let grid = map.plane_mut(at.plane);
             grid.set(at.x, at.y, mountains);
-            grid.set_feature(at.x, at.y, None);
+            grid.set_feature(at.x, at.y, mineral);
             grid.set_volcano(at.x, at.y, Some(owner.0));
+        }
+        for ship in ships {
+            self.remove_unit(ship, crate::roster::Fate::Slain);
+        }
+        for unit in self.units().units_at(at) {
+            let _ = self.world.remove_one::<crate::transport::Aboard>(unit);
         }
         events.push(Event::VolcanoRaised {
             player: owner,
             pos: at,
         });
-        if let Some(city) = self.economy().city_at(at) {
-            let mut lost = 0;
-            if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
-                let before = b.0.len();
-                b.0.retain(|_| rng.next_u32() % 100 >= COLLAPSE_PERCENT);
-                lost = before - b.0.len();
-            }
-            if lost > 0 {
-                events.push(Event::BuildingsCollapsed {
-                    city,
-                    count: lost as u32,
-                });
-            }
+        let Some(city) = self.economy().city_at(at) else {
+            return events;
+        };
+        if armageddon {
+            events.extend(self.devastate_city(city, owner, rng));
+            return events;
+        }
+        let mut lost = 0;
+        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+            let before = b.0.len();
+            b.0.retain(|_| rng.next_u32() % 100 >= COLLAPSE_PERCENT);
+            lost = before - b.0.len();
+        }
+        if lost > 0 {
+            events.push(Event::BuildingsCollapsed {
+                city,
+                count: lost as u32,
+            });
         }
         events
+    }
+
+    /// A volcano from Armageddon rises under the city: each building, each unit in it and each
+    /// citizen is lost with one chance in four. A city never loses its last citizen.
+    fn devastate_city(
+        &mut self,
+        city: hecs::Entity,
+        caster: PlayerId,
+        rng: &mut dyn RngCore,
+    ) -> Vec<Event> {
+        let Some(spell) = self.content.rules.spells.id_of("armageddon") else {
+            return Vec::new();
+        };
+        let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
+            return Vec::new();
+        };
+        let victim = self.economy().city_owner(city);
+        let mut buildings_lost = 0;
+        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+            let before = b.0.len();
+            b.0.retain(|_| rng.next_u32() % 100 >= ARMAGEDDON_CITY_PERCENT);
+            buildings_lost = (before - b.0.len()) as u32;
+        }
+        let mut units_lost = 0;
+        for unit in self.units().units_at(at) {
+            if rng.next_u32() % 100 < ARMAGEDDON_CITY_PERCENT {
+                self.remove_unit(unit, crate::roster::Fate::Slain);
+                units_lost += 1;
+            }
+        }
+        let mut population_lost = 0;
+        if let Ok(mut pop) = self.world.get::<&mut crate::economy::Population>(city) {
+            let dead = (0..pop.figures.saturating_sub(1))
+                .filter(|_| rng.next_u32() % 100 < ARMAGEDDON_CITY_PERCENT)
+                .count() as u32;
+            pop.figures -= dead;
+            population_lost = dead;
+        }
+        let _ = caster;
+        vec![Event::WorldSpellStruck {
+            spell,
+            victim,
+            units_lost,
+            buildings_lost,
+            population_lost,
+        }]
+    }
+
+    /// Each turn every volcano has a small chance of cooling into plain mountains.
+    pub(crate) fn cool_volcanoes(&mut self, rng: &mut dyn RngCore) {
+        let Some(map) = self.map.as_mut() else {
+            return;
+        };
+        for plane in crate::map::Plane::ALL {
+            let grid = map.plane_mut(plane);
+            let (w, h) = (grid.width(), grid.height());
+            for y in 0..h {
+                for x in 0..w {
+                    if grid.volcano(x as i32, y as i32).is_some()
+                        && rng.next_u32() % 100 < COOL_PERCENT
+                    {
+                        grid.set_volcano(x, y, None);
+                    }
+                }
+            }
+        }
     }
 
     pub(crate) fn change_terrain_spell(&mut self, at: Position) -> Vec<Event> {

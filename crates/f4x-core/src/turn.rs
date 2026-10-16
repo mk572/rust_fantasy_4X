@@ -6,6 +6,7 @@
 use crate::city::PlayerId;
 use crate::economy::{Farmers, Population};
 use crate::{Event, Game};
+use rand::SeedableRng;
 
 impl Game {
     pub(crate) fn process_turn(&mut self) -> Vec<Event> {
@@ -42,8 +43,12 @@ impl Game {
                 self.balance_taxes(player);
             }
         }
+        // The wizard whose Time Stop lasts pays no gold and eats no food, only the spell's mana.
+        let stopper = self.time_stopper();
         for player in players {
-            events.extend(self.settle_treasury(player));
+            if stopper != Some(player) {
+                events.extend(self.settle_treasury(player));
+            }
         }
 
         for &city in &cities {
@@ -78,6 +83,10 @@ impl Game {
         events.extend(self.tick_timers());
         self.tick_temp_effects();
         self.process_globals();
+        events.extend(self.process_world_enchantments());
+        let mut cooling = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC001);
+        self.cool_volcanoes(&mut cooling);
+        self.fade_corruption(&mut cooling);
         self.process_experience();
         events.extend(self.process_magic());
         events.extend(self.process_gaias_blessing());

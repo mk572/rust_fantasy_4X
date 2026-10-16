@@ -415,3 +415,59 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   their ships and flying units, overland and in battle (`unit_max_moves`). While any wizard holds the
   spell, every wizard without it gets x0.5 for ships and fliers. Nothing stacks: two holders both get
   the bonus and no one is halved.
+
+## 17. The world-scale spells (Meteor Storm, Great Wasting, Armageddon, Call the Void, Nature's Wrath)
+
+- **Great Wasting** strikes three to six random land squares on either plane each turn (ReMoM: four
+  to six), **anywhere**, the squares round the caster's own cities included (changed by the user,
+  17 October 2026). A corrupted square gives its city no food, production or mineral, as before, and
+  now also adds one unrest (one more rebel) **per corrupted square in the city's area**. The
+  wizard who **keeps Great Wasting going** is proof against all that: their cities' corrupted
+  squares still yield, add no unrest, and give **one power each** (counted once per square for the
+  wizard, added to the power base like a volcano's, not to the city's own mana); in a **battle on a corrupted
+  square** that wizard's spells carry no range penalty (the cost of distance from the fortress is
+  capped at the normal one for one). Every one of those benefits ends the moment the spell does,
+  and someone else's Great Wasting protects nobody. Every corrupted square, from any source, has a
+  two in a hundred chance each turn of healing by itself (like a cooling volcano; the original's
+  corruption is permanent until purified).
+- **Armageddon is riskier than the original's** (decided by the user, 17 October 2026): it raises
+  three to six volcanoes a turn on **any** square of either plane, the caster's own cities included
+  and the sea too (a volcano island; a ship on the square sinks), but not on a square with a node or
+  other site, or a volcano already. A volcano that comes up on a **city's own square** (not the
+  squares around) kills each of the city's buildings, units and citizens with one chance in four
+  (the original destroys nothing; never the last citizen). While anyone's Armageddon lasts **no
+  building reduces unrest in any city** (the original sets the *other* wizards' cities to unrest of
+  its own, as a bug-looking assignment). The caster gets one mana a turn from **every** volcano in
+  the world, whoever raised it; a wizard without Armageddon still gets one from each of their own.
+- **Volcanoes in general** (also Raise Volcano's): each new volcano has a one in five chance of
+  bringing a mineral, and each turn each volcano has two chances in a hundred of cooling into plain
+  mountains (the original rolls `Random(100) < 3`, two in a hundred; its comment says three). Neither
+  was in the game before.
+- **Meteor Storm:** strength 4 fire attack on every unit outside a city, the caster's too, then
+  1 percent for each building of other wizards' cities (`world_spells.rs`).
+- **Call the Void:** no loss of citizens (the original loses half); the surrounding squares are
+  corrupted at one in two.
+- **Nature's Wrath** shakes the cities of the wizard who casts a death or chaos spell (not the
+  holder's own).
+- Details and the original's numbers: conflicts B38 to B41. Not done: Great Wasting's unrest in other wizards' cities (task 286).
+
+## 18. Time Stop (spell 80)
+
+- While a wizard keeps Time Stop going: only that wizard's units move or heal or gain experience,
+  the other wizards' casting makes no progress, and the keeper has no income and pays no gold, food or
+  other mana, only the spell's 200 mana a turn (ReMoM's `NEXTTURN.c`; its note says the manual says
+  150). When the keeper cannot pay, the spell ends.
+- The others' cities still grow and produce, and their gold and food are still counted, as in the
+  original. Commands other than movement are not blocked (founding a city, production orders): task
+  286. The help's "combat part" does not exist in the original's code and is not done.
+
+## 19. Magic Vortex (spell 105)
+
+- Cast on a free square of a battlefield; at most ten at once; units cannot walk through one. At the
+  start of each turn every vortex makes three random moves; its owner may move it one more square on
+  their own turn (click it, then the square; the console has `bvortex`). The computer's vortices never
+  get that move, as in the original. A vortex deals 5 damage to a unit on the square it comes to
+  (not Magic Immunity or Righteousness), strikes each unit next to the square with a lightning bolt
+  (strength 5, one chance in three; the original's code says one in three, the manual one in four),
+  and adds 5 to the city damage over the city area.
+- The learned brains do not cast it (`f4x-learn` `NOT_TRAINED`), so their input shape is unchanged.

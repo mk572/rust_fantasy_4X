@@ -467,6 +467,7 @@ impl Game {
             ProductionItem::Unit(u) => {
                 let (xp, weapons) = self.economy().new_unit_start(city, owner);
                 let unit = self.spawn_unit(owner, at, u);
+                self.doom_mastery_mutates(unit, owner);
                 let _ = self.world.insert_one(unit, Experience(xp));
                 if weapons > 0 {
                     let _ = self

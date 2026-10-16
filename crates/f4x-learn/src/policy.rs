@@ -13,7 +13,7 @@ fn class(c: &BattleCommand) -> usize {
         BattleCommand::Cast { .. }
         | BattleCommand::UnitCast { .. }
         | BattleCommand::SummonDemon { .. } => 4,
-        BattleCommand::Done { .. } => 5,
+        BattleCommand::Done { .. } | BattleCommand::MoveVortex { .. } => 5,
         BattleCommand::EndTurn => 6,
         BattleCommand::Flee => 7,
     }

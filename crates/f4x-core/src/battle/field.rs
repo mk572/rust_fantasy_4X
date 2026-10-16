@@ -145,7 +145,7 @@ impl BattleUnit {
         self.has("invisibility") || self.field.invisible
     }
 
-    fn has_enchantment(&self, id: &str) -> bool {
+    pub(super) fn has_enchantment(&self, id: &str) -> bool {
         self.enchantments.iter().any(|e| e == id)
     }
 }
@@ -306,6 +306,7 @@ impl Battle {
                 events.extend(self.wrack(caster));
             }
         }
+        events.extend(self.vortex_round());
         events
     }
 

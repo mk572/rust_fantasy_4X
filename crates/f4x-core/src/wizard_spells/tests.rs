@@ -7,6 +7,7 @@ use crate::rules::exec::Target;
 use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget, UnitKind};
 use crate::testutil::content_with_magic;
 use crate::Command;
+use rand::SeedableRng;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -98,6 +99,28 @@ fn world() -> Game {
         ("earthquake", "nature", SpellTarget::EnemyCity, EARTHQUAKE),
         ("black_wind", "death", SpellTarget::Tile, BLACK_WIND),
         ("lycanthropy", "death", SpellTarget::OwnUnit, LYCANTHROPY),
+        (
+            "call_the_void",
+            "chaos",
+            SpellTarget::EnemyCity,
+            crate::world_spells::CALL_THE_VOID,
+        ),
+        (
+            "natures_wrath",
+            "nature",
+            SpellTarget::None,
+            "global_effect",
+        ),
+        (
+            "chaos_channels",
+            "chaos",
+            SpellTarget::OwnUnit,
+            crate::mutation::CHAOS_CHANNELS,
+        ),
+        ("doom_mastery", "chaos", SpellTarget::None, "global_effect"),
+        ("meteor_storm", "chaos", SpellTarget::None, "global_effect"),
+        ("great_wasting", "chaos", SpellTarget::None, "global_effect"),
+        ("armageddon", "chaos", SpellTarget::None, "global_effect"),
     ] {
         spells.push(spell(id, realm, target, hook));
     }
@@ -130,6 +153,18 @@ fn world() -> Game {
         }];
         spells.push(storm);
     }
+    let mut stasis = spell(
+        "stasis",
+        "sorcery",
+        SpellTarget::Tile,
+        crate::stasis::STASIS,
+    );
+    stasis.effects[0].target = TargetSel::UnitsOnChosenSquare;
+    spells.push(stasis);
+    let mut time_stop = spell("time_stop", "sorcery", SpellTarget::None, "global_effect");
+    time_stop.duration = Duration::Permanent;
+    time_stop.upkeep = 200;
+    spells.push(time_stop);
     c.rules.spells = Registry::new(spells);
     let mut realms = c.rules.realms.defs().to_vec();
     for r in ["sorcery", "death", "arcane"] {
@@ -615,4 +650,510 @@ fn a_storm_that_destroys_a_unit_says_so() {
         let _ = i;
     }
     assert!(told, "twenty fire storms destroyed nothing");
+}
+
+fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
+    let race = g.content.rules.races.id_of("elf");
+    g.apply(Command::FoundCity {
+        owner,
+        pos,
+        name: "Town".into(),
+        race,
+        population: 4,
+    });
+    g.economy().city_at(pos).unwrap()
+}
+
+fn keep(g: &mut Game, player: PlayerId, spell: &str) {
+    let s = sp(g, spell);
+    g.magic_mut(player).unwrap().global.push(s);
+}
+
+#[test]
+fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
+    let mut g = world();
+    let city = city_for(&mut g, P1, at(10, 6));
+    let squad = unit(&mut g, P1, "squad", at(10, 6)); // 10 hit points
+    let walker = unit(&mut g, P1, "walker", at(10, 6));
+    let events = cast(&mut g, "call_the_void", Some(Target::City(city)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::WorldSpellStruck { victim: Some(v), .. } if *v == P1)),
+        "{events:?}"
+    );
+    assert!(!g.world.contains(squad), "10 damage kills a 10 point unit");
+    assert!(
+        !g.world.contains(walker) || g.units().unit_hits(walker).0 < g.units().unit_hits(walker).1
+    );
+    let bad = (8..=12)
+        .flat_map(|x| (4..=8).map(move |y| at(x, y)))
+        .filter(|&p| g.is_corrupted(p))
+        .count();
+    assert!((3..=22).contains(&bad), "about half of 25: {bad}");
+    let far = (0..24)
+        .filter(|&x| !(8..=12).contains(&x))
+        .any(|x| g.is_corrupted(at(x, 6)));
+    assert!(!far, "nothing outside the radius");
+}
+
+#[test]
+fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_lasts() {
+    let mut g = world();
+    keep(&mut g, P1, "natures_wrath");
+    let city = city_for(&mut g, P0, at(5, 5));
+    let walkers: Vec<_> = (0..60)
+        .map(|_| unit(&mut g, P0, "walker", at(5, 5)))
+        .collect();
+    let spared = city_for(&mut g, P2, at(15, 5));
+    let others: Vec<_> = (0..20)
+        .map(|_| unit(&mut g, P2, "walker", at(15, 5)))
+        .collect();
+    let events = cast(&mut g, "drain_power", Some(Target::Player(P2)));
+    let lost = events.iter().find_map(|e| match e {
+        Event::WorldSpellStruck {
+            victim: Some(v),
+            units_lost,
+            ..
+        } if *v == P0 => Some(*units_lost),
+        _ => None,
+    });
+    let lost = lost.unwrap_or_else(|| panic!("{events:?}"));
+    let gone = walkers.iter().filter(|&&u| !g.world.contains(u)).count();
+    assert!(lost > 0 && gone >= lost as usize, "10% of 60: lost {lost}");
+    assert!(
+        others.iter().all(|&u| g.world.contains(u)),
+        "other cities are safe"
+    );
+    let _ = (city, spared);
+    // The holder's own casting, or a spell of another realm, does nothing.
+    g.magic_mut(P1).unwrap().skill_left = 99_999;
+    let s = sp(&g, "drain_power");
+    g.magic_mut(P1).unwrap().known.insert(s);
+    let events = g.apply(Command::CastSpell {
+        player: P1,
+        spell: s,
+        target: Some(Target::Player(P2)),
+    });
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, Event::WorldSpellStruck { .. })));
+    let events = cast(&mut g, "great_unsummoning", None);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::WorldSpellStruck { .. })),
+        "sorcery"
+    );
+}
+
+#[test]
+fn meteor_storm_strikes_units_outside_cities_but_not_inside_and_spares_the_casters_buildings() {
+    let mut g = world();
+    keep(&mut g, P0, "meteor_storm");
+    city_for(&mut g, P1, at(5, 5));
+    let inside: Vec<_> = (0..10)
+        .map(|_| unit(&mut g, P1, "walker", at(5, 5)))
+        .collect();
+    let outside: Vec<_> = (0..10)
+        .map(|_| unit(&mut g, P1, "walker", at(15, 8)))
+        .collect();
+    let mine: Vec<_> = (0..10)
+        .map(|_| unit(&mut g, P0, "walker", at(18, 8)))
+        .collect();
+    for _ in 0..60 {
+        g.process_world_enchantments();
+    }
+    assert!(
+        inside.iter().all(|&u| g.world.contains(u)),
+        "cities shelter"
+    );
+    assert!(
+        outside.iter().all(|&u| !g.world.contains(u)),
+        "sixty storms"
+    );
+    assert!(
+        mine.iter().all(|&u| !g.world.contains(u)),
+        "the caster's units too"
+    );
+}
+
+#[test]
+fn great_wasting_corrupts_three_to_six_land_squares_a_turn_anywhere() {
+    let mut g = world();
+    keep(&mut g, P0, "great_wasting");
+    city_for(&mut g, P0, at(5, 5));
+    let mut near = false;
+    for _ in 0..40 {
+        g.process_world_enchantments();
+    }
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        for x in 0..24 {
+            for y in 0..14 {
+                let p = Position { plane, x, y };
+                if g.is_corrupted(p)
+                    && plane == Plane::Arcanus
+                    && (x as i32 - 5).abs().max((y as i32 - 5).abs()) <= 2
+                {
+                    near = true;
+                }
+            }
+        }
+    }
+    assert!(near, "the caster's own city is not spared");
+    // One turn: three to six.
+    let mut g = world();
+    keep(&mut g, P0, "great_wasting");
+    g.process_world_enchantments();
+    let bad = [Plane::Arcanus, Plane::Myrror]
+        .into_iter()
+        .flat_map(|plane| (0..24).flat_map(move |x| (0..14).map(move |y| Position { plane, x, y })))
+        .filter(|&p| g.is_corrupted(p))
+        .count();
+    assert!((3..=6).contains(&bad), "{bad}");
+}
+
+#[test]
+fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts() {
+    use crate::battle::Side;
+    let range = |g: &mut Game| {
+        let a = unit(g, P0, "walker", at(8, 8));
+        let d = unit(g, P1, "walker", at(9, 8));
+        g.start_battle(&[a], &[d]).unwrap();
+        let r = g.battle().unwrap().caster(Side::Attacker).unwrap().range;
+        g.battle = None;
+        r
+    };
+    let mut g = world();
+    let far = range(&mut g);
+    assert!(far > 10, "no fortress: the greatest penalty ({far})");
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set_corrupted(9, 8, true);
+    assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
+    keep(&mut g, P0, "great_wasting");
+    assert_eq!(range(&mut g), 10, "while the spell lasts");
+    g.magic_mut(P0).unwrap().global.clear();
+    assert_eq!(range(&mut g), far, "and not after");
+}
+
+#[test]
+fn armageddon_raises_volcanoes_that_pay_the_caster_power() {
+    let mut g = world();
+    keep(&mut g, P0, "armageddon");
+    g.process_world_enchantments();
+    let n = g.volcano_count(P0);
+    assert!((3..=6).contains(&n), "{n}");
+    assert_eq!(g.volcano_count(P1), 0);
+}
+
+#[test]
+fn armageddon_pays_for_every_volcano_in_the_world_but_only_its_own_wizard() {
+    let mut g = world();
+    for (x, o) in [(2, P0), (3, P1), (4, P1)] {
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Myrror)
+            .set_volcano(x, 2, Some(o.0));
+    }
+    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
+    keep(&mut g, P0, "armageddon");
+    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (3, 2));
+    keep(&mut g, P1, "armageddon");
+    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (3, 3));
+}
+
+#[test]
+fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
+    let mut g = world();
+    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set(6, 6, ocean);
+    let boat = unit(&mut g, P1, "boat", at(6, 6));
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(3);
+    assert!(g.can_armageddon_volcano(at(6, 6)));
+    assert!(
+        !g.can_raise_volcano(at(6, 6)),
+        "Raise Volcano still needs land"
+    );
+    g.armageddon_volcano(P0, at(6, 6), &mut rng);
+    assert_eq!(
+        g.economy().terrain_class_at(at(6, 6)),
+        Some(crate::content::TerrainClass::Mountains)
+    );
+    assert_eq!(g.volcano_count(P0), 1);
+    assert!(!g.world.contains(boat), "the ship went down");
+    assert!(!g.can_armageddon_volcano(at(6, 6)), "already a volcano");
+}
+
+#[test]
+fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_the_neighbours() {
+    let mut g = world();
+    let city = city_for(&mut g, P1, at(10, 6));
+    let near = city_for(&mut g, P1, at(16, 6));
+    let walkers: Vec<_> = (0..80)
+        .map(|_| unit(&mut g, P1, "walker", at(10, 6)))
+        .collect();
+    let next_door: Vec<_> = (0..20)
+        .map(|_| unit(&mut g, P1, "walker", at(16, 6)))
+        .collect();
+    g.world
+        .get::<&mut crate::economy::Population>(city)
+        .unwrap()
+        .figures = 20;
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(11);
+    let events = g.armageddon_volcano(P0, at(10, 6), &mut rng);
+    let gone = walkers.iter().filter(|&&u| !g.world.contains(u)).count();
+    assert!((8..=32).contains(&gone), "a quarter of 80: {gone}");
+    let pop = g
+        .world
+        .get::<&crate::economy::Population>(city)
+        .unwrap()
+        .figures;
+    assert!(
+        (8..=19).contains(&pop),
+        "a quarter of 20 citizens gone: {pop}"
+    );
+    assert!(next_door.iter().all(|&u| g.world.contains(u)));
+    assert_eq!(
+        g.world
+            .get::<&crate::economy::Population>(near)
+            .unwrap()
+            .figures,
+        4
+    );
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::WorldSpellStruck { .. })));
+}
+
+#[test]
+fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() {
+    let mut g = world();
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5);
+    // A hundred volcanoes: about a fifth of them get a mineral.
+    for x in 0..24 {
+        for y in 0..5 {
+            g.armageddon_volcano(P0, at(x, y), &mut rng);
+        }
+    }
+    let minerals = (0..24)
+        .flat_map(|x| (0..5).map(move |y| (x, y)))
+        .filter(|&(x, y)| {
+            g.map
+                .as_ref()
+                .unwrap()
+                .plane(Plane::Arcanus)
+                .feature(x, y)
+                .is_some()
+        })
+        .count();
+    assert!(
+        (6..=40).contains(&minerals),
+        "one in five of 120: {minerals}"
+    );
+    let before = g.volcano_count(P0);
+    assert_eq!(before, 120);
+    for _ in 0..50 {
+        g.cool_volcanoes(&mut rng);
+    }
+    let after = g.volcano_count(P0);
+    assert!(after < before && after > 0, "{before} -> {after}");
+}
+
+#[test]
+fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
+    use crate::mutation::Mutation;
+    let mut seen = std::collections::HashSet::new();
+    for i in 0..40 {
+        let mut g = world();
+        for _ in 0..i {
+            g.roll(7);
+        }
+        let u = unit(&mut g, P0, "walker", at(3, 3));
+        let (def0, mv0) = (
+            g.units().unit_stat(u, crate::rules::Stat::Defense),
+            g.units().unit_stat(u, crate::rules::Stat::Moves),
+        );
+        let events = cast(&mut g, "chaos_channels", Some(Target::Unit(u)));
+        let m = events
+            .iter()
+            .find_map(|e| match e {
+                Event::UnitMutated { mutation, .. } => Some(*mutation),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{events:?}"));
+        seen.insert(format!("{m:?}"));
+        let units = g.units();
+        assert_eq!(units.unit_realm(u).as_deref(), Some("chaos"));
+        match m {
+            Mutation::Armor => {
+                assert_eq!(units.unit_stat(u, crate::rules::Stat::Defense), def0 + 3)
+            }
+            Mutation::Wings => {
+                assert!(units.unit_has_ability(u, "flying"));
+                assert!(units.unit_stat(u, crate::rules::Stat::Moves) >= mv0.max(2));
+            }
+            Mutation::Breath => {
+                assert!(units.unit_has_ability(u, "fire_breath"));
+                assert_eq!(units.unit_stat(u, crate::rules::Stat::Ranged), 2);
+            }
+        }
+        let again = cast(&mut g, "chaos_channels", Some(Target::Unit(u)));
+        assert!(
+            matches!(again.as_slice(), [Event::Rejected(_)]),
+            "{again:?}"
+        );
+    }
+    assert_eq!(seen.len(), 3, "all three turn up: {seen:?}");
+}
+
+#[test]
+fn chaos_channels_refuses_fantastic_units_and_never_gives_a_flier_wings() {
+    let mut g = world();
+    let beast = unit(&mut g, P0, "slow", at(3, 3));
+    let events = cast(&mut g, "chaos_channels", Some(Target::Unit(beast)));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+    for _ in 0..30 {
+        let flyer = unit(&mut g, P0, "scout", at(4, 4));
+        let before = g.units().unit_stat(flyer, crate::rules::Stat::Moves);
+        let mut rng = crate::rng::GameRng::new(g.next_u64());
+        g.mutate(flyer, &mut rng);
+        assert!(g.units().unit_is_mutated(flyer));
+        assert!(g.units().unit_stat(flyer, crate::rules::Stat::Moves) <= before);
+    }
+}
+
+#[test]
+fn doom_mastery_mutates_new_units_of_its_wizard_only() {
+    let mut g = world();
+    keep(&mut g, P0, "doom_mastery");
+    let mine = unit(&mut g, P0, "walker", at(3, 3));
+    let theirs = unit(&mut g, P1, "walker", at(4, 3));
+    g.doom_mastery_mutates(mine, P0);
+    g.doom_mastery_mutates(theirs, P1);
+    assert!(g.units().unit_is_mutated(mine));
+    assert!(!g.units().unit_is_mutated(theirs));
+}
+
+#[test]
+fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_break_free() {
+    let mut g = world();
+    // No upkeep and no food, so that nobody is lost while the turns go by.
+    let mut defs = g.content.rules.units.defs().to_vec();
+    for d in defs.iter_mut() {
+        d.upkeep = Default::default();
+        d.kind = UnitKind::Fantastic;
+        d.stats.insert(crate::rules::Stat::Resistance, 12);
+    }
+    g.content.rules.units = Registry::new(defs);
+    let enemies: Vec<_> = (0..6)
+        .map(|_| unit(&mut g, P1, "walker", at(8, 8)))
+        .collect();
+    let mine = unit(&mut g, P0, "walker", at(8, 8));
+    let other = unit(&mut g, P1, "walker", at(9, 8));
+    let events = cast(&mut g, "stasis", Some(Target::Tile(at(8, 8))));
+    assert!(
+        !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+        "{events:?}"
+    );
+    assert!(enemies.iter().all(|&u| g.unit_in_stasis(u)));
+    assert!(!g.unit_in_stasis(mine) && !g.unit_in_stasis(other));
+    // The first turn change: held whatever they roll, and with no moves.
+    g.apply(Command::EndTurn);
+    assert!(enemies.iter().all(|&u| g.unit_in_stasis(u)));
+    assert!(enemies.iter().all(|&u| g.units().unit_moves_left(u) == 0));
+    assert!(g.world.contains(mine), "alive");
+    assert!(g.units().unit_max_moves(mine) > 0, "max moves");
+    assert!(g.units().unit_moves_left(mine) > 0);
+    // Later they break free one by one, and move again.
+    for _ in 0..60 {
+        g.apply(Command::EndTurn);
+    }
+    assert!(
+        enemies.iter().all(|&u| !g.unit_in_stasis(u)),
+        "all freed in time"
+    );
+    assert!(enemies.iter().all(|&u| g.units().unit_moves_left(u) > 0));
+    // A square with no enemy not already held is no target.
+    g.magic_mut(P0).unwrap().skill_left = 99_999;
+    let held = unit(&mut g, P1, "walker", at(12, 8));
+    cast(&mut g, "stasis", Some(Target::Tile(at(12, 8))));
+    assert!(g.unit_in_stasis(held));
+    let again = cast(&mut g, "stasis", Some(Target::Tile(at(12, 8))));
+    assert!(
+        matches!(again.as_slice(), [Event::Rejected(_)]),
+        "{again:?}"
+    );
+}
+
+#[test]
+fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
+    let mut g = world();
+    let mut defs = g.content.rules.units.defs().to_vec();
+    for d in defs.iter_mut() {
+        d.upkeep = Default::default();
+        d.kind = UnitKind::Fantastic;
+    }
+    g.content.rules.units = Registry::new(defs);
+    let mine = unit(&mut g, P0, "walker", at(3, 3));
+    let theirs = unit(&mut g, P1, "walker", at(4, 3));
+    keep(&mut g, P0, "time_stop");
+    g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
+    // Another global enchantment of the wizard's costs nothing now.
+    g.player_mut(P0).unwrap().mana = 500;
+    g.player_mut(P0).unwrap().gold = 100;
+    g.magic_mut(P1).unwrap().skill_left = 5;
+    g.apply(Command::EndTurn);
+    assert!(g.units().unit_moves_left(mine) > 0);
+    assert_eq!(
+        g.units().unit_moves_left(theirs),
+        0,
+        "their troops are frozen"
+    );
+    assert_eq!(g.player(P0).unwrap().mana, 300, "200 for Time Stop");
+    assert_eq!(g.player(P0).unwrap().gold, 100, "no gold either way");
+    assert!(g.time_stopper() == Some(P0));
+    // Out of mana, the spell is lost and time runs again.
+    g.apply(Command::EndTurn);
+    assert_eq!(g.player(P0).unwrap().mana, 100);
+    g.apply(Command::EndTurn);
+    assert_eq!(g.time_stopper(), None, "it could not be paid for");
+    g.apply(Command::EndTurn);
+    assert!(g.units().unit_moves_left(theirs) > 0);
+}
+
+#[test]
+fn corrupted_squares_sometimes_heal_by_themselves() {
+    let mut g = world();
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(9);
+    for x in 0..24 {
+        for y in 0..14 {
+            g.corrupt(at(x, y));
+        }
+    }
+    let count = |g: &Game| {
+        (0..24)
+            .flat_map(|x| (0..14).map(move |y| at(x, y)))
+            .filter(|&p| g.is_corrupted(p))
+            .count()
+    };
+    assert_eq!(count(&g), 336);
+    g.fade_corruption(&mut rng);
+    let once = count(&g);
+    assert!((315..336).contains(&once), "about two in a hundred: {once}");
+    for _ in 0..100 {
+        g.fade_corruption(&mut rng);
+    }
+    let later = count(&g);
+    assert!(later < once && later > 0, "{once} -> {later}");
 }

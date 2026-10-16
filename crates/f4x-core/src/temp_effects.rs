@@ -185,12 +185,16 @@ impl<'a> Units<'a> {
 
     /// Whether the unit's normal attacks count as magical, so weapon immunity does not stop
     /// them: heroes, fantastic and summoned creatures, units trained with magic, mithril or
-    /// adamantium weapons, and anything with the `magical_weapon` ability (a flaming or blessed
-    /// blade).
+    /// adamantium weapons, anything with the `magical_weapon` ability (a flaming or blessed
+    /// blade), and the living normal units of a wizard who keeps Holy Arms.
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
         self.unit_def(unit)
             .is_some_and(|d| d.kind != crate::rules::UnitKind::Normal)
             || self.unit_weapon_quality(unit) > 0
+            || (self
+                .unit_owner(unit)
+                .is_some_and(|o| self.has_global(o, "holy_arms"))
+                && !self.unit_is_undead(unit))
             || self
                 .unit_abilities(unit)
                 .iter()

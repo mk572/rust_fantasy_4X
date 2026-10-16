@@ -139,13 +139,15 @@ fn power(content: &Content, army: &[UnitPick]) -> f32 {
 
 /// Spells the game can cast in a battle that the agent has not been trained with: they aim at
 /// a square of the field or at a wall, and the observation has no place for the walls and mud
-/// they act on. They stay out of the generated wizards, so the learned brains keep their shape.
-const NOT_TRAINED: [&str; 5] = [
+/// they act on (Magic Vortex puts an object on the field the observation does not show). They
+/// stay out of the generated wizards, so the learned brains keep their shape.
+const NOT_TRAINED: [&str; 6] = [
     "earth_to_mud",
     "cracks_call",
     "disrupt",
     "life_drain",
     "word_of_recall",
+    "magic_vortex",
 ];
 
 /// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`), and one

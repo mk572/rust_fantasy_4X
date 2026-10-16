@@ -260,6 +260,9 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             | f4x_core::battle::BattleCommand::SummonDemon { .. } => {
                 unreachable!("the plain unit AI casts nothing")
             }
+            f4x_core::battle::BattleCommand::MoveVortex { .. } => {
+                unreachable!("the plain unit AI steers no vortex")
+            }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
             f4x_core::battle::BattleCommand::Flee => "bflee".into(),

@@ -106,7 +106,13 @@ impl Game {
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        // While Time Stop lasts, its wizard has no income and only the others' time is stopped
+        // for casting: no spell of theirs gets any further.
+        let stopper = self.time_stopper();
         for &player in &ids {
+            if stopper == Some(player) {
+                continue;
+            }
             let income = self.income(player);
             if let Some(p) = self.player_mut(player) {
                 collect_power(p, &income.split, income.research);
@@ -123,7 +129,7 @@ impl Game {
         for &player in &ids {
             events.extend(self.apply_mana_upkeep(player));
         }
-        for &player in &ids {
+        for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
             // Heroes at the fortress add to the skill that pays for a spell over turns.
             let heroes = self.hero_casting_skill(player);
             if let Some(p) = self.player_mut(player) {
@@ -131,7 +137,7 @@ impl Game {
                 pay_for_casting(p);
             }
         }
-        for &player in &ids {
+        for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
             events.extend(self.finish_casting(player));
         }
         events

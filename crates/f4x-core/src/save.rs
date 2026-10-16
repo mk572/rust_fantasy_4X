@@ -330,6 +330,9 @@ pub struct UnitSave {
     /// The unit was made undead (`undead.rs`); absent in older saves.
     #[serde(default)]
     pub undead: bool,
+    /// Held in Stasis: 0 no, 1 just put there, 2 lingering.
+    #[serde(default)]
+    pub stasis: u8,
     /// Temporary modifiers and abilities.
     #[serde(default)]
     pub effects: Vec<TempSave>,
@@ -672,6 +675,11 @@ impl Game {
                         .ok()
                         .map(|h| (*h).clone()),
                     undead: self.units().unit_is_undead(u),
+                    stasis: match self.world.get::<&crate::stasis::Stasis>(u).ok().map(|s| *s) {
+                        None => 0,
+                        Some(crate::stasis::Stasis::Fresh) => 1,
+                        Some(crate::stasis::Stasis::Lingering) => 2,
+                    },
                 })
             })
             .collect();
@@ -934,6 +942,17 @@ impl Snapshot {
             }
             if u.undead {
                 let _ = game.world.insert_one(entity, crate::undead::Undead);
+            }
+            match u.stasis {
+                1 => {
+                    let _ = game.world.insert_one(entity, crate::stasis::Stasis::Fresh);
+                }
+                2 => {
+                    let _ = game
+                        .world
+                        .insert_one(entity, crate::stasis::Stasis::Lingering);
+                }
+                _ => {}
             }
             if let Some((at, left, rest)) = u.road_work {
                 let _ = game

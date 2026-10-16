@@ -191,9 +191,17 @@ impl<'a> Economy<'a> {
                 .and_then(|o| self.magic(o))
                 .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
             let (mut power, mut pacify) = (0, 0);
+            // While any wizard keeps Armageddon going, no building calms a city.
+            let armageddon = self
+                .players
+                .iter()
+                .any(|p| crate::globals::magic_has_global(&p.magic, self.content, "armageddon"));
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
+                if armageddon {
+                    found.retain(|m| m.stat != Stat::CityUnrest);
+                }
                 // Evil Presence destroys the magic power of the religious buildings (the help;
                 // the original's code stops their pacifying instead, B22).
                 if evil && RELIGIOUS.contains(&def.id.as_str()) {
@@ -338,6 +346,32 @@ impl<'a> Economy<'a> {
         self.city_economy_with(city, farmers)
     }
 
+    /// Magic power from the corrupted squares in the areas of `owner`'s cities, one for each
+    /// square (counted once however many of the cities work it): what Great Wasting gives
+    /// its wizard. Nothing for anyone not keeping the spell. It joins the power base like a
+    /// volcano's, outside the cities' own mana.
+    pub fn blight_power(&self, owner: PlayerId) -> i32 {
+        let kept = self
+            .magic(owner)
+            .is_some_and(|m| crate::globals::magic_has_global(m, self.content, "great_wasting"));
+        let Some(map) = self.map.filter(|_| kept) else {
+            return 0;
+        };
+        let mut squares: Vec<Position> = Vec::new();
+        for (_, city, at) in self.cities() {
+            if city.owner != owner {
+                continue;
+            }
+            for (p, _) in self.city_area(at) {
+                if map.plane(p.plane).is_corrupted(p.x as i32, p.y as i32) && !squares.contains(&p)
+                {
+                    squares.push(p);
+                }
+            }
+        }
+        squares.len() as i32
+    }
+
     /// Compute the city's yields as if `farmers` citizens farmed.
     pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
         let at = *self.world.get::<&Position>(city).ok()?;
@@ -363,6 +397,12 @@ impl<'a> Economy<'a> {
 
         // Worked tiles: food, production bonus, mines.
         let area = self.city_area(at);
+        // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
+        // squares still yield and add no unrest (and add power, see `blight_power`).
+        let blight_proof = self
+            .magic(owner)
+            .is_some_and(|m| crate::globals::magic_has_global(m, self.content, "great_wasting"));
+        let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
         for &(p, shared) in &area {
@@ -373,7 +413,9 @@ impl<'a> Economy<'a> {
                 continue;
             };
             // Corrupted land gives nothing at all.
-            let spoiled = grid.is_corrupted(p.x as i32, p.y as i32);
+            let corrupted = grid.is_corrupted(p.x as i32, p.y as i32);
+            blighted += i32::from(corrupted);
+            let spoiled = corrupted && !blight_proof;
             let mut food = if spoiled { 0 } else { i32::from(def.food) * 2 };
             let mut prod = if spoiled { 0 } else { def.production_percent };
             if shared {
@@ -441,7 +483,9 @@ impl<'a> Economy<'a> {
             .copied()
             .unwrap_or(0) as i32;
         let unrest_percent = compute(Stat::CityUnrestPercent, racial + tax_unrest, &mods);
-        let raw_rebels = (figures as i32 * unrest_percent / 100).max(0);
+        // Each corrupted square in the city's area stirs one more citizen to unrest.
+        let blight_unrest = if blight_proof { 0 } else { blighted };
+        let raw_rebels = (figures as i32 * unrest_percent / 100 + blight_unrest).max(0);
         // Pacification: negative CityUnrest modifiers calm the city; troops help if still short.
         let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
         // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text

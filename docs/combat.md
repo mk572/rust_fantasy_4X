@@ -322,7 +322,7 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   path when the player presses R on the results scroll. The client asks at once; an AI never razes (no
   decision exists for it yet).
 - **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
-  `bshootwall <unit> <x,y>` strike a wall, `raze <city>` razes.
+  `bshootwall <unit> <x,y>` strike a wall, `bvortex <n> <x,y>` moves a Magic Vortex one square, `raze <city>` razes.
 - **City enchantments** (task 25, `city_spells.rs`; read when the battle starts, `Game::start_battle`):
   - *Wall of Fire* (`Battle::wall_of_fire`): a walker (not a flier, not a teleporter or merger) that steps
     from outside the city area into it, or strikes into it from outside, takes the original's Fireball of

@@ -37,6 +37,10 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 24 | Content | Content pass and balance with AI-vs-AI soak runs |
 | 25 | AI | Battle AI tournament: neural against neural, with varied entries |
 | 26 | Rules | Hold command in battle: ends the unit's turn and gives a defensive bonus |
+| 27 | Rules | More collateral damage for spells: attack spells on cities kill citizens and destroy buildings |
+| 28 | Rules | More useful buildings: most buildings get a tangible benefit of their own |
+| 29 | Rules | Reduced upkeep for basic units; no upkeep for settlers |
+| 30 | Rules | More interesting strategies for underplayed or underpowered races |
 
 ## Descriptions
 
@@ -310,3 +314,73 @@ units that guard a wizard or a wall, or when the odds say wait for the enemy to 
 learning AI (`learning-ai.md`), Hold is a new order in the unit vocabulary (`act.rs`): the
 observation and checkpoint signature change, so older checkpoints are refused and the networks
 must be retrained; it also gives item 25's passive nudge a real "defend" order to push towards.
+
+**27. More collateral damage for spells.** Today a damage spell aimed at a city or at the square it
+stands on hurts only the units there (Fire Storm, Ice Storm and Black Wind through
+`TargetSel::UnitsOnChosenSquare`; the strikes of `battle/` leave the city alone, and only
+Earthquake, Call the Void, Chaos Rift and the new Armageddon volcano touch buildings or citizens).
+Make the big attack spells on a city also kill citizens and destroy buildings, by the spell's
+strength and element: for example Fire Storm and Fireball burn buildings, Ice Storm and Lightning
+kill citizens rather than buildings, Black Wind and Death spells kill citizens only, and a spell
+that kills units in the city kills a share of the citizens too. Decide the numbers per spell in
+data (a `collateral` block on the effect: chance per building, chance per citizen, an element
+filter such as "fire does not harm walls"), not in code; the rules are written once for overland
+spells (`devastate_city` in `terraform.rs` and `shake_city` in `wizard_spells.rs` are the
+patterns) and once for a battle fought in a city (`city_damage` in `battle/`, which already turns
+into lost citizens and buildings when the city falls). Needs: a setting to switch it off, an
+event line for the loss (the `WorldSpellStruck` event has the counts), the Chancellor's scroll
+(task 272) listing the city losses, the AI valuing it (a city it wants to keep is not bombed with
+Fire Storm), and a decision whether Spell Ward and Wall of Darkness-style city spells shield the
+buildings. Never kill a city's last citizen. Balance with item 24.
+
+**28. More useful buildings.** Many buildings are only prerequisites for others (Builder's Hall,
+Barracks, Smithy, Stables, Sawmill and so on). Give most of them a tangible benefit of their own,
+stated in `content/buildings.ron` as ordinary effects so no new engine code is needed where the
+rules framework already has the stat. Examples to start from: the Barracks gives each unit
+stationed in the city experience every turn; the Builder's Hall lowers the cost of buildings in
+the city; the Smithy and the Stables improve the new units built there (a higher weapon quality
+or a free move); the Sawmill and the Armourer's Guild add production or defence to the garrison;
+the Fighters' Guild trains stationed units. The Shipwright's Guild adds
+food in a coastal city (fishing: a food bonus for the sea squares the city works, or a flat bonus per
+ocean square in its area). The Granary stores surplus food: a city's food beyond what it eats is
+not wasted but kept in a store (a number on the city, saved with the game, with a cap set by the
+building) and drawn on when the city runs short, so a famine or a siege costs the store before
+it costs citizens; decide the cap, whether the store feeds the city's units as well, whether
+it grows the city faster, and whether it is lost when the city is taken or starved. Needs: a list of every building with its current
+effect (some, like the temple, already have several), a target for each building that has none,
+new stats where a benefit has no stat yet (experience per turn for the stationed units is a
+turn-change step in `experience.rs`; a building cost reduction is a stat the production code
+reads), care not to make the early game worse (Builder's Hall is built first in every city) and
+not to double what a retort or an enchantment already does, building upkeep changes if a benefit
+makes the building worth more than its gold, help-text entries written in the local help and
+the plain building descriptions the client shows, the AI's building scores (`f4x-ai`) so it
+builds them for the benefit and not only for the next building, and an option or mod switch
+(item 5) so the original rules stay available.
+
+**29. Reduced upkeep costs.** Basic units cost more to keep than they are worth early on, which
+slows the opening and punishes wide armies. Lower the upkeep of the basic units (spearmen,
+swordsmen, bowmen, and their equivalents of each race) by a stated amount, and make Settlers cost
+nothing to keep, gold and food. Both are data in `content/units.ron` (`upkeep`), so the change is
+a rule set: a table of the old and new upkeep per unit, a decision about which units count as
+basic (the tier-1 units a city can build with no prerequisite beyond a barracks), whether the food
+cost stays (a settler that eats nothing is a rule change in `finance.rs` if Normal units always eat
+one), what a free settler does to the number of settlers the AI builds (it may build far too many;
+cap in `f4x-ai`), and the effect on the gold economy and the unrest of garrisons (a cheaper
+garrison makes troop-based pacification cheaper). Check with soak runs (item 24) that wars still
+cost something. Hero and fantastic creature upkeep stay as they are.
+
+**30. More interesting strategies for underplayed or underpowered races.** Some races have little
+reason to be picked or little to do with their strengths. Give each weak race a distinct way to
+play, as a few effects in `content/races.ron` and their buildings and units, never a flat bonus.
+Examples: Barbarians get better outposts (faster outpost growth, a larger area, a free early
+building) and better Triremes (more moves, more passengers or a cheaper Trireme), pushing them to
+settle islands; Gnolls get research from victories in battle (a few research points per enemy
+unit destroyed, or points for a captured city) or may sacrifice population for a stated gain (for
+example one citizen for production or mana); one idea per race goes on a list kept in this entry
+as each is decided. Needs: a survey of how each race performs (item 24's soak results by race
+before and after), a list of the new effects and the stats or triggers they need that the rules
+framework (`rules-framework.md`) does not have yet (a research gain from a battle needs a battle
+event hook; a population sacrifice needs a command and a client control), the AI using each (a
+Gnoll AI that sacrifices, a Barbarian AI that expands by sea), the new-game race screen and the
+help text describing them, and the divergence recorded in `divergences.md`. Do the balance
+with item 24, one race at a time, so the effect of each change is measured alone.

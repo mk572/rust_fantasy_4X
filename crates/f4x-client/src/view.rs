@@ -495,6 +495,18 @@ impl App {
                 } => Some(format!(
                     "The earthquake kills {units_lost} units and destroys {buildings_lost} buildings"
                 )),
+                Event::StasisEnded { .. } => Some("A unit breaks free of stasis".to_string()),
+                Event::UnitMutated { .. } => Some("The unit is mutated by chaos".to_string()),
+                Event::WorldSpellStruck {
+                    spell,
+                    units_lost,
+                    buildings_lost,
+                    population_lost,
+                    ..
+                } => Some(format!(
+                    "{} kills {units_lost} units and {population_lost} citizens and destroys {buildings_lost} buildings",
+                    self.game.content().rules.spells.get(spell).name
+                )),
                 Event::SpellBlasted {
                     spell,
                     victim,

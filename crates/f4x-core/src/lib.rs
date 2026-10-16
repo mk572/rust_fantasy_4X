@@ -41,6 +41,7 @@ pub mod magic_income;
 pub mod map;
 pub mod mapgen;
 pub mod movement;
+pub mod mutation;
 pub mod neutral_cities;
 pub mod nightshade;
 pub mod nodes;
@@ -59,6 +60,7 @@ pub mod serial;
 pub mod settings;
 pub mod setup;
 pub mod special_spells;
+pub mod stasis;
 pub mod survey;
 pub mod temp_effects;
 pub mod terraform;
@@ -74,6 +76,7 @@ pub mod view;
 pub mod vision;
 pub mod wizard;
 pub mod wizard_spells;
+pub mod world_spells;
 
 use rand::RngCore;
 
@@ -450,6 +453,24 @@ pub enum Event {
         city: hecs::Entity,
         units_lost: u32,
         buildings_lost: u32,
+    },
+    /// A unit broke free of Stasis.
+    StasisEnded {
+        unit: hecs::Entity,
+    },
+    /// A unit was mutated by chaos (Chaos Channels or Doom Mastery).
+    UnitMutated {
+        unit: hecs::Entity,
+        mutation: mutation::Mutation,
+    },
+    /// A world-scale spell struck: Meteor Storm (no victim), Call the Void on a city, or
+    /// Nature's Wrath on the wizard (`victim`) who cast a death or chaos spell.
+    WorldSpellStruck {
+        spell: rules::SpellId,
+        victim: Option<city::PlayerId>,
+        units_lost: u32,
+        buildings_lost: u32,
+        population_lost: u32,
     },
     /// Another wizard's Suppress Magic stopped the spell.
     SpellSuppressed {
@@ -1136,12 +1157,22 @@ impl Game {
         self.close_raze_windows();
         let mut corruption = self.process_land_corruption();
         self.turn += 1;
+        let mut freed = self.process_stasis();
+        let stopper = self.time_stopper();
         for unit in self.units().all_units() {
-            let moves = self.units().unit_max_moves(unit);
+            // A unit in stasis cannot move, nor can any unit but the Time Stop wizard's.
+            let moves = if self.unit_in_stasis(unit)
+                || stopper.is_some_and(|s| self.units().unit_owner(unit) != Some(s))
+            {
+                0
+            } else {
+                self.units().unit_max_moves(unit)
+            };
             let _ = self.world.insert_one(unit, units::MovesLeft(moves));
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.append(&mut corruption);
+        events.append(&mut freed);
         events.extend(self.process_turn());
         self.record_history();
         self.process_diplomacy();

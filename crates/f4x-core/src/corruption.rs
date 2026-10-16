@@ -9,6 +9,9 @@ use crate::{Event, Game};
 
 pub const CORRUPT_LAND: &str = "corrupt_land";
 
+/// The chance in a hundred, each turn, that a corrupted square heals by itself.
+const FADE_PERCENT: u32 = 2;
+
 /// Turns a purifying unit works on one square.
 pub const PURIFY_TURNS: u8 = 3;
 
@@ -124,6 +127,25 @@ impl Game {
             }
         }
         events
+    }
+
+    /// Each turn every corrupted square has a small chance of healing by itself (whoever
+    /// corrupted it: the spell, a unit, Call the Void or Great Wasting).
+    pub(crate) fn fade_corruption(&mut self, rng: &mut dyn rand::RngCore) {
+        let Some(map) = self.map.as_mut() else {
+            return;
+        };
+        for plane in crate::map::Plane::ALL {
+            let grid = map.plane_mut(plane);
+            for y in 0..grid.height() {
+                for x in 0..grid.width() {
+                    if grid.is_corrupted(x as i32, y as i32) && rng.next_u32() % 100 < FADE_PERCENT
+                    {
+                        grid.set_corrupted(x, y, false);
+                    }
+                }
+            }
+        }
     }
 
     /// Units with Land Corruption that stood still all turn corrupt their square. Call

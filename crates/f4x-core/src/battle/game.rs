@@ -245,7 +245,14 @@ impl Game {
             prayermaster: hero.as_ref().map_or(0, |h| {
                 crate::hero::prayermaster(h.abilities.prayermaster, level)
             }),
-            enchantments: self.units().unit_enchantment_ids(unit),
+            // A unit held in Stasis cannot act: it is as if asleep.
+            enchantments: {
+                let mut list = self.units().unit_enchantment_ids(unit);
+                if self.unit_in_stasis(unit) {
+                    list.push("black_sleep".to_string());
+                }
+                list
+            },
             realm: self
                 .units()
                 .unit_realm(unit)
@@ -255,7 +262,7 @@ impl Game {
             abilities: abilities.clone(),
             status: Status::Active,
             damage_kinds: [0; 3],
-            attacked: false,
+            attacked: self.unit_in_stasis(unit),
             combat_spells: Vec::new(),
             base: None,
             field: Default::default(),

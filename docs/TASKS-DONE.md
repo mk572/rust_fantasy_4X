@@ -54,8 +54,11 @@ original task numbers. Newest work is merged in ascending order by number.
 | 53 | Magic | Remaining retort effects (done) |
 | 54 | Magic | ~~Wizard creation screen and named wizards~~ (done) |
 | 55 | Magic | Importer: spell eligibility 2 and 3 (done) |
+| 56 | Magic | Implement the 37 "special" spells (low priority) (done) |
 | 57 | Magic | ~~Global enchantments and wizard-level state~~ (done) |
+| 58 | Magic | Unit enchantments needing non-stat effects (low priority) (done) |
 | 59 | Magic | Dispel mathematics and the counter-magic family (done) |
+| 60 | Magic | Wizard-targeting, destruction and other special spell categories (low priority) (done) |
 | 63 | Meta | Diplomacy (done) |
 | 65 | Meta | AI v1: expansion, production, defence (done) |
 | 66 | Meta | AI research and spell use (done) |
@@ -67,6 +70,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
+| 87 | Magic | Remaining global enchantments (low priority) (done) |
 | 90 | Meta | ~~Undoing orders~~ (done) |
 | 91 | Client | Diplomacy screen (done) |
 | 92 | Client | Spell-research dialogs (done) |
@@ -84,6 +88,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 122 | Map | River mouths and shore pieces with rivers (done) |
+| 123 | Map | Call the Void, Great Wasting and Armageddon corruption (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
 | 138 | Client | Army list screen (done) |
@@ -396,6 +401,22 @@ Myrran start on Myrror and the race it controls (53), and eleven-book realms.
 
 **55. Importer: spell eligibility 2 and 3 (done).** The importer kept only overland-only for eligibility 1 to 5, so Flight, Bless, Resist Elements, Wall of Fire and the other 11 spells of eligibility 2 and 3 (9 and 2) cost too little on the map and could not be cast in a battle. It now follows the original (`Casting_Cost`, the spell lists in `Spellbook.c` and `Combat.c`): eligibility 0, 2 and 3 are castable in both and cost five times as much on the map (`SpellDef::overland_x5`, which replaces the old test on the Battle context). Left: eligibility 4 (Word of Recall, Disenchant True, Disenchant Area) is also in the original's battle list but stays overland-only until their battle effects exist (task 159); the learning AI's scenario bank was made before this and draws its spells from the old list (remake it with task 172).
 
+**56. The 37 "special" spells (done).** Map reveals, terrain and mineral changes, healing a map square,
+recalls, moving the fortress, resurrect and similar [mechanics-gaps section 4]. Add the missing
+effect primitives (map reveal, teleport, grant movement type, building destruction, random-effect
+tables) and implement them in groups. Low priority: only needed for specific spells, buildings, units or abilities.
+First group done in `special_spells.rs`: Transmute (iron and gold, coal and gems, silver and mithril swap), Earth Lore
+(explores a 12 by 10 block around the target tile; the original reveals the visible map window), Nature's Cures (heals the
+whole stack on the unit's tile, except Death-realm and undead units), Word of Recall (to the summoning circle) and Plane
+Shift (the whole stack to the other plane). Two known differences (recorded in `divergences.md` section 5): the original's Word of Recall evicts the weakest unit of
+a full circle (`Evict_Weakest_Unit`), here a full circle makes the spell unavailable; and Plane Shift refuses a square
+where any unit could not stand (the original has separate water rules, `Cast_Plane_Shift_Check`). Second group done in
+`wizard_spells.rs`: Earthquake, Great Unsummoning, Death Wish, Drain Power, Cruel Unminding and Subversion (where help and code
+disagree: `help-vs-implementation-conflicts.md` B30 to B33; Death Wish has no resistance penalty). Black Wind (a resistance roll at -1 for every figure of every unit
+on the square, each failure costing one figure's hit points; the original's relations penalty for it is not applied: its call
+is garbled) and Lycanthropy (the unit becomes Werewolves with no experience; ships are refused, the original does not) are in too.
+Every spell in `content/spells.ron` now has an effect (17 October 2026; [`spells_to_implement.md`](spells_to_implement.md) is empty). The AI casting the new spells is task 228; the client interface is task 285; the leftovers are task 286. Fire Storm and Ice Storm are done: a strength 6 cold and a strength 8 fire attack on every figure of every unit on the chosen square, a city's garrison included, through the new `UnitsOnChosenSquare` selector (`rules-framework.md`); the original's own code for them is not in ReMoM, so they follow the help.
+
 **57. Global enchantments and wizard-level state (done).** `globals.rs` reads the wizard's
 global spells where they matter: Evil Omens (life and nature spells cost half as much again for
 every wizard but the holder; one cost function, B11 decided as "follow the help"), Herb Mastery
@@ -407,7 +428,19 @@ and Charm of Life (a quarter of the hit points, at least one). Unit rules can no
 conditions on a unit's kind (`Condition::KindIs`). The data marks these spells with the
 `global_effect` hook so that casting does not report "no effect yet".
 
+**58. Unit enchantments needing non-stat effects (done).** 20 spells with movement types, immunities,
+conditional bonuses and regeneration. **Done so far:** the movement spells grant the abilities the
+movement code reads (`import_mom.py`, `UNIT_ENCHANT_MODS`): Wind Walking, Planar Travel, Water Walking
+(new ability `water_walking`: the unit crosses water alone and needs no ship), Path Finding (new
+ability `pathfinding`, which `movement.rs` already read) and Wraith Form (non-corporeal and weapon
+immunity). **Left:** none (every spell has an effect). The AI's use of the new spells is task 228. Needs conditional modifiers (by attacker realm, ranged versus
+melee, creature realm), immunity flags and movement grants; depends on 30 and the combat tasks. Low priority: only needed for specific spells, buildings, units or abilities.
+
 **59. Dispel mathematics and the counter-magic family (done).** New `dispel.rs`. One formula: a dispel of strength `s` beats a spell of difficulty `d` with chance `s / (s + d)` (the original's roll of 1 to 250 at or under `250 s / (s + d)`, so even a huge strength fails one time in 250). A spell's difficulty is its cost times one plus one for its caster's mastery of its realm (nature, sorcery or chaos) and one for Archmage. Our spells have no extra mana, so a spell's dispel strength is its cost; the True spells count it three times. Built on it: Dispel Magic and Dispel Magic True (units; only enchantments cast by *other* wizards come off, and a unit under another wizard's Spell Lock can only have the lock attacked, at difficulty 150), Disenchant Area and True (new `Tile` target: the city, every unit and a warped node on the square, a warped node against Warp Node's cost), Disjunction, Disjunction True and Spell Binding (new `GlobalEnchantment` target, `Target::Global(owner, spell)`; Binding moves the spell to the caster, who pays its upkeep from then on), Spell Blast (new `EnemyWizard` target: the caster pays as much mana as the victim has put into the spell being cast, and that spell is lost), Suppress Magic (a standing strength-500 dispel against every overland spell another wizard casts) and nightshade (task 22, now with the caster's masteries). Counter Magic is state and a method on `Battle` (`cast_counter_magic`, `counter_magic_stops`: the reserve opposes the other side's spells and loses five per attempt) but nothing casts in a battle yet, so wiring it in is part of task 43. The importer sets the targets and strengths (a fix: Dispel Magic True was strength 10, not 30). Console: `global:<player>:<spell>` targets. Client: Spell Blast is aimed by clicking one of the rival's cities or units, Disenchant by clicking the square; the global-enchantment targets need a picker (task 151). The original's other code in `Cast_Disenchant` (`+ 500` in the roll and an enchantment test against the caster) looks like a disassembly artefact and was not followed; the help text's rules were. Open: dispel in battle (Dispel Magic on units in a fight and Disenchant's battle version, which also unwarps a node the caster owns) waits for 43 and 44.
+
+**60. Wizard-targeting, destruction and other special categories (done).** About 20 spells aimed at
+wizards, resistable kills, destruction of buildings and similar; needs wizard-state changes (mana,
+skill, fame, diplomacy) and spell ownership transfer. All are done (task 56). Low priority: only needed for specific spells, buildings, units or abilities.
 
 **63. Diplomacy (done).** Relations on an 11-step scale, pacts, alliances, war, treaty proposals
 [271, 782-794], in `diplomacy.rs`: a record per wizard pair (contact, treaty, relation, default) and per
@@ -465,6 +498,8 @@ number and there are no portraits. Add both to the creation screen and the build
 extracted wizard pictures locally (`assets-local`).
 
 **86. Start menu (done).** `menu_screen.rs` shows the original's menu (its title picture and entries): Continue (loads the auto-save), Load Game (opens the slots of task 145), New Game (the wizard creation screen, which has a Back button), Hall of Fame (greyed until task 88) and Quit; hotkeys C, L, N, H, Q. It is the first screen unless `--quick`, `--load`, `--create` or `--shot` skip it (`--menu` and `--slots` show these screens in a screenshot). Esc on the map opens the game menu (the slots) instead of quitting. Open: Settings (89, 94), the opening movie (85), the map seed on the new-game options step (148); land size and opponents are there now (10).
+
+**87. Remaining global enchantments (done).** All the global spells now have an effect (the list that was in [`spells_to_implement.md`](spells_to_implement.md) is empty; the engine reads them from the wizard's list, `globals.rs`). Holy Arms also makes the living normal units' weapons magical (`unit_has_magical_weapon`), so they hit weapon-immune creatures. Low priority: only needed for specific units or abilities.
 
 **90. Undoing orders (done).** `undo.rs`: with `Game::set_undo(true)` (the client switches it on) every
 command saves a snapshot first and `Game::undo` goes back one command, up to 32 deep. Fairness
@@ -532,6 +567,8 @@ the original's road masking (the whole grid is drawn), animation of buildings an
 the ward and enchantment icons along the bottom, rubble, and selling by clicking.
 
 **122. River mouths and shore pieces with rivers (done).** `terrain_pick::shore_with_rivers`: a sea square with a river on a land square at its north, east, south or west takes the `_ShoreNNNNNNNN` piece with an `R` for those sides (176 pieces, from `TerrType.h`; the plain pieces agree with table 0 of `autotile.tsv`), as the original's `River_Autotile` does. Combinations without a piece fall back to fewer sides, then the plain shore. Not done, now task 253: lakes with an inflow and the original's rewriting of extra inflows. The look was not compared with the original, because the client cannot be run from here. Original text: The original has terrain types (`_Shore..R..`) for a river reaching the sea; we lay the plain river piece over the shore. Pick the river-mouth shore pieces and check against the original's look.
+
+**123. Call the Void, Great Wasting and Armageddon corruption (done).** Wired in `world_spells.rs` (see `divergences.md` 17 and the leftovers in task 286).
 
 **129. Lair generation parity (done).** A world now has the original's 99 lairs instead of about 190: 6 towers on each plane (12 lairs, shared coordinates), one lair at each of the 30 nodes, and 25 strong plus 32 weak random sites (`featuregen::place_random_sites`; `GenParams::strong_sites` and `weak_sites` replace the per-plane `encounter_ratio` of one site per 10 land squares). Each random site rolls its plane, then a square from 2 inside the top and bottom edges, skipping ocean and anything within one square of a tower, node or other site on either plane; the kind comes from the terrain's feature weights. Exactly 25 of them, picked at random, get the strong budget (Arcanus `50 + 50 * d29`, Myrror `100 + 100 * d24`), the other 32 the weak one (`10 * d10`, `10 * d20`). Not copied: the original's three trailing empty slots, and its random square range (2 to 55 by 2 to 35 of 60 by 40) is scaled to the map's size. Test in `f4x-console`.
 

@@ -3489,3 +3489,84 @@ fn extra_hits_do_not_count_as_the_units_real_strength() {
     assert_eq!(u.hit_points(), 14);
     assert_eq!(u.max_hit_points(), 10, "the real maximum stays");
 }
+
+#[test]
+fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (11, 10)),
+        5,
+    );
+    b.units[1].figures_start = 1;
+    let before = b.unit(1).unwrap().hit_points();
+    b.make_vortex(Side::Attacker, (10, 10));
+    assert!(b.is_occupied((10, 10)));
+    assert!(!b.can_make_vortex((10, 10)), "not on another vortex");
+    assert!(!b.can_make_vortex((11, 10)), "not on a unit");
+    // Only a square next to it, and only its owner.
+    assert_eq!(
+        b.apply(BattleCommand::MoveVortex {
+            index: 0,
+            to: (13, 10)
+        }),
+        Err(BattleError::Unreachable)
+    );
+    let events = b
+        .apply(BattleCommand::MoveVortex {
+            index: 0,
+            to: (11, 10),
+        })
+        .unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, BattleEvent::VortexMoved { to: (11, 10), .. })));
+    let after = b.unit(1).map_or(0, |u| u.hit_points());
+    assert!(
+        after < before || !b.unit(1).unwrap().is_active(),
+        "{before} -> {after}"
+    );
+    // Once a turn.
+    assert_eq!(
+        b.apply(BattleCommand::MoveVortex {
+            index: 0,
+            to: (11, 11)
+        }),
+        Err(BattleError::NotYours)
+    );
+}
+
+#[test]
+fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (17, 10)),
+        8,
+    );
+    for i in 0..10 {
+        assert!(b.can_make_vortex((6, 2 + i)));
+        b.make_vortex(Side::Defender, (6, 2 + i));
+    }
+    assert!(!b.can_make_vortex((8, 8)), "only ten at once");
+    let starts: Vec<_> = b.vortices.iter().map(|v| v.cell).collect();
+    b.vortex_round();
+    for (v, from) in b.vortices.iter().zip(starts) {
+        assert!(map::distance(v.cell, from) <= 3, "{from:?} -> {:?}", v.cell);
+        assert!(b.map.is_playable(v.cell));
+    }
+}
+
+#[test]
+fn magic_vortex_is_cast_on_a_free_square() {
+    use crate::rules::defs::SpellTarget;
+    let mut g = hook_game("magic_vortex", "magic_vortex", SpellTarget::Tile, 50);
+    let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
+    assert_eq!(
+        cast_unit(&mut g, "magic_vortex", SpellAim::Tile(enemy_cell), 0),
+        Err(BattleError::Spell(SpellError::BadTarget))
+    );
+    let events = cast_unit(&mut g, "magic_vortex", SpellAim::Tile((10, 10)), 0).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::VortexMade { cell: (10, 10) }))));
+    assert_eq!(g.battle().unwrap().vortices.len(), 1);
+}

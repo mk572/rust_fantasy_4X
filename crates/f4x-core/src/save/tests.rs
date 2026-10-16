@@ -417,3 +417,19 @@ fn bit_packing_round_trips() {
     }
     assert_eq!(unpack(&[0, 0], 8), None);
 }
+
+#[test]
+fn a_unit_in_stasis_stays_there_through_a_save() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(P0, at(11, 6), walker);
+    let _ = g.world.insert_one(unit, crate::stasis::Stasis::Lingering);
+    let snap = g.snapshot();
+    let back = Snapshot::from_text(&snap.to_text().unwrap())
+        .unwrap()
+        .restore(g.content.clone())
+        .unwrap();
+    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
+    assert!(back.unit_in_stasis(again));
+    assert_eq!(back.snapshot(), snap);
+}

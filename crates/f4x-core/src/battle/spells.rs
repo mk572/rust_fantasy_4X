@@ -129,6 +129,8 @@ enum Kind {
     Recall {
         anyone: bool,
     },
+    /// A Magic Vortex on a free square.
+    Vortex,
     /// Mud on a 5 by 5 area (Earth to Mud).
     EarthToMud,
     /// A fissure on a square (Cracks Call).
@@ -317,6 +319,7 @@ impl Game {
             Effect::Custom(h) if h == WORD_OF_RECALL => Some(Kind::Recall { anyone: true }),
             Effect::Custom(h) if h == EARTH_TO_MUD => Some(Kind::EarthToMud),
             Effect::Custom(h) if h == CRACKS_CALL => Some(Kind::CracksCall),
+            Effect::Custom(h) if h == super::vortex::MAGIC_VORTEX => Some(Kind::Vortex),
             Effect::Custom(h) if h == DISRUPT => Some(Kind::Disrupt),
             Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
             Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
@@ -429,8 +432,12 @@ impl Game {
                 let map = self.map.as_ref()?;
                 Some(map.plane(f.plane).chebyshev((f.x, f.y), (site.x, site.y)))
             });
-            let range =
+            let mut range =
                 super::casting::range_percent(distance, magic.has(crate::magic::Retort::Channeler));
+            // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
+            if self.is_corrupted(site) && self.has_global(player, "great_wasting") {
+                range = range.min(10);
+            }
             battle.set_caster(side, BattleCaster::new(skill, p.mana, range));
         }
     }
@@ -602,6 +609,13 @@ impl Game {
             }
             (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Disrupt) => {
                 if battle.map.has_wall(cell) {
+                    Ok(())
+                } else {
+                    Err(SpellError::BadTarget)
+                }
+            }
+            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Vortex) => {
+                if battle.can_make_vortex(cell) {
                     Ok(())
                 } else {
                     Err(SpellError::BadTarget)
@@ -958,6 +972,12 @@ impl Game {
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
             (Kind::CallChaos, _) => self.call_chaos(side, player),
+            (Kind::Vortex, SpellAim::Tile(cell)) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                vec![active.battle.make_vortex(side, cell)]
+            }
             (Kind::EarthToMud, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();

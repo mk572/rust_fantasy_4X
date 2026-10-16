@@ -97,9 +97,37 @@ impl GameHost<'_> {
                 Some((from, to)) => vec![Event::UnitTransformed { unit, from, to }],
                 None => Vec::new(),
             },
+            (crate::mutation::CHAOS_CHANNELS, Target::Unit(unit)) => {
+                match self.game.mutate(unit, &mut self.rng) {
+                    Some(mutation) => vec![Event::UnitMutated { unit, mutation }],
+                    None => Vec::new(),
+                }
+            }
+            (crate::stasis::STASIS, Target::Unit(unit)) => {
+                self.game.put_in_stasis(unit, player);
+                Vec::new()
+            }
             (EARTHQUAKE, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
+            (crate::world_spells::CALL_THE_VOID, Target::City(city)) => {
+                let (units_lost, buildings_lost) = self.game.call_the_void(city, &mut self.rng);
+                vec![Event::WorldSpellStruck {
+                    spell,
+                    victim: self.game.economy().city_owner(city),
+                    units_lost,
+                    buildings_lost,
+                    population_lost: 0,
+                }]
+            }
             (
-                DRAIN_POWER | CRUEL_UNMINDING | EARTHQUAKE | SUBVERSION | BLACK_WIND | LYCANTHROPY,
+                DRAIN_POWER
+                | CRUEL_UNMINDING
+                | EARTHQUAKE
+                | SUBVERSION
+                | BLACK_WIND
+                | LYCANTHROPY
+                | crate::world_spells::CALL_THE_VOID
+                | crate::mutation::CHAOS_CHANNELS
+                | crate::stasis::STASIS,
                 _,
             ) => Vec::new(),
             _ => return None,
@@ -597,6 +625,13 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
+        if self.spell_has_hook(spell, crate::mutation::CHAOS_CHANNELS) {
+            return match target {
+                Some(Target::Unit(u)) if unit_ok(u) && self.can_mutate(u) => Ok(()),
+                Some(_) => Err(MagicError::NoSuchTarget),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
         if self.spell_has_hook(spell, crate::wizard_spells::LYCANTHROPY) {
             return match target {
                 Some(Target::Unit(u)) if unit_ok(u) && self.can_become_werewolf(u) => Ok(()),
@@ -607,11 +642,11 @@ impl Game {
         if self.is_square_spell(spell) {
             return match target {
                 Some(Target::Tile(at))
-                    if self
-                        .units()
-                        .units_at(at)
-                        .iter()
-                        .any(|&u| !mine(self.units().unit_owner(u))) =>
+                    if self.units().units_at(at).iter().any(|&u| {
+                        !mine(self.units().unit_owner(u))
+                            && !(self.spell_has_hook(spell, crate::stasis::STASIS)
+                                && self.unit_in_stasis(u))
+                    }) =>
                 {
                     Ok(())
                 }
@@ -785,6 +820,7 @@ impl Game {
         if def.duration != Duration::Instant {
             self.attach_enchantment(this, spell, player);
         }
+        events.extend(self.natures_wrath_strikes(player, spell));
         if outcomes
             .iter()
             .any(|o| matches!(o, Outcome::Custom { hook } if hook == "unimplemented"))
@@ -800,13 +836,21 @@ impl Game {
     pub(crate) fn upkeep_items(&self, player: PlayerId) -> Vec<UpkeepItem> {
         let spells = &self.content.rules.spells;
         let mut items = Vec::new();
+        // Time Stop's wizard pays for that spell alone.
+        let only_time_stop = self.time_stopper() == Some(player);
         if let Some(m) = self.magic(player) {
             for &s in &m.global {
+                if only_time_stop && spells.get(s).id != "time_stop" {
+                    continue;
+                }
                 items.push(UpkeepItem {
                     kind: UpkeepKind::Global(s),
                     mana: spells.get(s).upkeep as i32,
                 });
             }
+        }
+        if only_time_stop {
+            return items;
         }
         // Every city: the caster pays for what they put on somebody else's city too.
         for (city, _, _) in self.economy().cities() {

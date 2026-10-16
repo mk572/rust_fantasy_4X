@@ -71,6 +71,9 @@ impl Units<'_> {
         if self.unit_counts_as_undead(unit) {
             return Some(DEATH.to_string());
         }
+        if self.unit_is_mutated(unit) {
+            return Some("chaos".to_string());
+        }
         self.unit_def(unit).and_then(|d| d.realm.clone())
     }
 

@@ -74,8 +74,18 @@ pub(crate) fn gain_xp(
 
 /// The turn change for experience: a point for everyone, Heroism ending where it has done its
 /// work, and the Armsmasters training their squares.
-pub(crate) fn process(world: &mut World, content: &Content, players: &[Player]) {
-    let units = Units::new(world, content, players).all_units();
+pub(crate) fn process(
+    world: &mut World,
+    content: &Content,
+    players: &[Player],
+    only: Option<PlayerId>,
+) {
+    let mut units = Units::new(world, content, players).all_units();
+    // While a wizard's Time Stop lasts, only their units gain experience.
+    if let Some(keeper) = only {
+        let view = Units::new(world, content, players);
+        units.retain(|&u| view.unit_owner(u) == Some(keeper));
+    }
     for &unit in &units {
         gain_xp(world, content, players, unit, 1);
     }
@@ -138,7 +148,8 @@ impl Game {
     }
 
     pub(crate) fn process_experience(&mut self) {
-        process(&mut self.world, &self.content, &self.players);
+        let stopper = self.time_stopper();
+        process(&mut self.world, &self.content, &self.players, stopper);
     }
 }
 

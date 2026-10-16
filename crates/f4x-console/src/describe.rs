@@ -254,6 +254,18 @@ pub fn event(game: &Game, e: &Event) -> String {
             buildings_lost,
             ..
         } => format!("An earthquake kills {units_lost} units and destroys {buildings_lost} buildings"),
+        Event::StasisEnded { .. } => "A unit breaks free of stasis".to_string(),
+        Event::UnitMutated { mutation, .. } => format!("A unit is mutated by chaos: {mutation:?}"),
+        Event::WorldSpellStruck {
+            spell: s,
+            units_lost,
+            buildings_lost,
+            population_lost,
+            ..
+        } => format!(
+            "{} kills {units_lost} units and {population_lost} citizens and destroys {buildings_lost} buildings",
+            spell(game, *s)
+        ),
         Event::SpellSuppressed {
             player: p,
             spell: s,

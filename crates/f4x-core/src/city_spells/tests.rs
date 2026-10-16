@@ -43,6 +43,8 @@ fn world() -> Game {
         ("spell_ward", SPELL_WARD, own, lasting, "sorcery"),
         ("heavenly_light", CITY_FLAG, own, lasting, "life"),
         ("eternal_night", CITY_FLAG, own, lasting, "death"),
+        ("armageddon", CITY_FLAG, own, lasting, "chaos"),
+        ("great_wasting", CITY_FLAG, own, lasting, "chaos"),
     ] {
         spells.push(SpellDef {
             id: id.into(),
@@ -487,4 +489,68 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() {
         g.check_target(P1, spell, Some(Target::City(city))),
         Err(crate::magic::MagicError::NoSuchTarget)
     );
+}
+
+#[test]
+fn while_armageddon_lasts_no_building_calms_a_city() {
+    use crate::rules::stats::compute;
+    use crate::rules::Stat;
+    let mut g = world();
+    let city = found(&mut g, P0, at(10, 6), 10);
+    for b in ["shrine", "temple", "parthenon"] {
+        add_building(&mut g, city, b);
+    }
+    let pacify = |g: &Game| -compute(Stat::CityUnrest, 0, &g.economy().city_modifiers(city));
+    assert!(pacify(&g) >= 3);
+    // Anyone's Armageddon, the city owner's own included.
+    let a = g.content.rules.spells.id_of("armageddon").unwrap();
+    g.magic_mut(P1).unwrap().global.push(a);
+    assert_eq!(pacify(&g), 0, "an enemy's Armageddon");
+    g.magic_mut(P1).unwrap().global.clear();
+    g.magic_mut(P0).unwrap().global.push(a);
+    assert_eq!(pacify(&g), 0, "and one's own");
+}
+
+#[test]
+fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wasting() {
+    let mut g = world();
+    let city = found(&mut g, P0, at(10, 6), 10);
+    let eco = |g: &Game| g.economy().city_economy(city).unwrap();
+    let clean = eco(&g);
+    let tiles = [(9, 6), (11, 6), (10, 5), (10, 7)];
+    for (x, y) in tiles {
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_corrupted(x, y, true);
+    }
+    let blighted = eco(&g);
+    assert!(blighted.food < clean.food, "no food from them");
+    assert!(
+        blighted.rebels > clean.rebels,
+        "{} -> {}",
+        clean.rebels,
+        blighted.rebels
+    );
+    // Its owner's Great Wasting: the same yields as before, and a mana a square.
+    let gw = g.content.rules.spells.id_of("great_wasting").unwrap();
+    g.magic_mut(P0).unwrap().global.push(gw);
+    let proof = eco(&g);
+    assert_eq!(proof.food, clean.food);
+    assert_eq!(proof.rebels, clean.rebels);
+    assert_eq!(proof.mana, clean.mana, "the city's own mana is not changed");
+    assert_eq!(
+        g.economy().blight_power(P0),
+        4,
+        "four squares, a power each"
+    );
+    // Someone else's Great Wasting does not protect it.
+    g.magic_mut(P0).unwrap().global.clear();
+    g.magic_mut(P1).unwrap().global.push(gw);
+    assert_eq!(eco(&g).food, blighted.food);
+    assert_eq!(g.economy().blight_power(P0), 0);
+    // And the protection ends with the spell.
+    g.magic_mut(P1).unwrap().global.clear();
+    assert_eq!(eco(&g).food, blighted.food);
 }

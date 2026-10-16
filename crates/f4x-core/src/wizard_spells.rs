@@ -212,6 +212,28 @@ impl Game {
     /// chance of dying, and each building a 15 percent chance of falling (unless another needs
     /// it). Returns the units and buildings lost.
     pub(crate) fn earthquake(&mut self, city: hecs::Entity, rng: &mut GameRng) -> Event {
+        let (units_lost, buildings_lost) = self.shake_city(
+            city,
+            EARTHQUAKE_UNIT_PERCENT,
+            EARTHQUAKE_BUILDING_PERCENT,
+            rng,
+        );
+        Event::EarthquakeStruck {
+            city,
+            units_lost,
+            buildings_lost,
+        }
+    }
+
+    /// Tremors in a city: each unit that neither flies nor lacks a body dies with `unit_percent`,
+    /// each building falls with `building_percent`. Returns the units and buildings lost.
+    pub(crate) fn shake_city(
+        &mut self,
+        city: hecs::Entity,
+        unit_percent: u32,
+        building_percent: u32,
+        rng: &mut GameRng,
+    ) -> (u32, u32) {
         let at = self.world.get::<&crate::city::Position>(city).map(|p| *p);
         let mut units_lost = 0;
         if let Ok(at) = at {
@@ -226,7 +248,7 @@ impl Game {
                 {
                     continue;
                 }
-                if rng.roll(100) <= EARTHQUAKE_UNIT_PERCENT {
+                if rng.roll(100) <= unit_percent {
                     self.remove_unit(unit, crate::roster::Fate::Slain);
                     units_lost += 1;
                 }
@@ -239,15 +261,11 @@ impl Game {
             .unwrap_or_default();
         let mut buildings_lost = 0;
         for b in built {
-            if rng.roll(100) <= EARTHQUAKE_BUILDING_PERCENT && self.destroy_building(city, b) {
+            if rng.roll(100) <= building_percent && self.destroy_building(city, b) {
                 buildings_lost += 1;
             }
         }
-        Event::EarthquakeStruck {
-            city,
-            units_lost,
-            buildings_lost,
-        }
+        (units_lost, buildings_lost)
     }
 }
 

@@ -1,5 +1,5 @@
 //! What a wizard earns and owes each turn, worked out over a small read-only view of the world
-//! ([`IncomeView`]): the power base (cities, fortress, volcanoes, nodes), the research the cities
+//! ([`IncomeView`]): the power base (cities, fortress, volcanoes, blighted squares, nodes), the research the cities
 //! make, the split of the power, the research income and the mana upkeep (task 196). `Game`
 //! gives the view through [`GameIncome`]; tests give a fake one, so none of this needs a world.
 
@@ -23,6 +23,10 @@ pub(crate) trait IncomeView {
     fn volcanoes(&self, player: PlayerId) -> i32;
     /// Power from the nodes the wizard owns.
     fn node_income(&self, player: PlayerId) -> i32;
+    /// Power from the corrupted squares round the cities of a wizard who keeps Great Wasting.
+    fn blight_power(&self, _player: PlayerId) -> i32 {
+        0
+    }
     /// Mana the lasting spells and summoned creatures cost per turn, before a Channeler's half.
     fn upkeep_total(&self, player: PlayerId) -> i32;
     /// A computer wizard's difficulty bonus on the power of its nodes, in percent.
@@ -57,7 +61,7 @@ fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
         None => 0,
     };
     let nodes = crate::player::Bonus::of(view.node_percent(player), view.node_income(player));
-    (city_mana + fortress + view.volcanoes(player) + nodes).max(0)
+    (city_mana + fortress + view.volcanoes(player) + view.blight_power(player) + nodes).max(0)
 }
 
 /// Everything the wizard earns (zero power while the Spell of Return is cast) and owes, with the cities asked once.
@@ -137,6 +141,10 @@ impl IncomeView for GameIncome<'_> {
 
     fn node_income(&self, player: PlayerId) -> i32 {
         self.0.node_income(player)
+    }
+
+    fn blight_power(&self, player: PlayerId) -> i32 {
+        self.0.economy().blight_power(player)
     }
 
     fn upkeep_total(&self, player: PlayerId) -> i32 {

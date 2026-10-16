@@ -21,6 +21,7 @@ pub mod map;
 pub mod special;
 pub mod spells;
 pub mod spoils;
+pub mod vortex;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -532,6 +533,8 @@ pub enum BattleCommand {
     /// A unit with the Creature Summoning ability (the Demon Lord) calls a demon to its side.
     /// It costs no mana and uses up the unit's turn.
     SummonDemon { unit: usize },
+    /// The wizard whose vortex it is moves it one square (once a turn each).
+    MoveVortex { index: usize, to: Pos },
     /// Give up the rest of the unit's turn.
     Done { unit: usize },
     /// End the side's turn.
@@ -706,6 +709,15 @@ pub enum BattleEvent {
     FissureOpened {
         cell: Pos,
     },
+    /// A Magic Vortex appeared on the square.
+    VortexMade {
+        cell: Pos,
+    },
+    /// A Magic Vortex (by its number) moved to the square.
+    VortexMoved {
+        index: usize,
+        to: Pos,
+    },
     /// Life Drain took `points` of life from a unit and gave it to the caster.
     LifeDrained {
         unit: usize,
@@ -751,6 +763,8 @@ pub struct Battle {
     /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
     /// of them. (The help says "including combat spells"; the original's code does not check.)
     pub warded_realms: Vec<String>,
+    /// The Magic Vortices on the field (`vortex.rs`).
+    pub vortices: Vec<vortex::Vortex>,
     /// The spell save of the unit that is casting: it makes the resistance checks of its spell
     /// harder. 0 outside a cast.
     pub(super) save_penalty: i32,
@@ -802,6 +816,7 @@ impl Battle {
             wall_of_fire: false,
             wall_of_darkness: false,
             warded_realms: Vec::new(),
+            vortices: Vec::new(),
             save_penalty: 0,
             spell_caster: None,
             rng: Pcg64Mcg::seed_from_u64(seed),
@@ -842,7 +857,7 @@ impl Battle {
         if u.moves_left > 0 && u.moves_instantly() {
             return self.instant_squares(unit);
         }
-        let occupied = |p: Pos| self.unit_at(p).is_some();
+        let occupied = |p: Pos| self.is_occupied(p);
         self.map
             .reachable_as(u.cell, u.moves_left, u.mover(), &occupied)
             .into_iter()
@@ -896,6 +911,7 @@ impl Battle {
         if let Some(caster) = &mut self.casters[side.index()] {
             caster.cast_this_turn = false;
         }
+        self.vortex_new_turn(side);
         events.extend(self.side_turn_effects(side));
         // A new turn begins with the attacker: each of its units inside the city hurts it.
         if side == Side::Attacker && self.map.is_city() {
@@ -1124,7 +1140,7 @@ impl Battle {
                         path: vec![to],
                     });
                 } else {
-                    let occupied = |p: Pos| self.unit_at(p).is_some();
+                    let occupied = |p: Pos| self.is_occupied(p);
                     let reach = self
                         .map
                         .reachable_as(u.cell, u.moves_left, u.mover(), &occupied);
@@ -1237,6 +1253,9 @@ impl Battle {
                 self.check_unit(unit)?;
                 self.units[unit].moves_left = 0;
                 self.units[unit].attacked = true;
+            }
+            BattleCommand::MoveVortex { index, to } => {
+                events.extend(self.steer_vortex(index, to)?);
             }
             BattleCommand::EndTurn => {
                 self.active = self.active.other();

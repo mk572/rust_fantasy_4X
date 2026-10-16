@@ -68,6 +68,8 @@ pub(crate) struct BattleUi {
     /// The Auto button is on: the computer plays the human's side too, until the battle ends
     /// or the button is pressed again.
     auto: bool,
+    /// The Magic Vortex being steered: click it, then a square next to it.
+    steering: Option<usize>,
 }
 
 /// A spell the player has picked.
@@ -200,6 +202,8 @@ pub(crate) fn describe(
         BattleEvent::WallDestroyed { .. } => "A section of the wall is destroyed".to_string(),
         BattleEvent::MudMade { .. } => "The ground turns to mud".to_string(),
         BattleEvent::FissureOpened { .. } => "The earth cracks open".to_string(),
+        BattleEvent::VortexMade { .. } => "A magic vortex appears".to_string(),
+        BattleEvent::VortexMoved { .. } => return None,
         BattleEvent::LifeDrained { unit, points } => {
             format!("{} loses {points} life", name(*unit))
         }
@@ -635,6 +639,20 @@ impl App {
 
     fn battle_click(&mut self, battle: &Battle, cell: Pos) {
         let selected = self.battle_ui.selected;
+        // A vortex of mine is picked, then steered one square.
+        if let Some(i) = battle.vortex_at(cell) {
+            if battle.vortices[i].owner == battle.active && !battle.vortices[i].steered {
+                self.battle_ui.steering = Some(i);
+                return;
+            }
+        }
+        if let Some(i) = self.battle_ui.steering.take() {
+            let v = battle.vortices.get(i);
+            if v.is_some_and(|v| distance(v.cell, cell) == 1) {
+                self.battle_order(BattleCommand::MoveVortex { index: i, to: cell });
+                return;
+            }
+        }
         let target = battle.unit_at(cell).map(|u| (u.id, u.side));
         let sel = selected
             .and_then(|i| battle.unit(i))
@@ -1096,6 +1114,26 @@ impl App {
             }
         }
         self.draw_missile(battle, (ox, oy, scale));
+        // Magic vortices: a swirl of rings, the steered one marked.
+        for (i, v) in battle.vortices.iter().enumerate() {
+            let (sx, sy) = at(v.cell);
+            let (cx, cy) = (sx + CELL_W * scale / 2.0, sy + CELL_H * scale / 2.0);
+            let spin = get_time() as f32 * 3.0;
+            for k in 0..4 {
+                let r = (CELL_H * 0.9 - 3.0 * k as f32) * scale / 1.5;
+                let a = spin + k as f32 * 1.1;
+                draw_circle_lines(
+                    cx + a.cos() * 3.0 * scale,
+                    cy + a.sin() * 2.0 * scale,
+                    r,
+                    2.0,
+                    Color::new(0.6 - 0.1 * k as f32, 0.3, 0.9, 0.9),
+                );
+            }
+            if self.battle_ui.steering == Some(i) {
+                diamond(sx, sy, scale, GOLD, false);
+            }
+        }
 
         // Markers over everything: the selected unit and the blow just struck.
         if let Some(u) = selected {
