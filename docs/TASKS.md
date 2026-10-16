@@ -20,7 +20,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
 | 72 | Meta | Fame effects |
-| 73 | Meta | Save-format migration |
 | 74 | Meta | Stable command references for replays and multiplayer |
 | 76 | Client | Background music |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
@@ -159,9 +158,6 @@ ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow 
 
 **72. Fame effects.** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
 and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.7: `fame::total` (earned fame, Legendary heroes, Just Cause) replaces the plain `Player.fame` in `finance.rs` and the offers.
-
-**73. Save-format migration.** Version 1 is the only format; add a conversion step before
-`restore` when the layout changes incompatibly. Only needed at the first breaking change.
 
 **74. Stable command references.** Commands carry `hecs` entity ids, so a command log cannot
 cross a load. If replays or multiplayer are wanted, switch commands to creation numbers (`Serial`).
@@ -481,5 +477,3 @@ Parity task, low priority.
 **287. Spell of Mastery announcement: animation and sound.** The notice is plain text over a dark screen. The original (`Cast_Spell_Of_Mastery`, `SPLMASTR.c`) plays the vortex animation `SPELLSCR.LBX` 67 to 70 (frames swapped at ticks 17, 33 and 49, 200 ticks in all, ESC skips) in the palette 4 with the two lines in outlined font 5 at y 160 and 180, and the music `MUSIC_SoM_Started`. Extract the animation to `assets-local/`, draw it, add the music and the palette. The AI's announcements for other things (Eternal Night and the like) are not shown at all yet.
 
 **289. Help pop-ups in general.** The original explains almost everything on screen: a right-click on a button, icon, stat or list line opens a help pop-up with that topic's text (`Help.c`, `_help_entries` per screen, topics in `HELP.LBX`), and F1 opens help for the current screen. The client has no such system yet; the help text is already imported (`content-local/help.ron` and `help_screens.ron`, which say which topic each area opens), but nothing shows it. Build: (1) a per-screen table of help areas (rectangle, topic) the screens register as they draw, in the original's pixel coordinates; (2) the pop-up itself (the original's help window with title, text, "More" for linked topics, a click or Esc closes), drawn over any screen; (3) wire every screen that is already on the original's art, starting with the main screen, city screen, unit sheet and list, army list, magic screen and the new-game steps; the stat icons of the unit list (`Unit_List_Window`'s `_help_entries`: HLP_MELEE, HLP_RANGE, HLP_ARMOR, HLP_HITS, HLP_UNIT_MOVES) and the ability and spell lines of the unit sheet (task 140 item 2) are the first uses; (4) the expanding opening animation when `Pref::ExpandingHelp` is on (task 283); (5) where our behaviour deviates from the original's help, the help text is corrected (`HELP_CORRECTIONS`) and noted. Without the local help files the game runs as before, with no pop-ups. Asked for by the user, 17 October 2026.
-
-**291. Variant river pictures for the battlefield (low priority).** Each river shape has two pictures in the original, a first variant (`cmbtcity` 97 to 102) and a second (103 to 108), chosen at random per square (`56 + 6 * variant + shape` in `Look::tiles`). The shipped files hold only the second variant, and Myrror's `chriver` 0 to 11 are empty, so every river square of a shape looks the same (`river_art.rs`, `crates/f4x-client/assets/rivers/`). Make a first variant by mirroring or rotating the existing six pictures (a left-right piece mirrored is up-down in the other diagonal, corners swap in pairs; check each against a screenshot so the banks still join), generate it once for both planes, keep the PNG files in `assets/rivers/` like the others, and have `river_art.png` pick the variant from the tile number. Until then the client takes the shape from `tile % 6` and ignores the variant. Asked for by the user, 17 October 2026; follows task 255 (done).
