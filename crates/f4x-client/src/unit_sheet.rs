@@ -16,6 +16,8 @@ use crate::view::App;
 pub(crate) enum Source {
     Overland(hecs::Entity),
     Battle(usize),
+    /// A hero or a company of mercenaries on offer: not a unit yet.
+    Offer,
 }
 
 /// One row of stat icons: `value` icons, of which the last `gold` are bonus ones, plus `grey`
@@ -540,6 +542,106 @@ impl App {
             specials,
             can_dismiss: owner == crate::view::HUMAN && def.kind != UnitKind::Hero,
         })
+    }
+
+    /// The sheet of a unit that is only offered (a hero for hire, mercenaries): the unit type's
+    /// own numbers, with what its level adds when it has one (`level` is 0-based).
+    pub(crate) fn offer_sheet(
+        &self,
+        def: &f4x_core::rules::UnitDef,
+        level: Option<usize>,
+        owner: u8,
+    ) -> Sheet {
+        use f4x_core::rules::effects::Effect;
+        use f4x_core::rules::ModOp;
+        let content = self.game.content();
+        let mut stats = def.stats.clone();
+        let mut level_line = None;
+        let path = def
+            .level_path
+            .as_deref()
+            .and_then(|p| content.rules.level_paths.by_name(p));
+        if let (Some(path), Some(level)) = (path, level) {
+            // Every level up to this one adds its bonuses.
+            for l in path.levels.iter().take(level + 1) {
+                for rule in &l.effects {
+                    if let Effect::Modify {
+                        stat,
+                        op: ModOp::Add,
+                        value,
+                    } = rule.effect
+                    {
+                        *stats.entry(stat).or_insert(0) += value;
+                    }
+                }
+            }
+            if let Some(l) = path.levels.get(level) {
+                level_line = Some((l.name.as_str(), l.xp, level));
+            }
+        }
+        let stat = |s: Stat| stats.get(&s).copied().unwrap_or(0);
+        let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
+        let abilities = &def.abilities;
+        let ability_name = |id: &str| {
+            content
+                .rules
+                .abilities
+                .by_name(id)
+                .map_or_else(|| id.to_string(), |a| a.name.clone())
+        };
+        let mana = if abilities.iter().any(|a| a == "spellcaster_major") {
+            40
+        } else if abilities.iter().any(|a| a == "spellcaster") {
+            20
+        } else {
+            0
+        };
+        let specials = specials(&SpecialsInput {
+            level: level_line,
+            abilities,
+            ammo: stat(Stat::Ammo),
+            to_hit: stat(Stat::ToHit),
+            construction: stat(Stat::Construction) > 0,
+            scouting: stat(Stat::Sight),
+            mana,
+            undead: abilities.iter().any(|a| a == "undead"),
+            ability_name: &ability_name,
+            enchantments: Vec::new(),
+        });
+        let ranged = stat(Stat::Ranged);
+        Sheet {
+            source: Source::Offer,
+            race: self.sheet_race(def),
+            name: def.name.clone(),
+            unit_type: def
+                .art
+                .as_ref()
+                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize)),
+            banner: self.banner_index(owner),
+            figures: stat(Stat::Figures).max(1) as u32,
+            water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming)
+                || stat(Stat::Transport) > 0,
+            moves: stat(Stat::Moves).max(0) as u32,
+            move_icon: move_icon_of(def.movement),
+            upkeep: Some([
+                def.upkeep.gold as i32,
+                def.upkeep.mana as i32,
+                def.upkeep.food as i32,
+            ]),
+            damage: None,
+            melee: Row::stat(melee_icon(0), stat(Stat::Melee), base(Stat::Melee)),
+            ranged: (ranged > 0)
+                .then(|| Row::stat(ranged_icon(abilities), ranged, base(Stat::Ranged))),
+            defense: Row::stat(9, stat(Stat::Defense), base(Stat::Defense)),
+            resist: Row::stat(14, stat(Stat::Resistance), base(Stat::Resistance)),
+            hits: Row {
+                grey: 0,
+                ..Row::stat(10, stat(Stat::MaxHp).max(1), base(Stat::MaxHp))
+            },
+            hurt: 0,
+            specials,
+            can_dismiss: false,
+        }
     }
 
     /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):

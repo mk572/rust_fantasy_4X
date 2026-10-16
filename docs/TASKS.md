@@ -61,7 +61,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 128 | Client | Site encounter dialogs and treasure popup |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
-| 133 | Client | Prompt before attacking, and battles between AI players |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
@@ -123,8 +122,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 258 | Combat | Summon Demons (Demon Lord) |
 | 259 | Combat | Bug fix: path abilities and flight in battle movement |
 | 260 | Client | Item crafting screen (Enchant Item and Create Artifact) |
-| 261 | Heroes | Item icons: the icon of prefab, made and random items |
 | 263 | Magic | Audit every immunity against the spells and effects it should cover |
+| 264 | Client | Pop-up leftovers: level-up and event messages, item power texts, hire variants, attack box |
 
 ## Descriptions
 
@@ -354,11 +353,6 @@ greyed, and Wait, Done and Flee work), the unit and info windows, enchantment ic
 pointers by action and sound. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
 
-**133. Prompt before attacking, and battles between AI players.** A human move into an enemy
-stack or a city starts the battle at once; the original asks first (attack, or cancel). AI
-attacks (`AttackRequested` for a non-human attacker) are ignored by the client, and nothing
-resolves a fight between two AI players in the client. The AI crate attacks with `Command::AutoResolve` (39) and `f4x-tools soak` runs it, but the client does not run the AI (task 135). Still open here: the attack prompt (attack or cancel). The Auto button and the strategic-combat-only option are done (task 39).
-
 **134. Game-end cut-scenes and the original's score screen.** The game-over screen is plain text
 and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
 a conquest, a conquest animation; announces when a wizard *starts* casting the Spell of Mastery
@@ -374,7 +368,7 @@ setup, so it should call the shared one, which also places each wizard's fortres
 `f4x_ai::play_round`-style turns for the AIs before the turn ends, show what they did (new
 cities, battles against the human, captured cities) as notes, and handle an AI attacking the
 human: the human defends in the battle screen or auto-resolves, instead of the attack being
-ignored. Needs the attack prompt and Auto button (133) and the AI tuning in 65 to be worth playing
+ignored. Needs the attack prompt and Auto button (done, 133) and the AI tuning in 65 to be worth playing
 against. See `docs/console.md` section 6 for the matching console gaps.
 
 **136. Earth Gate and Astral Gate in the client and the AI.** The core has both (task 12). The client
@@ -395,7 +389,7 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **142. Item screen and the item pop-up.** `Item_Screen` (move magic items between hero slots and the wizard's vault, destroy one) and `Item_View_Popup`. The item rules and the commands it drives are there (tasks 49 and 50: `Command::MoveItem`, `ScrapItem`, `Armory`, `HeroItems`); it needs heroes to exist (task 219) and the item icons (261). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.4 (the `armory` API this screen drives).
 
-**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.8 (task 220 makes the offers; this task shows them). Hero names are placeholders until the original's are imported (task 218): the hire box names the hero, with the unit's own name as the default. **Built with task 220:** plain boxes over the map for the hero, mercenary and merchant offers (`offer_prompt.rs`; Enter or the buttons answer, a hero is named in the box, `--offer KIND` with `--shot` shows one). What is left here: the original's pictures and layout for them (`HIRE.LBX`), the level-up announcement, the event messages and an item picture (task 261).
+**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.8 (task 220 makes the offers; this task shows them). Hero names are placeholders until the original's are imported (task 218): the hire box names the hero, with the unit's own name as the default. **Built with task 220:** plain boxes over the map for the hero, mercenary and merchant offers (`offer_prompt.rs`; Enter or the buttons answer, a hero is named in the box, `--offer KIND` with `--shot` shows one). **Drawn as the original does** (`offer_prompt.rs`, after `HIRE.c`): the hero and mercenary boxes are the unit sheet (`draw_sheet_panel`) under the `HIRE.LBX` banner with the price in the title and the Hire and Reject buttons, a hero is named in the `BACKGRND` 33 box after Hire; the merchant has the merchant banner, his words and the item card with its picture. Left: the level-up announcement, the event messages, the item card's power texts and the hire box variants, in task 264.
 
 **144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list.
 
@@ -505,6 +499,6 @@ Parity task, low priority.
 
 **260. Item crafting screen.** `Item_Make_Screen` (`ItemMake.c`) and its spell pop-up: the screen the wizard designs an item on when casting Enchant Item or Create Artifact. Ten kind buttons, the power list of the kind (`crafting::available_powers`, one column for the plain powers and one for the special ones, the ones the wizard has no books for left out), the icon arrows (needs 261), the name box (empty takes `crafting::default_name`), the running cost with the wizard's reduction (`Magic::cost_reduction`) and the OK button; Spell Charges opens the spell list (known spells that can be cast in battle) and the choice of one to four charges. A design with no power asks whether to give up (`Confirmation_Box`). Sends `Command::CraftItem`. The Spellbook screen must route the two spells here (`Game::start_cast` refuses them: they need a design). The art is `SPELLSCR.LBX` entries 13 to 41 (see `heroes-items-design.md` section 6). Needs 261.
 
-**261. Item icons.** `ItemDef` has no icon: the importer left out the `icon_idx` byte of `ITEMDATA.LBX` (record offset 0x1E), and `Item` and `ItemDesign` have none either. Add `icon` to `ItemDef` (read from the file and kept by hand in `content/items.ron`; the file's order and the ranges in section 6 of `heroes-items-design.md` check it), to `Item` and to `ItemDesign` (the crafting screen's arrows pick one in the kind's range; the miscellaneous kinds are told apart by the icon, `Get_Item_Type_Name`: amulet, ring, cloak, gauntlet, helm, orb), and let `crafting::default_name` use it for "Amulet". The art is `ITEMS.LBX` (extracted to `assets-local/art/items/`). Needed by 142, 143 and 260.
-
 **263. Audit the immunities.** Check every immunity in the game (Magic Immunity, Elemental/Fire/Cold/Poison/Stoning/Death/Illusion/Weapon Immunity, Resist Elements, Righteousness, Invulnerability, Bless, the Large Shield and the like, Non-Corporeal, Wraith Form, city and node protections) against the spells, attacks and effects it should and should not stop, using the original's rules (ReMoM, manual) and what the community wikis document. Several bugs in this area are known from wikis and not yet listed here, so start by collecting them (wiki pages, the manual's tables, `help.ron`), then write a table of immunity x effect in `magic.md`, test each cell, and fix the mismatches (record deliberate departures in `divergences.md`; fixed original bugs go there too). Also check the effects that ignore immunities in the original (for example Disenchant, Wrack and Cracks Call) and whether they still do. Asked for by the user, 16 October 2026.
+
+**264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`) and the **random-event messages** (`Show_Event_Message`; the events themselves are task 68), drawn from `HIRE.c` and `Events.c` in ReMoM with the art in `HIRE.LBX` and `EVENTS.LBX`; (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.

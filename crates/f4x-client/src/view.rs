@@ -92,6 +92,8 @@ pub struct App {
     pub(crate) greetings_due: Vec<PlayerId>,
     /// The box that shows the offers made at the turn change (task 220).
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
+    /// An attack the human started and has yet to confirm.
+    pub(crate) attack_prompt: Option<crate::attack_prompt::PendingAttack>,
     /// The small spell book's pages.
     pub(crate) book_ui: crate::spellbook::BookUi,
     /// The big spell book: the library, the research choice, spells just learned.
@@ -174,6 +176,7 @@ impl App {
             greetings: Default::default(),
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
+            attack_prompt: None,
             book_ui: Default::default(),
             big_ui: Default::default(),
             help: Default::default(),
@@ -332,17 +335,10 @@ impl App {
                         .first()
                         .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
-                        // Strategic combat only: the computer fights it, with no battle screen.
-                        follow.push(if self.options.strategic_only {
-                            Command::AutoResolve {
-                                attackers,
-                                defenders,
-                            }
-                        } else {
-                            Command::BeginBattle {
-                                attackers,
-                                defenders,
-                            }
+                        // Asked first: fight, leave it to the computer, or call it off.
+                        self.attack_prompt = Some(crate::attack_prompt::PendingAttack {
+                            attackers,
+                            defenders,
                         });
                     }
                     None
@@ -535,10 +531,7 @@ impl App {
             self.log.drain(..self.log.len() - 40);
         }
         for command in follow {
-            match command {
-                Command::AutoResolve { .. } => self.auto_battle(command),
-                _ => self.begin_battle(command),
-            }
+            self.begin_battle(command);
         }
         founded
     }
@@ -775,6 +768,12 @@ impl App {
                 self.open_diplomacy(w);
                 return true;
             }
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.attack_prompt_frame()
+        {
+            return true;
         }
         // The offers made at the turn change wait over the map until they are answered.
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.offer_prompt_frame()

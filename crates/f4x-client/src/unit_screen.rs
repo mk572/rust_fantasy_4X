@@ -86,137 +86,8 @@ impl App {
         let (px, py) = if in_battle { BATTLE_AT } else { MAP_AT };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
 
-        // The panels.
-        if self.draw_pic(&lay, "unitview", 1, 0, px, py).is_none() {
-            let r = lay.rect((px, py, 218.0, 183.0));
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.35, 0.35, 1.0));
-        }
-        if !in_battle {
-            self.draw_pic(&lay, "unitview", 2, 0, px + 213.0, py + 133.0);
-        }
-
-        // The unit on its diamond.
-        if sheet.water {
-            self.draw_pic(&lay, "unitview", 34, 0, px + 6.0, py + 18.0);
-        } else {
-            self.draw_pic(&lay, "cityscap", 103, 0, px + 5.0, py + 5.0);
-        }
-        self.draw_sheet_figures(&lay, &sheet, px + 11.0, py - 3.0);
-
-        // Name: a race's unit shows the race first.
-        let name_x = px + 51.0;
-        match &sheet.race {
-            Some(race) => {
-                let w = self.bm_text(view, 4, gold, race, name_x, py + 11.0, Align::Left);
-                self.bm_text(
-                    view,
-                    4,
-                    gold,
-                    &sheet.name,
-                    name_x + w + 5.0,
-                    py + 11.0,
-                    Align::Left,
-                );
-            }
-            None => {
-                self.bm_text(view, 4, gold, &sheet.name, name_x, py + 11.0, Align::Left);
-            }
-        }
-
-        // Moves, and upkeep or damage.
-        self.bm_text(view, 1, light, "Moves", name_x, py + 27.0, Align::Left);
-        for i in 0..sheet.moves {
-            self.draw_stat_icon(
-                &lay,
-                sheet.move_icon,
-                false,
-                px + 84.0 + 8.0 * i as f32,
-                py + 25.0,
-            );
-        }
-        if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
-            self.bm_text(view, 1, light, "Upkeep", name_x, py + 34.0, Align::Left);
-            let (mut x, y) = (px + 85.0, py + 33.0);
-            // Gold, then mana, then food, each a small icon from `backgrnd`.
-            for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
-                for _ in 0..count.max(0) {
-                    self.draw_pic(&lay, "backgrnd", entry, 0, x, y);
-                    x += 8.0;
-                }
-            }
-        } else if let Some(damage) = sheet.damage {
-            self.bm_text(view, 1, light, "Damage", name_x, py + 34.0, Align::Left);
-            self.bm_text(
-                view,
-                1,
-                light,
-                &damage.to_string(),
-                px + 90.0,
-                py + 34.0,
-                Align::Right,
-            );
-        }
-
-        // The five rows.
-        let rows: [(&str, f32, Option<Row>); 4] = [
-            ("Melee", 47.0, Some(sheet.melee)),
-            ("Range", 58.0, sheet.ranged),
-            ("Armor", 68.0, Some(sheet.defense)),
-            ("Resist", 79.0, Some(sheet.resist)),
-        ];
-        for (label, y, row) in rows {
-            self.bm_text(view, 4, gold, label, px + 8.0, py + y, Align::Left);
-            if let Some(row) = row {
-                for cell in stat_cells(row, ROW) {
-                    self.draw_cell(&lay, row.icon, cell, px + 49.0, py + y);
-                }
-            }
-        }
-        self.bm_text(view, 4, gold, "Hits", px + 8.0, py + 90.0, Align::Left);
-        let bonus = sheet.hits.gold;
-        for cell in hit_cells(sheet.hits.value, bonus, sheet.hurt, ROW) {
-            self.draw_cell(&lay, sheet.hits.icon, cell, px + 49.0, py + 90.0);
-        }
-
-        // The abilities and spells, a page at a time.
-        let total = sheet.specials.len();
-        let multipage = total > PER_PAGE;
-        let mut first = self.sheet_ui.first.min(total.saturating_sub(1));
-        let shown = PER_PAGE.min(total - first.min(total));
-        for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
-            let (col, row) = (i / 4, i % 4);
-            let x = px + 8.0 + 107.0 * col as f32;
-            let y = py + 108.0 + 17.0 * row as f32;
-            self.draw_pic(&lay, "unitview", 5 + i, 0, x - 1.0, y - 1.0);
-            if let Some(icon) = special.icon {
-                let (lbx, entry) = special_picture(icon);
-                self.draw_pic(&lay, lbx, entry, 0, x, y);
-            }
-            self.bm_text(
-                view,
-                1,
-                light,
-                &special.name,
-                x + 19.0,
-                y + 5.0,
-                Align::Left,
-            );
-        }
-        if multipage {
-            let up = self.arrow_button(&lay, 3, px + 204.0, py + 105.0);
-            let down = self.arrow_button(&lay, 4, px + 204.0, py + 168.0);
-            if (up || is_key_pressed(KeyCode::PageUp)) && first > 0 {
-                first = first.saturating_sub(PER_PAGE);
-            }
-            if (down || is_key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
-                first += PER_PAGE;
-            }
-            self.sheet_ui.first = first;
-        }
+        self.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle);
 
         // Buttons and leaving.
         let mut leave = is_key_pressed(KeyCode::Escape);
@@ -248,6 +119,148 @@ impl App {
         }
         if leave {
             self.close_sheet();
+        }
+    }
+
+    /// The sheet's panel with everything on it but the buttons: the unit on its diamond, name,
+    /// moves, upkeep, the stat rows and the abilities list. `second_panel` adds the small panel
+    /// for the buttons to the right (on the map, and in the hire pop-ups).
+    pub(crate) fn draw_sheet_panel(
+        &mut self,
+        lay: &Layout,
+        sheet: &Sheet,
+        (px, py): (f32, f32),
+        second_panel: bool,
+    ) {
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        // The panels.
+        if self.draw_pic(lay, "unitview", 1, 0, px, py).is_none() {
+            let r = lay.rect((px, py, 218.0, 183.0));
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.35, 0.35, 1.0));
+        }
+        if second_panel {
+            self.draw_pic(lay, "unitview", 2, 0, px + 213.0, py + 133.0);
+        }
+
+        // The unit on its diamond.
+        if sheet.water {
+            self.draw_pic(lay, "unitview", 34, 0, px + 6.0, py + 18.0);
+        } else {
+            self.draw_pic(lay, "cityscap", 103, 0, px + 5.0, py + 5.0);
+        }
+        self.draw_sheet_figures(lay, sheet, px + 11.0, py - 3.0);
+
+        // Name: a race's unit shows the race first.
+        let name_x = px + 51.0;
+        match &sheet.race {
+            Some(race) => {
+                let w = self.bm_text(view, 4, gold, race, name_x, py + 11.0, Align::Left);
+                self.bm_text(
+                    view,
+                    4,
+                    gold,
+                    &sheet.name,
+                    name_x + w + 5.0,
+                    py + 11.0,
+                    Align::Left,
+                );
+            }
+            None => {
+                self.bm_text(view, 4, gold, &sheet.name, name_x, py + 11.0, Align::Left);
+            }
+        }
+
+        // Moves, and upkeep or damage.
+        self.bm_text(view, 1, light, "Moves", name_x, py + 27.0, Align::Left);
+        for i in 0..sheet.moves {
+            self.draw_stat_icon(
+                lay,
+                sheet.move_icon,
+                false,
+                px + 84.0 + 8.0 * i as f32,
+                py + 25.0,
+            );
+        }
+        if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
+            self.bm_text(view, 1, light, "Upkeep", name_x, py + 34.0, Align::Left);
+            let (mut x, y) = (px + 85.0, py + 33.0);
+            // Gold, then mana, then food, each a small icon from `backgrnd`.
+            for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
+                for _ in 0..count.max(0) {
+                    self.draw_pic(lay, "backgrnd", entry, 0, x, y);
+                    x += 8.0;
+                }
+            }
+        } else if let Some(damage) = sheet.damage {
+            self.bm_text(view, 1, light, "Damage", name_x, py + 34.0, Align::Left);
+            self.bm_text(
+                view,
+                1,
+                light,
+                &damage.to_string(),
+                px + 90.0,
+                py + 34.0,
+                Align::Right,
+            );
+        }
+
+        // The five rows.
+        let rows: [(&str, f32, Option<Row>); 4] = [
+            ("Melee", 47.0, Some(sheet.melee)),
+            ("Range", 58.0, sheet.ranged),
+            ("Armor", 68.0, Some(sheet.defense)),
+            ("Resist", 79.0, Some(sheet.resist)),
+        ];
+        for (label, y, row) in rows {
+            self.bm_text(view, 4, gold, label, px + 8.0, py + y, Align::Left);
+            if let Some(row) = row {
+                for cell in stat_cells(row, ROW) {
+                    self.draw_cell(lay, row.icon, cell, px + 49.0, py + y);
+                }
+            }
+        }
+        self.bm_text(view, 4, gold, "Hits", px + 8.0, py + 90.0, Align::Left);
+        let bonus = sheet.hits.gold;
+        for cell in hit_cells(sheet.hits.value, bonus, sheet.hurt, ROW) {
+            self.draw_cell(lay, sheet.hits.icon, cell, px + 49.0, py + 90.0);
+        }
+
+        // The abilities and spells, a page at a time.
+        let total = sheet.specials.len();
+        let multipage = total > PER_PAGE;
+        let mut first = self.sheet_ui.first.min(total.saturating_sub(1));
+        let shown = PER_PAGE.min(total - first.min(total));
+        for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
+            let (col, row) = (i / 4, i % 4);
+            let x = px + 8.0 + 107.0 * col as f32;
+            let y = py + 108.0 + 17.0 * row as f32;
+            self.draw_pic(lay, "unitview", 5 + i, 0, x - 1.0, y - 1.0);
+            if let Some(icon) = special.icon {
+                let (lbx, entry) = special_picture(icon);
+                self.draw_pic(lay, lbx, entry, 0, x, y);
+            }
+            self.bm_text(
+                view,
+                1,
+                light,
+                &special.name,
+                x + 19.0,
+                y + 5.0,
+                Align::Left,
+            );
+        }
+        if multipage {
+            let up = self.arrow_button(lay, 3, px + 204.0, py + 105.0);
+            let down = self.arrow_button(lay, 4, px + 204.0, py + 168.0);
+            if (up || is_key_pressed(KeyCode::PageUp)) && first > 0 {
+                first = first.saturating_sub(PER_PAGE);
+            }
+            if (down || is_key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
+                first += PER_PAGE;
+            }
+            self.sheet_ui.first = first;
         }
     }
 
@@ -342,7 +355,7 @@ impl App {
     }
 
     /// A red button of the original (`backgrnd` 24) with its label; true when clicked.
-    fn red_button(&mut self, lay: &Layout, label: &str, x: f32, y: f32) -> bool {
+    pub(crate) fn red_button(&mut self, lay: &Layout, label: &str, x: f32, y: f32) -> bool {
         self.red_button_face(lay, label, x, y, true)
     }
 

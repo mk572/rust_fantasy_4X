@@ -709,6 +709,25 @@ mod tests {
     }
 
     #[test]
+    fn every_prefab_item_has_a_picture_of_its_kind() {
+        let c = real_content();
+        for def in c.rules.items.defs() {
+            // The original draws its "White Lightning I" sword with a mace's picture.
+            if def.id == "white_lightning_i" {
+                continue;
+            }
+            let (first, last) = def.kind.icon_range();
+            assert!(
+                (first..=last).contains(&def.icon),
+                "{} ({:?}) has picture {}",
+                def.name,
+                def.kind,
+                def.icon
+            );
+        }
+    }
+
+    #[test]
     fn random_items_stay_within_their_grade() {
         use f4x_core::items::make::{random_item, Grade};
         let c = real_content();

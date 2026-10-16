@@ -376,6 +376,7 @@ mod tests {
             name: name.into(),
             kind,
             cost: 100,
+            icon: 0,
             bonus: ItemBonus::default(),
             powers: Vec::new(),
             charges: None,

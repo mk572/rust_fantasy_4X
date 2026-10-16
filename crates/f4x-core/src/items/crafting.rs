@@ -60,10 +60,26 @@ pub struct ItemDesign {
     /// The name; empty takes [`default_name`].
     pub name: String,
     pub kind: ItemKind,
+    /// The picture, one of the kind's range (see [`ItemKind::icon_range`]); one outside it
+    /// gives the first of the range.
+    #[serde(default)]
+    pub icon: u16,
     /// Ids in `item_powers.ron`, not [`SPELL_CHARGES`].
     pub powers: Vec<String>,
     /// The spell the hero can cast from the item and how many times.
     pub charges: Option<(String, u32)>,
+}
+
+impl ItemDesign {
+    /// The picture the item gets: the asked one if it belongs to the kind, else the kind's first.
+    pub fn picture(&self) -> u16 {
+        let (first, last) = self.kind.icon_range();
+        if (first..=last).contains(&self.icon) {
+            self.icon
+        } else {
+            first
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -257,6 +273,7 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
         name,
         kind: design.kind,
         cost: cost(design, rules),
+        icon: design.picture(),
         bonus,
         powers,
         charges: design.charges.clone(),
@@ -274,7 +291,15 @@ pub fn default_name(design: &ItemDesign, rules: &Rules) -> String {
         ItemKind::Bow => "Bow",
         ItemKind::Staff => "Staff",
         ItemKind::Wand => "Wand",
-        ItemKind::Misc => "Amulet",
+        // A miscellaneous item is told apart by its picture (`Get_Item_Type_Name`).
+        ItemKind::Misc => match design.picture() {
+            ..=77 => "Amulet",
+            78..=83 => "Ring",
+            84..=89 => "Cloak",
+            90..=93 => "Gauntlet",
+            94..=100 => "Helm",
+            _ => "Orb",
+        },
         ItemKind::Shield => "Shield",
         ItemKind::Chainmail => "Chain Mail",
         ItemKind::Platemail => "Plate Mail",
@@ -552,6 +577,7 @@ mod tests {
         ItemDesign {
             name: String::new(),
             kind,
+            icon: 0,
             powers: powers.iter().map(|p| p.to_string()).collect(),
             charges: None,
         }
@@ -711,6 +737,30 @@ mod tests {
         assert_eq!(mail.bonus.defense, 3);
         assert_eq!(mail.bonus.moves, 4);
         assert_eq!(mail.name, "Chain Mail of Speed");
+        // The picture is one of the kind's range, or the first of it.
+        let pick = |icon| {
+            build(
+                &ItemDesign {
+                    icon,
+                    ..design(ItemKind::Mace, &["attack_1"])
+                },
+                rules,
+            )
+            .icon
+        };
+        assert_eq!(pick(12), 12);
+        assert_eq!(pick(0), 9);
+        assert_eq!(pick(90), 9);
+        let misc = |icon| ItemDesign {
+            icon,
+            ..design(ItemKind::Misc, &[])
+        };
+        assert_eq!(default_name(&misc(0), rules), "Amulet");
+        assert_eq!(default_name(&misc(80), rules), "Ring");
+        assert_eq!(default_name(&misc(86), rules), "Cloak");
+        assert_eq!(default_name(&misc(92), rules), "Gauntlet");
+        assert_eq!(default_name(&misc(100), rules), "Helm");
+        assert_eq!(default_name(&misc(101), rules), "Orb");
         let named = ItemDesign {
             name: "Sting".into(),
             ..design(ItemKind::Sword, &["attack_1"])

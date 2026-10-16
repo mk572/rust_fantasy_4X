@@ -5,6 +5,7 @@ row when you add or change a script (see `CLAUDE.md`).
 
 | Script | What it does |
 |---|---|
+| `item_icons.py` | Writes the original's item picture number (`ITEMDATA.LBX`, byte 30 of a record) as `icon: N` on each row of `content/items.ron`; safe to run again; `--dry-run` reports only. |
 | `archive_done_tasks.py` | Moves finished tasks (summary or title marked "(done)", or struck through) from `docs/TASKS.md` to `docs/TASKS-DONE.md`, keeping the numbers and the done list in ascending order. `--dry-run` lists what would move. |
 | `cool_run.sh` | Runs a long command (training, soak runs) at low priority and pauses it while the Mac is under thermal pressure; `--state` prints the thermal state. Builds `thermal_state` when missing. |
 | `fix_wrapper_calls.py` | After deleting `Game` wrapper methods, rewrites their callers to go through `game.units()` or `game.economy()`, driven by the compiler's "no method named" errors (task 198). |

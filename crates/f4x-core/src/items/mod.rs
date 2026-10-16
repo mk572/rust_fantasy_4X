@@ -55,6 +55,9 @@ pub struct Item {
     pub kind: ItemKind,
     /// The item's value in gold: what the anvil and the merchants go by.
     pub cost: u32,
+    /// The picture, an entry of the original's `ITEMS.LBX`.
+    #[serde(default)]
+    pub icon: u16,
     pub bonus: ItemBonus,
     /// The special powers (ids in `item_powers.ron`).
     pub powers: Vec<String>,
@@ -93,6 +96,7 @@ impl Item {
             name: def.name.clone(),
             kind: def.kind,
             cost: def.cost,
+            icon: def.icon,
             bonus,
             powers: def.powers.clone(),
             charges: def.charges.clone(),
@@ -361,6 +365,7 @@ mod tests {
             name: "Test".into(),
             kind,
             cost: 100,
+            icon: 0,
             bonus: ItemBonus::default(),
             powers: Vec::new(),
             charges: None,

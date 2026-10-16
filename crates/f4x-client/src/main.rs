@@ -3,6 +3,7 @@
 
 mod army_screen;
 mod art;
+mod attack_prompt;
 mod battle_anim;
 mod battle_ground;
 mod battle_screen;

@@ -2277,6 +2277,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         name: "Test".into(),
         kind,
         cost: 100,
+        icon: 0,
         bonus,
         powers: powers.iter().map(|p| p.to_string()).collect(),
         charges: None,

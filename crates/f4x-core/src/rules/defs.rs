@@ -414,6 +414,9 @@ pub struct ItemDef {
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
     pub cost: u32,
+    /// The picture, an entry of the original's `ITEMS.LBX` (task 261).
+    #[serde(default)]
+    pub icon: u16,
     /// The plain bonuses: attack, to hit, defence, movement (in half-moves), resistance.
     pub effects: Vec<EffectRule>,
     /// Added to the hero's mana in battle.
@@ -458,6 +461,23 @@ impl ItemKind {
             }
             Self::Misc => ItemSlot::Misc,
             Self::Shield | Self::Chainmail | Self::Platemail => ItemSlot::Armor,
+        }
+    }
+
+    /// The pictures of `ITEMS.LBX` that belong to the kind, first and last (the crafting
+    /// screen's arrows step through them; `docs/heroes-items-design.md` section 6).
+    pub fn icon_range(self) -> (u16, u16) {
+        match self {
+            Self::Sword => (0, 8),
+            Self::Mace => (9, 19),
+            Self::Axe => (20, 28),
+            Self::Bow => (29, 37),
+            Self::Staff => (38, 46),
+            Self::Chainmail => (47, 54),
+            Self::Platemail => (55, 61),
+            Self::Shield => (62, 71),
+            Self::Misc => (72, 106),
+            Self::Wand => (107, 115),
         }
     }
 }

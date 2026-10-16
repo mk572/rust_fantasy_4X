@@ -108,6 +108,10 @@ pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -
     let mut design = ItemDesign {
         name: String::new(),
         kind,
+        icon: {
+            let (first, last) = kind.icon_range();
+            first + rng.roll(u32::from(last - first) + 1) as u16 - 1
+        },
         powers: Vec::new(),
         charges: None,
     };
@@ -147,6 +151,7 @@ mod tests {
             slot: kind.slot(),
             kind,
             cost,
+            icon: 0,
             effects: Vec::new(),
             spell_skill: 0,
             spell_save: 0,
@@ -252,6 +257,8 @@ mod tests {
             assert!(item.powers.is_empty(), "no special powers: {item:?}");
             assert_eq!(item.prefab, None);
             assert!(item.cost >= 100, "{item:?}");
+            let (first, last) = item.kind.icon_range();
+            assert!((first..=last).contains(&item.icon), "{item:?}");
             let item = random_item(&mut rng, &rules, Grade::Artifact, 1000);
             assert!(item.powers.is_empty() && item.cost > 0, "{item:?}");
         }
