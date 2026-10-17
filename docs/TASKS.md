@@ -63,7 +63,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
 | 152 | Client | Show temporary effects on units and cities |
 | 153 | Magic | Dispelling temporary effects |
-| 154 | Meta | Raiders from neutral cities |
 | 155 | Core | Starting setup: the original's random placement and AI race rules |
 | 157 | Combat | Special attack leftovers |
 | 158 | Combat | Siege leftovers: magic walls, the AI's raze decision, diplomacy |
