@@ -297,7 +297,7 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
 }
 
 #[test]
-fn a_walker_cannot_reach_a_flier_but_the_flier_hits_back() {
+fn a_walker_hits_a_flier_at_half_strength_and_the_flier_hits_back() {
     let walker = BattleUnit::simple(Side::Attacker, "walker", 4, 2, 6, 1).at((9, 10));
     let mut flier = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1).at((10, 10));
     flier.flies = true;
@@ -305,11 +305,14 @@ fn a_walker_cannot_reach_a_flier_but_the_flier_hits_back() {
     let e = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
         .unwrap();
-    let BattleEvent::Attacked { dealt, taken, .. } = e[0] else {
+    let BattleEvent::Attacked { taken, .. } = e[0] else {
         panic!()
     };
-    assert_eq!(dealt, 0, "melee cannot reach a flier");
     assert!(taken > 0 || b.unit(0).unwrap().hit_points() == 8);
+    // Half the dice of a walker against a flier; against a walker it rolls them all.
+    let full = b.fighter(0, false).melee.strength;
+    assert!(full > 1);
+    assert_eq!(b.fighter(0, true).melee.strength, (full + 1) / 2);
 }
 
 #[test]

@@ -373,6 +373,9 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (55, "Note that all roads on Myrror are automatically enchanted.",
+     "Note that all roads on Myrror are automatically enchanted. The enchantment is permanent, but a dispel cast on a square (Disenchant Area, Disenchant True) can undo it there.",
+     "our own rule: the original's enchanted roads cannot be dispelled; ours can, square by square (divergence 27)"),
     (198, "All nature and life spells cost 50% more than normal to cast.",
      "All nature and life spells cost 50% more than normal to cast, for every wizard including the one who cast Evil Omens. Spells cast from items and by units are not affected.",
      "the casting-cost code applies it to any wizard's cost whoever holds the spell; item and unit casts pay the spell's plain cost (decision for now, B11)"),

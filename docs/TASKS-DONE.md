@@ -92,6 +92,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 103 | Units | Scouting levels and unit sight (done) |
 | 104 | Units | Ship tiers by building and ship movement estimates (done) |
 | 105 | Combat | ~~Wire overland attacks to battles~~ (done) |
+| 107 | Content | Check assumptions made while implementing (done) |
 | 109 | Housekeeping | Importer clean-up (done) |
 | 110 | Combat | Battle map generation parity with the original (done) |
 | 112 | Client | Battle map art (done) |
@@ -236,6 +237,8 @@ The magic screen, the spell book and the big book follow the original's layouts 
 screen, the hero sheet and the diplomacy screen.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
+
+**107. Check assumptions made while implementing (done).** Decisions taken without a source, to confirm against the original or the help: melding spirits are used up even when the meld fails (as the original; B49); the battle turn limit (the original has 50, ours is 100, kept by decision; divergence 29). Write each one into `help-vs-implementation-conflicts.md` with the decision. **Settled (17 October 2026):** road time on a node follows the ground under it (divergence 28, B48); Enchant Road is permanent but a dispel on the square can undo it (divergence 27); melee from a non-flier against a flier deals half strength, our own change (divergence 26); thrown attacks keep their weapon and ranged to-hit bonuses with no distance penalty, breath gets none (B45); Evil Omens affects its caster too (fixed in `globals.rs`; the original's exceptions are in B11, site by site); Lo Pan lost a sorcery book (divergence 21), so presets no longer need to exceed the budget; a river square takes two more turns for its bridge (divergence 28); melding spirits and the 100-turn limit stay. All eight assumptions are settled.
 
 **154. Raiders from neutral cities (done).** Dropped, not built: the owner wants the independent cities to play strategically (build their own units and use them for goals of their own) instead of sending random raiders. That is planned item 33 in `PLANNED.md`; the settings `raiders_enabled` and `raider_percent` in `game-settings.md` become a `neutral_activity` setting there.
 

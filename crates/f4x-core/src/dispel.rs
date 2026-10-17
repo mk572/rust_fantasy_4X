@@ -142,6 +142,7 @@ impl Game {
             }
             Target::Tile(at) => {
                 let mut removed = self.dispel_node(at, strength, rng);
+                removed += self.dispel_road(at, strength, rng);
                 if let Some(c) = self.economy().city_at(at) {
                     removed += self.dispel_target(Target::City(c), strength, by, rng);
                 }
@@ -152,6 +153,32 @@ impl Game {
             }
             _ => 0,
         }
+    }
+
+    /// Dispel an enchanted road on the square, against the difficulty of Enchant Road. The
+    /// road keeps no caster, so any dispel may attack it (the original's cannot be dispelled
+    /// at all; divergence 27). Myrror's roads are magic by the plane and stay so.
+    fn dispel_road(&mut self, at: Position, strength: u32, rng: &mut dyn RngCore) -> u32 {
+        let enchanted = self.map.as_ref().is_some_and(|m| {
+            m.plane(at.plane)
+                .has_enchanted_road(at.x as i32, at.y as i32)
+        });
+        if !enchanted {
+            return 0;
+        }
+        let difficulty = self
+            .content
+            .rules
+            .spells
+            .id_of("enchant_road")
+            .map_or(100, |s| self.dispel_difficulty(s, None));
+        if !dispel_roll(strength, difficulty, rng) {
+            return 0;
+        }
+        if let Some(m) = self.map.as_mut() {
+            m.plane_mut(at.plane).set_enchanted_road(at.x, at.y, false);
+        }
+        1
     }
 
     /// Dispel a warped node on the square, against the cost of Warp Node.

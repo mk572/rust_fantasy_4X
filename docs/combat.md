@@ -49,8 +49,9 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
 - **Ranged attacks** draw no reply. Arrows, slings and boulders take -1 to hit for every
   three squares of distance (at most -1 with long range) and use one ammunition; spell shots
   take no distance penalty. One attack or shot per unit per turn.
-- A walking unit cannot hurt a **flying** unit in melee (the flier still hits back), unless
-  it throws or breathes.
+- A walking unit hits a **flying** unit in melee at half strength, rounded up (the flier still
+  hits back at full strength; thrown and breath attacks are unchanged). Divergence 26: the
+  original deals nothing.
 - **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
 
 Ability rules (task 37): **large shield** adds 2 to the defence against anything but a melee blow
@@ -197,7 +198,7 @@ good.
   defender ends its turn. Each unit may move and make one attack per turn (a melee attack
   uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
-  (the losses of fleeing units are task 42). After **100 turns** the defender wins.
+  (the losses of fleeing units are task 42). After **100 turns** the defender wins (the original: 50; divergence 29).
 - Casting is in section 8; battlefield spells are section 9. City walls and gates are in
   (section 7).
 

@@ -1,11 +1,11 @@
 //! Building roads: engineers work one square at a time, then step on to the next.
 //!
 //! A square takes a number of turns that depends on its terrain (3 on grassland up to 8 on
-//! mountains and swamp); the stack's total construction strength divides it, with a minimum
+//! mountains and swamp, two more for a river's bridge); the stack's total construction strength divides it, with a minimum
 //! of one turn. Roads halve movement; enchanted roads (and every road on Myrror) cost nothing.
 
 use crate::city::Position;
-use crate::content::{FeatureKind, TerrainClass};
+use crate::content::TerrainClass;
 use crate::movement::MoveError;
 use crate::rules::Stat;
 use crate::units::UnitEnchantments;
@@ -13,6 +13,9 @@ use crate::{Event, Game};
 
 /// Hook of the Enchant Road spell.
 pub const ENCHANT_ROAD: &str = "enchant_road";
+
+/// Turns a river adds to the road on its square: the bridge.
+pub const RIVER_BRIDGE_TURNS: u8 = 2;
 
 /// A stack of engineers at work.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,24 +48,22 @@ impl Game {
         if grid.has_road(at.x as i32, at.y as i32) {
             return Some(0);
         }
-        // Magic nodes take 4 (sorcery) or 5 turns whatever lies under them.
-        if grid
-            .feature(at.x as i32, at.y as i32)
-            .and_then(|f| self.content.features.get(f))
-            .is_some_and(|f| f.kind == FeatureKind::Node)
-        {
-            let realm = map
-                .node_at(at.plane, at.x, at.y)
-                .map(|i| map.nodes()[i].realm.as_str());
-            return Some(if realm == Some("sorcery") { 4 } else { 5 });
-        }
-        Some(match self.economy().terrain_class_at(at)? {
+        // A node is a feature on ordinary ground here, so its square takes the ground's time
+        // (the original's node is a terrain of its own: 4 sorcery, 5 nature and chaos).
+        let ground = match self.economy().terrain_class_at(at)? {
             TerrainClass::Ocean => return None,
             TerrainClass::Grassland => 3,
             TerrainClass::Desert => 4,
             TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Tundra => 6,
             TerrainClass::Mountains | TerrainClass::Swamp => 8,
-        })
+        };
+        // A river needs a bridge: two turns more (the original's river square takes 5).
+        let bridge = if grid.has_river(at.x as i32, at.y as i32) {
+            RIVER_BRIDGE_TURNS
+        } else {
+            0
+        };
+        Some(ground + bridge)
     }
 
     /// Total road-building strength of the units that can build (one more for each unit

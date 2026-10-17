@@ -93,6 +93,38 @@ fn terrain_decides_how_long_a_road_takes() {
 }
 
 #[test]
+fn a_river_square_needs_two_more_turns_for_its_bridge() {
+    let mut g = world();
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set_river(3, 3, true);
+    set_terrain(&mut g, at(3, 3), TerrainClass::Grassland);
+    assert_eq!(g.turns_to_build_road(at(3, 3)), Some(5));
+    set_terrain(&mut g, at(3, 3), TerrainClass::Forest);
+    assert_eq!(g.turns_to_build_road(at(3, 3)), Some(8));
+    assert_eq!(
+        g.turns_to_build_road(at(4, 3)),
+        Some(3),
+        "no river next door"
+    );
+}
+
+#[test]
+fn a_road_on_a_node_takes_the_time_of_the_ground_under_it() {
+    let mut g = world();
+    let node = g.content.features.id_of("node");
+    set_terrain(&mut g, at(3, 3), TerrainClass::Hills);
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set_feature(3, 3, node);
+    assert_eq!(g.turns_to_build_road(at(3, 3)), Some(6));
+}
+
+#[test]
 fn one_engineer_needs_three_turns_on_grassland() {
     let mut g = world();
     let e = engineer(&mut g, "walker", at(5, 5));

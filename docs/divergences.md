@@ -543,3 +543,19 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   garrisoned normal units go with the city, heroes and conjured creatures are dismissed, all other
   units are dismissed, as in the original. The original halves the human's mana twice when they
   resign; ours halves it once.
+
+## 26. Melee against fliers (task 107)
+
+In the original a unit that does not fly deals no melee damage to a flying unit (`Combat.c`, `Battle_Unit_Process_Attack`; counter-attacks, thrown and breath attacks excepted). Ours halves the walker's melee strength instead, rounded up, so a walker that cannot be rid of a flier is not helpless. "Walker" here is any unit that does not fly, ships and swimmers included. The flier's own blows are at full strength as before.
+
+## 27. Enchanted roads can be dispelled (task 107)
+
+Enchant Road is permanent in the original and nothing removes it. Ours is permanent too, but a dispel cast on a map square (Disenchant Area, Disenchant True) rolls against Enchant Road's difficulty (its cost, 100, times the usual realm multiplier) and on success turns that one square back into a plain road. The road keeps no caster, so the caster's own roads can be dispelled as well. Myrror's roads are magic by the plane and cannot be undone. Help topic 55 is corrected (`HELP_CORRECTIONS`).
+
+## 28. Road building time (task 107)
+
+`Turns_To_Build_Road` (`Terrain.c`) gives grassland 3, desert 4, forest, hills and tundra 6, mountains, swamp and volcano 8, a river square 5, and a node 4 (sorcery) or 5 (nature, chaos), because a node is a terrain of its own there. Ours matches on the ordinary ground and keeps a node on top of its ground, so a road on a node takes the ground's time (a sorcery node on hills: 6). Ours adds two turns for a river square's bridge to the time of its ground (grassland 5, as the original; forest 8, where the original's river square is 5). The turns are divided by the stack's construction points with a minimum of one turn, as in the original.
+
+## 29. The 100-turn battle limit (task 107)
+
+A battle still going after 100 turns is won by the defender (`TURN_LIMIT` in `battle/mod.rs`). The original has a limit too, **50 turns** (`Combat.c`, `Combat_Turn_Check`: `_combat_turn > 50` gives the battle to the defender), and ends with the message "All units retreat exhausted" (`message.lbx` 8) on the defeat scroll. We had recorded the limit as our own invention, which was wrong; the owner decided on 17 October 2026 to keep 100 knowing this.

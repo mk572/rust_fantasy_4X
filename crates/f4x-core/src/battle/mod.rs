@@ -1363,8 +1363,9 @@ impl Battle {
         let u = &self.units[id];
         let mut melee = u.melee_combatant();
         if vs_flier_blocked {
-            // A walker's blows cannot reach a flier; only thrown weapons and breath can.
-            melee.strength = 0;
+            // A walker's blows reach a flier only half as well (the original: not at all, so
+            // only thrown weapons and breath could hurt it; divergence 26).
+            melee.strength = (melee.strength + 1) / 2;
         }
         Fighter {
             melee,

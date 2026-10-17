@@ -491,3 +491,31 @@ fn a_stopped_spell_is_lost_and_reported() {
     }
     assert_eq!(stopped, 1, "aura costs 100 against 500: about 83% stopped");
 }
+
+#[test]
+fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() {
+    let mut g = world();
+    {
+        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
+        for x in 5..=6 {
+            grid.set_road(x, 5, true);
+            grid.set_enchanted_road(x, 5, true);
+        }
+    }
+    let mut r = rng();
+    // A dispel far stronger than Enchant Road's difficulty always works.
+    let removed = g.dispel_target(Target::Tile(at(5, 5)), 1_000_000, P1, &mut r);
+    assert_eq!(removed, 1);
+    let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
+    assert!(grid.has_road(5, 5), "the road itself stays");
+    assert!(!grid.has_enchanted_road(5, 5));
+    assert!(
+        grid.has_enchanted_road(6, 5),
+        "the next square is left alone"
+    );
+    // A plain road has nothing to dispel.
+    assert_eq!(
+        g.dispel_target(Target::Tile(at(5, 5)), 1_000_000, P1, &mut r),
+        0
+    );
+}

@@ -26,7 +26,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 97 | Client | Sound effects |
 | 99 | Combat | Saving during a battle |
 | 106 | Combat | Battle views for the AI and for tools |
-| 107 | Content | Check assumptions made while implementing |
 | 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
 | 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
 | 115 | Client | Cityscape: road masking |
@@ -191,8 +190,6 @@ fighters were copied from (by creation number). Restore it on load, check it for
 middle of a battle continues exactly like the unsaved one.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
-
-**107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision. **Settled (17 October 2026):** Evil Omens affects its caster too (fixed in `globals.rs`; the original's exceptions are in B11, site by site); Lo Pan lost a sorcery book (divergence 21), so presets no longer need to exceed the budget.
 
 **108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warp Node sets the node's warped flag already; unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
 
