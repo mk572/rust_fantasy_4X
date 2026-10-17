@@ -47,6 +47,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 34 | Rules | Larger tiles: up to 20 units on a square, armies and battles still limited to nine |
 | 35 | Content | Palette-swap wizards: variants of the 14 ready-made wizards |
 | 36 | Meta | Multiplayer: scope and design (to be discussed) |
+| 37 | AI | Record the battle AI's orders for replays |
 
 ## Descriptions
 
@@ -475,3 +476,10 @@ Needs: the data file and its loader (`f4x-data`), the palette tables and the imp
 - **What exists for it.** Recording and replay for local play (task 74, `replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
 - **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player_view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
 - **Open questions.** Which scope first; peer to peer or a central server; how to settle disconnects and timeouts; whether the AI may be replaced by a human mid-game; how saves, replays and the Hall of Fame treat multiplayer games.
+
+**37. Record the battle AI's orders for replays.** Replays (task 74, `replay.rs`) record the commands the game is given, and every order a person or the scripted battle AI gives goes through `Game::apply` and is recorded. A learned battle brain (`set_battle_brain`, `next_battle_command`, `f4x-learn`) is asked for its orders inside the core (the auto-resolve loop in `battle/game.rs` calls `battle_command` directly), so those orders are not recorded, and a replay asks the brain again, which gives the same battle only if the brain answers the same way every time.
+
+- **Aim.** A replay of a game with a learned brain plays the same battles whether or not that brain is present, in the same version or another.
+- **How.** Record each order the brain gives, in order, with the battle's start, as part of the recording (the commands become `Battle` orders in the log, or a list kept with the `BeginBattle`/`AutoResolve` entry), and on replay feed the recorded orders back in place of asking the brain. The replay then needs no network weights.
+- **Needs.** The record hook in the auto-resolve loop and in the client's brain-driven battle (`battle_screen.rs`), a replay that takes orders from the log when it finds them, a test with a fake brain whose answers change between runs, and the file format note in `docs/console.md`.
+- **Priority.** Low: the learned AI is not part of feature parity with the original (decided 17 October 2026).
