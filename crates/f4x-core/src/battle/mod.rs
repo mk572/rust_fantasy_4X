@@ -16,6 +16,7 @@ pub mod casting;
 pub mod field;
 pub mod game;
 pub mod immunity;
+pub mod info;
 pub mod legal;
 pub mod map;
 pub mod special;

@@ -60,11 +60,12 @@ impl Game {
         self.units().fame(player)
     }
 
-    /// Is another wizard's Evil Omens making `player`'s life and nature spells dearer?
-    pub(crate) fn evil_omens_against(&self, player: PlayerId) -> bool {
+    /// Is anyone's Evil Omens, the caster's own included, making life and nature spells
+    /// dearer?
+    pub(crate) fn evil_omens_active(&self) -> bool {
         self.players
             .iter()
-            .any(|p| p.id != player && self.has_global(p.id, "evil_omens"))
+            .any(|p| self.has_global(p.id, "evil_omens"))
     }
 
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.
@@ -239,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn evil_omens_makes_other_wizards_life_and_nature_dearer() {
+    fn evil_omens_makes_life_and_nature_dearer_for_everyone() {
         let mut g = world();
         let life = spell(&g, "life_c0");
         let chaos = spell(&g, "chaos_c0");
@@ -256,8 +257,8 @@ mod tests {
         );
         assert_eq!(
             g.casting_cost(P1, life, false),
-            before,
-            "the caster is spared"
+            before + before / 2,
+            "the caster pays too"
         );
     }
 

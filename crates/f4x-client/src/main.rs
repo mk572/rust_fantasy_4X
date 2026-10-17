@@ -9,6 +9,7 @@ mod attack_prompt;
 mod autobuild_dialog;
 mod battle_anim;
 mod battle_ground;
+mod battle_info;
 mod battle_screen;
 mod bigbook;
 mod chancellor;

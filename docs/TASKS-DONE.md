@@ -76,6 +76,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
 | 82 | Meta | Wizard defeat aftermath and fortress display (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
+| 84 | Client | Analyse the original's screenshots and adjust the in-game graphics (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 87 | Magic | Remaining global enchantments (low priority) (done) |
 | 88 | Meta | Hall of fame (done) |
@@ -213,6 +214,26 @@ casting the Spell of Return if its casting skill with heroes is below 40 or it h
 (`Banish_Wizard`); the human is asked at banishment (`Command::Resign`, console `resign`, a box in
 the client). The fortress and circle were already drawn as buildings in the city screen
 (`cityscape.rs`). Help [657] corrected (B44); notes in `divergences.md` section 25.
+
+**84. Analyse the original's screenshots and adjust the graphics (done).** Study the screenshots of the
+original game in `reference/screenshots/` (local only) and bring the client's look closer to
+them: screen layouts and proportions (map view, side panel, city screen, magic screen, creation
+screen), the use of the original's frames, buttons, fonts and palette, unit and city
+presentation on the map, terrain and shore drawing, and the information shown in the bars.
+First write a short comparison list (what differs, per screen), then change the client in
+steps, checking each with `--shot` screenshots. Original-derived art stays under
+`assets-local/`.
+
+**Closed, 17 October 2026, at the project owner's request:** replaced by using ReMoM as the guide for each
+screen (the original's layouts, art indices and fonts are read from its code, as the screens
+are built); no separate screenshot comparison pass. *Progress.* Done: the overland screen now uses the original's frame (menu pictures, minimap,
+gold and mana boxes, resource panels, Next Turn) and the city screen follows the original
+layout with its fonts, citizen icons, resource icon rows, unit pictures, production panel,
+picture buttons and the cityscape. The screenshots in `reference/screenshots/` include
+Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and building-choice
+screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
+The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
+screen, the hero sheet and the diplomacy screen.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 

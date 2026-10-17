@@ -58,7 +58,7 @@ impl Game {
     /// Mana needed to cast `spell` (`Magic::casting_cost`).
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
-        let evil_omens = self.evil_omens_against(player);
+        let evil_omens = self.evil_omens_active();
         match self.magic(player) {
             Some(m) => m.casting_cost(def, in_battle, evil_omens),
             None => Magic::default().casting_cost(def, in_battle, evil_omens),

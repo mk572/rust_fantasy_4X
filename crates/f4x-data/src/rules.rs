@@ -609,9 +609,8 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
             .iter()
             .map(|&x| u32::from(f4x_core::wizard::retort_cost(x)))
             .sum::<u32>();
-        // The original's own presets spend eleven picks, or twelve in Lo Pan's case.
         let budget = u32::from(f4x_core::wizard::PICKS);
-        if picks != budget && picks != budget + 1 {
+        if picks != budget {
             p.push(format!(
                 "wizard {:?} spends {picks} picks, not {budget}",
                 w.id

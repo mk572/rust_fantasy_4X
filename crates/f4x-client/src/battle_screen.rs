@@ -70,6 +70,8 @@ pub(crate) struct BattleUi {
     auto: bool,
     /// The Magic Vortex being steered: click it, then a square next to it.
     steering: Option<usize>,
+    /// The information window (the Info button) is open.
+    info_open: bool,
 }
 
 /// A spell the player has picked.
@@ -439,6 +441,11 @@ impl App {
                     std::mem::replace(&mut battle.map, f4x_core::battle::map::BattleMap::open());
                 battle.map = map.with_city(true);
             }
+            "info" => {
+                battle.node_site = Some(f4x_core::battle::immunity::Realm::Chaos);
+                battle.node_aura = Some(f4x_core::battle::immunity::Realm::Chaos);
+                self.battle_ui.info_open = true;
+            }
             "mud" => {
                 for y in 8..13 {
                     for x in 8..13 {
@@ -704,7 +711,7 @@ impl App {
         let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
             .filter(|&p| battle.map.is_playable(p));
 
-        if my_turn {
+        if my_turn && !self.battle_ui.info_open {
             self.battle_input(&battle, hovered);
         }
         let battle = self
@@ -714,6 +721,15 @@ impl App {
             .or_else(|| self.game.battle().cloned())
             .unwrap_or(battle);
         self.draw_battle(&battle, my_turn, hovered);
+        if self.battle_ui.info_open {
+            if let Some(info) = self.game.battle_info(HUMAN) {
+                if self.draw_battle_info(&info) {
+                    self.battle_ui.info_open = false;
+                }
+            } else {
+                self.battle_ui.info_open = false;
+            }
+        }
     }
 
     fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
@@ -1671,7 +1687,6 @@ impl App {
         let sel = self.battle_ui.selected;
         let mut order = None;
         let col = |i: f32| x + 12.0 + i * 92.0;
-        // The information window is not built yet (task 132).
         // The selected unit casts its own spells when it has any it can cast now (a hero, a
         // creature caster); otherwise the Spell button is the wizard's.
         let unit_caster = sel.filter(|&u| {
@@ -1706,7 +1721,16 @@ impl App {
             self.battle_ui.spell_unit = None;
             self.battle_ui.fallen_list = None;
         }
-        self.compix_button(20, "Info", (col(1.0), by + 40.0), false);
+        // Info lists the effects in force; the original locks it when there are none.
+        let has_info = self
+            .game
+            .battle_info(HUMAN)
+            .is_some_and(|info| !info.is_empty());
+        let info = self.compix_button(20, "Info", (col(1.0), by + 40.0), has_info);
+        if (info || (has_info && is_key_pressed(KeyCode::U))) && !self.battle_ui.info_open {
+            self.battle_ui.info_open = true;
+            return;
+        }
         let sure = self.battle_ui.confirm_flee;
         let flee = self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn);
         if flee || (my_turn && is_key_pressed(KeyCode::F)) {

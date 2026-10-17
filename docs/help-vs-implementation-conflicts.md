@@ -29,7 +29,7 @@ Written in our own words; nothing here is copied from either source.
 |---|---|
 | B9 Heroism | Combat uses the same level calculation as overland: Heroism sets the Elite floor, Warlord and Crusade add on top. (ReMoM's note offers two fixes and does not pick; this one matches the help.) |
 | B10 Undead | Undead also get cold, poison and illusion immunity (done, task 29: `undead.rs`; Holy Word's extra -5 for undead also follows the help, the original has it reversed). |
-| B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
+| B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat), to every wizard including the caster (`Casting_Cost` in `NEXTTURN.c` scans all players). The original's exceptions are listed under "B11, site by site" below. |
 | B13 Blur | Simplified (owner's decision): a flat -1 (10%) to the attacker's chance to hit, whatever the distance, none for an attacker immune to illusions. The original rolls a 10% miss for each point of damage (with a bug that caps the loss near half); that roll code is gone. |
 | B14 Forester's Guild | Its food counts toward a city's maximum size. |
 | B15 Swamp | Half a food (done: `terrain.ron` counts food in half-units, swamp is 1). |
@@ -151,6 +151,22 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | B42 | Chaos Channels [93, 440] | demon-skin armor gives +2 defense | `CC_ARMOR` adds 3 | Verified (`COMBINIT.c`) | Follow the code (+3); help [93] and [440] corrected via `HELP_CORRECTIONS`. Wings are 2 moves of flight and the breath strength 2, as the help says. | The code's check that stops armour and breath on some units reads the wrong mutation (marked); the intended rule is used. |
 | B43 | Stasis [68], [554] | the freeing check is at -5 (68) or -3 (554) | `Combat_Resistance_Check(.., -5, sbr_Sorcery)` in `NEXTTURN.c` | Verified | -5; help [554] corrected via `HELP_CORRECTIONS`. The original holds the unit for the turn after the cast whatever it rolls, then rolls each turn. | In a battle a unit in stasis is treated as asleep (the original has no code for it that I found). |
 | B44 | Spell of Return [657], Fortress [753] | the wizard is banished and casts the Spell of Return | `Banish_Wizard` (`CONQUEST.c`): a computer wizard whose casting skill (with heroes) is under 40 or whose mana is 0 does not cast it: it resigns at once and is defeated; the human is asked "Do you wish to resign?" | Verified | Follow the code (task 82); help [657] corrected via `HELP_CORRECTIONS`. The help's other claims (no other spells, no power income) are built and tested. |
+
+### B11, site by site (checked against ReMoM, 17 October 2026)
+
+`Casting_Cost` (`NEXTTURN.c:1239`) adds half again for nature and life spells when *any* player holds Evil Omens, the caster too (help topic 198 says "all nature and life spells"). Our `Game::casting_cost` does the same. The original then misses it in these places:
+
+| Site (ReMoM) | What the original does | Ours | Flag |
+|---|---|---|---|
+| `Spellbook.c:808` | Battle spell book "can anything be cast" test compares the base cost | `battle_spells` uses the adjusted cost for `castable` | Deviates on purpose (original is wrong) |
+| `CMBMAGIC.c:404`, `:426` | A unit or item casting (caster below `CASTER_IDX_BASE`) pays the base cost | Unit and item spells pay `def.cost` (`battle/spells/unit_cast.rs`) | Same as the original, decided for now: spells cast from items and by units are exempt (help topic 198 corrected via `HELP_CORRECTIONS`) |
+| `CMBMAGIC.c:466` | The AI/auto-combat mana pool ignores the cost modifiers and Evil Omens | One price function (`battle_spell_price`) for every side | Deviates on purpose |
+| `CMBMAGIC.c:497` | Wizard's extra-mana total cost gets the book reduction but not Evil Omens | Base part carries Evil Omens, the extra mana does not; the reduction applies to both | Deviates; differs by rounding and the extra mana at most |
+| `SPLMASTR.c:478`, `:555` | Overland infusion slider ignores Evil Omens | Not checked whether we have an overland slider | Open |
+| `SPLMASTR.c:675`, `:730` | Combat infusion slider ignores Evil Omens | The slider's lowest value is the base cost (it is a strength), the price shown is `battle_spell_price`, with Evil Omens | Deviates on purpose |
+| `Combat.c:5759`, `:5987`, `:6062`, `:6163` | The combat info window lists Crusade, Holy Arms and other effects but not Evil Omens (or spell wards) | We have no such window or effect list | Not applicable until one exists |
+
+Also: the original adds Evil Omens to the base cost *before* the five-times overland factor and the book reduction (`(cost*3)/2`); we add it last. The two differ only by integer rounding.
 
 ## C. The help contradicts itself
 

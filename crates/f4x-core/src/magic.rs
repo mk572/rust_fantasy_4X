@@ -406,8 +406,8 @@ impl Magic {
     /// Mana needed to cast `def`. Overland casting of a spell that can also be cast in battle
     /// costs five times the battle price; reductions come from books beyond seven, masteries,
     /// artificer, conjurer and runemaster. `evil_omens`: life and nature spells cost half as
-    /// much again (the help does not say; the caster is assumed to be spared, so the game says
-    /// whether Evil Omens is against this wizard).
+    /// much again (for every wizard, the caster too; the game says whether Evil Omens is in
+    /// force).
     pub fn casting_cost(&self, def: &SpellDef, in_battle: bool, evil_omens: bool) -> i32 {
         let mut cost = def.cost as i32;
         if !in_battle && def.overland_x5 {

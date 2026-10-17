@@ -20,7 +20,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 68 | Meta | Random events |
 | 76 | Client | Background music |
 | 81 | Housekeeping | Packaging for Mac |
-| 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
@@ -159,24 +158,6 @@ zip, and the local-assets workflow documented for players who supply their own o
 (`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
 to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
 
-**84. Analyse the original's screenshots and adjust the graphics.** Study the screenshots of the
-original game in `reference/screenshots/` (local only) and bring the client's look closer to
-them: screen layouts and proportions (map view, side panel, city screen, magic screen, creation
-screen), the use of the original's frames, buttons, fonts and palette, unit and city
-presentation on the map, terrain and shore drawing, and the information shown in the bars.
-First write a short comparison list (what differs, per screen), then change the client in
-steps, checking each with `--shot` screenshots. Original-derived art stays under
-`assets-local/`.
-
-*Progress.* Done: the overland screen now uses the original's frame (menu pictures, minimap,
-gold and mana boxes, resource panels, Next Turn) and the city screen follows the original
-layout with its fonts, citizen icons, resource icon rows, unit pictures, production panel,
-picture buttons and the cityscape. The screenshots in `reference/screenshots/` include
-Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and building-choice
-screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
-The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
-screen, the hero sheet and the diplomacy screen.
-
 **85. Import and play the original's opening movie.** Extract the intro from the author's own
 copy of the game (its animation frames and palette from the intro `.lbx` files, and the sound
 and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
@@ -211,7 +192,7 @@ middle of a battle continues exactly like the unsaved one.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 
-**107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: Evil Omens spares the wizard who holds it; the original's own Lo Pan spends 12 picks (presets skip the budget); the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision.
+**107. Check assumptions made while implementing.** Decisions taken without a source, to confirm against the original or the help: the decompiled thrown and breath attack code looks broken, so thrown and breath attacks use plain strength with no range penalty; melee against fliers deals nothing from walkers; roads on nodes take 4 or 5 turns whatever the terrain; Enchant Road is permanent; melding spirits are used up even when the meld fails; the 100-turn battle limit is our own. Write each one into `help-vs-implementation-conflicts.md` with the decision. **Settled (17 October 2026):** Evil Omens affects its caster too (fixed in `globals.rs`; the original's exceptions are in B11, site by site); Lo Pan lost a sorcery book (divergence 21), so presets no longer need to exceed the budget.
 
 **108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warp Node sets the node's warped flag already; unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
 
@@ -255,9 +236,13 @@ as its figures (`figures1`-`figure16`, positions and facing as in the original, 
 owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
 a missile in flight, fading death). Still missing: the original's projectile and effect pictures
 (`cmbmagic`, `cmbtfx`; arrows and bolts are drawn as simple shapes), blood and gibs, enchantment
-outlines and figure effects, the Spell, Auto and Info buttons' functions (the pictures are drawn,
-greyed, and Wait, Done and Flee work), the unit and info windows, enchantment icons, mouse
-pointers by action and sound. Terrain autotile edges, dirt patches, roads, rivers and the city
+outlines and figure effects, the unit window, enchantment icons, mouse
+pointers by action and sound. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
+client, `battle/info.rs` in the core, `--battle --battle-field info`): the field's effects (node
+dispel and aura, the besieged city's Cloud of Shadow and Heavenly Light, Chaos Surge, Eternal Night)
+over each wizard's Crusade, Holy Arms, Charm of Life and Zombie Mastery, in the original's layout and
+pictures (`compix` 42 to 59); the button is locked with nothing to show; a key or click closes it.
+Evil Omens is listed too (the original omits it); right-click help on the cells is not done. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
 
 **134. Game-end cut-scenes and the original's score screen.** **Done: the score screen** (`game_over_screen.rs`, on `halofam` with the icon rows and the bar, `--score`) **and the Hall of Fame** (task 88, `hall_of_fame.rs`, `saves/hall_of_fame.txt`, `--hall`, from the start menu and after the score). **Left:** the win, lose and conquest animations and the parade of portraits (`conquest`, `win`, `lose` in `assets-local/screens/`), the music, and the old buttons are gone: after the table the game returns to the start menu as the original does. The game-over screen is plain text
