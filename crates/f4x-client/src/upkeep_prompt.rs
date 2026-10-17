@@ -1,8 +1,10 @@
-//! The question before the turn ends when the mana reserve cannot pay the upkeep: which lasting
-//! spells and summoned creatures to give up (task 62). Without it the turn change gives up the
-//! newest ones.
+//! The question before the turn ends when the reserves cannot pay the upkeep: which lasting
+//! spells and summoned creatures, which troops, ships and heroes to give up (tasks 62 and 292).
+//! Without an answer the turn change lets go of the newest. A second page appears when released
+//! heroes bring more items home than the armory holds: which to disband for mana.
 
 use f4x_core::cast::UpkeepKind;
+use f4x_core::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::upkeep::Shortfall;
 use f4x_core::Command;
 use macroquad::prelude::*;
@@ -10,65 +12,219 @@ use macroquad::prelude::*;
 use crate::ui::GOLD;
 use crate::view::{App, HUMAN};
 
-const ROW: f32 = 26.0;
-const SHOWN: usize = 12;
+const ROW: f32 = 24.0;
+const SHOWN: usize = 13;
 
-/// What is on the screen: the shortfall, a mark per line, and the line under the cursor.
+/// A line of the list.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Line {
+    Header(&'static str),
+    Mana(usize),
+    Troop(usize),
+    Item(usize),
+}
+
+/// What is on the screen.
 pub(crate) struct UpkeepPrompt {
-    short: Shortfall,
-    marked: Vec<bool>,
+    mana: Option<Shortfall>,
+    mana_marked: Vec<bool>,
+    troops: Option<TreasuryShortfall>,
+    troop_marked: Vec<bool>,
+    /// The second page: the items that do not fit, and which of them go.
+    items: Option<ItemOverflow>,
+    item_marked: Vec<bool>,
     cursor: usize,
 }
 
 impl UpkeepPrompt {
-    /// Marks what the turn change would give up by itself (the newest first), so Enter keeps
-    /// the default.
-    pub(crate) fn new(short: Shortfall) -> Self {
-        let default = short.default_release();
-        let marked = short
-            .lines
-            .iter()
-            .map(|l| default.contains(&l.kind))
-            .collect();
-        Self {
-            short,
-            marked,
+    /// Marks what the turn change would give up by itself, so Enter keeps the default.
+    pub(crate) fn new(mana: Option<Shortfall>, troops: Option<TreasuryShortfall>) -> Self {
+        let mana_marked = mana.as_ref().map_or_else(Vec::new, |m| {
+            let default = m.default_release();
+            m.lines.iter().map(|l| default.contains(&l.kind)).collect()
+        });
+        let troop_marked = troops.as_ref().map_or_else(Vec::new, |t| {
+            t.troops
+                .iter()
+                .map(|l| t.default_release.contains(&l.unit))
+                .collect()
+        });
+        let mut prompt = Self {
+            mana,
+            mana_marked,
+            troops,
+            troop_marked,
+            items: None,
+            item_marked: Vec::new(),
             cursor: 0,
+        };
+        prompt.cursor = prompt.first_selectable();
+        prompt
+    }
+
+    fn lines(&self) -> Vec<Line> {
+        let mut out = Vec::new();
+        if let Some(items) = &self.items {
+            out.push(Line::Header(
+                "Too many items for the armory: mark what to disband for mana",
+            ));
+            out.extend((0..items.lines.len()).map(Line::Item));
+            return out;
+        }
+        if let Some(m) = &self.mana {
+            out.push(Line::Header("Mana"));
+            out.extend((0..m.lines.len()).map(Line::Mana));
+        }
+        if let Some(t) = &self.troops {
+            out.push(Line::Header("Gold and food"));
+            out.extend((0..t.troops.len()).map(Line::Troop));
+        }
+        out
+    }
+
+    fn first_selectable(&self) -> usize {
+        self.lines()
+            .iter()
+            .position(|l| !matches!(l, Line::Header(_)))
+            .unwrap_or(0)
+    }
+
+    fn released_units(&self) -> Vec<hecs::Entity> {
+        self.troops.as_ref().map_or_else(Vec::new, |t| {
+            t.troops
+                .iter()
+                .zip(&self.troop_marked)
+                .filter(|(_, &m)| m)
+                .map(|(l, _)| l.unit)
+                .collect()
+        })
+    }
+
+    fn released_upkeep(&self) -> Vec<UpkeepKind> {
+        self.mana.as_ref().map_or_else(Vec::new, |m| {
+            m.lines
+                .iter()
+                .zip(&self.mana_marked)
+                .filter(|(_, &x)| x)
+                .map(|(l, _)| l.kind)
+                .collect()
+        })
+    }
+
+    fn scrapped(&self) -> Vec<f4x_core::items::armory::ItemSpot> {
+        self.items.as_ref().map_or_else(Vec::new, |o| {
+            o.lines
+                .iter()
+                .zip(&self.item_marked)
+                .filter(|(_, &m)| m)
+                .map(|(l, _)| l.spot)
+                .collect()
+        })
+    }
+
+    fn toggle(&mut self, line: Line) {
+        let flip = |v: &mut Vec<bool>, i: usize| v[i] = !v[i];
+        match line {
+            Line::Mana(i) => flip(&mut self.mana_marked, i),
+            Line::Troop(i) => flip(&mut self.troop_marked, i),
+            Line::Item(i) => flip(&mut self.item_marked, i),
+            Line::Header(_) => {}
         }
     }
 
-    /// The mana still missing after the marked items are given up.
-    fn missing(&self) -> i32 {
-        let freed: i32 = self
-            .short
-            .lines
-            .iter()
-            .zip(&self.marked)
-            .filter(|(_, &m)| m)
-            .map(|(l, _)| l.mana)
-            .sum();
-        (self.short.owed - freed - self.short.reserve).max(0)
+    fn marked(&self, line: Line) -> bool {
+        match line {
+            Line::Mana(i) => self.mana_marked[i],
+            Line::Troop(i) => self.troop_marked[i],
+            Line::Item(i) => self.item_marked[i],
+            Line::Header(_) => false,
+        }
     }
 
-    fn chosen(&self) -> Vec<UpkeepKind> {
-        self.short
-            .lines
-            .iter()
-            .zip(&self.marked)
-            .filter(|(_, &m)| m)
-            .map(|(l, _)| l.kind)
-            .collect()
+    /// What the line says, and its price on the right.
+    fn text(&self, line: Line) -> (String, String) {
+        match line {
+            Line::Mana(i) => {
+                let l = &self.mana.as_ref().unwrap().lines[i];
+                (l.label.clone(), format!("{} mana", l.mana))
+            }
+            Line::Troop(i) => {
+                let l = &self.troops.as_ref().unwrap().troops[i];
+                let mut label = l.label.clone();
+                if l.hero {
+                    label.push_str(" (hero: its items come home)");
+                } else if l.ship && l.aboard > 0 {
+                    label.push_str(&format!(" ({} aboard: sails for the shore)", l.aboard));
+                }
+                (label, format!("{} gold  {} food", l.gold, l.food))
+            }
+            Line::Item(i) => {
+                let l = &self.items.as_ref().unwrap().lines[i];
+                (l.label.clone(), format!("+{} mana", l.mana))
+            }
+            Line::Header(h) => (h.to_string(), String::new()),
+        }
+    }
+
+    /// The line under the list: what is still missing after the marked ones go.
+    fn status(&self) -> (String, bool) {
+        if let Some(o) = &self.items {
+            let n = self.item_marked.iter().filter(|&&m| m).count();
+            return if n >= o.excess {
+                ("Enough items marked.".to_string(), true)
+            } else {
+                (
+                    format!("Mark {} more (or the game picks the rest).", o.excess - n),
+                    false,
+                )
+            };
+        }
+        let mut missing = Vec::new();
+        if let Some(m) = &self.mana {
+            let freed: i32 = m
+                .lines
+                .iter()
+                .zip(&self.mana_marked)
+                .filter(|(_, &x)| x)
+                .map(|(l, _)| l.mana)
+                .sum();
+            let short = (m.owed - freed - m.reserve).max(0);
+            if short > 0 {
+                missing.push(format!("{short} mana"));
+            }
+        }
+        if let Some(t) = &self.troops {
+            let (food, gold) = t.missing(&self.released_units());
+            if food > 0 {
+                missing.push(format!("{food} food"));
+            }
+            if gold > 0 {
+                missing.push(format!("{gold} gold"));
+            }
+        }
+        if missing.is_empty() {
+            ("Enough: the rest is paid.".to_string(), true)
+        } else {
+            (
+                format!(
+                    "Still missing {}: the game gives up the newest.",
+                    missing.join(", ")
+                ),
+                false,
+            )
+        }
     }
 }
 
 impl App {
-    /// Ends the turn, first asking what to give up if the reserve cannot pay the mana upkeep.
+    /// Ends the turn, first asking what to give up if a reserve cannot pay the upkeep.
     pub(crate) fn request_end_turn(&mut self) {
-        match self.game.upkeep_shortfall(HUMAN) {
-            Some(short) if self.upkeep_prompt.is_none() => {
-                self.upkeep_prompt = Some(UpkeepPrompt::new(short));
-            }
-            _ => self.finish_turn(),
+        let mana = self.game.upkeep_shortfall(HUMAN);
+        let troops = self.game.treasury_shortfall(HUMAN);
+        if (mana.is_some() || troops.is_some()) && self.upkeep_prompt.is_none() {
+            self.upkeep_prompt = Some(UpkeepPrompt::new(mana, troops));
+        } else {
+            self.finish_turn();
         }
     }
 
@@ -77,19 +233,46 @@ impl App {
         self.save_to(std::path::Path::new(crate::view::AUTOSAVE));
     }
 
+    /// Send what the player chose, then end the turn.
+    fn answer_upkeep(&mut self, prompt: &UpkeepPrompt) {
+        let items = prompt.released_upkeep();
+        if !items.is_empty() {
+            let events = self.game.apply(Command::ReleaseUpkeep {
+                player: HUMAN,
+                items,
+            });
+            self.note(events);
+        }
+        let units = prompt.released_units();
+        let scrap = prompt.scrapped();
+        if !units.is_empty() {
+            let events = self.game.apply(Command::ReleaseTroops {
+                player: HUMAN,
+                units,
+                scrap,
+            });
+            self.note(events);
+        }
+        self.finish_turn();
+    }
+
     /// One frame of the prompt; returns whether it took the frame.
     pub(crate) fn upkeep_prompt_frame(&mut self) -> bool {
         let Some(mut prompt) = self.upkeep_prompt.take() else {
             return false;
         };
-        // The game may have changed under it (a spell released by hand): ask again if so.
-        if self.game.upkeep_shortfall(HUMAN).is_none() {
+        // The game may have changed under it (a building sold, a spell turned off): the prompt
+        // goes if nothing is short any more.
+        if self.game.upkeep_shortfall(HUMAN).is_none()
+            && self.game.treasury_shortfall(HUMAN).is_none()
+        {
             return true;
         }
-        let n = prompt.short.lines.len();
+        let lines = prompt.lines();
+        let n = lines.len();
         let (w, h) = (screen_width(), screen_height());
         let rows = n.min(SHOWN);
-        let (bw, bh) = (620.0, 150.0 + rows as f32 * ROW);
+        let (bw, bh) = (700.0, 150.0 + rows as f32 * ROW);
         let (bx, by) = (w / 2.0 - bw / 2.0, h / 2.0 - bh / 2.0);
         let first = prompt
             .cursor
@@ -104,43 +287,63 @@ impl App {
             )
         };
         let ok = Rect::new(bx + bw - 250.0, by + bh - 40.0, 110.0, 28.0);
-        let cancel = Rect::new(bx + bw - 130.0, by + bh - 40.0, 110.0, 28.0);
+        let back = Rect::new(bx + bw - 130.0, by + bh - 40.0, 110.0, 28.0);
 
         let mut confirm = is_key_pressed(KeyCode::Enter);
         let mut cancelled = is_key_pressed(KeyCode::Escape);
+        let selectable = |i: usize| !matches!(lines[i], Line::Header(_));
         if is_key_pressed(KeyCode::Down) {
-            prompt.cursor = (prompt.cursor + 1).min(n - 1);
+            if let Some(i) = (prompt.cursor + 1..n).find(|&i| selectable(i)) {
+                prompt.cursor = i;
+            }
         }
         if is_key_pressed(KeyCode::Up) {
-            prompt.cursor = prompt.cursor.saturating_sub(1);
+            if let Some(i) = (0..prompt.cursor).rev().find(|&i| selectable(i)) {
+                prompt.cursor = i;
+            }
         }
         if is_key_pressed(KeyCode::Space) {
-            prompt.marked[prompt.cursor] = !prompt.marked[prompt.cursor];
+            prompt.toggle(lines[prompt.cursor]);
         }
         if is_mouse_button_pressed(MouseButton::Left) {
             let at: Vec2 = mouse_position().into();
             if ok.contains(at) {
                 confirm = true;
-            } else if cancel.contains(at) {
+            } else if back.contains(at) {
                 cancelled = true;
-            } else if let Some(i) = (first..first + rows).find(|&i| row_rect(i).contains(at)) {
+            } else if let Some(i) =
+                (first..first + rows).find(|&i| selectable(i) && row_rect(i).contains(at))
+            {
                 prompt.cursor = i;
-                prompt.marked[i] = !prompt.marked[i];
+                prompt.toggle(lines[i]);
             }
         }
         if cancelled {
+            if prompt.items.is_some() {
+                // Back to the first page.
+                prompt.items = None;
+                prompt.item_marked.clear();
+                prompt.cursor = prompt.first_selectable();
+                self.upkeep_prompt = Some(prompt);
+            }
             return true;
         }
         if confirm {
-            let items = prompt.chosen();
-            if !items.is_empty() {
-                let events = self.game.apply(Command::ReleaseUpkeep {
-                    player: HUMAN,
-                    items,
-                });
-                self.note(events);
+            if prompt.items.is_none() {
+                let released = prompt.released_units();
+                if let Some(over) = self.game.item_overflow(HUMAN, &released) {
+                    prompt.item_marked = over
+                        .lines
+                        .iter()
+                        .map(|l| over.default_scrap.contains(&l.spot))
+                        .collect();
+                    prompt.items = Some(over);
+                    prompt.cursor = prompt.first_selectable();
+                    self.upkeep_prompt = Some(prompt);
+                    return true;
+                }
             }
-            self.finish_turn();
+            self.answer_upkeep(&prompt);
             return true;
         }
 
@@ -150,56 +353,51 @@ impl App {
         draw_rectangle(bx, by, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
         draw_rectangle_lines(bx, by, bw, bh, 3.0, GOLD);
         crate::frame::text_centered(
-            "Your mana reserve cannot pay for everything.",
+            "Your reserves cannot pay for everything.",
             w / 2.0,
             by + 34.0,
             24.0,
             WHITE,
         );
-        let short = &prompt.short;
         crate::frame::text_centered(
-            &format!(
-                "Upkeep {} mana, reserve {}. Mark what to give up.",
-                short.owed, short.reserve
-            ),
+            "Space or click marks what to give up. Enter: OK. Esc: back to the map.",
             w / 2.0,
             by + 62.0,
-            20.0,
+            18.0,
             GOLD,
         );
-        for i in first..first + rows {
+        for (i, &line) in lines.iter().enumerate().skip(first).take(rows) {
             let r = row_rect(i);
+            let (label, price) = prompt.text(line);
+            if let Line::Header(_) = line {
+                draw_text(&label, r.x + 4.0, r.y + 18.0, 20.0, GOLD);
+                continue;
+            }
             if i == prompt.cursor {
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.25, 0.2, 0.1, 0.8));
             }
-            let line = &short.lines[i];
-            let mark = if prompt.marked[i] { "[x]" } else { "[ ]" };
-            let color = if prompt.marked[i] { RED } else { WHITE };
+            let marked = prompt.marked(line);
+            let color = if marked { RED } else { WHITE };
+            let mark = if marked { "[x]" } else { "[ ]" };
             draw_text(
-                format!("{mark} {}", line.label),
+                format!("{mark} {label}"),
                 r.x + 8.0,
-                r.y + 19.0,
+                r.y + 18.0,
                 20.0,
                 color,
             );
-            let cost = format!("{} mana", line.mana);
-            let tw = measure_text(&cost, None, 20, 1.0).width;
-            draw_text(&cost, r.x + r.w - tw - 8.0, r.y + 19.0, 20.0, color);
+            let tw = measure_text(&price, None, 20, 1.0).width;
+            draw_text(&price, r.x + r.w - tw - 8.0, r.y + 18.0, 20.0, color);
         }
-        let missing = prompt.missing();
-        let status = if missing == 0 {
-            "Enough: the reserve pays the rest.".to_string()
-        } else {
-            format!("{missing} mana still missing: the game will give up the newest.")
-        };
+        let (status, fine) = prompt.status();
         draw_text(
             &status,
             bx + 20.0,
             by + bh - 20.0,
             18.0,
-            if missing == 0 { GREEN } else { ORANGE },
+            if fine { GREEN } else { ORANGE },
         );
-        for (r, label) in [(ok, "Enter: OK"), (cancel, "Esc: Back")] {
+        for (r, label) in [(ok, "Enter: OK"), (back, "Esc: Back")] {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.15, 0.08, 1.0));
             draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, GOLD);
             crate::frame::text_centered(label, r.x + r.w / 2.0, r.y + 20.0, 18.0, WHITE);

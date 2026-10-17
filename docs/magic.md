@@ -117,7 +117,7 @@ lists every item that costs mana with its price, pre-marks what the default woul
 the player mark others (space or click; Enter confirms, Esc goes back). The marked items are
 released with `Command::ReleaseUpkeep`, and the turn change then drops only what is still missing.
 The original does not ask: its `WIZ_MatchManaUpkeep` takes a random kind of asset and only the
-summons part is written (`NEXTTURN.c`), so this prompt is our own rule.
+summons part is written (`NEXTTURN.c`), so this prompt is our own rule. The prompt also lists the troops that cost gold or food (task 292, `divergences.md` section 22), and the AI answers the same questions through the same commands (`f4x-ai/src/shortfall.rs`).
 
 ## 9. Turn order
 

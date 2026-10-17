@@ -68,6 +68,13 @@ impl App {
         let mut growth = Vec::new();
         let mut deaths = Vec::new();
         let mut buildings = Vec::new();
+        let mut rivals = Vec::new();
+        // Wizards we have met are known by name; their shortages are news.
+        let rival_name = |player: &f4x_core::city::PlayerId| {
+            (*player != HUMAN && self.game.have_met(HUMAN, *player))
+                .then(|| self.game.player(*player).map(|p| p.name.clone()))
+                .flatten()
+        };
         let (mut unit_spells, mut city_spells, mut global_spells) =
             (Vec::new(), Vec::new(), Vec::new());
         for event in events {
@@ -83,6 +90,24 @@ impl App {
                         LossCause::Gold => format!("{name} - deserted: lack of gold."),
                         LossCause::Mana => format!("{name} - dispelled: lack of mana."),
                     });
+                }
+                Event::Shortage { player, what } if rival_name(player).is_some() => {
+                    let what = match what {
+                        f4x_core::Shortage::Mana => "mana",
+                        f4x_core::Shortage::Gold => "gold",
+                        f4x_core::Shortage::Food => "food",
+                    };
+                    rivals.push(format!(
+                        "{} has run short of {what}.",
+                        rival_name(player).unwrap_or_default()
+                    ));
+                }
+                Event::HeroLeft { player, hero } if rival_name(player).is_some() => {
+                    rivals.push(format!(
+                        "{} has lost a hero, {}, who walked out.",
+                        rival_name(player).unwrap_or_default(),
+                        rules.units.get(*hero).name
+                    ));
                 }
                 Event::UnitsDrowned { player, units } if *player == HUMAN => disbanded.push(
                     format!("{units} drowned because the unit carrying them was destroyed."),
@@ -126,6 +151,7 @@ impl App {
             ("CITY GROWTH", growth),
             ("CITY DEATHS", deaths),
             ("Destroyed Buildings", buildings),
+            ("WIZARDS", rivals),
             ("UNIT SPELLS DISSIPATED", unit_spells),
             ("CITY SPELLS DISSIPATED", city_spells),
             ("GLOBAL SPELLS DISSIPATED", global_spells),
@@ -150,11 +176,43 @@ impl App {
     /// The Chancellor from the advisor list (F6): the last turn's news again, or a line saying
     /// there was none.
     pub(crate) fn open_chancellor_advisor(&mut self) {
+        let mut sections = self.last_news.clone();
+        if let Some(warning) = self.shortfall_forecast() {
+            sections.insert(0, warning);
+        }
         self.chancellor = Some(Chancellor {
-            sections: self.last_news.clone(),
+            sections,
             opened: get_time(),
             scrolled: 0.0,
         });
+    }
+
+    /// What the next turn change cannot pay for, if anything (the preview of tasks 62 and 292).
+    fn shortfall_forecast(&self) -> Option<Section> {
+        let mut lines = Vec::new();
+        if let Some(m) = self.game.upkeep_shortfall(HUMAN) {
+            lines.push(format!(
+                "Mana: {} needed, {} in the reserve. Spells or summons will be lost.",
+                m.owed, m.reserve
+            ));
+        }
+        if let Some(t) = self.game.treasury_shortfall(HUMAN) {
+            let (food, gold) = t.missing(&[]);
+            if food > 0 {
+                lines.push(format!("Food: {food} short. Troops will desert."));
+            }
+            if gold > 0 {
+                lines.push(format!("Gold: {gold} short. Troops will desert."));
+            }
+            lines.push(
+                "Sell a building or change taxes, or choose who goes when you end the turn."
+                    .to_string(),
+            );
+        }
+        (!lines.is_empty()).then_some(Section {
+            title: "NEXT TURN",
+            lines,
+        })
     }
 
     /// A made-up report, for `--shot ... --scroll`.

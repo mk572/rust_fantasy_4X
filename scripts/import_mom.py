@@ -467,6 +467,15 @@ HELP_CORRECTIONS = [
     (766, "against any bad city enchantment.",
      "against any bad city enchantment cast on the city, so a spell aimed at the city can fizzle. Only a city with a building that allows use of nightshade counts the plants in its area.",
      "the code checks each spell cast at the city, and only for cities with such a building"),
+    (234, "If negative, units will starve to death.",
+     "If negative, you are asked before the turn ends which units to let go (the cheapest and newest are marked); if you do not choose, the newest go. Heroes can be let go too and hired again, and their items return to the armory.",
+     "task 292: the player (and the AI) chooses who goes when the food or gold runs out, instead of the newest units being dismissed unasked; a ship let go with passengers aboard sails for the nearest shore"),
+    (231, "This is the total amount of gold in your treasury.",
+     "This is the total amount of gold in your treasury. If the treasury cannot pay the troops' upkeep, you are asked before the turn ends which units to let go, and you may sell buildings or change taxes first; a ship let go with passengers aboard turns neutral and sails for the nearest shore, where it unloads them.",
+     "task 292: the player (and the AI) chooses who is let go when the gold runs out"),
+    (266, "the reserve will drop to zero, enchantments will fade away and magical creatures will disappear.",
+     "the reserve will drop to zero, enchantments will fade away and magical creatures will disappear. Before the turn ends you are asked which of them to give up (the newest are marked).",
+     "task 62: the player (and the AI) chooses what is given up when the mana runs out"),
 ]
 
 

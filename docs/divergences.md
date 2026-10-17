@@ -483,3 +483,25 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
 ## 21. Lo Pan's starting books
 
 The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`content/wizards.ron`), eleven picks, as the other presets.
+
+## 22. When mana, gold or food run short (tasks 62 and 292)
+
+- The original disbands the newest units without asking, and only for the human wizard: its
+  `Players_Apply_Upkeeps` calls `WIZ_MatchFoodUpkeep` and `WIZ_MatchGoldUpkeep` for player 0 alone,
+  so an AI's gold is clamped at 0 and its army stays. It spares summoned creatures, heroes and
+  anything with `Transport`, and the mana version (`WIZ_MatchManaUpkeep`) picks a random kind of
+  asset and only the summons part is written.
+- Here the human is asked before ending the turn (`upkeep_prompt.rs`): one list of the spells and
+  summons that cost mana and of the troops that cost gold or food, the default (the newest) marked.
+  The AI follows the same rules and answers through the same commands (`ReleaseUpkeep`,
+  `ReleaseTroops`; `f4x-ai/src/shortfall.rs`: sell dispensable buildings, then let go of the
+  cheapest units, loaded ships and heroes last). Independent cities pay upkeep like everyone and
+  are settled by the turn change as they were.
+- Food comes before gold, and a unit let go for food no longer counts for gold.
+- Heroes can be let go (the original never does): they return to the roster and may be hired again,
+  and their items come home to the armory. Items that do not fit are the owner's to disband for
+  mana (the AI: the cheapest). Task 293 (a bigger armory) and 294 (selling items) follow.
+- A ship let go with passengers aboard turns neutral and sails, a turn's worth at a time, for the
+  nearest shore with a free square, unloads there and is released. A ship in port or without
+  passengers is released at once. If no shore is free the passengers are lost.
+- Announced to wizards in contact: the shortage of mana, gold or food, and any hero who leaves.
