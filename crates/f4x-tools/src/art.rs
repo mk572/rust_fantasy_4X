@@ -26,6 +26,41 @@ fn base_palette(game_dir: &Path) -> Result<Vec<u8>, String> {
     Ok(lbx.entry(PALETTE_ENTRY)[..768].to_vec())
 }
 
+/// The mouse pointers: sixteen 16 by 16 pictures that follow the colours in the palette entry
+/// (`mouse_palette` in `Fonts.c`, 1280 bytes in), a column at a time. `cursors/NN.png`, NN from 1
+/// as `crsr_Finger`, `crsr_RedCross`... number them.
+fn extract_cursors(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize, String> {
+    const FIRST: usize = 1280;
+    const SIZE: usize = 16;
+    let Some(path) = find(game_dir, "FONTS.LBX") else {
+        return Ok(0);
+    };
+    let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let lbx = Lbx::parse(&data).map_err(|e| format!("FONTS.LBX: {e}"))?;
+    let entry = lbx.entry(PALETTE_ENTRY);
+    let dir = out_dir.join("cursors");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut n = 0;
+    for i in 0..16 {
+        let at = FIRST + i * SIZE * SIZE;
+        let Some(raw) = entry.get(at..at + SIZE * SIZE) else {
+            break;
+        };
+        // The original stores the picture column by column.
+        let pixels: Vec<u8> = (0..SIZE * SIZE)
+            .map(|k| raw[(k % SIZE) * SIZE + k / SIZE])
+            .collect();
+        write_png(
+            &dir.join(format!("{:02}.png", i + 1)),
+            SIZE,
+            SIZE,
+            &to_rgba(&pixels, pal),
+        )?;
+        n += 1;
+    }
+    Ok(n)
+}
+
 /// `Load_Palette(n)` reads FONTS.LBX entry `n + 2`. The original loads these while it shows:
 /// 0 the game, 1 the load / save screen, 2 the start menu, 3 the conquest animation, 4 the
 /// Spell of Mastery, 5 the win animation and 6 the lose animation.
@@ -295,6 +330,19 @@ fn write_minimap_colours(
     out.push_str(&row("mark", 0, 15));
     // The colour of the gold and mana reserve figures (`ST_GRAY`, index 8).
     out.push_str(&row("reserve_text", 0, 8));
+    // The glow round an enchanted unit's figures, for each realm the eight colours of the
+    // animation's first step (`enchantment_outline_colors`); the later steps rotate them.
+    for (realm, colours) in [
+        ("chaos", [45u8, 44, 43, 42, 41, 42, 43, 44]),
+        ("death", [36, 35, 34, 33, 32, 33, 34, 35]),
+        ("life", [11, 12, 13, 14, 15, 14, 13, 12]),
+        ("nature", [68, 67, 66, 65, 64, 65, 66, 67]),
+        ("sorcery", [100, 99, 98, 97, 96, 97, 98, 99]),
+    ] {
+        for (i, index) in colours.into_iter().enumerate() {
+            out.push_str(&row(&format!("outline_{realm}_{i}"), 0, index));
+        }
+    }
     // The battle screen's text and outline and the colours of its unit damage bar. Its panel
     // picture carries a palette of its own, which the text colours come from.
     for (kind, index) in [
@@ -512,6 +560,8 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
     fs::write(root.join("index.tsv"), index).map_err(|e| e.to_string())?;
     let tiles = extract_terrain(game_dir, out_dir, &base, &combat_pal)?;
     println!("extracted {tiles} terrain tiles");
+    let cursors = extract_cursors(game_dir, out_dir, &base)?;
+    println!("extracted {cursors} mouse pointers");
     extract_font_atlases(game_dir, out_dir, &base)?;
     extract_map_sprites(game_dir, out_dir, &base)?;
     fs::write(out_dir.join("manifest.tsv"), manifest).map_err(|e| e.to_string())?;

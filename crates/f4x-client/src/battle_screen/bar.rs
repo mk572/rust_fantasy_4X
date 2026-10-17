@@ -13,7 +13,7 @@ const BUTTONS_Y: f32 = 168.0;
 const LEFT_BUTTONS_X: f32 = 144.0;
 const RIGHT_BUTTONS_X: f32 = 170.0;
 /// The window of the unit under the pointer (`x1, y1`).
-const SCAN: (f32, f32, f32, f32) = (250.0, 4.0, 68.0, 39.0);
+const SCAN: (f32, f32, f32, f32) = (156.0, 4.0, 68.0, 39.0);
 
 /// The icon (entry of `compix` 29 on, 61 on in the small window) for a unit's melee attack
 /// (`Battle_Unit_Melee_Attack_Icon`): the weapon quality picks the sword.
@@ -127,9 +127,11 @@ impl App {
         )
     }
 
-    /// Whether a window point is on the map (the original's map window) and not on the panel.
-    pub(super) fn on_battle_map(point: Vec2) -> bool {
+    /// Whether a window point is on the map (the original's map window), not on the panel or
+    /// the box of the selected unit's spells.
+    pub(super) fn on_map(&self, point: Vec2) -> bool {
         Layout::new().rect((0.0, 0.0, 320.0, BAR_Y)).contains(point)
+            && !self.battle_ui.box_rect.is_some_and(|r| r.contains(point))
     }
 
     /// Text in the panel's font colours: light, with a dark shadow down and to the right.
@@ -341,6 +343,7 @@ impl App {
             self.bm_text_shadowed(view, 1, text, at.0, at.1, LIGHTGRAY, Align::Left);
         }
         self.draw_scanned_unit(battle, hovered, view);
+        self.draw_unit_specials(battle, my_turn);
     }
 
     /// The selected unit in the middle of the panel (`Draw_Active_Unit_Window`).
@@ -412,7 +415,7 @@ impl App {
     }
 
     /// The little window with the stats of the unit under the pointer
-    /// (`Draw_Combat_Unit_Display`), at the top right of the map.
+    /// (`Draw_Combat_Unit_Display`), at the top of the map, left of the box of spells and abilities.
     fn draw_scanned_unit(&mut self, battle: &Battle, hovered: Option<Pos>, view: (f32, f32, f32)) {
         let Some(u) = hovered.and_then(|p| Self::seen_unit_at(battle, p)) else {
             return;

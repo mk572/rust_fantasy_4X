@@ -11,7 +11,9 @@ use f4x_core::battle::map::Pos;
 /// Seconds to cross one square.
 pub const STEP_TIME: f32 = 0.2;
 const ATTACK_TIME: f32 = 0.6;
-const SHOT_TIME: f32 = 0.55;
+const SHOT_TIME: f32 = 0.9;
+/// The part of a shot's time its missile is in the air; the blow lands after it.
+pub const SHOT_FLIGHT: f32 = 0.5;
 const DEATH_TIME: f32 = 0.5;
 /// Walking figures cycle through these animation frames.
 const WALK_FRAMES: [u8; 4] = [0, 1, 2, 1];
@@ -27,10 +29,14 @@ pub enum Anim {
     Attack {
         attacker: usize,
         defender: usize,
+        /// Hit points of damage each took, which makes them bleed.
+        dealt: i32,
+        taken: i32,
     },
     Shot {
         attacker: usize,
         defender: usize,
+        dealt: i32,
     },
     Death {
         unit: usize,
@@ -119,6 +125,49 @@ pub fn figure_offset(count: usize, index: usize) -> (i32, i32) {
     row[index.min(row.len() - 1)]
 }
 
+/// How a unit that was just hit bleeds (`Set_Gibs`, `Spawn_Figure_Entity`): the size of the blood
+/// (1 to 5), how many of its figures are hit, and the seconds since the blow landed.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Blood {
+    pub gibs: usize,
+    pub lost: usize,
+    pub since: f32,
+}
+
+/// The blood of a unit of `figures` figures with `hits` hit points each that took `damage`, `since`
+/// seconds after the blow, or `None` when it took none.
+pub fn blood(figures: u32, hits: i32, damage: i32, since: f32) -> Option<Blood> {
+    if damage <= 0 || since < 0.0 {
+        return None;
+    }
+    let gibs = if figures == 0 {
+        3
+    } else {
+        ((damage + figures as i32 / 2) / (figures as i32 * 2)).min(5)
+    };
+    let hits = hits.max(1);
+    Some(Blood {
+        gibs: gibs.max(1) as usize,
+        lost: (((damage + hits - 1) / hits) as usize).min(figures as usize),
+        since,
+    })
+}
+
+/// The blood frame of figure `index` of a unit: the original starts each at a random step and
+/// moves all on a frame at a time, three frames of blood; at the fourth the figure is gone
+/// (the last one hit stays on the third). `None` before the blood shows, `Some(3)` for gone.
+pub fn blood_frame(unit: usize, index: usize, b: Blood) -> Option<usize> {
+    // A fixed scatter of -1 to 2, so that a figure always bleeds the same way.
+    let start = ((unit * 7 + index * 5 + 3) % 4) as i32 - 1;
+    let frame = (start + (b.since * 12.0) as i32).min(5) - 2;
+    let frame = if frame == 3 && b.lost == index + 1 {
+        2
+    } else {
+        frame
+    };
+    usize::try_from(frame).ok()
+}
+
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -164,8 +213,12 @@ pub fn visual_between(
     base_facing: u8,
 ) -> Option<Visual> {
     let (attacker, defender, melee, total) = match anim {
-        Anim::Attack { attacker, defender } => (*attacker, *defender, true, ATTACK_TIME),
-        Anim::Shot { attacker, defender } => (*attacker, *defender, false, SHOT_TIME),
+        Anim::Attack {
+            attacker, defender, ..
+        } => (*attacker, *defender, true, ATTACK_TIME),
+        Anim::Shot {
+            attacker, defender, ..
+        } => (*attacker, *defender, false, SHOT_TIME),
         _ => return None,
     };
     let mut v = Visual::still(cell, base_facing);
@@ -187,7 +240,7 @@ pub fn visual_between(
     } else if unit == defender {
         v.facing = facing(cell, other);
         // The blow lands at about two fifths of the way through.
-        let hit_at = 0.4;
+        let hit_at = if melee { 0.4 } else { SHOT_FLIGHT };
         if phase > hit_at {
             let left = 1.0 - (phase - hit_at) / (1.0 - hit_at);
             v.hurt = left.clamp(0.0, 1.0);
@@ -203,7 +256,7 @@ pub fn visual_between(
 /// target (it flies for the first two thirds of the animation), or `None` while it is not in
 /// the air.
 pub fn missile_progress(t: f32) -> Option<f32> {
-    let flight = SHOT_TIME * 0.66;
+    let flight = SHOT_TIME * SHOT_FLIGHT;
     (t < flight).then(|| (t / flight).clamp(0.0, 1.0))
 }
 
@@ -270,10 +323,25 @@ mod tests {
     }
 
     #[test]
+    fn blood_grows_with_the_damage_and_the_figures_vanish_at_its_end() {
+        assert_eq!(blood(4, 2, 0, 0.1), None);
+        let b = blood(4, 2, 5, 0.0).unwrap();
+        assert_eq!((b.gibs, b.lost), (1, 3));
+        assert_eq!(blood(1, 2, 20, 0.0).unwrap().gibs, 5);
+        let late = Blood { since: 1.0, ..b };
+        assert_eq!(blood_frame(0, 0, late), Some(3));
+        // The last one hit stays on the third frame.
+        assert_eq!(blood_frame(0, 2, late), Some(2));
+        assert_eq!(blood_frame(0, 5, Blood { since: 0.0, ..b }), None);
+    }
+
+    #[test]
     fn a_blow_lunges_and_returns_and_hurts_the_defender_late() {
         let anim = Anim::Attack {
             attacker: 0,
             defender: 1,
+            dealt: 0,
+            taken: 0,
         };
         let a = |t| visual_between(&anim, t, 0, (5, 5), (6, 5), 2).unwrap();
         assert_eq!(a(0.0).at, (5.0, 5.0));

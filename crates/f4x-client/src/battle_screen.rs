@@ -20,6 +20,7 @@ use f4x_core::rules::SpellId;
 use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
+use crate::art::FigureEffect;
 use crate::battle_anim::{self, Anim, Visual};
 use crate::battle_ground::Piece;
 use crate::frame::{Align, Layout};
@@ -41,6 +42,8 @@ pub(crate) struct BattleUi {
     pub(crate) ready: bool,
     selected: Option<usize>,
     ai_timer: f32,
+    /// Where the box of the selected unit's spells and abilities was drawn.
+    box_rect: Option<Rect>,
     log: Vec<String>,
     /// The fleeing button was pressed once and waits for a second press.
     confirm_flee: bool,
@@ -258,6 +261,100 @@ fn kills(count: u32) -> String {
 }
 
 /// Can the unit still do something this turn?
+/// The missile picture set (`cmbmagic` entries in eights) a unit's ranged attack throws
+/// (`msl_*`: 0 lightning, 1 arrow, 2 fireball, 3 illusion, 4 rocks, 5 sling, 6 deathbolt,
+/// 7 icebolt, 9 priest, 10 drow, 11 shimmer).
+fn missile_type(u: &BattleUnit) -> usize {
+    let has = |a: &str| u.abilities.iter().any(|x| x == a);
+    [
+        ("rock_throwing", 4),
+        ("sling", 5),
+        ("lightning_bolt", 0),
+        ("fireball_attack", 2),
+        ("illusion_attack", 3),
+        ("sorcery_bolt", 3),
+        ("death_bolt", 6),
+        ("ice_bolt", 7),
+        ("shaman_bolt", 9),
+        ("drow_bolt", 10),
+        ("sprite_bolt", 11),
+        ("nature_bolt", 11),
+    ]
+    .into_iter()
+    .find_map(|(ability, kind)| has(ability).then_some(kind))
+    .unwrap_or(if u.ranged_kind == RangedKind::Magic {
+        2
+    } else {
+        1
+    })
+}
+
+/// The realm of the glow round an enchanted unit (`Combat_Unit_Enchantment_Outline_Set`): the
+/// first of its lasting spells in the original's order (0 chaos, 1 death, 2 life, 3 nature,
+/// 4 sorcery). Invisible units have none.
+fn enchantment_realm(u: &BattleUnit, ids: &[String]) -> Option<usize> {
+    const ORDER: [(&str, usize); 32] = [
+        ("regeneration", 3),
+        ("resist_magic", 4),
+        ("righteousness", 2),
+        ("planar_travel", 2),
+        ("haste", 4),
+        ("black_channels", 1),
+        ("lionheart", 2),
+        ("iron_skin", 3),
+        ("magic_immunity", 4),
+        ("wind_walking", 4),
+        ("elemental_armor", 3),
+        ("true_sight", 2),
+        ("invulnerability", 2),
+        ("path_finding", 3),
+        ("flight", 4),
+        ("eldritch_weapon", 0),
+        ("wraith_form", 1),
+        ("giant_strength", 3),
+        ("immolation", 0),
+        ("guardian_wind", 4),
+        ("spell_lock", 4),
+        ("heroism", 2),
+        ("berserk", 1),
+        ("holy_armor", 2),
+        ("water_walking", 3),
+        ("endurance", 2),
+        ("cloak_of_fear", 1),
+        ("stone_skin", 3),
+        ("flame_blade", 0),
+        ("bless", 2),
+        ("holy_weapon", 2),
+        ("resist_elements", 3),
+    ];
+    if u.is_invisible() {
+        return None;
+    }
+    ORDER
+        .iter()
+        .find(|(id, _)| ids.iter().any(|e| e == id))
+        .map(|&(_, realm)| realm)
+}
+
+/// The curse picture on a unit (`chriver` 16 on, `Battle_Unit_Curse_Effects`): vertigo,
+/// confusion, whirlwind, mind storm, shatter, weakness, mind twist, web.
+fn curse_icon(ids: &[String]) -> Option<usize> {
+    const CURSES: [&str; 8] = [
+        "vertigo",
+        "confusion",
+        "whirlwind",
+        "mind_storm",
+        "shatter",
+        "weakness",
+        "mind_twist",
+        "web",
+    ];
+    CURSES
+        .iter()
+        .position(|c| ids.iter().any(|id| id == c))
+        .map(|i| 16 + i)
+}
+
 fn unfinished(u: &BattleUnit) -> bool {
     u.is_active() && !(u.attacked && u.moves_left == 0)
 }
@@ -267,6 +364,10 @@ fn can_shoot(u: &BattleUnit) -> bool {
 }
 
 mod bar;
+mod pointer;
+mod specials;
+
+pub(crate) use pointer::show_system_pointer;
 
 impl App {
     /// Which side the human commands in the current battle, if any.
@@ -430,6 +531,16 @@ impl App {
         .into_iter()
         .filter_map(|(side, id)| Some((side, Field::of(id)?, spells.id_of(id)?)))
         .collect();
+        let curses: Vec<_> = [
+            "confusion",
+            "black_sleep",
+            "warp_creature",
+            "web",
+            "vertigo",
+        ]
+        .into_iter()
+        .filter_map(|id| spells.id_of(id))
+        .collect();
         let Some(active) = self.game.battle.as_mut() else {
             return;
         };
@@ -452,6 +563,38 @@ impl App {
                     battle.raise_field(side, field, spell);
                 }
                 battle.cast_counter_magic(Side::Attacker, 20);
+            }
+            "shot" => {
+                // The screen sets itself up when first drawn, which would drop the animation.
+                self.battle_ui.ready = true;
+                let sides = |side| battle.units.iter().find(|u| u.side == side).map(|u| u.id);
+                if let (Some(attacker), Some(defender)) =
+                    (sides(Side::Attacker), sides(Side::Defender))
+                {
+                    self.battle_ui.shown = Some(battle.clone());
+                    self.battle_ui.playing = Some((
+                        Anim::Shot {
+                            attacker,
+                            defender,
+                            dealt: 6,
+                        },
+                        0.7,
+                    ));
+                }
+            }
+            "glow" => {
+                for (u, id) in battle.units.iter_mut().zip([
+                    "bless",
+                    "flame_blade",
+                    "regeneration",
+                    "wraith_form",
+                    "flight",
+                ]) {
+                    u.enchantments.push(id.into());
+                }
+                for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
+                    u.combat_spells.push((spell, f4x_core::city::PlayerId(0)));
+                }
             }
             "mud" => {
                 for y in 8..13 {
@@ -586,6 +729,11 @@ impl App {
             | BattleEvent::Shot {
                 attacker, defender, ..
             } => {
+                let (dealt, taken) = match event {
+                    BattleEvent::Attacked { dealt, taken, .. } => (*dealt, *taken),
+                    BattleEvent::Shot { dealt, .. } => (*dealt, 0),
+                    _ => (0, 0),
+                };
                 if let (Some(a), Some(d)) = (cell_of(*attacker), cell_of(*defender)) {
                     self.battle_ui
                         .facing
@@ -598,11 +746,14 @@ impl App {
                     Anim::Shot {
                         attacker: *attacker,
                         defender: *defender,
+                        dealt,
                     }
                 } else {
                     Anim::Attack {
                         attacker: *attacker,
                         defender: *defender,
+                        dealt,
+                        taken,
                     }
                 });
             }
@@ -629,6 +780,47 @@ impl App {
     }
 
     /// How a unit of the battle being drawn looks right now.
+    /// The ids of the lasting spells on a unit: those it came with and those cast in the battle.
+    fn unit_spell_ids(&self, u: &BattleUnit) -> Vec<String> {
+        let spells = &self.game.content().rules.spells;
+        u.enchantments
+            .iter()
+            .cloned()
+            .chain(
+                u.combat_spells
+                    .iter()
+                    .map(|(s, _)| spells.get(*s).id.clone()),
+            )
+            .collect()
+    }
+
+    /// How the unit bleeds from the blow or shot being played, if it is a party to it.
+    fn blood_of(&self, u: &BattleUnit) -> Option<battle_anim::Blood> {
+        let (anim, t) = self.battle_ui.playing.as_ref()?;
+        let (damage, landed) = match *anim {
+            Anim::Attack {
+                attacker,
+                defender,
+                dealt,
+                taken,
+            } => {
+                let damage = if u.id == defender {
+                    dealt
+                } else if u.id == attacker {
+                    taken
+                } else {
+                    0
+                };
+                (damage, *t - anim.duration() * 0.4)
+            }
+            Anim::Shot {
+                defender, dealt, ..
+            } if u.id == defender => (dealt, *t - anim.duration() * battle_anim::SHOT_FLIGHT),
+            _ => (0, 0.0),
+        };
+        battle_anim::blood(u.figures, u.hits, damage, landed)
+    }
+
     fn visual_of(&self, battle: &Battle, id: usize) -> Visual {
         let Some(u) = battle.unit(id) else {
             return Visual::still((0, 0), 2);
@@ -639,7 +831,12 @@ impl App {
                 return v;
             }
             let other = match anim {
-                Anim::Attack { attacker, defender } | Anim::Shot { attacker, defender } => {
+                Anim::Attack {
+                    attacker, defender, ..
+                }
+                | Anim::Shot {
+                    attacker, defender, ..
+                } => {
                     let o = if *attacker == id { defender } else { attacker };
                     battle.unit(*o).map(|o| o.cell)
                 }
@@ -727,6 +924,7 @@ impl App {
             .or_else(|| self.game.battle().cloned())
             .unwrap_or(battle);
         self.draw_battle(&battle, my_turn, hovered);
+        self.draw_battle_pointer(&battle, my_turn && !self.battle_ui.info_open, hovered);
         if self.battle_ui.info_open {
             if let Some(info) = self.game.battle_info(HUMAN) {
                 if self.draw_battle_info(&info) {
@@ -775,7 +973,7 @@ impl App {
         }
         if is_mouse_button_pressed(MouseButton::Left) {
             // Clicks on the panel are the buttons' business.
-            if Self::on_battle_map(mouse_position().into()) {
+            if self.on_map(mouse_position().into()) {
                 if let Some(cell) = hovered {
                     self.battle_click(battle, cell);
                 }
@@ -961,7 +1159,7 @@ impl App {
         let target = if aimless {
             is_key_pressed(KeyCode::Enter).then_some(SpellAim::None)
         } else if is_mouse_button_pressed(MouseButton::Left) {
-            let on_grid = Self::on_battle_map(mouse_position().into());
+            let on_grid = self.on_map(mouse_position().into());
             hovered
                 .filter(|_| on_grid)
                 .and_then(|cell| match aim.target {
@@ -1400,16 +1598,41 @@ impl App {
             tint = Color::new(0.7 * shade, 0.88 * shade, shade, 0.45 * fade);
         }
         let cx = sx + CELL_W * scale / 2.0;
+        let ids = self.unit_spell_ids(u);
         let mut drew = false;
         if let Some(ty) = unit_type {
             // Every figure the unit still has, the back ones first.
             let count = u.figures_start as usize;
-            let mut spots: Vec<(i32, i32)> = (0..u.figures as usize)
-                .map(|i| battle_anim::figure_offset(count, i))
+            let mut spots: Vec<(usize, (i32, i32))> = (0..u.figures as usize)
+                .map(|i| (i, battle_anim::figure_offset(count, i)))
                 .collect();
-            spots.sort_by_key(|&(_, fy)| fy);
-            for (fx, fy) in spots {
-                if let Some(tex) = self.art.figure(ty, vis.facing, frame, banner_index) {
+            spots.sort_by_key(|&(_, (_, fy))| fy);
+            let blood = self.blood_of(u);
+            for (index, (fx, fy)) in spots {
+                let bleeding = blood
+                    .filter(|b| index < b.lost)
+                    .and_then(|b| battle_anim::blood_frame(u.id, index, b).map(|f| (b.gibs, f)));
+                // The fourth frame of the blood: the figure is gone.
+                if bleeding.is_some_and(|(_, f)| f == 3) {
+                    continue;
+                }
+                let glow = enchantment_realm(u, &ids);
+                let step = (get_time() * 8.0) as usize;
+                let figure = (ty, vis.facing, frame, banner_index);
+                // Black Sleep greys a figure, Warp Creature turns it red and inside out.
+                let effect = if ids.iter().any(|i| i == "warp_creature") {
+                    Some(FigureEffect::Warped)
+                } else if ids.iter().any(|i| i == "black_sleep") {
+                    Some(FigureEffect::Asleep)
+                } else {
+                    None
+                };
+                let tex = match (effect, glow) {
+                    (Some(effect), _) => self.art.affected_figure(figure, effect),
+                    (None, Some(realm)) => self.art.glowing_figure(figure, realm, step),
+                    (None, None) => self.art.figure(ty, vis.facing, frame, banner_index),
+                };
+                if let Some(tex) = tex {
                     let native = tex.size();
                     let size = native * scale;
                     // Standing on the bottom corner of the square, the figure rising from
@@ -1426,7 +1649,42 @@ impl App {
                         },
                     );
                     drew = true;
+                    if let Some((gibs, f)) = bleeding {
+                        let top = (
+                            sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32 + 10.0) * scale,
+                            sy + (CELL_H - native.y + (fy - 8) as f32 + 12.0) * scale,
+                        );
+                        if let Some(blood) = self.art.picture("cmbtcity", 23 + gibs, f) {
+                            draw_texture_ex(
+                                blood,
+                                top.0,
+                                top.1,
+                                WHITE,
+                                DrawTextureParams {
+                                    dest_size: Some(blood.size() * scale),
+                                    ..Default::default()
+                                },
+                            );
+                        }
+                    }
                 }
+            }
+        }
+        if let Some(entry) = curse_icon(&ids) {
+            // Over the square, as the original's curse entity: 13 across and 15 down from the
+            // cell's point.
+            let frame = (get_time() * 8.0) as usize % 8;
+            if let Some(tex) = self.art.picture("chriver", entry, frame) {
+                draw_texture_ex(
+                    tex,
+                    sx + (14.0 - 13.0) * scale,
+                    sy - 15.0 * scale,
+                    Color::new(1.0, 1.0, 1.0, vis.alpha),
+                    DrawTextureParams {
+                        dest_size: Some(tex.size() * scale),
+                        ..Default::default()
+                    },
+                );
             }
         }
         if !drew {
@@ -1479,7 +1737,13 @@ impl App {
 
     /// The arrow or bolt in flight during a shot.
     fn draw_missile(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32)) {
-        let Some((Anim::Shot { attacker, defender }, t)) = self.battle_ui.playing.clone() else {
+        let Some((
+            Anim::Shot {
+                attacker, defender, ..
+            },
+            t,
+        )) = self.battle_ui.playing.clone()
+        else {
             return;
         };
         let Some(progress) = battle_anim::missile_progress(t) else {
@@ -1488,34 +1752,62 @@ impl App {
         let (Some(a), Some(d)) = (battle.unit(attacker), battle.unit(defender)) else {
             return;
         };
-        let centre = |cell: Pos| {
+        // One missile for each figure of the shooter (`Make_Missiles`), each from its figure to
+        // one of the target's, travelling from 10 to 100 percent of the way.
+        let kind = missile_type(a);
+        let count = a.figures.max(1) as usize;
+        let targets = d.figures.max(1) as usize;
+        let percent = 10.0 + 90.0 * progress;
+        let frame = (get_time() * 12.0) as usize % 3;
+        let spot = |cell: Pos, (fx, fy): (i32, i32)| {
             let (x, y) = cell_origin(cell);
-            (
-                ox + (x + CELL_W / 2.0) * scale,
-                oy + (y + CELL_H / 2.0 - 8.0) * scale,
-            )
+            (x + 14.0 + fx as f32, y + fy as f32)
         };
-        let (from, to) = (centre(a.cell), centre(d.cell));
-        let arc = (progress * std::f32::consts::PI).sin() * 10.0 * scale;
-        let at = (
-            from.0 + (to.0 - from.0) * progress,
-            from.1 + (to.1 - from.1) * progress - arc,
-        );
-        if a.ranged_kind == RangedKind::Magic {
-            draw_circle(at.0, at.1, 4.0 * scale, Color::new(1.0, 0.9, 0.5, 0.35));
-            draw_circle(at.0, at.1, 2.0 * scale, Color::new(1.0, 1.0, 0.9, 1.0));
-        } else {
-            let (dx, dy) = (to.0 - from.0, to.1 - from.1 - 2.0 * arc);
-            let len = (dx * dx + dy * dy).sqrt().max(1.0);
-            let (ux, uy) = (dx / len * 4.0 * scale, dy / len * 4.0 * scale);
-            draw_line(
-                at.0 - ux,
-                at.1 - uy,
-                at.0 + ux,
-                at.1 + uy,
-                (scale * 0.8).max(1.5),
-                Color::new(0.85, 0.7, 0.4, 1.0),
-            );
+        for i in 0..count {
+            let (sfx, sfy) = battle_anim::figure_offset(count, i);
+            let (dfx, dfy) = battle_anim::figure_offset(count, i % targets);
+            let from = spot(a.cell, (sfx, sfy - 8));
+            let to = spot(d.cell, (dfx, dfy - 8));
+            // The direction is aimed from the shooter's cell, 8 pixels down.
+            let aim = spot(a.cell, (0, 8));
+            let angle = (to.1 - aim.1)
+                .atan2(to.0 - aim.0)
+                .to_degrees()
+                .rem_euclid(360.0);
+            let direction = match angle {
+                a if !(22.0..=337.0).contains(&a) => 2,
+                a if a < 69.0 => 3,
+                a if a < 112.0 => 4,
+                a if a < 158.0 => 5,
+                a if a < 202.0 => 6,
+                a if a < 248.0 => 7,
+                a if a < 292.0 => 0,
+                _ => 1,
+            };
+            let x = from.0 + (to.0 - from.0) * percent / 100.0;
+            let mut y = from.1 + (to.1 - from.1) * percent / 100.0;
+            // Arrows and thrown rocks fly in an arc.
+            if matches!(kind, 1 | 4 | 5) {
+                y += ((percent - 50.0) / 4.0).abs();
+            }
+            match self.art.picture("cmbmagic", kind * 8 + direction, frame) {
+                Some(tex) => draw_texture_ex(
+                    tex,
+                    ox + (x - 14.0) * scale,
+                    oy + (y - 22.0) * scale,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(tex.size() * scale),
+                        ..Default::default()
+                    },
+                ),
+                None => draw_circle(
+                    ox + x * scale,
+                    oy + y * scale,
+                    2.0 * scale,
+                    Color::new(1.0, 0.9, 0.5, 1.0),
+                ),
+            }
         }
     }
 

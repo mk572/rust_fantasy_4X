@@ -93,6 +93,18 @@ struct FontStyle {
     set_colors: Vec<Color>,
 }
 
+/// A combat figure: unit type, direction, animation frame and banner.
+pub type FigureKey = (usize, u8, u8, u8);
+
+/// A spell's change to the look of a unit's figures (`Combat_Figure_Effect`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FigureEffect {
+    /// Black Sleep: in shades of grey.
+    Asleep,
+    /// Warp Creature: the shades of grey turned inside out, in red.
+    Warped,
+}
+
 pub struct Art {
     dir: PathBuf,
     styles: Vec<Option<FontStyle>>,
@@ -117,8 +129,10 @@ pub struct Art {
     /// Tiles of rivers with everything but the water cut out, to lay over any ground.
     river_overlays: HashMap<usize, Option<Texture2D>>,
     /// Combat figures painted in a banner, by (unit type, direction, frame, banner).
-    figures: HashMap<(usize, u8, u8, u8), Option<Texture2D>>,
+    figures: HashMap<FigureKey, Option<Texture2D>>,
     unit_pictures: HashMap<(String, usize, u8), Option<Texture2D>>,
+    /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
+    glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
 }
 
 /// Banner names in the order the game numbers them.
@@ -190,6 +204,7 @@ impl Art {
             banners,
             river_overlays: HashMap::new(),
             figures: HashMap::new(),
+            glows: HashMap::new(),
             unit_pictures: HashMap::new(),
         }
     }
@@ -511,6 +526,83 @@ impl Art {
         self.figures.get(&key).and_then(Option::as_ref)
     }
 
+    /// A combat figure with the glow the original draws round an enchanted unit's figures
+    /// (`Combat_Unit_Enchantment_Outline_Draw`): the transparent pixels next to the figure take
+    /// the colours of the realm's ramp, which move with `step`. `realm` is 0 chaos, 1 death,
+    /// 2 life, 3 nature, 4 sorcery.
+    pub fn glowing_figure(
+        &mut self,
+        figure: FigureKey,
+        realm: usize,
+        step: usize,
+    ) -> Option<&Texture2D> {
+        const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
+        let key = (figure, realm, step % 8);
+        if !self.glows.contains_key(&key) {
+            let ramp: Vec<Color> = (0..8)
+                .map(|i| {
+                    self.minimap.named(
+                        &format!("outline_{}_{}", REALMS[realm % 5], (i + step) % 8),
+                        WHITE,
+                    )
+                })
+                .collect();
+            let glow = self
+                .figure(figure.0, figure.1, figure.2, figure.3)
+                .cloned()
+                .map(|tex| {
+                    let mut img = tex.get_texture_data();
+                    outline_pixels(&mut img, &ramp);
+                    let glowing = Texture2D::from_image(&img);
+                    glowing.set_filter(FilterMode::Nearest);
+                    glowing
+                });
+            self.glows.insert(key, glow);
+        }
+        self.glows.get(&key).and_then(Option::as_ref)
+    }
+
+    /// A figure under a spell's effect, recoloured pixel by pixel as the original does.
+    pub fn affected_figure(
+        &mut self,
+        figure: FigureKey,
+        effect: FigureEffect,
+    ) -> Option<&Texture2D> {
+        let key = (figure, 100 + effect as usize, 0);
+        if !self.glows.contains_key(&key) {
+            let changed = self
+                .figure(figure.0, figure.1, figure.2, figure.3)
+                .cloned()
+                .map(|tex| {
+                    let mut img = tex.get_texture_data();
+                    for px in img
+                        .bytes
+                        .as_chunks_mut::<4>()
+                        .0
+                        .iter_mut()
+                        .filter(|p| p[3] > 0)
+                    {
+                        let grey =
+                            (u32::from(px[0]) * 30 + u32::from(px[1]) * 59 + u32::from(px[2]) * 11)
+                                / 100;
+                        let grey = grey as u8;
+                        match effect {
+                            FigureEffect::Asleep => px[..3].fill(grey),
+                            FigureEffect::Warped => {
+                                let v = 255 - grey;
+                                px[..3].copy_from_slice(&[v, v / 4, v / 4]);
+                            }
+                        }
+                    }
+                    let tex = Texture2D::from_image(&img);
+                    tex.set_filter(FilterMode::Nearest);
+                    tex
+                });
+            self.glows.insert(key, changed);
+        }
+        self.glows.get(&key).and_then(Option::as_ref)
+    }
+
     fn load_figure(
         &self,
         unit_type: usize,
@@ -584,10 +676,46 @@ impl Art {
         self.texture(PathBuf::from(format!("{base}_cycle.png")))
     }
 
+    /// One of the original's mouse pointers, numbered from 1 (`crsr_Finger`).
+    pub fn cursor(&mut self, number: usize) -> Option<&Texture2D> {
+        self.texture(PathBuf::from(format!("cursors/{number:02}.png")))
+    }
+
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
     pub fn picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
         let path = picture_path(&self.placed, lbx, entry, frame);
         self.texture(path)
+    }
+}
+
+/// Paint the outline of a picture (`Outline_Bitmap_Pixels_No_Glass`, `Bitmap_Aura_Pixels`): every
+/// transparent pixel with a figure pixel above, below or beside it takes the next colour of the
+/// ramp, which advances as the picture is read a column at a time.
+fn outline_pixels(img: &mut Image, ramp: &[Color]) {
+    let (w, h) = (usize::from(img.width), usize::from(img.height));
+    let inside: Vec<bool> = (0..w * h).map(|i| img.bytes[i * 4 + 3] > 0).collect();
+    let (mut at, mut step) = (0usize, 0usize);
+    for x in 0..w {
+        for y in 0..h {
+            let near = |dx: isize, dy: isize| {
+                let (nx, ny) = (x as isize + dx, y as isize + dy);
+                (0..w as isize).contains(&nx)
+                    && (0..h as isize).contains(&ny)
+                    && inside[ny as usize * w + nx as usize]
+            };
+            if !inside[y * w + x] && (near(-1, 0) || near(1, 0) || near(0, -1) || near(0, 1)) {
+                let c = ramp[at % ramp.len()];
+                let i = (y * w + x) * 4;
+                img.bytes[i..i + 4].copy_from_slice(&[
+                    (c.r * 255.0) as u8,
+                    (c.g * 255.0) as u8,
+                    (c.b * 255.0) as u8,
+                    255,
+                ]);
+            }
+            at = (at + step) & 7;
+            step = (step + 1) & 7;
+        }
     }
 }
 

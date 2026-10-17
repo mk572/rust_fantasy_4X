@@ -959,6 +959,9 @@ impl App {
         {
             self.screen = Screen::GameOver;
         }
+        if !matches!(self.screen, Screen::Battle) {
+            crate::battle_screen::show_system_pointer();
+        }
         match self.screen {
             Screen::GameOver => return self.game_over_screen(),
             Screen::Console => self.console_screen(),

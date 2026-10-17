@@ -114,6 +114,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 298 | Client | Overland: smooth unit movement and unit animation |
 | 299 | Client | Minimap: drag to scroll, and the other plane |
 | 300 | Client | Bitmap fonts for the battle, settings, console and prompt screens |
+| 301 | Client | The original's mouse pointers on every screen |
 
 ## Descriptions
 
@@ -195,9 +196,14 @@ cleared site (the original just stops drawing the lair) and for nodes that are g
 **132. Battle screen: unit figures, animation and the original's frame.** Done: each unit is drawn
 as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
 owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
-a missile in flight, fading death). Still missing: the original's projectile and effect pictures
-(`cmbmagic`, `cmbtfx`; arrows and bolts are drawn as simple shapes), blood and gibs, enchantment
-outlines and figure effects, mouse pointers by action and sound. **Done (17 October 2026): the
+a missile in flight, fading death). **Done (17 October 2026): the missiles** (`cmbmagic`, one for
+each figure of the shooter, aimed and arced as `Make_Missiles` does), **blood** (`cmbtcity` 24 to 28:
+the hit figures bleed and vanish as `Set_Gibs` and `Spawn_Figure_Entity` say), **the glow round
+enchanted units** (a realm's colours moving round the figure's outline) and the figure effects of
+Black Sleep and Warp Creature, the curse pictures (`chriver` 16 to 23), and **the mouse pointers by
+action** (`cursors/`, drawn by the game: finger, boots, swords, bow, wand, red cross). Still missing:
+the other spell effect pictures (`cmbtfx`), the breath and gaze effects, the figure effects of
+invisibility (revealed and hidden silhouettes), and sound (task 97). **Done (17 October 2026): the
 original's frame** (`battle_screen/bar.rs`): the map fills the 320 by 200 screen's top 164 rows with the
 fixed camera of `Combat_Screen_Map_Draw` (the ground is drawn on every cell, as the original does), the
 bottom panel (`backgrnd` 3) holds the two names, skill, mana and range, the selected unit with its
@@ -205,7 +211,8 @@ attack, ranged and move icons and damage bar, the six buttons in the original's 
 locked pictures, Flee asks "Do you wish to flee?" in the confirmation box, the enchantment icons (four
 a side, `compix` 5 to 15, 41, 60, 79, 80), and a small window with the stats of the unit under the
 pointer (`Draw_Combat_Unit_Display`); the text colours come from the panel picture's own palette
-(`minimap.tsv`). The old side panel, End turn button and spell-ability text list are gone (Enter ends
+(`minimap.tsv`). A box at the top right (`battle_screen/specials.rs`, made of the Info window's pictures) lists the
+selected unit's spells, which cast with a click, its demon summons and its abilities. The old side panel, End turn button and spell-ability text list are gone (Enter ends
 the turn). The spell lists are still plain boxes (task 300). Also fixed: the clip rectangle's y was
 taken from the bottom, which cut the main map's last 20 rows. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
 client, `battle/info.rs` in the core, `--battle --battle-field info`): the field's effects (node
@@ -400,5 +407,7 @@ Parity task, low priority.
 **298. Overland: smooth unit movement and unit animation.** A moving stack jumps from square to square; the original slides it over the map and animates the unit pictures (the weapon icons and the unit enchantment outlines already animate in the window, not on the map). Add a slide for our own and visible enemy moves, with the original's speed setting, and the status letters and grey of a patrolling unit on the map pictures. Split from task 120.
 
 **300. Bitmap fonts for the battle, settings, console and prompt screens.** Tasks 118 and 126 moved the magic, wizard, production, unit and overland text to the original's fonts (`Bitmap_wrap` is `bm_wrap`). Still in the plain font: the battle screen's panels and buttons (`battle_screen.rs`), the settings, options and console screens, the attack prompt and autobuild dialog, the road planner, and the plain `ui::button` / `confirm_box` fallbacks. Move them over with the original's box and button art where it has some.
+
+**301. The original's mouse pointers on every screen.** Only the battle screen draws the original's pointers (`cursors/NN.png`, `battle_screen/pointer.rs`); every other screen shows the system pointer. Draw the game's own on all screens: the finger as the default (`mouse_list_default`), the hourglass while the computer plays (`mouse_list_hourglass`), the winged boot over a reachable square and the red cross on the overland map when a click would do nothing, and the casting wand while a spell picks a target. Check `Set_Mouse_List` and the screens' mouse lists in ReMoM for what each one sets, hide the system pointer in one place (the frame loop, not per screen), and keep the system pointer when the art is missing.
 
 **299. Minimap: drag to scroll, and the other plane.** The minimap centres the map on a click; the original also scrolls while the button is held and shows the other plane through the Plane button's behaviour on it. Check the original's `Main_Screen` input for the minimap field before building it. Split from task 120.
