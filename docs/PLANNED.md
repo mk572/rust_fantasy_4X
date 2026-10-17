@@ -403,7 +403,14 @@ with item 24, one race at a time, so the effect of each change is measured alone
    - **Sever ties**: the city ends its deals with another wizard.
    - More offers later (a shared sight, a joint war, passage for a stack through the territory).
 
-Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text. Decide first: how strength is measured, what a surrender costs the wizard's neighbours' attitude, whether a protected city can still be attacked by its wizard's enemies at once or after a warning, and how this meets the raiders of task 154.
+Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text.
+
+**Decided (17 October 2026):**
+- **Strength** is the wizard strength score the game already computes for the advisor screens (`astrology.rs`: the Astrologer's power, strength and research figures and the History graph's power; `endgame.rs`'s score for the hall of fame is the related one). A neutral city compares that with its own (its size, buildings and garrison, scored the same way); no new measure.
+- **Surrender** adds fame to the wizard who receives it, and lowers the diplomatic standing of that wizard with the enemy wizards (those at war with them or hostile to them), who see a rival grow.
+- **Protection and free passage in a battle.** With a protection pact, the wizard's units that stand in the city join the battle at once on the defender's side. The human plays that battle (unless auto-battle is on); an AI wizard's battle is played by the battle AI. With only free passage, the wizard's units sit out any battle, and are evicted if an enemy conquers the city.
+
+**Still to decide:** how this meets the raiders of task 154 (do raiders spare a friendly or protected city's allies, does peace with a wizard stop raids against them), and whether a protection pact can be broken by either side and at what cost to attitude.
 
 **32. Neutral cities: mana and spells.** Independent cities cannot cast today (item 31 notes it). Give them a small magic of their own, after the base game is playable; it feeds item 31 (a city that can cast is a better ally or enemy, and gives and takes spells in deals) and the battles at its gates.
 
