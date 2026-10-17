@@ -566,9 +566,6 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
         if s.effects.is_empty() && s.duration == Duration::Instant {
             p.push(format!("{who} has no effects"));
         }
-        if s.duration == Duration::Turns(0) {
-            p.push(format!("{who} has a duration of 0 turns"));
-        }
         if s.duration == Duration::Instant {
             if s.upkeep != 0 {
                 p.push(format!("{who} is instant but has upkeep"));
@@ -899,7 +896,7 @@ mod tests {
         let p = problems(&[
             (
                 "spells.ron",
-                "duration: Turns(3),\n     effects: [(effect: Modify(stat: Defense",
+                "duration: Permanent,\n     effects: [(effect: Modify(stat: Defense",
                 "duration: Instant,\n     effects: [(effect: Modify(stat: Defense",
             ),
             (

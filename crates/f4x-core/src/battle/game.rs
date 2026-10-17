@@ -634,7 +634,11 @@ impl Game {
         if let Some(winner) = battle.winner {
             for (side, unit) in left_out {
                 if side != winner {
-                    self.remove_unit(unit, crate::roster::Fate::Slain);
+                    self.remove_unit_to(
+                        unit,
+                        crate::roster::Fate::Slain,
+                        Some(battle.player_of(winner)),
+                    );
                 }
             }
         }
@@ -677,7 +681,15 @@ impl Game {
                 if self.is_raised_by(&battle, u, entity) {
                     drained.push(entity);
                 } else {
-                    self.remove_unit(entity, crate::roster::Fate::Slain);
+                    // Disintegrate and the other spells that destroy leave a hero gone for good,
+                    // with its items; a slain one's items go to the winner.
+                    let fate = if u.fate() == super::Fate::Gone {
+                        crate::roster::Fate::Gone
+                    } else {
+                        crate::roster::Fate::Slain
+                    };
+                    let heir = battle.winner.map(|side| battle.player_of(side));
+                    self.remove_unit_to(entity, fate, heir);
                 }
             } else {
                 let mut hurt = (u.max_hit_points() - u.hit_points()).max(0);
@@ -763,9 +775,10 @@ impl Game {
     /// Put the drained dead on the winner's square as undead units, as many as it has room for.
     fn raise_drained(&mut self, battle: &Battle, mut dead: Vec<hecs::Entity>) -> Vec<Event> {
         let winner = battle.winner.map(|side| (side, battle.player_of(side)));
+        let heir = winner.map(|(_, player)| player);
         let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
             for u in dead {
-                self.remove_unit(u, crate::roster::Fate::Slain);
+                self.remove_unit_to(u, crate::roster::Fate::Slain, heir);
             }
             return Vec::new();
         };
@@ -775,7 +788,7 @@ impl Game {
         let mut raised = 0;
         for unit in dead {
             if room == 0 {
-                self.remove_unit(unit, crate::roster::Fate::Slain);
+                self.remove_unit_to(unit, crate::roster::Fate::Slain, heir);
                 continue;
             }
             room -= 1;
@@ -840,7 +853,8 @@ impl Game {
                     _ => 50,
                 };
                 if held || (!safe && self.roll(100) <= percent) {
-                    self.remove_unit(unit, crate::roster::Fate::Slain);
+                    let heir = battle.winner.map(|w| battle.player_of(w));
+                    self.remove_unit_to(unit, crate::roster::Fate::Slain, heir);
                     lost += 1;
                 }
             }

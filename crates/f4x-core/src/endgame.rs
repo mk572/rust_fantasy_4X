@@ -239,7 +239,6 @@ impl Game {
                 list.0.retain(|&(_, caster)| caster != loser);
             }
         }
-        self.timers.retain(|t| t.caster != loser);
         if let Some(map) = self.map.as_mut() {
             for i in 0..map.nodes().len() {
                 if let Some(n) = map.node_mut(i) {

@@ -367,7 +367,6 @@ pub enum SpellTarget {
 pub enum Duration {
     Instant,
     Permanent,
-    Turns(u16),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

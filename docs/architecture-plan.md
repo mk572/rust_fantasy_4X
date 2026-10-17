@@ -8,7 +8,7 @@ holds the audit (numbers measured on the code at the time) and the plan. The tas
 ## 1. What the audit found
 
 `Game` (`lib.rs`) is the one value every rule runs on: the `hecs` world, the map, the fog, the
-content, the players, the RNG, timers, the battle in progress, diplomacy, the undo stack and
+content, the players, the RNG, the battle in progress, diplomacy, the undo stack and
 more (about 20 fields). The rules are written as methods of it, in files that each add an
 `impl Game` block.
 
@@ -41,8 +41,7 @@ module boundaries are only convention.
 ### Magic (`magic.rs`, 1,443 lines, 36 methods, 18 tests)
 
 - Its state is `Player::magic` (`Magic`: books, retorts, skill points, known and researchable
-  spells, research, the spell being cast, global enchantments), one per player, plus
-  `Game::timers` for timed spells.
+  spells, research, the spell being cast, global enchantments), one per player.
 - The *wizard-side* logic (casting skill, costs and their reductions, research, mana upkeep,
   power split) reads only the content and the players. Its outward calls are few: `economy`
   (power base), `nodes` (node income), `fortress`, `globals` (Evil Omens), `experience` and
@@ -52,7 +51,7 @@ module boundaries are only convention.
   the map. That is a different thing from the wizard's own state and should be a separate layer:
   the spell *executor* (`rules/exec.rs` is already pure) and the glue that applies its outcomes.
 - Who calls magic: `diplomacy` (10), `battle/spells` (8), `dispel` (8), `lairs` (7), `lib.rs`
-  (7), `globals`, `cast`, `timers`, `cheat`, and a few more: mostly `magic(player)` reads.
+  (7), `globals`, `cast`, `cheat`, and a few more: mostly `magic(player)` reads.
 
 ## 2. Target
 

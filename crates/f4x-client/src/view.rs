@@ -141,6 +141,14 @@ pub struct App {
     pub(crate) big_ui: crate::bigbook::BigBookUi,
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_core::help::Help,
+    /// The messages of the random events (`event_texts.ron`).
+    pub(crate) event_texts: Vec<f4x_core::events::EventText>,
+    /// The original's short messages (`messages.ron`).
+    pub(crate) messages: Vec<f4x_core::help::MessageText>,
+    /// Heroes died and their items were awarded: the warning box comes before the item screen.
+    pub(crate) item_pool_warning: bool,
+    /// The events the player has yet to be told of, oldest first.
+    pub(crate) event_notices: std::collections::VecDeque<f4x_core::events::EventNotice>,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
     /// A road being planned (task 102).
@@ -166,9 +174,12 @@ pub struct App {
     /// The capital and the name typed so far, while the first-turn naming box is up.
     /// The units of the foreign stack whose list window is up.
     pub(crate) unit_list: Vec<hecs::Entity>,
-    /// The site boxes waiting to be shown, and whether the item screen follows the treasure.
+    /// The site boxes waiting to be shown.
     pub(crate) site_notices: std::collections::VecDeque<crate::site_prompt::SiteNotice>,
-    pub(crate) items_after_treasure: bool,
+    /// Items have just been awarded to the human wizard: the item screen opens when the boxes
+    /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
+    /// bought, an item made).
+    pub(crate) item_pool_pending: bool,
     pub(crate) capital_naming: Option<(hecs::Entity, String)>,
     /// The test battle is fought at sea (`--battle-field sea`).
     pub(crate) test_sea: bool,
@@ -206,7 +217,7 @@ impl App {
             .position(|r| !r.city_names.is_empty())
             .unwrap_or(0);
         let options = OptionsState::default();
-        let game = Self::new_game(seed, &options, &content, None, race)?;
+        let game = Self::new_game(seed, &options, &content, None, race, true)?;
         let mut app = Self {
             game,
             art,
@@ -243,6 +254,10 @@ impl App {
             book_ui: Default::default(),
             big_ui: Default::default(),
             help: Default::default(),
+            event_texts: Vec::new(),
+            messages: Vec::new(),
+            item_pool_warning: false,
+            event_notices: Default::default(),
             targeting: None,
             road_plan: None,
             surveyor: false,
@@ -258,7 +273,7 @@ impl App {
             capital_naming: None,
             test_sea: false,
             site_notices: Default::default(),
-            items_after_treasure: false,
+            item_pool_pending: false,
             unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
@@ -282,6 +297,7 @@ impl App {
         content: &Content,
         human: Option<&WizardBuild>,
         race: usize,
+        random_events: bool,
     ) -> Result<Game, String> {
         let preset = human
             .filter(|b| b.preset)
@@ -304,6 +320,9 @@ impl App {
                 s.basic.opponents = options.opponents.clamp(1, 4);
                 s.basic.land_percent = options.land_percent();
                 s.basic.magic_strength = options.magic;
+                // The Random Events preference is the default for a new game; a level that
+                // plays without events (Intro) keeps them off.
+                s.events.random_events &= random_events;
                 s
             },
             ..NewGame::default()
@@ -374,6 +393,36 @@ impl App {
                     Some(format!("Founded {name}"))
                 }
                 Event::Rejected(why) => Some(format!("Cannot: {why:?}")),
+                Event::ItemMade { player, .. } => {
+                    self.item_pool_pending |= player == HUMAN;
+                    None
+                }
+                Event::ItemsAwarded {
+                    player,
+                    items,
+                    lost,
+                } => {
+                    if player == HUMAN {
+                        self.item_pool_pending = true;
+                        self.item_pool_warning = true;
+                    }
+                    let lost = if lost > 0 {
+                        format!(" ({lost} did not fit the armory and are lost)")
+                    } else {
+                        String::new()
+                    };
+                    Some(format!("Items fall to the victor: {}{lost}", items.join(", ")))
+                }
+                Event::RandomEvent(notice) => {
+                    if notice.kind == f4x_core::events::EventKind::Gift
+                        && notice.voice == f4x_core::events::Voice::Started
+                    {
+                        self.item_pool_pending = true;
+                    }
+                    let line = f4x_core::events::compose(&self.event_texts, &notice);
+                    self.event_notices.push_back(notice);
+                    line
+                }
                 Event::ProductionCompleted { city, item } => {
                     let what = self.item_name(item);
                     Some(format!("{}: {what} complete", self.city_name(city)))
@@ -622,10 +671,6 @@ impl App {
                     "{} has no effect yet (not implemented)",
                     self.game.content().rules.spells.get(spell).name
                 )),
-                Event::EnchantmentExpired { spell, .. } => Some(format!(
-                    "{} has run out",
-                    self.game.content().rules.spells.get(spell).name
-                )),
                 Event::EnchantmentLapsed { spell, .. } => Some(format!(
                     "{} ended: not enough mana for its upkeep",
                     self.game.content().rules.spells.get(spell).name
@@ -825,6 +870,7 @@ impl App {
             &content,
             self.human_build.as_ref(),
             self.race,
+            self.prefs.get(crate::preferences::Pref::RandomEvents),
         ) {
             Ok(game) => {
                 self.game = game;
@@ -934,6 +980,10 @@ impl App {
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
             && self.attack_prompt_frame()
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.event_popup_frame()
         {
             return true;
         }

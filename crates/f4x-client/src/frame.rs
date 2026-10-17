@@ -217,6 +217,7 @@ impl App {
             self.bm_text_shadowed(view, 0, unit, right + 3.0, 68.0, WHITE, Align::Left);
         }
 
+        self.draw_world_event(&lay);
         if self.selection.is_empty() {
             self.draw_summary(&lay, &mut click);
         } else {

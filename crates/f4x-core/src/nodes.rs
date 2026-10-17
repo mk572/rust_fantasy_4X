@@ -116,6 +116,7 @@ impl Game {
         }
         let mut power =
             i32::from(node.power) * (i32::from(self.settings.basic.magic_strength) + 1) / 2;
+        power = self.events.node_power(&node.realm, power);
         let Some(owner) = node.owner else {
             return 0;
         };

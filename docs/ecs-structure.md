@@ -42,7 +42,6 @@ Game                                   (lib.rs; the owner and the orchestrator)
 ├── battle: Option<ActiveBattle>       the fight in progress: a `Battle` plus the overland units it
 │                                      was copied from (battle/); not saved
 ├── rng: GameRng                       the one source of randomness, with its draw count (rng.rs)
-├── timers: Vec<Timer>                 countdowns of timed spells
 ├── turn, magic_strength, difficulty   the game's counters and settings
 ├── human: Option<PlayerId>            the human wizard
 ├── game_over: Option<GameOver>        set once the game has ended; every later command is refused

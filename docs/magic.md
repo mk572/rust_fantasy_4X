@@ -96,12 +96,12 @@ left (task 61).
 
 `resolve_cast` runs the spell's `OnCast` effects through the effect executor against a real
 effect host over the ECS (`GameHost` in `cast.rs`): damage and healing of units, summoning,
-terrain and feature changes, resources, dispelling. A spell that lasts (permanent or timed) is
+terrain and feature changes, resources, dispelling. A spell that lasts (the original has no timed spells) is
 attached to its target: a city (`Enchantments`), a unit (`UnitEnchantments`) or the wizard
 (`Magic::global`); its passive effects then apply as stat modifiers. Spells whose effects are
 still the `unimplemented` hook are cast, cost mana, and report `SpellHasNoEffectYet`.
 
-Known gaps: timed durations are not counted down yet; instant `Modify`/ability grants have no
+Known gaps: instant `Modify`/ability grants have no
 home; battle spells are cast in battles (`combat.md` section 8).
 
 ## 8. Upkeep

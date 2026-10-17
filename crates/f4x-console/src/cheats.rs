@@ -34,6 +34,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("terrain", "terrain <x,y[,plane]> <terrain-id>", "Change a square's terrain.", terrain),
     cheat!("learn", "learn <spell> [player]", "Teach a wizard a spell.", learn),
     cheat!("reveal", "reveal [player]", "Explore the whole map for a player.", reveal),
+    cheat!("event", "event <name> [player]", "Make a random event happen to a wizard now (great_meteor, gift, plague, good_moon, ...); the vetoes apply, except the wait until turn 150.", event),
     cheat!("offer", "offer <hero|mercenaries|item> [player]", "Make a wizard the offer now, whatever the chance (it still needs a free slot, turn 30 or gold).", offer),
     cheat!("eliminate", "eliminate <player>", "Defeat a wizard on the spot (their cities turn neutral).", eliminate),
     cheat!("win", "win <player>", "End the game with this wizard winning by the Spell of Mastery.", win),
@@ -350,6 +351,27 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         race,
         population: 3,
     })
+}
+
+fn event(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::events::EventKind;
+    let name = a.need(0, "an event name")?;
+    let kind = EventKind::from_id(name).ok_or_else(|| {
+        ConsoleError::Usage(format!(
+            "event {name:?} is not one of {}",
+            EventKind::ALL.map(|k| k.id()).join(", ")
+        ))
+    })?;
+    let id = player_arg(ctx, a, 1)?;
+    ctx.game
+        .cheat_event(kind, id)
+        .map_err(ConsoleError::Failed)?;
+    ctx.say(format!(
+        "{} happens to {}",
+        name.replace('_', " "),
+        describe::player(ctx.game, id)
+    ));
+    Ok(())
 }
 
 fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

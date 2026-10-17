@@ -388,7 +388,7 @@ Interplay: `hardcore` and `spell_of_mastery` are independent.
 
 ### 4.5 Random events: switch and frequency
 
-Task 68 is not built. The original's rule (`EVENTS.c`, `Determine_Event`): every turn, a "pressure"
+Task 68 is built, and `random_events` and `event_frequency` are read by the draw (task 274: the preferences page's Random Events entry is the default for a new game, and a level that plays without events, Intro, keeps them off; the console's `new events=on|off event-frequency=half|normal|double` and `settings` show the rest; the three-way choice with the chances on a screen waits for the advanced screen of task 248; `event_start_turn` is not built, the first five turns are fixed). The original's rule (`EVENTS.c`, `Determine_Event`): every turn, a "pressure"
 equal to the turns since the last event (nothing for the first five turns after the game starts, a
 flaw the help conflicts list as B18) is scaled by a difficulty fraction (50% on Intro, 66%, 75%, 80%,
 100%), and an event fires when `Random(512)` is at most the pressure. The chance therefore grows

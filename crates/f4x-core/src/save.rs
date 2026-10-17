@@ -51,6 +51,8 @@ pub struct Snapshot {
     pub human: Option<u8>,
     /// Contact, relations, treaties and pending proposals between wizards.
     pub diplomacy: crate::diplomacy::DiplomacySave,
+    /// The world events going on, with the turns each has run.
+    pub events: crate::events::EventsSave,
     /// Override (cheat) commands used in this game.
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
@@ -60,24 +62,6 @@ pub struct Snapshot {
     pub players: Vec<PlayerSave>,
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
-    /// Countdowns for timed spells.
-    pub timers: Vec<TimerSave>,
-}
-
-/// What carries a timed enchantment, by creation number or player number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TimerTargetSave {
-    Unit(u64),
-    City(u64),
-    Wizard(u8),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TimerSave {
-    pub target: TimerTargetSave,
-    pub spell: String,
-    pub caster: u8,
-    pub left: u16,
 }
 
 /// The map with terrain and features saved as indexes into name lists.
@@ -737,6 +721,7 @@ impl Game {
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
+            events: self.events.to_save(),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
             map,
@@ -744,20 +729,6 @@ impl Game {
             players,
             units,
             cities,
-            timers: self
-                .timers
-                .iter()
-                .map(|t| TimerSave {
-                    target: match t.target {
-                        crate::timers::TimerTarget::Unit(s) => TimerTargetSave::Unit(s.0),
-                        crate::timers::TimerTarget::City(s) => TimerTargetSave::City(s.0),
-                        crate::timers::TimerTarget::Wizard(p) => TimerTargetSave::Wizard(p.0),
-                    },
-                    spell: self.content.rules.spells.get(t.spell).id.clone(),
-                    caster: t.caster.0,
-                    left: t.left,
-                })
-                .collect(),
         }
     }
 }
@@ -1084,25 +1055,8 @@ impl Snapshot {
                 ));
             }
         }
-        for t in self.timers {
-            let spell = game
-                .content
-                .rules
-                .spells
-                .id_of(&t.spell)
-                .ok_or(LoadError::UnknownId("spell", t.spell.clone()))?;
-            let target = match t.target {
-                TimerTargetSave::Unit(s) => crate::timers::TimerTarget::Unit(Serial(s)),
-                TimerTargetSave::City(s) => crate::timers::TimerTarget::City(Serial(s)),
-                TimerTargetSave::Wizard(p) => crate::timers::TimerTarget::Wizard(PlayerId(p)),
-            };
-            game.timers.push(crate::timers::Timer {
-                target,
-                spell,
-                caster: PlayerId(t.caster),
-                left: t.left,
-            });
-        }
+        game.events = crate::events::Events::from_save(&self.events)
+            .ok_or_else(|| LoadError::Inconsistent("an unknown event".into()))?;
         game.diplomacy_from_save(self.diplomacy);
         game.apply_wizard_settings();
         Ok(game)

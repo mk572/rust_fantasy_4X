@@ -159,7 +159,7 @@ Rules and data
 Resolving differences between sources (full list in `help-vs-implementation-conflicts.md`)
 1. Anything the ReMoM clone marks as a bug in the original game: use ReMoM's fix.
 2. Anything ReMoM marks as to-do or not implemented: use the original game's behaviour.
-3. Where the in-game help disagrees with the original's code or data: the game files win; the imported help is rewritten with an appended `[Updated from game code: ...]` note.
+3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten with an appended `[Updated from game code: ...]` note.
 4. The importer fails loudly when a source no longer matches, and writes everything it cannot map to `content-local/IMPORT_REPORT.txt`.
 
 Economy and movement
@@ -184,7 +184,7 @@ Each stage should end with something runnable and tested.
 3. **Minimal client.** Done: macroquad renderer, scrolling, input, placeholder art from the local extractor.
 4. **Units and movement.** Done: unit entities, movement rules, A\*, fog of war, plane switching.
 5. **Cities and economy.** Done: founding, outposts, population, buildings, production queue, buying, gold and food, turn pipeline. *First playable milestone: expand and build.*
-6. **Wizards, mana and spells.** Done (first pass, see [`magic.md`](magic.md)): books and retorts, power split, spell library, research, overland casting through a real effect host over the ECS, enchantments with mana upkeep, magic screen. Open: fortress, nodes, heroes' casting, most retort effects, timed durations, the many spells still on the `unimplemented` hook.
+6. **Wizards, mana and spells.** Done (first pass, see [`magic.md`](magic.md)): books and retorts, power split, spell library, research, overland casting through a real effect host over the ECS, enchantments with mana upkeep, magic screen. Open: fortress, nodes, heroes' casting, most retort effects, the many spells still on the `unimplemented` hook.
 7. **Combat.** Under way: the battle model, attack resolution and tactical map are in `f4x-core` (see `combat.md`); immunities, special attacks, sieges, casting, the battle screen, auto-resolve and the battle AI follow. Overland attacks stop at `AttackRequested`, which a client turns into `Command::BeginBattle`.
 8. **Heroes, items and experience.** Unit levelling (experience and level effects exist), equipment, hero hiring.
 9. **AI v1.** Expansion, production and defence, then attacking, then spell use and battle AI.

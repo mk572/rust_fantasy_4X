@@ -140,8 +140,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 6. **Healing** of wounded units (section 6).
 7. **Standing orders** continue for units that have them, in creation order (section 3.2).
 
-Planned additions and where they go: timed enchantment expiry with the magic step; random
-events before the cities;
+Planned additions and where they go: random events (`events.md`) where `Next_Turn_Calc` runs them;
 combat resolution wherever an `AttackRequested` is acted on; victory checks last.
 
 ## 5. The treasury

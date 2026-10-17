@@ -276,6 +276,16 @@ impl App {
             self.city_naming = Some(name.clone());
         }
         let orange = Color::new(0.95, 0.7, 0.2, 1.0);
+        let mut race_name = race_name;
+        let serial = self.game.serial_of(city);
+        for (kind, mark) in [
+            (f4x_core::events::EventKind::Plague, " (Plague)"),
+            (f4x_core::events::EventKind::PopulationBoom, " (Pop. Boom)"),
+        ] {
+            if self.game.events().on_city(kind, serial) {
+                race_name += mark;
+            }
+        }
         self.bm_text(view, 3, orange, &race_name, 6.0, 19.0, Align::Left);
         let people = pop.figures * 1000 + pop.tens * 10;
         let grow = eco.growth_tens * 10;

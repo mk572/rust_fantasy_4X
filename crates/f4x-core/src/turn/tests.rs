@@ -1258,3 +1258,92 @@ fn gaias_blessing_pacifies_two_rebels() {
         .push((gaia, P0));
     assert_eq!(g.economy().city_economy(city).unwrap().rebels, 2);
 }
+
+#[test]
+fn pestilence_adds_unrest_and_kills_a_citizen_when_the_roll_is_under_the_population() {
+    let mut g = world();
+    g.player_mut(P0).unwrap().mana = 100_000;
+    let city = found(&mut g, at(10, 6), "elf", 10);
+    let unrest = |g: &Game| g.economy().city_economy(city).unwrap().rebels;
+    let calm = unrest(&g);
+    let pestilence = g.content.rules.spells.id_of("pestilence").unwrap();
+    g.world
+        .get::<&mut Enchantments>(city)
+        .unwrap()
+        .0
+        .push((pestilence, PlayerId(1)));
+    assert_eq!(unrest(&g), calm + 2, "two more rebels");
+    // Ten citizens lose one with nine chances in ten; a few turns show the plague.
+    let mut deaths = 0;
+    for _ in 0..5 {
+        deaths += g
+            .apply(Command::EndTurn)
+            .iter()
+            .filter(|e| matches!(e, Event::CityShrank { .. }))
+            .count();
+    }
+    assert!(deaths >= 2, "the plague killed {deaths} times in 5 turns");
+}
+
+#[test]
+fn a_city_of_one_is_safe_from_pestilence() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 1);
+    let pestilence = g.content.rules.spells.id_of("pestilence").unwrap();
+    g.world
+        .get::<&mut Enchantments>(city)
+        .unwrap()
+        .0
+        .push((pestilence, PlayerId(1)));
+    for _ in 0..20 {
+        let events = g.apply(Command::EndTurn);
+        assert!(!events.iter().any(|e| matches!(e, Event::CityShrank { .. })));
+    }
+}
+
+#[test]
+fn the_moons_change_the_mana_of_the_temples_by_the_wizards_books() {
+    use crate::events::EventKind;
+    let mut g = world();
+    g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "temple");
+    let mana = |g: &Game| g.economy().city_economy(city).unwrap().mana;
+    let plain = mana(&g);
+    g.scenario_start_event(EventKind::BadMoon);
+    assert_eq!(
+        mana(&g),
+        plain - 1,
+        "the evil moon halves a life wizard's temple (2)"
+    );
+    let mut g = world();
+    g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "temple");
+    g.scenario_start_event(EventKind::GoodMoon);
+    assert_eq!(mana(&g), plain + 2, "the good moon doubles it");
+}
+
+#[test]
+fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_makes_it_triple() {
+    use crate::magic::Retort;
+    let mut g = world();
+    g.init_wizard(P0, &[("death", 2)], &[], None).unwrap();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "temple");
+    let mana = |g: &Game| g.economy().city_economy(city).unwrap().mana;
+    let plain = mana(&g);
+    let rituals = g.content.rules.spells.id_of("dark_rituals").unwrap();
+    g.world
+        .get::<&mut Enchantments>(city)
+        .unwrap()
+        .0
+        .push((rituals, P0));
+    assert_eq!(mana(&g), plain + 2, "a temple's 2 mana doubled");
+    g.magic_mut(P0).unwrap().retorts.insert(Retort::DivinePower);
+    assert_eq!(
+        mana(&g),
+        plain + 4,
+        "150 percent twice over: 6 for the temple"
+    );
+}

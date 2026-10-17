@@ -51,6 +51,8 @@ impl Game {
             }
         }
 
+        events.extend(self.process_events());
+
         for &city in &cities {
             let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
             if figures == 0 {
@@ -68,7 +70,18 @@ impl Game {
             if let Some(item) = self.apply_production(city, eco.production) {
                 events.push(Event::ProductionCompleted { city, item });
             }
-            let (before, after) = self.apply_growth(city, eco.growth_tens);
+            let (before, mut after) = self.apply_growth(city, eco.growth_tens);
+            // Pestilence kills a citizen when the city has more people than a roll of 1 to 10
+            // (`NEXTTURN.c`).
+            if self.economy().city_has_enchantment(city, "pestilence") && after > self.rng.roll(10)
+            {
+                after -= 1;
+                let pop = Population {
+                    figures: after,
+                    ..self.city_population(city)
+                };
+                let _ = self.world.insert_one(city, pop);
+            }
             if after > before {
                 events.push(Event::CityGrew {
                     city,
@@ -81,7 +94,6 @@ impl Game {
                 });
             }
         }
-        events.extend(self.tick_timers());
         self.tick_temp_effects();
         self.process_globals();
         events.extend(self.process_world_enchantments());

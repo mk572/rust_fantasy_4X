@@ -19,11 +19,12 @@ pub const CALL_THE_VOID: &str = "call_the_void";
 /// hundred that each building of another wizard's city falls.
 const METEOR_STRENGTH: i32 = 4;
 const METEOR_BUILDING_PERCENT: u32 = 1;
-/// Call the Void: the chance each building falls, the damage to each unit, and the chance each
-/// square within two of the city is corrupted.
+/// Call the Void: the chance each building falls, the damage to each unit, the chance each
+/// square within two of the city is corrupted, and the chance each citizen but the first dies.
 const VOID_BUILDING_PERCENT: u32 = 50;
 const VOID_UNIT_DAMAGE: u32 = 10;
 const VOID_CORRUPT_PERCENT: u32 = 50;
+const VOID_CITIZEN_PERCENT: u32 = 50;
 /// Nature's Wrath: the chance in a hundred that a unit dies and that a building falls.
 const WRATH_UNIT_PERCENT: u32 = 10;
 const WRATH_BUILDING_PERCENT: u32 = 5;
@@ -178,11 +179,16 @@ impl Game {
     }
 
     /// Call the Void on a city: the land around it is half corrupted, every unit inside takes 10
-    /// points of damage whatever its defence, and each building has an even chance of falling.
-    /// Returns the units and buildings lost.
-    pub(crate) fn call_the_void(&mut self, city: hecs::Entity, rng: &mut GameRng) -> (u32, u32) {
+    /// points of damage whatever its defence, each citizen but the first has an even chance of
+    /// dying (`Apply_Call_The_Void`: a city is never emptied), and each building has an even
+    /// chance of falling. Returns the units, buildings and citizens lost.
+    pub(crate) fn call_the_void(
+        &mut self,
+        city: hecs::Entity,
+        rng: &mut GameRng,
+    ) -> (u32, u32, u32) {
         let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
-            return (0, 0);
+            return (0, 0, 0);
         };
         let width = self.map.as_ref().map_or(1, |m| m.width()) as i32;
         for dy in -2i32..=2 {
@@ -207,13 +213,22 @@ impl Game {
                 units_lost += 1;
             }
         }
+        let citizens = self.city_population(city).figures;
+        let citizens_lost = (1..citizens)
+            .filter(|_| rng.roll(100) <= VOID_CITIZEN_PERCENT)
+            .count() as u32;
         let mut buildings_lost = 0;
         for b in self.buildings_of(city) {
             if rng.roll(100) <= VOID_BUILDING_PERCENT && self.destroy_building(city, b) {
                 buildings_lost += 1;
             }
         }
-        (units_lost, buildings_lost)
+        if citizens_lost > 0 {
+            if let Ok(mut pop) = self.world.get::<&mut crate::economy::Population>(city) {
+                pop.figures -= citizens_lost;
+            }
+        }
+        (units_lost, buildings_lost, citizens_lost)
     }
 
     fn buildings_of(&self, city: hecs::Entity) -> Vec<crate::rules::BuildingId> {

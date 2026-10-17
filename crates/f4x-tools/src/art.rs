@@ -352,6 +352,17 @@ fn write_minimap_colours(
     out.push_str(&row("mark", 0, 15));
     // The colour of the gold and mana reserve figures (`ST_GRAY`, index 8).
     out.push_str(&row("reserve_text", 0, 8));
+    // The colours of the running world event's name under the minimap (`MainScr.c`).
+    for (name, index) in [
+        ("event_sorcery", 172u8),
+        ("event_chaos", 201),
+        ("event_nature", 217),
+        ("event_bad_moon", 9),
+        ("event_good_moon", 15),
+        ("event_mana_short", 123),
+    ] {
+        out.push_str(&row(name, 0, index));
+    }
     // Glass block 1, the colour a revealed invisible unit is drawn in: colour and percent (a sixth
     // field, out of 255).
     if let Some(&[r, g, b, percent]) = glass.get(1) {

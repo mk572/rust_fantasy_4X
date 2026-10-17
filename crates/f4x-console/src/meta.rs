@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use f4x_core::settings::EventFrequency;
+
 use crate::args::Args;
 use crate::setup::{new_game, parse_retort, NewGame};
 use crate::{commands, find, CommandDef, ConsoleError, Ctx, Kind, Mode};
@@ -191,6 +193,22 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         b.magic_strength,
         level(&MAGIC, b.magic_strength)
     ));
+    let e = ctx.game.settings().events;
+    if e.random_events {
+        let chance = |turns| {
+            f4x_core::events::scaled_pressure(turns, b.difficulty, e.frequency) as f32 * 100.0
+                / 512.0
+        };
+        ctx.say(format!(
+            "random events on, {:?} frequency: a chance of {:.1}% after 10 quiet turns, {:.1}% after 20, {:.1}% after 40",
+            e.frequency,
+            chance(10),
+            chance(20),
+            chance(40)
+        ));
+    } else {
+        ctx.say("random events off");
+    }
     Ok(())
 }
 
@@ -332,8 +350,23 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         },
         ..NewGame::default()
     };
+    // The events' options apply after a difficulty has set the rest, whatever the order.
+    let (mut events_on, mut frequency) = (None, None);
     for (k, v) in opts {
         match k {
+            "events" => events_on = Some(parse_choice(v, "events", &ON_OFF, 0, 1)? == 1),
+            "event-frequency" => {
+                frequency = Some(match v {
+                    "half" => EventFrequency::Half,
+                    "normal" => EventFrequency::Normal,
+                    "double" => EventFrequency::Double,
+                    _ => {
+                        return Err(ConsoleError::Parse(
+                            "event-frequency is half, normal or double".into(),
+                        ))
+                    }
+                })
+            }
             "wizard" => spec.preset = Some(v.to_string()),
             "name" => spec.name = Some(v.to_string()),
             "race" => spec.race = Some(v.to_string()),
@@ -379,6 +412,12 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             other => return Err(ConsoleError::Usage(format!("unknown option {other:?}"))),
         }
     }
+    if let Some(on) = events_on {
+        spec.settings.events.random_events = on;
+    }
+    if let Some(f) = frequency {
+        spec.settings.events.frequency = f;
+    }
     let content = ctx.game.content().clone();
     let game = new_game(&content, &spec).map_err(ConsoleError::Failed)?;
     *ctx.game = game;
@@ -387,6 +426,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
+const ON_OFF: [(&str, u8); 2] = [("off", 0), ("on", 1)];
 const LAND: [(&str, u8); 3] = [
     ("small", f4x_core::setup::LAND_SMALL),
     ("medium", f4x_core::setup::LAND_MEDIUM),

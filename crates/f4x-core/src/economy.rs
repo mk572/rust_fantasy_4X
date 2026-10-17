@@ -94,6 +94,8 @@ pub struct Economy<'a> {
     pub(crate) map: Option<&'a Map>,
     pub(crate) content: &'a Content,
     pub(crate) players: &'a [Player],
+    /// The world events going on; none unless [`Economy::with_events`] says otherwise.
+    pub(crate) events: &'a crate::events::Events,
 }
 
 impl<'a> Economy<'a> {
@@ -108,7 +110,14 @@ impl<'a> Economy<'a> {
             map,
             content,
             players,
+            events: &crate::events::NONE,
         }
+    }
+
+    /// The same view with the world events that are going on.
+    pub fn with_events(mut self, events: &'a crate::events::Events) -> Self {
+        self.events = events;
+        self
     }
 
     /// The unit rules over the same pieces.
@@ -218,24 +227,43 @@ impl<'a> Economy<'a> {
                 }
                 mods.extend(found);
             }
-            if devout {
-                let more = |total: i32| total * 150 / 100 - total;
-                if power > 0 {
-                    mods.push(Modifier::new(
-                        Stat::CityMana,
-                        crate::rules::ModOp::Add,
-                        more(power),
-                        Source::Other,
-                    ));
-                }
-                if pacify > 0 {
-                    mods.push(Modifier::new(
-                        Stat::CityUnrest,
-                        crate::rules::ModOp::Add,
-                        -more(pacify),
-                        Source::Other,
-                    ));
-                }
+            // Divine and Infernal Power take 150 percent of the religious buildings' power,
+            // Dark Rituals doubles it, and the two together make 300 percent (`CITYCALC.c`).
+            let rituals = self.city_has_enchantment(city, "dark_rituals");
+            let percent = if devout { 150 } else { 100 } * if rituals { 2 } else { 1 };
+            let religious = power * percent / 100;
+            if religious > power {
+                mods.push(Modifier::new(
+                    Stat::CityMana,
+                    crate::rules::ModOp::Add,
+                    religious - power,
+                    Source::Other,
+                ));
+            }
+            if devout && pacify > 0 {
+                mods.push(Modifier::new(
+                    Stat::CityUnrest,
+                    crate::rules::ModOp::Add,
+                    -(pacify * 150 / 100 - pacify),
+                    Source::Other,
+                ));
+            }
+            // A moon in the sky changes what the religious buildings give.
+            let books = |realm| {
+                owner
+                    .and_then(|o| self.magic(o))
+                    .is_some_and(|m| m.books_in(realm) > 0)
+            };
+            let moon = self
+                .events
+                .moon_mana(religious, books("life"), books("death"));
+            if moon != 0 {
+                mods.push(Modifier::new(
+                    Stat::CityMana,
+                    crate::rules::ModOp::Add,
+                    moon,
+                    Source::Other,
+                ));
             }
         }
         if let Ok(enchantments) = self.world.get::<&Enchantments>(city) {
@@ -245,6 +273,18 @@ impl<'a> Economy<'a> {
                     Source::Spell(spell),
                 ));
             }
+        }
+        // A population boom doubles the growth, as Stream of Life does.
+        if self.events.on_city(
+            crate::events::EventKind::PopulationBoom,
+            self.units().serial_of(city),
+        ) {
+            mods.push(Modifier::new(
+                Stat::CityGrowthPercent,
+                crate::rules::ModOp::Add,
+                100,
+                Source::Other,
+            ));
         }
         mods.extend(self.units().temp_modifiers(city));
         mods
@@ -807,6 +847,7 @@ impl Game {
     /// The economy rules over the world, the map, the content and the players.
     pub fn economy(&self) -> Economy<'_> {
         Economy::new(&self.world, self.map.as_ref(), &self.content, &self.players)
+            .with_events(&self.events)
     }
 }
 

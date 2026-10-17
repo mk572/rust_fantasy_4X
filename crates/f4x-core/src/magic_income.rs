@@ -27,6 +27,10 @@ pub(crate) trait IncomeView {
     fn blight_power(&self, _player: PlayerId) -> i32 {
         0
     }
+    /// Whether a Mana Short has dried up every source of power.
+    fn mana_is_short(&self) -> bool {
+        false
+    }
     /// Mana the lasting spells and summoned creatures cost per turn, before a Channeler's half.
     fn upkeep_total(&self, player: PlayerId) -> i32;
     /// A computer wizard's difficulty bonus on the power of its nodes, in percent.
@@ -64,11 +68,11 @@ fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
     (city_mana + fortress + view.volcanoes(player) + view.blight_power(player) + nodes).max(0)
 }
 
-/// Everything the wizard earns (zero power while the Spell of Return is cast) and owes, with the cities asked once.
+/// Everything the wizard earns (zero power while the Spell of Return is cast or mana is short) and owes, with the cities asked once.
 pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let (city_mana, city_research) = view.city_yield(player);
     let casting_return = view.casting_return(player);
-    let power_base = if casting_return {
+    let power_base = if casting_return || view.mana_is_short() {
         0
     } else {
         base_from(view, player, city_mana)
@@ -145,6 +149,10 @@ impl IncomeView for GameIncome<'_> {
 
     fn blight_power(&self, player: PlayerId) -> i32 {
         self.0.economy().blight_power(player)
+    }
+
+    fn mana_is_short(&self) -> bool {
+        self.0.events.mana_is_short()
     }
 
     fn upkeep_total(&self, player: PlayerId) -> i32 {

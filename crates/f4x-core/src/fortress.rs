@@ -339,28 +339,44 @@ impl Game {
             .into_iter()
             .filter(|(_, c, _)| c.owner == loser)
             .collect();
-        for (city, c, pos) in cities {
-            let owner = self.new_city_player(&c.name);
-            let garrison: Vec<_> = self
+        for (city, ..) in cities {
+            self.make_city_neutral(city, loser);
+        }
+    }
+
+    /// A city of `owner` turns neutral, a player of its own as the neutral cities are: the
+    /// normal units garrisoned there stay with it, the heroes and conjured creatures are
+    /// dismissed.
+    pub(crate) fn make_city_neutral(&mut self, city: hecs::Entity, owner: PlayerId) {
+        let Some((name, pos)) = self
+            .world
+            .get::<&City>(city)
+            .ok()
+            .map(|c| c.name.clone())
+            .zip(self.world.get::<&Position>(city).ok().map(|p| *p))
+        else {
+            return;
+        };
+        let neutral = self.new_city_player(&name);
+        let garrison: Vec<_> = self
+            .units()
+            .units_at(pos)
+            .into_iter()
+            .filter(|&u| self.units().unit_owner(u) == Some(owner))
+            .collect();
+        for u in garrison {
+            let normal = self
                 .units()
-                .units_at(pos)
-                .into_iter()
-                .filter(|&u| self.units().unit_owner(u) == Some(loser))
-                .collect();
-            for u in garrison {
-                let normal = self
-                    .units()
-                    .unit_def(u)
-                    .is_some_and(|d| d.kind == crate::rules::UnitKind::Normal);
-                if normal {
-                    let _ = self.world.insert_one(u, crate::units::Owner(owner));
-                } else {
-                    self.remove_unit(u, crate::roster::Fate::Gone);
-                }
+                .unit_def(u)
+                .is_some_and(|d| d.kind == crate::rules::UnitKind::Normal);
+            if normal {
+                let _ = self.world.insert_one(u, crate::units::Owner(neutral));
+            } else {
+                self.remove_unit(u, crate::roster::Fate::Gone);
             }
-            if let Ok(mut c) = self.world.get::<&mut City>(city) {
-                c.owner = owner;
-            }
+        }
+        if let Ok(mut c) = self.world.get::<&mut City>(city) {
+            c.owner = neutral;
         }
     }
 

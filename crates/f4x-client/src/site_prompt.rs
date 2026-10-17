@@ -191,7 +191,7 @@ impl App {
         let text = treasure_text(loot, spell.as_deref(), &retorts, &kinds);
         self.site_notices.push_back(SiteNotice::Treasure { text });
         if !loot.items.is_empty() {
-            self.items_after_treasure = true;
+            self.item_pool_pending = true;
         }
     }
 
@@ -254,9 +254,22 @@ impl App {
             return false;
         }
         let Some(notice) = self.site_notices.front().cloned() else {
-            // The items found wait for the hero, if there is one, to be dealt with first.
-            if self.items_after_treasure && self.game.offers(crate::view::HUMAN).is_empty() {
-                self.items_after_treasure = false;
+            // The items awarded wait for the boxes before them, and for the hero, if there is
+            // one, to be dealt with first.
+            if self.item_pool_pending
+                && self.event_notices.is_empty()
+                && self.game.offers(crate::view::HUMAN).is_empty()
+            {
+                if self.item_pool_warning {
+                    if let Some(closed) = self.hero_died_warning() {
+                        if closed {
+                            self.item_pool_warning = false;
+                        }
+                        return true;
+                    }
+                    self.item_pool_warning = false;
+                }
+                self.item_pool_pending = false;
                 self.open_item_screen();
                 return true;
             }

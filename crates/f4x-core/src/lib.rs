@@ -19,6 +19,8 @@ pub mod diplomacy;
 pub mod dispel;
 pub mod economy;
 pub mod endgame;
+pub mod events;
+mod events_game;
 pub mod experience;
 pub mod featuregen;
 pub mod finance;
@@ -69,7 +71,6 @@ pub mod temp_effects;
 pub mod terraform;
 #[cfg(test)]
 mod testutil;
-pub mod timers;
 pub mod transport;
 pub mod turn;
 pub mod undead;
@@ -594,6 +595,12 @@ pub enum Event {
         name: String,
         placed: items::armory::Placed,
     },
+    /// Items fell to a wizard from heroes that were slain; `lost` did not fit the armory.
+    ItemsAwarded {
+        player: city::PlayerId,
+        items: Vec<String>,
+        lost: u32,
+    },
     SpellHasNoEffectYet {
         spell: rules::SpellId,
     },
@@ -679,11 +686,8 @@ pub enum Event {
         player: city::PlayerId,
         pos: city::Position,
     },
-    /// A timed spell ran out.
-    EnchantmentExpired {
-        player: city::PlayerId,
-        spell: rules::SpellId,
-    },
+    /// A random event happened or ended, and the player is told (task 68).
+    RandomEvent(events::EventNotice),
     UnitCreated {
         unit: hecs::Entity,
         pos: city::Position,
@@ -766,8 +770,6 @@ pub struct Game {
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `rng.rs`).
     pub(crate) rng: rng::GameRng,
-    /// Countdowns for timed spells.
-    pub(crate) timers: Vec<timers::Timer>,
     /// What the game is played with (difficulty, node strength, ...). Chosen when the game is
     /// made and fixed after that; read through [`Game::settings`].
     pub(crate) settings: settings::GameSettings,
@@ -779,6 +781,11 @@ pub struct Game {
     pub human: Option<city::PlayerId>,
     /// Contact, relations, treaties and proposals between wizards.
     pub diplomacy: diplomacy::Diplomacy,
+    /// The random events that are going on.
+    pub(crate) events: events::Events,
+    /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
+    /// the item's name and whether the armory had room for it.
+    pub(crate) item_awards: Vec<(city::PlayerId, String, bool)>,
     /// Every override (cheat) command that changed the game, oldest first.
     pub(crate) override_log: Vec<String>,
     /// The prefab items given out so far, by id (`Make_Item` gives each once a game).
@@ -801,7 +808,6 @@ impl Game {
             fog: fog::Fog::default(),
             next_serial: 1,
             rng: rng::GameRng::new(seed),
-            timers: Vec::new(),
             // The symmetric game, as `settings::GameSettings::flat` says; a game made for
             // play gets its level from `setup::new_game`.
             settings: settings::GameSettings::flat(),
@@ -809,6 +815,8 @@ impl Game {
             game_over: None,
             human: None,
             diplomacy: diplomacy::Diplomacy::default(),
+            events: events::Events::default(),
+            item_awards: Vec::new(),
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
@@ -874,6 +882,7 @@ impl Game {
         let mut events = self.execute_command(cmd);
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
+        events.extend(self.drain_item_awards());
         events
     }
 

@@ -101,7 +101,7 @@ impl Game {
 
     /// All wizards' magic at the turn change: income, research, upkeep, casting. The steps run
     /// over all wizards in turn, as in the original (power for all, then the research check for
-    /// all, and so on). The timers, temporary effects, global spells and experience that used to
+    /// all, and so on). The temporary effects, global spells and experience that used to
     /// start here are the turn's (`turn.rs`).
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
         let mut events = Vec::new();

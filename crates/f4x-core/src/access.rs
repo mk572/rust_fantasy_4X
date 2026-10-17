@@ -52,6 +52,11 @@ impl Game {
             .sum()
     }
 
+    /// The random events that are going on.
+    pub fn events(&self) -> &crate::events::Events {
+        &self.events
+    }
+
     /// A city's name.
     pub fn city_name(&self, city: hecs::Entity) -> Option<String> {
         self.world
@@ -196,6 +201,12 @@ impl Game {
     /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).
     pub fn scenario_set_safe_flee(&mut self, safe: bool) {
         self.settings.rules.safe_flee = crate::settings::Split::both(safe);
+    }
+
+    /// Start a lasting event (a moon, a conjunction, mana short) that falls on nobody, as a
+    /// scenario sets it up.
+    pub fn scenario_start_event(&mut self, event: crate::events::EventKind) {
+        self.events.start(event, None, None);
     }
 
     /// Remove a unit from the game.

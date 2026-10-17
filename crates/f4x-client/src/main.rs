@@ -22,6 +22,7 @@ mod cycle;
 mod diplomacy_screen;
 mod diplomacy_text;
 mod enemy_city_screen;
+mod event_popup;
 mod frame;
 mod game_over_screen;
 mod hall_of_fame;
@@ -127,6 +128,7 @@ struct Options {
     upkeep: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
+    event: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
     sheet: Option<usize>,
     /// With `--shot`, end this many turns first.
@@ -188,6 +190,7 @@ fn parse_args() -> Result<Options, String> {
         items: false,
         hall: false,
         offer: None,
+        event: None,
         upkeep: false,
     };
     let mut args = std::env::args().skip(1);
@@ -221,6 +224,7 @@ fn parse_args() -> Result<Options, String> {
             "--outpost-new" => o.outpost = Some(true),
             "--upkeep" => o.upkeep = true,
             "--offer" => o.offer = Some(value("--offer")?),
+            "--event" => o.event = Some(value("--event")?),
             "--sheet" => {
                 o.sheet = Some(
                     value("--sheet")?
@@ -315,7 +319,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--upkeep] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -338,6 +342,8 @@ async fn main() {
         }
     };
     app.help = help;
+    app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
+    app.messages = f4x_data::load_messages(&options.content).unwrap_or_default();
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE));
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
@@ -440,6 +446,9 @@ async fn main() {
     }
     if let Some(kind) = &options.offer {
         app.open_test_offer(kind);
+    }
+    if let Some(kind) = &options.event {
+        app.open_test_event(kind);
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n);

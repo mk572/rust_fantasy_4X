@@ -197,6 +197,30 @@ pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
     }
 }
 
+/// Load the optional event messages (`event_texts.ron`, from `EVENTMSG.LBX`) from a content
+/// directory. A directory without them yields none, and the events are told without words.
+pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::events::EventText>, ContentError> {
+    let path = dir.join("event_texts.ron");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("event_texts.ron: {e}")))
+}
+
+/// Load the optional short messages (`messages.ron`, from `MESSAGE.LBX`) from a content
+/// directory. A directory without them yields none, and the boxes that would show one do not.
+pub fn load_messages(dir: &Path) -> Result<Vec<f4x_core::help::MessageText>, ContentError> {
+    let path = dir.join("messages.ron");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("messages.ron: {e}")))
+}
+
 /// Load and validate all content files from a content directory.
 pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
     load_content_layers(&[dir])

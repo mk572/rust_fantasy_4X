@@ -670,6 +670,35 @@ fn keep(g: &mut Game, player: PlayerId, spell: &str) {
 }
 
 #[test]
+fn call_the_void_kills_citizens_by_chance_but_never_the_last() {
+    let mut g = world();
+    let city = city_for(&mut g, P1, at(10, 6));
+    g.scenario_set_citizens(city, 20);
+    let events = cast(&mut g, "call_the_void", Some(Target::City(city)));
+    let lost = events
+        .iter()
+        .find_map(|e| match e {
+            Event::WorldSpellStruck {
+                population_lost, ..
+            } => Some(*population_lost),
+            _ => None,
+        })
+        .expect("the spell struck");
+    assert!((3..=17).contains(&lost), "about half of 19: {lost}");
+    assert_eq!(g.city_population(city).figures, 20 - lost);
+    let small = city_for(&mut g, P1, at(16, 8));
+    g.scenario_set_citizens(small, 1);
+    for _ in 0..5 {
+        cast(&mut g, "call_the_void", Some(Target::City(small)));
+    }
+    assert_eq!(
+        g.city_population(small).figures,
+        1,
+        "a city is never emptied"
+    );
+}
+
+#[test]
 fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
     let mut g = world();
     let city = city_for(&mut g, P1, at(10, 6));

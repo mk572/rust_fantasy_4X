@@ -274,7 +274,7 @@ it, and place the picture where the draw call puts it on the 320 by 200 screen.
 | Unit sheet | `unitview` (large and small backgrounds), `special` and `special2` (16x16 ability icons) | task 140 |
 | Spell book and library | `book`, `scroll`, `spellscr`, `spells`, `special2` (small book) | tasks 92, 93 |
 | End of game | `win`, `lose`, `conquest`, `wizlab`, `splmastr`, `spellose`, `halofam`, `intro` | tasks 85, 88, 134 |
-| Events and offers | `events` (event pictures), `hire` (mercenary and hero offers), `resource` | tasks 68, 143 |
+| Events and offers | `events` (event pictures, 41 by 43, entry = event number less one; drawn in the `Notify2` box: `resource` 40 strip, 42 picture frame, 51 to 55 the mascots chaos, death, life, nature, sorcery), `hire` (mercenary and hero offers), `resource` | tasks 68, 143; `event_popup.rs` |
 | Help | `help` (two pictures) | |
 | Files with no reference in ReMoM's loader | `combat`, `desert`, `tundra`, `cmbtwall` (`desert` and `tundra` are battlefield ground sets like `cmbdesrt`, filed under `art/battle/tiles/desert` and `tundra`) | they extract fine; their use in the original is not found, so treat as unknown |
 
@@ -289,7 +289,7 @@ The table is a guide. For anything with an index not listed here read the loader
   `SPELLDAT`, `BUILDDAT`, `ITEMDATA`, `TERRSTAT`, and `HELP`/`HLPENTRY` and `CITYNAME` into
   `content-local/` (they are IP).
 - **Data and text not read yet:** `HERODATA`, `ITEMPOW`, `LISTDAT`, `DESC`, `BUILDESC`,
-  `DIPLOMSG`, `EVENTMSG`, `MESSAGE`, `NAMES`, `CONFIG.MOM`.
+  `DIPLOMSG`, `NAMES`, `CONFIG.MOM`.
 - **Videos:** the opening and ending are frame sequences (`intro` has 13 full-screen pictures) with
   their own timing in `INTRO.c` and `CONQUEST.c`; neither is wired (tasks 85, 134).
 

@@ -391,6 +391,18 @@ HELP_CORRECTIONS = [
     (607, "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack and to hit is increased by 10%.",
      "increased by 2 (20% improvement in each area), while resistance (crosses) is increased by 3 and the ability to block an attack is increased by 10%.",
      "the code gives +2 to melee and defence, +3 to resistance and +1 (ten percent) to hit and to block"),
+    (196, "if the current population exceeds a 1-10 roll.",
+     "if the current population exceeds a 1-10 roll. Unrest in the city rises by 2 for as long as the spell lasts.",
+     "the city code takes 2 from the city's pacification while Pestilence is on it (the help does not say so)"),
+    (773, "increasing the power from bad temples by 50% while halving the power obtained from good temples.",
+     "doubling the power from bad temples while halving the power obtained from good temples.",
+     "the city magic code adds the full power of the religious buildings for the matching realm (a doubling), where the help says 50% (B50)"),
+    (774, "increasing the power from good temples by 50% while halving the power obtained from bad temples.",
+     "doubling the power from good temples while halving the power obtained from bad temples.",
+     "the city magic code adds the full power of the religious buildings for the matching realm (a doubling), where the help says 50% (B50)"),
+    (119, "and each unit inside the city takes 10 points of damage regardless of defense.",
+     "each unit inside the city takes 10 points of damage regardless of defense, and each citizen but the first has a 50% chance to die, so the city is never emptied.",
+     "the spell's code kills each citizen after the first with an even chance (`Apply_Call_The_Void`); the help does not say so (B51)"),
     (486, "Units get no chance to resist.", "Units get a chance to resist at a penalty of 2.",
      "the code gives Weakness a resistance check at -2 (the spell's own help text says so)"),
     (733, "Maintenance: 2 gold/turn", "Maintenance: 3 gold/turn",
@@ -564,6 +576,38 @@ def cross_check_help(topics: list[HelpTopic], buildings: list[Building], races: 
 # --------------------------------------------------------------------------- #
 
 
+# What the data bytes of an `EVENTMSG.LBX` line stand for (`Get_Event_Message`): the client
+# fills the names in. $81 and $82 name the city of a marriage, which is the event's city too.
+EVENT_TOKENS = {
+    0x80: "{city}", 0x81: "{city}", 0x82: "{size}", 0x83: "{number}", 0x89: "{ore}",
+    0x8A: "{item}", 0x8B: "{size}", 0x8C: "{player}", 0x8F: "{units}", 0x90: "{people}",
+    0x91: "{buildings}", 0x93: "{units_s}", 0x94: "{buildings_s}",
+}
+
+
+def import_event_texts(game: Path) -> list[str]:
+    """The event messages (`EVENTMSG.LBX`, 7 lines per event, 200 bytes each) as RON lines."""
+    (entry,) = read_lbx(game / "EVENTMSG.LBX")
+    lines = []
+    for index, record in enumerate(read_records(entry)):
+        raw = record.split(b"\0")[0]
+        if not raw:
+            continue
+        text = "".join(EVENT_TOKENS[b] if b >= 0x80 else chr(b) for b in raw)
+        lines.append(f"    (event: {index // 7 + 1}, voice: {index % 7}, text: {ron_str(text)}),")
+    return lines
+
+
+def import_messages(game: Path) -> list[str]:
+    """The game's short messages (`MESSAGE.LBX`, 100 lines of 150 bytes) as RON lines."""
+    (entry,) = read_lbx(game / "MESSAGE.LBX")
+    return [
+        f"    (index: {index}, text: {ron_str(cstr(record))}),"
+        for index, record in enumerate(read_records(entry))
+        if cstr(record)
+    ]
+
+
 def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
@@ -612,6 +656,8 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         for uid, names in import_hero_names(game, rules_out / "units.ron")
     ])
     write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
+    write_list(out / "event_texts.ron", local_header, import_event_texts(game))
+    write_list(out / "messages.ron", local_header, import_messages(game))
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])

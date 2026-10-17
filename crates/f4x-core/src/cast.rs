@@ -109,13 +109,14 @@ impl GameHost<'_> {
             }
             (EARTHQUAKE, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
             (crate::world_spells::CALL_THE_VOID, Target::City(city)) => {
-                let (units_lost, buildings_lost) = self.game.call_the_void(city, &mut self.rng);
+                let (units_lost, buildings_lost, population_lost) =
+                    self.game.call_the_void(city, &mut self.rng);
                 vec![Event::WorldSpellStruck {
                     spell,
                     victim: self.game.economy().city_owner(city),
                     units_lost,
                     buildings_lost,
-                    population_lost: 0,
+                    population_lost,
                 }]
             }
             (
@@ -687,9 +688,6 @@ impl Game {
     /// Put a lasting spell on its target: a unit or city carries it with its caster, a
     /// wizard-wide one is kept on the wizard.
     pub(crate) fn attach_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
-        if let Duration::Turns(n) = self.content.rules.spells.get(spell).duration {
-            self.start_timer(who, spell, caster, n);
-        }
         match who {
             Target::City(c) | Target::CityRealm(c, _) => {
                 let mut list = self

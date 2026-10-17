@@ -10,7 +10,7 @@ use crate::hero::Hero;
 use crate::magic::Retort;
 use crate::roster::{self, Availability, Class, Fate, Roster, Standing, MAX_HEROES};
 use crate::units::{Experience, Owner, Unit, Units};
-use crate::Game;
+use crate::{Event, Game};
 
 /// Why a hero could not be brought into service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,21 +197,80 @@ impl Game {
     }
 
     /// Take a unit out of the game for good: the one way to do it, so that a hero's roster
-    /// record follows it (`Fate` says which way). Anything the unit carries goes with it; the
-    /// items of a fallen hero are task 221's to pass on, from here. The removals that do not come
-    /// through here cannot be heroes: neutral guards (`lairs.rs`), the copy made for a battle
-    /// summon (`battle/spells.rs`), settlers founding a city and the engineer that melds with a
-    /// node.
+    /// record follows it (`Fate` says which way). The items of a hero that is slain go back to
+    /// its own wizard's armory (a spell or an earthquake kills it: `Player_Process_Item_Pool`);
+    /// those of one that is released or gone go with it (a released hero's items are taken by
+    /// the caller first, `release_one`). The removals that do not come through here cannot be
+    /// heroes: neutral guards (`lairs.rs`), the copy made for a battle summon
+    /// (`battle/spells.rs`), settlers founding a city and the engineer that melds with a node.
     pub(crate) fn remove_unit(&mut self, unit: hecs::Entity, fate: Fate) {
-        if let (Some(kind), Some(owner)) =
-            (self.units().hero_kind(unit), self.units().unit_owner(unit))
-        {
+        self.remove_unit_to(unit, fate, None);
+    }
+
+    /// Like [`Game::remove_unit`], with the wizard that takes the items of a slain hero: the
+    /// winner of the battle it fell in. A neutral winner takes nothing, so the items are
+    /// destroyed; without an heir they go to the hero's own wizard.
+    pub(crate) fn remove_unit_to(
+        &mut self,
+        unit: hecs::Entity,
+        fate: Fate,
+        heir: Option<PlayerId>,
+    ) {
+        let owner = self.units().unit_owner(unit);
+        if let (Some(kind), Some(owner)) = (self.units().hero_kind(unit), owner) {
             let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
             if let Some(p) = self.player_mut(owner) {
                 p.roster.on_dead(kind, xp, fate);
             }
+            if fate == Fate::Slain {
+                let items: Vec<_> = self
+                    .world
+                    .get::<&crate::items::HeroItems>(unit)
+                    .map(|h| h.iter().cloned().collect())
+                    .unwrap_or_default();
+                let takes = heir.unwrap_or(owner);
+                if !self.is_neutral_player(takes) {
+                    for item in items {
+                        let name = item.name.clone();
+                        let placed = self.give_item(takes, item);
+                        self.item_awards.push((
+                            takes,
+                            name,
+                            placed != crate::items::armory::Placed::Lost,
+                        ));
+                    }
+                }
+            }
         }
         let _ = self.world.despawn(unit);
+    }
+
+    /// The items awarded to wizards since the last call, one event for each wizard: the names
+    /// and how many did not fit the armory. The client opens the item screen for the human.
+    pub(crate) fn drain_item_awards(&mut self) -> Vec<Event> {
+        let mut events: Vec<Event> = Vec::new();
+        for (player, name, kept) in std::mem::take(&mut self.item_awards) {
+            let found = events.iter_mut().find_map(|e| match e {
+                Event::ItemsAwarded {
+                    player: p,
+                    items,
+                    lost,
+                } if *p == player => Some((items, lost)),
+                _ => None,
+            });
+            match found {
+                Some((items, lost)) => {
+                    items.push(name);
+                    *lost += u32::from(!kept);
+                }
+                None => events.push(Event::ItemsAwarded {
+                    player,
+                    items: vec![name],
+                    lost: u32::from(!kept),
+                }),
+            }
+        }
+        events
     }
 
     /// The wizard's roster, for the screens that list the heroes that can be hired or raised.
@@ -581,5 +640,98 @@ pub(crate) mod tests {
         assert_eq!(back.units().hero_kind(heroes[0]), Some(2));
         assert!(back.units().unit_has_ability(heroes[0], "noble"));
         assert_eq!(back.players[0].roster.dead(), vec![1]);
+    }
+
+    fn sword() -> crate::items::Item {
+        crate::items::Item {
+            name: "Sword".into(),
+            kind: crate::rules::ItemKind::Sword,
+            cost: 100,
+            icon: 0,
+            bonus: crate::items::ItemBonus::default(),
+            powers: Vec::new(),
+            charges: None,
+            prefab: None,
+        }
+    }
+
+    fn armed_hero(g: &mut Game, owner: PlayerId) -> hecs::Entity {
+        let h = g.spawn_hero(owner, at(1, 1), 0).unwrap();
+        let mut items = crate::items::HeroItems::default();
+        items.0[0] = Some(sword());
+        g.world.insert_one(h, items).unwrap();
+        h
+    }
+
+    fn in_armory(g: &Game, player: PlayerId) -> usize {
+        let a = &g.player(player).unwrap().armory;
+        a.vault.iter().flatten().count() + a.awards.len()
+    }
+
+    #[test]
+    fn the_items_of_a_slain_hero_go_to_its_wizard_and_those_of_a_gone_one_are_destroyed() {
+        let mut g = world();
+        let slain = armed_hero(&mut g, P0);
+        g.remove_unit(slain, Fate::Slain);
+        assert_eq!(in_armory(&g, P0), 1);
+        let events = g.drain_item_awards();
+        assert!(matches!(
+            events.as_slice(),
+            [Event::ItemsAwarded { player, items, lost: 0 }] if *player == P0 && items == &["Sword"]
+        ));
+        let gone = armed_hero(&mut g, P0);
+        g.remove_unit(gone, Fate::Gone);
+        assert_eq!(in_armory(&g, P0), 1, "nothing more");
+        assert!(g.drain_item_awards().is_empty());
+    }
+
+    #[test]
+    fn the_victor_takes_the_items_of_a_hero_that_fell_in_a_battle_unless_it_is_neutral() {
+        let mut g = world();
+        let loser = armed_hero(&mut g, P0);
+        g.remove_unit_to(loser, Fate::Slain, Some(P1));
+        assert_eq!((in_armory(&g, P0), in_armory(&g, P1)), (0, 1));
+        let neutral = g.new_city_player("Free");
+        let other = armed_hero(&mut g, P0);
+        g.remove_unit_to(other, Fate::Slain, Some(neutral));
+        assert_eq!(
+            in_armory(&g, P0) + in_armory(&g, P1),
+            1,
+            "a neutral winner takes nothing"
+        );
+        assert_eq!(in_armory(&g, neutral), 0);
+    }
+
+    #[test]
+    fn an_armory_that_is_full_loses_the_rest_and_the_wizard_is_told_how_many() {
+        let mut g = world();
+        let room = crate::items::armory::VAULT_SLOTS + crate::items::armory::MAX_AWARDS;
+        for _ in 0..room {
+            g.give_item(P1, sword());
+        }
+        let hero = armed_hero(&mut g, P0);
+        g.remove_unit_to(hero, Fate::Slain, Some(P1));
+        let events = g.drain_item_awards();
+        assert!(matches!(
+            events.as_slice(),
+            [Event::ItemsAwarded { lost: 1, .. }]
+        ));
+        assert_eq!(in_armory(&g, P1), room);
+    }
+
+    #[test]
+    fn a_hero_killed_in_a_battle_leaves_its_items_to_the_winner() {
+        let mut g = world();
+        let hero = armed_hero(&mut g, P0);
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let attackers: Vec<_> = (0..8).map(|_| g.spawn_unit(P1, at(2, 1), walker)).collect();
+        g.auto_resolve(&attackers, &[hero]);
+        assert!(!g.world.contains(hero), "the hero fell");
+        assert_eq!((in_armory(&g, P0), in_armory(&g, P1)), (0, 1));
+        let told = g.drain_item_awards();
+        assert!(matches!(
+            told.as_slice(),
+            [Event::ItemsAwarded { player, .. }] if *player == P1
+        ));
     }
 }
