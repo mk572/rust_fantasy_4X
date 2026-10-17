@@ -42,6 +42,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 29 | Rules | Reduced upkeep for basic units; no upkeep for settlers |
 | 30 | Rules | More interesting strategies for underplayed or underpowered races |
 | 31 | Meta | Diplomacy with neutral cities: attitude, a leader portrait, talking, deals |
+| 32 | Magic | Neutral cities: their own mana and spells |
 
 ## Descriptions
 
@@ -403,3 +404,14 @@ with item 24, one race at a time, so the effect of each change is measured alone
    - More offers later (a shared sight, a joint war, passage for a stack through the territory).
 
 Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text. Decide first: how strength is measured, what a surrender costs the wizard's neighbours' attitude, whether a protected city can still be attacked by its wizard's enemies at once or after a warning, and how this meets the raiders of task 154.
+
+**32. Neutral cities: mana and spells.** Independent cities cannot cast today (item 31 notes it). Give them a small magic of their own, after the base game is playable; it feeds item 31 (a city that can cast is a better ally or enemy, and gives and takes spells in deals) and the battles at its gates.
+
+- **Mana.** A neutral city makes its own mana by the normal rules (buildings, population, nodes in its land, the same `magic_income` sums a wizard's cities feed), keeps it in its own reserve, and pays the standard price for every spell. No distance rules: it casts anywhere it needs to, at the standard cost.
+- **Learning.** Each time the city gains a population it learns one new spell, up to one spell for each citizen it has now. It cannot lose them by shrinking (decide: or does it forget the newest?).
+- **Spell lists.** Each race has a list of 20 spells the city picks from, in a data file (`content/`, one list per race, in the rules framework's spell ids), chosen to suit the race (a first pass from the races' realms and the retorts they favour). The pick is deterministic: the next unknown spell in the list's order, or by a weighted draw from the game's seeded generator (decide). Spells need no research and no books.
+- **Casting strength.** Needs a formula, since a wizard's strength comes from casting skill and a city has none. A start: the casting skill of a city is its population plus a share of its mana income, capped by a number per size, and it decides which spells it can afford in one go and the strength of the ones that scale (Fireball, Dispel Magic's strength, resistance modifiers in battle). Decide the shape and write it into `magic.md`.
+- **Use.** In battle the city casts as the defender (and as the attacker when a raider sallies out, task 154) with the combat AI's spell rules for a wizard, within the city's mana and the battle's casting limits; overland, a first version casts only what helps its own cities and defence (wards, Wall of Fire, healing, summons for the garrison). The AI wizards' answer to a city that casts: they weigh the risk in the attack decision.
+- **Interaction with deals (item 31).** A city may sell or teach a spell for a gift; tribute in mana, and spells given as a gift, work on its reserve. Needs item 31 to be settled first.
+
+Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for a neutral player in the core (known spells, reserve; saved with the game), the learning step in the growth code, the casting strength rule, the battle and overland AI hooks, the client showing what a neutral city knows when the player has the knowledge (the enemy city screen), help text, and tests with fixed seeds. Do the balance with item 24's soak runs, since a city with spells changes every siege.
