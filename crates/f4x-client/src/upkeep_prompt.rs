@@ -408,7 +408,7 @@ impl App {
         let light = Color::new(0.97, 0.95, 0.85, 1.0);
         let gold = Color::new(0.95, 0.78, 0.30, 1.0);
         let red = Color::new(0.85, 0.20, 0.15, 1.0);
-        let mut say = |app: &mut App, color: Color, text: &str, x: f32, y: f32, align: Align| {
+        let say = |app: &mut App, color: Color, text: &str, x: f32, y: f32, align: Align| {
             app.bm_text(view, 4, shadow, text, x + 1.0, y + 1.0, align);
             app.bm_text(view, 4, color, text, x, y, align);
         };
