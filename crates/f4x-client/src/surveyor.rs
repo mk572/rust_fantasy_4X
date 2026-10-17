@@ -68,7 +68,11 @@ impl App {
             ..Default::default()
         };
         let survey = self.game.site_survey(HUMAN, pos);
-        text.effects[0] = food_text(def.food);
+        let food = self
+            .game
+            .economy()
+            .square_food(grid, pos.x as i32, pos.y as i32);
+        text.effects[0] = food_text(food.clamp(0, 255) as u8);
         if def.production_percent != 0 {
             text.effects[1] = format!("+{}% production", def.production_percent);
         }

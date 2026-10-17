@@ -32,8 +32,9 @@ Written in our own words; nothing here is copied from either source.
 | B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
 | B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction. |
 | B14 Forester's Guild | Its food counts toward a city's maximum size. |
-| B15 Swamp | Half a food. Needs terrain food in half-units (the sample `terrain.ron` uses whole numbers). |
-| B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). |
+| B15 Swamp | Half a food (done: `terrain.ron` counts food in half-units, swamp is 1). |
+| B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). Done: a node square takes over its terrain and gives the food in `land_food` on the feature (sorcery 4, nature 4, chaos 0, in half-food units). |
+| Square food | `Economy::square_food` follows `Square_Food_x2`: a river square gives 4 (two food) whatever it lies on, water beside land (the shore, eight neighbours) gives 1, open sea 0. Gold from shore, river and river mouth (10, 20, 30) was already as in the original. |
 | B18 Events | Use the real turn number, so events run from turn one and after loading a save. |
 | B19 Growth | The original suppresses shrinking at maximum size and at the largest size; here starvation and being over the limit still shrink (done, task 20). Surplus population carries over instead of being discarded. (Neutral cities growing at half rate is not a bug in the original, but we do not port it: neutrals get no bonus or penalty, design.md section 8.) |
 | B20 Outposts | Done (task 21). Outpost growth includes wild game; the computer wizards' difficulty modifier is applied at the end of the growth chance (task 247; none in the symmetric `flat` game). |

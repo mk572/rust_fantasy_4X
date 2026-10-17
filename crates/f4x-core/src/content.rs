@@ -114,6 +114,9 @@ pub struct CityBonus {
     pub mana: i32,
     /// Whole food (wild game); not affected by mining.
     pub food: i32,
+    /// For a square the feature takes over (a magic node): the food the square gives a city, in
+    /// half-food units, instead of the terrain's own.
+    pub land_food: Option<u8>,
     /// Percent off the cost of military units built in the city (stacks up to a limit).
     pub unit_cost_percent: i32,
     /// Added to the chance an outpost grows each turn.

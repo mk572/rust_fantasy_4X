@@ -73,15 +73,15 @@
     (id: "tower", name: "Tower", kind: Tower),
 
     // ---- Magic nodes: type follows the surrounding terrain ---------------------
-    (id: "nature_node", name: "Nature Node", kind: Node, spawn: [
+    (id: "nature_node", name: "Nature Node", kind: Node, city: (land_food: Some(4)), spawn: [
         (terrain: [Forest, Swamp],  planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Grassland],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "sorcery_node", name: "Sorcery Node", kind: Node, spawn: [
+    (id: "sorcery_node", name: "Sorcery Node", kind: Node, city: (land_food: Some(4)), spawn: [
         (terrain: [Grassland, Tundra, Desert], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Forest, Swamp, Hills],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "chaos_node", name: "Chaos Node", kind: Node, spawn: [
+    (id: "chaos_node", name: "Chaos Node", kind: Node, city: (land_food: Some(0)), spawn: [
         (terrain: [Mountains, Hills], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Desert, Swamp],    planes: [Arcanus, Myrror], weight: 2),
     ]),

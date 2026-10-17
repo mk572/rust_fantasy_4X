@@ -303,6 +303,40 @@ impl<'a> Economy<'a> {
         total
     }
 
+    /// What one square gives a city that works it, in half-food units (the original's
+    /// `Square_Food_x2`): the terrain's own food; a river square gives two food whatever it is
+    /// laid on; water next to land (the shore) gives half a food, open sea none; a magic node
+    /// takes over its square and gives what the node says.
+    pub fn square_food(&self, grid: &crate::map::Grid, x: i32, y: i32) -> i32 {
+        let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
+            return 0;
+        };
+        if let Some(land) = grid
+            .feature(x, y)
+            .and_then(|f| self.content.features.get(f))
+            .and_then(|f| f.city.land_food)
+        {
+            return i32::from(land);
+        }
+        let food = i32::from(def.food);
+        if def.class == TerrainClass::Ocean {
+            let shore = (-1i32..=1).any(|dy| {
+                (-1i32..=1).any(|dx| {
+                    (dx != 0 || dy != 0)
+                        && grid
+                            .get(x + dx, y + dy)
+                            .and_then(|t| self.content.terrains.get(t))
+                            .is_some_and(|d| d.class != TerrainClass::Ocean)
+                })
+            });
+            return food.max(i32::from(shore));
+        }
+        if grid.has_river(x, y) {
+            return food.max(4);
+        }
+        food
+    }
+
     /// What a city at `at` could grow to on its land alone, with no buildings, race or
     /// enchantments: the estimate the original's new-game placement judges a home site by.
     pub(crate) fn site_max_size(&self, at: Position) -> u32 {
@@ -312,13 +346,7 @@ impl<'a> Economy<'a> {
         let grid = map.plane(at.plane);
         let (mut food_x2, mut wild_food) = (0i32, 0i32);
         for (p, shared) in self.city_area(at) {
-            let Some(def) = grid
-                .get(p.x as i32, p.y as i32)
-                .and_then(|t| self.content.terrains.get(t))
-            else {
-                continue;
-            };
-            let food = i32::from(def.food) * 2;
+            let food = self.square_food(grid, p.x as i32, p.y as i32) * 2;
             food_x2 += if shared { food / 2 } else { food };
             if let Some(f) = grid
                 .feature(p.x as i32, p.y as i32)
@@ -416,7 +444,11 @@ impl<'a> Economy<'a> {
             let corrupted = grid.is_corrupted(p.x as i32, p.y as i32);
             blighted += i32::from(corrupted);
             let spoiled = corrupted && !blight_proof;
-            let mut food = if spoiled { 0 } else { i32::from(def.food) * 2 };
+            let mut food = if spoiled {
+                0
+            } else {
+                self.square_food(grid, p.x as i32, p.y as i32) * 2
+            };
             let mut prod = if spoiled { 0 } else { def.production_percent };
             if shared {
                 food /= 2;
@@ -803,6 +835,7 @@ mod growth_tests {
 #[cfg(test)]
 mod handle_tests {
     use super::*;
+    use crate::content::{CityBonus, FeatureDef, FeatureKind};
     use crate::map::Grid;
     use crate::testutil::content_with_economy;
 
@@ -907,5 +940,55 @@ mod handle_tests {
             after.figures, before.figures,
             "the people are not multiplied"
         );
+    }
+
+    #[test]
+    fn a_squares_food_follows_the_original() {
+        let mut content = content_with_economy();
+        let grass = content.terrains.id_of("grassland").unwrap();
+        let swamp = content.terrains.id_of("swamp").unwrap();
+        let ocean = content.terrains.id_of("ocean").unwrap();
+        let mut defs = content.features.defs().to_vec();
+        defs.push(FeatureDef {
+            id: "node_test".into(),
+            name: "node".into(),
+            kind: FeatureKind::Node,
+            city: CityBonus {
+                land_food: Some(4),
+                ..Default::default()
+            },
+            spawn: vec![],
+        });
+        content.features = crate::content::Features::new(defs);
+        let node = content.features.id_of("node_test").unwrap();
+        let mut grid = Grid::new(24, 14, grass);
+        for x in 0..8 {
+            for y in 0..4 {
+                grid.set(x, y, ocean);
+            }
+        }
+        grid.set(5, 5, swamp);
+        grid.set(7, 7, grass);
+        grid.set_river(7, 7, true);
+        grid.set_feature(9, 9, Some(node));
+        let map = Map::new(grid.clone(), grid.clone());
+        let world = World::new();
+        let eco = Economy::new(&world, Some(&map), &content, &[]);
+        let g = map.plane(Plane::Arcanus);
+        assert_eq!(eco.square_food(g, 12, 12), 3, "grassland: one and a half");
+        assert_eq!(eco.square_food(g, 5, 5), 1, "swamp: half a food");
+        assert_eq!(eco.square_food(g, 7, 7), 4, "a river: two food");
+        assert_eq!(
+            eco.square_food(g, 9, 9),
+            4,
+            "a node square gives the node's food"
+        );
+        assert_eq!(eco.square_food(g, 2, 2), 0, "open sea");
+        assert_eq!(
+            eco.square_food(g, 2, 3),
+            1,
+            "the shore (land one step south)"
+        );
+        assert_eq!(eco.square_food(g, 7, 3), 1, "the shore, diagonally");
     }
 }

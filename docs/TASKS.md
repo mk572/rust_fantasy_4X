@@ -156,8 +156,8 @@ repo ships none); decide the audio crate, and keep the game silent and working w
 
 **78. Open conflict decisions.** Items still marked "Check" or open in
 `help-vs-implementation-conflicts.md`: B9 Heroism, B10 undead immunities, B11 Evil Omens cost,
-B12 legendary fame (decided, not built), B13 Blur, B15 swamp food, B16 nature node food, C3
-Invisibility. Decide each, apply to content and help, and add the "[Updated from game code]" note
+B12 legendary fame (decided, not built), B13 Blur, C3
+Invisibility. (B15 swamp food and B16 node food are done, with river and shore food.) Decide each, apply to content and help, and add the "[Updated from game code]" note
 where the help changes.
 
 **81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
