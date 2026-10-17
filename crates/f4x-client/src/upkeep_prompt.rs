@@ -263,7 +263,10 @@ impl App {
 
     pub(crate) fn finish_turn(&mut self) {
         self.end_turn();
-        self.save_to(std::path::Path::new(crate::view::AUTOSAVE));
+        // A turn held up by a battle is saved once it ends.
+        if self.turn_events.is_none() {
+            self.save_to(std::path::Path::new(crate::view::AUTOSAVE));
+        }
     }
 
     /// Send what the player chose, then end the turn.

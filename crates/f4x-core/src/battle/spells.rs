@@ -1351,8 +1351,9 @@ impl Game {
         let entity = unit.source.and_then(|i| active.sources.get(i).copied());
         let mut rng = Pcg64Mcg::seed_from_u64(self.next_u64());
 
-        let (kept, mut removed) =
+        let (kept, gone) =
             self.dispel_list(unit.combat_spells.clone(), strength, by, true, &mut rng);
+        let mut removed = gone.len() as u32;
         let mut overland_changed = false;
         if let Some(e) = entity {
             let list = self
@@ -1361,10 +1362,10 @@ impl Game {
                 .map(|l| l.0.clone())
                 .unwrap_or_default();
             let (left, gone) = self.dispel_list(list, strength, by, true, &mut rng);
-            if gone > 0 {
+            if !gone.is_empty() {
                 let _ = self.world.insert_one(e, UnitEnchantments(left));
                 overland_changed = true;
-                removed += gone;
+                removed += gone.len() as u32;
             }
         }
         let event = BattleEvent::SpellDispelled {

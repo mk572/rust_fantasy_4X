@@ -45,13 +45,37 @@ impl App {
                 String::new()
             },
         };
+        self.city_spell_first = 0;
+        self.sell_prompt = None;
         self.screen = Screen::Outpost(city);
     }
 
     /// For the screenshot check: show the wizard's first city as an outpost.
     pub fn open_first_outpost(&mut self, new: bool) {
         if let Some((city, ..)) = self.game.economy().cities().first() {
-            self.open_outpost(*city, new);
+            let city = *city;
+            if !new {
+                // Eight city spells of the player's own, to see the list page and turn off.
+                let spells: Vec<_> = self
+                    .game
+                    .content()
+                    .rules
+                    .spells
+                    .defs()
+                    .iter()
+                    .filter(|s| s.target == f4x_core::rules::SpellTarget::OwnCity)
+                    .take(8)
+                    .filter_map(|s| self.game.content().rules.spells.id_of(&s.id))
+                    .collect();
+                for spell in spells {
+                    self.game.attach_enchantment(
+                        f4x_core::rules::exec::Target::City(city),
+                        spell,
+                        HUMAN,
+                    );
+                }
+            }
+            self.open_outpost(city, new);
         }
     }
 
@@ -154,27 +178,25 @@ impl App {
                 }
             }
         }
-        for (k, &(spell, caster)) in self.game.city_enchantments(city).iter().take(6).enumerate() {
-            let name = self.game.content().rules.spells.get(spell).name.clone();
-            let colour = self.banner_color(caster.0);
-            self.bm_text(
-                view,
-                1,
-                colour,
-                &name,
-                wx + 114.0,
-                wy + 54.0 + 6.5 * k as f32,
-                Align::Left,
-            );
+        // The enchantments page and turn off as the city screen's do; a click on one is not the
+        // click that leaves. A question opened by a click waits a frame before it draws.
+        let asking = self.sell_prompt.is_some();
+        let city_lay = crate::city_screen::Layout::new();
+        let on_list =
+            self.city_enchantment_list(city, city_lay, (wx + 114.0, wy + 54.0), 0.0, !asking);
+        if asking {
+            self.draw_sell_prompt();
+            return;
         }
-
         if ui.naming {
             self.outpost_name_box(&lay, city);
             return;
         }
         if let Some(unit) = right {
             self.open_unit_sheet(unit);
-        } else if is_key_pressed(KeyCode::Escape) || is_mouse_button_pressed(MouseButton::Left) {
+        } else if is_key_pressed(KeyCode::Escape)
+            || (is_mouse_button_pressed(MouseButton::Left) && !on_list)
+        {
             if left.is_some() && self.game.economy().city_owner(city) == Some(HUMAN) {
                 self.select_at(at);
             }

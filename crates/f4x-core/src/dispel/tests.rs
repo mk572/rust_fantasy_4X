@@ -118,12 +118,31 @@ fn only_other_wizards_enchantments_are_dispelled() {
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     let mut r = rng();
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P0, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P0, &mut r, &mut Vec::new()),
         0
     );
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r, &mut Vec::new()),
         1
+    );
+}
+
+#[test]
+fn a_dispel_names_each_spell_it_removes() {
+    let mut g = world();
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let unit = g.spawn_unit(P0, at(3, 3), spear);
+    let strength = sp(&g, "giant_strength");
+    g.attach_enchantment(Target::Unit(unit), strength, P0);
+    let mut gone = Vec::new();
+    g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut rng(), &mut gone);
+    assert_eq!(
+        gone,
+        vec![Event::EnchantmentDispelled {
+            victim: P0,
+            spell: strength,
+            on_unit: true
+        }]
     );
 }
 
@@ -137,23 +156,23 @@ fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() {
     g.attach_enchantment(Target::Unit(unit), lock, P0);
     let mut r = rng();
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r, &mut Vec::new()),
         1,
         "the first dispel only takes the lock"
     );
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r, &mut Vec::new()),
         1
     );
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut r, &mut Vec::new()),
         0
     );
     // A weak dispel rarely beats the lock's 150, and a lock never shields from its owner.
     g.attach_enchantment(Target::Unit(unit), lock, P0);
     g.attach_enchantment(Target::Unit(unit), strength, P1);
     assert_eq!(
-        g.dispel_target(Target::Unit(unit), 1_000_000, P0, &mut r),
+        g.dispel_target(Target::Unit(unit), 1_000_000, P0, &mut r, &mut Vec::new()),
         1
     );
 }
@@ -418,7 +437,13 @@ fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() {
     }
     let mut r = rng();
     // A dispel far stronger than Enchant Road's difficulty always works.
-    let removed = g.dispel_target(Target::Tile(at(5, 5)), 1_000_000, P1, &mut r);
+    let removed = g.dispel_target(
+        Target::Tile(at(5, 5)),
+        1_000_000,
+        P1,
+        &mut r,
+        &mut Vec::new(),
+    );
     assert_eq!(removed, 1);
     let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
     assert!(grid.has_road(5, 5), "the road itself stays");
@@ -429,7 +454,13 @@ fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() {
     );
     // A plain road has nothing to dispel.
     assert_eq!(
-        g.dispel_target(Target::Tile(at(5, 5)), 1_000_000, P1, &mut r),
+        g.dispel_target(
+            Target::Tile(at(5, 5)),
+            1_000_000,
+            P1,
+            &mut r,
+            &mut Vec::new()
+        ),
         0
     );
 }

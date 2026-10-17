@@ -2585,6 +2585,7 @@ dependencies = [
 name = "f4x-console"
 version = "0.0.1"
 dependencies = [
+ "f4x-ai",
  "f4x-core",
  "f4x-data",
  "hecs",

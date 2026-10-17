@@ -470,12 +470,18 @@ pub enum Event {
         city: hecs::Entity,
         gold: i32,
         citizens_lost: u32,
-        buildings_lost: u32,
+        /// The buildings the fighting destroyed.
+        buildings_lost: Vec<rules::BuildingId>,
+        /// The fame the old owner lost and the taker gained.
+        fame_lost: i32,
+        fame_gained: i32,
     },
     /// The taker razed the city they had just won.
     CityRazed {
         player: city::PlayerId,
         gold: i32,
+        /// The fame it cost the one who razed it.
+        fame_lost: i32,
     },
     VolcanoRaised {
         player: city::PlayerId,
@@ -501,6 +507,12 @@ pub enum Event {
     Dispelled {
         player: city::PlayerId,
         removed: u32,
+    },
+    /// A dispel removed `victim`'s enchantment `spell` from a unit or a city.
+    EnchantmentDispelled {
+        victim: city::PlayerId,
+        spell: rules::SpellId,
+        on_unit: bool,
     },
     /// A dispel against the global enchantment `spell` failed.
     DispelFailed {
@@ -660,6 +672,8 @@ pub enum Event {
         player: city::PlayerId,
         experience: u32,
         fame: i32,
+        /// The fame the loser lost (nothing or less than nothing): a hero that fell.
+        loser_fame: i32,
     },
     BattleEnded {
         winner: city::PlayerId,

@@ -6,10 +6,11 @@
 //! three in four chance of the default race of its landmass. Its population grows with the
 //! difficulty, like lair guards (design.md section 8), and it starts with the buildings a
 //! population brings and a garrison of the best soldiers its race can recruit. After that a
-//! neutral city plays by the ordinary rules: it grows, builds in the Grand Vizier's order and
-//! can be taken in battle. Every neutral city is its own player (`Player::neutral`), with its
-//! own treasury: its taxes pay for its buildings and its garrison, and a garrison it cannot
-//! pay for is disbanded. The player goes when the city is taken. Monsters, lair guards and
+//! neutral city plays by the ordinary rules: it grows and can be taken in battle. Its decisions
+//! (farmers, taxes, what it builds) are an AI's, not the turn's: `f4x_ai::play_neutrals`, which a
+//! host calls before ending a turn. Every neutral city is its own player (`Player::neutral`),
+//! with its own treasury: its taxes pay for its buildings and its garrison, and a garrison it
+//! cannot pay for is disbanded. The player goes when the city is taken. Monsters, lair guards and
 //! the undead raised for them stay with the shared `units::NEUTRAL`.
 
 use std::collections::VecDeque;

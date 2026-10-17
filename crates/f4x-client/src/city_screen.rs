@@ -246,16 +246,7 @@ impl App {
         };
         let pop = self.game.city_population(city);
         // The title names the size: Outpost, Hamlet, Village, Town, City, Capital.
-        let size = if eco.figures == 0 {
-            "Outpost"
-        } else {
-            ["Hamlet", "Village", "Town", "City", "Capital"]
-                [(eco.figures.div_ceil(4).clamp(1, 5) - 1) as usize]
-        };
-        let mut title = format!("{size} of {name}");
-        if self.game.economy().is_fortress_city(city) && size != "Capital" {
-            title = format!("Capital of {name}");
-        }
+        let title = format!("{} of {name}", self.city_size_name(city));
         let view = Self::view(lay);
         self.bm_text(
             view,
@@ -409,19 +400,41 @@ impl App {
     /// arrows that turn the page; a click on the player's own asks to turn it off
     /// (`City_Screen_Draw_City_Enchantments`, `City_Add_Fields_City_Enchantments`).
     fn draw_city_enchantments(&mut self, city: hecs::Entity, lay: Layout) {
-        const FIRST: (f32, f32) = (139.0, 51.0);
+        let enabled = !self.choosing;
+        self.city_enchantment_list(city, lay, (139.0, 51.0), 3.0, enabled);
+    }
+
+    /// The list with its first row at `first` (the original's `xstart`, `ystart`), shared by
+    /// the city and outpost screens. Returns whether a click this frame landed on a row or an
+    /// arrow, so the caller does not take it for something else. The names are drawn `shift`
+    /// pixels right of and below the clickable rows (the city screen's panel has a margin).
+    pub(crate) fn city_enchantment_list(
+        &mut self,
+        city: hecs::Entity,
+        lay: Layout,
+        first: (f32, f32),
+        shift: f32,
+        enabled: bool,
+    ) -> bool {
         const PAGE: usize = 6;
+        let mut hit = false;
         let view = Self::view(lay);
         let list = self.game.city_enchantments(city);
         if list.len() > PAGE {
             let last = list.len() - 1;
-            if self.pic_button(lay, 15, FIRST.0 + 62.0, FIRST.1 - 1.0, !self.choosing) {
+            let up = lay.rect(first.0 + 62.0, first.1 - 1.0, 12.0, 12.0);
+            hit |=
+                is_mouse_button_pressed(MouseButton::Left) && up.contains(mouse_position().into());
+            if self.pic_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled) {
                 self.city_spell_first = match self.city_spell_first {
                     0 => last / PAGE * PAGE,
                     n => n.saturating_sub(PAGE),
                 };
             }
-            if self.pic_button(lay, 16, FIRST.0 + 62.0, FIRST.1 + 34.0, !self.choosing) {
+            let down = lay.rect(first.0 + 62.0, first.1 + 34.0, 12.0, 12.0);
+            hit |= is_mouse_button_pressed(MouseButton::Left)
+                && down.contains(mouse_position().into());
+            if self.pic_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled) {
                 self.city_spell_first += PAGE;
                 if self.city_spell_first > last {
                     self.city_spell_first = 0;
@@ -431,7 +444,7 @@ impl App {
             self.city_spell_first = 0;
         }
         let mouse = mouse_position().into();
-        let click = is_mouse_button_pressed(MouseButton::Left) && !self.choosing;
+        let click = is_mouse_button_pressed(MouseButton::Left) && enabled;
         for (row, &(spell, caster)) in list
             .iter()
             .enumerate()
@@ -448,8 +461,17 @@ impl App {
                 );
             }
             let color = self.banner_color(caster.0);
-            self.bm_text(view, 1, color, &name, 142.0, 54.0 + i * 7.0, Align::Left);
-            let rect = lay.rect(FIRST.0, FIRST.1 + i * 7.0, 60.0, 7.0);
+            self.bm_text(
+                view,
+                1,
+                color,
+                &name,
+                first.0 + shift,
+                first.1 + shift + i * 7.0,
+                Align::Left,
+            );
+            let rect = lay.rect(first.0, first.1 + i * 7.0, 60.0, 7.0);
+            hit |= click && rect.contains(mouse);
             if click && caster == HUMAN && rect.contains(mouse) {
                 self.sell_prompt = Some(SellPrompt::TurnOff {
                     city,
@@ -457,6 +479,25 @@ impl App {
                     name: def.name.clone(),
                 });
             }
+        }
+        hit
+    }
+
+    /// The title's size word: Outpost, Hamlet, Village, Town, City, or Capital for the
+    /// wizard's fortress.
+    pub(crate) fn city_size_name(&self, city: hecs::Entity) -> &'static str {
+        let figures = self
+            .game
+            .economy()
+            .city_economy(city)
+            .map_or(0, |e| e.figures);
+        if figures == 0 {
+            "Outpost"
+        } else if self.game.economy().is_fortress_city(city) {
+            "Capital"
+        } else {
+            ["Hamlet", "Village", "Town", "City", "Capital"]
+                [(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
         }
     }
 

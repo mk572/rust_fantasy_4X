@@ -180,14 +180,25 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         } else {
                             units.clone()
                         };
-                        ai.send(
-                            game,
-                            Command::AutoResolve {
+                        let defended_in_person = defenders
+                            .first()
+                            .and_then(|&d| game.units().unit_owner(d))
+                            .is_some_and(|owner| ai.defended_by.contains(&owner));
+                        if defended_in_person {
+                            ai.attacks.push(crate::Attack {
                                 attackers,
                                 defenders,
-                            },
-                            events,
-                        );
+                            });
+                        } else {
+                            ai.send(
+                                game,
+                                Command::AutoResolve {
+                                    attackers,
+                                    defenders,
+                                },
+                                events,
+                            );
+                        }
                         spent.extend(&units);
                         break;
                     }
@@ -569,5 +580,54 @@ fn march_landed(
     if !launched.is_empty() {
         ai.marching = launched;
         ai.march_started = game.turn;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testworld::{at, game, spawn, COAST_CITY};
+    use f4x_core::city::PlayerId;
+
+    const P0: PlayerId = PlayerId(0);
+    const P1: PlayerId = PlayerId(1);
+
+    /// West's six swordsmen stand next to one of East's spearmen, away from every city.
+    fn field() -> (Game, Vec<hecs::Entity>) {
+        let mut g = game(COAST_CITY, "high_men");
+        spawn(&mut g, P0, at(6, 3), "high_men_swordsmen", 6);
+        let defenders = spawn(&mut g, P1, at(7, 3), "high_men_spearmen", 1);
+        (g, defenders)
+    }
+
+    #[test]
+    fn an_attack_on_a_wizard_who_defends_in_person_is_kept_not_fought() {
+        let (mut g, defenders) = field();
+        let mut ai = Ai::new(P0);
+        ai.leave_defence_to(&[P1]);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        let attacks = ai.take_attacks();
+        assert_eq!(attacks.len(), 1, "{events:?}");
+        assert_eq!(attacks[0].defenders, defenders);
+        assert_eq!(attacks[0].attackers.len(), 6);
+        assert!(
+            g.units().unit_owner(defenders[0]).is_some(),
+            "nothing was fought"
+        );
+        assert!(ai.take_attacks().is_empty(), "taken once");
+    }
+
+    #[test]
+    fn without_one_the_same_attack_is_fought_at_once() {
+        let (mut g, defenders) = field();
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert!(ai.take_attacks().is_empty());
+        assert!(
+            g.units().unit_owner(defenders[0]).is_none(),
+            "the spearman fell: {events:?}"
+        );
     }
 }

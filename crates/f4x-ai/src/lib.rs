@@ -13,6 +13,7 @@ mod economy;
 mod expand;
 mod military;
 mod naval;
+mod neutral;
 mod offers;
 mod race;
 mod scouts;
@@ -93,6 +94,17 @@ pub struct Ai {
     war_on: Option<PlayerId>,
     record_refusals: bool,
     refusals: RefCell<Vec<Refusal>>,
+    /// Players who fight their own defence (a human): an attack on them is kept for
+    /// [`Ai::take_attacks`] instead of being resolved.
+    defended_by: Vec<PlayerId>,
+    attacks: Vec<Attack>,
+}
+
+/// An attack on a player who defends in person: the attacking stack and the stack hit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attack {
+    pub attackers: Vec<hecs::Entity>,
+    pub defenders: Vec<hecs::Entity>,
 }
 
 impl Ai {
@@ -126,7 +138,20 @@ impl Ai {
             war_on: None,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
+            defended_by: Vec::new(),
+            attacks: Vec::new(),
         }
+    }
+
+    /// These players fight the battles against them themselves: the AI does not auto-resolve an
+    /// attack on them but keeps it, for the caller to play out (see [`Ai::take_attacks`]).
+    pub fn leave_defence_to(&mut self, players: &[PlayerId]) {
+        self.defended_by = players.to_vec();
+    }
+
+    /// The attacks this turn on players who defend in person, oldest first.
+    pub fn take_attacks(&mut self) -> Vec<Attack> {
+        std::mem::take(&mut self.attacks)
     }
 
     /// Keep every command the game refuses, for [`Ai::take_refusals`].
@@ -222,12 +247,15 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
     events
 }
 
+pub use neutral::play_neutrals;
+
 /// Let every AI play its turn, then end the turn for everyone. Returns all the events.
 pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
     let mut events = Vec::new();
     for ai in ais.iter_mut() {
         events.extend(ai.play_turn(game));
     }
+    events.extend(play_neutrals(game));
     if game.game_over.is_none() {
         events.extend(game.apply(Command::EndTurn));
     }

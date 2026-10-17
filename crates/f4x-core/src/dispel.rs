@@ -23,6 +23,9 @@ use crate::rules::SpellId;
 use crate::units::UnitEnchantments;
 use crate::{Event, Game};
 
+/// Enchantments with the wizard who cast each.
+pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
+
 /// How hard Spell Lock is to dispel, whatever its cost.
 pub const SPELL_LOCK_DIFFICULTY: u32 = 150;
 /// The strength of Suppress Magic's standing dispel.
@@ -143,7 +146,7 @@ impl Game {
     }
 
     /// Try each enchantment in `list` cast by someone other than `by`; returns what is left
-    /// and how many were removed. A unit under another wizard's Spell Lock can only have the
+    /// and what was removed. A unit under another wizard's Spell Lock can only have the
     /// lock attacked, at difficulty 150.
     pub(crate) fn dispel_list(
         &self,
@@ -152,25 +155,25 @@ impl Game {
         by: PlayerId,
         guarded_by_lock: bool,
         rng: &mut dyn RngCore,
-    ) -> (Vec<(SpellId, PlayerId)>, u32) {
+    ) -> (Spells, Spells) {
         let lock = self.content.rules.spells.id_of("spell_lock");
         if guarded_by_lock {
             if let Some(&(_, caster)) = list.iter().find(|&&(s, c)| Some(s) == lock && c != by) {
                 let difficulty =
                     SPELL_LOCK_DIFFICULTY * self.dispel_multiplier("sorcery", Some(caster));
                 if dispel_roll(strength, difficulty, rng) {
-                    let kept = list.into_iter().filter(|&(s, _)| Some(s) != lock).collect();
-                    return (kept, 1);
+                    let (gone, kept) = list.into_iter().partition(|&(s, _)| Some(s) == lock);
+                    return (kept, gone);
                 }
-                return (list, 0);
+                return (list, Vec::new());
             }
         }
         let mut kept = Vec::new();
-        let mut removed = 0;
+        let mut removed = Vec::new();
         for (spell, caster) in list {
             let difficulty = self.dispel_difficulty(spell, Some(caster));
             if caster != by && dispel_roll(strength, difficulty, rng) {
-                removed += 1;
+                removed.push((spell, caster));
             } else {
                 kept.push((spell, caster));
             }
@@ -180,13 +183,14 @@ impl Game {
 
     /// A dispel of `strength` by wizard `by` on a unit, a city or everything on a map square
     /// (the city, the units, a warped node). Only enchantments cast by other wizards are
-    /// attacked. Returns how many were removed.
+    /// attacked. Returns how many were removed, and notes each spell that went in `gone`.
     pub(crate) fn dispel_target(
         &mut self,
         who: Target,
         strength: u32,
         by: PlayerId,
         rng: &mut dyn RngCore,
+        gone: &mut Vec<Event>,
     ) -> u32 {
         match who {
             Target::Unit(u) => {
@@ -197,7 +201,16 @@ impl Game {
                     .unwrap_or_default();
                 let (kept, removed) = self.dispel_list(list, strength, by, true, rng);
                 let _ = self.world.insert_one(u, UnitEnchantments(kept));
-                removed
+                gone.extend(
+                    removed
+                        .iter()
+                        .map(|&(spell, victim)| Event::EnchantmentDispelled {
+                            victim,
+                            spell,
+                            on_unit: true,
+                        }),
+                );
+                removed.len() as u32
             }
             Target::City(c) => {
                 let list = self
@@ -207,16 +220,25 @@ impl Game {
                     .unwrap_or_default();
                 let (kept, removed) = self.dispel_list(list, strength, by, false, rng);
                 let _ = self.world.insert_one(c, Enchantments(kept));
-                removed
+                gone.extend(
+                    removed
+                        .iter()
+                        .map(|&(spell, victim)| Event::EnchantmentDispelled {
+                            victim,
+                            spell,
+                            on_unit: false,
+                        }),
+                );
+                removed.len() as u32
             }
             Target::Tile(at) => {
                 let mut removed = self.dispel_node(at, strength, rng);
                 removed += self.dispel_road(at, strength, rng);
                 if let Some(c) = self.economy().city_at(at) {
-                    removed += self.dispel_target(Target::City(c), strength, by, rng);
+                    removed += self.dispel_target(Target::City(c), strength, by, rng, gone);
                 }
                 for u in self.units().units_at(at) {
-                    removed += self.dispel_target(Target::Unit(u), strength, by, rng);
+                    removed += self.dispel_target(Target::Unit(u), strength, by, rng, gone);
                 }
                 removed
             }

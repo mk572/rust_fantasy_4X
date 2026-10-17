@@ -12,10 +12,12 @@ mod battle_ground;
 mod battle_info;
 mod battle_screen;
 mod bigbook;
+mod built_popup;
 mod chancellor;
 mod city_list_screen;
 mod city_screen;
 mod cityscape;
+mod combat_results;
 mod console_screen;
 mod create_screen;
 mod cycle;
@@ -129,6 +131,14 @@ struct Options {
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     event: Option<String>,
+    /// With `--shot`, announce this finished building (an id).
+    built: Option<String>,
+    /// With `--shot`, show the box of a spell that fizzled.
+    fizzle: bool,
+    /// With `--shot`, show the notices of a dispel: `city` or `unit`.
+    dispelled: Option<String>,
+    /// With `--shot`, show the combat results scroll: `won`, `lost`, `fled`, `city` or `raze`.
+    results: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
     sheet: Option<usize>,
     /// With `--sheet`, first put this lasting spell (an id) on the unit, cast by you.
@@ -197,6 +207,10 @@ fn parse_args() -> Result<Options, String> {
         hall: false,
         offer: None,
         event: None,
+        built: None,
+        fizzle: false,
+        dispelled: None,
+        results: None,
         upkeep: false,
     };
     let mut args = std::env::args().skip(1);
@@ -231,6 +245,10 @@ fn parse_args() -> Result<Options, String> {
             "--upkeep" => o.upkeep = true,
             "--offer" => o.offer = Some(value("--offer")?),
             "--event" => o.event = Some(value("--event")?),
+            "--dispelled" => o.dispelled = Some(value("--dispelled")?),
+            "--fizzle" => o.fizzle = true,
+            "--built" => o.built = Some(value("--built")?),
+            "--results" => o.results = Some(value("--results")?),
             "--sheet" => {
                 o.sheet = Some(
                     value("--sheet")?
@@ -327,7 +345,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -457,6 +475,18 @@ async fn main() {
     }
     if let Some(kind) = &options.event {
         app.open_test_event(kind);
+    }
+    if let Some(kind) = &options.dispelled {
+        app.open_test_dispelled(kind == "unit");
+    }
+    if options.fizzle {
+        app.open_test_fizzle();
+    }
+    if let Some(kind) = &options.results {
+        app.open_test_results(kind);
+    }
+    if let Some(id) = &options.built {
+        app.open_test_built(id);
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n, options.sheet_spell.as_deref(), options.sheet_ask);

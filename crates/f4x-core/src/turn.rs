@@ -35,14 +35,6 @@ impl Game {
         // city that grows this turn makes its new mouths felt next turn, when the player can
         // still put them on the farms.
         let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
-        for &player in &players {
-            // Nobody sets an independent city's farmers, so it puts enough on the farms to
-            // feed its garrison, as a careful ruler would.
-            if self.is_neutral_player(player) {
-                self.balance_farmers(player);
-                self.balance_taxes(player);
-            }
-        }
         // The wizard whose Time Stop lasts pays no gold and eats no food, only the spell's mana.
         let stopper = self.time_stopper();
         for player in players {

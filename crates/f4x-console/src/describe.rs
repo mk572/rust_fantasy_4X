@@ -157,11 +157,15 @@ pub fn event(game: &Game, e: &Event) -> String {
             gold,
             citizens_lost,
             buildings_lost,
+            ..
         } => format!(
-            "{} is looted of {gold} gold; {citizens_lost} citizens and {buildings_lost} buildings are lost",
-            city_name(game, *city)
+            "{} is looted of {gold} gold; {citizens_lost} citizens and {} buildings are lost",
+            city_name(game, *city),
+            buildings_lost.len()
         ),
-        Event::CityRazed { player: p, gold } => format!(
+        Event::CityRazed {
+            player: p, gold, ..
+        } => format!(
             "{} razes the city and loots {gold} gold",
             player(game, *p)
         ),
@@ -328,6 +332,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             player: p,
             experience,
             fame,
+            ..
         } => {
             let fame = if *fame > 0 {
                 format!(" and {fame} fame")

@@ -194,15 +194,20 @@ impl Game {
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
+        let mut lost = Vec::new();
         let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
-            destroy_building(
+            let gone = destroy_building(
                 &mut self.world,
                 self.map.as_ref(),
                 &self.content,
                 &self.players,
                 city,
                 b,
-            )
+            );
+            if gone {
+                lost.push(b);
+            }
+            gone
         });
         if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
             pop.figures -= toll.citizens_lost;
@@ -212,7 +217,9 @@ impl Game {
             city,
             gold: loot,
             citizens_lost: toll.citizens_lost,
-            buildings_lost: toll.buildings_lost,
+            buildings_lost: lost,
+            fame_lost: if loser_is_wizard { fame_lost } else { 0 },
+            fame_gained,
         }];
         events.extend(self.capture_city(city, winner));
         // The old owner's spells on the city end, and the new owner starts afresh.
@@ -267,8 +274,9 @@ impl Game {
             .map(|b| razing_loot(b.0.iter().map(|&b| rules.buildings.get(b).cost)))
             .unwrap_or(0);
         let pos: Option<Position> = self.world.get::<&Position>(city).map(|p| *p).ok();
+        let fame_lost = razing_fame_loss(size);
         if let Some(p) = self.player_mut(player) {
-            p.fame = (p.fame - razing_fame_loss(size)).max(0);
+            p.fame = (p.fame - fame_lost).max(0);
             p.gold += loot;
         }
         let mut events = Vec::new();
@@ -281,7 +289,11 @@ impl Game {
                 }
             }
         }
-        events.push(Event::CityRazed { player, gold: loot });
+        events.push(Event::CityRazed {
+            player,
+            gold: loot,
+            fame_lost,
+        });
         events
     }
 

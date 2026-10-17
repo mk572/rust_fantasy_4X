@@ -38,6 +38,39 @@ pub(crate) enum SellPrompt {
     },
 }
 
+/// The two buttons of a question box and what answers it besides a click on them.
+pub(crate) struct Buttons {
+    right: (&'static str, usize),
+    left: (&'static str, usize),
+    right_key: KeyCode,
+    left_key: KeyCode,
+    /// Whether a click elsewhere answers (as the left button).
+    elsewhere: bool,
+    /// What Esc answers.
+    escape: bool,
+}
+
+/// Yes (right) and No (left): `resource.lbx` 3 and 4.
+const YES_NO: Buttons = Buttons {
+    right: ("resource", 3),
+    left: ("resource", 4),
+    right_key: KeyCode::Y,
+    left_key: KeyCode::N,
+    elsewhere: true,
+    escape: false,
+};
+
+/// `Raze_City_Prompt`: Raze (left, R) and the button that spares the city (right, N), from
+/// `compix.lbx` 82 and 81. Esc spares it; a click elsewhere does nothing.
+pub(crate) const RAZE_OR_SPARE: Buttons = Buttons {
+    right: ("compix", 81),
+    left: ("compix", 82),
+    right_key: KeyCode::N,
+    left_key: KeyCode::R,
+    elsewhere: false,
+    escape: true,
+};
+
 impl App {
     /// A click on a building of the city picture: the question, or the refusal.
     pub(crate) fn start_sale(&mut self, city: hecs::Entity, picture_index: i16) {
@@ -170,6 +203,17 @@ impl App {
     /// in the box font, the box in the middle of the screen. A right-click counts as a left
     /// one, a click elsewhere or Esc as No. `Some` once answered.
     pub(crate) fn confirmation_box(&mut self, lay: &Layout, text: &str) -> Option<bool> {
+        self.question_box(lay, text, &YES_NO)
+    }
+
+    /// The box of `confirmation_box` with other buttons: the right one answers `Some(true)`,
+    /// the left one `Some(false)`.
+    pub(crate) fn question_box(
+        &mut self,
+        lay: &Layout,
+        text: &str,
+        buttons: &Buttons,
+    ) -> Option<bool> {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
         let lines: Vec<(f32, String)> = self
@@ -184,32 +228,36 @@ impl App {
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
         let mouse = Vec2::from(mouse_position());
         let down = is_mouse_button_down(MouseButton::Left);
-        let yes_at = (x + 101.0, y + paragraph + 15.0);
-        let no_at = (x + 18.0, y + paragraph + 15.0);
-        let yes = lay.rect((yes_at.0, yes_at.1, 33.0, 17.0));
-        let no = lay.rect((no_at.0, no_at.1, 33.0, 17.0));
+        let right_at = (x + 101.0, y + paragraph + 15.0);
+        let left_at = (x + 18.0, y + paragraph + 15.0);
+        let right = lay.rect((right_at.0, right_at.1, 33.0, 17.0));
+        let left = lay.rect((left_at.0, left_at.1, 33.0, 17.0));
+        let (lbx, entry) = buttons.right;
         self.draw_pic(
             lay,
-            "resource",
-            3,
-            usize::from(down && yes.contains(mouse)),
-            yes_at.0,
-            yes_at.1,
+            lbx,
+            entry,
+            usize::from(down && right.contains(mouse)),
+            right_at.0,
+            right_at.1,
         );
+        let (lbx, entry) = buttons.left;
         self.draw_pic(
             lay,
-            "resource",
-            4,
-            usize::from(down && no.contains(mouse)),
-            no_at.0,
-            no_at.1,
+            lbx,
+            entry,
+            usize::from(down && left.contains(mouse)),
+            left_at.0,
+            left_at.1,
         );
         let clicked = is_mouse_button_pressed(MouseButton::Left)
             || is_mouse_button_pressed(MouseButton::Right);
-        if (clicked && yes.contains(mouse)) || is_key_pressed(KeyCode::Y) {
+        if (clicked && right.contains(mouse)) || is_key_pressed(buttons.right_key) {
             Some(true)
-        } else if clicked || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
+        } else if (clicked && left.contains(mouse)) || is_key_pressed(buttons.left_key) {
             Some(false)
+        } else if is_key_pressed(KeyCode::Escape) || (clicked && buttons.elsewhere) {
+            Some(buttons.escape)
         } else {
             None
         }

@@ -135,6 +135,12 @@ pub struct App {
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// An attack the human started and has yet to confirm.
     pub(crate) attack_prompt: Option<crate::attack_prompt::PendingAttack>,
+    /// The rival wizards, who play their turns when the human ends theirs (task 135).
+    pub(crate) ais: Vec<f4x_ai::Ai>,
+    /// Attacks on the human this turn, waiting to be fought one after the other.
+    pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
+    /// The turn is half over: the rivals have moved and the human is defending before it ends.
+    pub(crate) turn_events: Option<Vec<Event>>,
     /// The small spell book's pages.
     pub(crate) book_ui: crate::spellbook::BookUi,
     /// The big spell book: the library, the research choice, spells just learned.
@@ -149,6 +155,11 @@ pub struct App {
     pub(crate) item_pool_warning: bool,
     /// The events the player has yet to be told of, oldest first.
     pub(crate) event_notices: std::collections::VecDeque<f4x_core::events::EventNotice>,
+    /// The buildings the human's cities finished, to be announced, oldest first.
+    /// The spells that fizzled or were dispelled, to be announced.
+    pub(crate) spell_notices: std::collections::VecDeque<crate::event_popup::SpellNotice>,
+    pub(crate) built_notices:
+        std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
     /// A road being planned (task 102).
@@ -192,8 +203,10 @@ pub struct App {
     pub(crate) menu: crate::menu_screen::MenuState,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
-    /// A city just taken, waiting for the player to keep or raze it.
-    pub(crate) raze_prompt: Option<hecs::Entity>,
+    /// The scroll that tells how a battle went, once it is over.
+    pub(crate) combat_results: Option<crate::combat_results::CombatResults>,
+    /// The battle last begun, for the scroll's paper.
+    pub(crate) battle_site: Option<crate::combat_results::BattleSite>,
     /// The question after the human's fortress falls: resign, or cast the Spell of Return.
     pub(crate) resign_prompt: bool,
     /// The question of what to give up when the mana reserve cannot pay the upkeep.
@@ -251,6 +264,9 @@ impl App {
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
             attack_prompt: None,
+            ais: Vec::new(),
+            defences: Default::default(),
+            turn_events: None,
             book_ui: Default::default(),
             big_ui: Default::default(),
             help: Default::default(),
@@ -258,6 +274,8 @@ impl App {
             messages: Vec::new(),
             item_pool_warning: false,
             event_notices: Default::default(),
+            built_notices: Default::default(),
+            spell_notices: Default::default(),
             targeting: None,
             road_plan: None,
             surveyor: false,
@@ -280,7 +298,8 @@ impl App {
             game_over_seen: false,
             menu: Default::default(),
             console: Default::default(),
-            raze_prompt: None,
+            combat_results: None,
+            battle_site: None,
             resign_prompt: false,
             upkeep_prompt: None,
             ward_prompt: None,
@@ -332,6 +351,9 @@ impl App {
 
     /// Look at the human wizard's fortress, where the game starts.
     fn start_game(&mut self) {
+        self.ais = self.rival_wizards();
+        self.defences.clear();
+        self.turn_events = None;
         let fortress = self
             .game
             .economy()
@@ -342,6 +364,21 @@ impl App {
         if let Some(pos) = fortress {
             self.center_on(pos);
         }
+    }
+
+    /// One computer player for each rival wizard; the human fights battles against them in
+    /// person.
+    fn rival_wizards(&self) -> Vec<f4x_ai::Ai> {
+        self.game
+            .players()
+            .iter()
+            .filter(|p| p.id != HUMAN && !p.neutral)
+            .map(|p| {
+                let mut ai = f4x_ai::Ai::new(p.id);
+                ai.leave_defence_to(&[HUMAN]);
+                ai
+            })
+            .collect()
     }
 
     pub(crate) fn center_on(&mut self, pos: Position) {
@@ -385,8 +422,19 @@ impl App {
     /// Turn events into log lines; returns whether a city was founded.
     pub(crate) fn note(&mut self, events: Vec<Event>) -> bool {
         let mut founded = false;
+        let mut dispelled = 0;
         for event in events {
             let line = match event {
+                Event::EnchantmentDispelled {
+                    victim,
+                    spell,
+                    on_unit,
+                } => {
+                    if victim == HUMAN {
+                        self.announce_dispelled(spell, on_unit, &mut dispelled);
+                    }
+                    None
+                }
                 Event::CityFounded { city, .. } => {
                     founded = true;
                     let name = self.city_name(city);
@@ -424,6 +472,9 @@ impl App {
                     line
                 }
                 Event::ProductionCompleted { city, item } => {
+                    if let f4x_core::production::ProductionItem::Building(b) = item {
+                        self.announce_built(city, b);
+                    }
                     let what = self.item_name(item);
                     Some(format!("{}: {what} complete", self.city_name(city)))
                 }
@@ -464,6 +515,7 @@ impl App {
                         self.attack_prompt = Some(crate::attack_prompt::PendingAttack {
                             attackers,
                             defenders,
+                            defending: false,
                         });
                     }
                     None
@@ -494,16 +546,23 @@ impl App {
                     gold,
                     citizens_lost,
                     buildings_lost,
+                    ..
                 } => {
                     let mine = self.game.economy().city_owner(city) == Some(HUMAN);
-                    if mine {
-                        self.raze_prompt = Some(city);
-                    }
                     Some(format!(
-                        "{} {}: {gold} gold looted, {citizens_lost} citizens and {buildings_lost} buildings lost",
+                        "{} {}: {gold} gold looted, {citizens_lost} citizens and {} buildings lost",
                         self.city_name(city),
                         if mine { "is yours" } else { "falls" },
+                        buildings_lost.len(),
                     ))
+                }
+                Event::BattleStarted {
+                    attacker,
+                    defender,
+                    site,
+                } => {
+                    self.note_battle_start(attacker, defender, site);
+                    None
                 }
                 Event::CityRazed { gold, .. } => {
                     Some(format!("The city is razed: {gold} gold looted"))
@@ -565,11 +624,14 @@ impl App {
                     self.game.content().rules.spells.get(spell).name,
                     self.city_name(city)
                 )),
-                Event::SpellSuppressed { spell, by, .. } => Some(format!(
+                Event::SpellSuppressed { spell, by, player } => {
+                    self.announce_fizzle(player, by, spell, "Suppress Magic");
+                    Some(format!(
                     "{} is stopped by {}'s Suppress Magic",
                     self.game.content().rules.spells.get(spell).name,
                     self.game.player(by).map_or("a rival", |p| p.name.as_str())
-                )),
+                    ))
+                }
                 Event::PowerDrained { victim, amount, .. } => Some(format!(
                     "Drain Power takes {amount} mana from {}",
                     self.game
@@ -621,21 +683,31 @@ impl App {
                     spell,
                     victim,
                     mana,
-                    ..
-                } => Some(format!(
+                    player,
+                } => {
+                    self.announce_fizzle(victim, player, spell, "Spell Blast");
+                    Some(format!(
                     "Spell Blast ends {}'s {} ({mana} mana)",
                     self.game
                         .player(victim)
                         .map_or("a rival", |p| p.name.as_str()),
                     self.game.content().rules.spells.get(spell).name
-                )),
-                Event::GlobalSpellRemoved { victim, spell, .. } => Some(format!(
+                    ))
+                }
+                Event::GlobalSpellRemoved {
+                    victim,
+                    spell,
+                    player,
+                } => {
+                    self.announce_fizzle(victim, player, spell, "Disjunction");
+                    Some(format!(
                     "{}'s {} is ended",
                     self.game
                         .player(victim)
                         .map_or("a rival", |p| p.name.as_str()),
                     self.game.content().rules.spells.get(spell).name
-                )),
+                    ))
+                }
                 Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
                     "Took {}'s {}",
                     self.game
@@ -748,6 +820,9 @@ impl App {
         self.game = game;
         self.game.human.get_or_insert(HUMAN);
         self.game.set_undo(true);
+        self.ais = self.rival_wizards();
+        self.defences.clear();
+        self.turn_events = None;
         self.game_over_seen = false;
         self.screen = Screen::Map;
         self.choosing = false;
@@ -796,11 +871,61 @@ impl App {
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
     /// (the city screen lets you set farmers by hand; this just protects the troops).
     pub(crate) fn end_turn(&mut self) {
+        if self.turn_events.is_some() {
+            return;
+        }
         let t = self.game.treasury(HUMAN);
         if t.food_surplus < t.food_upkeep {
             self.game.balance_farmers(HUMAN);
         }
-        let events = self.game.apply(Command::EndTurn);
+        // The rival wizards play first; an attack on the human is fought before the turn ends.
+        let mut events = Vec::new();
+        for ai in &mut self.ais {
+            events.extend(ai.play_turn(&mut self.game));
+            for attack in ai.take_attacks() {
+                self.defences
+                    .push_back(crate::attack_prompt::PendingAttack {
+                        attackers: attack.attackers,
+                        defenders: attack.defenders,
+                        defending: true,
+                    });
+            }
+        }
+        // The independent cities run themselves through their own AI (farmers, taxes, builds).
+        events.extend(f4x_ai::play_neutrals(&mut self.game));
+        self.turn_events = Some(events);
+        self.resume_turn();
+    }
+
+    /// Go on with the turn change once no attack on the human waits: end the turn for everyone
+    /// and report what the rivals and the turn did.
+    pub(crate) fn resume_turn(&mut self) {
+        if self.attack_prompt.is_some() || self.game.in_battle() {
+            return;
+        }
+        // The next attack that is still real (a unit may have died to an earlier one).
+        while let Some(attack) = self.defences.pop_front() {
+            let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
+            let mine = attack
+                .defenders
+                .first()
+                .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
+            if mine && attack.attackers.iter().all(alive) && attack.defenders.iter().all(alive) {
+                self.attack_prompt = Some(attack);
+                return;
+            }
+        }
+        let Some(mut events) = self.turn_events.take() else {
+            return;
+        };
+        if self.game.game_over.is_none() {
+            events.extend(self.game.apply(Command::EndTurn));
+        }
+        // What the rivals did out of sight is not shown: only what touches the human.
+        let events: Vec<Event> = events
+            .into_iter()
+            .filter(|e| self.concerns_human(e))
+            .collect();
         let turn = self.game.turn;
         let news = self.collect_report(&events);
         self.last_news = news.clone();
@@ -809,10 +934,30 @@ impl App {
         self.log.push(format!("Turn {turn}"));
     }
 
+    /// Whether the human sees this event of a rival's turn: their refusals, the founding of a
+    /// city out of sight and the like stay hidden.
+    fn concerns_human(&self, event: &Event) -> bool {
+        match event {
+            Event::Rejected(_) | Event::Battle(_) | Event::BattleStarted { .. } => false,
+            Event::CityFounded { city, .. } => self.game.economy().city_owner(*city) == Some(HUMAN),
+            _ => true,
+        }
+    }
+
     /// Pass turns without playing them (for screenshots and smoke tests).
     pub fn end_turns(&mut self, turns: u32) {
         for _ in 0..turns {
             self.end_turn();
+            // No one defends in person here: the computer fights the attacks on the human.
+            while self.turn_events.is_some() {
+                if let Some(attack) = self.attack_prompt.take() {
+                    let _ = self.game.apply(Command::AutoResolve {
+                        attackers: attack.attackers,
+                        defenders: attack.defenders,
+                    });
+                }
+                self.resume_turn();
+            }
         }
         self.chancellor = None;
     }
@@ -917,10 +1062,12 @@ impl App {
         if is_key_pressed(KeyCode::GraveAccent) {
             self.toggle_console();
         }
-        if let Some(city) = self.raze_prompt {
-            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-                return self.raze_prompt_frame(city);
-            }
+        if self.combat_results.is_some()
+            && !self.game.in_battle()
+            && !matches!(self.screen, Screen::Console)
+            && self.combat_results_frame()
+        {
+            return true;
         }
         if self.resign_prompt && !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
             return self.resign_prompt_frame();
@@ -977,6 +1124,12 @@ impl App {
                 return true;
             }
         }
+        if self.turn_events.is_some() && matches!(self.screen, Screen::Map) {
+            self.resume_turn();
+            if self.turn_events.is_none() {
+                self.save_to(std::path::Path::new(AUTOSAVE));
+            }
+        }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
             && self.attack_prompt_frame()
@@ -987,12 +1140,20 @@ impl App {
         {
             return true;
         }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.spell_notice_frame()
+        {
+            return true;
+        }
         // The offers made at the turn change wait over the map until they are answered.
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.offer_prompt_frame()
         {
             return true;
         }
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.chancellor_frame() {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.built_popup_frame()
+        {
             return true;
         }
         if matches!(self.screen, Screen::Map)
@@ -1134,57 +1295,6 @@ impl App {
             .collect();
         crate::frame::text_centered(&choices.join("   "), w / 2.0, h / 2.0 + 15.0, 22.0, GOLD);
         crate::frame::text_centered("Esc: cancel", w / 2.0, h / 2.0 + 50.0, 18.0, WHITE);
-        true
-    }
-
-    /// The question after taking a city: keep it (Enter) or raze it (R), shown over the map.
-    fn raze_prompt_frame(&mut self, city: hecs::Entity) -> bool {
-        let gone =
-            self.game.economy().city_owner(city) != Some(HUMAN) || !self.game.city_conquered(city);
-        if gone {
-            self.raze_prompt = None;
-            return true;
-        }
-        if is_key_pressed(KeyCode::R) {
-            self.raze_prompt = None;
-            let events = self.game.apply(Command::RazeCity {
-                player: HUMAN,
-                city,
-            });
-            self.note(events);
-        } else if is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::N)
-            || is_key_pressed(KeyCode::Escape)
-        {
-            self.raze_prompt = None;
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
-        let (w, h) = (screen_width(), screen_height());
-        draw_rectangle(
-            w / 2.0 - 260.0,
-            h / 2.0 - 60.0,
-            520.0,
-            120.0,
-            Color::new(0.08, 0.06, 0.04, 0.95),
-        );
-        draw_rectangle_lines(w / 2.0 - 260.0, h / 2.0 - 60.0, 520.0, 120.0, 3.0, GOLD);
-        let name = self.city_name(city);
-        crate::frame::text_centered(
-            &format!("{name} is yours. Do you wish to completely destroy this city?"),
-            w / 2.0,
-            h / 2.0 - 15.0,
-            22.0,
-            WHITE,
-        );
-        crate::frame::text_centered(
-            "R: raze it      Enter: keep it",
-            w / 2.0,
-            h / 2.0 + 30.0,
-            22.0,
-            GOLD,
-        );
         true
     }
 

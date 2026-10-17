@@ -115,6 +115,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
+| 135 | Client | Run the AI wizards in the client (done) |
 | 138 | Client | Army list screen (done) |
 | 139 | Client | City list screen (done) |
 | 142 | Client | Item screen and the item pop-up (done) |
@@ -325,6 +326,8 @@ over each wizard's Crusade, Holy Arms, Charm of Life and Zombie Mastery, in the 
 pictures (`compix` 42 to 59); the button is locked with nothing to show; a key or click closes it.
 Evil Omens is listed too (the original omits it); right-click help on the cells is not done. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
+
+**135. Run the AI wizards in the client (done).** The client starts every wizard with the shared `f4x_core::setup::new_game` and holds one `f4x_ai::Ai` per rival (`App::rival_wizards`, recreated on a new map and on load). Ending the turn lets each rival play (`end_turn`), then ends it for everyone (`resume_turn`). The AI keeps an attack on a human instead of auto-resolving it (`Ai::leave_defence_to`, `take_attacks`): the human gets the "You are attacked!" box (Fight or Auto, no cancelling; `attack_prompt.rs`) for each, one after another, and the turn ends once all are fought (stale ones, with a unit already dead, are dropped). The rivals' doings reach the human only through the Chancellor's report and the log (`concerns_human` drops their refusals and out-of-sight foundings); `--turns N` auto-resolves the attacks. The turn is autosaved when it completes. **Not done here:** the attack box still has the plain look (task 264); an AI wizard never opens talks with the human (`f4x-ai` only answers proposals); it is added to task 167 below.
 
 **146. Palette cycling: the pulsing colour of index 198 (done).** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 

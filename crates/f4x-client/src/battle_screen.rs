@@ -406,6 +406,7 @@ impl App {
     /// attack the player left to the computer).
     pub(crate) fn auto_battle(&mut self, command: Command) {
         let events = self.game.apply(command);
+        self.record_combat_results(&events);
         let won = events.iter().find_map(|e| match e {
             Event::BattleEnded { winner, .. } => Some(*winner == HUMAN),
             _ => None,
@@ -699,6 +700,7 @@ impl App {
             _ => None,
         };
         let events = self.game.apply(Command::Battle(order));
+        self.record_combat_results(&events);
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
             if b.units.len() != self.battle_ui.names.len() {

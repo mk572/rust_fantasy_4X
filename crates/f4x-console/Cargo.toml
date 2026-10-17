@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+f4x-ai.workspace = true
 f4x-core.workspace = true
 f4x-data.workspace = true
 hecs.workspace = true

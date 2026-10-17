@@ -112,6 +112,8 @@ impl Ctx<'_> {
 }
 
 fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    // The independent cities are run by their AI; the game does not run them itself.
+    f4x_ai::play_neutrals(ctx.game);
     ctx.apply(Command::EndTurn)
 }
 

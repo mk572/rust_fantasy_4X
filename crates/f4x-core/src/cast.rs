@@ -376,7 +376,12 @@ impl EffectHost for GameHost<'_> {
     /// Other wizards' enchantments on the target are removed with chance
     /// `strength / (strength + difficulty)` (see `dispel.rs`).
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
-        self.game.dispel_target(who, strength, by, &mut self.rng)
+        let mut gone = Vec::new();
+        let removed = self
+            .game
+            .dispel_target(who, strength, by, &mut self.rng, &mut gone);
+        self.events.extend(gone);
+        removed
     }
 
     fn rng(&mut self) -> &mut dyn RngCore {

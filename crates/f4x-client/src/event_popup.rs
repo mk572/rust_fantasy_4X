@@ -25,6 +25,24 @@ const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
 const WIDTH: f32 = 175.0;
 /// The top of the box (`Notify2(160, 70, ...)`).
 const TOP: f32 = 70.0;
+/// The `resource.lbx` entry of the strip of each kind of box (`Notify_Load`): the picture box is
+/// two entries on. Green is the notice, red the warning of a spell that fizzled.
+pub(crate) const GREEN: usize = 40;
+const RED: usize = 43;
+/// The top of the fizzle box (`Notify2(160, 80, 1, ...)`).
+const FIZZLE_TOP: f32 = 80.0;
+
+/// A box about a spell: where it goes, the colour of its strip and the `specfx` picture in it.
+#[derive(Debug, Clone)]
+pub(crate) struct SpellNotice {
+    text: String,
+    strip: usize,
+    top: f32,
+    picture: usize,
+    /// Where the picture sits from the picture box's left edge plus 7, and from the box's top.
+    shift: f32,
+    drop: f32,
+}
 
 impl App {
     /// For screenshots and checks: make an event happen to the human wizard (`great_meteor`,
@@ -72,10 +90,31 @@ impl App {
         self.draw_map();
         self.draw_bars();
         let lay = Layout::new();
+        let number = notice.kind.number() as usize - 1;
+        let closed = self.notify2_box(&lay, TOP, GREEN, &text, |app, lay, x| {
+            app.draw_pic(lay, "events", number, 0, x, TOP + 8.0);
+        });
+        if closed {
+            self.event_notices.pop_front();
+        }
+        true
+    }
+
+    /// `Notify2`: the green strip with the mascot of the wizard's strongest realm on the left,
+    /// the text, and the framed picture box at the right end, whose contents `pictures` draws
+    /// at the box's left edge plus 7. Returns whether a click or a key closed it.
+    pub(crate) fn notify2_box(
+        &mut self,
+        lay: &Layout,
+        top: f32,
+        strip: usize,
+        text: &str,
+        pictures: impl FnOnce(&mut Self, &Layout, f32),
+    ) -> bool {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let realm = self.mascot_realm();
         let line = self.art.text_height(4) + 2.0;
-        let lines = self.bm_wrap(4, &text, WIDTH);
+        let lines = self.bm_wrap(4, text, WIDTH);
         let widest = lines
             .iter()
             .map(|l| self.art.text_width(4, l))
@@ -85,38 +124,189 @@ impl App {
         let x = if mascot_x < 0.0 { 6.0 - mascot_x } else { 6.0 };
         let right = TEXT_X[realm] + x + widest;
         self.clipped((0.0, 0.0, x + right + 12.0, 200.0), |app| {
-            app.draw_pic(&lay, "resource", 40, 0, x, TOP);
+            app.draw_pic(lay, "resource", strip, 0, x, top);
             app.draw_pic(
-                &lay,
+                lay,
                 "resource",
                 51 + realm,
                 0,
                 x + mascot_x - 1.0,
-                TOP + mascot_y,
+                top + mascot_y,
             );
         });
-        let black = lay.rect((right + 2.0, TOP, 46.0, 56.0));
+        let black = lay.rect((right + 2.0, top, 46.0, 56.0));
         draw_rectangle(black.x, black.y, black.w, black.h, BLACK);
-        self.draw_pic(&lay, "resource", 42, 0, right + 1.0, TOP);
-        self.draw_pic(
-            &lay,
-            "events",
-            notice.kind.number() as usize - 1,
-            0,
-            right + 7.0,
-            TOP + 8.0,
-        );
+        self.draw_pic(lay, "resource", strip + 2, 0, right + 1.0, top);
+        pictures(self, lay, right + 7.0);
         let lines: Vec<(f32, String)> = lines.into_iter().map(|l| (0.0, l)).collect();
-        self.draw_box_text(view, &lines, x + TEXT_X[realm], TOP + 8.0, line);
-        let close = is_mouse_button_pressed(MouseButton::Left)
+        self.draw_box_text(view, &lines, x + TEXT_X[realm], top + 8.0, line);
+        is_mouse_button_pressed(MouseButton::Left)
             || is_mouse_button_pressed(MouseButton::Right)
             || is_key_pressed(KeyCode::Enter)
             || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space);
-        if close {
-            self.event_notices.pop_front();
+            || is_key_pressed(KeyCode::Space)
+    }
+
+    /// The words of a spell that fizzled (`Fizzle_Notification`): the counter spell's caster
+    /// first, then the one whose spell it was, "Your" and "your" for the human wizard.
+    pub(crate) fn fizzle_text(
+        &self,
+        caster: f4x_core::city::PlayerId,
+        counter: f4x_core::city::PlayerId,
+        spell: &str,
+        counter_spell: &str,
+    ) -> String {
+        let possessive = |player: f4x_core::city::PlayerId, you: &str| {
+            if player == HUMAN {
+                return you.to_string();
+            }
+            let name = self
+                .game
+                .player(player)
+                .map_or("A rival", |p| p.name.as_str());
+            if name.ends_with('s') {
+                format!("{name}' ")
+            } else {
+                format!("{name}'s ")
+            }
+        };
+        format!(
+            "{}{counter_spell} spell has caused {}{spell} spell to fizzle.",
+            possessive(counter, "Your "),
+            possessive(caster, "your "),
+        )
+    }
+
+    /// The oldest spell notice not yet shown, in its box over the map. Returns whether the box
+    /// took the frame.
+    pub(crate) fn spell_notice_frame(&mut self) -> bool {
+        let Some(notice) = self.spell_notices.front().cloned() else {
+            return false;
+        };
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let lay = Layout::new();
+        let closed = self.notify2_box(
+            &lay,
+            notice.top,
+            notice.strip,
+            &notice.text,
+            |app, lay, x| {
+                app.draw_pic(
+                    lay,
+                    "specfx",
+                    notice.picture,
+                    0,
+                    x + notice.shift,
+                    notice.top + notice.drop,
+                );
+            },
+        );
+        if closed {
+            self.spell_notices.pop_front();
         }
         true
+    }
+
+    /// A spell of the human's own went to nothing (`Notify2` in `OverSpel.c`): "X has been
+    /// dispelled." in the green box, the first four of a dispel; the fifth says the rest went
+    /// too, and later ones are not announced. `count` is how many this dispel has announced.
+    pub(crate) fn announce_dispelled(
+        &mut self,
+        spell: f4x_core::rules::SpellId,
+        on_unit: bool,
+        count: &mut u32,
+    ) {
+        let text = match *count {
+            0..=3 => format!(
+                "{} has been dispelled.",
+                self.game.content().rules.spells.get(spell).name
+            ),
+            4 => {
+                let index = if on_unit { 19 } else { 18 };
+                match self.messages.iter().find(|m| m.index == index) {
+                    Some(m) => m.text.clone(),
+                    None => return,
+                }
+            }
+            _ => return,
+        };
+        let top = 40.0 + 25.0 * *count as f32;
+        *count += 1;
+        // The unit picture is a little right of the city's (`pict1_x` 4).
+        let (picture, shift) = if on_unit { (51, 4.0) } else { (52, 0.0) };
+        self.spell_notices.push_back(SpellNotice {
+            text,
+            strip: GREEN,
+            top,
+            picture,
+            shift,
+            drop: 8.0,
+        });
+    }
+
+    /// Announce that `counter`'s spell made `caster`'s `spell` fizzle, when the human is one of
+    /// them (the original says nothing of what two rivals do to each other).
+    pub(crate) fn announce_fizzle(
+        &mut self,
+        caster: f4x_core::city::PlayerId,
+        counter: f4x_core::city::PlayerId,
+        spell: f4x_core::rules::SpellId,
+        counter_spell: &str,
+    ) {
+        if caster != HUMAN && counter != HUMAN {
+            return;
+        }
+        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let text = self.fizzle_text(caster, counter, &name, counter_spell);
+        self.spell_notices.push_back(SpellNotice {
+            text,
+            strip: RED,
+            top: FIZZLE_TOP,
+            picture: 50,
+            shift: -1.0,
+            drop: 7.0,
+        });
+    }
+
+    /// For screenshots: five of the human's spells dispelled at once.
+    pub fn open_test_dispelled(&mut self, on_unit: bool) {
+        let spells: Vec<_> = self
+            .game
+            .content()
+            .rules
+            .spells
+            .defs()
+            .iter()
+            .filter_map(|s| self.game.content().rules.spells.id_of(&s.id))
+            .take(6)
+            .collect();
+        let mut count = 0;
+        for spell in spells {
+            self.announce_dispelled(spell, on_unit, &mut count);
+        }
+    }
+
+    /// For screenshots: an enemy wizard's Suppress Magic stops the human's spell.
+    pub fn open_test_fizzle(&mut self) {
+        let rival = self
+            .game
+            .players()
+            .iter()
+            .map(|p| p.id)
+            .find(|&id| id != HUMAN && !self.game.is_neutral_player(id));
+        if let Some(rival) = rival {
+            let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "Suppress Magic");
+            self.spell_notices.push_back(SpellNotice {
+                text,
+                strip: RED,
+                top: FIZZLE_TOP,
+                picture: 50,
+                shift: -1.0,
+                drop: 7.0,
+            });
+        }
     }
 
     /// The red box that announces the items of fallen heroes before the item screen

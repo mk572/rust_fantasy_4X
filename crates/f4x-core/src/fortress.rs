@@ -259,6 +259,10 @@ impl Game {
         if let Ok(mut c) = self.world.get::<&mut City>(city) {
             c.owner = winner;
         }
+        if self.is_neutral_player(loser) {
+            // The plan the independent city's AI set was its own; the new owner plans anew.
+            let _ = self.world.remove_one::<crate::autobuild::AutoBuild>(city);
+        }
         let mut events = vec![Event::CityCaptured {
             city,
             from: loser,

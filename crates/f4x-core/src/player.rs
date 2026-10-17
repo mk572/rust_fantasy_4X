@@ -147,7 +147,6 @@ impl Player {
     pub fn new_neutral(id: PlayerId, name: impl Into<String>) -> Self {
         Self {
             banner: NEUTRAL_BANNER,
-            grand_vizier: true,
             neutral: true,
             ..Self::new(id, name)
         }

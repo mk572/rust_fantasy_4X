@@ -3502,7 +3502,7 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
     assert_eq!(g.player(A).unwrap().fame, 4);
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::BattleSpoils { player, experience: 8, fame: 1 } if *player == A
+        Event::BattleSpoils { player, experience: 8, fame: 1, .. } if *player == A
     )));
 }
 

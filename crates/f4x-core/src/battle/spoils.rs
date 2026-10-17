@@ -105,6 +105,7 @@ impl Game {
             player: won,
             experience: spoils.experience,
             fame: spoils.winner_fame,
+            loser_fame,
         }]
     }
 

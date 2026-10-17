@@ -731,7 +731,6 @@ fn neutral_worlds_follow_the_seed() {
 
 #[test]
 fn neutral_cities_play_by_the_ordinary_rules() {
-    use f4x_core::Command;
     let mut g = game();
     let before: Vec<_> = neutral_cities(&g)
         .into_iter()
@@ -749,7 +748,7 @@ fn neutral_cities_play_by_the_ordinary_rules() {
         .collect();
     let gold: Vec<_> = g.players().iter().map(|p| p.gold).collect();
     for _ in 0..40 {
-        g.apply(Command::EndTurn);
+        f4x_ai::play_round(&mut g, &mut []);
     }
     assert_eq!(
         neutral_cities(&g).len(),
@@ -786,7 +785,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
         let p = g.player(o).unwrap();
-        assert!(p.neutral && p.grand_vizier && p.gold > 0);
+        assert!(p.neutral && p.gold > 0);
         assert!(!g.living_wizards().contains(&o), "not a wizard");
     }
     assert_eq!(wizards(&g), 2);
@@ -879,7 +878,7 @@ fn neutral_cities_keep_their_garrisons_for_sixty_turns() {
         )
         .unwrap();
         for turn in 0..60 {
-            for e in g.apply(f4x_core::Command::EndTurn) {
+            for e in f4x_ai::play_round(&mut g, &mut []) {
                 if let f4x_core::Event::UnitsDisbanded { player, .. } = e {
                     assert!(
                         !g.is_neutral_player(player),
@@ -1226,11 +1225,20 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
                 citizens_lost,
                 buildings_lost,
                 ..
-            } => Some((*gold, *citizens_lost, *buildings_lost)),
+            } => Some((*gold, *citizens_lost, buildings_lost.len() as u32)),
             _ => None,
         })
         .unwrap();
     assert_eq!(looted.0, 200);
+    // The event carries the fame the results scroll reports.
+    assert!(events.iter().any(|e| matches!(
+        e,
+        f4x_core::Event::CityLooted {
+            fame_lost: 3,
+            fame_gained: 1,
+            ..
+        }
+    )));
     assert_eq!(g.player(HUMAN).unwrap().gold, 210);
     assert_eq!(g.player(loser).unwrap().gold, 0);
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
@@ -1283,8 +1291,8 @@ fn more_city_damage_means_more_lost_citizens_and_buildings() {
                 } = e
                 {
                     citizens += citizens_lost;
-                    buildings += buildings_lost;
-                    assert!(buildings_lost as usize <= before);
+                    buildings += buildings_lost.len() as u32;
+                    assert!(buildings_lost.len() <= before);
                 }
             }
         }
@@ -2682,7 +2690,13 @@ fn a_recorded_game_is_played_again_by_text() {
     assert!(c.execute(&mut g, "tax 2").ok);
     assert!(c.execute(&mut g, "end").ok);
     let r = c.execute(&mut g, "record status");
-    assert!(r.text().contains("2 commands"), "{}", r.text());
+    // The tax rate and the end of the turn, and what the independent cities' AI ordered.
+    let kept: u32 = r
+        .text()
+        .split_whitespace()
+        .find_map(|w| w.parse().ok())
+        .unwrap_or(0);
+    assert!(kept >= 2, "{}", r.text());
     let name = "console_replay_test";
     let r = c.execute(&mut g, &format!("record stop {name}"));
     assert!(r.ok, "{}", r.text());
@@ -2697,4 +2711,25 @@ fn a_recorded_game_is_played_again_by_text() {
         (turn, tax)
     );
     assert!(fresh.is_recording());
+}
+
+#[test]
+fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
+    let mut g = game();
+    let (city, pos) = neutral_cities(&g)
+        .into_iter()
+        .find(|(_, p)| g.units().units_at(*p).len() >= 2)
+        .expect("a garrisoned city");
+    let owner = g.economy().city_owner(city).unwrap();
+    for u in g.units().units_at(pos) {
+        g.apply(f4x_core::Command::DismissUnit { unit: u });
+    }
+    assert!(g.units().units_at(pos).is_empty());
+    for _ in 0..80 {
+        f4x_ai::play_round(&mut g, &mut []);
+    }
+    assert!(
+        !g.units().player_units(owner).is_empty(),
+        "the city built soldiers again"
+    );
 }

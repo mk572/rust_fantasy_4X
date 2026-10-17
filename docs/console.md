@@ -180,5 +180,7 @@ command so every client action keeps a text equivalent.
   banner) have no text equivalent yet.
 - Messages for events are one line each (`describe.rs`); events without a nicer line print in
   their debug form.
+- `end` lets the independent cities play first (`f4x_ai::play_neutrals`: farmers, taxes and what
+  they build are an AI's decisions, not the game's). The rival wizards are not played by it.
 - The AI crate (`f4x-ai`) still plays through `Command`s, not the console; the console is for
   AI *clients* that want text, such as an MCP server.
