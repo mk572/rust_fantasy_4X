@@ -44,6 +44,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 31 | Meta | Diplomacy with neutral cities: attitude, a leader portrait, talking, deals |
 | 32 | Magic | Neutral cities: their own mana and spells |
 | 33 | AI | Neutral cities that play strategically (replaces the raiders of task 154) |
+| 34 | Rules | Larger tiles: up to 20 units on a square, armies and battles still limited to nine |
 
 ## Descriptions
 
@@ -440,3 +441,16 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 **Also decided:** there is no grace period at the start. A wizard who starts next to an aggressive neutral neighbour has to deal with it. The starting goal is set by race and then adjusted to the situation: for example High Men build towards military buildings, Barbarians go out to attack for loot, and the others have their own leanings (a table by race in `content/`, like the races' other data); the goal is reconsidered when it is met, when the city is threatened, or when its surroundings change (a node or lair nearby, a wizard's outpost close, a trade partner). The `neutral_activity` setting still scales how aggressive they are by difficulty, but there is no number of quiet turns.
 
 **Still to decide:** each race's starting goal and the rules that adjust it (the table), and how often the goal is reconsidered (every turn, every few turns, or on events only).
+
+**34. Larger tiles: up to 20 units on a square.** Raise the number of units that may stand on one square to 20, while an army (the group that moves, attacks and fights together) stays at nine and a battle side at nine. The older design for a larger stack, [`large-stacks.md`](large-stacks.md) (stage 4 of `game-settings.md`), assumed the whole stack fights; this variant keeps the battle at nine, so the battle layouts (`battle/map.rs`), the nine-slot deployment and the battle screen stay as they are, and the cost moves to choosing who fights.
+
+- **Rules.** A square holds at most 20 units (`MAX_TILE`, new). An army, the set of units selected to move or attack together, holds at most nine (`MAX_STACK` stays nine). A battle side has at most nine units (`MAX_SIDE_UNITS` stays nine, and the second copy in `battle/casting.rs` is merged with it).
+- **Attacking.** The attacker's army is at most nine units, picked from the square (as today, by selection). The defender's side is chosen from every unit on the defending square.
+- **Defending.** If more than nine units stand on the defended square, the defender chooses the nine who fight. The preset is the strongest nine (the strength measure the game already has for choosing a garrison, `garrison_wanted`/`is_fighter` in `f4x-ai`; decide the exact order: unit value by cost, then by experience); the human can change the choice in a pick screen before the battle (a list of the units on the square with checkmarks, nine allowed); the AI uses the preset or its own rule. Units that do not fight stay out of the battle: they are not hurt, and if the defender loses they are not destroyed with the nine but the square is taken (decide: they are captured, driven out to a free neighbouring square, or lost like the others, as in the original where the whole stack dies).
+- **Cities.** A city's garrison can be up to 20 for the same reason, and the nine fighting units use the city deployment; the rest do not fight. Check how a city's unrest, upkeep and garrison counts read the number of units (`is_garrison`).
+- **Ships and gates.** A ship's passengers, a gate or teleport, and a stack standing on a ship stay by the existing capacities and the 20 limit for a square; an army of nine moves through a gate.
+- **Selection and the client.** The main screen's stack panel and the unit list must show up to 20 (scrolling, or two rows) and let the player select up to nine of them as an army; the city screen's garrison list (`.take(9)`, task 119) shows 20 and scrolls.
+- **AI.** `f4x-ai` gathers armies in nines (`military.rs`, `naval.rs`) and may leave a larger garrison; it picks defenders by the preset rule.
+- **Settings.** `max_stack` in `game-settings.md` splits into `max_tile` (up to 20) and `max_army` (up to nine), with the standard values 9 and 9 (or 20 and 9 for this variant, decide the default).
+
+Needs: the two limits in the core with tests (`movement.rs`, `gates.rs`, `special_spells.rs`, `transport.rs`, `neutral_cities.rs`, `lairs.rs`, the raise-dead room), the defender choice (a command `ChooseDefenders` carrying the units, with the preset when the defender does not answer), the battle start using the chosen nine, the pick screen and the larger lists in the client, the AI's rules, the help text, and a save check (the old limit of nine is already satisfied). Do `large-stacks.md` section 2's list of places built for nine first for what still depends on nine.
