@@ -243,22 +243,14 @@ pub fn roll_successes(dice: i32, pluses: i32, rng: &mut dyn RngCore) -> i32 {
         .count() as i32
 }
 
-/// Blur: each point of damage has a one in ten chance to miss (the original's loop counts up
-/// as the damage comes down, so it can take off at most about half). Not against an attacker
-/// that sees through illusions.
+/// Blur: each point of damage has a one in ten chance to miss, however much of it that takes
+/// off (the original's loop shortens itself as it counts, which caps the loss near half; that is
+/// a bug there). Not against an attacker that sees through illusions.
 fn blurred(hits: i32, attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> i32 {
     if !def.blur || attacker.sees_through {
         return hits;
     }
-    let mut left = hits;
-    let mut rolls = 0;
-    while rolls < left {
-        if d10(rng) == 10 {
-            left -= 1;
-        }
-        rolls += 1;
-    }
-    left
+    (0..hits).filter(|_| d10(rng) != 10).count() as i32
 }
 
 /// What one attack did.
