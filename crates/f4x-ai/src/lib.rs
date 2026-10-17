@@ -16,6 +16,7 @@ mod naval;
 mod offers;
 mod race;
 mod scouts;
+mod shortfall;
 #[cfg(test)]
 mod testworld;
 mod view;
@@ -180,6 +181,7 @@ impl Ai {
         military::army(self, game, &mut events);
         naval::run(self, game, &mut events);
         economy::cities(self, game, &mut events);
+        shortfall::run(self, game, &mut events);
         events
     }
 

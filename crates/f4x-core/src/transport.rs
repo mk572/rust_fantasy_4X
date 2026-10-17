@@ -11,7 +11,13 @@ use crate::content::TerrainClass;
 use crate::economy::Economy;
 use crate::rules::{MovementType, Stat};
 use crate::serial::Serial;
+use crate::units::NEUTRAL;
 use crate::{Event, Game};
+
+/// A ship let go for lack of gold with units still aboard (task 292): it belongs to nobody and
+/// sails, a turn's worth at a time, for the nearest free shore, where it unloads and is released.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Marooned;
 
 /// The ship a land unit is aboard, by creation number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +89,12 @@ impl Economy<'_> {
         self.ships_at(at, owner)
             .into_iter()
             .any(|s| self.ship_room(s) > 0)
+    }
+
+    /// Whether two squares touch (the map wraps east and west).
+    pub(crate) fn next_to(&self, a: Position, b: Position) -> bool {
+        self.map
+            .is_some_and(|m| crate::movement::adjacent(m.width(), a, b))
     }
 
     pub(crate) fn is_sea(&self, at: Position) -> bool {
@@ -175,6 +187,129 @@ pub(crate) fn update_aboard(
 }
 
 impl Game {
+    /// Every marooned ship sails on towards the nearest shore with room for its passengers; the
+    /// ones that arrive land them and are released. A ship with nowhere to land loses them.
+    pub(crate) fn sail_marooned(&mut self) -> Vec<Event> {
+        let mut ships: Vec<hecs::Entity> = self
+            .world
+            .query::<&Marooned>()
+            .iter()
+            .map(|(e, _)| e)
+            .collect();
+        self.sort_by_serial(&mut ships);
+        let mut events = Vec::new();
+        for ship in ships {
+            let passengers = self.economy().passengers_of(ship);
+            let (Some(mut at), Some(&first)) =
+                (self.units().unit_position(ship), passengers.first())
+            else {
+                self.remove_unit(ship, crate::roster::Fate::Released);
+                continue;
+            };
+            let owner = self.units().unit_owner(first).unwrap_or(NEUTRAL);
+            let Some((path, landing)) = self.nearest_landing(ship, at, owner, &passengers) else {
+                let lost = passengers.len() as u32;
+                for p in passengers {
+                    self.remove_unit(p, crate::roster::Fate::Slain);
+                }
+                self.remove_unit(ship, crate::roster::Fate::Released);
+                events.push(Event::UnitsDrowned {
+                    player: owner,
+                    units: lost,
+                });
+                continue;
+            };
+            let traits = self.economy().stack_traits(&[ship]);
+            let mut left = self.units().unit_max_moves(ship);
+            for next in path {
+                let cost = self
+                    .economy()
+                    .step_cost(ship, at, next, traits)
+                    .unwrap_or(2);
+                if cost > left {
+                    break;
+                }
+                left -= cost;
+                at = next;
+                let _ = self.world.insert_one(ship, at);
+                for &p in &passengers {
+                    let _ = self.world.insert_one(p, at);
+                }
+            }
+            if self.economy().next_to(at, landing) {
+                for &p in &passengers {
+                    let _ = self.world.remove_one::<Aboard>(p);
+                    let _ = self.world.insert_one(p, landing);
+                }
+                self.remove_unit(ship, crate::roster::Fate::Released);
+            }
+        }
+        events
+    }
+
+    /// The nearest sea square from which `passengers` can step ashore, by the way over open sea
+    /// (breadth first, so ties fall in a fixed order): the squares to sail through, and the land
+    /// square they will land on. Land is free when nobody else stands on it, no lair guards it,
+    /// every passenger can enter it and the stack there stays within the limit.
+    pub(crate) fn nearest_landing(
+        &self,
+        ship: hecs::Entity,
+        from: Position,
+        owner: PlayerId,
+        passengers: &[hecs::Entity],
+    ) -> Option<(Vec<Position>, Position)> {
+        use std::collections::{HashMap, VecDeque};
+        let _ = ship;
+        let e = self.economy();
+        let mut came: HashMap<Position, Option<Position>> = HashMap::new();
+        let mut queue = VecDeque::new();
+        came.insert(from, None);
+        queue.push_back(from);
+        while let Some(here) = queue.pop_front() {
+            for next in crate::pathing::neighbours(self, here) {
+                if e.is_sea(next) {
+                    if !came.contains_key(&next) && e.hostile_at(next, owner).is_none() {
+                        came.insert(next, Some(here));
+                        queue.push_back(next);
+                    }
+                    continue;
+                }
+                if self.free_landing(next, here, owner, passengers) {
+                    let mut path = Vec::new();
+                    let mut at = here;
+                    while let Some(Some(prev)) = came.get(&at).copied() {
+                        path.push(at);
+                        at = prev;
+                    }
+                    path.reverse();
+                    return Some((path, next));
+                }
+            }
+        }
+        None
+    }
+
+    fn free_landing(
+        &self,
+        land: Position,
+        from: Position,
+        owner: PlayerId,
+        passengers: &[hecs::Entity],
+    ) -> bool {
+        let e = self.economy();
+        if e.hostile_at(land, owner).is_some() || e.lair_at(land).is_some() {
+            return false;
+        }
+        let there = self.units().units_at(land).len();
+        if there + passengers.len() > crate::units::MAX_STACK {
+            return false;
+        }
+        let traits = crate::movement::StackTraits::default();
+        passengers
+            .iter()
+            .all(|&p| e.step_cost(p, from, land, traits).is_ok())
+    }
+
     /// Land units at sea with no ship under them are lost.
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();

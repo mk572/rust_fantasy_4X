@@ -82,11 +82,16 @@ pub struct Settlement {
     pub gold: i32,
 }
 
+/// The gold on hand once the turn's income and the buildings' upkeep are counted (not below 0).
+pub fn gold_after_income(t: &Treasury, gold: i32) -> i32 {
+    (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0)
+}
+
 /// Income, food and gold upkeep: the income is added, an army that eats more than the cities
 /// grow is disbanded newest first, then more units go (newest first) until the gold covers the
 /// upkeep of those left.
 pub fn settle(t: &Treasury, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
-    let gold = (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0);
+    let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
     let mut food_upkeep = t.food_upkeep;
     for unit in troops.iter().rev() {
@@ -94,7 +99,7 @@ pub fn settle(t: &Treasury, gold: i32, fame: i32, troops: &[Troop]) -> Settlemen
             break;
         }
         if unit.food > 0 {
-            food_upkeep -= 1;
+            food_upkeep -= unit.food;
             disbanded.push(unit.id);
         }
     }
@@ -202,7 +207,7 @@ impl Game {
     }
 
     /// The figures of a player's troops that the treasury needs, in the order of `player_units`.
-    fn troops(&self, player: PlayerId) -> Vec<Troop> {
+    pub(crate) fn troops(&self, player: PlayerId) -> Vec<Troop> {
         let units = self.units();
         units
             .player_units(player)
@@ -236,7 +241,8 @@ impl Game {
         Treasury::compute(&cities, &self.troops(player), fame)
     }
 
-    /// Income, food and gold upkeep for one player; units go when they cannot be paid for.
+    /// Income, food and gold upkeep for one player; units go when they cannot be paid for
+    /// (`release_one`: heroes come home, ships with passengers sail for the shore).
     pub(crate) fn settle_treasury(&mut self, player: PlayerId) -> Vec<Event> {
         let t = self.treasury(player);
         let troops = self.troops(player);
@@ -247,19 +253,26 @@ impl Game {
         let settled = settle(&t, p.gold, fame, &troops);
         p.gold = settled.gold;
         let mut events = Vec::new();
+        let short = |cause: crate::LossCause| Event::Shortage {
+            player,
+            what: match cause {
+                crate::LossCause::Food => crate::Shortage::Food,
+                _ => crate::Shortage::Gold,
+            },
+        };
+        if settled.for_food > 0 {
+            events.push(short(crate::LossCause::Food));
+        }
+        if settled.disbanded.len() > settled.for_food {
+            events.push(short(crate::LossCause::Gold));
+        }
         for (i, unit) in settled.disbanded.iter().enumerate() {
-            if let Some(kind) = self.units().unit_kind_id(*unit) {
-                events.push(Event::UnitLost {
-                    player,
-                    unit: kind,
-                    cause: if i < settled.for_food {
-                        crate::LossCause::Food
-                    } else {
-                        crate::LossCause::Gold
-                    },
-                });
-            }
-            self.remove_unit(*unit, crate::roster::Fate::Released);
+            let cause = if i < settled.for_food {
+                crate::LossCause::Food
+            } else {
+                crate::LossCause::Gold
+            };
+            events.extend(self.release_one(player, *unit, cause));
         }
         if settled.disbanded.is_empty() {
             return Vec::new();

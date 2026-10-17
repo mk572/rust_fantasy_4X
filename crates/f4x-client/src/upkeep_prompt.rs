@@ -24,15 +24,12 @@ impl UpkeepPrompt {
     /// Marks what the turn change would give up by itself (the newest first), so Enter keeps
     /// the default.
     pub(crate) fn new(short: Shortfall) -> Self {
-        let mut marked = vec![false; short.lines.len()];
-        let mut owed = short.owed;
-        for (i, line) in short.lines.iter().enumerate().rev() {
-            if owed <= short.reserve {
-                break;
-            }
-            marked[i] = true;
-            owed -= line.mana;
-        }
+        let default = short.default_release();
+        let marked = short
+            .lines
+            .iter()
+            .map(|l| default.contains(&l.kind))
+            .collect();
         Self {
             short,
             marked,

@@ -59,6 +59,7 @@ pub mod save;
 pub mod serial;
 pub mod settings;
 pub mod setup;
+pub mod shortfall;
 pub mod special_spells;
 pub mod stasis;
 pub mod survey;
@@ -253,6 +254,13 @@ pub enum Command {
         player: city::PlayerId,
         items: Vec<cast::UpkeepKind>,
     },
+    /// Let these units go for lack of gold or food (chosen from `Game::treasury_shortfall`),
+    /// and destroy the listed items for mana first to make room for a released hero's items.
+    ReleaseTroops {
+        player: city::PlayerId,
+        units: Vec<hecs::Entity>,
+        scrap: Vec<items::armory::ItemSpot>,
+    },
     SetResearch {
         player: city::PlayerId,
         spell: rules::SpellId,
@@ -298,8 +306,27 @@ pub enum LossCause {
     Mana,
 }
 
+/// What a wizard could not pay for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shortage {
+    Mana,
+    Gold,
+    Food,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// A wizard's reserve could not pay the upkeep, so something had to go; announced to the
+    /// wizards in contact with them.
+    Shortage {
+        player: city::PlayerId,
+        what: Shortage,
+    },
+    /// A hero was let go for lack of gold or food; the hero is free to hire again.
+    HeroLeft {
+        player: city::PlayerId,
+        hero: rules::UnitId,
+    },
     TurnStarted {
         turn: u32,
     },
@@ -985,6 +1012,13 @@ impl Game {
             Command::ReleaseUpkeep { player, items } => {
                 events_or_reject(self.release_upkeep(player, &items))
             }
+            Command::ReleaseTroops {
+                player,
+                units,
+                scrap,
+            } => self
+                .release_troops(player, &units, &scrap)
+                .unwrap_or_else(|r| vec![Event::Rejected(r)]),
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
             Command::CancelCast { player } => {
                 let returning = self.casting_return(player);
@@ -1211,6 +1245,7 @@ impl Game {
         self.record_history();
         self.process_diplomacy();
         events.extend(self.process_purify());
+        events.extend(self.sail_marooned());
         events.extend(self.drown_stranded());
         events.extend(self.process_road_work());
         let with_orders: Vec<_> = self

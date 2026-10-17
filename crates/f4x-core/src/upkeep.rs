@@ -31,6 +31,23 @@ pub struct Shortfall {
     pub lines: Vec<UpkeepLine>,
 }
 
+impl Shortfall {
+    /// What the turn change would give up by itself: the newest first until the reserve covers
+    /// the rest.
+    pub fn default_release(&self) -> Vec<UpkeepKind> {
+        let mut owed = self.owed;
+        let mut out = Vec::new();
+        for line in self.lines.iter().rev() {
+            if owed <= self.reserve {
+                break;
+            }
+            out.push(line.kind);
+            owed -= line.mana;
+        }
+        out
+    }
+}
+
 impl Game {
     /// The shortfall the wizard faces at the next turn change, or `None` when the reserve
     /// (with the coming mana income) pays the whole upkeep.
@@ -101,6 +118,12 @@ impl Game {
             }
         }
         let mut events = Vec::new();
+        if self.upkeep_shortfall(player).is_some() {
+            events.push(Event::Shortage {
+                player,
+                what: crate::Shortage::Mana,
+            });
+        }
         for item in chosen {
             events.extend(self.drop_upkeep_item(player, item));
         }

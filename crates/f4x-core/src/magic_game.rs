@@ -154,6 +154,12 @@ impl Game {
             reserve,
         );
         let mut events = Vec::new();
+        if !dropped.is_empty() {
+            events.push(Event::Shortage {
+                player,
+                what: crate::Shortage::Mana,
+            });
+        }
         for item in dropped {
             events.extend(self.drop_upkeep_item(player, item));
         }

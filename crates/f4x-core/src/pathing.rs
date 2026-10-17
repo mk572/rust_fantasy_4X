@@ -6,7 +6,7 @@ use std::collections::{BinaryHeap, HashMap};
 use crate::city::Position;
 use crate::Game;
 
-fn neighbours(game: &Game, p: Position) -> Vec<Position> {
+pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
     let Some(map) = game.map.as_ref() else {
         return Vec::new();
     };

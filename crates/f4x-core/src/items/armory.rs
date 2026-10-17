@@ -257,7 +257,7 @@ impl ItemWorld for Items<'_> {
 
 impl Game {
     /// Put an item (or nothing) in a spot, which has been checked to exist.
-    fn set_item_at(&mut self, player: PlayerId, spot: ItemSpot, item: Option<Item>) {
+    pub(crate) fn set_item_at(&mut self, player: PlayerId, spot: ItemSpot, item: Option<Item>) {
         let Some(pi) = self.players.iter().position(|p| p.id == player) else {
             return;
         };

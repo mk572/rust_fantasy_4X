@@ -348,6 +348,9 @@ pub struct UnitSave {
     /// A hero's own record; absent for other units and in older saves.
     #[serde(default)]
     pub hero: Option<crate::hero::Hero>,
+    /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
+    #[serde(default)]
+    pub marooned: bool,
 }
 
 /// A temporary effect as saved; stats are named by their own serialisation.
@@ -681,6 +684,7 @@ impl Game {
                         .ok()
                         .map(|h| (*h).clone()),
                     undead: self.units().unit_is_undead(u),
+                    marooned: self.world.get::<&crate::transport::Marooned>(u).is_ok(),
                     stasis: match self.world.get::<&crate::stasis::Stasis>(u).ok().map(|s| *s) {
                         None => 0,
                         Some(crate::stasis::Stasis::Fresh) => 1,
@@ -951,6 +955,9 @@ impl Snapshot {
             }
             if u.undead {
                 let _ = game.world.insert_one(entity, crate::undead::Undead);
+            }
+            if u.marooned {
+                let _ = game.world.insert_one(entity, crate::transport::Marooned);
             }
             match u.stasis {
                 1 => {
