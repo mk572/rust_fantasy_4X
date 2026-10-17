@@ -69,6 +69,7 @@ impl App {
         let mut deaths = Vec::new();
         let mut buildings = Vec::new();
         let mut rivals = Vec::new();
+        let mut ships = Vec::new();
         // Wizards we have met are known by name; their shortages are news.
         let rival_name = |player: &f4x_core::city::PlayerId| {
             (*player != HUMAN && self.game.have_met(HUMAN, *player))
@@ -109,6 +110,10 @@ impl App {
                         rules.units.get(*hero).name
                     ));
                 }
+                Event::ShipLanded { player, units, at } if *player == HUMAN => ships.push(format!(
+                    "A ship that could not be paid for has landed {units} of your units at {}, {}.",
+                    at.x, at.y
+                )),
                 Event::UnitsDrowned { player, units } if *player == HUMAN => disbanded.push(
                     format!("{units} drowned because the unit carrying them was destroyed."),
                 ),
@@ -152,6 +157,7 @@ impl App {
             ("CITY DEATHS", deaths),
             ("Destroyed Buildings", buildings),
             ("WIZARDS", rivals),
+            ("SHIPS", ships),
             ("UNIT SPELLS DISSIPATED", unit_spells),
             ("CITY SPELLS DISSIPATED", city_spells),
             ("GLOBAL SPELLS DISSIPATED", global_spells),

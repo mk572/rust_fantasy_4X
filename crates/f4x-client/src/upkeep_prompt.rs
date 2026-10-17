@@ -9,11 +9,12 @@ use f4x_core::upkeep::Shortfall;
 use f4x_core::Command;
 use macroquad::prelude::*;
 
-use crate::ui::GOLD;
+use crate::frame::{Align, Layout};
 use crate::view::{App, HUMAN};
 
-const ROW: f32 = 24.0;
-const SHOWN: usize = 13;
+/// Row height and the most rows shown, in the original's pixels (the screen is 320 by 200).
+const ROW: f32 = 10.0;
+const SHOWN: usize = 11;
 
 /// A line of the list.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -174,7 +175,7 @@ impl UpkeepPrompt {
                 ("Enough items marked.".to_string(), true)
             } else {
                 (
-                    format!("Mark {} more (or the game picks the rest).", o.excess - n),
+                    format!("Mark {} more, or the game picks.", o.excess - n),
                     false,
                 )
             };
@@ -206,10 +207,7 @@ impl UpkeepPrompt {
             ("Enough: the rest is paid.".to_string(), true)
         } else {
             (
-                format!(
-                    "Still missing {}: the game gives up the newest.",
-                    missing.join(", ")
-                ),
+                format!("Short by {}: the newest go.", missing.join(", ")),
                 false,
             )
         }
@@ -226,6 +224,41 @@ impl App {
         } else {
             self.finish_turn();
         }
+    }
+
+    /// For screenshots: run the human out of gold and mana, with a hero and some troops to lose,
+    /// and open the prompt.
+    pub(crate) fn open_test_upkeep(&mut self) {
+        let Some(at) = self.game.economy().cities().first().map(|c| c.2) else {
+            return;
+        };
+        let rules = &self.game.content().rules;
+        let troops: Vec<_> = ["high_men_spearmen", "high_men_swordsmen", "high_men_bowmen"]
+            .iter()
+            .filter_map(|id| rules.units.id_of(id))
+            .collect();
+        let spells: Vec<_> = rules
+            .spells
+            .defs()
+            .iter()
+            .filter(|s| s.upkeep > 0 && s.target == f4x_core::rules::SpellTarget::None)
+            .take(2)
+            .filter_map(|s| rules.spells.id_of(&s.id))
+            .collect();
+        for u in troops.iter().cycle().take(6) {
+            self.game.spawn_unit(HUMAN, at, *u);
+        }
+        let _ = self.game.spawn_hero(HUMAN, at, 0);
+        if let Some(p) = self.game.player_mut(HUMAN) {
+            p.gold = 0;
+            p.mana = 0;
+            p.magic.global.extend(spells);
+        }
+        self.game.apply(Command::SetTaxRate {
+            player: HUMAN,
+            rate: 0,
+        });
+        self.request_end_turn();
     }
 
     pub(crate) fn finish_turn(&mut self) {
@@ -270,27 +303,31 @@ impl App {
         }
         let lines = prompt.lines();
         let n = lines.len();
-        let (w, h) = (screen_width(), screen_height());
         let rows = n.min(SHOWN);
-        let (bw, bh) = (700.0, 150.0 + rows as f32 * ROW);
-        let (bx, by) = (w / 2.0 - bw / 2.0, h / 2.0 - bh / 2.0);
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let (bx, bw) = (8.0, 224.0);
+        let bh = 62.0 + rows as f32 * ROW;
+        let by = ((200.0 - bh) / 2.0).floor();
         let first = prompt
             .cursor
             .saturating_sub(SHOWN - 1)
             .min(n.saturating_sub(rows));
         let row_rect = |i: usize| {
-            Rect::new(
-                bx + 20.0,
-                by + 80.0 + (i - first) as f32 * ROW,
-                bw - 40.0,
+            lay.rect((
+                bx + 4.0,
+                by + 24.0 + (i - first) as f32 * ROW,
+                bw - 8.0,
                 ROW,
-            )
+            ))
         };
-        let ok = Rect::new(bx + bw - 250.0, by + bh - 40.0, 110.0, 28.0);
-        let back = Rect::new(bx + bw - 130.0, by + bh - 40.0, 110.0, 28.0);
+        let yes_at = (bx + bw - 70.0, by + bh - 21.0);
+        let no_at = (bx + bw - 138.0, by + bh - 21.0);
+        let yes = lay.rect((yes_at.0, yes_at.1, 65.0, 17.0));
+        let no = lay.rect((no_at.0, no_at.1, 65.0, 17.0));
 
-        let mut confirm = is_key_pressed(KeyCode::Enter);
-        let mut cancelled = is_key_pressed(KeyCode::Escape);
+        let mut confirm = is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Y);
+        let mut cancelled = is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::N);
         let selectable = |i: usize| !matches!(lines[i], Line::Header(_));
         if is_key_pressed(KeyCode::Down) {
             if let Some(i) = (prompt.cursor + 1..n).find(|&i| selectable(i)) {
@@ -305,14 +342,14 @@ impl App {
         if is_key_pressed(KeyCode::Space) {
             prompt.toggle(lines[prompt.cursor]);
         }
+        let mouse = Vec2::from(mouse_position());
         if is_mouse_button_pressed(MouseButton::Left) {
-            let at: Vec2 = mouse_position().into();
-            if ok.contains(at) {
+            if yes.contains(mouse) {
                 confirm = true;
-            } else if back.contains(at) {
+            } else if no.contains(mouse) {
                 cancelled = true;
             } else if let Some(i) =
-                (first..first + rows).find(|&i| selectable(i) && row_rect(i).contains(at))
+                (first..first + rows).find(|&i| selectable(i) && row_rect(i).contains(mouse))
             {
                 prompt.cursor = i;
                 prompt.toggle(lines[i]);
@@ -350,58 +387,129 @@ impl App {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
         self.draw_bars();
-        draw_rectangle(bx, by, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
-        draw_rectangle_lines(bx, by, bw, bh, 3.0, GOLD);
-        crate::frame::text_centered(
-            "Your reserves cannot pay for everything.",
-            w / 2.0,
-            by + 34.0,
-            24.0,
-            WHITE,
+        // The box: the original's stone brown with a dark edge.
+        let panel = lay.rect((bx, by, bw, bh));
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::new(0.36, 0.27, 0.20, 1.0),
         );
-        crate::frame::text_centered(
-            "Space or click marks what to give up. Enter: OK. Esc: back to the map.",
-            w / 2.0,
-            by + 62.0,
-            18.0,
-            GOLD,
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            2.0 * lay.scale,
+            Color::new(0.12, 0.08, 0.05, 1.0),
+        );
+        let shadow = Color::new(0.05, 0.1, 0.2, 1.0);
+        let light = Color::new(0.97, 0.95, 0.85, 1.0);
+        let gold = Color::new(0.95, 0.78, 0.30, 1.0);
+        let red = Color::new(0.85, 0.20, 0.15, 1.0);
+        let mut say = |app: &mut App, color: Color, text: &str, x: f32, y: f32, align: Align| {
+            app.bm_text(view, 4, shadow, text, x + 1.0, y + 1.0, align);
+            app.bm_text(view, 4, color, text, x, y, align);
+        };
+        let middle = bx + bw / 2.0;
+        say(
+            self,
+            light,
+            "Reserves cannot pay everything.",
+            middle,
+            by + 4.0,
+            Align::Center,
+        );
+        say(
+            self,
+            gold,
+            "Click to mark who goes.",
+            middle,
+            by + 14.0,
+            Align::Center,
         );
         for (i, &line) in lines.iter().enumerate().skip(first).take(rows) {
-            let r = row_rect(i);
+            let y = by + 24.0 + (i - first) as f32 * ROW;
             let (label, price) = prompt.text(line);
             if let Line::Header(_) = line {
-                draw_text(&label, r.x + 4.0, r.y + 18.0, 20.0, GOLD);
+                say(self, gold, &label, bx + 8.0, y + 1.0, Align::Left);
                 continue;
             }
             if i == prompt.cursor {
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.25, 0.2, 0.1, 0.8));
+                let r = row_rect(i);
+                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
             }
             let marked = prompt.marked(line);
-            let color = if marked { RED } else { WHITE };
-            let mark = if marked { "[x]" } else { "[ ]" };
-            draw_text(
-                format!("{mark} {label}"),
-                r.x + 8.0,
-                r.y + 18.0,
-                20.0,
-                color,
+            let b = lay.rect((bx + 8.0, y + 1.0, 7.0, 7.0));
+            draw_rectangle(b.x, b.y, b.w, b.h, Color::new(0.12, 0.08, 0.05, 1.0));
+            if marked {
+                draw_rectangle(
+                    b.x + lay.scale,
+                    b.y + lay.scale,
+                    b.w - 2.0 * lay.scale,
+                    b.h - 2.0 * lay.scale,
+                    red,
+                );
+            }
+            say(
+                self,
+                if marked { red } else { light },
+                &label,
+                bx + 19.0,
+                y + 1.0,
+                Align::Left,
             );
-            let tw = measure_text(&price, None, 20, 1.0).width;
-            draw_text(&price, r.x + r.w - tw - 8.0, r.y + 18.0, 20.0, color);
+            say(
+                self,
+                if marked { red } else { light },
+                &price,
+                bx + bw - 8.0,
+                y + 1.0,
+                Align::Right,
+            );
         }
         let (status, fine) = prompt.status();
-        draw_text(
+        let ok_colour = if fine {
+            Color::new(0.55, 0.9, 0.5, 1.0)
+        } else {
+            Color::new(1.0, 0.7, 0.3, 1.0)
+        };
+        say(
+            self,
+            ok_colour,
             &status,
-            bx + 20.0,
-            by + bh - 20.0,
-            18.0,
-            if fine { GREEN } else { ORANGE },
+            bx + 8.0,
+            by + bh - 33.0,
+            Align::Left,
         );
-        for (r, label) in [(ok, "Enter: OK"), (back, "Esc: Back")] {
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.15, 0.08, 1.0));
-            draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, GOLD);
-            crate::frame::text_centered(label, r.x + r.w / 2.0, r.y + 20.0, 18.0, WHITE);
+        if first + rows < n {
+            say(
+                self,
+                gold,
+                "More below",
+                bx + 8.0,
+                by + bh - 15.0,
+                Align::Left,
+            );
         }
+        let down = is_mouse_button_down(MouseButton::Left);
+        self.draw_pic(
+            &lay,
+            "resource",
+            3,
+            usize::from(down && yes.contains(mouse)),
+            yes_at.0,
+            yes_at.1,
+        );
+        self.draw_pic(
+            &lay,
+            "resource",
+            4,
+            usize::from(down && no.contains(mouse)),
+            no_at.0,
+            no_at.1,
+        );
         self.upkeep_prompt = Some(prompt);
         true
     }

@@ -159,9 +159,10 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
     assert!(g.world.get::<&Marooned>(boat).is_ok());
     // It keeps sailing, a turn's worth at a time, with the riders aboard.
     let mut turns = 0;
+    let mut landed = Vec::new();
     while g.world.contains(boat) && turns < 10 {
         let before = g.units().unit_position(boat).unwrap();
-        g.sail_marooned();
+        landed.extend(g.sail_marooned());
         turns += 1;
         if g.world.contains(boat) {
             let after = g.units().unit_position(boat).unwrap();
@@ -173,6 +174,9 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
     }
     assert!(turns > 1, "the shore is far: {turns}");
     assert!(!g.world.contains(boat), "released after unloading");
+    assert!(landed
+        .iter()
+        .any(|e| matches!(e, Event::ShipLanded { player, units: 2, .. } if *player == P0)));
     for r in riders {
         let at = g.units().unit_position(r).unwrap();
         assert!(!g.economy().is_sea(at));

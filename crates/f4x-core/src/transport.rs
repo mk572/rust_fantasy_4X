@@ -242,6 +242,11 @@ impl Game {
                     let _ = self.world.insert_one(p, landing);
                 }
                 self.remove_unit(ship, crate::roster::Fate::Released);
+                events.push(Event::ShipLanded {
+                    player: owner,
+                    units: passengers.len() as u32,
+                    at: landing,
+                });
             }
         }
         events

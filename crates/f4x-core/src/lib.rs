@@ -322,6 +322,12 @@ pub enum Event {
         player: city::PlayerId,
         what: Shortage,
     },
+    /// A ship let go for lack of gold reached the shore and put its passengers on land.
+    ShipLanded {
+        player: city::PlayerId,
+        units: u32,
+        at: city::Position,
+    },
     /// A hero was let go for lack of gold or food; the hero is free to hire again.
     HeroLeft {
         player: city::PlayerId,

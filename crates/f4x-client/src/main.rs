@@ -113,6 +113,8 @@ struct Options {
     score: bool,
     items: bool,
     hall: bool,
+    /// With `--shot`, run the human out of gold and mana and open the upkeep prompt.
+    upkeep: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
@@ -174,6 +176,7 @@ fn parse_args() -> Result<Options, String> {
         items: false,
         hall: false,
         offer: None,
+        upkeep: false,
     };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -202,6 +205,7 @@ fn parse_args() -> Result<Options, String> {
             "--site" => o.site = Some(value("--site")?),
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
+            "--upkeep" => o.upkeep = true,
             "--offer" => o.offer = Some(value("--offer")?),
             "--sheet" => {
                 o.sheet = Some(
@@ -297,7 +301,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -402,6 +406,9 @@ async fn main() {
     }
     if options.cities {
         app.open_city_list();
+    }
+    if options.upkeep {
+        app.open_test_upkeep();
     }
     if let Some(kind) = &options.offer {
         app.open_test_offer(kind);
