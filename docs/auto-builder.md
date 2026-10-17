@@ -196,8 +196,19 @@ building. Off by default; the garrison rule alone reacts then.
 - The scoring and choice live in `f4x-core` (`autobuild.rs`) and take the player's view of the
   game, so the human's auto-builder, the scripted AI and the learning AI all call them. They are
   tested on fixed city situations.
-- The **scripted AI** sets plans by rule (expansion: Production and Exploration; war: Offense
-  and Defense) instead of its own build list.
+- The **scripted AI** sets plans by rule instead of its own build list (`f4x-ai/src/economy.rs`,
+  `plan_for`), every turn for every city, and the cities then choose by themselves:
+  - focus: a rival wizard's city within 12 squares gives Offense with Defense behind it; else,
+    while the wizard has fewer than 7 cities (counting settlers on the way), Production with
+    Population behind it; else Balanced;
+  - mix: `Units` while the army is under its target (home guard plus 4 plus half the cities) and
+    the treasury and the food can bear more; `Buildings` when broke and the city has a defender;
+    else `Both`;
+  - settlers: allowed from population 3 with `eager_settlers` (a plan field only the AI uses: no
+    wait for the population limit) while there is room for more cities, the wizard is not broke
+    and the food is not short; the open-space check of section 6 still applies;
+  - it still sets the production of the port that builds the ship, and still buys items
+    (settlers first, then a city's first guard, then buildings, then the rest).
 - The **learning AI** gets the plan in its action space: it learns which primary and secondary
   focus and which mix to give each city.
 - The AI's **auto-buy**: a wizard with a lot of gold looks for items to buy in the cities it
@@ -215,7 +226,8 @@ building. Off by default; the garrison rule alone reacts then.
    the news line is the existing "city: item complete" message.
 4. The dialog in the client. **Done** (`autobuild_dialog.rs`: the Auto button on the city
    screen opens it; `--shot --city --autobuild` shows it).
-5. The scripted AI sets plans. Not done.
+5. The scripted AI sets plans. **Done** (not soak-tested: the behaviour tests are ignored by
+   default and were not run).
 6. The learning AI's action space. Not done.
 7. The event prompt (section 9). Not done.
 

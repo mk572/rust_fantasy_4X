@@ -16,7 +16,7 @@ few constants, so there are no weights to scale yet.
 | `wizardry.rs` `SPLITS` and `split` | power split, first affordable candidate | the research share |
 | `wizardry.rs` `research_score` | a real score, the turns to learn times factors | a factor per spell kind |
 | `wizardry.rs` `priority` | fixed order of spell kinds | not changed here (step 3) |
-| `economy.rs` `BUILD_ORDER` | fixed list of buildings | not changed here (step 3) |
+| `economy.rs` `plan_for` (was `BUILD_ORDER`) | the focus, mix and settlers of each city's auto-builder plan (`docs/auto-builder.md`) | the focus pair an objective gives a city |
 
 The original uses the objective in four places: the expansion rate (`AIMOVE.c`), building weights
 by category (`AIBUILD.c`), the magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`).

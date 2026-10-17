@@ -131,6 +131,10 @@ pub struct BuildPlan {
     pub min_settler_pop: u32,
     /// Turn the auto-builder off and tell the player when a threat comes (docs section 9).
     pub event_prompt: bool,
+    /// Settle without waiting for the city to near its population limit (the AI's plans ask
+    /// for this; the dialog does not offer it).
+    #[serde(default)]
+    pub eager_settlers: bool,
 }
 
 impl Default for BuildPlan {
@@ -142,6 +146,7 @@ impl Default for BuildPlan {
             settlers: false,
             min_settler_pop: 4,
             event_prompt: false,
+            eager_settlers: false,
         }
     }
 }
@@ -551,7 +556,7 @@ fn roll_unit(ranked: &[(UnitId, f32)], roll: &mut dyn FnMut(u32) -> u32) -> Opti
 pub fn wants_settlers(plan: &BuildPlan, f: &CityFacts) -> bool {
     plan.settlers
         && f.figures >= plan.min_settler_pop
-        && f.figures + NEAR_LIMIT >= f.max_size
+        && (plan.eager_settlers || f.figures + NEAR_LIMIT >= f.max_size)
         && f.settlers_near < f.open_sites.min(MAX_SETTLERS_WANTED)
 }
 
@@ -767,8 +772,11 @@ impl Game {
             ..CityFacts::default()
         };
         // Open space matters only to a city that may build settlers soon.
-        let plan_wants = self.autobuild_of(city).is_some_and(|a| a.plan.settlers);
-        if plan_wants && facts.figures + NEAR_LIMIT >= facts.max_size {
+        let plan_wants = self.autobuild_of(city).is_some_and(|a| {
+            a.plan.settlers
+                && (a.plan.eager_settlers || facts.figures + NEAR_LIMIT >= facts.max_size)
+        });
+        if plan_wants {
             facts.open_sites = open_sites(&view, at);
             let near = |p: Option<Position>| {
                 p.is_some_and(|p| {
@@ -821,7 +829,13 @@ impl Game {
         }
         match plan {
             Some(plan) => {
-                let _ = self.world.insert_one(city, AutoBuild::new(plan));
+                // A new plan keeps what the city has spent so far.
+                let mut auto = AutoBuild::new(plan);
+                if let Ok(old) = self.world.get::<&AutoBuild>(city) {
+                    auto.spent_units = old.spent_units;
+                    auto.spent_buildings = old.spent_buildings;
+                }
+                let _ = self.world.insert_one(city, auto);
                 self.autobuild_refresh(city);
             }
             None => {
