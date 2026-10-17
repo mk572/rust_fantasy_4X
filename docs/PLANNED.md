@@ -48,6 +48,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 35 | Content | Palette-swap wizards: variants of the 14 ready-made wizards |
 | 36 | Meta | Multiplayer: scope and design (to be discussed) |
 | 37 | AI | Record the battle AI's orders for replays |
+| 38 | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
 
 ## Descriptions
 
@@ -484,3 +485,35 @@ Needs: the data file and its loader (`f4x-data`), the palette tables and the imp
 - **How.** Record each order the brain gives, in order, with the battle's start, as part of the recording (the commands become `Battle` orders in the log, or a list kept with the `BeginBattle`/`AutoResolve` entry), and on replay feed the recorded orders back in place of asking the brain. The replay then needs no network weights.
 - **Needs.** The record hook in the auto-resolve loop and in the client's brain-driven battle (`battle_screen.rs`), a replay that takes orders from the log when it finds them, a test with a fake brain whose answers change between runs, and the file format note in `docs/console.md`.
 - **Priority.** Low: the learned AI is not part of feature parity with the original (decided 17 October 2026).
+
+**38. Casting mod.** Three changes that belong together, to make the wizards that cast from afar
+playable and to restore a preset the base game shortens: a decision per change whether it becomes
+the default, a rule-set option or a mod (see 5), with the three switched together as one mod at
+first (requested 18 October 2026).
+
+- **Half the casting distance penalty.** In battle a spell costs more the further the battle is from
+  the wizard's fortress (`range_percent` in `battle/casting.rs`, the original's
+  `Combat_Casting_Cost_Multiplier`): half the cost at the fortress itself, then the base cost, and
+  half the base cost again for each five squares past the fifth, up to three times (`x1.0` to
+  `x3.0` on the other plane or with no fortress). The mod halves the added part: a quarter of the
+  base cost for each five squares, up to twice (`x1.0` to `x2.0`), and the fortress discount stays.
+  The Channeler's rule (two squares away anywhere but at the fortress) is unchanged. The budget a
+  wizard has to spend (`budget` in `Caster`) and the AI's cost estimates read the same function, so
+  they follow. Make the figures data (a table in `rules.ron`: the first step, the step width, the
+  added share and the cap) so a mod can set its own and the original's are the default.
+- **A Channeler that costs one pick.** The retort costs two picks (`retort_cost` in `wizard.rs`);
+  the mod makes it one. The cost of the other two-pick retorts (Warlord, Divine Power, Famous,
+  Infernal Power) stays. Move the pick prices into data (`rules.ron` or the retort table) so the
+  creation screen, the custom-wizard checks and the AI's wizard builder all read them.
+- **Lo Pan's fifth sorcery book.** `content/wizards.ron` gives Lo Pan four sorcery books, one fewer
+  than the original, so that he fits the eleven picks (divergence 21). With the Channeler at one
+  pick, five sorcery, five chaos and Channeler come to eleven picks again, so the mod gives him the
+  original's five sorcery books with no other change. Without the mod he stays as now.
+
+Needs: the data tables above and their loader, the mod switch (item 5: until that exists, a
+game setting in `GameSettings`, saved with the game and shown beside the other rule options), the
+new-game screen and the help texts that name the Channeler's cost, the casting range and Lo Pan's
+books (`HELP_CORRECTIONS` for each, since the help states the original's figures), tests on the
+real data for each change (the cost at 0, 5, 10, 15, 20 and 25 squares, the creation screen's
+pick count with the Channeler, Lo Pan's books and picks), and an entry in `divergences.md` for
+each change.
