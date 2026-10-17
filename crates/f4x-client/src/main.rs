@@ -40,6 +40,7 @@ mod road_plan;
 mod sell_prompt;
 mod settings_screen;
 mod site_prompt;
+mod spell_fx;
 mod spellbook;
 mod surveyor;
 mod terrain_pick;

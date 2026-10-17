@@ -159,6 +159,29 @@ pub fn to_rgba(pixels: &[u8], palette: &[u8]) -> Vec<u8> {
     out
 }
 
+/// A colour of the original's glass table: pixels with the indexes from 232 on do not paint a
+/// colour, they tint what is under them (`Create_Remap_Palette`): a colour and how many percent of
+/// it is mixed in.
+pub const GLASS_FIRST: u8 = 232;
+
+/// [`to_rgba`] with the glass indexes (232 on) as translucent colours: `glass[n]` is the
+/// 6-bit red, green and blue and the percent of block `n` (`remap_colors` in `Fonts.c`).
+pub fn to_rgba_glass(pixels: &[u8], palette: &[u8], glass: &[[u8; 4]]) -> Vec<u8> {
+    let mut out = to_rgba(pixels, palette);
+    for (k, &i) in pixels.iter().enumerate().filter(|(_, &i)| i >= GLASS_FIRST) {
+        let Some(&[r, g, b, percent]) = glass.get(usize::from(i - GLASS_FIRST)) else {
+            continue;
+        };
+        out[k * 4..k * 4 + 4].copy_from_slice(&[
+            vga_to_rgb8(r),
+            vga_to_rgb8(g),
+            vga_to_rgb8(b),
+            (u32::from(percent.min(100)) * 255 / 100) as u8,
+        ]);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +202,13 @@ mod tests {
         // column 1: op copy, packet 3, seq 1, skip 1, data 3
         e.extend([0x00, 3, 1, 1, 3]);
         e
+    }
+
+    #[test]
+    fn glass_pixels_are_translucent_colours() {
+        let rgba = to_rgba_glass(&[0, 232, 233], &[0; 768], &[[0, 0, 0, 50], [63, 0, 0, 100]]);
+        assert_eq!(&rgba[4..8], &[0, 0, 0, 127]);
+        assert_eq!(&rgba[8..12], &[255, 0, 0, 255]);
     }
 
     #[test]

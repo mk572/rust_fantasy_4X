@@ -149,7 +149,7 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn flat_text(
+    pub(super) fn flat_text(
         &mut self,
         (ox, oy, s): (f32, f32, f32),
         style: usize,
@@ -414,15 +414,10 @@ impl App {
         draw_rectangle(r.x, r.y, r.w, r.h, colour);
     }
 
-    /// The little window with the stats of the unit under the pointer
-    /// (`Draw_Combat_Unit_Display`), at the top of the map, left of the box of spells and abilities.
-    fn draw_scanned_unit(&mut self, battle: &Battle, hovered: Option<Pos>, view: (f32, f32, f32)) {
-        let Some(u) = hovered.and_then(|p| Self::seen_unit_at(battle, p)) else {
-            return;
-        };
-        let lay = Layout::new();
-        let (x, y, w, h) = SCAN;
-        let r = lay.rect((x, y, w, h));
+    /// The dark box with a light edge above and left and a dark one below and right, as the
+    /// original draws its small windows over the map; returns the dark edge's colour.
+    pub(super) fn draw_hud_box(lay: &Layout, rect: (f32, f32, f32, f32)) -> Color {
+        let r = lay.rect(rect);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.09, 0.12, 0.92));
         let (light, dark) = (
             Color::new(0.5, 0.45, 0.4, 1.0),
@@ -433,6 +428,18 @@ impl App {
         draw_rectangle(r.x, r.y, r.w, px, light);
         draw_rectangle(r.x + r.w - px, r.y, px, r.h, dark);
         draw_rectangle(r.x, r.y + r.h - px, r.w, px, dark);
+        dark
+    }
+
+    /// The little window with the stats of the unit under the pointer
+    /// (`Draw_Combat_Unit_Display`), at the top of the map, left of the box of spells and abilities.
+    fn draw_scanned_unit(&mut self, battle: &Battle, hovered: Option<Pos>, view: (f32, f32, f32)) {
+        let Some(u) = hovered.and_then(|p| Self::seen_unit_at(battle, p)) else {
+            return;
+        };
+        let lay = Layout::new();
+        let (x, y, w, h) = SCAN;
+        let dark = Self::draw_hud_box(&lay, (x, y, w, h));
         let ink = self.art.minimap().named("scan_text", WHITE);
         let black = Color::new(0.0, 0.0, 0.0, 1.0);
         let text = |app: &mut App, s: &str, at: (f32, f32), align: Align| {

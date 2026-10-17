@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::image::{decode, to_rgba};
+use crate::image::{decode, to_rgba, to_rgba_glass};
 use crate::lbx::Lbx;
 use crate::screens::{self, Placer, UnitArt};
 
@@ -59,6 +59,26 @@ fn extract_cursors(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
         n += 1;
     }
     Ok(n)
+}
+
+/// The glass table: 24 colours (6-bit red, green, blue and a percent) at 5376 bytes into the base
+/// palette's entry, which pixels from index 232 on tint the picture under them with. Block 0, the
+/// shadow, is black at 50 percent.
+fn glass_colours(game_dir: &Path) -> Vec<[u8; 4]> {
+    const FIRST: usize = 5376;
+    let entry = find(game_dir, "FONTS.LBX")
+        .and_then(|p| fs::read(p).ok())
+        .and_then(|d| Lbx::parse(&d).ok().map(|l| l.entry(PALETTE_ENTRY).to_vec()))
+        .unwrap_or_default();
+    let mut table: Vec<[u8; 4]> = (0..24)
+        .map(|i| {
+            entry
+                .get(FIRST + i * 4..FIRST + i * 4 + 4)
+                .map_or([0, 0, 0, 0], |b| [b[0], b[1], b[2], b[3]])
+        })
+        .collect();
+    table[0] = [0, 0, 0, 50];
+    table
 }
 
 /// `Load_Palette(n)` reads FONTS.LBX entry `n + 2`. The original loads these while it shows:
@@ -474,6 +494,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
     let mut manifest = String::new();
     let (mut pictures, mut frames) = (0usize, 0usize);
     let mut combat_pal = base.clone();
+    let glass = glass_colours(game_dir);
     for path in &lbx_files {
         let stem = path
             .file_stem()
@@ -511,7 +532,12 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
                 combat_pal = pal.clone();
             }
             for (f, frame) in pic.frames.iter().enumerate() {
-                let rgba = to_rgba(&frame.pixels, &pal);
+                // A picture that brings its own palette uses the top indexes for colours.
+                let rgba = if pic.palette.is_some() {
+                    to_rgba(&frame.pixels, &pal)
+                } else {
+                    to_rgba_glass(&frame.pixels, &pal, &glass)
+                };
                 write_png(
                     &target.join(format!("{name}_{f:02}.png")),
                     pic.width,

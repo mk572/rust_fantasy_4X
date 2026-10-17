@@ -147,6 +147,12 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   while the cycling screens run. Text uses the same colour (a negative income on the main screen).
   The combat and spell book ranges are not wired up: no combat picture uses the index, and the
   book's glow belongs to task 166.
+- **Glass (translucent) pixels:** in a picture that brings no palette of its own, the indexes
+  from 232 on are not colours but tints: each blends a colour into what is under it
+  (`Create_Remap_Palette`; the 24 blocks, six-bit red, green, blue and a percent, are in the base
+  palette's entry, 5376 bytes in; block 0 is the shadow, black at 50 percent). `extract-art` writes
+  them as translucent pixels (tree and figure shadows, the glow of spell pictures). A picture with
+  an embedded palette (the battle panel, the Info window) uses those indexes for colours.
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
 **If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" reference/ReMoM/MoM/src`);

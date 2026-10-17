@@ -201,8 +201,12 @@ each figure of the shooter, aimed and arced as `Make_Missiles` does), **blood** 
 the hit figures bleed and vanish as `Set_Gibs` and `Spawn_Figure_Entity` say), **the glow round
 enchanted units** (a realm's colours moving round the figure's outline) and the figure effects of
 Black Sleep and Warp Creature, the curse pictures (`chriver` 16 to 23), and **the mouse pointers by
-action** (`cursors/`, drawn by the game: finger, boots, swords, bow, wand, red cross). Still missing:
-the other spell effect pictures (`cmbtfx`), the breath and gaze effects, the figure effects of
+action** (`cursors/`, drawn by the game: finger, boots, swords, bow, wand, red cross). **Done (17 October 2026): the spell effects** (`battle_screen/spell_anim.rs`, `spell_fx.rs`): each
+spell's picture from `cmbtfx` and `specfx` on its target (or over every unit of a side for Flame
+Strike, Death Spell, Holy Word, Mass Healing), the four bolts flying in, Lightning Bolt's stroke, the
+realm tint for battlefield spells, and the "has cast" line (also: glass pixels are now translucent,
+so shadows and glows show as the original draws them). Still missing: the wall-rising animation,
+Cracks Call's ground effect, Call Chaos, the breath and gaze effects, the figure effects of
 invisibility (revealed and hidden silhouettes), and sound (task 97). **Done (17 October 2026): the
 original's frame** (`battle_screen/bar.rs`): the map fills the 320 by 200 screen's top 164 rows with the
 fixed camera of `Combat_Screen_Map_Draw` (the ground is drawn on every cell, as the original does), the

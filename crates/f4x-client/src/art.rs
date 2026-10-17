@@ -676,6 +676,13 @@ impl Art {
         self.texture(PathBuf::from(format!("{base}_cycle.png")))
     }
 
+    /// How many frames a picture of an `.lbx` file has (those that were extracted).
+    pub fn frames(&mut self, lbx: &str, entry: usize) -> usize {
+        (0..64)
+            .take_while(|&f| self.picture(lbx, entry, f).is_some())
+            .count()
+    }
+
     /// One of the original's mouse pointers, numbered from 1 (`crsr_Finger`).
     pub fn cursor(&mut self, number: usize) -> Option<&Texture2D> {
         self.texture(PathBuf::from(format!("cursors/{number:02}.png")))

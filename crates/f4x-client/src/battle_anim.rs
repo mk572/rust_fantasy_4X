@@ -8,6 +8,8 @@
 
 use f4x_core::battle::map::Pos;
 
+use crate::spell_fx::SpellFx;
+
 /// Seconds to cross one square.
 pub const STEP_TIME: f32 = 0.2;
 const ATTACK_TIME: f32 = 0.6;
@@ -41,6 +43,15 @@ pub enum Anim {
     Death {
         unit: usize,
     },
+    /// A spell's picture, played on each square in turn (the frames each waits before it
+    /// starts), under the line that says who cast it.
+    Spell {
+        fx: SpellFx,
+        /// The animation's frames and how long it plays in all.
+        frames: usize,
+        cells: Vec<(Pos, usize)>,
+        line: String,
+    },
 }
 
 impl Anim {
@@ -50,7 +61,31 @@ impl Anim {
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
+            Anim::Spell {
+                fx, frames, cells, ..
+            } => spell_time(*fx, *frames, cells),
         }
+    }
+}
+
+/// Seconds a frame of a spell's picture is shown, and of the first part of a bolt's flight.
+pub const SPELL_FRAME: f32 = 0.1;
+pub const BOLT_FRAME: f32 = 0.06;
+
+/// How long a spell's animation plays: its frames one after the other (the later squares start
+/// a few frames after the first), the bolts' flight and landing, the tint's rise and fall.
+fn spell_time(fx: SpellFx, frames: usize, cells: &[(Pos, usize)]) -> f32 {
+    match fx {
+        SpellFx::Cell { .. } => {
+            let latest = cells.iter().map(|&(_, delay)| delay).max().unwrap_or(0);
+            (frames + latest) as f32 * SPELL_FRAME
+        }
+        SpellFx::Bolt { bolt, .. } => {
+            let flight = bolt.frames().min(11) as f32 * BOLT_FRAME;
+            flight + bolt.frames().saturating_sub(11) as f32 * SPELL_FRAME + 0.3
+        }
+        SpellFx::Lightning => 0.8,
+        SpellFx::Tint { .. } => 0.9,
     }
 }
 

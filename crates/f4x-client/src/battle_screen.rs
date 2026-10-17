@@ -44,6 +44,8 @@ pub(crate) struct BattleUi {
     ai_timer: f32,
     /// Where the box of the selected unit's spells and abilities was drawn.
     box_rect: Option<Rect>,
+    /// The square the spell just ordered is aimed at, for its animation.
+    cast_target: Option<Pos>,
     log: Vec<String>,
     /// The fleeing button was pressed once and waits for a second press.
     confirm_flee: bool,
@@ -366,6 +368,7 @@ fn can_shoot(u: &BattleUnit) -> bool {
 mod bar;
 mod pointer;
 mod specials;
+mod spell_anim;
 
 pub(crate) use pointer::show_system_pointer;
 
@@ -519,6 +522,10 @@ impl App {
     /// After the test battle has begun: the walls of fire and darkness round the city, and
     /// mud over the middle of the field.
     pub fn set_test_effects(&mut self, kind: &str) {
+        if let Some(id) = kind.strip_prefix("fx-") {
+            self.test_spell_fx(id);
+            return;
+        }
         use f4x_core::battle::field::Field;
         let spells = &self.game.content().rules.spells;
         let raised: Vec<_> = [
@@ -607,6 +614,27 @@ impl App {
         }
     }
 
+    /// For screenshots: the animation of a spell (`--battle-field fx-fireball`) cast on the first
+    /// defender, a moment in.
+    fn test_spell_fx(&mut self, id: &str) {
+        self.battle_ui.ready = true;
+        let Some(battle) = self.game.battle().cloned() else {
+            return;
+        };
+        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+            return;
+        };
+        self.battle_ui.cast_target = battle
+            .units
+            .iter()
+            .find(|u| u.side == Side::Defender)
+            .map(|u| u.cell);
+        if let Some(anim) = self.spell_animation(&battle, spell, Ok(Side::Attacker)) {
+            self.battle_ui.shown = Some(battle);
+            self.battle_ui.playing = Some((anim, 0.0));
+        }
+    }
+
     /// Pit the human's units against monsters on the same square (for screenshots and tests).
     pub fn open_test_battle(&mut self) {
         let mine = self.game.units().player_units(HUMAN);
@@ -650,6 +678,16 @@ impl App {
     /// Send one order to the battle and tell what came of it.
     fn battle_order(&mut self, order: BattleCommand) {
         let before = self.game.battle().cloned();
+        self.battle_ui.cast_target = match (&order, &before) {
+            (BattleCommand::Cast { aim, .. } | BattleCommand::UnitCast { aim, .. }, Some(b)) => {
+                match *aim {
+                    SpellAim::Unit(id) => b.unit(id).map(|u| u.cell),
+                    SpellAim::Tile(cell) => Some(cell),
+                    SpellAim::None => None,
+                }
+            }
+            _ => None,
+        };
         let events = self.game.apply(Command::Battle(order));
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
@@ -758,6 +796,12 @@ impl App {
                 });
             }
             BattleEvent::UnitDied { unit } => out.push(Anim::Death { unit: *unit }),
+            BattleEvent::SpellCast { side, spell, .. } => {
+                out.extend(self.spell_animation(before, *spell, Ok(*side)));
+            }
+            BattleEvent::UnitSpellCast { unit, spell, .. } => {
+                out.extend(self.spell_animation(before, *spell, Err(*unit)));
+            }
             _ => {}
         }
     }
@@ -1472,6 +1516,7 @@ impl App {
             }
         }
         self.draw_missile(battle, (ox, oy, scale));
+        self.draw_spell_fx((ox, oy, scale));
         // Magic vortices: a swirl of rings, the steered one marked.
         for (i, v) in battle.vortices.iter().enumerate() {
             let (sx, sy) = at(v.cell);
@@ -1527,6 +1572,7 @@ impl App {
         gl.flush();
         gl.quad_gl.scissor(None);
         self.draw_battle_panel(battle, my_turn, hovered);
+        self.draw_spell_overlay();
         if my_turn && self.battle_ui.spell_list {
             self.draw_spell_list(battle);
         }
