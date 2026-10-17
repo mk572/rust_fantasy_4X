@@ -30,6 +30,8 @@ pub struct Player {
     pub summon_at: Option<crate::city::Position>,
     /// The fortress fell: the wizard is casting the Spell of Return.
     pub banished: bool,
+    /// Who took the fortress while the wizard is banished (the one a resignation is to).
+    pub banished_by: Option<PlayerId>,
     /// The wizard has lost everything.
     pub defeated: bool,
     /// Who took the wizard's last city.
@@ -125,6 +127,7 @@ impl Player {
             fortress: None,
             summon_at: None,
             banished: false,
+            banished_by: None,
             defeated: false,
             defeated_by: None,
             banner: if id.0 == u8::MAX {

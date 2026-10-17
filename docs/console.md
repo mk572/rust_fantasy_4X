@@ -112,6 +112,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Tax rate, power split, Grand Vizier | `tax <rate>`, `power <mana> <research> <skill>`, `vizier <on\|off>` |
 | Choose research | `research <spell>` |
 | Cast; aim a spell paid over turns; give up a cast | `cast <spell> [target]`, `target <target>`, `cancelcast` |
+| Give up while banished | `resign` |
 | Alchemy | `alchemy <amount> <gold\|mana>` (converts that much gold into mana, or mana into gold) |
 | Talk to a wizard you have met: propose, answer, break a treaty, declare war, give tribute | `propose <wizard> <pact\|alliance\|peace\|war <third>\|break <third>\|swap <give> <get>>`, `answer <wizard> <yes\|no>`, `breaktreaty <wizard>`, `declarewar <wizard>`, `givegold <wizard> <amount>`, `givespell <wizard> <spell>` (the query `diplomacy [wizard]` shows relation, treaty and what is waiting) |
 | Battle screen: move, melee, shoot, done, end turn, flee | `bmove <unit> <x,y>`, `battack <unit> <target>`, `bshoot <unit> <target>`, `bdone <unit>`, `bend`, `bflee` |

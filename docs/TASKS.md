@@ -20,7 +20,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 68 | Meta | Random events |
 | 76 | Client | Background music |
 | 81 | Housekeeping | Packaging for Mac |
-| 82 | Meta | Wizard defeat aftermath and fortress display |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
 | 85 | Client | Import and play the original's opening movie |
 | 89 | Meta | Game settings |
@@ -159,14 +158,6 @@ author has a developer account (otherwise documented right-click-open steps), a 
 zip, and the local-assets workflow documented for players who supply their own original files
 (`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
 to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
-
-**82. Wizard defeat aftermath and fortress display.** Done when a wizard is defeated
-(`endgame::aftermath`): all their units are dismissed, their enchantments come off every city and
-unit, their nodes are freed and the conqueror takes half their gold. Not done: when a *banished*
-wizard with other cities resigns, the original turns their garrisoned normal units neutral and (for
-AI) their remaining cities neutral. An AI wizard resigns instead of casting the Spell of Return if its skill is below 40
-or it has no mana. Also draw the fortress and circle as buildings in the city screen's building
-area.
 
 **84. Analyse the original's screenshots and adjust the graphics.** Study the screenshots of the
 original game in `reference/screenshots/` (local only) and bring the client's look closer to

@@ -202,6 +202,7 @@ fn taking_an_ordinary_city_changes_its_owner_only() {
 #[test]
 fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back() {
     let mut g = world();
+    g.human = Some(P0);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let w = g.player(P1).unwrap().clone();
@@ -297,6 +298,7 @@ fn a_fortress_city_cannot_be_destroyed() {
 #[test]
 fn saves_keep_the_fortress_and_reject_a_misplaced_one() {
     let mut g = world();
+    g.human = Some(P0);
     let capital = place(&mut g, P0, at(5, 5));
     city(&mut g, P0, at(15, 5));
     g.capture_city(capital, P1);
@@ -568,4 +570,106 @@ fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() 
     fortress_prize(&mut w, 7);
     assert_eq!((w.fame, w.mana), (5, 7));
     assert_eq!(summon_point(&wizard()), None);
+}
+
+/// A world where P0 holds a fortress city and a town, with a spearman in each and one in the
+/// field, and P1 is the conqueror. P0 is a computer wizard of the given casting skill.
+fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
+    let mut g = world();
+    g.magic_mut(P0).unwrap().skill_points = crate::magic::skill_points_for(skill, false);
+    let capital = place(&mut g, P0, at(5, 5));
+    let town = city(&mut g, P0, at(15, 5));
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    g.spawn_unit(P0, at(15, 5), spear);
+    g.spawn_unit(P0, at(9, 9), spear);
+    (g, capital, town)
+}
+
+#[test]
+fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neutral() {
+    let (mut g, capital, town) = banish_world(10);
+    let galley = g.content.rules.units.id_of("galley").unwrap();
+    let mut defs = g.content.rules.units.defs().to_vec();
+    defs.iter_mut().find(|d| d.id == "galley").unwrap().kind = crate::rules::UnitKind::Fantastic;
+    g.content.rules.units = crate::rules::Registry::new(defs);
+    let beast = g.spawn_unit(P0, at(15, 5), galley);
+    let events = g.capture_city(capital, P1);
+    assert!(
+        events.contains(&Event::WizardDefeated { player: P0 }),
+        "{events:?}"
+    );
+    assert!(!events.contains(&Event::WizardBanished { player: P0, by: P1 }));
+    let p = g.player(P0).unwrap();
+    assert!(p.defeated && !p.banished);
+    assert_eq!(p.defeated_by, Some(P1));
+    // The town is still there, owned by a neutral city player; its garrison of normal units
+    // went with it, the fantastic creature and the unit in the field are gone.
+    let owner = g.economy().city_owner(town).unwrap();
+    assert!(g.is_neutral_player(owner) && owner != crate::units::NEUTRAL);
+    let held = g.units().units_at(at(15, 5));
+    assert_eq!(held.len(), 1);
+    assert_eq!(g.units().unit_owner(held[0]), Some(owner));
+    assert!(g.units().unit_owner(beast).is_none());
+    assert!(g.units().player_units(P0).is_empty());
+    assert!(g.units().units_at(at(9, 9)).is_empty());
+}
+
+#[test]
+fn a_computer_wizard_with_no_mana_resigns_too() {
+    let (mut g, capital, _) = banish_world(40);
+    g.player_mut(P0).unwrap().mana = 0;
+    let events = g.capture_city(capital, P1);
+    assert!(
+        events.contains(&Event::WizardDefeated { player: P0 }),
+        "{events:?}"
+    );
+}
+
+#[test]
+fn a_strong_computer_wizard_is_banished_and_keeps_its_cities() {
+    let (mut g, capital, town) = banish_world(40);
+    let events = g.capture_city(capital, P1);
+    assert!(
+        events.contains(&Event::WizardBanished { player: P0, by: P1 }),
+        "{events:?}"
+    );
+    assert_eq!(g.economy().city_owner(town), Some(P0));
+    assert_eq!(g.units().player_units(P0).len(), 2);
+}
+
+#[test]
+fn a_banished_human_may_resign() {
+    let (mut g, capital, town) = banish_world(10);
+    g.human = Some(P0);
+    // Not while the fortress stands.
+    assert_eq!(
+        g.apply(Command::Resign { player: P0 }),
+        vec![Event::Rejected(Rejection::Fortress(
+            FortressError::WrongState
+        ))]
+    );
+    g.capture_city(capital, P1);
+    assert!(g.player(P0).unwrap().banished);
+    let events = g.apply(Command::Resign { player: P0 });
+    assert!(
+        events.contains(&Event::WizardDefeated { player: P0 }),
+        "{events:?}"
+    );
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::GameOver { winner, .. } if *winner == P1)));
+    assert!(g.is_neutral_player(g.economy().city_owner(town).unwrap()));
+    assert_eq!(g.player(P0).unwrap().defeated_by, Some(P1));
+}
+
+#[test]
+fn the_banisher_is_remembered_across_a_save() {
+    let (mut g, capital, _) = banish_world(40);
+    g.capture_city(capital, P1);
+    let snap = g.snapshot();
+    let loaded = Snapshot::from_text(&snap.to_text().unwrap())
+        .unwrap()
+        .restore(content_with_magic())
+        .unwrap();
+    assert_eq!(loaded.player(P0).unwrap().banished_by, Some(P1));
 }

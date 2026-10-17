@@ -373,6 +373,9 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (657, "You may not cast any other spells while banished and you receive no power income.",
+     "You may not cast any other spells while banished and you receive no power income. A wizard with no other city is defeated instead. A computer wizard whose casting skill is under 40, or who has no mana, resigns at once; you are asked whether to resign.",
+     "the conquest code defeats a banished wizard that cannot pay for the spell, and asks the human whether to resign"),
     (765, "winning a major battle (4 or more opponents), building a new city, or by capturing a village, city or capitol. Likewise, any wizard losing a major battle will lose one point of fame.",
      "winning a major battle (4 or more opponents) or one that defeats a unit costing 600 or more, or by capturing a city (its size class less two points, so a hamlet or village gives none). Building a new city gives no fame. A wizard loses fame when a hero dies in battle (about half the hero's level), when a city is lost (as many points as its size) and, with more than 20 fame, one point for a major defeat.",
      "the original's code gives no fame for founding a city, gives the winner a point for rare foes, and takes the fame of lost heroes and cities; only a human wizard with more than 20 fame loses a point for a major defeat"),

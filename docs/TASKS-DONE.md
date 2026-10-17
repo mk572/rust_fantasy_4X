@@ -74,6 +74,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 75 | Client | Wizard overview screen (done) |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) (done) |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
+| 82 | Meta | Wizard defeat aftermath and fortress display (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 87 | Magic | Remaining global enchantments (low priority) (done) |
@@ -201,6 +202,17 @@ where the help changes.
 (river, shore, lake, river-mouth, nodes, desert, Gaia's Blessing); Blur is a flat -1 to hit;
 Invisibility hides units in battle, with a ghost look and a penalty of -1 per square. See
 `divergences.md` section 24 and `help-vs-implementation-conflicts.md`.
+
+**82. Wizard defeat aftermath and fortress display (done).** Done when a wizard is defeated
+(`endgame::aftermath`): all their units are dismissed, their enchantments come off every city and
+unit, their nodes are freed and the conqueror takes half their gold. **Resignation built:** a
+banished wizard with other cities who resigns is defeated, their cities turn neutral (one neutral
+player each) with their garrisoned normal units, and heroes and conjured creatures are dismissed
+(`fortress.rs`, after `Resolve_Wizard_Conquest`). A computer wizard resigns at once instead of
+casting the Spell of Return if its casting skill with heroes is below 40 or it has no mana
+(`Banish_Wizard`); the human is asked at banishment (`Command::Resign`, console `resign`, a box in
+the client). The fortress and circle were already drawn as buildings in the city screen
+(`cityscape.rs`). Help [657] corrected (B44); notes in `divergences.md` section 25.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 

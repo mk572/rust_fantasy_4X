@@ -61,7 +61,7 @@ direction (up or down stream) before any asymmetric rule; the river layer curren
 direction.
 
 **2. Spell of Return options.** Today every banished wizard can cast the Spell of Return
-(`fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is task 82. Add a
+(`fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is built (task 82). Add a
 new-game setting with three values: **off** (banishment is final: the wizard is defeated),
 **player only** (the human may return, AI wizards are defeated on banishment) and **all
 wizards** (as in the original). Store it in the game settings saved with the game (new field,

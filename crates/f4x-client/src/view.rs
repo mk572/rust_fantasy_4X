@@ -174,6 +174,8 @@ pub struct App {
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// A city just taken, waiting for the player to keep or raze it.
     pub(crate) raze_prompt: Option<hecs::Entity>,
+    /// The question after the human's fortress falls: resign, or cast the Spell of Return.
+    pub(crate) resign_prompt: bool,
     /// The question of what to give up when the mana reserve cannot pay the upkeep.
     pub(crate) upkeep_prompt: Option<crate::upkeep_prompt::UpkeepPrompt>,
     /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
@@ -264,6 +266,7 @@ impl App {
             menu: Default::default(),
             console: Default::default(),
             raze_prompt: None,
+            resign_prompt: false,
             upkeep_prompt: None,
             ward_prompt: None,
             mastery_notice: std::collections::VecDeque::new(),
@@ -457,10 +460,13 @@ impl App {
                     Some(format!("The city is razed: {gold} gold looted"))
                 }
                 Event::CityDestroyed { .. } => Some("A city is destroyed".to_string()),
-                Event::WizardBanished { player, .. } if player == HUMAN => Some(
-                    "Your fortress has fallen! You are banished and cast the Spell of Return"
-                        .to_string(),
-                ),
+                Event::WizardBanished { player, .. } if player == HUMAN => {
+                    self.resign_prompt = true;
+                    Some(
+                        "Your fortress has fallen! You are banished and cast the Spell of Return"
+                            .to_string(),
+                    )
+                }
                 Event::WizardBanished { .. } => Some("A rival wizard is banished".to_string()),
                 Event::WizardReturned { player, .. } if player == HUMAN => {
                     Some("You have returned to your fortress".to_string())
@@ -868,6 +874,9 @@ impl App {
                 return self.raze_prompt_frame(city);
             }
         }
+        if self.resign_prompt && !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+            return self.resign_prompt_frame();
+        }
         if self.upkeep_prompt.is_some()
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::Console)
@@ -1116,6 +1125,61 @@ impl App {
         );
         crate::frame::text_centered(
             "R: raze it      Enter: keep it",
+            w / 2.0,
+            h / 2.0 + 30.0,
+            22.0,
+            GOLD,
+        );
+        true
+    }
+
+    /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
+    /// Spell of Return (N, Enter), shown over the map.
+    fn resign_prompt_frame(&mut self) -> bool {
+        let casting = self.game.magic(HUMAN).and_then(|m| m.casting);
+        let Some(casting) = casting.filter(|_| self.game.casting_return(HUMAN)) else {
+            self.resign_prompt = false;
+            return true;
+        };
+        if is_key_pressed(KeyCode::Y) {
+            self.resign_prompt = false;
+            let events = self.game.apply(Command::Resign { player: HUMAN });
+            self.note(events);
+        } else if is_key_pressed(KeyCode::Enter)
+            || is_key_pressed(KeyCode::N)
+            || is_key_pressed(KeyCode::Escape)
+        {
+            self.resign_prompt = false;
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let (w, h) = (screen_width(), screen_height());
+        draw_rectangle(
+            w / 2.0 - 300.0,
+            h / 2.0 - 60.0,
+            600.0,
+            120.0,
+            Color::new(0.08, 0.06, 0.04, 0.95),
+        );
+        draw_rectangle_lines(w / 2.0 - 300.0, h / 2.0 - 60.0, 600.0, 120.0, 3.0, GOLD);
+        let skill = self
+            .game
+            .magic(HUMAN)
+            .map_or(1, |m| m.casting_skill())
+            .max(1);
+        let turns = (casting.remaining + skill - 1) / skill;
+        crate::frame::text_centered(
+            &format!(
+                "There are at least {turns} turns remaining until you may return. Do you wish to resign?"
+            ),
+            w / 2.0,
+            h / 2.0 - 15.0,
+            20.0,
+            WHITE,
+        );
+        crate::frame::text_centered(
+            "Y: resign      Enter: keep casting",
             w / 2.0,
             h / 2.0 + 30.0,
             22.0,

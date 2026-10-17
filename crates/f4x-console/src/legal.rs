@@ -51,6 +51,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("cast", "cast <spell> [target]", "Cast an overland spell. A target is unit:N, city:N, tile:x,y or player:N (a Spell Ward: ward:<city>:<realm>); give it now if the spell is paid in full this turn.", cast),
     legal!("target", "target <target>", "Aim a spell that has been paid for over several turns.", target),
     legal!("cancelcast", "cancelcast", "Give up the spell being cast.", cancelcast),
+    legal!("resign", "resign", "Give up while banished: you are defeated and your cities go neutral.", resign),
     legal!("turnoff", "turnoff <spell>", "Turn off one of your own lasting spells that is on the wizard (a global enchantment).", turnoff),
     legal!("alchemy", "alchemy <amount> <gold|mana>", "Convert that much gold into mana (or mana into gold): two for one, one for one with Alchemy.", alchemy),
     legal!("bmove", "bmove <unit> <x,y>", "In battle: walk a unit to a square (`battle` lists unit numbers and squares).", bmove),
@@ -320,6 +321,11 @@ fn target(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn cancelcast(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let player = ctx.session.player;
     ctx.apply(Command::CancelCast { player })
+}
+
+fn resign(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let player = ctx.session.player;
+    ctx.apply(Command::Resign { player })
 }
 
 fn turnoff(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

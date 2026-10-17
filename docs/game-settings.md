@@ -416,7 +416,7 @@ Return casting. The check goes there:
 
 | Setting | Human banished | AI wizard banished |
 |---|---|---|
-| `All` (as the original) | Return casting starts | Return casting starts (resignation: task 82) |
+| `All` (as the original) | Return casting starts | Return casting starts, unless skill is under 40 or mana is gone: then it resigns (`fortress.rs`) |
 | `HumanOnly` | Return casting starts | defeated at once (`defeat`) |
 | `Off` | defeated at once | defeated at once |
 

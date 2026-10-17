@@ -532,3 +532,14 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   invisible units are always targetable by it. Visible invisible units are drawn as ghosts. Area
   spells still reach hidden units. Scripted and learned battle AI see only what their side sees.
   Invisibility that begins mid-battle hides at once.
+
+## 25. Banished wizards that resign (task 82)
+
+- **Resignation** follows `Banish_Wizard`/`Resolve_Wizard_Conquest`: a computer wizard banished with
+  cities left, whose casting skill with heroes is under 40 or whose mana is gone, is defeated at
+  once (no -20 relations hit, only the final -40). The human is asked at the moment of banishment
+  (`Command::Resign`, console `resign`; the client box shows the turns the spell needs).
+- A resigned wizard's cities turn neutral, one neutral player each as the independent cities are;
+  garrisoned normal units go with the city, heroes and conjured creatures are dismissed, all other
+  units are dismissed, as in the original. The original halves the human's mana twice when they
+  resign; ours halves it once.

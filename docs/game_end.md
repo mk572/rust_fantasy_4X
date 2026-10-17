@@ -42,8 +42,9 @@ until they too have lost every city.
 `endgame::aftermath(loser, winner)` runs when a wizard is defeated:
 
 - all the loser's units are dismissed (heroes, creatures and normal units). A defeated wizard
-  has no city, so none of them is garrisoned; the original turns garrisoned normal units neutral
-  only when a banished wizard resigns with cities left (not done, see task 82);
+  has no city, so none of them is garrisoned. A wizard who resigns while banished still has
+  cities: `cities_go_neutral` first turns each into a neutral city and hands it its garrisoned
+  normal units (heroes and conjured creatures are dismissed);
 - the loser's enchantments come off every city and every unit, their timers stop, their
   overland enchantments (`magic.global`) and the spell being cast are cleared;
 - their magic nodes become unowned (and lose any Guardian Spirit);
@@ -83,7 +84,6 @@ offers *New game*, *Look at the map* (the map stays visible; commands are refuse
 - The cut-scenes and the original's score screen drawing (task 134), the hall of fame (88).
 - The AI conquest rules that would feed relations (63, 67). The "has started casting"
   announcement is in as plain text (animation: task 287).
-- Resignation of a banished AI wizard, neutral cities and garrisons (task 82).
 - A difficulty setting to scale the score (task 69).
 
 ## 7. Differences from the original
@@ -93,4 +93,4 @@ offers *New game*, *Look at the map* (the map stays visible; commands are refuse
 - The original's win test is made only when a computer wizard falls and counts the human as
   the winner; here the winner is a player and the rule works for any number of wizards. The
   human's own defeat ends the game as in the original.
-- Banished AI wizards that resign (original) stay banished here (task 82).
+- A banished wizard who resigns (a weak computer wizard at once, the human by choice) is defeated, as in the original; the original's double halving of the human's mana is not copied.

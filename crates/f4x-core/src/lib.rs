@@ -236,6 +236,10 @@ pub enum Command {
         race: Option<rules::RaceId>,
         population: u32,
     },
+    /// A banished wizard gives up (the "Do you wish to resign?" of the original).
+    Resign {
+        player: city::PlayerId,
+    },
     SellBuilding {
         #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
@@ -936,6 +940,9 @@ impl Game {
                 population,
             } => self
                 .place_fortress(player, pos, name, race, population)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
+            Command::Resign { player } => self
+                .resign(player)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::DismissUnit { unit } => self.dismiss_unit(unit),
             Command::MoveItem {

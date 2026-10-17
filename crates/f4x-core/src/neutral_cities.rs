@@ -62,7 +62,7 @@ fn range(x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
 
 impl Game {
     /// A new player for one neutral city, with the lowest number not yet taken.
-    fn new_city_player(&mut self, name: &str) -> PlayerId {
+    pub(crate) fn new_city_player(&mut self, name: &str) -> PlayerId {
         let id = (FIRST_CITY_PLAYER..u8::MAX)
             .map(PlayerId)
             .find(|id| self.player(*id).is_none())

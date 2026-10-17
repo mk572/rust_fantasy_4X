@@ -29,6 +29,10 @@ pub enum FortressError {
     CannotDestroyFortress,
 }
 
+/// A computer wizard whose casting skill (with heroes) is below this resigns when banished
+/// rather than casting the Spell of Return.
+const RESIGN_BELOW_SKILL: i32 = 40;
+
 /// Hook names used by spell data for the fortress spells.
 pub const MOVE_FORTRESS: &str = "move_fortress";
 pub const MOVE_CIRCLE: &str = "move_summoning_circle";
@@ -128,6 +132,7 @@ pub(crate) fn banish_player(player: &mut Player, spell_of_return: Option<(SpellI
 pub(crate) fn defeat_player(player: &mut Player) {
     player.defeated = true;
     player.banished = false;
+    player.banished_by = None;
     player.fortress = None;
     player.summon_at = None;
     player.magic.casting = None;
@@ -279,7 +284,12 @@ impl Game {
 
     /// The fortress falls: the wizard loses it and starts casting the Spell of Return; the
     /// winner gains 5 fame and half the loser's mana. With no cities left, they are defeated.
+    /// A computer wizard who could not pay for the spell (casting skill under 40, or no mana)
+    /// resigns on the spot, as in the original (`Banish_Wizard`).
     fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+        let skill =
+            self.magic(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
+        let mana = self.player(loser).map_or(0, |p| p.mana);
         let half = self.player_mut(loser).map_or(0, fortress_falls);
         if let Some(w) = self.player_mut(winner) {
             fortress_prize(w, half);
@@ -287,11 +297,15 @@ impl Game {
         if self.economy().city_count(loser) == 0 {
             return self.defeat(loser, winner);
         }
+        if self.human != Some(loser) && (skill < RESIGN_BELOW_SKILL || mana < 1) {
+            return self.defeat(loser, winner);
+        }
         self.conquest_relations(winner, loser, false);
         let spell = self.content.rules.spells.id_of("spell_of_return");
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(p) = self.player_mut(loser) {
             banish_player(p, spell.zip(cost));
+            p.banished_by = Some(winner);
         }
         vec![Event::WizardBanished {
             player: loser,
@@ -299,10 +313,62 @@ impl Game {
         }]
     }
 
+    /// A banished wizard gives up (the original asks the human at the moment of banishment,
+    /// "Do you wish to resign?"): they are defeated by whoever took their fortress, their
+    /// cities turn neutral and everything else of theirs goes (`Resolve_Wizard_Conquest`).
+    pub fn resign(&mut self, player: PlayerId) -> Result<Vec<Event>, FortressError> {
+        let p = self.player(player).ok_or(FortressError::UnknownPlayer)?;
+        if !p.banished || p.defeated {
+            return Err(FortressError::WrongState);
+        }
+        let winner = p
+            .banished_by
+            .filter(|w| self.player(*w).is_some())
+            .or_else(|| self.living_wizards().into_iter().find(|w| *w != player))
+            .unwrap_or(player);
+        Ok(self.defeat(player, winner))
+    }
+
+    /// A defeated wizard's cities that are left (a wizard who resigned with cities) turn
+    /// neutral, each into a player of its own as the neutral cities are. Heroes and conjured
+    /// creatures in them are dismissed; the normal units garrisoned there go with the city.
+    fn cities_go_neutral(&mut self, loser: PlayerId) {
+        let cities: Vec<_> = self
+            .economy()
+            .cities()
+            .into_iter()
+            .filter(|(_, c, _)| c.owner == loser)
+            .collect();
+        for (city, c, pos) in cities {
+            let owner = self.new_city_player(&c.name);
+            let garrison: Vec<_> = self
+                .units()
+                .units_at(pos)
+                .into_iter()
+                .filter(|&u| self.units().unit_owner(u) == Some(loser))
+                .collect();
+            for u in garrison {
+                let normal = self
+                    .units()
+                    .unit_def(u)
+                    .is_some_and(|d| d.kind == crate::rules::UnitKind::Normal);
+                if normal {
+                    let _ = self.world.insert_one(u, crate::units::Owner(owner));
+                } else {
+                    self.remove_unit(u, crate::roster::Fate::Gone);
+                }
+            }
+            if let Ok(mut c) = self.world.get::<&mut City>(city) {
+                c.owner = owner;
+            }
+        }
+    }
+
     pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         if let Some(p) = self.player_mut(loser) {
             defeat_player(p);
         }
+        self.cities_go_neutral(loser);
         self.aftermath(loser, winner);
         self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];

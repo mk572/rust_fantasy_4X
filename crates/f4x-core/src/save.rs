@@ -180,6 +180,8 @@ pub struct PlayerSave {
     #[serde(default)]
     pub banished: bool,
     #[serde(default)]
+    pub banished_by: Option<u8>,
+    #[serde(default)]
     pub defeated: bool,
     #[serde(default)]
     pub defeated_by: Option<u8>,
@@ -628,6 +630,7 @@ impl Game {
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
+                banished_by: p.banished_by.map(|d| d.0),
                 defeated: p.defeated,
                 defeated_by: p.defeated_by.map(|d| d.0),
                 banner: Some(p.banner),
@@ -880,6 +883,7 @@ impl Snapshot {
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
+                banished_by: p.banished_by.map(PlayerId),
                 defeated: p.defeated,
                 defeated_by: p.defeated_by.map(PlayerId),
                 banner: p
