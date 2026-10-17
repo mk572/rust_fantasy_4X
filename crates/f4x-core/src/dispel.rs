@@ -74,6 +74,48 @@ impl Game {
         Ok(vec![Event::EnchantmentLapsed { player, spell }])
     }
 
+    /// How many land units would drown if `spell` were turned off on `unit`: the question the
+    /// sheet asks before it warns the wizard. Nothing is changed.
+    pub fn drowned_if_off(&mut self, unit: hecs::Entity, spell: SpellId) -> usize {
+        let Ok(list) = self
+            .world
+            .get::<&UnitEnchantments>(unit)
+            .map(|e| e.0.clone())
+        else {
+            return 0;
+        };
+        let kept = list.iter().copied().filter(|&(s, _)| s != spell).collect();
+        let _ = self.world.insert_one(unit, UnitEnchantments(kept));
+        let lost = self.economy().stranded().len();
+        let _ = self.world.insert_one(unit, UnitEnchantments(list));
+        lost
+    }
+
+    /// Turn off one of the wizard's own spells on a unit (`UV_Remove_Unit_Enchantment`). The
+    /// unit may be left at sea without what kept it afloat; it drowns at once, and with it
+    /// any other land unit of the square that no longer has what it needs.
+    pub fn turn_off_unit_spell(
+        &mut self,
+        player: PlayerId,
+        unit: hecs::Entity,
+        spell: SpellId,
+    ) -> Result<Vec<Event>, crate::magic::MagicError> {
+        use crate::magic::MagicError::NoSuchTarget;
+        let list = self
+            .world
+            .get::<&UnitEnchantments>(unit)
+            .map(|e| e.0.clone())
+            .map_err(|_| NoSuchTarget)?;
+        if !list.contains(&(spell, player)) {
+            return Err(NoSuchTarget);
+        }
+        let kept = list.into_iter().filter(|&e| e != (spell, player)).collect();
+        let _ = self.world.insert_one(unit, UnitEnchantments(kept));
+        let mut events = vec![Event::EnchantmentLapsed { player, spell }];
+        events.extend(self.drown_stranded());
+        Ok(events)
+    }
+
     /// How many times its cost a spell cast by `caster` resists: one, plus one for the
     /// caster's mastery of its realm and one for Archmage.
     pub fn dispel_multiplier(&self, realm: &str, caster: Option<PlayerId>) -> u32 {

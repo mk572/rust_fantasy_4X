@@ -50,6 +50,8 @@ pub(crate) struct Special {
     pub icon: Option<usize>,
     /// The lasting spell this line is, when it is one.
     pub spell: Option<f4x_core::rules::SpellId>,
+    /// A click on the line turns the spell off: it is the viewer's own and not in a battle.
+    pub removable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -285,8 +287,8 @@ pub(crate) struct SpecialsInput<'a> {
     pub transport: i32,
     /// Display name of an ability id.
     pub ability_name: &'a dyn Fn(&str) -> String,
-    /// Lasting spells on the unit: spell, id, name.
-    pub enchantments: Vec<(f4x_core::rules::SpellId, String, String)>,
+    /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
+    pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool)>,
 }
 
 /// The abilities list in the original's order: level, quiver, to hit, construction, the listed
@@ -297,6 +299,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         name,
         icon,
         spell: None,
+        removable: false,
     };
     if let Some((name, xp, level)) = input.level {
         out.push(plain(format!("{name} ({xp} ep)"), Some(102 + level.min(5))));
@@ -339,11 +342,12 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
     if input.undead {
         out.push(plain("Undead".to_string(), Some(120)));
     }
-    for (spell, id, name) in &input.enchantments {
+    for (spell, id, name, removable) in &input.enchantments {
         out.push(Special {
             name: name.clone(),
             icon: enchantment_icon(id),
             spell: Some(*spell),
+            removable: *removable,
         });
     }
     out
@@ -486,9 +490,14 @@ impl App {
         let enchantments = units
             .unit_enchantments(unit)
             .into_iter()
-            .map(|(spell, _)| {
+            .map(|(spell, caster)| {
                 let def = content.rules.spells.get(spell);
-                (spell, def.id.clone(), def.name.clone())
+                (
+                    spell,
+                    def.id.clone(),
+                    def.name.clone(),
+                    caster == crate::view::HUMAN,
+                )
             })
             .collect();
         let mana = if abilities.iter().any(|a| a == "spellcaster_major") {
@@ -686,11 +695,12 @@ impl App {
                     spell,
                     id.clone(),
                     content.rules.spells.get(spell).name.clone(),
+                    false,
                 ))
             })
             .chain(u.combat_spells.iter().map(|&(spell, _)| {
                 let s = content.rules.spells.get(spell);
-                (spell, s.id.clone(), s.name.clone())
+                (spell, s.id.clone(), s.name.clone(), false)
             }))
             .collect();
         let specials = specials(&SpecialsInput {

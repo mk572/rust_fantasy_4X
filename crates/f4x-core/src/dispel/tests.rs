@@ -433,3 +433,89 @@ fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() {
         0
     );
 }
+
+#[test]
+fn a_wizard_turns_off_only_their_own_spell_on_a_unit() {
+    let mut g = world();
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let unit = g.spawn_unit(P0, at(3, 3), spear);
+    let strength = sp(&g, "giant_strength");
+    g.attach_enchantment(Target::Unit(unit), strength, P0);
+    g.attach_enchantment(Target::Unit(unit), strength, P1);
+    let off = |g: &mut Game, player| {
+        g.apply(Command::TurnOffUnitSpell {
+            player,
+            unit,
+            spell: strength,
+        })
+    };
+    assert_eq!(
+        off(&mut g, P0),
+        vec![Event::EnchantmentLapsed {
+            player: P0,
+            spell: strength
+        }]
+    );
+    assert_eq!(g.units().unit_enchantments(unit), vec![(strength, P1)]);
+    // The other wizard's copy is not theirs to turn off; nor is it a second time.
+    assert!(matches!(off(&mut g, P0)[..], [Event::Rejected(_)]));
+    assert_eq!(g.units().unit_enchantments(unit), vec![(strength, P1)]);
+}
+
+#[test]
+fn turning_off_water_walking_at_sea_drowns_the_unit() {
+    let mut g = world();
+    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set(3, 3, ocean);
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let unit = g.spawn_unit(P0, at(3, 3), spear);
+    let walking = sp(&g, "water_walking");
+    g.attach_enchantment(Target::Unit(unit), walking, P0);
+    assert!(
+        g.drown_stranded().is_empty(),
+        "afloat while the spell holds"
+    );
+    assert_eq!(g.drowned_if_off(unit, walking), 1);
+    assert_eq!(g.units().unit_enchantments(unit), vec![(walking, P0)]);
+    let events = g.apply(Command::TurnOffUnitSpell {
+        player: P0,
+        unit,
+        spell: walking,
+    });
+    assert!(events.contains(&Event::UnitsDrowned {
+        player: P0,
+        units: 1
+    }));
+    assert!(g.world.get::<&crate::units::Unit>(unit).is_err());
+}
+
+#[test]
+fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() {
+    let mut g = world();
+    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    g.map
+        .as_mut()
+        .unwrap()
+        .plane_mut(Plane::Arcanus)
+        .set(3, 3, ocean);
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let unit = g.spawn_unit(P0, at(3, 3), spear);
+    let flight = sp(&g, "flight");
+    g.attach_enchantment(Target::Unit(unit), flight, P0);
+    assert!(g.units().unit_has_ability(unit, "flying"));
+    assert!(g.drown_stranded().is_empty());
+    assert_eq!(g.drowned_if_off(unit, flight), 1);
+    let events = g.apply(Command::TurnOffUnitSpell {
+        player: P0,
+        unit,
+        spell: flight,
+    });
+    assert!(events.contains(&Event::UnitsDrowned {
+        player: P0,
+        units: 1
+    }));
+}

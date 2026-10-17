@@ -30,6 +30,17 @@ pub(crate) struct SheetUi {
     pub first: usize,
     /// Dismiss was clicked and waits for a yes.
     pub confirm: bool,
+    /// A lasting spell of the viewer's was clicked and waits for a yes.
+    pub turn_off: Option<TurnOff>,
+}
+
+/// The question "turn off this spell?" (`UV_Remove_Unit_Enchantment`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TurnOff {
+    pub spell: f4x_core::rules::SpellId,
+    pub name: String,
+    /// Land units that drown when the spell goes (this one and perhaps others).
+    pub drowned: usize,
 }
 
 impl App {
@@ -48,8 +59,9 @@ impl App {
     }
 
     /// For the screenshot check: open the sheet of unit `n` of the starting stack, or of the
-    /// test battle when one is on.
-    pub fn open_test_sheet(&mut self, n: usize) {
+    /// test battle when one is on. `spell` is put on the unit first (cast by you), and `ask`
+    /// clicks its line so the question to turn it off is open.
+    pub fn open_test_sheet(&mut self, n: usize, spell: Option<&str>, ask: bool) {
         if let Some(battle) = self.game.battle().cloned() {
             self.open_battle_sheet(&battle, n);
             return;
@@ -57,8 +69,23 @@ impl App {
         if self.selection.is_empty() {
             self.select_first_stack();
         }
-        if let Some(&unit) = self.selection.get(n) {
-            self.open_unit_sheet(unit);
+        let Some(&unit) = self.selection.get(n) else {
+            return;
+        };
+        let spell = spell.and_then(|id| self.game.content().rules.spells.id_of(id));
+        if let Some(spell) = spell {
+            let who = f4x_core::rules::exec::Target::Unit(unit);
+            self.game.attach_enchantment(who, spell, crate::view::HUMAN);
+        }
+        self.open_unit_sheet(unit);
+        if let (Some(spell), true) = (spell, ask) {
+            let name = self.game.content().rules.spells.get(spell).name.clone();
+            let drowned = self.game.drowned_if_off(unit, spell);
+            self.sheet_ui.turn_off = Some(TurnOff {
+                spell,
+                name,
+                drowned,
+            });
         }
     }
 
@@ -68,6 +95,7 @@ impl App {
             back: Some(self.screen),
             first: 0,
             confirm: false,
+            turn_off: None,
         };
         self.screen = Screen::UnitSheet;
     }
@@ -87,6 +115,9 @@ impl App {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
 
+        // A box that opens this frame waits for the next, so its own click does not answer it.
+        let (was_confirming, was_turning_off) =
+            (self.sheet_ui.confirm, self.sheet_ui.turn_off.is_some());
         self.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle);
 
         // Buttons and leaving.
@@ -94,12 +125,14 @@ impl App {
         if !in_battle {
             let ok = self.red_button(&lay, "OK", px + 222.0, py + 162.0);
             let dismiss = sheet.can_dismiss
+                && self.red_button(&lay, "Dismiss", px + 222.0, py + 143.0)
                 && !self.sheet_ui.confirm
-                && self.red_button(&lay, "Dismiss", px + 222.0, py + 143.0);
+                && self.sheet_ui.turn_off.is_none();
             if !sheet.can_dismiss {
                 self.red_button_face(&lay, "Dismiss", px + 222.0, py + 143.0, false);
             }
-            if ok || (is_key_pressed(KeyCode::Enter) && !self.sheet_ui.confirm) {
+            let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
+            if ok || (is_key_pressed(KeyCode::Enter) && !asking) {
                 leave = true;
             }
             if dismiss || (sheet.can_dismiss && is_key_pressed(KeyCode::D)) {
@@ -108,8 +141,15 @@ impl App {
         } else if is_key_pressed(KeyCode::Enter) {
             leave = true;
         }
-        if self.sheet_ui.confirm {
+        if was_confirming {
             self.dismiss_confirmation(&lay, &sheet);
+            return;
+        }
+        if was_turning_off {
+            self.turn_off_confirmation(&lay, &sheet);
+            return;
+        }
+        if self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some() {
             return;
         }
         // A click away from the panel leaves too.
@@ -250,6 +290,22 @@ impl App {
                 y + 5.0,
                 Align::Left,
             );
+            let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
+            if let (true, false, Some(spell), Source::Overland(unit)) =
+                (special.removable, asking, special.spell, sheet.source)
+            {
+                let line = lay.rect((x - 1.0, y - 1.0, 105.0, 17.0));
+                if is_mouse_button_pressed(MouseButton::Left)
+                    && line.contains(mouse_position().into())
+                {
+                    let drowned = self.game.drowned_if_off(unit, spell);
+                    self.sheet_ui.turn_off = Some(TurnOff {
+                        spell,
+                        name: special.name.clone(),
+                        drowned,
+                    });
+                }
+            }
         }
         if multipage {
             let up = self.arrow_button(lay, 3, px + 204.0, py + 105.0);
@@ -264,34 +320,59 @@ impl App {
         }
     }
 
-    /// Ask whether to dismiss the unit; Yes sends the command and leaves.
+    /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
+    /// command and leaves.
     fn dismiss_confirmation(&mut self, lay: &Layout, sheet: &Sheet) {
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let r = lay.rect((60.0, 70.0, 200.0, 56.0));
-        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.06, 0.18, 0.2, 0.98));
-        draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.8, 0.65, 0.3, 1.0));
-        self.bm_text(
-            view,
-            1,
-            light,
-            &format!("Do you wish to disband the unit of {}?", sheet.name),
-            160.0,
-            78.0,
-            Align::Center,
-        );
-        let yes = self.red_button(lay, "Yes", 92.0, 100.0);
-        let no = self.red_button(lay, "No", 180.0, 100.0);
-        if yes || is_key_pressed(KeyCode::Y) {
-            if let Source::Overland(unit) = sheet.source {
-                let events = self.game.apply(Command::DismissUnit { unit });
-                self.note(events);
-                self.selection.retain(|&u| u != unit);
+        let text = format!("Do you wish to disband the unit of {}?", sheet.name);
+        match self.confirmation_box(lay, &text) {
+            Some(true) => {
+                if let Source::Overland(unit) = sheet.source {
+                    let events = self.game.apply(Command::DismissUnit { unit });
+                    self.note(events);
+                    self.selection.retain(|&u| u != unit);
+                }
+                self.sheet_ui.confirm = false;
+                self.close_sheet();
             }
-            self.sheet_ui.confirm = false;
-            self.close_sheet();
-        } else if no || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
-            self.sheet_ui.confirm = false;
+            Some(false) => self.sheet_ui.confirm = false,
+            None => {}
+        }
+    }
+
+    /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command. The
+    /// question and the warning are the original's words.
+    fn turn_off_confirmation(&mut self, lay: &Layout, sheet: &Sheet) {
+        let (Some(ask), Source::Overland(unit)) = (self.sheet_ui.turn_off.clone(), sheet.source)
+        else {
+            self.sheet_ui.turn_off = None;
+            return;
+        };
+        let mut text = format!("Do you wish to turn off the {} spell?", ask.name);
+        match ask.drowned {
+            0 => {}
+            1 => text.push_str("  This unit will die if the spell is removed!"),
+            _ => text.push_str("  This unit and other units will die if the spell is removed!"),
+        }
+        match self.confirmation_box(lay, &text) {
+            Some(true) => {
+                let events = self.game.apply(Command::TurnOffUnitSpell {
+                    player: crate::view::HUMAN,
+                    unit,
+                    spell: ask.spell,
+                });
+                self.note(events);
+                self.sheet_ui.turn_off = None;
+                // The unit may be gone; otherwise the sheet is drawn again without the line.
+                if self.game.units().unit_position(unit).is_none() {
+                    self.selection.retain(|&u| u != unit);
+                    self.close_sheet();
+                } else if let Some(fresh) = self.overland_sheet(unit) {
+                    self.sheet_ui.sheet = Some(fresh);
+                    self.sheet_ui.first = 0;
+                }
+            }
+            Some(false) => self.sheet_ui.turn_off = None,
+            None => {}
         }
     }
 

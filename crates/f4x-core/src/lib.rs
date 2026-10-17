@@ -179,6 +179,14 @@ pub enum Command {
         #[serde(with = "replay::stable_ref::one")]
         unit: hecs::Entity,
     },
+    /// The unit sheet: turn off one of the wizard's own lasting spells on a unit. A unit that
+    /// then stands at sea without flight or water walking drowns.
+    TurnOffUnitSpell {
+        player: city::PlayerId,
+        #[serde(with = "replay::stable_ref::one")]
+        unit: hecs::Entity,
+        spell: rules::SpellId,
+    },
     /// The item screen: move an item between the vault, the award list and a hero's slots.
     /// `pay` agrees to the mana a transfer to a far-off hero costs.
     MoveItem {
@@ -1129,6 +1137,11 @@ impl Game {
                 city,
                 spell,
             } => events_or_reject(self.turn_off_city_spell(player, city, spell)),
+            Command::TurnOffUnitSpell {
+                player,
+                unit,
+                spell,
+            } => events_or_reject(self.turn_off_unit_spell(player, unit, spell)),
             Command::Alchemy {
                 player,
                 amount,

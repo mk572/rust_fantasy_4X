@@ -686,8 +686,8 @@ impl Game {
     }
 
     /// Put a lasting spell on its target: a unit or city carries it with its caster, a
-    /// wizard-wide one is kept on the wizard.
-    pub(crate) fn attach_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
+    /// wizard-wide one is kept on the wizard. No cost, no checks (the screenshot options use it).
+    pub fn attach_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
         match who {
             Target::City(c) | Target::CityRealm(c, _) => {
                 let mut list = self

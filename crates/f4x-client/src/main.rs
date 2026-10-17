@@ -131,6 +131,10 @@ struct Options {
     event: Option<String>,
     /// With `--shot`, open the sheet of this unit of the stack (or of the test battle).
     sheet: Option<usize>,
+    /// With `--sheet`, first put this lasting spell (an id) on the unit, cast by you.
+    sheet_spell: Option<String>,
+    /// With `--sheet-spell`, also click the spell's line so the question is open.
+    sheet_ask: bool,
     /// With `--shot`, end this many turns first.
     turns: u32,
     /// Start from a saved game.
@@ -177,6 +181,8 @@ fn parse_args() -> Result<Options, String> {
         load: None,
         save: None,
         sheet: None,
+        sheet_spell: None,
+        sheet_ask: false,
         armies: false,
         cities: false,
         outpost: None,
@@ -232,6 +238,8 @@ fn parse_args() -> Result<Options, String> {
                         .map_err(|_| "--sheet must be a unit number")?,
                 )
             }
+            "--sheet-spell" => o.sheet_spell = Some(value("--sheet-spell")?),
+            "--sheet-ask" => o.sheet_ask = true,
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
             "--wizard" => {
@@ -319,7 +327,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--upkeep] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -451,7 +459,7 @@ async fn main() {
         app.open_test_event(kind);
     }
     if let Some(n) = options.sheet {
-        app.open_test_sheet(n);
+        app.open_test_sheet(n, options.sheet_spell.as_deref(), options.sheet_ask);
     }
     if let Some((x, y)) = options.survey_at {
         app.survey_probe = if x == u32::MAX {
