@@ -285,6 +285,15 @@ impl App {
             .find(|&s| battle.player_of(s) == HUMAN)
     }
 
+    /// The unit on a square, as far as the human's side can make it out: an invisible enemy
+    /// that has not given itself away is not there.
+    fn seen_unit_at(battle: &Battle, cell: Pos) -> Option<&BattleUnit> {
+        let viewer = Self::human_side(battle);
+        battle
+            .unit_at(cell)
+            .filter(|u| viewer.is_none_or(|v| battle.seen_by(v, u.id)))
+    }
+
     /// Start a battle for the stack the human just moved, or for a site's guards.
     pub(crate) fn begin_battle(&mut self, command: Command) {
         self.battle_ui = BattleUi::default();
@@ -736,7 +745,7 @@ impl App {
         }
         if is_mouse_button_pressed(MouseButton::Right) {
             // A right-click on a unit opens its statistics sheet.
-            if let Some(u) = hovered.and_then(|cell| battle.unit_at(cell)) {
+            if let Some(u) = hovered.and_then(|cell| Self::seen_unit_at(battle, cell)) {
                 let id = u.id;
                 self.open_battle_sheet(battle, id);
                 return;
@@ -769,7 +778,7 @@ impl App {
                 return;
             }
         }
-        let target = battle.unit_at(cell).map(|u| (u.id, u.side));
+        let target = Self::seen_unit_at(battle, cell).map(|u| (u.id, u.side));
         let sel = selected
             .and_then(|i| battle.unit(i))
             .filter(|u| unfinished(u));
@@ -937,7 +946,7 @@ impl App {
                 .filter(|_| on_grid)
                 .and_then(|cell| match aim.target {
                     SpellTarget::Tile => Some(SpellAim::Tile(cell)),
-                    _ => battle.unit_at(cell).map(|u| SpellAim::Unit(u.id)),
+                    _ => Self::seen_unit_at(battle, cell).map(|u| SpellAim::Unit(u.id)),
                 })
         } else {
             None
@@ -965,7 +974,7 @@ impl App {
         };
         match aim.target {
             SpellTarget::Tile => aim.tiles.contains(&cell),
-            target => battle.unit_at(cell).is_some_and(|u| match target {
+            target => Self::seen_unit_at(battle, cell).is_some_and(|u| match target {
                 SpellTarget::OwnUnit => u.side == side,
                 SpellTarget::EnemyUnit => u.side != side,
                 _ => true,
@@ -1210,7 +1219,12 @@ impl App {
         // Scenery, walls and units, far rows first so near ones cover them.
         let mut items = self.scenery_pieces(battle);
         let mut looks: HashMap<usize, Visual> = HashMap::new();
-        for u in battle.units.iter().filter(|u| u.is_active()) {
+        let viewer = Self::human_side(battle);
+        for u in battle
+            .units
+            .iter()
+            .filter(|u| u.is_active() && viewer.is_none_or(|v| battle.seen_by(v, u.id)))
+        {
             let vis = self.visual_of(battle, u.id);
             let depth = ((GRID_W - 1) as f32 - vis.at.0 + vis.at.1) * 100.0;
             items.push((depth.round() as i32, 2, u.cell, Piece::Unit(u.id)));
@@ -1265,7 +1279,10 @@ impl App {
                         }
                     }
                 }
-                for e in battle.active_units(u.side.other()) {
+                for e in battle
+                    .active_units(u.side.other())
+                    .filter(|e| battle.seen_by(u.side, e.id))
+                {
                     let hit = if distance(u.cell, e.cell) == 1 {
                         !u.attacked
                     } else {
@@ -1602,7 +1619,7 @@ impl App {
 
         // The unit under the pointer, else the selected one.
         let shown = hovered
-            .and_then(|p| battle.unit_at(p))
+            .and_then(|p| Self::seen_unit_at(battle, p))
             .or_else(|| self.battle_ui.selected.and_then(|i| battle.unit(i)));
         if let Some(u) = shown {
             draw_text(&u.name, x + 12.0, y, 22.0, WHITE);

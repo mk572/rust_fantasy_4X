@@ -30,7 +30,7 @@ Written in our own words; nothing here is copied from either source.
 | B9 Heroism | Combat uses the same level calculation as overland: Heroism sets the Elite floor, Warlord and Crusade add on top. (ReMoM's note offers two fixes and does not pick; this one matches the help.) |
 | B10 Undead | Undead also get cold, poison and illusion immunity (done, task 29: `undead.rs`; Holy Word's extra -5 for undead also follows the help, the original has it reversed). |
 | B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
-| B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction. |
+| B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction (done: one roll per point of damage). |
 | B14 Forester's Guild | Its food counts toward a city's maximum size. |
 | B15 Swamp | Half a food (done: `terrain.ron` counts food in half-units, swamp is 1). |
 | B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). Done: a node square takes over its terrain and gives the food in `land_food` on the feature (sorcery 4, nature 4, chaos 0, in half-food units). |
@@ -43,7 +43,7 @@ Written in our own words; nothing here is copied from either source.
 | B21 Disenchant | Dispels only other wizards' enchantments, by the usual chance (`dispel.rs`, task 59); the code's always-succeeding roll and its test against the caster are not followed. |
 | B27 Holy Word | The undead get an extra -5 to resist it, as the help says (the original has it reversed). |
 | B28 Crusade | Raises heroes as well as normal units, as the original code does; the help says "normal units". Not for the undead or creatures. |
-| B29 Invisibility [401] | The unit takes 1 off the attacker's chance to hit (an attacker immune to illusions ignores it), as the original's code does. The help also says the unit "is susceptible only to ranged attacks when adjacent to an enemy"; that is not built. |
+| B29 Invisibility [401] | The unit takes 1 off the attacker's chance to hit (an attacker immune to illusions ignores it), as the original's code does. In battle, our own rule (task 78, as the spell's help describes): an invisible unit is unseen by the enemy, which cannot attack, shoot at or aim a spell at it, until it stands next to an enemy unit, attacks or casts a spell (it stays in view until its side's next turn); a unit immune to illusions sees it; area spells reach it. The original uses this only for the computer players' choice of target (`Target_Is_Visible`). On the world map an invisible unit shows only to a viewer with an illusion-immune unit in sight, and moving into its square asks to attack it as for any other unit. |
 
 ### Decided by rule 2 (ReMoM to-do)
 | # | Decision |

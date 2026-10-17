@@ -293,6 +293,12 @@ impl Battle {
             self.units[i].take_off_field();
             let wanted = self.field_bonus_for(&self.units[i]);
             self.units[i].put_on_field(wanted);
+            // Invisibility that begins now hides the unit at once.
+            let invisible = self.units[i].is_invisible();
+            if invisible && !self.units[i].was_invisible {
+                self.units[i].revealed = false;
+            }
+            self.units[i].was_invisible = invisible;
         }
     }
 

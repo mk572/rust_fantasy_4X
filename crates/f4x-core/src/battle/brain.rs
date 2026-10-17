@@ -36,7 +36,10 @@ pub fn next_command(game: &Game) -> Option<BattleCommand> {
 /// the unit's own mana. A free cast (a charge, an ability) costs nothing.
 pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
-    let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
+    let enemies: Vec<&BattleUnit> = battle
+        .active_units(side.other())
+        .filter(|e| battle.seen_by(side, e.id))
+        .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
     let floor = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max) * WORTH_FLOOR;
     // A demon is worth calling whenever the unit can: it is free and strong.
@@ -83,7 +86,10 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let player = battle.player_of(side);
     let reserve = game.player(player).map_or(0, |p| p.mana);
     let upkeep = game.income(player).mana_upkeep;
-    let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
+    let enemies: Vec<&BattleUnit> = battle
+        .active_units(side.other())
+        .filter(|e| battle.seen_by(side, e.id))
+        .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
     let floor = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max) * WORTH_FLOOR;
     let mut best: Option<(f32, BattleCommand)> = None;

@@ -195,6 +195,12 @@ pub struct BattleUnit {
     pub damage_kinds: [i32; 3],
     /// Has attacked or shot this turn.
     pub attacked: bool,
+    /// An invisible unit that gave itself away by attacking or casting: the other side sees it
+    /// until its own next turn begins.
+    pub revealed: bool,
+    /// Whether it was invisible when the field was last refreshed, to tell when invisibility
+    /// begins (it hides the unit at once).
+    pub(crate) was_invisible: bool,
     /// Lasting spells cast on it in this battle, and who cast them. They last until the battle
     /// ends or a dispel takes them off.
     pub combat_spells: Vec<(SpellId, PlayerId)>,
@@ -283,6 +289,8 @@ impl BattleUnit {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: false,
+            revealed: false,
+            was_invisible: false,
             combat_spells: Vec::new(),
             base: None,
             field: FieldBonus::default(),
@@ -570,6 +578,8 @@ pub enum BattleError {
     OutOfAmmo,
     /// Target on the same side, or dead.
     BadTarget,
+    /// An invisible enemy the side cannot see: it cannot be aimed at.
+    Unseen,
     /// No standing wall there.
     NoWall,
     /// Only the attackers' wall crushers attack walls.
@@ -940,6 +950,7 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
+            u.revealed = false;
         }
         if let Some(caster) = &mut self.casters[side.index()] {
             caster.cast_this_turn = false;
@@ -1033,6 +1044,7 @@ impl Battle {
         }
         let u = &mut self.units[unit];
         u.attacked = true;
+        u.revealed = true;
         if ranged {
             u.spend_shot();
         } else {
@@ -1092,6 +1104,22 @@ impl Battle {
         i32::from(self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity"))
     }
 
+    /// Whether `viewer`'s side can make out unit `id`. Its own units always; an invisible enemy
+    /// only when the viewer has a unit immune to illusions, when one of the viewer's units
+    /// stands next to it, or while it shows itself by having attacked or cast a spell. What
+    /// cannot be seen cannot be aimed at, and its place is not shown (spells that strike a
+    /// whole area still reach it).
+    pub fn seen_by(&self, viewer: Side, id: usize) -> bool {
+        let Some(u) = self.units.get(id) else {
+            return false;
+        };
+        if u.side == viewer || !u.is_invisible() || u.revealed {
+            return true;
+        }
+        self.active_units(viewer)
+            .any(|e| e.has("illusion_immunity") || distance(e.cell, u.cell) == 1)
+    }
+
     /// Whether a Spell Ward keeps `side` from casting spells of `realm`: it guards the city
     /// against that realm and the side is attacking the city.
     pub fn ward_stops(&self, side: Side, realm: &str) -> bool {
@@ -1139,6 +1167,9 @@ impl Battle {
         let t = self.units.get(target).ok_or(BattleError::NoSuchUnit)?;
         if !t.is_active() || t.side == self.units[unit].side {
             return Err(BattleError::BadTarget);
+        }
+        if !self.seen_by(self.units[unit].side, target) {
+            return Err(BattleError::Unseen);
         }
         Ok(t)
     }
@@ -1366,6 +1397,7 @@ impl Battle {
         self.units[att].heal_kinds(out.dealt.healed);
         self.units[def].heal_kinds(out.taken.healed);
         self.units[att].attacked = true;
+        self.units[att].revealed = true;
         self.units[att].moves_left = 0;
         for id in [att, def] {
             if !self.units[id].is_active() {
@@ -1410,6 +1442,7 @@ impl Battle {
         }
         a.spend_shot();
         a.attacked = true;
+        a.revealed = true;
         let mut events = vec![BattleEvent::Shot {
             attacker: att,
             defender: def,

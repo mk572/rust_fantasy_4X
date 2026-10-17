@@ -72,6 +72,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 73 | Meta | Save-format migration (done) |
 | 74 | Meta | Stable command references for replays (done) |
 | 75 | Client | Wizard overview screen (done) |
+| 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) (done) |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
@@ -190,6 +191,12 @@ conversion step before `restore` has no use. Version 1 is the only format; saves
 simply not loaded.
 
 **74. Stable command references (done).** Commands carry `hecs` entity ids, which change when a game is loaded or an undo rebuilds the world, so a command log could not cross a load. **Done for local play** (replays and saving a game with its history): `replay.rs` writes every accepted command with creation numbers (`Serial`) in place of its entities (`serde(with)` helpers on the `Command` fields, `Target` and `ItemSpot`), keeps the start snapshot beside them (`Game::start_recording`, `stop_recording`, `replay_so_far`), and `Replay::play` rebuilds the game from the snapshot and applies the commands, resolving the numbers against the game it is playing into; a refused or undone command is dropped from the record, and a replayed game goes on recording. Console: `record [start|stop [name]|status]`, `replay [name] [count]` (`saves/<name>.replay.ron`). `Command` itself is unchanged, so no call site moved. Not done: the client has no replay menu, and a battle in progress cannot be recorded (a snapshot holds none). Multiplayer is not part of it: `PLANNED.md` item 36 (to be discussed).
+
+**78. Open conflict decisions (done).** Items still marked "Check" or open in
+`help-vs-implementation-conflicts.md`: B9 Heroism, B10 undead immunities, B11 Evil Omens cost,
+B12 legendary fame (decided, not built), B13 Blur, C3
+Invisibility. (B15 swamp food and B16 node food are done, with river and shore food.) Decide each, apply to content and help, and add the "[Updated from game code]" note
+where the help changes.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 

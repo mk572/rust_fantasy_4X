@@ -27,7 +27,10 @@ impl Battle {
                 let shoots = matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
                     && u.ranged > 0
                     && u.ammo > 0;
-                for t in self.active_units(side.other()) {
+                for t in self
+                    .active_units(side.other())
+                    .filter(|t| self.seen_by(side, t.id))
+                {
                     if distance(u.cell, t.cell) == 1 {
                         out.push(BattleCommand::Attack { unit, target: t.id });
                     }

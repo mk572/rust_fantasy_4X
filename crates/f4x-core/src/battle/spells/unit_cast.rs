@@ -314,6 +314,7 @@ impl Game {
         let u = &mut battle.units[unit];
         u.moves_left = 0;
         u.attacked = true;
+        u.revealed = true;
         let spell_save = u.casting.spell_save;
         match source {
             SpellSource::Mana => {

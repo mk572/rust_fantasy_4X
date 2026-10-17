@@ -13,10 +13,11 @@ use super::immunity::{AttackNature, Immunities};
 use super::map::{distance, in_city_area, Pos};
 use super::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 
-/// The nearest active enemy (lowest id on ties).
+/// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
     battle
         .active_units(unit.side.other())
+        .filter(|e| battle.seen_by(unit.side, e.id))
         .min_by_key(|e| (distance(unit.cell, e.cell), e.id))
 }
 
@@ -191,7 +192,10 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         if unit.attacked && unit.moves_left == 0 {
             continue;
         }
-        let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
+        let enemies: Vec<&BattleUnit> = battle
+            .active_units(side.other())
+            .filter(|e| battle.seen_by(side, e.id))
+            .collect();
         let Some(&nearest) = enemies
             .iter()
             .min_by_key(|e| (distance(unit.cell, e.cell), e.id))

@@ -486,12 +486,13 @@ impl<'a> Economy<'a> {
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
         for &(p, shared) in &area {
-            let Some(def) = grid
+            if grid
                 .get(p.x as i32, p.y as i32)
                 .and_then(|t| self.content.terrains.get(t))
-            else {
+                .is_none()
+            {
                 continue;
-            };
+            }
             // Corrupted land gives nothing at all.
             let corrupted = grid.is_corrupted(p.x as i32, p.y as i32);
             blighted += i32::from(corrupted);

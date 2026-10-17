@@ -515,3 +515,19 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
 - What counts as fame: earned fame, Legendary heroes (task 47), and 10 while Just Cause lasts
   (`Game::fame`). Fame lowers gold upkeep one for one and raises the chance and the quality of
   hero, mercenary and merchant offers. Each wizard's own fame is used (section 11).
+
+## 24. Terrain food, production and invisibility (task 78)
+
+- **Square food and production** follow the original's `Square_Food_x2` and `Square_Production_Bonus`
+  (`Economy::square_food`, `square_production`): river squares, shore water, lakes and river mouths,
+  and magic nodes (which take over their square) give the original's food; Gaia's Blessing doubles
+  forests and nature nodes. A river square gives no production bonus, as in the original, where a
+  river replaces the land. Details in `help-vs-implementation-conflicts.md`.
+- **Blur** takes one roll per point of damage; the original's loop caps the loss near half.
+- **Invisibility in battle** is a rule for every side, not only the computer players' targeting as
+  in the original (`Battle::seen_by`): an invisible unit is unseen by the enemy, so it cannot be
+  attacked, shot at or picked by a spell, until it is next to an enemy unit, has attacked or cast
+  (it then stays in view until its side's next turn) or the enemy has a unit immune to
+  illusions. Spells that strike an area still reach it. Scripted and learned battle AI see only
+  what their side sees. Invisibility that begins mid-battle hides at once. The -1 to hit stays.
+

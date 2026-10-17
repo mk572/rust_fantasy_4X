@@ -19,7 +19,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
 | 76 | Client | Background music |
-| 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
 | 81 | Housekeeping | Packaging for Mac |
 | 82 | Meta | Wizard defeat aftermath and fortress display |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics |
@@ -153,12 +152,6 @@ ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow 
 victory and defeat, and the diplomacy screen's own tune), looping and crossfading, with a volume setting (94). The original's music
 can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
 repo ships none); decide the audio crate, and keep the game silent and working without files.
-
-**78. Open conflict decisions.** Items still marked "Check" or open in
-`help-vs-implementation-conflicts.md`: B9 Heroism, B10 undead immunities, B11 Evil Omens cost,
-B12 legendary fame (decided, not built), B13 Blur, C3
-Invisibility. (B15 swamp food and B16 node food are done, with river and shore food.) Decide each, apply to content and help, and add the "[Updated from game code]" note
-where the help changes.
 
 **81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
 per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the

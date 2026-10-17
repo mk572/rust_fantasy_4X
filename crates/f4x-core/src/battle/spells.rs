@@ -695,6 +695,10 @@ impl Game {
                 {
                     return Err(SpellError::BadTarget);
                 }
+                // An invisible enemy that cannot be seen cannot be picked.
+                if !battle.seen_by(side, id) {
+                    return Err(SpellError::BadTarget);
+                }
                 // Death creatures, born so or undead, cannot be healed.
                 if matches!(kind, Kind::Heal { all: false, .. }) && u.realm == Some(Realm::Death) {
                     return Err(SpellError::BadTarget);

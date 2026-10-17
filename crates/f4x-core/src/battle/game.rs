@@ -268,6 +268,8 @@ impl Game {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: self.unit_in_stasis(unit),
+            revealed: false,
+            was_invisible: false,
             combat_spells: Vec::new(),
             base: None,
             field: Default::default(),

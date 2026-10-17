@@ -3702,3 +3702,84 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() {
         g.snapshot().to_text().unwrap()
     );
 }
+
+fn ghost(side: Side, cell: Pos) -> BattleUnit {
+    let mut u = spearman(side, cell);
+    u.abilities.push("invisibility".into());
+    u
+}
+
+#[test]
+fn an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        ghost(Side::Defender, (17, 10)),
+        1,
+    );
+    assert!(!b.seen_by(Side::Attacker, 1), "hidden from the start");
+    assert!(b.seen_by(Side::Defender, 1), "its own side sees it");
+    assert_eq!(
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
+        Err(BattleError::Unseen)
+    );
+    assert!(!b.legal_commands().iter().any(|c| matches!(
+        c,
+        BattleCommand::Attack { target: 1, .. } | BattleCommand::Shoot { target: 1, .. }
+    )));
+    // An enemy unit next to it sees it, and any attacker may then aim at it.
+    b.units[0].cell = (16, 10);
+    assert!(b.seen_by(Side::Attacker, 1));
+    assert!(b
+        .legal_commands()
+        .iter()
+        .any(|c| matches!(c, BattleCommand::Attack { target: 1, .. })));
+}
+
+#[test]
+fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        ghost(Side::Defender, (5, 10)),
+        1,
+    );
+    b.apply(BattleCommand::EndTurn).unwrap();
+    // The ghost walks up to the spearman and strikes it.
+    b.apply(BattleCommand::Move {
+        unit: 1,
+        to: (4, 10),
+    })
+    .unwrap();
+    b.apply(BattleCommand::Attack { unit: 1, target: 0 })
+        .unwrap();
+    assert!(b.units[1].revealed);
+    b.units[0].cell = (3, 3); // out of reach of the ghost's square, so only the strike shows it
+    assert!(b.seen_by(Side::Attacker, 1), "seen after attacking");
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert!(b.seen_by(Side::Attacker, 1), "still seen on the enemy turn");
+    b.apply(BattleCommand::EndTurn).unwrap();
+    assert!(
+        !b.units[1].revealed,
+        "hidden again when its own turn begins"
+    );
+    assert!(!b.seen_by(Side::Attacker, 1));
+    b.units[0].abilities.push("illusion_immunity".into());
+    assert!(
+        b.seen_by(Side::Attacker, 1),
+        "a unit immune to illusions sees it"
+    );
+}
+
+#[test]
+fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (17, 10)),
+        1,
+    );
+    assert!(b.seen_by(Side::Attacker, 1));
+    b.units[1].revealed = true;
+    b.raise_field(Side::Defender, Field::MassInvisibility, SpellId::new(0));
+    b.refresh_fields();
+    assert!(!b.units[1].revealed);
+    assert!(!b.seen_by(Side::Attacker, 1));
+}

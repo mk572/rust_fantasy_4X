@@ -638,25 +638,34 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
-    let lines: Vec<String> =
-        std::iter::once(format!(
-            "turn {}, {:?} to play ({}){}",
-            b.turn,
-            b.active,
-            describe::player(ctx.game, b.player_of(b.active)),
-            b.winner
-                .map_or(String::new(), |w| format!(", won by {w:?}"))
-        ))
-        .chain(city_lines(b))
-        .chain(wizard_lines(b))
-        .chain(b.units.iter().map(|u| {
-            format!(
+    let lines: Vec<String> = std::iter::once(format!(
+        "turn {}, {:?} to play ({}){}",
+        b.turn,
+        b.active,
+        describe::player(ctx.game, b.player_of(b.active)),
+        b.winner
+            .map_or(String::new(), |w| format!(", won by {w:?}"))
+    ))
+    .chain(city_lines(b))
+    .chain(wizard_lines(b))
+    .chain(
+        b.units
+            .iter()
+            // What the session's side cannot see (an invisible enemy) is not listed.
+            .filter(|u| {
+                ctx.overriding()
+                    || b.side_of(ctx.session.player)
+                        .is_none_or(|side| b.seen_by(side, u.id))
+            })
+            .map(|u| {
+                format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
             u.id, u.side, u.name, u.cell.0, u.cell.1, u.figures, u.figures_start, u.melee,
             u.ranged, u.defense, u.moves_left, u.moves, u.ammo
         )
-        }))
-        .collect();
+            }),
+    )
+    .collect();
     for l in lines {
         ctx.say(l);
     }
