@@ -36,6 +36,7 @@ mod outpost_screen;
 mod preferences;
 mod river_art;
 mod road_plan;
+mod sell_prompt;
 mod settings_screen;
 mod site_prompt;
 mod spellbook;
@@ -65,6 +66,8 @@ struct Options {
     city: bool,
     /// With `--shot --city`, open the auto-builder dialog over it.
     autobuild: bool,
+    /// With `--shot --city`, open the question to sell the city's first building.
+    sell: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
     /// With `--shot`, open this wizard's sheet first (0 is you; a rival's shows as if met).
@@ -143,6 +146,7 @@ fn parse_args() -> Result<Options, String> {
         shot: None,
         city: false,
         autobuild: false,
+        sell: false,
         magic: false,
         wizard: None,
         talk: None,
@@ -197,6 +201,7 @@ fn parse_args() -> Result<Options, String> {
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
             "--autobuild" => o.autobuild = true,
+            "--sell" => o.sell = true,
             "--select" => o.select = true,
             "--armies" => o.armies = true,
             "--cities" => o.cities = true,
@@ -307,7 +312,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -356,6 +361,9 @@ async fn main() {
                 },
                 had_plan: true,
             });
+        }
+        if options.sell {
+            app.open_test_sale();
         }
     }
     if options.reveal {

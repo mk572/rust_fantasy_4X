@@ -59,7 +59,7 @@ impl Economy<'_> {
                 if !(0..h).contains(&y) {
                     continue;
                 }
-                for dx in -radius..=radius {
+                for dx in (-radius..=radius).filter(|&dx| crate::fog::in_sight(dx, dy, radius)) {
                     let x = (at.x as i32 + dx).rem_euclid(w);
                     seen[(y * w + x) as usize] = true;
                 }
@@ -147,7 +147,8 @@ mod tests {
                 .filter(|&&v| v)
                 .count()
         };
-        assert_eq!(seen(&g), 25);
+        // A 5 by 5 block without its four corners.
+        assert_eq!(seen(&g), 21);
         // The sources are Min modifiers, so the best one counts and they do not add up.
         let mods = [
             Modifier::new(Stat::CitySight, ModOp::Min, 3, Source::Other),
@@ -178,7 +179,7 @@ mod tests {
             .0
             .push(id);
         assert_eq!(g.economy().city_sight(city), 4);
-        assert_eq!(seen(&g), 81);
+        assert_eq!(seen(&g), 61);
         g.process_globals();
         assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));
         assert!(!g.fog.is_explored(PlayerId(0), Plane::Arcanus, 15, 10));

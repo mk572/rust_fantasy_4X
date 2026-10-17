@@ -1272,6 +1272,7 @@ impl Game {
 
     fn end_turn(&mut self) -> Vec<Event> {
         self.close_raze_windows();
+        self.reopen_sales();
         let mut corruption = self.process_land_corruption();
         self.turn += 1;
         let mut freed = self.process_stasis();

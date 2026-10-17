@@ -26,19 +26,14 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 97 | Client | Sound effects |
 | 99 | Combat | Saving during a battle |
 | 106 | Combat | Battle views for the AI and for tools |
-| 108 | Magic | Magic nodes: warp spell, guardians' monsters and node visuals |
-| 111 | Combat | Special battle sites: nodes, lairs, towers, ruins and fortress cities |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
-| 117 | City | Selling buildings from the city picture |
 | 118 | Client | Bitmap fonts on every screen and a text layout helper |
 | 119 | Client | City screen details |
 | 120 | Client | Overland screen details |
-| 121 | Map | Unexplored-edge pictures (corner-based exploration) |
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
 | 125 | Client | Unit stack backgrounds in banner colours |
 | 126 | Client | Bitmap font for the remaining overland text |
-| 127 | Map | Lair rewards: original spell, book and retort selection |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
@@ -186,20 +181,14 @@ is skipped, so saving mid-fight would lose it, and the client should block savin
 `Battle` serialisable: units with their statistics, cells, turn, active side, and the random
 generator state (seed plus draw count, as for the game), plus the list of overland units the
 fighters were copied from (by creation number). Restore it on load, check it for consistency
-(units on the map, sources still alive), keep old saves loading, and test that a save in the
+(units on the map, sources still alive), and test that a save in the
 middle of a battle continues exactly like the unsaved one.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 
-**108. Magic nodes: warp spell, guardians' monsters and node visuals.** Warp Node sets the node's warped flag already; unowned nodes should be guarded by monsters before they can be melded (task 8); the client draws the aura as a tint only: add the original's node terrain art and a node info panel (power, owner, guardian, warped).
-
-**111. Special battle sites: nodes, lairs, towers, ruins and fortress cities.** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108). **Done (17 October 2026):** the building of a tower, node or encounter site stands on the structure square of the field (`Structure` in `battle/map/layout.rs`, chosen from the feature on the square as `Build_Battlefield` does: ruins are a dungeon, the fallen temple the ruins, the monster lair a cave), nobody can enter that square, and the client draws the building (`cmbtcity` 19 to 23, 65 and 121), the sorcery node's animation (66) and the chaos node's volcano (`chriver` 24 to 31); `--battle-site FEATURE` for screenshots. **Since done:** the node auras and counter (task 160) and the fortress city field and picture (task 290).
-
 **115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
 
 **116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
-
-**117. Selling buildings from the city picture.** Clicking a building in the city picture offers to sell it (help topic 303): a confirmation with the gold it brings, then `Command::SellBuilding`. The command exists; the screen has no way to use it, and the prerequisite chain check is task 17.
 
 **118. Bitmap fonts on every screen and a text layout helper.** Only the map frame and the city screen use the original's fonts. Move the magic, wizard creation, production menu, message log and unit panels to them, and add a bitmap-font word wrap, justify and column helper (`Print_Paragraph` style) so long help text and descriptions can be shown.
 
@@ -207,22 +196,11 @@ middle of a battle continues exactly like the unsaved one.
 
 **120. Overland screen details.** What the original's main screen has and ours lacks: the unit panel in the right column with the stack's pictures and the Done, Patrol, Wait and Build buttons, the minimap's other plane switch and click-drag, the surveyor and the info menus behind the Info button, the Armies and Cities lists behind their buttons (tasks 71 and 91-96 cover the screens themselves), terrain and unit animation, and unit movement as a smooth slide.
 
-**121. Unexplored-edge pictures.** The original keeps exploration per square corner and draws `mapback.lbx` 0 to 13 along the border of explored land so the edge is soft. We explore whole squares and draw black. Needs corner exploration in the fog data (with saves) and the 14 edge masks.
-
 **124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
 
 **126. Bitmap font for the remaining overland text.** The gold, mana, income panels and city names use the original fonts; still in the plain font are the turn/plane/race line, the selection and hover info (`Lines` helper), the message log, the "F1 keys" hint and key list, and the unit-count badge on stacks. Give `Lines` a bitmap-font mode (or replace it) and move these over, using the original's sizes and colours; see task 118 for the other screens.
-
-**127. Lair rewards: original spell, book and retort selection.** We follow the intent of
-`WIZ_RollSpellReward` and `EZ_SpecialTreasure` (ReMoM marks both as muddled): spell of the tier
-from a realm without books, then a book (75%) or retort. Compare against the original's results over
-many rolls and adopt its exact odds where they differ. Also: Famous gives +10 fame; Alchemy or
-Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroes and magic items need
-tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
-
-**Checked against ReMoM on 17 October 2026:** `WIZ_RollSpellReward` and `EZ_SpecialTreasure` do not give a usable result as written (the spell index arithmetic always lands on the first ten spells; the special treasure never counts its points spent, so a book would repeat until the wizard has thirteen), so the intent stays. Done now: Famous gives its 10 fame, a wizard with six retorts is given a book and one with twelve books a retort (the original's two limits), and a book or retort hoard that finds nothing to give pays an item of 1200 or 1000 mana. The realm of a hoard's book is the original's `Lair_Magic_Realm` (nodes their own realm, caves and lairs any, dungeons, keeps and ruins death, temples life). Left: nothing known; the Alchemy/Warlord "arcane" quirk is not copied.
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a

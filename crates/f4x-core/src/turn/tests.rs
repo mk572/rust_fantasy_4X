@@ -736,9 +736,30 @@ fn selling_a_building_refunds_it_unless_others_need_it() {
     );
     let guild = building(&g, "fighters_guild");
     let gold = g.player(P0).unwrap().gold;
-    assert_eq!(g.sell_building(city, guild), Ok(200));
-    assert_eq!(g.player(P0).unwrap().gold, gold + 200);
+    assert_eq!(g.sell_building(city, guild), Ok(66));
+    assert_eq!(g.player(P0).unwrap().gold, gold + 66);
+    g.apply(Command::EndTurn);
     assert_eq!(g.sell_building(city, guild), Err(ProductionError::NotBuilt));
+}
+
+#[test]
+fn selling_what_the_production_needs_puts_the_city_back_to_housing() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "barracks");
+    let guild = building(&g, "fighters_guild");
+    let barracks = building(&g, "barracks");
+    assert_eq!(g.economy().first_dependant(city, barracks), None);
+    g.apply(Command::SetProduction {
+        city,
+        item: ProductionItem::Building(guild),
+    });
+    assert!(g.economy().production_needs(city, barracks));
+    assert_eq!(g.sell_building(city, barracks), Ok(10));
+    assert_eq!(
+        g.economy().city_production(city).item,
+        Some(ProductionItem::Housing)
+    );
 }
 
 #[test]
@@ -755,8 +776,32 @@ fn selling_is_blocked_through_a_chain_with_a_missing_link() {
         Err(ProductionError::MissingBuilding)
     );
     let college = building(&g, "war_college");
-    assert_eq!(g.sell_building(city, college), Ok(500));
-    assert_eq!(g.sell_building(city, barracks), Ok(30));
+    assert_eq!(g.sell_building(city, college), Ok(166));
+    // Only one sale a turn in a city: the barracks goes the turn after.
+    assert_eq!(
+        g.sell_building(city, barracks),
+        Err(ProductionError::AlreadySold)
+    );
+    assert!(g.economy().sold_this_turn(city));
+    g.apply(Command::EndTurn);
+    assert!(!g.economy().sold_this_turn(city));
+    assert_eq!(g.sell_building(city, barracks), Ok(10));
+}
+
+#[test]
+fn a_sale_is_remembered_in_a_save() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "barracks");
+    let barracks = building(&g, "barracks");
+    g.sell_building(city, barracks).unwrap();
+    let text = g.snapshot().to_text().unwrap();
+    let back = crate::save::Snapshot::from_text(&text)
+        .unwrap()
+        .restore(g.content.clone())
+        .unwrap();
+    let city = back.economy().cities()[0].0;
+    assert!(back.economy().sold_this_turn(city));
 }
 
 fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {

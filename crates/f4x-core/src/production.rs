@@ -43,7 +43,21 @@ pub enum ProductionError {
     /// Coastal cities only (ships).
     NotCoastal,
     NotBuilt,
+    /// The city has sold a building this turn already.
+    AlreadySold,
 }
+
+/// What a building brings when sold: a third of its cost, city walls half of that, at least 1
+/// (`City_Sell_Building_Value`).
+pub(crate) fn sale_value(cost: u32, walls: bool) -> u32 {
+    let third = cost / 3;
+    (if walls { third / 2 } else { third }).max(1)
+}
+
+/// The city has sold a building since the turn began: it may sell one a turn (`sold_building`
+/// in the original, cleared when the turn changes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SoldBuilding;
 
 /// What buying the current item takes (`Economy::buy_plan`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,6 +239,12 @@ impl Economy<'_> {
     /// Whether a building that is built in the city needs `building`, directly or down a chain
     /// of requirements (an unbuilt link in the chain does not break it).
     pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
+        self.first_dependant(city, building).is_some()
+    }
+
+    /// The built building that needs `building`, directly or down a chain of requirements:
+    /// the one a sale is refused for (`City_Building_Has_Requirement`).
+    pub fn first_dependant(&self, city: hecs::Entity, building: BuildingId) -> Option<BuildingId> {
         let rules = &self.content.rules;
         let mut needed = vec![rules.buildings.get(building).id.clone()];
         let mut i = 0;
@@ -234,17 +254,29 @@ impl Economy<'_> {
                 if !b.requires.contains(&name) || needed.contains(&b.id) {
                     continue;
                 }
-                if rules
+                if let Some(id) = rules
                     .buildings
                     .id_of(&b.id)
-                    .is_some_and(|id| self.has_building(city, id))
+                    .filter(|&id| self.has_building(city, id))
                 {
-                    return true;
+                    return Some(id);
                 }
                 needed.push(b.id.clone());
             }
         }
-        false
+        None
+    }
+
+    /// Whether what the city is building needs `building`: selling it ends that production
+    /// (`City_Building_Is_Currently_Required`).
+    pub fn production_needs(&self, city: hecs::Entity, building: BuildingId) -> bool {
+        let rules = &self.content.rules;
+        let name = &rules.buildings.get(building).id;
+        match self.city_production(city).item {
+            Some(ProductionItem::Building(b)) => rules.buildings.get(b).requires.contains(name),
+            Some(ProductionItem::Unit(u)) => rules.units.get(u).requires.contains(name),
+            _ => false,
+        }
     }
 
     pub fn has_building(&self, city: hecs::Entity, building: BuildingId) -> bool {
@@ -302,16 +334,34 @@ impl Economy<'_> {
         })
     }
 
+    /// Whether the city has sold a building this turn.
+    pub fn sold_this_turn(&self, city: hecs::Entity) -> bool {
+        self.world.get::<&SoldBuilding>(city).is_ok()
+    }
+
+    /// What selling `building` would bring, or why it cannot be sold.
+    pub fn sale_price(
+        &self,
+        city: hecs::Entity,
+        building: BuildingId,
+    ) -> Result<u32, ProductionError> {
+        self.sell_plan(city, building).map(|(_, cost)| cost)
+    }
+
     /// Who is paid, and what, for selling a building: refused while a built building needs it.
     pub(crate) fn sell_plan(
         &self,
         city: hecs::Entity,
         building: BuildingId,
     ) -> Result<(PlayerId, u32), ProductionError> {
-        let cost = self.content.rules.buildings.get(building).cost;
+        if self.sold_this_turn(city) {
+            return Err(ProductionError::AlreadySold);
+        }
         if self.has_dependants(city, building) {
             return Err(ProductionError::MissingBuilding);
         }
+        let def = self.content.rules.buildings.get(building);
+        let cost = sale_value(def.cost, def.id == "city_walls");
         let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
         Ok((owner, cost))
     }
@@ -386,15 +436,35 @@ impl Game {
         Ok(plan.cost)
     }
 
-    /// Sell a building for its construction cost, unless a built building needs it (directly
-    /// or through a chain of requirements).
+    /// A new turn: every city may sell a building again.
+    pub(crate) fn reopen_sales(&mut self) {
+        let sold: Vec<hecs::Entity> = self
+            .world
+            .query::<(&City, &SoldBuilding)>()
+            .iter()
+            .map(|(e, _)| e)
+            .collect();
+        for e in sold {
+            let _ = self.world.remove_one::<SoldBuilding>(e);
+        }
+    }
+
+    /// Sell a building for a third of its construction cost, unless a built building needs it
+    /// (directly or through a chain of requirements) or the city has sold one this turn.
     pub fn sell_building(
         &mut self,
         city: hecs::Entity,
         building: BuildingId,
     ) -> Result<u32, ProductionError> {
         let (owner, cost) = self.economy().sell_plan(city, building)?;
+        let ends_production = self.economy().production_needs(city, building);
         remove_building(&self.world, city, building)?;
+        let _ = self.world.insert_one(city, SoldBuilding);
+        if ends_production {
+            let mut p = self.economy().city_production(city);
+            p.item = Some(ProductionItem::Housing);
+            let _ = self.world.insert_one(city, p);
+        }
         if let Some(p) = self.player_mut(owner) {
             p.gold += cost as i32;
         }
@@ -622,11 +692,21 @@ mod tests {
             rig.eco().sell_plan(rig.city, smithy),
             Err(ProductionError::MissingBuilding)
         );
-        assert_eq!(rig.eco().sell_plan(rig.city, armory), Ok((PlayerId(0), 80)));
+        assert_eq!(rig.eco().first_dependant(rig.city, smithy), Some(armory));
+        assert_eq!(rig.eco().sell_plan(rig.city, armory), Ok((PlayerId(0), 26)));
         assert_eq!(remove_building(&rig.world, rig.city, armory), Ok(()));
         assert_eq!(
             remove_building(&rig.world, rig.city, armory),
             Err(ProductionError::NotBuilt)
         );
+    }
+
+    #[test]
+    fn a_sale_brings_a_third_walls_a_sixth_and_never_less_than_one() {
+        assert_eq!(sale_value(30, false), 10);
+        assert_eq!(sale_value(200, false), 66);
+        assert_eq!(sale_value(150, true), 25);
+        assert_eq!(sale_value(2, false), 1);
+        assert_eq!(sale_value(0, true), 1);
     }
 }

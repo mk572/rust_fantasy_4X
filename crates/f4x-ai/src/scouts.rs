@@ -209,7 +209,7 @@ fn best_target(
 fn unexplored_near(view: &PlayerView, at: Position, look: i32) -> u32 {
     let mut n = 0;
     for dy in -look..=look {
-        for dx in -look..=look {
+        for dx in (-look..=look).filter(|&dx| f4x_core::fog::in_sight(dx, dy, look)) {
             if let Some(p) = view.shift(at, dx, dy) {
                 if !view.explored(p) {
                     n += 1;
@@ -243,7 +243,11 @@ mod tests {
         let mut g = game(COAST_CITY, "high_men");
         let far = at(4, 4);
         let view = PlayerView::new(&g, P0);
-        assert_eq!(unexplored_near(&view, far, 2), 25, "all 5x5 squares unseen");
+        assert_eq!(
+            unexplored_near(&view, far, 2),
+            21,
+            "all 21 squares of a look of 2 unseen"
+        );
         // The city's own surroundings are known.
         assert_eq!(unexplored_near(&view, city(), 0), 0);
         g.reveal_map(P0);

@@ -96,7 +96,10 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   travel. The destination (same x, y on the other plane) must be enterable by every unit,
   free of hostile units, and have room. It costs one full move.
 - **Exploration.** After each move the owner explores around the new tile (unit `Sight`,
-  at least 1).
+  at least 1) as far as it sees: a diagonal step counts 1.5 and a square is in sight up to the range plus 0.5
+  (range 2 is a 5 by 5 block without its corners).
+  The border of the known land is drawn on its outermost tiles. Every player, the AI's too,
+  has an exploration of their own, and starts with what their capital sees, since a new city explores when it is founded.
 
 ### 3.2 Routes and standing orders
 - `find_path` is A\* on the eight-neighbour grid (wrapping sideways), costing each step as
@@ -184,7 +187,7 @@ one point.
 - **Buying:** four times what remains if nothing is done yet; three times if less than half of
   the remaining amount is done; otherwise twice. Gold is paid at once; the item completes at
   the next turn change.
-- **Selling:** refund of the construction cost; refused if another built building requires it.
+- **Selling:** a third of the construction cost (city walls a sixth, at least 1), one sale per city per turn; refused if another built building requires it; selling what the current production needs puts the city back on Housing.
 - **Replaced buildings:** a building can replace another (an armory replaces barracks). The
   old one stays built and keeps its effects and its value as a requirement, but costs no
   upkeep.

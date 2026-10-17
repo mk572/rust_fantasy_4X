@@ -39,6 +39,11 @@ impl Game {
         self.fog.is_explored(player, at.plane, at.x, at.y)
     }
 
+    /// The explored corners of a square (see `Fog::corners`): 0 unexplored, 15 explored.
+    pub fn explored_corners(&self, player: PlayerId, at: Position) -> u8 {
+        self.fog.corners(player, at.plane, at.x, at.y)
+    }
+
     /// How many squares the player has explored, on both planes.
     pub fn explored_squares(&self, player: PlayerId) -> usize {
         crate::map::Plane::ALL

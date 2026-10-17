@@ -130,7 +130,8 @@ impl Game {
         let farmers = self.economy().city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
         if !self.is_neutral_player(owner) {
-            self.explore(owner, pos, 2);
+            let sight = self.economy().city_sight(city).max(0) as u32;
+            self.explore(owner, pos, sight);
         }
         city
     }

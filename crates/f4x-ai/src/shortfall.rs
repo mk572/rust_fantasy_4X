@@ -74,6 +74,9 @@ fn next_sale(
     let rules = &game.content().rules;
     for name in SELL_ORDER {
         for &(city, _) in &cities {
+            if game.economy().sold_this_turn(city) {
+                continue;
+            }
             if let Some(b) = game.city_buildings(city).into_iter().find(|&b| {
                 rules.buildings.get(b).id == *name && rules.buildings.get(b).upkeep_gold > 0
             }) {

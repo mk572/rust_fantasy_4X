@@ -111,6 +111,8 @@ pub struct App {
     pub(crate) log: Vec<String>,
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
+    /// The question or refusal when a building of the city picture is clicked.
+    pub(crate) sell_prompt: Option<crate::sell_prompt::SellPrompt>,
     /// The auto-builder dialog over the city screen, while it is open.
     pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
     pub(crate) choice_scroll: usize,
@@ -233,6 +235,7 @@ impl App {
             selection: Vec::new(),
             log: Vec::new(),
             choosing: false,
+            sell_prompt: None,
             autobuild_dialog: None,
             choice_scroll: 0,
             magic_ui: Default::default(),
@@ -1577,14 +1580,15 @@ impl App {
             for i in 0..=(cols.ceil() as i32) {
                 let wx = grid.wrap_x(x0 + i);
                 let (sx, sy) = (r.x + i as f32 * t.x - off.x, r.y + j as f32 * t.y - off.y);
-                if !self.game.is_explored(
+                let corners = self.game.explored_corners(
                     HUMAN,
                     Position {
                         plane: self.plane,
                         x: wx,
                         y: y as u32,
                     },
-                ) {
+                );
+                if corners == 0 {
                     draw_rectangle(sx, sy, t.x, t.y, BLACK);
                     continue;
                 }
@@ -1599,6 +1603,15 @@ impl App {
                     t,
                     anim,
                 );
+                if corners != 15 {
+                    crate::map_draw::draw_unexplored_edge(
+                        &mut self.art,
+                        corners,
+                        sx,
+                        sy,
+                        t.x / TILE_W,
+                    );
+                }
             }
         }
         for (entity, city, pos) in &cities {

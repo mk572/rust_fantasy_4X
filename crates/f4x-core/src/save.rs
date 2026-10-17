@@ -3,7 +3,7 @@
 //!
 //! A snapshot never stores definitions. Everything that refers to content (a unit's
 //! definition, a building, a terrain) is saved by its string id and looked up again on load,
-//! so reordering or adding to the content files does not break old saves, and a save that
+//! so reordering or adding to the content files does not break a save, and a save that
 //! needs content that no longer exists is refused with a clear error rather than loaded
 //! wrongly.
 //!
@@ -12,8 +12,6 @@
 //! identically: the same commands from a loaded game and from the game that was saved give
 //! the same snapshots. The random stream is resumed from the seed and the number of values
 //! drawn so far.
-
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -39,30 +37,23 @@ pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub version: u32,
-    /// The game version that wrote the save (empty in a save from before versions were tracked).
-    #[serde(default)]
+    /// The game version that wrote the save.
     pub game_version: String,
     pub seed: u64,
     /// Values drawn from the random generator so far.
     pub draws: u64,
     pub turn: u32,
     pub next_serial: u64,
-    /// The settings the game is played with (a save without them reads as the defaults).
-    #[serde(default)]
+    /// The settings the game is played with.
     pub settings: crate::settings::GameSettings,
     /// Set once the game has ended.
-    #[serde(default)]
     pub game_over: Option<crate::endgame::GameOver>,
-    #[serde(default)]
     pub human: Option<u8>,
     /// Contact, relations, treaties and pending proposals between wizards.
-    #[serde(default)]
     pub diplomacy: crate::diplomacy::DiplomacySave,
     /// Override (cheat) commands used in this game.
-    #[serde(default)]
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
-    #[serde(default)]
     pub prefab_taken: Vec<String>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
@@ -70,7 +61,6 @@ pub struct Snapshot {
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
     /// Countdowns for timed spells.
-    #[serde(default)]
     pub timers: Vec<TimerSave>,
 }
 
@@ -100,13 +90,10 @@ pub struct MapSave {
     /// Arcanus, then Myrror.
     pub planes: Vec<PlaneSave>,
     /// Magic nodes with their power, aura and owner.
-    #[serde(default)]
     pub nodes: Vec<crate::map::Node>,
     /// Tower owners `(x, y, player)`.
-    #[serde(default)]
     pub tower_owners: Vec<(u32, u32, u8)>,
     /// Guards and treasure of towers, nodes and encounter sites.
-    #[serde(default)]
     pub lairs: Vec<crate::map::Lair>,
 }
 
@@ -119,19 +106,14 @@ pub struct PlaneSave {
     /// Tile indexes that have a road.
     pub roads: Vec<u32>,
     /// Tile indexes that have a river.
-    #[serde(default)]
     pub rivers: Vec<u32>,
     /// `(tile index, owner's player number)` for every volcano.
-    #[serde(default)]
     pub volcanoes: Vec<(u32, u8)>,
     /// Tile indexes whose road is enchanted.
-    #[serde(default)]
     pub enchanted_roads: Vec<u32>,
     /// Tile indexes that are lakes.
-    #[serde(default)]
     pub lakes: Vec<u32>,
     /// Tile indexes that are corrupted.
-    #[serde(default)]
     pub corrupted: Vec<u32>,
 }
 
@@ -151,45 +133,29 @@ pub struct PlayerSave {
     pub mana: i32,
     pub tax_rate: u8,
     /// The Grand Vizier chooses what the cities build.
-    #[serde(default)]
     pub grand_vizier: bool,
-    /// An independent city's player; absent in older saves.
-    #[serde(default)]
+    /// An independent city's player.
     pub neutral: bool,
-    /// The wizard's power over the turns; absent in older saves.
-    #[serde(default)]
+    /// The wizard's power over the turns.
     pub history: Vec<u8>,
     pub capital_race: Option<String>,
     pub fame: i32,
-    /// Absent in saves from before wizards existed.
-    #[serde(default)]
     pub magic: MagicSave,
-    /// The vault and the award list; absent in saves from before items.
-    #[serde(default)]
+    /// The vault and the award list.
     pub armory: crate::items::armory::Armory,
-    /// The hero records; absent in saves from before heroes.
-    #[serde(default)]
+    /// The hero records.
     pub roster: crate::roster::Roster,
-    /// The offers waiting for an answer; absent in saves from before offers.
-    #[serde(default)]
+    /// The offers waiting for an answer.
     pub offers: Vec<crate::offers::Offer>,
-    #[serde(default)]
     pub fortress: Option<Position>,
-    #[serde(default)]
     pub summon_at: Option<Position>,
-    #[serde(default)]
     pub banished: bool,
-    #[serde(default)]
     pub banished_by: Option<u8>,
-    #[serde(default)]
     pub defeated: bool,
-    #[serde(default)]
     pub defeated_by: Option<u8>,
-    /// Absent in older saves: the player's number picks a colour.
-    #[serde(default)]
+    /// The player's colour.
     pub banner: Option<u8>,
-    /// Absent in older saves: the player's number picks a picture.
-    #[serde(default)]
+    /// The player's picture.
     pub portrait: Option<u8>,
 }
 
@@ -204,18 +170,15 @@ pub struct MagicSave {
     pub skill_pct: u8,
     pub known: Vec<String>,
     pub researchable: Vec<String>,
-    /// The spells on offer for research; absent in older saves (the game offers some again).
-    #[serde(default)]
+    /// The spells on offer for research.
     pub candidates: Vec<String>,
     pub researching: Option<String>,
     pub research_remaining: i32,
     /// `(spell, mana still to pay)`.
     pub casting: Option<(String, i32)>,
-    /// The item being made by Enchant Item or Create Artifact; absent in older saves.
-    #[serde(default)]
+    /// The item being made by Enchant Item or Create Artifact.
     pub crafting: Option<crate::items::Item>,
-    /// The dead hero Resurrection is bringing back; absent in older saves.
-    #[serde(default)]
+    /// The dead hero Resurrection is bringing back.
     pub raising: Option<usize>,
     pub global: Vec<String>,
     pub skill_left: i32,
@@ -321,37 +284,27 @@ pub struct UnitSave {
     pub pos: Position,
     pub hurt: u32,
     pub xp: u32,
-    /// Weapon quality (`units::WeaponQuality`); absent in older saves.
-    #[serde(default)]
+    /// Weapon quality (`units::WeaponQuality`).
     pub weapon: u8,
     pub moves: u32,
     pub order: Option<Vec<Position>>,
-    /// `(spell, caster)`; absent in older saves.
-    #[serde(default)]
+    /// `(spell, caster)`.
     pub enchantments: Vec<(String, u8)>,
     /// Road work in progress: `(square, turns left, squares still to do)`.
-    #[serde(default)]
     pub road_work: Option<(Position, u8, Vec<Position>)>,
     /// Creation number of the ship the unit is aboard.
-    #[serde(default)]
     pub aboard: Option<u64>,
-    /// The unit was made undead (`undead.rs`); absent in older saves.
-    #[serde(default)]
+    /// The unit was made undead (`undead.rs`).
     pub undead: bool,
     /// Held in Stasis: 0 no, 1 just put there, 2 lingering.
-    #[serde(default)]
     pub stasis: u8,
     /// Temporary modifiers and abilities.
-    #[serde(default)]
     pub effects: Vec<TempSave>,
-    /// A hero's three items; absent in older saves.
-    #[serde(default)]
+    /// A hero's three items.
     pub items: Option<crate::items::HeroItems>,
-    /// A hero's own record; absent for other units and in older saves.
-    #[serde(default)]
+    /// A hero's own record; none for other units.
     pub hero: Option<crate::hero::Hero>,
     /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
-    #[serde(default)]
     pub marooned: bool,
 }
 
@@ -433,19 +386,17 @@ pub struct CitySave {
     pub buildings: Vec<String>,
     /// `(spell, caster)`.
     pub enchantments: Vec<(String, u8)>,
-    /// The realms a Spell Ward guards the city against; absent in older saves.
-    #[serde(default)]
+    /// The realms a Spell Ward guards the city against.
     pub wards: Vec<String>,
     pub item: Option<ItemSave>,
     pub progress: u32,
     /// Temporary modifiers.
-    #[serde(default)]
     pub effects: Vec<TempSave>,
     /// Taken this turn by this player, who may still raze it.
-    #[serde(default)]
     pub conquered: Option<u8>,
-    /// The city's auto-builder plan and what it has spent so far (absent in older saves).
-    #[serde(default)]
+    /// A building was sold this turn.
+    pub sold_building: bool,
+    /// The city's auto-builder plan and what it has spent so far.
     pub autobuild: Option<crate::autobuild::AutoBuild>,
 }
 
@@ -763,6 +714,7 @@ impl Game {
                         .get::<&crate::conquest::Conquered>(e)
                         .ok()
                         .map(|c| c.0 .0),
+                    sold_building: self.economy().sold_this_turn(e),
                     autobuild: self
                         .world
                         .get::<&crate::autobuild::AutoBuild>(e)
@@ -1093,6 +1045,11 @@ impl Snapshot {
                     .world
                     .insert_one(entity, crate::city_spells::SpellWards(c.wards));
             }
+            if c.sold_building {
+                let _ = game
+                    .world
+                    .insert_one(entity, crate::production::SoldBuilding);
+            }
             if let Some(a) = c.autobuild {
                 let _ = game.world.insert_one(entity, a);
             }
@@ -1141,16 +1098,6 @@ impl Snapshot {
             });
         }
         game.diplomacy_from_save(self.diplomacy);
-        // Saves from before the offer was kept have none: offer some.
-        let idle: Vec<PlayerId> = game
-            .players
-            .iter()
-            .filter(|p| p.magic.candidates.is_empty() && !p.magic.researchable.is_empty())
-            .map(|p| p.id)
-            .collect();
-        for player in idle {
-            game.refill_research(player);
-        }
         game.apply_wizard_settings();
         Ok(game)
     }
@@ -1281,17 +1228,16 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
         }
     }
     let len = f.width as usize * f.height as usize;
-    let mut players = BTreeMap::new();
+    let mut players = Vec::new();
     for (id, a, m) in f.players {
-        let layers = [unpack(&a, len), unpack(&m, len)];
-        let [Some(a), Some(m)] = layers else {
+        let (Some(a), Some(m)) = (unpack(&a, len), unpack(&m, len)) else {
             return Err(LoadError::Inconsistent(
                 "an explored layer has the wrong length".into(),
             ));
         };
-        players.insert(PlayerId(id), [a, m]);
+        players.push((PlayerId(id), [a, m]));
     }
-    Fog::from_parts(f.width, f.height, players.into_iter().collect())
+    Fog::from_parts(f.width, f.height, players)
         .ok_or_else(|| LoadError::Inconsistent("the explored area is malformed".into()))
 }
 

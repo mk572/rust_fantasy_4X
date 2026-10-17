@@ -384,7 +384,7 @@ impl App {
     }
 
     /// The text of a box: a dark shadow a pixel right and below, then the light text.
-    fn draw_box_text(
+    pub(crate) fn draw_box_text(
         &mut self,
         view: (f32, f32, f32),
         lines: &[(f32, String)],

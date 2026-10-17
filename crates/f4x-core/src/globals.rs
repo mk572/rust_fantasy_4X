@@ -105,7 +105,7 @@ impl Game {
                 .map(|(_, _, p)| p)
                 .collect();
             for at in cities {
-                self.fog.explore(player, at, 0);
+                self.fog.explore(player, at, 1);
             }
         }
     }
@@ -386,9 +386,18 @@ mod tests {
             g.fog.is_explored(P0, Plane::Arcanus, 20, 10),
             "the city is revealed"
         );
+        assert_eq!(
+            g.fog.corners(P0, Plane::Arcanus, 20, 10),
+            15,
+            "the city square is fully known"
+        );
         assert!(
-            !g.fog.is_explored(P0, Plane::Arcanus, 19, 10),
-            "nothing around it"
+            g.fog.corners(P0, Plane::Arcanus, 19, 10) < 15,
+            "its neighbours only at the corners"
+        );
+        assert!(
+            !g.fog.is_explored(P0, Plane::Arcanus, 18, 10),
+            "nothing further out"
         );
         grant(&mut g, P0, "nature_awareness");
         assert!(g.fog.is_explored(P0, Plane::Myrror, 3, 3));

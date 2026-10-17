@@ -562,18 +562,3 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() {
         g.units().unit_stat(g.units().all_units()[0], Stat::Melee)
     );
 }
-
-#[test]
-fn old_saves_without_wizards_still_load() {
-    let mut g = world();
-    g.players[0].magic = Magic::default();
-    let text = g.snapshot().to_text().unwrap();
-    // Take the wizard out of the text the way an old save would lack it.
-    let start = text.find("magic:").unwrap();
-    let end = text[start..].find("skill_left").unwrap();
-    let close = text[start + end..].find("),").unwrap();
-    let old = format!("{}{}", &text[..start], &text[start + end + close + 2..]);
-    let back = Snapshot::from_text(&old).unwrap();
-    let loaded = back.restore(content_with_magic()).unwrap();
-    assert_eq!(loaded.magic(P0), Some(&Magic::default()));
-}

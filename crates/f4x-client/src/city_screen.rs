@@ -69,7 +69,8 @@ impl App {
             self.autobuild_dialog = None;
             return;
         }
-        let choosing = self.choosing || dialog;
+        let selling = self.sell_prompt.is_some();
+        let choosing = self.choosing || dialog || selling;
         // A right-click on a unit of the garrison opens its statistics sheet.
         if is_mouse_button_pressed(MouseButton::Right) && !choosing {
             let over = self
@@ -81,8 +82,9 @@ impl App {
                 return;
             }
         }
-        if is_key_pressed(KeyCode::Escape)
-            || (is_mouse_button_pressed(MouseButton::Right) && !choosing)
+        if !selling
+            && (is_key_pressed(KeyCode::Escape)
+                || (is_mouse_button_pressed(MouseButton::Right) && !choosing))
         {
             if choosing {
                 self.choosing = false;
@@ -116,7 +118,7 @@ impl App {
         }
         // While the auto-builder dialog is open the screen behind it takes no input.
         let was_choosing = self.choosing;
-        if dialog {
+        if dialog || selling {
             self.choosing = true;
         }
         self.draw_city_header(city, lay);
@@ -129,6 +131,9 @@ impl App {
         if dialog {
             self.choosing = was_choosing;
             self.draw_autobuild_dialog(city, lay);
+        } else if selling {
+            self.choosing = was_choosing;
+            self.draw_sell_prompt();
         } else if self.choosing {
             self.draw_production_menu(city, lay);
         }
@@ -444,7 +449,12 @@ impl App {
     /// The city's picture: ground, water, hills, roads, then every cell from the back to the
     /// front (houses, trees, rocks, buildings), and the walls along the bottom.
     fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout) {
-        self.draw_city_buildings_at(city, lay, 4.0, 100.0);
+        let over = self.draw_city_buildings_at(city, lay, 4.0, 100.0);
+        if let Some(i) = over.filter(|i| (3..=35).contains(i)) {
+            if is_mouse_button_pressed(MouseButton::Left) && !self.choosing {
+                self.start_sale(city, i);
+            }
+        }
     }
 
     /// The same picture with its top-left corner at `(x0, y0)` (the enemy city screen's).
@@ -454,7 +464,7 @@ impl App {
         lay: Layout,
         x0: f32,
         y0: f32,
-    ) {
+    ) -> Option<i16> {
         use crate::cityscape as cs;
         let view = Self::view(lay);
         let at = self.city_position(city);
@@ -600,6 +610,7 @@ impl App {
         if let Some(n) = name {
             self.bm_text(view, 3, WHITE, &n, x0 + 102.0, y0 + 84.0, Align::Center);
         }
+        mouse_over
     }
 
     /// The 5x5 worked area at original tile size, with shared tiles dimmed.

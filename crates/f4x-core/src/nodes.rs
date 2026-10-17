@@ -25,6 +25,9 @@ pub enum MeldError {
     NoMelder,
     /// The node is warped and cannot be melded with.
     Warped,
+    /// The player owns the node and already guards it (`Unit_Action_Special_Meld` gives no
+    /// meld there).
+    AlreadyGuarded,
 }
 
 /// Squares of a node's aura: its own tile, then up to eight of the squares around it, then
@@ -179,6 +182,9 @@ impl Game {
             .ok_or(MeldError::NoNode)?;
         if node.warped {
             return Err(MeldError::Warped);
+        }
+        if node.owner == Some(owner.0) && node.guardian {
+            return Err(MeldError::AlreadyGuarded);
         }
         let melders: Vec<hecs::Entity> = units
             .iter()
@@ -420,5 +426,25 @@ pub(crate) mod tests {
         let rival = spirit(&mut g3, P1, at(6, 6), "spirit");
         g3.meld(&[rival]).unwrap();
         assert_eq!(g3.map.as_ref().unwrap().nodes()[0].owner, Some(1));
+    }
+
+    #[test]
+    fn a_node_you_own_and_guard_takes_no_more_spirits() {
+        let mut g = world();
+        let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
+        g.meld(&[guard]).unwrap();
+        let another = spirit(&mut g, P0, at(6, 6), "spirit");
+        assert_eq!(g.meld(&[another]), Err(MeldError::AlreadyGuarded));
+        assert!(
+            g.world.get::<&crate::units::Unit>(another).is_ok(),
+            "the spirit is not used up"
+        );
+        assert!(g.map.as_ref().unwrap().nodes()[0].guardian);
+        // Without a guardian it can still be melded again.
+        let mut g2 = world();
+        let plain = spirit(&mut g2, P0, at(6, 6), "spirit");
+        g2.meld(&[plain]).unwrap();
+        let again = spirit(&mut g2, P0, at(6, 6), "spirit");
+        assert!(g2.meld(&[again]).is_ok());
     }
 }

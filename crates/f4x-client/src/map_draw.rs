@@ -29,6 +29,14 @@ fn draw_pic(tex: &Texture2D, x: f32, y: f32, scale: f32) {
     );
 }
 
+/// The soft edge of explored land (`mapback.lbx` 0 to 13) laid over a square with some of its
+/// corners explored; `corners` is 1 to 14.
+pub(crate) fn draw_unexplored_edge(art: &mut Art, corners: u8, sx: f32, sy: f32, k: f32) {
+    if let Some(tex) = art.picture("mapback", usize::from(corners) - 1, 0) {
+        draw_pic(tex, sx, sy, k);
+    }
+}
+
 /// Whether a neighbouring square counts as water for a river that runs into it.
 fn is_water(game: &Game, grid: &Grid, x: i32, y: i32) -> bool {
     pick::class_at(grid, game.content(), x, y) == Some(TerrainClass::Ocean)
