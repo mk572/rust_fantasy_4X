@@ -113,6 +113,14 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - **Palette in the picture:** a picture's own colours are laid over whichever palette is in use
   (`Load_Palette_From_Animation` in the original does the same from frame 0). Most screens with a
   special look work this way.
+- **A screen's own colours for the pictures drawn over it:** the screen's background loads its
+  colours (`Load_Palette_From_Animation`) and the buttons and other pictures drawn on it, which
+  carry none, use them. Without them the colours from index 224 on come out as glass tints and
+  speckle the picture (blue and white dots on the start menu's castle, a noisy Alchemy button).
+  `screen_palette_entry` in `art.rs` names the entry that gives them, for `magic`, `load`,
+  `mainscrn` and `armylist`; the other pictures of those files take it. Files with several
+  screens or several palettes (`hire`, `reload`, `scroll`, `spellscr`, `unitview`, `wizlab`)
+  are not covered yet: add them when a screen shows the speckles.
 - **Other loaded palettes:** `Load_Palette(n)` reads `FONTS.LBX` entry `n + 2`. The calls in
   ReMoM, and what the extractor does about them (`palette_entry_for` in `art.rs`):
 

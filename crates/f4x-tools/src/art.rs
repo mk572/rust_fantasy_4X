@@ -638,6 +638,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_buttons_of_a_screen_take_its_backgrounds_palette() {
+        for stem in ["magic", "load", "mainscrn", "armylist"] {
+            assert_eq!(screen_palette_entry(stem), Some(0), "{stem}");
+        }
+        assert_eq!(screen_palette_entry("cityscap"), None);
+    }
+
+    #[test]
     fn screens_that_load_their_own_palette_are_listed() {
         assert_eq!(palette_entry_for("load"), Some(3));
         assert_eq!(palette_entry_for("mainscrn"), Some(4));
