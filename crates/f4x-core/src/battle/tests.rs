@@ -3643,3 +3643,62 @@ fn magic_vortex_is_cast_on_a_free_square() {
         .any(|e| matches!(e, Event::Battle(BattleEvent::VortexMade { cell: (10, 10) }))));
     assert_eq!(g.battle().unwrap().vortices.len(), 1);
 }
+
+#[test]
+fn a_battle_fought_after_recording_began_plays_again_the_same() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a1 = g.spawn_unit(A, at(4, 4), walker);
+    let a2 = g.spawn_unit(A, at(4, 4), walker);
+    let d1 = g.spawn_unit(D, at(5, 4), walker);
+    g.start_recording().unwrap();
+    g.apply(Command::BeginBattle {
+        attackers: vec![a1, a2],
+        defenders: vec![d1],
+    });
+    let mut ended = false;
+    for _ in 0..200 {
+        let (side, ids): (Side, Vec<usize>) = {
+            let b = g.battle().unwrap();
+            (b.active, b.active_units(b.active).map(|u| u.id).collect())
+        };
+        for id in ids {
+            let Some((t, cell)) = ({
+                let b = g.battle().unwrap();
+                b.active_units(side.other()).next().map(|t| (t.id, t.cell))
+            }) else {
+                break;
+            };
+            let step = {
+                let b = g.battle().unwrap();
+                b.reachable(id)
+                    .into_iter()
+                    .min_by_key(|(p, _)| distance(*p, cell))
+                    .map(|(p, _)| p)
+            };
+            if let Some(to) = step {
+                g.apply(Command::Battle(BattleCommand::Move { unit: id, to }));
+            }
+            let evs = g.apply(Command::Battle(BattleCommand::Attack {
+                unit: id,
+                target: t,
+            }));
+            if evs.iter().any(|e| matches!(e, Event::BattleEnded { .. })) {
+                ended = true;
+                break;
+            }
+        }
+        if ended {
+            break;
+        }
+        g.apply(Command::Battle(BattleCommand::EndTurn));
+    }
+    assert!(ended && !g.in_battle());
+    let replay = g.stop_recording().unwrap();
+    assert!(replay.commands.len() > 3, "the battle's orders are in it");
+    let (again, _) = replay.play(g.content.clone(), usize::MAX).unwrap();
+    assert_eq!(
+        again.snapshot().to_text().unwrap(),
+        g.snapshot().to_text().unwrap()
+    );
+}
