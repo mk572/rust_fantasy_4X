@@ -250,6 +250,7 @@ fn extract_terrain(
     out_dir: &Path,
     pal: &[u8],
     combat_pal: &[u8],
+    glass: &[[u8; 4]],
 ) -> Result<usize, String> {
     let Some(path) = find(game_dir, "TERRAIN.LBX") else {
         return Ok(0);
@@ -281,7 +282,7 @@ fn extract_terrain(
         fs::write(dir.join("types.tsv"), rows).map_err(|e| e.to_string())?;
     }
     if lbx.len() > 2 {
-        write_minimap_colours(&dir, lbx.entry(2), pal, combat_pal)?;
+        write_minimap_colours(&dir, lbx.entry(2), pal, combat_pal, glass)?;
     }
     for (i, px) in tiles.iter().enumerate() {
         // Terrain tiles are opaque: colour 0 is a real colour here.
@@ -330,6 +331,7 @@ fn write_minimap_colours(
     entry2: &[u8],
     pal: &[u8],
     combat_pal: &[u8],
+    glass: &[[u8; 4]],
 ) -> Result<(), String> {
     let row_in = |pal: &[u8], kind: &str, n: usize, index: u8| {
         let at = usize::from(index) * 3;
@@ -350,6 +352,13 @@ fn write_minimap_colours(
     out.push_str(&row("mark", 0, 15));
     // The colour of the gold and mana reserve figures (`ST_GRAY`, index 8).
     out.push_str(&row("reserve_text", 0, 8));
+    // Glass block 1, the colour a revealed invisible unit is drawn in: colour and percent (a sixth
+    // field, out of 255).
+    if let Some(&[r, g, b, percent]) = glass.get(1) {
+        let [r, g, b] = [r, g, b].map(crate::image::vga_to_rgb8);
+        let alpha = u32::from(percent.min(100)) * 255 / 100;
+        out.push_str(&format!("glass_1\t0\t{r}\t{g}\t{b}\t{alpha}\n"));
+    }
     // The glow round an enchanted unit's figures, for each realm the eight colours of the
     // animation's first step (`enchantment_outline_colors`); the later steps rotate them.
     for (realm, colours) in [
@@ -584,7 +593,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
         }
     }
     fs::write(root.join("index.tsv"), index).map_err(|e| e.to_string())?;
-    let tiles = extract_terrain(game_dir, out_dir, &base, &combat_pal)?;
+    let tiles = extract_terrain(game_dir, out_dir, &base, &combat_pal, &glass)?;
     println!("extracted {tiles} terrain tiles");
     let cursors = extract_cursors(game_dir, out_dir, &base)?;
     println!("extracted {cursors} mouse pointers");

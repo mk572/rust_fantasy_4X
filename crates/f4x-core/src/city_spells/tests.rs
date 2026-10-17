@@ -2,9 +2,8 @@ use super::*;
 use crate::city::Position;
 use crate::map::{Grid, Map, Plane};
 use crate::player::Player;
-use crate::rules::effects::{Effect, EffectRule};
 use crate::rules::exec::Target;
-use crate::rules::{BuildingDef, Duration, Registry, SpellDef, SpellTarget};
+use crate::rules::{BuildingDef, Registry};
 use crate::testutil::content_with_magic;
 use crate::Command;
 
@@ -23,63 +22,6 @@ fn at(x: u32, y: u32) -> Position {
 /// test content.
 fn world() -> Game {
     let mut c = content_with_magic();
-    let mut spells = c.rules.spells.defs().to_vec();
-    let template = spells
-        .iter()
-        .find(|s| s.id == "gaias_blessing")
-        .unwrap()
-        .clone();
-    let own = SpellTarget::OwnCity;
-    let enemy = SpellTarget::EnemyCity;
-    let (instant, lasting) = (Duration::Instant, Duration::Permanent);
-    for (id, hook, target, duration, realm) in [
-        ("wall_of_stone", WALL_OF_STONE, own, instant, "nature"),
-        ("evil_presence", CITY_FLAG, enemy, lasting, "death"),
-        ("chaos_rift", CITY_FLAG, enemy, lasting, "chaos"),
-        ("wall_of_fire", CITY_FLAG, own, lasting, "chaos"),
-        ("wall_of_darkness", CITY_FLAG, own, lasting, "death"),
-        ("flying_fortress", CITY_FLAG, own, lasting, "sorcery"),
-        ("cloud_of_shadow", CITY_FLAG, own, lasting, "death"),
-        ("spell_ward", SPELL_WARD, own, lasting, "sorcery"),
-        ("heavenly_light", CITY_FLAG, own, lasting, "life"),
-        ("eternal_night", CITY_FLAG, own, lasting, "death"),
-        ("armageddon", CITY_FLAG, own, lasting, "chaos"),
-        ("great_wasting", CITY_FLAG, own, lasting, "chaos"),
-    ] {
-        spells.push(SpellDef {
-            id: id.into(),
-            name: id.into(),
-            cost: 10,
-            upkeep: if id == "spell_ward" { 5 } else { 0 },
-            realm: realm.into(),
-            target,
-            duration,
-            effects: vec![EffectRule {
-                effect: Effect::Custom(hook.into()),
-                ..template
-                    .effects
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| EffectRule {
-                        when: crate::rules::effects::Trigger::OnCast,
-                        condition: crate::rules::effects::Condition::Always,
-                        target: crate::rules::effects::TargetSel::Chosen,
-                        effect: Effect::Custom(hook.into()),
-                    })
-            }],
-            ..template.clone()
-        });
-    }
-    c.rules.spells = Registry::new(spells);
-    let mut realms = c.rules.realms.defs().to_vec();
-    for r in ["sorcery", "death", "arcane"] {
-        realms.push(crate::rules::RealmDef {
-            id: r.into(),
-            name: r.into(),
-            ..realms[0].clone()
-        });
-    }
-    c.rules.realms = Registry::new(realms);
     let mut buildings = c.rules.buildings.defs().to_vec();
     let temple = buildings.iter().find(|b| b.id == "temple").unwrap().clone();
     for id in ["city_walls", "shrine", "parthenon"] {
@@ -350,6 +292,7 @@ fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
     let spell = g.content.rules.spells.id_of("spell_ward").unwrap();
     g.magic_mut(P0).unwrap().known.insert(spell);
     g.magic_mut(P0).unwrap().skill_left = 500;
+    g.player_mut(P0).unwrap().mana = 5000;
     let realm = realm(g, id);
     g.apply(Command::CastSpell {
         player: P0,

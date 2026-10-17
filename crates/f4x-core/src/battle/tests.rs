@@ -2434,22 +2434,10 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     assert_eq!((armed.mana, armed.ammo), (4, 1));
 }
 
-/// A game with two spells a battle unit can cast: "zap" (10 mana, 3 damage) and "mend" (10, heals).
+/// A game with the game's real spells, for battle units that cast them.
 fn casting_game() -> Game {
-    use crate::rules::defs::CastContext;
     let mut g = game();
-    let mut spells = crate::testutil::content_with_magic()
-        .rules
-        .spells
-        .defs()
-        .to_vec();
-    for s in spells.iter_mut() {
-        s.contexts = vec![CastContext::Battle];
-    }
-    let mut healing = spells.iter().find(|s| s.id == "mend").unwrap().clone();
-    healing.id = "healing".into();
-    spells.push(healing);
-    g.content.rules.spells = crate::rules::Registry::new(spells);
+    g.content.rules.spells = crate::testutil::content_with_magic().rules.spells;
     g
 }
 
@@ -2480,27 +2468,114 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 }
 
 #[test]
+fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() {
+    use crate::player::Player;
+    let mut g = casting_game();
+    let mut wizard = Player::new(A, "Merlin");
+    wizard.mana = 2000;
+    g.players.push(wizard);
+    g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
+    let call = g.content.rules.spells.id_of("call_chaos").unwrap();
+    {
+        let m = g.magic_mut(A).unwrap();
+        m.researchable.remove(&call);
+        m.candidates.retain(|c| *c != call);
+        m.known.insert(call);
+        m.skill_left = 500;
+    }
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let ours = g.spawn_unit(A, at(4, 4), walker);
+    let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: theirs,
+    });
+    // The wizard has the skill and the mana for a spell that dear.
+    g.battle.as_mut().unwrap().battle.set_caster(
+        Side::Attacker,
+        crate::battle::BattleCaster::new(2000, 2000, 10),
+    );
+    let events = g
+        .battle_command(BattleCommand::Cast {
+            spell: call,
+            aim: SpellAim::None,
+            mana: 0,
+        })
+        .unwrap();
+    let battle_events: Vec<&BattleEvent> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Battle(b) => Some(b),
+            _ => None,
+        })
+        .collect();
+    let called: Vec<(usize, u8)> = battle_events
+        .iter()
+        .filter_map(|e| match e {
+            BattleEvent::ChaosCalled { unit, outcome } => Some((*unit, *outcome)),
+            _ => None,
+        })
+        .collect();
+    // One outcome for each enemy unit and for no one else, each of the eight there are.
+    let enemies: Vec<usize> = g
+        .battle()
+        .unwrap()
+        .units
+        .iter()
+        .filter(|u| u.side == Side::Defender)
+        .map(|u| u.id)
+        .collect();
+    assert_eq!(called.iter().map(|&(u, _)| u).collect::<Vec<_>>(), enemies);
+    assert!(called.iter().all(|&(_, outcome)| outcome < 8));
+    // What follows is what the outcome says: a bolt hurts or is shrugged off, healing heals.
+    for &(unit, outcome) in &called {
+        let touched =
+            |pick: fn(&BattleEvent, usize) -> bool| battle_events.iter().any(|e| pick(e, unit));
+        match outcome {
+            4..=6 => assert!(touched(|e, u| matches!(
+                e,
+                BattleEvent::SpellDamaged { unit, .. } | BattleEvent::SpellImmune { unit } if *unit == u
+            ))),
+            1 => assert!(touched(
+                |e, u| matches!(e, BattleEvent::SpellHealed { unit, .. } if *unit == u)
+            )),
+            0 => assert!(!touched(|e, u| matches!(
+                e,
+                BattleEvent::SpellDamaged { unit, .. }
+                    | BattleEvent::SpellHealed { unit, .. }
+                    | BattleEvent::SpellImmune { unit } if *unit == u
+            ))),
+            _ => {}
+        }
+    }
+}
+
+#[test]
 fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
     let mut g = casting_game();
-    let hero = a_caster(&mut g, &["zap", "mend"], 2);
+    let hero = a_caster(&mut g, &["fire_bolt", "healing"], 2);
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("zap").unwrap();
+    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    let mend = g.content.rules.spells.id_of("healing").unwrap();
     let before = g.battle().unwrap().unit(0).unwrap().mana;
     assert_eq!(before, 7);
-    // Both spells are on the list; the hero has the mana for neither (10 each), so no cast.
+    // Both spells are on the list; the hero has the mana for the Fire Bolt (5) but not for
+    // Healing (15).
     let list = g.battle_unit_spells(0);
     assert_eq!(list.len(), 2);
-    assert!(list
-        .iter()
-        .all(|s| s.source == SpellSource::Mana && !s.castable));
+    assert!(list.iter().all(|s| s.source == SpellSource::Mana));
+    assert_eq!(
+        list.iter().map(|s| s.castable).collect::<Vec<_>>(),
+        [true, false]
+    );
     let refused = g.battle_command(BattleCommand::UnitCast {
         unit: 0,
-        spell: zap,
-        aim: SpellAim::Unit(1),
+        spell: mend,
+        aim: SpellAim::Unit(0),
         mana: 0,
     });
     assert_eq!(refused, Err(BattleError::Spell(SpellError::TooExpensive)));
-    // With mana for one, it casts, pays and cannot cast again.
+    // With mana for more, it casts, pays and cannot cast again.
     g.battle.as_mut().unwrap().battle.units[0].mana = 25;
     let hp = g.battle().unwrap().unit(1).unwrap().hit_points();
     let events = g
@@ -2515,7 +2590,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
         e,
         Event::Battle(BattleEvent::UnitSpellCast {
             unit: 0,
-            mana: 10,
+            mana: 5,
             ..
         })
     )));
@@ -2526,7 +2601,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
         )
     )));
     let b = g.battle().unwrap();
-    assert_eq!(b.unit(0).unwrap().mana, 15);
+    assert_eq!(b.unit(0).unwrap().mana, 20);
     assert!(b.unit(1).unwrap().hit_points() <= hp);
     assert_eq!(b.unit(0).unwrap().moves_left, 0);
     assert!(
@@ -2558,7 +2633,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
             ..ItemBonus::default()
         },
         powers: Vec::new(),
-        charges: Some(("zap".into(), 2)),
+        charges: Some(("fire_bolt".into(), 2)),
         prefab: None,
     };
     // The spell is in the second slot: any slot works, not only the first.
@@ -2566,7 +2641,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
         .world
         .insert_one(hero, HeroItems([None, Some(wand("Wand")), None]));
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("zap").unwrap();
+    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
     let b = g.battle().unwrap();
     assert_eq!(b.unit(0).unwrap().mana, 0, "no casting skill, no mana");
     assert_eq!(b.unit(0).unwrap().casting.spell_save, 2);
@@ -2592,7 +2667,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     let items = g.world.get::<&HeroItems>(hero).unwrap();
     assert_eq!(
         items.0[1].as_ref().unwrap().charges,
-        Some(("zap".into(), 1))
+        Some(("fire_bolt".into(), 1))
     );
 }
 
@@ -2654,25 +2729,10 @@ fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
     assert_eq!(resisted(&mut b), 0);
 }
 
-/// A game whose hero (casting skill 4, so mana for several casts) has the spell `id`, which runs
-/// the given hook. The battle is on; the enemy is battle unit 1.
-fn hook_game(id: &str, hook: &str, target: crate::rules::defs::SpellTarget, cost: u32) -> Game {
-    use crate::rules::effects::{Effect, EffectRule, TargetSel, Trigger};
+/// A game whose hero (casting skill 4, so mana for several casts) has the real spell `id`. The
+/// battle is on; the enemy is battle unit 1.
+fn hook_game(id: &str) -> Game {
     let mut g = casting_game();
-    let mut spells = g.content.rules.spells.defs().to_vec();
-    let mut spell = spells.iter().find(|s| s.id == "zap").unwrap().clone();
-    spell.id = id.into();
-    spell.name = id.into();
-    spell.cost = cost;
-    spell.target = target;
-    spell.effects = vec![EffectRule {
-        when: Trigger::OnCast,
-        target: TargetSel::Chosen,
-        condition: crate::rules::effects::Condition::Always,
-        effect: Effect::Custom(hook.into()),
-    }];
-    spells.push(spell);
-    g.content.rules.spells = crate::rules::Registry::new(spells);
     let hero = a_caster(&mut g, &[id], 4);
     begin(&mut g, hero);
     g.battle.as_mut().unwrap().battle.units[0].mana = 1000;
@@ -2698,8 +2758,7 @@ fn cast_unit(
 
 #[test]
 fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("earth_to_mud", "earth_to_mud", SpellTarget::Tile, 15);
+    let mut g = hook_game("earth_to_mud");
     // Any playable square may be aimed at.
     let centre = (10, 11);
     let events = cast_unit(&mut g, "earth_to_mud", SpellAim::Tile(centre), 0).unwrap();
@@ -2750,8 +2809,7 @@ fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() 
 
 #[test]
 fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("disrupt", "disrupt", SpellTarget::Tile, 15);
+    let mut g = hook_game("disrupt");
     g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
     let walls = g.battle().unwrap().map.standing_walls();
     assert!(walls.len() > 2);
@@ -2772,8 +2830,7 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
 
 #[test]
 fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("cracks_call", "cracks_call", SpellTarget::Tile, 20);
+    let mut g = hook_game("cracks_call");
     let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
     // A flier is never touched; a walker falls in sooner or later.
     g.battle.as_mut().unwrap().battle.units[1].flies = true;
@@ -2796,7 +2853,7 @@ fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_w
     }
     assert!(died, "one time in four, sixty times");
     // A wall on the square comes down.
-    let mut g = hook_game("cracks_call", "cracks_call", SpellTarget::Tile, 20);
+    let mut g = hook_game("cracks_call");
     g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
     let wall = g.battle().unwrap().map.standing_walls()[0];
     let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(wall), 0).unwrap();
@@ -2808,8 +2865,7 @@ fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_w
 
 #[test]
 fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("life_drain", "life_drain", SpellTarget::EnemyUnit, 10);
+    let mut g = hook_game("life_drain");
     {
         let b = &mut g.battle.as_mut().unwrap().battle;
         b.units[1].resistance = 0;
@@ -2837,8 +2893,7 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
 
 #[test]
 fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("word_of_recall", "word_of_recall", SpellTarget::OwnUnit, 20);
+    let mut g = hook_game("word_of_recall");
     g.players.push(crate::player::Player::new(A, "A"));
     let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
     assert_eq!(no_circle, Err(BattleError::Spell(SpellError::BadTarget)));
@@ -3618,8 +3673,7 @@ fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
 
 #[test]
 fn magic_vortex_is_cast_on_a_free_square() {
-    use crate::rules::defs::SpellTarget;
-    let mut g = hook_game("magic_vortex", "magic_vortex", SpellTarget::Tile, 50);
+    let mut g = hook_game("magic_vortex");
     let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
     assert_eq!(
         cast_unit(&mut g, "magic_vortex", SpellAim::Tile(enemy_cell), 0),

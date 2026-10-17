@@ -886,7 +886,7 @@ mod tests {
         m.choose_research(&c, mastery).unwrap();
         assert_eq!(m.research_remaining, cost);
         assert_ne!(
-            m.research_cost(&c, spell(&c, "mend")),
+            m.research_cost(&c, spell(&c, "healing")),
             cost,
             "other spells cost their listed amount"
         );
@@ -901,8 +901,8 @@ mod tests {
         m.refill_research(&c, &mut rng, 5);
         let pick = *m.candidates.first().expect("something on offer");
         assert_eq!(
-            m.choose_research(&c, spell(&c, "mend")).is_ok(),
-            m.candidates.contains(&spell(&c, "mend"))
+            m.choose_research(&c, spell(&c, "healing")).is_ok(),
+            m.candidates.contains(&spell(&c, "healing"))
         );
         m = {
             let mut fresh = m.clone();
@@ -1010,7 +1010,7 @@ mod tests {
         let c = content_with_magic();
         let mut p = Player::new(PlayerId(0), "Merlin");
         p.magic = Magic::new(&[("life", 2)], &[Retort::Archmage]);
-        let target = *p.magic.candidates.first().unwrap_or(&spell(&c, "mend"));
+        let target = *p.magic.candidates.first().unwrap_or(&spell(&c, "healing"));
         p.magic.researching = Some(target);
         p.magic.research_remaining = 10;
         p.mana = 5;
@@ -1039,7 +1039,7 @@ mod tests {
         let c = content_with_magic();
         let mut p = Player::new(PlayerId(0), "Merlin");
         p.magic = Magic::new(&[("life", 2)], &[]);
-        p.magic.begin_casting(spell(&c, "mend"), 30);
+        p.magic.begin_casting(spell(&c, "healing"), 30);
         p.mana = 50;
         let skill = p.magic.skill_left;
         pay_for_casting(&mut p);

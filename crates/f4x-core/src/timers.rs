@@ -155,23 +155,25 @@ mod tests {
         g
     }
 
+    /// A unit under Giant Strength, which no real spell is timed like: the spell is made to last
+    /// two turns for the test.
     fn timed_unit(g: &mut Game) -> (hecs::Entity, SpellId) {
         let pos = Position {
             plane: Plane::Arcanus,
             x: 5,
             y: 5,
         };
-        let call = g.content.rules.spells.id_of("call_spears").unwrap();
-        let brief = g.content.rules.spells.id_of("brief_strength").unwrap();
-        g.magic_mut(P0).unwrap().known.insert(call);
+        let mut defs = g.content.rules.spells.defs().to_vec();
+        for d in defs.iter_mut().filter(|d| d.id == "giant_strength") {
+            d.duration = crate::rules::Duration::Turns(2);
+            d.upkeep = 0;
+        }
+        g.content.rules.spells = crate::rules::Registry::new(defs);
+        let brief = g.content.rules.spells.id_of("giant_strength").unwrap();
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let unit = g.spawn_unit(P0, pos, walker);
         g.magic_mut(P0).unwrap().known.insert(brief);
         g.magic_mut(P0).unwrap().skill_left = 500;
-        g.apply(Command::CastSpell {
-            player: P0,
-            spell: call,
-            target: Some(Target::Tile(pos)),
-        });
-        let unit = g.units().units_at(pos)[0];
         g.apply(Command::CastSpell {
             player: P0,
             spell: brief,

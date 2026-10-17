@@ -24,6 +24,17 @@ fn spell(g: &Game, id: &str) -> SpellId {
     g.content.rules.spells.id_of(id).unwrap()
 }
 
+/// The real spells `ids`, which are cast in battle, made castable on the map too (and, as for
+/// the spells the game offers in both places, five times as dear there).
+fn on_the_map(g: &mut Game, ids: &[&str]) {
+    let mut defs = g.content.rules.spells.defs().to_vec();
+    for d in defs.iter_mut().filter(|d| ids.contains(&d.id.as_str())) {
+        d.contexts.push(crate::rules::CastContext::Overland);
+        d.overland_x5 = true;
+    }
+    g.content.rules.spells = crate::rules::Registry::new(defs);
+}
+
 /// 24x14 grassland, one wizard with 2 life books and 100 mana.
 fn world() -> Game {
     let c = content_with_magic();
@@ -164,7 +175,7 @@ fn retorts_and_extra_books_change_research_and_cost() {
     let mut g = world();
     g.init_wizard(P0, &[("life", 9)], &[Retort::SageMaster], None)
         .unwrap();
-    let mend = spell(&g, "mend");
+    let mend = spell(&g, "healing");
     // Sage master 25 plus two books over seven, 10 each.
     assert_eq!(
         g.magic(P0)
@@ -172,8 +183,8 @@ fn retorts_and_extra_books_change_research_and_cost() {
             .research_bonus(g.content().rules.spells.get(mend)),
         45
     );
-    // Two books over seven take a fifth off the cost.
-    assert_eq!(g.casting_cost(P0, mend, false), 8);
+    // Two books over seven take a fifth off the cost (15 mana in battle).
+    assert_eq!(g.casting_cost(P0, mend, true), 12);
     let runes = spell(&g, "magic_spirit");
     assert_eq!(
         g.magic(P0)
@@ -244,12 +255,15 @@ fn mana_income_fills_the_reserve() {
 #[test]
 fn an_affordable_spell_takes_effect_at_once() {
     let mut g = world();
+    on_the_map(&mut g, &["healing"]);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.world.insert_one(unit, crate::units::Hurt(3)).unwrap();
-    let mend = spell(&g, "mend");
+    let mend = spell(&g, "healing");
     g.magic_mut(P0).unwrap().known.insert(mend);
-    g.magic_mut(P0).unwrap().skill_left = 50;
+    g.magic_mut(P0).unwrap().skill_left = 100;
+    g.player_mut(P0).unwrap().mana = 1000;
+    let cost = g.casting_cost(P0, mend, false);
     let mana = g.player(P0).unwrap().mana;
     // A spell with a target needs one.
     assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
@@ -267,18 +281,19 @@ fn an_affordable_spell_takes_effect_at_once() {
         g.units().unit_hits(unit).1,
         "healed"
     );
-    assert_eq!(g.player(P0).unwrap().mana, mana - 10);
-    assert_eq!(g.magic(P0).unwrap().skill_left, 40);
+    assert_eq!(g.player(P0).unwrap().mana, mana - cost);
+    assert_eq!(g.magic(P0).unwrap().skill_left, 100 - cost);
     assert_eq!(g.magic(P0).unwrap().casting, None);
 }
 
 #[test]
 fn spells_need_a_known_spell_and_a_valid_target() {
     let mut g = world();
+    on_the_map(&mut g, &["healing", "fire_bolt"]);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let mine = g.spawn_unit(P0, at(3, 3), spear);
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
-    let (mend, zap) = (spell(&g, "mend"), spell(&g, "zap"));
+    let (mend, zap) = (spell(&g, "healing"), spell(&g, "fire_bolt"));
     g.magic_mut(P0).unwrap().skill_left = 50;
     assert_eq!(
         g.start_cast(P0, mend, Some(Target::Unit(mine))),
@@ -296,7 +311,7 @@ fn spells_need_a_known_spell_and_a_valid_target() {
         g.check_target(P0, zap, Some(Target::Unit(mine))),
         Err(MagicError::NoSuchTarget)
     );
-    // Three damage kills a spear-sized unit with that few hit points or hurts it.
+    // Five damage kills a spear-sized unit with that few hit points or hurts it.
     g.start_cast(P0, zap, Some(Target::Unit(theirs))).unwrap();
     let (left, max) = g.units().unit_hits(theirs);
     assert!(left < max || !g.world.contains(theirs));
@@ -458,13 +473,13 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
         spell: strength
     }));
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
-    assert_eq!(g.income(P0).mana_upkeep, 2);
+    assert_eq!(g.income(P0).mana_upkeep, 1);
     let mana = g.player(P0).unwrap().mana;
     g.apply(Command::EndTurn);
-    assert_eq!(g.player(P0).unwrap().mana, mana - 2);
+    assert_eq!(g.player(P0).unwrap().mana, mana - 1);
 
     // With no mana left the enchantment lapses.
-    g.player_mut(P0).unwrap().mana = 1;
+    g.player_mut(P0).unwrap().mana = 0;
     let events = g.apply(Command::EndTurn);
     assert!(events.contains(&Event::EnchantmentLapsed {
         player: P0,
@@ -491,7 +506,13 @@ fn cancelling_loses_what_was_paid() {
 #[test]
 fn summoning_creates_units_at_the_chosen_tile() {
     let mut g = world();
-    let call = spell(&g, "call_spears");
+    // The test content has no bears: War Bears brings a copy of the spear.
+    let mut units = g.content.rules.units.defs().to_vec();
+    let mut bears = units.iter().find(|u| u.id == "spear").unwrap().clone();
+    bears.id = "war_bears".into();
+    units.push(bears);
+    g.content.rules.units = crate::rules::Registry::new(units);
+    let call = spell(&g, "war_bears");
     g.magic_mut(P0).unwrap().known.insert(call);
     g.magic_mut(P0).unwrap().skill_left = 99;
     g.apply(Command::CastSpell {
@@ -499,24 +520,25 @@ fn summoning_creates_units_at_the_chosen_tile() {
         spell: call,
         target: Some(Target::Tile(at(5, 5))),
     });
-    assert_eq!(g.units().units_at(at(5, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(5, 5)).len(), 1);
 }
 
 #[test]
 fn a_city_enchantment_is_cast_and_paid_for() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 4);
-    let famine = spell(&g, "famine");
-    g.magic_mut(P0).unwrap().known.insert(famine);
-    g.magic_mut(P0).unwrap().skill_left = 99;
-    let food = g.economy().city_economy(city).unwrap().food;
+    let prosperity = spell(&g, "prosperity");
+    g.magic_mut(P0).unwrap().known.insert(prosperity);
+    g.magic_mut(P0).unwrap().skill_left = 999;
+    g.player_mut(P0).unwrap().mana = 1000;
+    let gold = g.economy().city_economy(city).unwrap().gold;
     g.apply(Command::CastSpell {
         player: P0,
-        spell: famine,
+        spell: prosperity,
         target: Some(Target::City(city)),
     });
-    assert!(g.economy().city_economy(city).unwrap().food < food);
-    assert_eq!(g.income(P0).mana_upkeep, 1);
+    assert!(g.economy().city_economy(city).unwrap().gold > gold);
+    assert_eq!(g.income(P0).mana_upkeep, 2);
 }
 
 #[test]

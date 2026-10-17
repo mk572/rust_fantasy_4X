@@ -29,6 +29,12 @@ fn world() -> Game {
         g.players.push(p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+    // The test content has no bears: War Bears brings a copy of the spear.
+    let mut units = g.content.rules.units.defs().to_vec();
+    let mut bears = units.iter().find(|u| u.id == "spear").unwrap().clone();
+    bears.id = "war_bears".into();
+    units.push(bears);
+    g.content.rules.units = crate::rules::Registry::new(units);
     g
 }
 
@@ -111,9 +117,10 @@ fn summoned_creatures_appear_at_the_circle() {
     let mut g = world();
     place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let call = spell(&g, "call_spears");
+    let call = spell(&g, "war_bears");
     g.magic_mut(P0).unwrap().known.insert(call);
     g.magic_mut(P0).unwrap().skill_left = 99;
+    g.player_mut(P0).unwrap().mana = 500;
     // No target is needed: the creatures come to the circle.
     assert!(!g.spell_needs_target(P0, call));
     g.apply(Command::CastSpell {
@@ -121,7 +128,7 @@ fn summoned_creatures_appear_at_the_circle() {
         spell: call,
         target: None,
     });
-    assert_eq!(g.units().units_at(at(5, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(5, 5)).len(), 1);
     // Move the circle with the spell, and they come there instead.
     let events = cast(&mut g, "summoning_circle", town);
     assert!(events.contains(&Event::SummoningCircleMoved {
@@ -140,7 +147,7 @@ fn summoned_creatures_appear_at_the_circle() {
         spell: call,
         target: None,
     });
-    assert_eq!(g.units().units_at(at(15, 5)).len(), 2);
+    assert_eq!(g.units().units_at(at(15, 5)).len(), 1);
 }
 
 #[test]
@@ -231,9 +238,11 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
         g.start_cast(P0, ret, Some(Target::City(town))),
         Err(crate::magic::MagicError::NotAvailable)
     );
-    // It is paid over the following turns, then needs a city.
+    // It is paid over the following turns (a thousand points at the wizard's skill), then needs a
+    // city.
+    g.player_mut(P0).unwrap().mana = 5000;
     let mut ready = false;
-    for _ in 0..20 {
+    for _ in 0..400 {
         let events = g.apply(Command::EndTurn);
         if events.contains(&Event::SpellReady {
             player: P0,

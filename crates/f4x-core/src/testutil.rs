@@ -225,9 +225,7 @@ pub fn content_with_units() -> Content {
 /// Test content with a few races, buildings, mines and city enchantments, for economy tests.
 pub fn content_with_economy() -> Content {
     use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
-    use crate::rules::{
-        BuildingDef, CastContext, Duration, ModOp, RaceDef, Rarity, RealmDef, SpellDef, SpellTarget,
-    };
+    use crate::rules::{BuildingDef, ModOp, RaceDef, RealmDef};
     let mut c = content_with_units();
     let modify = |stat, op, value| EffectRule {
         when: Trigger::Passive,
@@ -369,30 +367,10 @@ pub fn content_with_economy() -> Content {
     elf.units = vec!["spear".into(), "settler".into()];
     dwarf.units = vec!["spear".into()];
     // The spear is the elves' unit; dwarves list it too for the test, so give the check a race.
-    let spell = |id: &str, effects| SpellDef {
-        id: id.into(),
-        name: id.into(),
-        realm: "life".into(),
-        rarity: Rarity::Common,
-        cost: 10,
-        research_cost: 10,
-        contexts: vec![CastContext::Overland],
-        overland_x5: false,
-        target: SpellTarget::OwnCity,
-        duration: Duration::Permanent,
-        upkeep: 1,
-        dispel_difficulty: 10,
-        save: None,
-        effects,
-    };
-    let spells = vec![
-        spell("famine", vec![modify(Stat::CityFood, ModOp::Percent, -50)]),
-        spell("gaias_blessing", vec![]),
-    ];
     c.rules.races = Registry::new(vec![elf, dwarf]);
     c.rules.units = Registry::new(units);
     c.rules.buildings = Registry::new(buildings);
-    c.rules.spells = Registry::new(spells);
+    c.rules.spells = Registry::new(real_spells());
     c.rules.realms = Registry::new(vec![RealmDef {
         id: "life".into(),
         name: "Life".into(),
@@ -454,325 +432,19 @@ pub fn content_with_economy() -> Content {
     c
 }
 
-/// Economy content plus a spell library: ten spells of each rarity in life and chaos,
-/// two arcane spells, and a few with real effects (a unit enchantment, a heal, a summon).
+/// The game's real spells (`content/spells.ron`), for tests that cast or look at them.
+pub fn real_spells() -> Vec<crate::rules::SpellDef> {
+    ron::from_str(include_str!("../../../content/spells.ron")).expect("the game's spells parse")
+}
+
+/// Economy content plus the game's real spells and realms (`content/spells.ron` and
+/// `content/realms.ron`), so a test casts the same spell the game does.
 pub fn content_with_magic() -> Content {
-    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
-    use crate::rules::{CastContext, Duration, ModOp, Rarity, RealmDef, SpellDef, SpellTarget};
+    use crate::rules::RealmDef;
     let mut c = content_with_economy();
-    let rule = |when, effect| EffectRule {
-        when,
-        condition: Condition::Always,
-        target: TargetSel::Chosen,
-        effect,
-    };
-    let mut spells: Vec<SpellDef> = c.rules.spells.defs().to_vec();
-    let base = |id: &str, realm: &str, rarity, cost, research, target| SpellDef {
-        id: id.into(),
-        name: id.into(),
-        realm: realm.into(),
-        rarity,
-        cost,
-        research_cost: research,
-        contexts: vec![CastContext::Overland],
-        overland_x5: false,
-        target,
-        duration: Duration::Instant,
-        upkeep: 0,
-        dispel_difficulty: 0,
-        save: None,
-        effects: vec![],
-    };
-    for realm in ["life", "chaos"] {
-        for (rarity, tag) in [
-            (Rarity::Common, "c"),
-            (Rarity::Uncommon, "u"),
-            (Rarity::Rare, "r"),
-            (Rarity::VeryRare, "v"),
-        ] {
-            for i in 0..10 {
-                let mut s = base(
-                    &format!("{realm}_{tag}{i}"),
-                    realm,
-                    rarity,
-                    10 + i,
-                    20 + 10 * i,
-                    SpellTarget::None,
-                );
-                s.effects = vec![rule(
-                    Trigger::OnCast,
-                    Effect::Custom("unimplemented".into()),
-                )];
-                spells.push(s);
-            }
-        }
-    }
-    spells.push(base(
-        "magic_spirit",
-        "arcane",
-        Rarity::Common,
-        30,
-        20,
-        SpellTarget::None,
-    ));
-    spells.push(base(
-        "dispel_magic",
-        "arcane",
-        Rarity::Common,
-        10,
-        100,
-        SpellTarget::None,
-    ));
-    let mut mastery = base(
-        "spell_of_mastery",
-        "arcane",
-        Rarity::Uncommon,
-        5000,
-        60_000,
-        SpellTarget::None,
-    );
-    mastery.effects = vec![rule(
-        Trigger::OnCast,
-        Effect::Custom(crate::endgame::SPELL_OF_MASTERY.into()),
-    )];
-    spells.push(mastery);
-    let mut strength = base(
-        "giant_strength",
-        "nature",
-        Rarity::Common,
-        8,
-        80,
-        SpellTarget::OwnUnit,
-    );
-    strength.duration = Duration::Permanent;
-    strength.upkeep = 2;
-    strength.dispel_difficulty = 8;
-    strength.contexts = vec![CastContext::Battle, CastContext::Overland];
-    strength.overland_x5 = true;
-    strength.effects = vec![EffectRule {
-        when: Trigger::Passive,
-        condition: Condition::Always,
-        target: TargetSel::This,
-        effect: Effect::Modify {
-            stat: crate::rules::Stat::Melee,
-            op: ModOp::Add,
-            value: 1,
-        },
-    }];
-    // Lasting spells that grant an ability, or that the engine reads by name for resistance.
-    for (id, grant) in [
-        ("magic_immunity", Some("magic_immunity")),
-        ("flame_blade", Some("magical_weapon")),
-        ("resist_elements", None),
-        ("righteousness", None),
-    ] {
-        let mut s = base(id, "life", Rarity::Rare, 30, 100, SpellTarget::OwnUnit);
-        s.duration = Duration::Permanent;
-        s.upkeep = 2;
-        s.dispel_difficulty = 30;
-        s.effects = grant
-            .map(|a| EffectRule {
-                when: Trigger::Passive,
-                condition: Condition::Always,
-                target: TargetSel::This,
-                effect: Effect::GrantAbility(a.into()),
-            })
-            .into_iter()
-            .collect();
-        spells.push(s);
-    }
-    let mut brief = strength.clone();
-    brief.id = "brief_strength".into();
-    brief.duration = Duration::Turns(2);
-    brief.upkeep = 0;
-    spells.push(strength);
-    spells.push(brief);
-    let mut heal = base("mend", "life", Rarity::Common, 10, 40, SpellTarget::OwnUnit);
-    heal.effects = vec![rule(Trigger::OnCast, Effect::Heal(5))];
-    spells.push(heal);
-    let mut bolt = base(
-        "zap",
-        "chaos",
-        Rarity::Common,
-        10,
-        40,
-        SpellTarget::EnemyUnit,
-    );
-    bolt.effects = vec![rule(
-        Trigger::OnCast,
-        Effect::Damage {
-            amount: 3,
-            kind: crate::rules::effects::DamageKind::Fire,
-            resistible: false,
-            immune: Vec::new(),
-            realm: None,
-            resist_modifier: 0,
-            traits: Default::default(),
-        },
-    )];
-    spells.push(bolt);
-    let mut summon = base(
-        "call_spears",
-        "life",
-        Rarity::Common,
-        40,
-        40,
-        SpellTarget::Tile,
-    );
-    summon.effects = vec![rule(
-        Trigger::OnCast,
-        Effect::Summon {
-            unit: "spear".into(),
-            count: 2,
-        },
-    )];
-    spells.push(summon);
-    // The fortress spells, which run hooks instead of effects.
-    for (id, cost, hook) in [
-        ("move_fortress", 100, crate::fortress::MOVE_FORTRESS),
-        ("summoning_circle", 50, crate::fortress::MOVE_CIRCLE),
-        ("spell_of_return", 10, crate::fortress::RETURN),
-    ] {
-        let mut s = base(
-            id,
-            "arcane",
-            Rarity::Uncommon,
-            cost,
-            100,
-            SpellTarget::OwnCity,
-        );
-        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
-        spells.push(s);
-    }
-    // City gates (task 12): the effect lives in `gates.rs`, the spell only enchants the city.
-    for id in ["earth_gate", "astral_gate"] {
-        let mut s = base(
-            id,
-            "arcane",
-            Rarity::VeryRare,
-            100,
-            100,
-            SpellTarget::OwnCity,
-        );
-        s.duration = Duration::Permanent;
-        s.effects = vec![rule(
-            Trigger::OnCast,
-            Effect::Custom(crate::gates::CITY_GATE.into()),
-        )];
-        spells.push(s);
-    }
-    // Global enchantments the engine reads from the wizard's list.
-    for id in [
-        "evil_omens",
-        "herb_mastery",
-        "planar_seal",
-        "awareness",
-        "nature_awareness",
-        "detect_magic",
-        "charm_of_life",
-        "holy_arms",
-        "chaos_surge",
-        "crusade",
-        "just_cause",
-        "aura_of_majesty",
-    ] {
-        let mut s = base(id, "arcane", Rarity::VeryRare, 100, 100, SpellTarget::None);
-        s.duration = Duration::Permanent;
-        s.effects = vec![rule(
-            Trigger::OnCast,
-            Effect::Custom(crate::globals::GLOBAL_EFFECT.into()),
-        )];
-        let modify = |cond, stat, value| EffectRule {
-            when: Trigger::Passive,
-            condition: cond,
-            target: TargetSel::This,
-            effect: Effect::Modify {
-                stat,
-                op: ModOp::Add,
-                value,
-            },
-        };
-        match id {
-            "holy_arms" => s.effects.push(modify(
-                Condition::KindIs(crate::rules::UnitKind::Normal),
-                Stat::Melee,
-                1,
-            )),
-            "chaos_surge" => {
-                s.effects
-                    .push(modify(Condition::RealmIs("chaos".into()), Stat::Melee, 2))
-            }
-            _ => {}
-        }
-        spells.push(s);
-    }
-    // Heroism: a lasting unit enchantment the level code looks for by name.
-    let mut heroism = base(
-        "heroism",
-        "life",
-        Rarity::Common,
-        20,
-        100,
-        SpellTarget::OwnUnit,
-    );
-    heroism.duration = Duration::Permanent;
-    heroism.upkeep = 2;
-    spells.push(heroism);
-    // The map-square spells.
-    for (id, cost, hook) in [
-        ("raise_volcano", 200, crate::terraform::RAISE_VOLCANO),
-        ("change_terrain", 50, crate::terraform::CHANGE_TERRAIN),
-        ("corruption", 40, crate::corruption::CORRUPT_LAND),
-        ("warp_node", 75, crate::corruption::WARP_NODE),
-    ] {
-        let mut s = base(id, "arcane", Rarity::Uncommon, cost, 100, SpellTarget::Tile);
-        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
-        spells.push(s);
-    }
-    // The special spells (`special_spells.rs`).
-    for (id, hook, target) in [
-        (
-            "transmute",
-            crate::special_spells::TRANSMUTE,
-            SpellTarget::Tile,
-        ),
-        (
-            "earth_lore",
-            crate::special_spells::EARTH_LORE,
-            SpellTarget::Tile,
-        ),
-        (
-            "natures_cures",
-            crate::special_spells::NATURES_CURES,
-            SpellTarget::OwnUnit,
-        ),
-        (
-            "word_of_recall",
-            crate::special_spells::WORD_OF_RECALL,
-            SpellTarget::OwnUnit,
-        ),
-        (
-            "plane_shift",
-            crate::special_spells::PLANE_SHIFT,
-            SpellTarget::OwnUnit,
-        ),
-    ] {
-        let mut s = base(id, "arcane", Rarity::Uncommon, 20, 100, target);
-        s.effects = vec![rule(Trigger::OnCast, Effect::Custom(hook.into()))];
-        spells.push(s);
-    }
-    c.rules.spells = Registry::new(spells);
-    c.rules.realms = Registry::new(
-        ["life", "chaos", "nature"]
-            .iter()
-            .map(|r| RealmDef {
-                id: (*r).into(),
-                name: (*r).into(),
-                color: (255, 255, 255),
-                default_spells: Vec::new(),
-            })
-            .collect(),
-    );
+    let realms: Vec<RealmDef> = ron::from_str(include_str!("../../../content/realms.ron"))
+        .expect("the game's realms parse");
+    c.rules.realms = Registry::new(realms);
     c
 }
 

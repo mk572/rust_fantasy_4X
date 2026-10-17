@@ -342,6 +342,8 @@ fn taxes_and_race_cause_unrest_and_temples_calm_it() {
 fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() {
     let mut g = world();
     g.player_mut(P0).unwrap().tax_rate = 4;
+    // The spell costs eight mana a turn to keep.
+    g.player_mut(P0).unwrap().mana = 1000;
     let city = found(&mut g, at(10, 6), "elf", 10);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let home = g.spawn_unit(P0, at(10, 6), spear);
@@ -350,15 +352,6 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() {
         g.world.insert_one(u, Hurt(5)).unwrap();
     }
     assert!(g.economy().city_economy(city).unwrap().rebels > 0);
-    let mut spells = g.content.rules.spells.defs().to_vec();
-    let mut def = spells
-        .iter()
-        .find(|s| s.id == "gaias_blessing")
-        .unwrap()
-        .clone();
-    def.id = "stream_of_life".into();
-    spells.push(def);
-    g.content.rules.spells = crate::rules::Registry::new(spells);
     let stream = g.content.rules.spells.id_of("stream_of_life").unwrap();
     g.world
         .get::<&mut Enchantments>(city)

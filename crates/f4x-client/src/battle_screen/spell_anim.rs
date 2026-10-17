@@ -41,8 +41,34 @@ impl App {
                 format!("The {} {verb} cast {name}", u.name)
             }
         };
+        // A wall rises where the wall will stand.
+        if matches!(
+            id.as_str(),
+            "wall_of_stone" | "wall_of_fire" | "wall_of_darkness"
+        ) {
+            let wall = match id.as_str() {
+                "wall_of_fire" => Some(false),
+                "wall_of_darkness" => Some(true),
+                _ => None,
+            };
+            let frames = match wall {
+                Some(false) => 8,
+                _ => 10,
+            };
+            return Some(Anim::WallRise { wall, frames, line });
+        }
+        // Call Chaos plays what it did to each unit.
+        let chaos: Vec<(usize, u8)> = if fx == SpellFx::Chaos {
+            self.battle_ui.chaos.clone()
+        } else {
+            Vec::new()
+        };
         // Spells that strike a side's units play over each of them, a few frames apart.
         let cells: Vec<(Pos, usize)> = match spell_fx::strikes_a_side(&id) {
+            _ if !chaos.is_empty() => chaos
+                .iter()
+                .filter_map(|&(u, _)| before.unit(u).map(|u| (u.cell, (u.id * 3) % 5)))
+                .collect(),
             Some(enemies) => {
                 let target = if enemies { side.other() } else { side };
                 before
@@ -58,7 +84,15 @@ impl App {
                 .collect(),
         };
         let frames = match fx {
-            SpellFx::Cell { lbx, entry, .. } => self.art.frames(lbx, entry).max(1),
+            SpellFx::Cell { lbx, entry, .. } | SpellFx::Ground { lbx, entry } => {
+                self.art.frames(lbx, entry).max(1)
+            }
+            SpellFx::Chaos => spell_fx::CHAOS_EFFECTS
+                .iter()
+                .flatten()
+                .map(|&(lbx, entry, _)| self.art.frames(lbx, entry))
+                .max()
+                .unwrap_or(1),
             SpellFx::Bolt { bolt, .. } => bolt.frames(),
             SpellFx::Lightning | SpellFx::Tint { .. } => 1,
         };
@@ -72,6 +106,7 @@ impl App {
             },
             frames,
             cells: if plays { cells } else { Vec::new() },
+            outcomes: chaos.iter().map(|&(_, o)| o).collect(),
             line,
         })
     }
@@ -87,7 +122,11 @@ impl App {
     pub(super) fn draw_spell_fx(&mut self, (ox, oy, scale): (f32, f32, f32)) {
         let Some((
             Anim::Spell {
-                fx, frames, cells, ..
+                fx,
+                frames,
+                cells,
+                outcomes,
+                ..
             },
             t,
         )) = self.battle_ui.playing.clone()
@@ -113,6 +152,31 @@ impl App {
                 for (pos, delay) in cells {
                     let frame = (t / SPELL_FRAME) as isize - delay as isize;
                     if frame < 0 || frame as usize >= frames {
+                        continue;
+                    }
+                    let (px, py) = Self::spell_point(pos);
+                    let from = if big { (28.0, 30.0) } else { (14.0, 25.0) };
+                    place(self, lbx, entry, frame as usize, (px - from.0, py - from.1));
+                }
+            }
+            SpellFx::Ground { lbx, entry } => {
+                // Slowly, on the square's ground (`cmbt_cell_effect`).
+                let frame = (t / (2.0 * SPELL_FRAME)) as usize;
+                if frame < frames {
+                    for (pos, _) in cells {
+                        let (x, y) = cell_origin(pos);
+                        place(self, lbx, entry, frame, (x, y - 18.0));
+                    }
+                }
+            }
+            SpellFx::Chaos => {
+                for (&(pos, delay), &outcome) in cells.iter().zip(&outcomes) {
+                    let Some((lbx, entry, big)) = spell_fx::CHAOS_EFFECTS[usize::from(outcome) % 8]
+                    else {
+                        continue;
+                    };
+                    let frame = (t / SPELL_FRAME) as isize - delay as isize;
+                    if frame < 0 {
                         continue;
                     }
                     let (px, py) = Self::spell_point(pos);
@@ -171,11 +235,13 @@ impl App {
     /// The tint of a battlefield spell over the whole screen, and the line telling who cast what
     /// (`Combat_Cast_Spell_Message`) over the map's top.
     pub(super) fn draw_spell_overlay(&mut self) {
-        let Some((Anim::Spell { fx, line, .. }, t)) = self.battle_ui.playing.clone() else {
-            return;
-        };
         let lay = Layout::new();
-        if let SpellFx::Tint { realm } = fx {
+        let (tint, line, t) = match self.battle_ui.playing.clone() {
+            Some((Anim::Spell { fx, line, .. }, t)) => (Some(fx), line, t),
+            Some((Anim::WallRise { line, .. }, t)) => (None, line, t),
+            _ => return,
+        };
+        if let Some(SpellFx::Tint { realm }) = tint {
             let (r, g, b) = spell_fx::realm_tint(realm);
             // Up to 40 percent of the colour and back again.
             let phase = (t / 0.9).clamp(0.0, 1.0);

@@ -396,7 +396,7 @@ pub(crate) mod tests {
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.
         g.players[0].magic = crate::magic::Magic::new(&[("life", 2)], &[]);
-        let spell = g.content.rules.spells.id_of("mend").unwrap();
+        let spell = g.content.rules.spells.id_of("healing").unwrap();
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
         let nominal = g.magic(P0).unwrap().casting_skill();

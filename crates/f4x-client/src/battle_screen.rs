@@ -46,6 +46,8 @@ pub(crate) struct BattleUi {
     box_rect: Option<Rect>,
     /// The square the spell just ordered is aimed at, for its animation.
     cast_target: Option<Pos>,
+    /// What Call Chaos did to each unit in the order just given: the unit and the outcome.
+    chaos: Vec<(usize, u8)>,
     log: Vec<String>,
     /// The fleeing button was pressed once and waits for a second press.
     confirm_flee: bool,
@@ -151,7 +153,7 @@ pub(crate) fn describe(
 ) -> Option<String> {
     let name = |i: usize| names.get(i).map_or("?", String::as_str);
     Some(match event {
-        BattleEvent::Moved { .. } => return None,
+        BattleEvent::Moved { .. } | BattleEvent::ChaosCalled { .. } => return None,
         BattleEvent::Attacked {
             attacker,
             defender,
@@ -629,6 +631,14 @@ impl App {
             .iter()
             .find(|u| u.side == Side::Defender)
             .map(|u| u.cell);
+        // Call Chaos: a different outcome for each of the defenders.
+        self.battle_ui.chaos = battle
+            .units
+            .iter()
+            .filter(|u| u.side == Side::Defender)
+            .enumerate()
+            .map(|(i, u)| (u.id, (i + 4) as u8 % 8))
+            .collect();
         if let Some(anim) = self.spell_animation(&battle, spell, Ok(Side::Attacker)) {
             self.battle_ui.shown = Some(battle);
             self.battle_ui.playing = Some((anim, 0.0));
@@ -695,6 +705,15 @@ impl App {
                 self.battle_ui.names = b.units.iter().map(|u| u.name.clone()).collect();
             }
         }
+        self.battle_ui.chaos = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Battle(BattleEvent::ChaosCalled { unit, outcome }) => {
+                    Some((*unit, *outcome))
+                }
+                _ => None,
+            })
+            .collect();
         let names = self.battle_ui.names.clone();
         let mut anims = Vec::new();
         for event in &events {
@@ -893,6 +912,20 @@ impl App {
             }
         }
         Visual::still(u.cell, base)
+    }
+
+    /// The magic wall being raised by the spell that is playing: its kind (0 fire, 1 darkness)
+    /// and the frame it is at.
+    pub(crate) fn rising_wall(&self) -> Option<(u8, usize)> {
+        match &self.battle_ui.playing {
+            Some((
+                Anim::WallRise {
+                    wall: Some(dark), ..
+                },
+                t,
+            )) => Some((u8::from(*dark), (*t / battle_anim::SPELL_FRAME) as usize)),
+            _ => None,
+        }
     }
 
     /// Select the next unit of the human's side that can still act.
@@ -1631,18 +1664,12 @@ impl App {
         };
         let spent = my_turn && u.side == battle.active && !unfinished(u);
         let shade = if spent { 0.65 } else { 1.0 };
-        let mut tint = Color::new(
+        let tint = Color::new(
             shade,
             shade * (1.0 - 0.6 * vis.hurt),
             shade * (1.0 - 0.6 * vis.hurt),
             fade,
         );
-        // An invisible unit that can be seen (the player's own, one next to an enemy, one
-        // that has shown itself) is drawn as a pale, half-see-through ghost, as the original
-        // draws it.
-        if u.is_invisible() {
-            tint = Color::new(0.7 * shade, 0.88 * shade, shade, 0.45 * fade);
-        }
         let cx = sx + CELL_W * scale / 2.0;
         let ids = self.unit_spell_ids(u);
         let mut drew = false;
@@ -1666,7 +1693,9 @@ impl App {
                 let step = (get_time() * 8.0) as usize;
                 let figure = (ty, vis.facing, frame, banner_index);
                 // Black Sleep greys a figure, Warp Creature turns it red and inside out.
-                let effect = if ids.iter().any(|i| i == "warp_creature") {
+                let effect = if u.is_invisible() {
+                    Some(FigureEffect::Revealed)
+                } else if ids.iter().any(|i| i == "warp_creature") {
                     Some(FigureEffect::Warped)
                 } else if ids.iter().any(|i| i == "black_sleep") {
                     Some(FigureEffect::Asleep)

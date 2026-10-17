@@ -51,6 +51,10 @@ pub enum SpellFx {
         entry: usize,
         bolt: Bolt,
     },
+    /// Cracks Call: the picture plays slowly on the ground of the square.
+    Ground { lbx: &'static str, entry: usize },
+    /// Call Chaos: each of the opponent's units gets one of eight effects, by luck.
+    Chaos,
     /// Lightning Bolt: a stroke of Call Lightning's picture down onto the square.
     Lightning,
     /// A battlefield spell: the screen is tinted in the realm's colour and back, with the message.
@@ -87,6 +91,20 @@ pub fn strikes_a_side(spell: &str) -> Option<bool> {
     }
 }
 
+/// The pictures of Call Chaos's eight outcomes (`Cast_Call_Chaos`): nothing, healing, chaos channels,
+/// warp creature, fire bolt, warp lightning, doom bolt, disintegrate; and whether it is a big
+/// picture.
+pub const CHAOS_EFFECTS: [Option<(&str, usize, bool)>; 8] = [
+    None,
+    Some(("specfx", 3, true)),
+    Some(("specfx", 2, true)),
+    Some(("specfx", 2, true)),
+    Some(("cmbtfx", 33, false)),
+    Some(("cmbtfx", 3, false)),
+    Some(("cmbtfx", 3, false)),
+    Some(("cmbtfx", 4, false)),
+];
+
 /// What a spell looks like. `summons` is whether it brings a creature in; `lasting` whether it is
 /// a spell that works on the whole field.
 pub fn fx_for(id: &str, realm: &str, summons: bool) -> SpellFx {
@@ -98,10 +116,7 @@ pub fn fx_for(id: &str, realm: &str, summons: bool) -> SpellFx {
     let battlefield = Field::of(id).is_some()
         || matches!(
             id,
-            "wall_of_stone"
-                | "wall_of_fire"
-                | "wall_of_darkness"
-                | "counter_magic"
+            "counter_magic"
                 | "dispel_magic"
                 | "dispel_magic_true"
                 | "disenchant_area"
@@ -138,6 +153,11 @@ pub fn fx_for(id: &str, realm: &str, summons: bool) -> SpellFx {
             bolt: Bolt::Doom,
         },
         "lightning_bolt" => SpellFx::Lightning,
+        "cracks_call" => SpellFx::Ground {
+            lbx: "cmbtfx",
+            entry: 15,
+        },
+        "call_chaos" => SpellFx::Chaos,
         "earth_to_mud" => SpellFx::Cell {
             lbx: "cmbtfx",
             entry: 14,
@@ -149,7 +169,6 @@ pub fn fx_for(id: &str, realm: &str, summons: bool) -> SpellFx {
             big: true,
         },
         "web" => cell("cmbtfx", 13),
-        "cracks_call" => cell("cmbtfx", 15),
         "change_terrain" => cell("specfx", 8),
         "petrify" => cell("specfx", 12),
         "ice_storm" => cell("specfx", 10),

@@ -11,6 +11,18 @@ fn game() -> Game {
     g
 }
 
+/// The `n`th real spell of a realm and rarity, in the order of the game's spell list.
+fn nth(g: &Game, realm: &str, rarity: Rarity, n: usize) -> crate::rules::SpellId {
+    g.content
+        .rules
+        .spells
+        .iter()
+        .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
+        .nth(n)
+        .map(|(id, _)| id)
+        .expect("the game has ten spells of each realm and rarity")
+}
+
 fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
     WizardBuild {
         name: "Test".into(),
@@ -118,8 +130,8 @@ fn at_most_six_retorts() {
 fn starting_spells_are_chosen_then_defaulted() {
     let mut g = game();
     let (c3, c7) = (
-        g.content.rules.spells.id_of("life_c3").unwrap(),
-        g.content.rules.spells.id_of("life_c7").unwrap(),
+        nth(&g, "life", Rarity::Common, 3),
+        nth(&g, "life", Rarity::Common, 7),
     );
     let mut b = build(&[("life", 4), ("chaos", 6)], &[Retort::Alchemy]);
     b.spells = vec![c7, c3];
@@ -146,9 +158,9 @@ fn starting_spells_are_chosen_then_defaulted() {
 #[test]
 fn bad_spell_choices_are_refused() {
     let mut g = game();
-    let uncommon = g.content.rules.spells.id_of("life_u0").unwrap();
-    let common = g.content.rules.spells.id_of("life_c0").unwrap();
-    let other = g.content.rules.spells.id_of("chaos_c0").unwrap();
+    let uncommon = nth(&g, "life", Rarity::Uncommon, 0);
+    let common = nth(&g, "life", Rarity::Common, 0);
+    let other = nth(&g, "chaos", Rarity::Common, 0);
     let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::Alchemy]);
     b.spells = vec![uncommon];
     assert_eq!(g.create_wizard(P0, &b), Err(BuildError::BadSpell(uncommon)));
@@ -222,15 +234,24 @@ fn presets_come_from_the_rules() {
 #[test]
 fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     let mut g = game();
-    let id = |g: &Game, n: &str| g.content.rules.spells.id_of(n).unwrap();
-    let (u1, u2, u3) = (id(&g, "life_u0"), id(&g, "life_u1"), id(&g, "life_u2"));
-    let rare = id(&g, "life_r3");
+    let life = |g: &Game, rarity, n| nth(g, "life", rarity, n);
+    let (u0, u1, u2) = (
+        life(&g, Rarity::Uncommon, 0),
+        life(&g, Rarity::Uncommon, 1),
+        life(&g, Rarity::Uncommon, 2),
+    );
+    let (r0, rare, r4) = (
+        life(&g, Rarity::Rare, 0),
+        life(&g, Rarity::Rare, 3),
+        life(&g, Rarity::Rare, 4),
+    );
+    let very_rare = life(&g, Rarity::VeryRare, 0);
     let b = build(&[("life", 11)], &[]);
     assert_eq!(b.spell_choices("life"), 0, "the commons are all given");
     assert_eq!(b.spell_choices_of("life", Rarity::Uncommon), 2);
     assert_eq!(b.spell_choices_of("life", Rarity::Rare), 1);
     // Too many, or the wrong sort, are refused.
-    for bad in [vec![u1, u2, u3], vec![rare, id(&g, "life_r4")]] {
+    for bad in [vec![u0, u1, u2], vec![rare, r4]] {
         let mut b = b.clone();
         b.spells = bad;
         assert!(matches!(
@@ -239,30 +260,19 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
         ));
     }
     let mut chosen = b.clone();
-    chosen.spells = vec![u2, u3, rare];
+    chosen.spells = vec![u1, u2, rare];
     g.create_wizard(P0, &chosen).unwrap();
     let magic = g.magic(P0).unwrap();
     assert_eq!(magic.books_in("life"), 11);
-    let known = |name: &str| {
-        magic
-            .known
-            .contains(&g.content.rules.spells.id_of(name).unwrap())
-    };
+    let known = |spell| magic.known.contains(&spell);
     assert!(
-        (0..10).all(|i| known(&format!("life_c{i}"))),
+        (0..10).all(|i| known(life(&g, Rarity::Common, i))),
         "every common"
     );
-    assert!(known("life_u2") && known("life_u1") && known("life_r3"));
-    assert!(
-        !known("life_u0") && !known("life_r0"),
-        "only what was picked"
-    );
-    let researchable = |name: &str| {
-        magic
-            .researchable
-            .contains(&g.content.rules.spells.id_of(name).unwrap())
-    };
-    assert!(researchable("life_u0") && researchable("life_v0") && researchable("life_r0"));
+    assert!(known(u1) && known(u2) && known(rare));
+    assert!(!known(u0) && !known(r0), "only what was picked");
+    let researchable = |spell| magic.researchable.contains(&spell);
+    assert!(researchable(u0) && researchable(very_rare) && researchable(r0));
     // Without a choice the realm's defaults fill in: still two uncommon and one rare.
     let mut g = game();
     g.create_wizard(P0, &b).unwrap();
@@ -298,17 +308,22 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
         .candidates
         .iter()
         .all(|s| magic.researchable.contains(s)));
-    // While a realm has researchable commons, no uncommon of it is offered.
+    // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
+    // commons are on the offer.
     for realm in ["life", "chaos"] {
-        let left_common = magic.researchable.iter().any(|&s| {
-            let d = g.content.rules.spells.get(s);
-            d.realm == realm && d.rarity == Rarity::Common
-        });
-        let offered_other = magic.candidates.iter().any(|&s| {
-            let d = g.content.rules.spells.get(s);
-            d.realm == realm && d.rarity != Rarity::Common
-        });
-        assert!(!(left_common && offered_other), "{realm}");
+        let of_realm = |s: &&crate::rules::SpellId| g.content.rules.spells.get(**s).realm == realm;
+        let commons_left_out = magic
+            .researchable
+            .iter()
+            .filter(of_realm)
+            .filter(|&&s| g.content.rules.spells.get(s).rarity == Rarity::Common)
+            .any(|s| !magic.candidates.contains(s));
+        let offered_other = magic
+            .candidates
+            .iter()
+            .filter(of_realm)
+            .any(|&s| g.content.rules.spells.get(s).rarity != Rarity::Common);
+        assert!(!(commons_left_out && offered_other), "{realm}");
     }
     // Only an offered spell can be researched.
     let outside = *magic

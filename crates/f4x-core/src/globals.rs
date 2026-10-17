@@ -242,8 +242,8 @@ mod tests {
     #[test]
     fn evil_omens_makes_life_and_nature_dearer_for_everyone() {
         let mut g = world();
-        let life = spell(&g, "life_c0");
-        let chaos = spell(&g, "chaos_c0");
+        let life = spell(&g, "healing");
+        let chaos = spell(&g, "fire_bolt");
         let (before, before_chaos) = (
             g.casting_cost(P0, life, false),
             g.casting_cost(P0, chaos, false),
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn detect_magic_shows_what_others_are_casting() {
         let mut g = world();
-        let s = spell(&g, "life_c5");
+        let s = spell(&g, "healing");
         g.magic_mut(P1).unwrap().casting = Some(crate::magic::Casting {
             spell: s,
             remaining: 10,

@@ -74,6 +74,8 @@ pub(crate) enum Piece {
     Wall(Pos),
     /// A section of a Wall of Fire (`0`) or Wall of Darkness (`1`): which of the fourteen.
     MagicWall(u8, usize),
+    /// A section of a magic wall that is rising: its kind, which of the fourteen and the frame.
+    RisingWall(u8, usize, usize),
     Unit(usize),
 }
 
@@ -385,13 +387,16 @@ impl App {
                 }
             }
         };
+        // The wall being raised by the spell that is playing: its kind (0 fire, 1 darkness) and frame.
+        let rising = self.rising_wall();
         let magic = |kind: u8, near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
             let on = if kind == 0 {
                 battle.wall_of_fire
             } else {
                 battle.wall_of_darkness
             };
-            if !on {
+            let rise = rising.filter(|&(k, _)| k == kind).map(|(_, frame)| frame);
+            if !on && rise.is_none() {
                 return;
             }
             for itr in 0..14 {
@@ -399,12 +404,11 @@ impl App {
                 if front == near {
                     let extra = if near { 50 } else { 10 };
                     let pos = core_pos(cgx, cgy);
-                    out.push((
-                        depth_of(cgx, cgy, extra),
-                        1,
-                        pos,
-                        Piece::MagicWall(kind, itr),
-                    ));
+                    let piece = match rise {
+                        Some(frame) => Piece::RisingWall(kind, itr, frame),
+                        None => Piece::MagicWall(kind, itr),
+                    };
+                    out.push((depth_of(cgx, cgy, extra), 1, pos, piece));
                 }
             }
         };
@@ -529,6 +533,21 @@ impl App {
                     "citywall",
                     entry,
                     frame,
+                    (px + dx - hang_x.unwrap_or(size.x / 2.0), py + dy - hang_y),
+                )
+            }
+            Piece::RisingWall(kind, itr, frame) => {
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
+                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
+                let frames = self.art.frames("wallrise", entry).max(1);
+                let Some(size) = self.art.picture("wallrise", entry, 0).map(|t| t.size()) else {
+                    return;
+                };
+                let (px, py) = point(cgx, cgy, (0, 0));
+                (
+                    "wallrise",
+                    entry,
+                    frame.min(frames - 1),
                     (px + dx - hang_x.unwrap_or(size.x / 2.0), py + dy - hang_y),
                 )
             }

@@ -456,8 +456,7 @@ mod tests {
     use crate::items::armory::Placed;
     use crate::map::{Grid, Map};
     use crate::player::Player;
-    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
-    use crate::rules::{ItemPowerDef, PowerBonus, Registry, SpellDef};
+    use crate::rules::{ItemPowerDef, PowerBonus, Registry};
     use crate::testutil::content_with_magic;
     use crate::{Command, Event, Game};
 
@@ -525,26 +524,6 @@ mod tests {
             power("cloak", 9, 150, &[Sword, Misc], None, None),
             power("spell_charges", 9, 1000, &[Staff, Wand], None, None),
         ]);
-        let mut spells = c.rules.spells.defs().to_vec();
-        let template = spells
-            .iter()
-            .find(|s| s.id == "magic_spirit")
-            .unwrap()
-            .clone();
-        for id in ["enchant_item", "create_artifact"] {
-            let mut s: SpellDef = template.clone();
-            s.id = id.into();
-            s.name = id.into();
-            s.cost = 1;
-            s.effects = vec![EffectRule {
-                when: Trigger::OnCast,
-                condition: Condition::Always,
-                target: TargetSel::Chosen,
-                effect: Effect::Custom(CRAFT_ITEM.into()),
-            }];
-            spells.push(s);
-        }
-        c.rules.spells = Registry::new(spells);
         c
     }
 
@@ -769,7 +748,7 @@ mod tests {
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some(("giant_strength".into(), 2));
         let staff = build(&staff, rules);
-        assert_eq!(staff.name, "Staff of giant_strength x2");
+        assert_eq!(staff.name, "Staff of Giant Strength x2");
         assert_eq!(staff.charges, Some(("giant_strength".into(), 2)));
     }
 

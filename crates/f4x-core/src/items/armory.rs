@@ -390,16 +390,16 @@ mod tests {
     /// Row 4 of a 14x8 map is grass up to x4, then sea to x9. A warrior hero and a mage hero.
     fn world() -> Game {
         let mut c = content_with_magic();
-        let mut flight = c.rules.spells.defs()[0].clone();
-        flight.id = "flight".into();
-        flight.effects = vec![EffectRule {
-            when: crate::rules::effects::Trigger::Passive,
-            condition: crate::rules::effects::Condition::Always,
-            target: crate::rules::effects::TargetSel::This,
-            effect: Effect::GrantAbility("flying".into()),
-        }];
+        // Flight as this test reads it: a lasting spell that gives the ability to fly.
         let mut spells = c.rules.spells.defs().to_vec();
-        spells.push(flight);
+        for flight in spells.iter_mut().filter(|s| s.id == "flight") {
+            flight.effects = vec![EffectRule {
+                when: crate::rules::effects::Trigger::Passive,
+                condition: crate::rules::effects::Condition::Always,
+                target: crate::rules::effects::TargetSel::This,
+                effect: Effect::GrantAbility("flying".into()),
+            }];
+        }
         c.rules.spells = Registry::new(spells);
         let mut units = c.rules.units.defs().to_vec();
         for (id, kind) in [

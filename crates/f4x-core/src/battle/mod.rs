@@ -644,6 +644,13 @@ pub enum BattleEvent {
         side: Side,
         spell: SpellId,
     },
+    /// Call Chaos dealt a unit one of its eight outcomes (0 nothing, 1 healing, 2 Chaos
+    /// Channels, 3 Warp Creature, 4 Fire Bolt, 5 Warp Lightning, 6 Doom Bolt, 7 Disintegrate); the
+    /// events that follow tell what it did.
+    ChaosCalled {
+        unit: usize,
+        outcome: u8,
+    },
     /// A damage spell hurt a unit.
     SpellDamaged {
         unit: usize,

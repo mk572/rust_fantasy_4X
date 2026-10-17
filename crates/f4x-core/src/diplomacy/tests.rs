@@ -450,12 +450,12 @@ fn nature_awareness_meets_everyone() {
     city(&mut g, P0, at(2, 2));
     city(&mut g, P1, at(25, 15));
     city(&mut g, P2, at(15, 8));
-    let spell = g.content.rules.spells.id_of("nature_awareness");
-    if let Some(spell) = spell {
-        g.magic_mut(P0).unwrap().global.push(spell);
-        g.apply(Command::EndTurn);
-        assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
-    }
+    let spell = g.content.rules.spells.id_of("nature_awareness").unwrap();
+    // The spell's upkeep is paid from the reserve.
+    g.player_mut(P0).unwrap().mana = 1000;
+    g.magic_mut(P0).unwrap().global.push(spell);
+    g.apply(Command::EndTurn);
+    assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
 }
 
 #[test]

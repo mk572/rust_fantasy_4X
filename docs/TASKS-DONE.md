@@ -112,6 +112,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 127 | Map | Lair rewards: original spell, book and retort selection (done) |
 | 128 | Client | Site encounter dialogs and treasure popup (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
+| 132 | Client | Battle screen: unit figures, animation and the original's frame (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
 | 138 | Client | Army list screen (done) |
 | 139 | Client | City list screen (done) |
@@ -283,6 +284,42 @@ Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroe
 tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
 
 **Checked against ReMoM on 17 October 2026:** `WIZ_RollSpellReward` and `EZ_SpecialTreasure` do not give a usable result as written (the spell index arithmetic always lands on the first ten spells; the special treasure never counts its points spent, so a book would repeat until the wizard has thirteen), so the intent stays. Done now: Famous gives its 10 fame, a wizard with six retorts is given a book and one with twelve books a retort (the original's two limits), and a book or retort hoard that finds nothing to give pays an item of 1200 or 1000 mana. The realm of a hoard's book is the original's `Lair_Magic_Realm` (nodes their own realm, caves and lairs any, dungeons, keeps and ruins death, temples life). Left: nothing known; the Alchemy/Warlord "arcane" quirk is not copied.
+
+**132. Battle screen: unit figures, animation and the original's frame (done).** Done: each unit is drawn
+as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
+owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
+a missile in flight, fading death). **Done (17 October 2026): the missiles** (`cmbmagic`, one for
+each figure of the shooter, aimed and arced as `Make_Missiles` does), **blood** (`cmbtcity` 24 to 28:
+the hit figures bleed and vanish as `Set_Gibs` and `Spawn_Figure_Entity` say), **the glow round
+enchanted units** (a realm's colours moving round the figure's outline) and the figure effects of
+Black Sleep and Warp Creature, the curse pictures (`chriver` 16 to 23), and **the mouse pointers by
+action** (`cursors/`, drawn by the game: finger, boots, swords, bow, wand, red cross). **Done (17 October 2026): the spell effects** (`battle_screen/spell_anim.rs`, `spell_fx.rs`): each
+spell's picture from `cmbtfx` and `specfx` on its target (or over every unit of a side for Flame
+Strike, Death Spell, Holy Word, Mass Healing), the four bolts flying in, Lightning Bolt's stroke, the
+realm tint for battlefield spells, and the "has cast" line (also: glass pixels are now translucent,
+so shadows and glows show as the original draws them). **Done (17 October 2026): the rest**: the walls of fire and
+darkness rising (`wallrise` 36 to 63; the stone wall's file entries are empty, so the original shows
+only the line), Cracks Call on the ground of its square, Call Chaos (each enemy unit shows the effect the core dealt it: the
+core sends a `ChaosCalled` event with the outcome for each unit), and the revealed silhouette of an invisible unit (glass block 1). The original
+has no pictures for breath, gaze or thrown attacks: they are fought out inside the melee animation.
+Sound is task 97. **Done (17 October 2026): the
+original's frame** (`battle_screen/bar.rs`): the map fills the 320 by 200 screen's top 164 rows with the
+fixed camera of `Combat_Screen_Map_Draw` (the ground is drawn on every cell, as the original does), the
+bottom panel (`backgrnd` 3) holds the two names, skill, mana and range, the selected unit with its
+attack, ranged and move icons and damage bar, the six buttons in the original's places with their
+locked pictures, Flee asks "Do you wish to flee?" in the confirmation box, the enchantment icons (four
+a side, `compix` 5 to 15, 41, 60, 79, 80), and a small window with the stats of the unit under the
+pointer (`Draw_Combat_Unit_Display`); the text colours come from the panel picture's own palette
+(`minimap.tsv`). A box at the top right (`battle_screen/specials.rs`, made of the Info window's pictures) lists the
+selected unit's spells, which cast with a click, its demon summons and its abilities. The old side panel, End turn button and spell-ability text list are gone (Enter ends
+the turn). The spell lists are still plain boxes (task 300). Also fixed: the clip rectangle's y was
+taken from the bottom, which cut the main map's last 20 rows. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
+client, `battle/info.rs` in the core, `--battle --battle-field info`): the field's effects (node
+dispel and aura, the besieged city's Cloud of Shadow and Heavenly Light, Chaos Surge, Eternal Night)
+over each wizard's Crusade, Holy Arms, Charm of Life and Zombie Mastery, in the original's layout and
+pictures (`compix` 42 to 59); the button is locked with nothing to show; a key or click closes it.
+Evil Omens is listed too (the original omits it); right-click help on the cells is not done. Terrain autotile edges, dirt patches, roads, rivers and the city
+(task 112) are also missing.
 
 **146. Palette cycling: the pulsing colour of index 198 (done).** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 

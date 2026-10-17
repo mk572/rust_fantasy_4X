@@ -3,8 +3,7 @@ use crate::city::Position;
 use crate::magic::{Casting, Retort};
 use crate::map::{Grid, Map, Node, Plane};
 use crate::player::Player;
-use crate::rules::effects::{EffectRule, Trigger};
-use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget};
+use crate::rules::Registry;
 use crate::testutil::content_with_magic;
 use crate::Command;
 use rand::SeedableRng;
@@ -24,106 +23,19 @@ fn rng() -> rand_pcg::Pcg64Mcg {
     rand_pcg::Pcg64Mcg::seed_from_u64(5)
 }
 
-/// A spell: lasting ones have `dispel_difficulty` equal to their cost.
-fn spell(
-    id: &str,
-    realm: &str,
-    cost: u32,
-    target: SpellTarget,
-    lasting: bool,
-    effect: Option<crate::rules::effects::Effect>,
-) -> SpellDef {
-    SpellDef {
-        id: id.into(),
-        name: id.into(),
-        realm: realm.into(),
-        rarity: Rarity::Common,
-        cost,
-        research_cost: 10,
-        contexts: vec![CastContext::Overland],
-        overland_x5: false,
-        target,
-        duration: if lasting {
-            Duration::Permanent
-        } else {
-            Duration::Instant
-        },
-        upkeep: 0,
-        dispel_difficulty: if lasting { cost } else { 0 },
-        save: None,
-        effects: effect
-            .map(|e| {
-                vec![EffectRule {
-                    when: Trigger::OnCast,
-                    target: crate::rules::effects::TargetSel::Chosen,
-                    condition: crate::rules::effects::Condition::Always,
-                    effect: e,
-                }]
-            })
-            .unwrap_or_default(),
-    }
-}
-
-/// Two wizards (lots of mana and skill), grassland, and the spells the tests use.
+/// Two wizards (lots of mana and skill) and grassland, with the game's real spells. Disenchant
+/// Area and Disjunction are made overwhelming (a strength and a cost of 5000, which no enchantment
+/// resists) so that what they clear does not depend on luck.
 fn world() -> Game {
     use crate::rules::effects::Effect;
     let mut c = content_with_magic();
     let mut defs = c.rules.spells.defs().to_vec();
-    defs.extend([
-        spell(
-            "spell_lock",
-            "sorcery",
-            20,
-            SpellTarget::OwnUnit,
-            true,
-            None,
-        ),
-        spell("aura", "sorcery", 100, SpellTarget::None, true, None),
-        spell(
-            "suppress_magic",
-            "sorcery",
-            1250,
-            SpellTarget::None,
-            true,
-            None,
-        ),
-        spell("life_force", "life", 1000, SpellTarget::None, true, None),
-        spell("tranquility", "life", 1000, SpellTarget::None, true, None),
-        spell("death_bolt", "death", 100, SpellTarget::None, false, None),
-        spell("chaos_bolt", "chaos", 100, SpellTarget::None, false, None),
-        spell(
-            "disjunction",
-            "arcane",
-            5000,
-            SpellTarget::GlobalEnchantment,
-            false,
-            Some(Effect::Custom(DISJUNCTION.into())),
-        ),
-        spell(
-            "spell_binding",
-            "sorcery",
-            5000,
-            SpellTarget::GlobalEnchantment,
-            false,
-            Some(Effect::Custom(SPELL_BINDING.into())),
-        ),
-        spell(
-            "spell_blast",
-            "sorcery",
-            50,
-            SpellTarget::EnemyWizard,
-            false,
-            Some(Effect::Custom(SPELL_BLAST.into())),
-        ),
-        spell(
-            "disenchant_area",
-            "arcane",
-            5000,
-            SpellTarget::Tile,
-            false,
-            Some(Effect::Dispel { strength: 5000 }),
-        ),
-    ]);
+    for d in defs.iter_mut().filter(|d| d.id == "disenchant_area") {
+        d.effects[0].effect = Effect::Dispel { strength: 5000 };
+    }
+    for d in defs.iter_mut().filter(|d| d.id == "disjunction") {
+        d.cost = 5000;
+    }
     c.rules.spells = Registry::new(defs);
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(11);
@@ -171,15 +83,15 @@ fn the_chance_is_strength_over_strength_plus_difficulty() {
 #[test]
 fn masteries_and_archmage_multiply_a_spells_difficulty() {
     let mut g = world();
-    let aura = sp(&g, "aura"); // sorcery, 100
-    assert_eq!(g.dispel_difficulty(aura, Some(P0)), 100);
+    let aura = sp(&g, "aura_of_majesty"); // sorcery, 400
+    assert_eq!(g.dispel_difficulty(aura, Some(P0)), 400);
     g.magic_mut(P0)
         .unwrap()
         .retorts
         .insert(Retort::SorceryMastery);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
-        200,
+        800,
         "its realm's mastery"
     );
     g.magic_mut(P0)
@@ -188,13 +100,13 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() {
         .insert(Retort::NatureMastery);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
-        200,
+        800,
         "another realm's does not count"
     );
     g.magic_mut(P0).unwrap().retorts.insert(Retort::Archmage);
-    assert_eq!(g.dispel_difficulty(aura, Some(P0)), 300);
-    assert_eq!(g.dispel_difficulty(aura, Some(P1)), 100);
-    assert_eq!(g.dispel_difficulty(aura, None), 100);
+    assert_eq!(g.dispel_difficulty(aura, Some(P0)), 1200);
+    assert_eq!(g.dispel_difficulty(aura, Some(P1)), 400);
+    assert_eq!(g.dispel_difficulty(aura, None), 400);
 }
 
 #[test]
@@ -261,7 +173,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(6, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(9, 9), spear);
-    let (strength, aura) = (sp(&g, "giant_strength"), sp(&g, "aura"));
+    let (strength, aura) = (sp(&g, "giant_strength"), sp(&g, "aura_of_majesty"));
     g.attach_enchantment(Target::City(city), aura, P0);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
@@ -308,7 +220,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
 #[test]
 fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
     let mut g = world();
-    let aura = sp(&g, "aura");
+    let aura = sp(&g, "aura_of_majesty");
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let events = cast(&mut g, "spell_binding", Target::Global(P1, aura));
     assert!(
@@ -353,12 +265,12 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
 #[test]
 fn a_weak_disjunction_often_fails() {
     let mut g = world();
-    let aura = sp(&g, "aura"); // difficulty 100
+    let aura = sp(&g, "aura_of_majesty"); // difficulty 400
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let mut r = rng();
     let wins = (0..2000)
         .filter(|_| {
-            let won = g.attack_global(P0, P1, aura, 100, false, &mut r) == Some(true);
+            let won = g.attack_global(P0, P1, aura, 400, false, &mut r) == Some(true);
             g.attach_enchantment(Target::Player(P1), aura, P1);
             won
         })
@@ -369,7 +281,7 @@ fn a_weak_disjunction_often_fails() {
 #[test]
 fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
     let mut g = world();
-    let aura = sp(&g, "aura");
+    let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
     g.magic_mut(P1).unwrap().casting = Some(Casting {
         spell: aura,
@@ -402,7 +314,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
 #[test]
 fn spell_blast_fails_when_the_caster_cannot_match_the_mana() {
     let mut g = world();
-    let aura = sp(&g, "aura");
+    let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
     g.magic_mut(P1).unwrap().casting = Some(Casting {
         spell: aura,
@@ -425,13 +337,8 @@ fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
     let suppress = sp(&g, "suppress_magic");
     g.attach_enchantment(Target::Player(P1), suppress, P1);
     // Strength 500 against difficulty 500: half.
-    let big = sp(&g, "spell_binding"); // cost 5000 ...
-    let mid = {
-        let mut defs = g.content.rules.spells.defs().to_vec();
-        defs.push(spell("mid", "life", 500, SpellTarget::None, false, None));
-        g.content.rules.spells = Registry::new(defs);
-        sp(&g, "mid")
-    };
+    let big = sp(&g, "spell_of_mastery"); // cost 5000 ...
+    let mid = sp(&g, "storm_giant"); // cost 500
     let stopped = (0..2000)
         .filter(|_| g.suppressed_by(P0, mid).is_some())
         .count();
@@ -453,8 +360,8 @@ fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
 fn life_force_and_tranquility_guard_against_their_realms_only() {
     let mut g = world();
     let (death, chaos, life) = (
-        sp(&g, "death_bolt"),
-        sp(&g, "chaos_bolt"),
+        sp(&g, "life_drain"),
+        sp(&g, "fire_bolt"),
         sp(&g, "life_force"),
     );
     g.attach_enchantment(Target::Player(P1), life, P1);
@@ -478,18 +385,25 @@ fn a_stopped_spell_is_lost_and_reported() {
     g.attach_enchantment(Target::Player(P1), suppress, P1);
     let mut stopped = 0;
     for _ in 0..30 {
-        let events = cast(&mut g, "aura", Target::Player(P0));
+        let events = cast(&mut g, "aura_of_majesty", Target::Player(P0));
         if events
             .iter()
             .any(|e| matches!(e, Event::SpellSuppressed { by, .. } if *by == P1))
         {
             stopped += 1;
-            assert!(!g.magic(P0).unwrap().global.contains(&sp(&g, "aura")));
+            assert!(!g
+                .magic(P0)
+                .unwrap()
+                .global
+                .contains(&sp(&g, "aura_of_majesty")));
             break;
         }
         g.magic_mut(P0).unwrap().global.clear();
     }
-    assert_eq!(stopped, 1, "aura costs 100 against 500: about 83% stopped");
+    assert_eq!(
+        stopped, 1,
+        "aura costs 400 against 500: more than half stopped"
+    );
 }
 
 #[test]

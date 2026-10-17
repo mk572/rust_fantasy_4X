@@ -30,7 +30,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 116 | Client | Cityscape: animation, wards and rubble |
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
-| 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 135 | Client | Run the AI wizards in the client |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
@@ -192,39 +191,6 @@ middle of a battle continues exactly like the unsaved one.
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
 cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**132. Battle screen: unit figures, animation and the original's frame.** Done: each unit is drawn
-as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
-owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
-a missile in flight, fading death). **Done (17 October 2026): the missiles** (`cmbmagic`, one for
-each figure of the shooter, aimed and arced as `Make_Missiles` does), **blood** (`cmbtcity` 24 to 28:
-the hit figures bleed and vanish as `Set_Gibs` and `Spawn_Figure_Entity` say), **the glow round
-enchanted units** (a realm's colours moving round the figure's outline) and the figure effects of
-Black Sleep and Warp Creature, the curse pictures (`chriver` 16 to 23), and **the mouse pointers by
-action** (`cursors/`, drawn by the game: finger, boots, swords, bow, wand, red cross). **Done (17 October 2026): the spell effects** (`battle_screen/spell_anim.rs`, `spell_fx.rs`): each
-spell's picture from `cmbtfx` and `specfx` on its target (or over every unit of a side for Flame
-Strike, Death Spell, Holy Word, Mass Healing), the four bolts flying in, Lightning Bolt's stroke, the
-realm tint for battlefield spells, and the "has cast" line (also: glass pixels are now translucent,
-so shadows and glows show as the original draws them). Still missing: the wall-rising animation,
-Cracks Call's ground effect, Call Chaos, the breath and gaze effects, the figure effects of
-invisibility (revealed and hidden silhouettes), and sound (task 97). **Done (17 October 2026): the
-original's frame** (`battle_screen/bar.rs`): the map fills the 320 by 200 screen's top 164 rows with the
-fixed camera of `Combat_Screen_Map_Draw` (the ground is drawn on every cell, as the original does), the
-bottom panel (`backgrnd` 3) holds the two names, skill, mana and range, the selected unit with its
-attack, ranged and move icons and damage bar, the six buttons in the original's places with their
-locked pictures, Flee asks "Do you wish to flee?" in the confirmation box, the enchantment icons (four
-a side, `compix` 5 to 15, 41, 60, 79, 80), and a small window with the stats of the unit under the
-pointer (`Draw_Combat_Unit_Display`); the text colours come from the panel picture's own palette
-(`minimap.tsv`). A box at the top right (`battle_screen/specials.rs`, made of the Info window's pictures) lists the
-selected unit's spells, which cast with a click, its demon summons and its abilities. The old side panel, End turn button and spell-ability text list are gone (Enter ends
-the turn). The spell lists are still plain boxes (task 300). Also fixed: the clip rectangle's y was
-taken from the bottom, which cut the main map's last 20 rows. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
-client, `battle/info.rs` in the core, `--battle --battle-field info`): the field's effects (node
-dispel and aura, the besieged city's Cloud of Shadow and Heavenly Light, Chaos Surge, Eternal Night)
-over each wizard's Crusade, Holy Arms, Charm of Life and Zombie Mastery, in the original's layout and
-pictures (`compix` 42 to 59); the button is locked with nothing to show; a key or click closes it.
-Evil Omens is listed too (the original omits it); right-click help on the cells is not done. Terrain autotile edges, dirt patches, roads, rivers and the city
-(task 112) are also missing.
 
 **134. Game-end cut-scenes and the original's score screen.** **Done: the score screen** (`game_over_screen.rs`, on `halofam` with the icon rows and the bar, `--score`) **and the Hall of Fame** (task 88, `hall_of_fame.rs`, `saves/hall_of_fame.txt`, `--hall`, from the start menu and after the score). **Left:** the win, lose and conquest animations and the parade of portraits (`conquest`, `win`, `lose` in `assets-local/screens/`), the music, and the old buttons are gone: after the table the game returns to the start menu as the original does. The game-over screen is plain text
 and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for

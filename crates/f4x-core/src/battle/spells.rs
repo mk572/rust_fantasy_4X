@@ -1271,6 +1271,10 @@ impl Game {
                 break;
             };
             let roll = active.battle.roll(8);
+            events.push(BattleEvent::ChaosCalled {
+                unit: t,
+                outcome: (roll - 1) as u8,
+            });
             match roll {
                 4 => {
                     let u = &active.battle.units[t];

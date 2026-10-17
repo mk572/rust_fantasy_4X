@@ -35,12 +35,23 @@ impl MinimapColours {
         let mut c = Self::default();
         for line in text.lines() {
             let f: Vec<&str> = line.split('\t').collect();
-            let [kind, _, r, g, b] = f[..] else { continue };
-            let (Ok(r), Ok(g), Ok(b)) = (r.parse::<f32>(), g.parse::<f32>(), b.parse::<f32>())
+            let (Some(&kind), Some(rgb)) = (f.first(), f.get(2..5)) else {
+                continue;
+            };
+            let Ok([r, g, b]) = rgb
+                .iter()
+                .map(|v| v.parse::<f32>())
+                .collect::<Result<Vec<_>, _>>()
+                .map(|v| [v[0], v[1], v[2]])
             else {
                 continue;
             };
-            let colour = Color::new(r / 255.0, g / 255.0, b / 255.0, 1.0);
+            // An optional sixth field is the colour's opacity out of 255.
+            let alpha = f
+                .get(5)
+                .and_then(|a| a.parse::<f32>().ok())
+                .unwrap_or(255.0);
+            let colour = Color::new(r / 255.0, g / 255.0, b / 255.0, alpha / 255.0);
             match kind {
                 "terrain" => c.terrain.push(colour),
                 "banner" => c.banners.push(colour),
@@ -103,6 +114,8 @@ pub enum FigureEffect {
     Asleep,
     /// Warp Creature: the shades of grey turned inside out, in red.
     Warped,
+    /// An invisible unit that can be seen: a flat, translucent silhouette (glass block 1).
+    Revealed,
 }
 
 pub struct Art {
@@ -569,6 +582,9 @@ impl Art {
         effect: FigureEffect,
     ) -> Option<&Texture2D> {
         let key = (figure, 100 + effect as usize, 0);
+        let glass = self
+            .minimap
+            .named("glass_1", Color::new(0.55, 0.65, 0.9, 0.4));
         if !self.glows.contains_key(&key) {
             let changed = self
                 .figure(figure.0, figure.1, figure.2, figure.3)
@@ -588,6 +604,14 @@ impl Art {
                         let grey = grey as u8;
                         match effect {
                             FigureEffect::Asleep => px[..3].fill(grey),
+                            FigureEffect::Revealed => {
+                                px[..3].copy_from_slice(&[
+                                    (glass.r * 255.0) as u8,
+                                    (glass.g * 255.0) as u8,
+                                    (glass.b * 255.0) as u8,
+                                ]);
+                                px[3] = (f32::from(px[3]) * glass.a) as u8;
+                            }
                             FigureEffect::Warped => {
                                 let v = 255 - grey;
                                 px[..3].copy_from_slice(&[v, v / 4, v / 4]);

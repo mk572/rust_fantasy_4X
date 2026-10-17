@@ -215,53 +215,23 @@ mod tests {
     use crate::hero_game::tests::{at, world, P0, P1};
     use crate::map::Plane;
     use crate::roster::Fate;
-    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
-    use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget};
     use crate::units::Experience;
     use crate::Command;
-
-    fn hero_spell(id: &str, cost: u32) -> SpellDef {
-        SpellDef {
-            id: id.into(),
-            name: id.into(),
-            realm: "life".into(),
-            rarity: Rarity::Common,
-            cost,
-            research_cost: cost,
-            contexts: vec![CastContext::Overland],
-            overland_x5: false,
-            target: SpellTarget::None,
-            duration: Duration::Instant,
-            upkeep: 0,
-            dispel_difficulty: 0,
-            save: None,
-            effects: vec![EffectRule {
-                when: Trigger::OnCast,
-                target: TargetSel::Chosen,
-                condition: Condition::Always,
-                effect: Effect::Custom(id.into()),
-            }],
-        }
-    }
 
     /// The hero world, with the four spells known to wizard 0, a circle at (3, 3), 100 gold
     /// and plenty of mana and skill. The last of the seven hero types is "Torin".
     fn caster() -> Game {
         let mut g = world();
-        let mut spells = g.content.rules.spells.defs().to_vec();
-        for (id, cost) in [
-            (SUMMON_HERO, 30),
-            (SUMMON_CHAMPION, 75),
-            (INCARNATION, 50),
-            (RESURRECTION, 25),
-        ] {
-            spells.push(hero_spell(id, cost));
-        }
-        g.content.rules.spells = Registry::new(spells);
         g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
         for id in HOOKS {
             let s = g.content.rules.spells.id_of(id).unwrap();
-            g.magic_mut(P0).unwrap().known.insert(s);
+            let m = g.magic_mut(P0).unwrap();
+            m.researchable.remove(&s);
+            m.candidates.retain(|c| *c != s);
+            if m.researching == Some(s) {
+                m.researching = None;
+            }
+            m.known.insert(s);
         }
         g.magic_mut(P0).unwrap().skill_left = 99_999;
         let p = g.player_mut(P0).unwrap();

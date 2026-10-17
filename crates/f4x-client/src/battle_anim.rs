@@ -45,11 +45,20 @@ pub enum Anim {
     },
     /// A spell's picture, played on each square in turn (the frames each waits before it
     /// starts), under the line that says who cast it.
+    /// A wall of fire or darkness (`Some(dark)`) rising, or a wall of stone (`None`, which the
+    /// original shows only the line for), `frames` long.
+    WallRise {
+        wall: Option<bool>,
+        frames: usize,
+        line: String,
+    },
     Spell {
         fx: SpellFx,
         /// The animation's frames and how long it plays in all.
         frames: usize,
         cells: Vec<(Pos, usize)>,
+        /// For Call Chaos, the outcome of each of the squares (see `BattleEvent::ChaosCalled`).
+        outcomes: Vec<u8>,
         line: String,
     },
 }
@@ -61,6 +70,7 @@ impl Anim {
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
+            Anim::WallRise { frames, .. } => *frames as f32 * SPELL_FRAME,
             Anim::Spell {
                 fx, frames, cells, ..
             } => spell_time(*fx, *frames, cells),
@@ -83,6 +93,11 @@ fn spell_time(fx: SpellFx, frames: usize, cells: &[(Pos, usize)]) -> f32 {
         SpellFx::Bolt { bolt, .. } => {
             let flight = bolt.frames().min(11) as f32 * BOLT_FRAME;
             flight + bolt.frames().saturating_sub(11) as f32 * SPELL_FRAME + 0.3
+        }
+        SpellFx::Ground { .. } => frames as f32 * SPELL_FRAME * 2.0,
+        SpellFx::Chaos => {
+            let latest = cells.iter().map(|&(_, delay)| delay).max().unwrap_or(0);
+            (frames + latest) as f32 * SPELL_FRAME
         }
         SpellFx::Lightning => 0.8,
         SpellFx::Tint { .. } => 0.9,
