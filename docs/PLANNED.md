@@ -41,6 +41,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 28 | Rules | More useful buildings: most buildings get a tangible benefit of their own |
 | 29 | Rules | Reduced upkeep for basic units; no upkeep for settlers |
 | 30 | Rules | More interesting strategies for underplayed or underpowered races |
+| 31 | Meta | Diplomacy with neutral cities: attitude, a leader portrait, talking, deals |
 
 ## Descriptions
 
@@ -384,3 +385,21 @@ event hook; a population sacrifice needs a command and a client control), the AI
 Gnoll AI that sacrifices, a Barbarian AI that expands by sea), the new-game race screen and the
 help text describing them, and the divergence recorded in `divergences.md`. Do the balance
 with item 24, one race at a time, so the effect of each change is measured alone.
+
+**31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `neutral_cities.rs`.
+
+0. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
+1. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
+2. **A dialog when a unit tries to enter the city:** Attack, Talk, Leave. The AI can use the same choice (a rule in `f4x-ai`: attack the weak, talk to the strong or the friendly). A city with free access (below) is entered without asking.
+3. **Talk: the offers** a wizard can make. The city accepts or rejects each one by how much it likes the wizard, whether the deal helps it, and the wizard's overall strength against its own (the same inputs for the human and the AI):
+   - **Give a gift** (an item, a unit, gold): improves relations.
+   - **Demand tribute** (a unit, citizens, a lump sum of gold, gold per turn, mana): the city decides by attitude and strength. (Cities cannot cast spells now; giving them spells is a separate change.)
+   - **Hire mercenaries**: units of the city's race for gold paid to the city.
+   - **Free access**: the wizard's units and ships may enter the city freely.
+   - **Offer protection**: as free access, and the wizard defends the city when attacked; the city pays the upkeep of the wizard's units while they stand on its territory.
+   - **Open trade**: both gain gold each turn by the city's size and whether they are joined by a port or a road.
+   - **Surrender**: the city joins the wizard's empire.
+   - **Sever ties**: the city ends its deals with another wizard.
+   - More offers later (a shared sight, a joint war, passage for a stack through the territory).
+
+Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text. Decide first: how strength is measured, what a surrender costs the wizard's neighbours' attitude, whether a protected city can still be attacked by its wizard's enemies at once or after a warning, and how this meets the raiders of task 154.
