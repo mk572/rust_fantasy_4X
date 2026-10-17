@@ -45,6 +45,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 32 | Magic | Neutral cities: their own mana and spells |
 | 33 | AI | Neutral cities that play strategically (replaces the raiders of task 154) |
 | 34 | Rules | Larger tiles: up to 20 units on a square, armies and battles still limited to nine |
+| 35 | Content | Palette-swap wizards: variants of the 14 ready-made wizards |
 
 ## Descriptions
 
@@ -454,3 +455,13 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 - **Settings.** `max_stack` in `game-settings.md` splits into `max_tile` (up to 20) and `max_army` (up to nine), with the defaults 20 and 9 (decided 17 October 2026); a game can set both to nine for the old rule.
 
 Needs: the two limits in the core with tests (`movement.rs`, `gates.rs`, `special_spells.rs`, `transport.rs`, `neutral_cities.rs`, `lairs.rs`, the raise-dead room), the defender choice (a command `ChooseDefenders` carrying the units, with the preset when the defender does not answer), the battle start using the chosen nine, the pick screen and the larger lists in the client, the AI's rules, the help text, and a save check (the old limit of nine is already satisfied). Do `large-stacks.md` section 2's list of places built for nine first for what still depends on nine.
+
+**35. Palette-swap wizards.** Variants of the 14 ready-made wizards: the same portrait with changed colours (hair, skin, robes, eyes) and a different set of books and retorts, so the player and the AI have more starting wizards to choose from. A list of new wizards in `content/wizards.ron` (id, a variant name, books, retorts, the base wizard and the palette change), shown in the new-game wizard pick and used by the AI's wizard draw.
+
+- **Portraits.** The portraits are the original's art and so local-only (`docs/local-assets.md`): the variants are made from the player's own copy, never committed. Recolour the base portrait once by index remapping (the portraits are 256-colour pictures: remap the palette entries that hold the hair, skin or cloth to new colours; a per-variant table of `(index range → new colour)` in the data), and keep the result as files in `content-local/` that the importer writes (as the Myrror river pictures are kept as files, not recoloured on every start). Without the local art the variant wizards are named and picked by text as the others are.
+- **Variants.** For each of the 14 wizards one or more variants with a new name and description. A variant changes the portrait colours and starts with other books and retorts than its base (a different realm mix, or a different retort), within the pick rules the custom wizard follows (`wizard.rs`: the same budget of picks, the same limits). Examples to write: a dark-haired Merlin who is a chaos and life wizard rather than life and nature; a red-robed Raven. Decide the number per wizard (one to three) and who writes the lists (a first set by hand, balanced with item 24's soak runs).
+- **Choice.** The new-game screen's ready-made list grows (a second page or a scrolling list; the original shows 14 portraits in a grid); the opponents' draw uses all of them; a setting can limit the pool to the original 14.
+- **Names and text.** Each variant gets its own name and a short description in the style of the originals, written for the project (not the original's text; the original's descriptions belong to the base wizards).
+- **AI.** The AI's personality and objective draw (task 64) is unchanged; the books and retorts decide its spells as they do now.
+
+Needs: the data file and its loader (`f4x-data`), the palette tables and the importer step that writes the recoloured portraits (`scripts/import_mom.py` or a new script, logged in `docs/scripts.md` with `--help`), the new-game screen's longer list, saves (the wizard is saved by its books and retorts, so a variant needs only its portrait number, to check), the console and the help, tests that every variant is a legal pick, and a balance pass.
