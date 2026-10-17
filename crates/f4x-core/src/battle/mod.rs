@@ -1098,10 +1098,14 @@ impl Battle {
         }]
     }
 
-    /// The penalty to hit that `hit`'s invisibility gives `attacker`: one, unless the attacker is
-    /// immune to illusions.
+    /// The penalty to hit that `hit`'s invisibility gives `attacker`: one for each square of
+    /// distance (one when adjacent), none if the attacker is immune to illusions.
     fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
-        i32::from(self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity"))
+        if self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity") {
+            distance(self.units[attacker].cell, self.units[hit].cell) as i32
+        } else {
+            0
+        }
     }
 
     /// Whether `viewer`'s side can make out unit `id`. Its own units always; an invisible enemy

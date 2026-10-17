@@ -1355,12 +1355,18 @@ impl App {
         };
         let spent = my_turn && u.side == battle.active && !unfinished(u);
         let shade = if spent { 0.65 } else { 1.0 };
-        let tint = Color::new(
+        let mut tint = Color::new(
             shade,
             shade * (1.0 - 0.6 * vis.hurt),
             shade * (1.0 - 0.6 * vis.hurt),
             fade,
         );
+        // An invisible unit that can be seen (the player's own, one next to an enemy, one
+        // that has shown itself) is drawn as a pale, half-see-through ghost, as the original
+        // draws it.
+        if u.is_invisible() {
+            tint = Color::new(0.7 * shade, 0.88 * shade, shade, 0.45 * fade);
+        }
         let cx = sx + CELL_W * scale / 2.0;
         let mut drew = false;
         if let Some(ty) = unit_type {

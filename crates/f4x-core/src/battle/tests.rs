@@ -2263,10 +2263,12 @@ mod fields {
     fn an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions() {
         let mut ghost = of(Side::Defender, None, (6, 5));
         ghost.abilities.push("invisibility".into());
-        let b = pair(of(Side::Attacker, None, (5, 5)), ghost);
-        assert_eq!(b.invisibility_penalty(0, 1), 1);
+        let mut b = pair(of(Side::Attacker, None, (5, 5)), ghost);
+        assert_eq!(b.invisibility_penalty(0, 1), 1, "adjacent");
         assert_eq!(b.invisibility_penalty(1, 0), 0);
-        let mut b = b;
+        b.units[0].cell = (1, 5);
+        assert_eq!(b.invisibility_penalty(0, 1), 5, "one for each square");
+        b.units[0].cell = (5, 5);
         b.units[0].abilities.push("illusion_immunity".into());
         assert_eq!(b.invisibility_penalty(0, 1), 0);
         // Mass Invisibility does the same for the caster's whole side.

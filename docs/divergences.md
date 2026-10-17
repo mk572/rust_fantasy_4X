@@ -524,10 +524,11 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   forests and nature nodes. A river square gives no production bonus, as in the original, where a
   river replaces the land. Details in `help-vs-implementation-conflicts.md`.
 - **Blur** takes one roll per point of damage; the original's loop caps the loss near half.
-- **Invisibility in battle** is a rule for every side, not only the computer players' targeting as
-  in the original (`Battle::seen_by`): an invisible unit is unseen by the enemy, so it cannot be
-  attacked, shot at or picked by a spell, until it is next to an enemy unit, has attacked or cast
-  (it then stays in view until its side's next turn) or the enemy has a unit immune to
-  illusions. Spells that strike an area still reach it. Scripted and learned battle AI see only
-  what their side sees. Invisibility that begins mid-battle hides at once. The -1 to hit stays.
-
+- **Invisibility in battle** (`Battle::seen_by`): as in the original, an invisible unit is hidden from
+  the enemy (not drawn, not clickable, no ranged cursor) until an enemy unit is next to it or the
+  enemy has a unit immune to illusions. Ours adds that a unit that attacks or casts shows itself
+  until its side's next turn, and that the penalty to hit grows by one for each square of
+  distance (the original takes a flat 1 off), none for attackers immune to illusions. A side's own
+  invisible units are always targetable by it. Visible invisible units are drawn as ghosts. Area
+  spells still reach hidden units. Scripted and learned battle AI see only what their side sees.
+  Invisibility that begins mid-battle hides at once.
