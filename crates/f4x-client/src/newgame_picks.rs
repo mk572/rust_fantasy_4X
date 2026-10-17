@@ -209,8 +209,10 @@ impl App {
         // The picks left, the abilities, the name and the OK button.
         let left = self.create.build.picks_left();
         let count = format!("{left} picks");
-        self.bm_text(view, 3, LIGHT, &count, 222.0, 186.0, Align::Center);
-        self.bm_text(view, 3, SHADOW, &count, 221.0, 185.0, Align::Center);
+        // ReMoM prints the light text first and the shadow over it, which buries the words;
+        // the shadow goes underneath.
+        self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
+        self.bm_text(view, 3, LIGHT, &count, 221.0, 185.0, Align::Center);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_abilities(lay);
@@ -399,8 +401,10 @@ impl App {
             );
         }
         let count = format!("{remaining} picks");
-        self.bm_text(view, 3, LIGHT, &count, 222.0, 186.0, Align::Center);
-        self.bm_text(view, 3, SHADOW, &count, 221.0, 185.0, Align::Center);
+        // ReMoM prints the light text first and the shadow over it, which buries the words;
+        // the shadow goes underneath.
+        self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
+        self.bm_text(view, 3, LIGHT, &count, 221.0, 185.0, Align::Center);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_abilities(lay);

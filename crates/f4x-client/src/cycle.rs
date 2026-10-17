@@ -23,16 +23,13 @@ pub const MAIN: Cycle = Cycle {
     step: 3,
 };
 
-/// The same, a step a call, on the load and save screen (`LoadScr.c`).
-pub const LOAD: Cycle = Cycle { step: 1, ..MAIN };
-
 /// The cycle the original runs while it shows a picture of this `.lbx` file: the start menu's and
-/// the load screen's pictures pulse; the other screens that carry index 198 (the intro, the
+/// pictures pulse; the other screens that carry index 198 (the load screen, whose palette
+/// `LoadScr.c` loads without a cycle and only restarts the cycle on leaving it, the intro, the
 /// wizards' portraits, the end animations) keep its base colour.
 pub fn for_file(lbx: &str) -> Option<Cycle> {
     match lbx {
         "mainscrn" => Some(MAIN),
-        "load" => Some(LOAD),
         _ => None,
     }
 }

@@ -28,7 +28,7 @@ pub mod spot {
     pub const NEXT_TURN: (f32, f32) = (240.0, 173.0);
     /// The menu buttons: `main.lbx` entries 1 to 7 at these x positions, all at y = 4.
     pub const MENU_Y: f32 = 4.0;
-    pub const MENU_X: [f32; 7] = [7.0, 48.0, 91.0, 143.0, 188.0, 231.0, 276.0];
+    pub const MENU_X: [f32; 7] = [7.0, 47.0, 89.0, 140.0, 184.0, 226.0, 270.0];
 }
 
 /// Scale and offset that fit the original screen into the window.

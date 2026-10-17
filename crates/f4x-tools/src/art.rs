@@ -116,6 +116,14 @@ fn palette_entry_for(stem: &str) -> Option<usize> {
     }
 }
 
+/// The entry of a file whose own colours (`Load_Palette_From_Animation`) the original's screen
+/// keeps loaded while it draws the file's other pictures, which have none of their own: the
+/// Magic screen's background gives the Alchemy and OK buttons their colours, the Load and Save
+/// screen's the buttons below the slots, the start menu's title its castle and menu items, the army list's background its Items and OK buttons.
+fn screen_palette_entry(stem: &str) -> Option<usize> {
+    matches!(stem, "magic" | "load" | "mainscrn" | "armylist").then_some(0)
+}
+
 /// Case-insensitive file lookup, since the game files are upper case on disk.
 fn find(dir: &Path, name: &str) -> Option<std::path::PathBuf> {
     fs::read_dir(dir)
@@ -528,10 +536,17 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
             Some(entry) => fonts_palette(game_dir, entry)?,
             None => base.clone(),
         };
+        // The colours the screen's background sets for the pictures drawn over it.
+        let screen_palette = screen_palette_entry(&stem)
+            .and_then(|entry| decode(lbx.entry(entry)))
+            .and_then(|pic| pic.palette);
         for i in 0..lbx.len() {
-            let Some(pic) = decode(lbx.entry(i)) else {
+            let Some(mut pic) = decode(lbx.entry(i)) else {
                 continue;
             };
+            if pic.palette.is_none() {
+                pic.palette = screen_palette.clone();
+            }
             // A picture with a place of its own goes there; a copy left in `art/` by an earlier
             // run is removed.
             let placed = placer.place(&stem, i);
