@@ -47,11 +47,6 @@ impl OptionsState {
     pub fn land_percent(&self) -> u8 {
         LAND_SIZES[usize::from(self.land).min(2)].1
     }
-
-    /// Wizards in the game: the player and the opponents.
-    pub fn wizards(&self) -> u8 {
-        self.opponents.clamp(1, 4) + 1
-    }
 }
 
 impl App {
@@ -240,7 +235,7 @@ mod tests {
     #[test]
     fn defaults_are_a_normal_two_wizard_game() {
         let o = OptionsState::default();
-        assert_eq!(o.wizards(), 2);
+        assert_eq!(o.opponents, 1);
         assert_eq!(o.land_percent(), LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "Average");
     }
@@ -254,16 +249,5 @@ mod tests {
         let mut custom = f4x_core::settings::GameSettings::default();
         custom.wizards.starting_gold.human = 300;
         assert_eq!(settings_lines(&custom)[0], "Difficulty: Average (custom)");
-    }
-
-    #[test]
-    fn opponents_are_one_to_four() {
-        let o = |n| OptionsState {
-            opponents: n,
-            ..Default::default()
-        };
-        assert_eq!(o(0).wizards(), 2);
-        assert_eq!(o(4).wizards(), 5);
-        assert_eq!(o(9).wizards(), 5);
     }
 }

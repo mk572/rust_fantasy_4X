@@ -12,16 +12,73 @@ pub const TILE_H: f32 = 18.0;
 
 /// Terrain type numbers in the original's tile table.
 pub mod terrain_type {
-    pub const OCEAN: usize = 0x00;
-    pub const GRASSLAND: usize = 0xA2;
-    pub const FOREST: usize = 0xA3;
-    pub const MOUNTAINS: usize = 0xA4;
-    pub const DESERT: usize = 0xA5;
-    pub const SWAMP: usize = 0xA6;
-    pub const TUNDRA: usize = 0xA7;
-    pub const HILLS: usize = 0xAB;
     /// Myrror's types follow Arcanus's.
     pub const MYRROR_OFFSET: usize = 762;
+}
+
+/// What the original's minimap is painted with (`extract-art` writes `minimap.tsv`): a colour
+/// for each terrain type, and for the cities of each banner and of the neutral ones, the box
+/// round the map window and the mark on the selected stack.
+#[derive(Default)]
+pub struct MinimapColours {
+    terrain: Vec<Color>,
+    banners: Vec<Color>,
+    neutral: Option<Color>,
+    box_: Option<Color>,
+    mark: Option<Color>,
+    reserve_text: Option<Color>,
+}
+
+impl MinimapColours {
+    fn parse(text: &str) -> Self {
+        let mut c = Self::default();
+        for line in text.lines() {
+            let f: Vec<&str> = line.split('\t').collect();
+            let [kind, _, r, g, b] = f[..] else { continue };
+            let (Ok(r), Ok(g), Ok(b)) = (r.parse::<f32>(), g.parse::<f32>(), b.parse::<f32>())
+            else {
+                continue;
+            };
+            let colour = Color::new(r / 255.0, g / 255.0, b / 255.0, 1.0);
+            match kind {
+                "terrain" => c.terrain.push(colour),
+                "banner" => c.banners.push(colour),
+                "neutral" => c.neutral = Some(colour),
+                "box" => c.box_ = Some(colour),
+                "mark" => c.mark = Some(colour),
+                "reserve_text" => c.reserve_text = Some(colour),
+                _ => {}
+            }
+        }
+        c
+    }
+
+    /// The colour of a terrain type (Myrror's follow Arcanus's), black without the table.
+    pub fn terrain(&self, terrain_type: usize) -> Color {
+        self.terrain.get(terrain_type).copied().unwrap_or(BLACK)
+    }
+
+    /// The colour of a city of this banner (5 is the neutral banner).
+    pub fn city(&self, banner: u8) -> Color {
+        self.banners
+            .get(usize::from(banner))
+            .copied()
+            .or(self.neutral)
+            .unwrap_or(WHITE)
+    }
+
+    pub fn window_box(&self) -> Color {
+        self.box_.unwrap_or(MAGENTA)
+    }
+
+    pub fn mark(&self) -> Color {
+        self.mark.unwrap_or(WHITE)
+    }
+
+    /// The colour of the gold and mana reserve figures (grey).
+    pub fn reserve_text(&self) -> Color {
+        self.reserve_text.unwrap_or(GRAY)
+    }
 }
 
 /// One of the original's bitmap fonts: an atlas with the glyph strip once per colour set.
@@ -51,12 +108,15 @@ pub struct Art {
     autotile: Vec<Vec<usize>>,
     /// Whether a terrain type animates (its next three tiles are the other frames).
     type_anim: Vec<bool>,
+    /// The minimap's colours (`map/tiles/minimap.tsv`).
+    minimap: MinimapColours,
     /// The banners' five shades each (`map/banners.tsv`).
     banners: Vec<[Color; 5]>,
     /// Tiles of rivers with everything but the water cut out, to lay over any ground.
     river_overlays: HashMap<usize, Option<Texture2D>>,
     /// Combat figures painted in a banner, by (unit type, direction, frame, banner).
     figures: HashMap<(usize, u8, u8, u8), Option<Texture2D>>,
+    unit_pictures: HashMap<(String, usize, u8), Option<Texture2D>>,
 }
 
 /// Banner names in the order the game numbers them.
@@ -108,6 +168,9 @@ impl Art {
                 }
             }
         }
+        let minimap = MinimapColours::parse(
+            &std::fs::read_to_string(dir.join("map/tiles/minimap.tsv")).unwrap_or_default(),
+        );
         let styles = Self::load_font_metrics(&dir);
         let placed = parse_placed(
             &std::fs::read_to_string(dir.with_file_name("index.tsv")).unwrap_or_default(),
@@ -121,9 +184,11 @@ impl Art {
             textures: HashMap::new(),
             autotile,
             type_anim,
+            minimap,
             banners,
             river_overlays: HashMap::new(),
             figures: HashMap::new(),
+            unit_pictures: HashMap::new(),
         }
     }
 
@@ -261,6 +326,48 @@ impl Art {
         y: f32,
         scale: f32,
     ) -> f32 {
+        self.draw_bitmap_text_tinted(style, set, text, x, y, scale, WHITE)
+    }
+
+    /// Text in one flat colour, as the original draws a font whose colours are aliased to one
+    /// palette entry: the lightest colour set, tinted so that its average is `colour`.
+    pub fn draw_flat_text(
+        &mut self,
+        style: usize,
+        text: &str,
+        (x, y): (f32, f32),
+        scale: f32,
+        colour: Color,
+    ) {
+        let set = self.nearest_font_set(style, WHITE);
+        let average = self
+            .styles
+            .get(style)
+            .and_then(Option::as_ref)
+            .and_then(|s| s.set_colors.get(set).copied())
+            .unwrap_or(WHITE);
+        let ratio = |c: f32, a: f32| (c / a.max(0.05)).min(1.0);
+        let tint = Color::new(
+            ratio(colour.r, average.r),
+            ratio(colour.g, average.g),
+            ratio(colour.b, average.b),
+            1.0,
+        );
+        self.draw_bitmap_text_tinted(style, set, text, x, y, scale, tint);
+    }
+
+    /// [`Art::draw_bitmap_text`] multiplied by a colour.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_bitmap_text_tinted(
+        &mut self,
+        style: usize,
+        set: usize,
+        text: &str,
+        x: f32,
+        y: f32,
+        scale: f32,
+        tint: Color,
+    ) -> f32 {
         let Some(tex) = self
             .texture(PathBuf::from(format!("fonts/style{style}.png")))
             .cloned()
@@ -282,7 +389,7 @@ impl Art {
                     &tex,
                     at,
                     y,
-                    WHITE,
+                    tint,
                     DrawTextureParams {
                         dest_size: Some(vec2(gw as f32 * scale, height * scale)),
                         source: Some(Rect::new(
@@ -326,6 +433,11 @@ impl Art {
             .and_then(|t| t.get(mask))
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The minimap's colours: of a terrain type, and the other palette colours it uses.
+    pub fn minimap(&self) -> &MinimapColours {
+        &self.minimap
     }
 
     /// A banner's colour (its middle shade); brown for numbers beyond the table.
@@ -405,7 +517,12 @@ impl Art {
         banner: u8,
     ) -> Option<Texture2D> {
         let (lbx, entry) = figure_entry(unit_type, direction);
-        let base = picture_base(&self.placed, &lbx, entry, usize::from(frame));
+        self.load_painted(&lbx, entry, usize::from(frame), banner)
+    }
+
+    /// A picture painted in a banner's shades, where `extract-art` wrote a banner mask for it.
+    fn load_painted(&self, lbx: &str, entry: usize, frame: usize, banner: u8) -> Option<Texture2D> {
+        let base = picture_base(&self.placed, lbx, entry, frame);
         let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
         let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
         if let Some(shades) = self.banners.get(usize::from(banner)) {
@@ -422,11 +539,14 @@ impl Art {
         Some(tex)
     }
 
-    /// The ground tile for a terrain type number (see [`terrain_type`]).
-    pub fn terrain(&mut self, terrain_type: usize) -> Option<&Texture2D> {
-        let tile = *self.type_tiles.get(terrain_type)?;
-        let path = self.tile_path(terrain_type, tile);
-        self.texture(path)
+    /// A unit's overland picture (`units1`, `units2`) painted in a banner's shades.
+    pub fn unit_picture(&mut self, lbx: &str, entry: usize, banner: u8) -> Option<&Texture2D> {
+        let key = (lbx.to_string(), entry, banner);
+        if !self.unit_pictures.contains_key(&key) {
+            let tex = self.load_painted(lbx, entry, 0, banner);
+            self.unit_pictures.insert(key.clone(), tex);
+        }
+        self.unit_pictures.get(&key).and_then(Option::as_ref)
     }
 
     /// A ground tile's file under the art directory (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
@@ -454,6 +574,12 @@ impl Art {
             self.textures.insert(key.clone(), tex);
         }
         self.textures.get(&key)?.as_ref()
+    }
+
+    /// The pixels of a picture that use the cycling palette index (`cycle.rs`), if it has any.
+    pub fn cycle_mask(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
+        let base = picture_base(&self.placed, lbx, entry, frame);
+        self.texture(PathBuf::from(format!("{base}_cycle.png")))
     }
 
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.

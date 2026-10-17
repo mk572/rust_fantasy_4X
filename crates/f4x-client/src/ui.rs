@@ -39,24 +39,6 @@ pub fn button(rect: Rect, label: &str, enabled: bool) -> bool {
     enabled && hover && is_mouse_button_pressed(MouseButton::Left)
 }
 
-/// Stacked text lines in a panel.
-pub struct Lines {
-    pub x: f32,
-    pub y: f32,
-    pub size: f32,
-}
-
-impl Lines {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y, size: 20.0 }
-    }
-
-    pub fn line(&mut self, text: &str, color: Color) {
-        draw_text(text, self.x, self.y, self.size, color);
-        self.y += self.size * 1.2;
-    }
-}
-
 /// A horizontal progress bar.
 pub fn bar(rect: Rect, fraction: f32, fill: Color) {
     draw_rectangle(

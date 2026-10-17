@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use f4x_core::city::{PlayerId, Position};
-use f4x_core::content::{Content, TerrainClass};
+use f4x_core::content::Content;
 use f4x_core::map::Plane;
 use f4x_core::mapgen::GenParams;
 use f4x_core::setup::{self, NewGame};
@@ -13,10 +13,10 @@ use f4x_core::wizard::WizardBuild;
 use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
-use crate::art::{terrain_type as tt, Art, TILE_H, TILE_W};
-use crate::frame::Align;
+use crate::art::{Art, TILE_H, TILE_W};
+use crate::frame::{spot, Align};
 use crate::options_screen::OptionsState;
-use crate::ui::{Lines, GOLD};
+use crate::ui::GOLD;
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 
@@ -112,6 +112,12 @@ pub struct App {
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
     /// The question or refusal when a building of the city picture is clicked.
+    /// The first enchantment shown on the city screen's list.
+    pub(crate) city_spell_first: usize,
+    /// Whether the city screen's map shows each square's food and production.
+    pub(crate) city_area_figures: bool,
+    /// The name typed so far while the city screen's rename box is up.
+    pub(crate) city_naming: Option<String>,
     pub(crate) sell_prompt: Option<crate::sell_prompt::SellPrompt>,
     /// The auto-builder dialog over the city screen, while it is open.
     pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
@@ -170,7 +176,6 @@ pub struct App {
     pub(crate) item_ui: crate::item_screen::ItemUi,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
-    unit_rows: Vec<(Rect, hecs::Entity)>,
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
@@ -187,19 +192,6 @@ pub struct App {
     pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
     /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
     pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::city::PlayerId>,
-}
-
-pub(crate) fn base_type(class: TerrainClass) -> usize {
-    match class {
-        TerrainClass::Ocean => tt::OCEAN,
-        TerrainClass::Grassland => tt::GRASSLAND,
-        TerrainClass::Forest => tt::FOREST,
-        TerrainClass::Hills => tt::HILLS,
-        TerrainClass::Mountains => tt::MOUNTAINS,
-        TerrainClass::Swamp => tt::SWAMP,
-        TerrainClass::Desert => tt::DESERT,
-        TerrainClass::Tundra => tt::TUNDRA,
-    }
 }
 
 impl App {
@@ -235,6 +227,9 @@ impl App {
             selection: Vec::new(),
             log: Vec::new(),
             choosing: false,
+            city_spell_first: 0,
+            city_area_figures: false,
+            city_naming: None,
             sell_prompt: None,
             autobuild_dialog: None,
             choice_scroll: 0,
@@ -267,7 +262,6 @@ impl App {
             unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
-            unit_rows: Vec::new(),
             game_over_seen: false,
             menu: Default::default(),
             console: Default::default(),
@@ -673,12 +667,14 @@ impl App {
         if outpost {
             self.open_outpost(city, false);
         } else {
+            self.city_spell_first = 0;
             self.screen = Screen::City(city);
         }
     }
 
     pub fn open_first_city(&mut self) {
         if let Some((city, ..)) = self.game.economy().cities().first() {
+            self.city_spell_first = 0;
             self.screen = Screen::City(*city);
         }
     }
@@ -1248,6 +1244,14 @@ impl App {
             to,
         });
         self.note(events);
+        // A stack with nothing left to do hands over to the next one waiting for orders.
+        let spent = self
+            .selection
+            .iter()
+            .all(|&u| self.game.units().unit_moves_left(u) == 0);
+        if spent {
+            self.select_next_idle(false);
+        }
     }
 
     pub(crate) fn select_at(&mut self, pos: Position) {
@@ -1261,7 +1265,7 @@ impl App {
         self.selection = mine;
     }
 
-    fn selection_position(&self) -> Option<Position> {
+    pub(crate) fn selection_position(&self) -> Option<Position> {
         self.selection
             .first()
             .and_then(|&u| self.game.units().unit_position(u))
@@ -1354,23 +1358,7 @@ impl App {
         if is_key_pressed(KeyCode::B) && self.road_plan.is_some() {
             self.road_plan_confirm();
         } else if is_key_pressed(KeyCode::B) {
-            let settles = self.selection.iter().any(|&u| {
-                self.game.units().unit_has_ability(u, "create_outpost")
-                    || self
-                        .game
-                        .units()
-                        .unit_stat(u, f4x_core::rules::Stat::Construction)
-                        > 0
-            });
-            if settles || self.selection.is_empty() {
-                self.settle();
-            } else {
-                // The special button of the original: a spirit melds with the node it stands on.
-                let events = self.game.apply(Command::Meld {
-                    units: self.selection.clone(),
-                });
-                self.note(events);
-            }
+            self.special_button();
         }
         if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::U) {
             self.selection.clear();
@@ -1400,6 +1388,9 @@ impl App {
             self.game.balance_farmers(HUMAN);
             self.log.push("Farmers balanced to feed the army".into());
         }
+        if is_key_pressed(KeyCode::W) && !self.selection.is_empty() {
+            self.select_next_idle(true);
+        }
         if is_key_pressed(KeyCode::D) && !self.selection.is_empty() {
             self.game.apply(Command::ClearOrders {
                 units: self.selection.clone(),
@@ -1417,19 +1408,10 @@ impl App {
             if is_mouse_button_pressed(MouseButton::Left) {
                 self.click(pos);
             }
-            let row = self
-                .unit_rows
-                .iter()
-                .find(|(r, _)| r.contains(mouse_position().into()))
-                .map(|&(_, u)| u);
             if is_mouse_button_pressed(MouseButton::Right) && self.surveyor {
                 self.stop_surveyor();
             } else if is_mouse_button_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
-            } else if is_mouse_button_pressed(MouseButton::Right) && row.is_some() {
-                if let Some(unit) = row {
-                    self.open_unit_sheet(unit);
-                }
             } else if is_mouse_button_pressed(MouseButton::Right)
                 && self.game.is_explored(HUMAN, pos)
                 && self.foreign_stack_at(pos)
@@ -1490,6 +1472,28 @@ impl App {
             .units_at(pos)
             .iter()
             .any(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
+    }
+
+    /// The special button of the original (Build, Meld or Purify), by what the selection can do.
+    pub(crate) fn special_button(&mut self) {
+        use crate::unit_window::Special;
+        match self.special_action() {
+            Special::Build => self.settle(),
+            Special::Meld => {
+                let events = self.game.apply(Command::Meld {
+                    units: self.selection.clone(),
+                });
+                self.note(events);
+            }
+            Special::Purify => {
+                let events = self.game.apply(Command::Purify {
+                    units: self.selection.clone(),
+                });
+                self.note(events);
+            }
+            Special::None if self.selection.is_empty() => self.settle(),
+            Special::None => {}
+        }
     }
 
     fn settle(&mut self) {
@@ -1632,12 +1636,9 @@ impl App {
             let owner = city.owner;
             if self.game.player(owner).and_then(|p| p.fortress) == Some(*pos) {
                 // A gold star: the wizard's fortress.
-                draw_poly(
-                    at.x + t.x * 0.15,
-                    at.y + t.y * 0.25,
-                    5,
-                    t.x * 0.14,
-                    0.0,
+                crate::map_draw::draw_star(
+                    vec2(at.x + t.x * 0.15, at.y + t.y * 0.25),
+                    t.x * 0.17,
                     GOLD,
                 );
             }
@@ -1691,23 +1692,32 @@ impl App {
             let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
             let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
             let at = screen_of(x, y);
-            let inset = t * 0.08;
-            draw_rectangle(
-                at.x + inset.x,
-                at.y + inset.y,
-                t.x - 2.0 * inset.x,
-                t.y - 2.0 * inset.y,
-                Color::new(0.0, 0.0, 0.0, 0.35),
-            );
-            let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry as usize, 0));
+            // The stack's top unit on the background of its owner's banner (`mapback` 14 to 19:
+            // blue, green, purple, red, yellow, neutral), the figure one pixel in.
+            let banner = self.banner_index(owner).min(5);
+            let k = t.x / TILE_W;
+            if let Some(tex) = self.art.picture("mapback", 14 + usize::from(banner), 0) {
+                draw_texture_ex(
+                    tex,
+                    at.x,
+                    at.y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(tex.size() * k),
+                        ..Default::default()
+                    },
+                );
+            }
+            let icon =
+                art.and_then(|(lbx, entry)| self.art.unit_picture(&lbx, entry as usize, banner));
             match icon {
                 Some(tex) => draw_texture_ex(
                     tex,
-                    at.x + inset.x,
-                    at.y + inset.y,
+                    at.x + k,
+                    at.y + k,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(t - 2.0 * inset),
+                        dest_size: Some(tex.size() * k),
                         ..Default::default()
                     },
                 ),
@@ -1719,31 +1729,20 @@ impl App {
                     self.banner_color(owner),
                 ),
             }
-            draw_rectangle_lines(
-                at.x + 1.0,
-                at.y + 1.0,
-                t.x - 2.0,
-                t.y - 2.0,
-                2.0,
-                self.banner_color(owner),
-            );
             if units.iter().any(|u| self.selection.contains(u)) && blink {
                 draw_rectangle_lines(at.x, at.y, t.x, t.y, 3.0, GOLD);
             }
             if units.len() > 1 {
-                draw_text(
-                    units.len().to_string(),
-                    at.x + t.x - 14.0,
-                    at.y + t.y - 4.0,
-                    18.0,
-                    WHITE,
-                );
+                let view = (at.x, at.y, k);
+                let count = units.len().to_string();
+                self.bm_text_outlined(view, 1, &count, 19.0, 11.0, Align::Right);
             }
         }
     }
 
     pub(crate) fn draw_bars(&mut self) {
         let click = self.draw_frame();
+        self.unit_window_click(click);
         // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
         match click.menu {
             Some(0) => self.open_slots(false),
@@ -1768,47 +1767,44 @@ impl App {
 
         // Information laid over the map: turn, selection, what is under the mouse, messages.
         let lay = crate::frame::Layout::new();
-        let m = lay.rect(crate::frame::spot::MAP);
         let plane = if self.plane == Plane::Arcanus {
             "Arcanus"
         } else {
             "Myrror"
         };
-        let size = (lay.scale * 4.2).max(14.0);
-        let mut lines = Lines::new(m.x + 10.0, m.y + size + 6.0);
-        lines.size = size;
-        lines.line(
-            &format!(
-                "Turn {}   {}   {}",
-                self.game.turn,
-                plane,
-                self.race_name(self.race)
-            ),
-            GOLD,
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let mut y = 2.0;
+        let turn = format!(
+            "Turn {}   {}   {}",
+            self.game.turn,
+            plane,
+            self.race_name(self.race)
         );
+        self.overlay_line(view, &mut y, &turn, GOLD);
         if !self.art.available() {
-            lines.line("(no art: run extract-art)", RED);
+            self.overlay_line(view, &mut y, "(no art: run extract-art)", RED);
         }
-        self.draw_selection(&mut lines);
-        self.draw_hover(&mut lines);
-        // Messages along the bottom of the map.
-        let mut y = m.y + m.h - 8.0;
-        for line in self.log.iter().rev().take(5) {
-            draw_text(
-                line,
-                m.x + 10.0,
-                y,
-                size * 0.8,
-                Color::new(0.95, 0.9, 0.65, 1.0),
-            );
-            y -= size;
+        self.draw_selection(view, &mut y);
+        self.draw_hover(view, &mut y);
+        // Messages along the bottom of the map, newest last.
+        let line = self.art.text_height(1) + 2.0;
+        let bottom = spot::MAP.1 + spot::MAP.3 - 2.0;
+        let messages = Color::new(0.95, 0.9, 0.65, 1.0);
+        let shown: Vec<String> = self.log.iter().rev().take(5).cloned().collect();
+        for (i, text) in shown.iter().enumerate() {
+            let at = bottom - line * (i + 1) as f32;
+            self.bm_text_shadowed(view, 1, text, spot::MAP.0 + 4.0, at, messages, Align::Left);
         }
-        draw_text(
-            "F1 keys",
-            m.x + m.w - 8.0 * lay.scale * 2.2,
-            m.y + m.h - 8.0,
-            size * 0.7,
+        let hint = "F1 keys";
+        let hint_x = spot::MAP.0 + spot::MAP.2 - 4.0;
+        self.bm_text_shadowed(
+            view,
+            1,
+            hint,
+            hint_x,
+            bottom - line,
             LIGHTGRAY,
+            Align::Right,
         );
         if self.show_keys || is_key_down(KeyCode::F1) {
             let keys = [
@@ -1817,110 +1813,87 @@ impl App {
                 "Tab other plane      +/- zoom      arrows pan (nothing selected, or with Shift)      N or Enter end turn",
                 "Ctrl-Z undo      F10 quick-save      Ctrl-L quick-load      F8 Grand Vizier      Ctrl-N new map      Ctrl-R next race      ` console      Esc game menu",
             ];
-            let box_w = m.w * 0.9;
-            draw_rectangle(
-                m.x + m.w * 0.05,
-                m.y + m.h * 0.3,
-                box_w,
-                size * 5.5,
-                Color::new(0.0, 0.0, 0.0, 0.8),
-            );
-            for (i, k) in keys.iter().enumerate() {
-                draw_text(
-                    k,
-                    m.x + m.w * 0.06,
-                    m.y + m.h * 0.3 + size * (1.3 + i as f32 * 1.1),
-                    size * 0.75,
-                    WHITE,
-                );
+            let width = spot::MAP.2 * 0.9 - 8.0;
+            let rows: Vec<String> = keys
+                .iter()
+                .flat_map(|k| self.bm_wrap(1, k, width))
+                .collect();
+            let (left, top) = (spot::MAP.0 + spot::MAP.2 * 0.05, spot::MAP.1 + 50.0);
+            let r = lay.rect((left, top, spot::MAP.2 * 0.9, line * rows.len() as f32 + 6.0));
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.0, 0.8));
+            for (i, k) in rows.iter().enumerate() {
+                let at = top + 3.0 + line * i as f32;
+                self.bm_text(view, 1, WHITE, k, left + 4.0, at, Align::Left);
             }
         }
     }
 
-    fn draw_selection(&mut self, lines: &mut Lines) {
+    /// One line of the overlay on the map, in the original's small font, and the next row.
+    fn overlay_line(&mut self, view: (f32, f32, f32), y: &mut f32, text: &str, color: Color) {
+        let at = (spot::MAP.0 + 4.0, spot::MAP.1 + *y);
+        self.bm_text_shadowed(view, 1, text, at.0, at.1, color, Align::Left);
+        *y += self.art.text_height(1) + 2.0;
+    }
+
+    fn draw_selection(&mut self, view: (f32, f32, f32), y: &mut f32) {
         if self.selection.is_empty() {
-            lines.line("No units selected", GRAY);
-            return;
-        }
-        lines.line("Selected stack", GOLD);
-        self.unit_rows.clear();
-        for &unit in &self.selection {
-            let Some(def) = self.game.units().unit_def(unit) else {
-                continue;
-            };
-            let (hp, max) = self.game.units().unit_hits(unit);
-            let moves = self.game.units().unit_moves_left(unit) as f32 / 2.0;
-            let order = if self.game.unit_has_order(unit) {
-                " ->"
-            } else {
-                ""
-            };
-            // Right-click on a unit's line opens its statistics sheet.
-            self.unit_rows.push((
-                Rect::new(
-                    lines.x,
-                    lines.y - lines.size,
-                    lines.size * 20.0,
-                    lines.size * 1.2,
-                ),
-                unit,
-            ));
-            lines.line(
-                &format!("{}  hp {hp}/{max}  mv {moves}{order}", def.name),
-                WHITE,
-            );
+            self.overlay_line(view, y, "No units selected", GRAY);
         }
     }
 
-    fn draw_hover(&mut self, lines: &mut Lines) {
+    /// What is under the mouse, a line each.
+    fn hover_lines(&self) -> Vec<(String, Color)> {
         let Some(pos) = self.tile_at(mouse_position().into()) else {
-            return;
+            return Vec::new();
         };
-        let content = &self.game.content();
+        let content = self.game.content();
         let Some(map) = self.game.map() else {
-            return;
+            return Vec::new();
         };
         let grid = map.plane(self.plane);
-        if !self.game.is_explored(
-            HUMAN,
-            Position {
-                plane: self.plane,
-                x: pos.x,
-                y: pos.y,
-            },
-        ) {
-            lines.line("Unexplored", GRAY);
-            return;
+        let at = Position {
+            plane: self.plane,
+            x: pos.x,
+            y: pos.y,
+        };
+        if !self.game.is_explored(HUMAN, at) {
+            return vec![("Unexplored".into(), GRAY)];
         }
-        lines.line(&format!("Tile {}, {}", pos.x, pos.y), GOLD);
+        let mut lines = vec![(format!("Tile {}, {}", pos.x, pos.y), GOLD)];
         if let Some(def) = grid
             .get(pos.x as i32, pos.y as i32)
             .and_then(|id| content.terrains.get(id))
         {
-            lines.line(&format!("{}  (move {})", def.name, def.move_cost), WHITE);
+            lines.push((format!("{}  (move {})", def.name, def.move_cost), WHITE));
         }
         if let Some(f) = grid
             .feature(pos.x as i32, pos.y as i32)
             .and_then(|f| content.features.get(f))
         {
-            lines.line(&f.name, Color::new(0.6, 0.9, 1.0, 1.0));
+            lines.push((f.name.clone(), Color::new(0.6, 0.9, 1.0, 1.0)));
         }
         if let Some(city) = self.game.economy().city_at(pos) {
             let name = self.city_name(city);
             let pop = self.game.city_population(city).figures;
-            lines.line(&format!("{name} (size {pop})"), GOLD);
+            lines.push((format!("{name} (size {pop})"), GOLD));
         }
-        let others: Vec<_> = self
+        let foreign = self
             .game
             .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
-            .collect();
-        for u in others.into_iter().take(4) {
+            .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN));
+        for u in foreign.take(4) {
             if let Some(def) = self.game.units().unit_def(u) {
-                lines.line(&format!("Foreign {}", def.name), RED);
+                lines.push((format!("Foreign {}", def.name), RED));
             }
+        }
+        lines
+    }
+
+    fn draw_hover(&mut self, view: (f32, f32, f32), y: &mut f32) {
+        for (text, color) in self.hover_lines() {
+            self.overlay_line(view, y, &text, color);
         }
     }
 }

@@ -110,6 +110,20 @@ impl Game {
         self.world.get::<&Order>(unit).is_ok()
     }
 
+    /// Is the unit (an engineer) building a road?
+    pub fn unit_building_road(&self, unit: hecs::Entity) -> bool {
+        self.world.get::<&crate::roads::RoadWork>(unit).is_ok()
+    }
+
+    /// Is the unit waiting for orders: moves left, and not on standby, walking a path or
+    /// building a road? What the main screen cycles through.
+    pub fn unit_is_idle(&self, unit: hecs::Entity) -> bool {
+        self.units().unit_moves_left(unit) > 0
+            && self.units().unit_standby(unit).is_none()
+            && self.world.get::<&Order>(unit).is_err()
+            && self.world.get::<&crate::roads::RoadWork>(unit).is_err()
+    }
+
     // ---- for tests and tools --------------------------------------------------------
 
     /// A component of an entity, read-only. For tests and tools that check what the rules did to

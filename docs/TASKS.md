@@ -28,12 +28,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 106 | Combat | Battle views for the AI and for tools |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
-| 118 | Client | Bitmap fonts on every screen and a text layout helper |
-| 119 | Client | City screen details |
-| 120 | Client | Overland screen details |
 | 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
-| 125 | Client | Unit stack backgrounds in banner colours |
-| 126 | Client | Bitmap font for the remaining overland text |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
@@ -44,10 +39,8 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 141 | Client | Outpost screen, enemy city screen and the naming boxes |
 | 143 | Client | Offer, hire and event pop-ups |
 | 144 | Client | Turn summary and message pop-ups |
-| 146 | Client | Palette cycling: the pulsing colour of index 198 |
 | 147 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
 | 148 | Core | Difficulty beyond lairs: the final score, AI strength and the seed field |
-| 149 | Client | Show squares that are known but not currently seen (fog of war) |
 | 150 | Map | Generator parity with the original |
 | 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
 | 152 | Client | Show temporary effects on units and cities |
@@ -118,6 +111,9 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 291 | Combat | Variant river pictures for the battlefield (low priority) |
 | 293 | Items | Extend the armory beyond the four vault slots |
 | 294 | Items | Sell items for gold instead of disenchanting them for mana |
+| 298 | Client | Overland: smooth unit movement and unit animation |
+| 299 | Client | Minimap: drag to scroll, and the other plane |
+| 300 | Client | Bitmap fonts for the battle, settings, console and prompt screens |
 
 ## Descriptions
 
@@ -190,17 +186,7 @@ middle of a battle continues exactly like the unsaved one.
 
 **116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
 
-**118. Bitmap fonts on every screen and a text layout helper.** Only the map frame and the city screen use the original's fonts. Move the magic, wizard creation, production menu, message log and unit panels to them, and add a bitmap-font word wrap, justify and column helper (`Print_Paragraph` style) so long help text and descriptions can be shown.
-
-**119. City screen details.** What the original's city screen has and ours lacks: the production picture for buildings (the cityscape sprite) and a count of queued items, the unit list scrolling past nine units and clicking a unit to select or unload it, right-click help on every element (the original's help topics 295-303 are imported), the enchantment list scrolling and dispelling, the city name editing, and the worked-area view with the original's tile and mineral pictures and food and production figures for each square.
-
-**120. Overland screen details.** What the original's main screen has and ours lacks: the unit panel in the right column with the stack's pictures and the Done, Patrol, Wait and Build buttons, the minimap's other plane switch and click-drag, the surveyor and the info menus behind the Info button, the Armies and Cities lists behind their buttons (tasks 71 and 91-96 cover the screens themselves), terrain and unit animation, and unit movement as a smooth slide.
-
 **124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**125. Unit stack backgrounds.** Draw each stack's marker on the `mapback.lbx` 14 to 19 background of its owner's banner (blue, green, purple, red, yellow, neutral) instead of the current icon.
-
-**126. Bitmap font for the remaining overland text.** The gold, mana, income panels and city names use the original fonts; still in the plain font are the turn/plane/race line, the selection and hover info (`Lines` helper), the message log, the "F1 keys" hint and key list, and the unit-count badge on stacks. Give `Lines` a bitmap-font mode (or replace it) and move these over, using the original's sizes and colours; see task 118 for the other screens.
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
@@ -256,13 +242,9 @@ and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with th
 
 **144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list; the Chancellor's scroll (task 272) is built.
 
-**146. Palette cycling: the pulsing colour of index 198.** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
-
 **147. Find the use of the unreferenced art files.** ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
 
 **148. Difficulty: the AI's strength, and the seed field.** The original's difficulty effects on the world, the computer wizards' bonuses and the score are in (task 247, `game-settings.md`). Still open: let the difficulty set how well the new AI plays once it exists (the AI reads `settings.basic.difficulty`, not the bonuses), and add a map-seed field to the settings screen (the seed is a command-line option now).
-
-**149. Fog of war: known but unseen squares.** The overworld draws two states only: never explored (black) and explored (drawn in full). The game already tracks what each wizard sees now (`Game::visibility`); the client uses it only to hide enemy units. Draw explored squares that no unit or city currently sees dimmed, as the original does (check how it does it in ReMoM's map drawing before copying; it may use a darkening palette remap), keep what was last seen of cities there (a remembered city, not its current state, if the rules need that), and make the minimap match. Soft edges along the explored border are task 121.
 
 **150. Generator parity with the original.** Our generator is our own design (noise-based
 elevation with a land percentage). Optionally port the original's `NEWG_CreateLands`: random walkers
@@ -405,3 +387,9 @@ Parity task, low priority.
 **289. Help pop-ups in general.** The original explains almost everything on screen: a right-click on a button, icon, stat or list line opens a help pop-up with that topic's text (`Help.c`, `_help_entries` per screen, topics in `HELP.LBX`), and F1 opens help for the current screen. The client has no such system yet; the help text is already imported (`content-local/help.ron` and `help_screens.ron`, which say which topic each area opens), but nothing shows it. Build: (1) a per-screen table of help areas (rectangle, topic) the screens register as they draw, in the original's pixel coordinates; (2) the pop-up itself (the original's help window with title, text, "More" for linked topics, a click or Esc closes), drawn over any screen; (3) wire every screen that is already on the original's art, starting with the main screen, city screen, unit sheet and list, army list, magic screen and the new-game steps; the stat icons of the unit list (`Unit_List_Window`'s `_help_entries`: HLP_MELEE, HLP_RANGE, HLP_ARMOR, HLP_HITS, HLP_UNIT_MOVES) and the ability and spell lines of the unit sheet (task 140 item 2) are the first uses; (4) the expanding opening animation when `Pref::ExpandingHelp` is on (task 283); (5) where our behaviour deviates from the original's help, the help text is corrected (`HELP_CORRECTIONS`) and noted. Without the local help files the game runs as before, with no pop-ups. Asked for by the user, 17 October 2026.
 
 **291. Variant river pictures for the battlefield (low priority).** Each river shape has two pictures in the original, a first variant (`cmbtcity` 97 to 102) and a second (103 to 108), chosen at random per square (`56 + 6 * variant + shape` in `Look::tiles`). The shipped files hold only the second variant, and Myrror's `chriver` 0 to 11 are empty, so every river square of a shape looks the same (`river_art.rs`, `crates/f4x-client/assets/rivers/`). Make a first variant by mirroring or rotating the existing six pictures (a left-right piece mirrored is up-down in the other diagonal, corners swap in pairs; check each against a screenshot so the banks still join), generate it once for both planes, keep the PNG files in `assets/rivers/` like the others, and have `river_art.png` pick the variant from the tile number. Until then the client takes the shape from `tile % 6` and ignores the variant. Asked for by the user, 17 October 2026; follows task 255, now archived.
+
+**298. Overland: smooth unit movement and unit animation.** A moving stack jumps from square to square; the original slides it over the map and animates the unit pictures (the weapon icons and the unit enchantment outlines already animate in the window, not on the map). Add a slide for our own and visible enemy moves, with the original's speed setting, and the status letters and grey of a patrolling unit on the map pictures. Split from task 120.
+
+**300. Bitmap fonts for the battle, settings, console and prompt screens.** Tasks 118 and 126 moved the magic, wizard, production, unit and overland text to the original's fonts (`Bitmap_wrap` is `bm_wrap`). Still in the plain font: the battle screen's panels and buttons (`battle_screen.rs`), the settings, options and console screens, the attack prompt and autobuild dialog, the road planner, and the plain `ui::button` / `confirm_box` fallbacks. Move them over with the original's box and button art where it has some.
+
+**299. Minimap: drag to scroll, and the other plane.** The minimap centres the map on a click; the original also scrolls while the button is held and shows the other plane through the Plane button's behaviour on it. Check the original's `Main_Screen` input for the minimap field before building it. Split from task 120.

@@ -6,7 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
-use f4x_core::city::{PlayerId, Position};
+use f4x_core::city::Position;
 use macroquad::prelude::*;
 
 use crate::ui::GOLD;
@@ -22,8 +22,6 @@ pub mod spot {
     /// The minimap's hole in the frame.
     pub const MINIMAP: (f32, f32, f32, f32) = (251.0, 21.0, 58.0, 30.0);
     /// The gold and mana boxes below it (the numbers go inside).
-    pub const GOLD_BOX: (f32, f32, f32, f32) = (243.0, 54.0, 36.0, 16.0);
-    pub const MANA_BOX: (f32, f32, f32, f32) = (281.0, 54.0, 36.0, 16.0);
     /// The gold, food and mana panels (one picture, three thirds).
     pub const PANELS: (f32, f32) = (240.0, 76.0);
     /// The Next Turn button.
@@ -133,6 +131,23 @@ impl App {
                 ..Default::default()
             },
         );
+        let cycle = crate::cycle::for_file(lbx);
+        if let Some((mask, cycle)) =
+            cycle.and_then(|c| Some((self.art.cycle_mask(lbx, entry, frame)?, c)))
+        {
+            let mut colour = cycle.colour(get_time());
+            colour.a = tint.a;
+            draw_texture_ex(
+                mask,
+                at.x,
+                at.y,
+                colour,
+                DrawTextureParams {
+                    dest_size: Some(size),
+                    ..Default::default()
+                },
+            );
+        }
         Some(Rect::new(at.x, at.y, size.x, size.y))
     }
 
@@ -181,34 +196,103 @@ impl App {
             }
         }
 
-        // Gold and mana boxes.
+        // Gold and mana in the boxes under the minimap (`Main_Screen_Draw_Status_Window`): the
+        // figures right-aligned in grey, the units after them; the narrow font when a figure
+        // has five digits.
         let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let view = (lay.origin.x, lay.origin.y, s);
-        let (g, m) = (spot::GOLD_BOX, spot::MANA_BOX);
-        self.bm_text_outlined(
-            view,
-            1,
-            &format!("{gold} GP"),
-            g.0 + g.2 * 0.62,
-            g.1 + g.3 * 0.72,
-            Align::Center,
-        );
-        self.bm_text_outlined(
-            view,
-            1,
-            &format!("{mana} MP"),
-            m.0 + m.2 * 0.62,
-            m.1 + m.3 * 0.72,
-            Align::Center,
-        );
+        let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
+        let grey = self.art.minimap().reserve_text();
+        for (value, right, unit) in [(gold, 265.0, "GP"), (mana, 303.0, "MP")] {
+            self.bm_text_shadowed(
+                view,
+                style,
+                &value.to_string(),
+                right,
+                68.0,
+                grey,
+                Align::Right,
+            );
+            self.bm_text_shadowed(view, 0, unit, right + 3.0, 68.0, WHITE, Align::Left);
+        }
 
+        if self.selection.is_empty() {
+            self.draw_summary(&lay, &mut click);
+        } else {
+            self.draw_unit_window(&lay, &mut click);
+        }
+
+        self.draw_minimap(&lay);
+        click
+    }
+
+    /// One income figure in the summary column (`Main_Screen_Draw_Summary_Window`): the number
+    /// right-aligned at 273, the word at 278, in the outlined narrow font, colour set 4 (dark gold); a loss pulses
+    /// red with the palette cycle.
+    fn income_text(&mut self, view: (f32, f32, f32), value: i32, label: &str, y: f32) {
+        let colour = (value < 0).then(|| crate::cycle::MAIN.colour(get_time()));
+        let black = Color::new(0.0, 0.0, 0.0, 1.0);
+        let number = value.to_string();
+        let (ox, oy, s) = view;
+        for (text, x, align) in [
+            (number.as_str(), 273.0, Align::Right),
+            (label, 278.0, Align::Left),
+        ] {
+            let width = self.art.text_width(0, text);
+            let left = if align == Align::Right { x - width } else { x };
+            for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (1.0, 1.0)] {
+                let at = (ox + (left + dx) * s, oy + (y + dy) * s);
+                self.art.draw_flat_text(0, text, at, s, black);
+            }
+            let at = (ox + left * s, oy + y * s);
+            match colour {
+                Some(pulse) => self.art.draw_flat_text(0, text, at, s, pulse),
+                None => {
+                    self.art.draw_bitmap_text(0, 4, text, at.0, at.1, s);
+                }
+            }
+        }
+    }
+
+    /// Text with a one-pixel black shadow down and to the right.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn bm_text_shadowed(
+        &mut self,
+        view: (f32, f32, f32),
+        style: usize,
+        text: &str,
+        x: f32,
+        y: f32,
+        color: Color,
+        align: Align,
+    ) {
+        let (ox, oy, s) = view;
+        let width = self.art.text_width(style, text);
+        let left = match align {
+            Align::Left => x,
+            Align::Center => x - width / 2.0,
+            Align::Right => x - width,
+        };
+        let black = Color::new(0.0, 0.0, 0.0, 1.0);
+        let at = |d: f32| (ox + (left + d) * s, oy + (y + d) * s);
+        self.art.draw_flat_text(style, text, at(1.0), s, black);
+        self.art.draw_flat_text(style, text, at(0.0), s, color);
+    }
+
+    /// The gold, food and mana panels, the locked action buttons and the Next Turn button: the
+    /// column while no stack is selected.
+    fn draw_summary(&mut self, lay: &Layout, click: &mut FrameClick) {
+        let s = lay.scale;
+        let view = (lay.origin.x, lay.origin.y, s);
+        let mouse: Vec2 = mouse_position().into();
+        let pressed = is_mouse_button_pressed(MouseButton::Left);
         // Resource panels with this turn's income in each.
         let t = self.game.treasury(HUMAN);
         let income = self.game.income(HUMAN);
         let net_mana = income.split.mana - income.mana_upkeep;
         let (px, py) = spot::PANELS;
-        self.draw_pic(&lay, "main", 34, 0, px, py);
+        self.draw_pic(lay, "main", 34, 0, px, py);
         for (k, (value, label)) in [
             (t.net_gold(), "Gold"),
             (t.food_surplus - t.food_upkeep, "Food"),
@@ -217,98 +301,154 @@ impl App {
         .into_iter()
         .enumerate()
         {
-            self.bm_text_outlined(
-                view,
-                2,
-                &format!("{value} {label}"),
-                px + 40.0,
-                py + 24.0 + k as f32 * 32.0,
-                Align::Center,
-            );
+            self.income_text(view, value, label, 101.0 + 32.0 * k as f32);
         }
 
-        // Next Turn.
+        // The locked buttons (done, patrol, wait, and build or purify).
+        for (entry, at) in [
+            (12, (246.0, 176.0)),
+            (13, (280.0, 176.0)),
+            (14, (246.0, 186.0)),
+        ] {
+            self.draw_pic(lay, "main", entry, 0, at.0, at.1);
+        }
+        self.draw_pic(lay, "main", 15, 0, 280.0, 186.0);
+
+        // Next Turn, over them, once no unit is left that waits for orders.
+        if !self.all_units_moved() {
+            return;
+        }
         let (nx, ny) = spot::NEXT_TURN;
-        if let Some(r) = self.draw_pic(&lay, "main", 35, 0, nx, ny) {
-            click.next_turn = pressed && r.contains(mouse);
+        if self.draw_pic(lay, "main", 35, 0, nx, ny).is_some() {
+            let hover = self.art_picture("main", 58, 0).is_some_and(|t| {
+                let p = lay.point(nx + 6.0, ny + 5.0);
+                Rect::new(p.x, p.y, t.width() * s, t.height() * s).contains(mouse)
+            });
+            let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+            self.draw_pic(lay, "main", 58, frame, nx + 6.0, ny + 5.0);
+            click.next_turn = pressed && hover;
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
             text_centered("Next Turn", r.x + r.w / 2.0, r.y + r.h * 0.7, 5.0 * s, GOLD);
             click.next_turn = pressed && r.contains(mouse);
         }
-
-        self.draw_minimap(&lay);
-        click
     }
 
-    /// A small map of everything explored, with cities in their owners' colours and the
-    /// window onto the big map outlined.
+    /// The minimap as the original draws it (`Create_Reduced_Map_Picture`, `Draw_World_Window`):
+    /// one pixel for each of the 58 by 30 squares round the middle of the map window, black where
+    /// unexplored, in the colour of the terrain type, the cities in their banner's colour, and
+    /// ticks at the corners of the box that shows the map window. A click centres the map there.
     fn draw_minimap(&mut self, lay: &Layout) {
+        const COLS: i32 = 58;
+        const ROWS: i32 = 30;
         let r = lay.rect(spot::MINIMAP);
-        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.05, 1.0));
+        draw_rectangle(r.x, r.y, r.w, r.h, BLACK);
         let Some(map) = self.game.map() else {
             return;
         };
-        let (w, h) = (map.width() as f32, map.height() as f32);
-        let (cw, ch) = (r.w / w, r.h / h);
+        let (w, h) = (map.width() as i32, map.height() as i32);
+        let (cols, rows) = self.visible_tiles();
+        let (mid_x, mid_y) = (
+            (self.cam.x + cols / 2.0).round() as i32,
+            (self.cam.y + rows / 2.0).round() as i32,
+        );
+        let (start_x, start_y) = (mid_x - COLS / 2, mid_y - ROWS / 2);
         let grid = map.plane(self.plane);
-        let content = &self.game.content();
-        for y in 0..grid.height() {
-            for x in 0..grid.width() {
-                if !self.game.is_explored(
-                    HUMAN,
-                    Position {
-                        plane: self.plane,
-                        x,
-                        y,
-                    },
-                ) {
+        let content = self.game.content();
+        let plane_offset = if self.plane == f4x_core::map::Plane::Myrror {
+            crate::art::terrain_type::MYRROR_OFFSET
+        } else {
+            0
+        };
+        let s = lay.scale;
+        let pixel = |i: i32, j: i32, colour: Color| {
+            let (x0, y0) = ((i as f32 * s).floor(), (j as f32 * s).floor());
+            let (x1, y1) = (((i + 1) as f32 * s).floor(), ((j + 1) as f32 * s).floor());
+            draw_rectangle(
+                r.x + x0,
+                r.y + y0,
+                (x1 - x0).max(1.0),
+                (y1 - y0).max(1.0),
+                colour,
+            );
+        };
+        for j in 0..ROWS {
+            let y = start_y + j;
+            if !(0..h).contains(&y) {
+                continue;
+            }
+            for i in 0..COLS {
+                let x = (start_x + i).rem_euclid(w);
+                let at = Position {
+                    plane: self.plane,
+                    x: x as u32,
+                    y: y as u32,
+                };
+                if !self.game.is_explored(HUMAN, at) {
                     continue;
                 }
-                let Some(c) = grid
-                    .get(x as i32, y as i32)
-                    .and_then(|t| content.terrains.get(t))
-                    .map(|d| mini_terrain_color(d.class))
-                else {
-                    continue;
-                };
-                draw_rectangle(
-                    r.x + x as f32 * cw,
-                    r.y + y as f32 * ch,
-                    cw.ceil(),
-                    ch.ceil(),
-                    c,
+                let art = &self.art;
+                let ground = crate::terrain_pick::ground_type(
+                    grid,
+                    content,
+                    x,
+                    y,
+                    self.plane.index(),
+                    &|table, mask| art.autotile_type(table, mask),
                 );
+                if let Some(ground) = ground {
+                    pixel(i, j, art.minimap().terrain(ground + plane_offset));
+                }
             }
         }
         for (_, city, at) in self.game.economy().cities() {
-            if at.plane == self.plane && self.game.is_explored(HUMAN, at) {
-                let PlayerId(owner) = city.owner;
-                draw_rectangle(
-                    r.x + at.x as f32 * cw - cw,
-                    r.y + at.y as f32 * ch - ch,
-                    cw * 2.5,
-                    ch * 2.5,
-                    self.banner_color(owner),
-                );
+            let (i, j) = ((at.x as i32 - start_x).rem_euclid(w), at.y as i32 - start_y);
+            if at.plane == self.plane
+                && self.game.is_explored(HUMAN, at)
+                && (0..COLS).contains(&i)
+                && (0..ROWS).contains(&j)
+            {
+                let banner = self.banner_index(city.owner.0).min(5);
+                pixel(i, j, self.art.minimap().city(banner));
             }
         }
-        // The window onto the big map.
-        let (cols, rows) = self.visible_tiles();
-        draw_rectangle_lines(
-            r.x + self.cam.x * cw,
-            r.y + self.cam.y * ch,
-            (cols * cw).min(r.w),
-            (rows * ch).min(r.h),
-            1.5,
-            WHITE,
-        );
+        // The selected stack blinks.
+        if let Some(at) = self.selection_position().filter(|a| a.plane == self.plane) {
+            let (i, j) = ((at.x as i32 - start_x).rem_euclid(w), at.y as i32 - start_y);
+            if (get_time() * 2.0) as i64 % 2 == 0
+                && (0..COLS).contains(&i)
+                && (0..ROWS).contains(&j)
+            {
+                pixel(i, j, self.art.minimap().mark());
+            }
+        }
+        // The box round the map window: three pixels at each corner.
+        let (box_w, box_h) = (cols.round() as i32, rows.round() as i32);
+        let (left, top) = (COLS / 2 - box_w / 2, ROWS / 2 - box_h / 2);
+        let colour = self.art.minimap().window_box();
+        for (cx, cy, dx, dy) in [
+            (left - 1, top - 1, 1, 1),
+            (left + box_w, top - 1, -1, 1),
+            (left - 1, top + box_h, 1, -1),
+            (left + box_w, top + box_h, -1, -1),
+        ] {
+            for k in 0..3 {
+                pixel(cx + dx * k, cy, colour);
+                pixel(cx, cy + dy * k, colour);
+            }
+        }
         // Clicking the minimap centres the map there.
-        if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse_position().into()) {
-            let (mx, my) = mouse_position();
-            let (tx, ty) = ((mx - r.x) / cw, (my - r.y) / ch);
-            self.cam = vec2(tx - cols / 2.0, ty - rows / 2.0);
+        let mouse: Vec2 = mouse_position().into();
+        if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse) {
+            let (i, j) = (
+                ((mouse.x - r.x) / s).floor() as i32,
+                ((mouse.y - r.y) / s).floor() as i32,
+            );
+            self.cam = vec2(
+                (start_x + i) as f32 - cols / 2.0,
+                (start_y + j) as f32 - rows / 2.0,
+            );
         }
     }
 }
@@ -429,4 +569,11 @@ pub struct FrameClick {
     /// The menu button's index: Game, Spells, Armies, Cities, Magic, Info, Plane.
     pub menu: Option<usize>,
     pub next_turn: bool,
+    /// A unit of the unit window that was clicked, or right-clicked.
+    pub slot: Option<hecs::Entity>,
+    pub slot_info: Option<hecs::Entity>,
+    /// The click was on a unit while all of the stack was picked: pick only that one.
+    pub pick_only: bool,
+    /// An action button of the unit window.
+    pub button: Option<crate::unit_window::StackButton>,
 }

@@ -299,17 +299,28 @@ impl App {
     /// figures.
     fn draw_sheet_figures(&mut self, lay: &Layout, sheet: &Sheet, x: f32, y: f32) {
         let count = sheet.figures.max(1) as usize;
-        let figure = sheet.unit_type.and_then(|ty| {
-            // The sheet shows the figure facing east, standing.
-            self.art.figure(ty, 2, 2, sheet.banner).cloned()
-        });
-        let Some(tex) = figure else {
+        if let Some(ty) = sheet.unit_type {
+            self.draw_figures(lay, ty, count, sheet.banner, x, y);
+        }
+    }
+
+    /// `figures` of unit type `unit_type` standing on a diamond at `(x, y)`
+    /// (`Draw_Unit_Figure`): facing east, back figures first.
+    pub(crate) fn draw_figures(
+        &mut self,
+        lay: &Layout,
+        unit_type: usize,
+        figures: usize,
+        banner: u8,
+        x: f32,
+        y: f32,
+    ) {
+        let Some(tex) = self.art.figure(unit_type, 2, 2, banner).cloned() else {
             return;
         };
-        let mut spots: Vec<(i32, i32)> = (0..count)
-            .map(|i| crate::unit_sheet::figure_spot(count, i))
+        let mut spots: Vec<(i32, i32)> = (0..figures)
+            .map(|i| crate::unit_sheet::figure_spot(figures, i))
             .collect();
-        // Back figures first.
         spots.sort_by_key(|&(_, fy)| fy);
         for (fx, fy) in spots {
             let at = lay.point(x + fx as f32, y + fy as f32);

@@ -49,11 +49,13 @@ assets-local/art/
   units/<unit id>/        a unit's art: picture_FF.png (overland, `units1`/`units2`),
                           figure_D_FF.png and figure_D_FF_banner.png (combat figure, direction D,
                           section 6), portrait_FF.png (heroes, `portrait`)
-  figure*/NNN_FF_banner.png   a mask beside every combat figure frame (section 6)
+  figure*/NNN_FF_banner.png   a mask beside every combat figure frame (section 6); a
+                          picture_FF_banner.png also sits beside each overland unit picture
   fonts/                  style0..7.png, metrics.tsv (section 5)
   map/                    catalog.tsv, banners.tsv (section 6) and three folders:
     tiles/                <plane>/<kind>/tile_NNNN.png (arcanus/shore/ ...), types.tsv,
-                          autotile.tsv, sheet.png (section 7)
+                          autotile.tsv, minimap.tsv (the minimap's colours), sheet.png
+                          (section 7)
     locations/            cities, towers, encounter sites and magic nodes: <name>_FF.png and, for
                           cities and towers, <name>_<banner>_FF.png (sections 6, 8)
     overlays/             roads/, resources/ (minerals, mines, camps, wild game), fog/ (unexplored
@@ -125,15 +127,20 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - **A file shown under several palettes:** `wizlab` (used by the spell book, the conquest and the
   Spell of Mastery screens) is extracted with the base palette plus its own colours; the screens
   that need another look may need their own copy. Nothing in the client uses it yet.
-- **Palette cycling (not reproduced):** the original animates by changing one palette entry over
+- **Palette cycling (task 146):** the original animates by changing one palette entry over
   time, so every pixel that uses that index changes colour at once, with no redrawing.
   `Cycle_Palette_Color(index, min r,g,b, max r,g,b, step)` (`Fonts.c`) moves the entry back and
   forth between two colours (6-bit values), one step per call. ReMoM only ever cycles index 198:
   from dark to bright red (40..63) on the main screen, load screen and menu, from black to red
-  (0..55) in combat, and between pale greys or blues in the spell book. The extractor bakes the
-  base palette's fixed colour for index 198 into the PNGs, so those pixels do not pulse. Which
-  pictures use index 198 has not been checked. To reproduce it, extract those pixels as a mask
-  (like the banner mask) and tint it with a colour that oscillates over time (task 146).
+  (0..55) in combat, and between pale greys or blues in the spell book. `extract-art` writes the
+  pixels that use index 198 as a white `<picture>_<frame>_cycle.png` mask beside the picture (only
+  where there are any: the intro, the wizard portraits, the menu and load screens, the end
+  animations). The client (`cycle.rs`, `draw_pic_tinted`) draws the mask over the picture in the
+  colour of the moment, for the files whose screen cycles (`cycle::for_file`: the menu and the
+  load screen); the other screens keep the base colour, as in the original, which only cycles
+  while the cycling screens run. Text uses the same colour (a negative income on the main screen).
+  The combat and spell book ranges are not wired up: no combat picture uses the index, and the
+  book's glow belongs to task 166.
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
 **If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" reference/ReMoM/MoM/src`);

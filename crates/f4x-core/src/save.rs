@@ -296,6 +296,8 @@ pub struct UnitSave {
     pub aboard: Option<u64>,
     /// The unit was made undead (`undead.rs`).
     pub undead: bool,
+    /// Done or Patrol (the main screen's buttons).
+    pub standby: Option<crate::units::Standby>,
     /// Held in Stasis: 0 no, 1 just put there, 2 lingering.
     pub stasis: u8,
     /// Temporary modifiers and abilities.
@@ -641,6 +643,7 @@ impl Game {
                         .ok()
                         .map(|h| (*h).clone()),
                     undead: self.units().unit_is_undead(u),
+                    standby: self.units().unit_standby(u),
                     marooned: self.world.get::<&crate::transport::Marooned>(u).is_ok(),
                     stasis: match self.world.get::<&crate::stasis::Stasis>(u).ok().map(|s| *s) {
                         None => 0,
@@ -916,6 +919,9 @@ impl Snapshot {
             }
             if let Some(hero) = u.hero {
                 let _ = game.world.insert_one(entity, hero);
+            }
+            if let Some(standby) = u.standby {
+                let _ = game.world.insert_one(entity, standby);
             }
             if u.undead {
                 let _ = game.world.insert_one(entity, crate::undead::Undead);

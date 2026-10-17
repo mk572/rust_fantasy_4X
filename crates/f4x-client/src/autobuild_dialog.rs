@@ -47,7 +47,7 @@ impl App {
     pub(crate) fn draw_autobuild_button(&mut self, city: hecs::Entity, lay: Layout) {
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = self.game.autobuild_of(city).is_some();
-        let r = lay.rect(142.0, 80.0, 64.0, 10.0);
+        let r = lay.rect(66.0, 80.0, 64.0, 10.0);
         let hover = r.contains(mouse_position().into()) && !self.choosing;
         let fill = if hover {
             Color::new(0.4, 0.3, 0.15, 1.0)

@@ -804,6 +804,73 @@ fn a_sale_is_remembered_in_a_save() {
     assert!(back.economy().sold_this_turn(city));
 }
 
+#[test]
+fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
+    use crate::units::Standby;
+    let mut g = world();
+    found(&mut g, at(10, 6), "elf", 4);
+    g.player_mut(P0).unwrap().gold = 100;
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let done = g.spawn_unit(P0, at(10, 6), spear);
+    let patrol = g.spawn_unit(P0, at(11, 6), spear);
+    g.apply(Command::SetStandby {
+        units: vec![done],
+        standby: Some(Standby::Done),
+    });
+    g.apply(Command::SetStandby {
+        units: vec![patrol],
+        standby: Some(Standby::Patrol),
+    });
+    let text = g.snapshot().to_text().unwrap();
+    let back = crate::save::Snapshot::from_text(&text)
+        .unwrap()
+        .restore(g.content.clone())
+        .unwrap();
+    let both = back.units().all_units();
+    assert_eq!(
+        both.iter()
+            .map(|&u| back.units().unit_standby(u))
+            .collect::<Vec<_>>(),
+        vec![Some(Standby::Done), Some(Standby::Patrol)]
+    );
+    g.apply(Command::EndTurn);
+    assert_eq!(g.units().unit_standby(done), None);
+    assert_eq!(g.units().unit_standby(patrol), Some(Standby::Patrol));
+    g.apply(Command::MoveStack {
+        units: vec![patrol],
+        to: at(11, 7),
+    });
+    assert_eq!(g.units().unit_standby(patrol), None);
+}
+
+#[test]
+fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() {
+    use crate::economy::Enchantments;
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    let spell = crate::rules::SpellId::new(0);
+    g.world
+        .insert_one(city, Enchantments(vec![(spell, P0), (spell, PlayerId(1))]))
+        .unwrap();
+    let off = |g: &mut Game, player| {
+        g.apply(Command::TurnOffCitySpell {
+            player,
+            city,
+            spell,
+        })
+    };
+    assert!(matches!(
+        off(&mut g, PlayerId(2))[..],
+        [crate::Event::Rejected(_)]
+    ));
+    assert_eq!(
+        off(&mut g, P0),
+        vec![crate::Event::EnchantmentLapsed { player: P0, spell }]
+    );
+    assert_eq!(g.city_enchantments(city), vec![(spell, PlayerId(1))]);
+    assert!(matches!(off(&mut g, P0)[..], [crate::Event::Rejected(_)]));
+}
+
 fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
     let id = g.content.features.id_of(ore).unwrap();
     g.map

@@ -46,6 +46,7 @@ trusted. (Needed before any networked play.)
 | `MoveStack { units, to }` | One step of a stack to an adjacent tile | `UnitsMoved`, or `AttackRequested` if hostile | `Move(...)` |
 | `GoTo { units, to }` | Plans a route and starts walking it at once | `UnitsMoved`... (as far as moves allow), or `AttackRequested` | `Move(Impassable)` if there is no route |
 | `ClearOrders { units }` | Removes standing orders | none | none |
+| `SetStandby { units, standby }` | Puts units on Done (skipped for this turn) or Patrol (skipped until they move), or takes them off with `None` | none | none |
 | `ShiftPlane { units }` | Same tile, other plane, costs one move | `UnitsMoved` | `Move(CannotShiftPlane)` and others |
 | `FoundCity { owner, pos, name, race, population }` | New city (or outpost if population is 0) | `CityFounded` | `FoundCity(...)` |
 | `SettleOutpost { unit, name }` | Settlers become an outpost where they stand | `CityFounded` | `FoundCity(...)`, `Move(BadSelection)` |

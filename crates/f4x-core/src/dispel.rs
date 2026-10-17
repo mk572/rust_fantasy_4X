@@ -47,6 +47,33 @@ pub fn dispel_roll(strength: u32, difficulty: u32, rng: &mut dyn RngCore) -> boo
 }
 
 impl Game {
+    /// A wizard turns off one of their own spells on a city (the city screen's list of
+    /// enchantments): it ends, and so does its upkeep.
+    pub fn turn_off_city_spell(
+        &mut self,
+        player: PlayerId,
+        city: hecs::Entity,
+        spell: SpellId,
+    ) -> Result<Vec<Event>, crate::magic::MagicError> {
+        use crate::magic::MagicError::NoSuchTarget;
+        let list = self
+            .world
+            .get::<&Enchantments>(city)
+            .map(|e| e.0.clone())
+            .map_err(|_| NoSuchTarget)?;
+        if !list.contains(&(spell, player)) {
+            return Err(NoSuchTarget);
+        }
+        let kept = list.into_iter().filter(|&e| e != (spell, player)).collect();
+        let _ = self.world.insert_one(city, Enchantments(kept));
+        if self.content.rules.spells.get(spell).id == "spell_ward" {
+            let _ = self
+                .world
+                .remove_one::<crate::city_spells::SpellWards>(city);
+        }
+        Ok(vec![Event::EnchantmentLapsed { player, spell }])
+    }
+
     /// How many times its cost a spell cast by `caster` resists: one, plus one for the
     /// caster's mastery of its realm and one for Archmage.
     pub fn dispel_multiplier(&self, realm: &str, caster: Option<PlayerId>) -> u32 {

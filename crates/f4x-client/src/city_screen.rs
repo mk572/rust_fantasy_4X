@@ -8,8 +8,9 @@ use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
 use crate::frame::Align;
+use crate::sell_prompt::SellPrompt;
 use crate::ui::GOLD;
-use crate::view::{base_type, App, Screen};
+use crate::view::{App, Screen, HUMAN};
 
 /// Virtual-to-screen mapping for the 320x200 layout.
 #[derive(Clone, Copy)]
@@ -52,6 +53,9 @@ impl Layout {
     }
 }
 
+/// The top left of the first unit in the garrison window.
+const GARRISON: (f32, f32) = (215.0, 102.0);
+
 impl App {
     pub(crate) fn city_screen(&mut self, city: hecs::Entity) {
         if self
@@ -70,7 +74,12 @@ impl App {
             return;
         }
         let selling = self.sell_prompt.is_some();
-        let choosing = self.choosing || dialog || selling;
+        let renaming = self.city_naming.is_some();
+        if renaming && is_key_pressed(KeyCode::Escape) {
+            self.city_naming = None;
+            return;
+        }
+        let choosing = self.choosing || dialog || selling || renaming;
         // A right-click on a unit of the garrison opens its statistics sheet.
         if is_mouse_button_pressed(MouseButton::Right) && !choosing {
             let over = self
@@ -82,7 +91,31 @@ impl App {
                 return;
             }
         }
+        // A left-click on a unit of the garrison picks it, or lets it go.
+        if is_mouse_button_pressed(MouseButton::Left) && !choosing {
+            let over = self
+                .garrison_cells(city, lay)
+                .into_iter()
+                .find(|(r, _)| r.contains(mouse_position().into()));
+            if let Some((_, unit)) = over {
+                let here = self.city_position(city);
+                let elsewhere = self
+                    .selection
+                    .iter()
+                    .any(|&u| self.game.units().unit_position(u) != Some(here));
+                if elsewhere {
+                    self.selection.clear();
+                }
+                match self.selection.iter().position(|&u| u == unit) {
+                    Some(i) => {
+                        self.selection.remove(i);
+                    }
+                    None => self.selection.push(unit),
+                }
+            }
+        }
         if !selling
+            && !renaming
             && (is_key_pressed(KeyCode::Escape)
                 || (is_mouse_button_pressed(MouseButton::Right) && !choosing))
         {
@@ -118,7 +151,7 @@ impl App {
         }
         // While the auto-builder dialog is open the screen behind it takes no input.
         let was_choosing = self.choosing;
-        if dialog || selling {
+        if dialog || selling || renaming {
             self.choosing = true;
         }
         self.draw_city_header(city, lay);
@@ -128,7 +161,10 @@ impl App {
         self.draw_city_garrison(city, lay);
         self.draw_city_production(city, lay);
         self.draw_autobuild_button(city, lay);
-        if dialog {
+        if renaming {
+            self.choosing = was_choosing;
+            self.draw_rename_box(city);
+        } else if dialog {
             self.choosing = was_choosing;
             self.draw_autobuild_dialog(city, lay);
         } else if selling {
@@ -178,6 +214,21 @@ impl App {
         true
     }
 
+    /// The box for a new name for the city (the original's name box); Enter keeps what is typed,
+    /// an empty name keeps the old one.
+    fn draw_rename_box(&mut self, city: hecs::Entity) {
+        let Some(mut name) = self.city_naming.take() else {
+            return;
+        };
+        let lay = crate::frame::Layout::new();
+        if self.name_box(&lay, (60.0, 60.0), "Name City", &mut name) {
+            let events = self.game.apply(Command::RenameCity { city, name });
+            self.note(events);
+        } else {
+            self.city_naming = Some(name);
+        }
+    }
+
     fn draw_city_header(&mut self, city: hecs::Entity, lay: Layout) {
         let name = self.city_name(city);
         let (race_name, race_index) = self
@@ -215,6 +266,15 @@ impl App {
             0.0,
             Align::Center,
         );
+        // A click on the name asks for a new one.
+        if is_mouse_button_pressed(MouseButton::Left)
+            && !self.choosing
+            && lay
+                .rect(0.0, 0.0, 210.0, 17.0)
+                .contains(mouse_position().into())
+        {
+            self.city_naming = Some(name.clone());
+        }
         let orange = Color::new(0.95, 0.7, 0.2, 1.0);
         self.bm_text(view, 3, orange, &race_name, 6.0, 19.0, Align::Left);
         let people = pop.figures * 1000 + pop.tens * 10;
@@ -332,38 +392,44 @@ impl App {
                 self.bm_text(view, 1, color, &note, 134.0, y, Align::Right);
             }
         }
-        // Enchantments, in the colour of whoever cast them.
-        let list: Vec<_> = self.game.city_enchantments(city);
-        // The fortress and the summoning circle head the list, in gold.
-        let here = self.game.city_position(city);
-        let owner = self.game.economy().city_owner(city);
-        let mut tags = Vec::new();
-        if self.game.economy().is_fortress_city(city) {
-            tags.push("Fortress");
+        self.draw_city_enchantments(city, lay);
+    }
+
+    /// The enchantments on the city, six to a page in the colour of whoever cast them, with the
+    /// arrows that turn the page; a click on the player's own asks to turn it off
+    /// (`City_Screen_Draw_City_Enchantments`, `City_Add_Fields_City_Enchantments`).
+    fn draw_city_enchantments(&mut self, city: hecs::Entity, lay: Layout) {
+        const FIRST: (f32, f32) = (139.0, 51.0);
+        const PAGE: usize = 6;
+        let view = Self::view(lay);
+        let list = self.game.city_enchantments(city);
+        if list.len() > PAGE {
+            let last = list.len() - 1;
+            if self.pic_button(lay, 15, FIRST.0 + 62.0, FIRST.1 - 1.0, !self.choosing) {
+                self.city_spell_first = match self.city_spell_first {
+                    0 => last / PAGE * PAGE,
+                    n => n.saturating_sub(PAGE),
+                };
+            }
+            if self.pic_button(lay, 16, FIRST.0 + 62.0, FIRST.1 + 34.0, !self.choosing) {
+                self.city_spell_first += PAGE;
+                if self.city_spell_first > last {
+                    self.city_spell_first = 0;
+                }
+            }
+        } else {
+            self.city_spell_first = 0;
         }
-        if here.is_some()
-            && owner
-                .and_then(|o| self.game.player(o))
-                .and_then(|p| p.summon_at)
-                == here
+        let mouse = mouse_position().into();
+        let click = is_mouse_button_pressed(MouseButton::Left) && !self.choosing;
+        for (row, &(spell, caster)) in list
+            .iter()
+            .enumerate()
+            .skip(self.city_spell_first)
+            .take(PAGE)
         {
-            tags.push("Summon Circle");
-        }
-        let mut line = 0usize;
-        for tag in tags {
-            self.bm_text(
-                view,
-                1,
-                GOLD,
-                tag,
-                142.0,
-                54.0 + line as f32 * 6.5,
-                Align::Left,
-            );
-            line += 1;
-        }
-        for (spell, caster) in list.iter().take(6usize.saturating_sub(line)) {
-            let def = self.game.content().rules.spells.get(*spell);
+            let i = (row - self.city_spell_first) as f32;
+            let def = self.game.content().rules.spells.get(spell).clone();
             let mut name = def.name.clone();
             if def.id == "spell_ward" {
                 name = format!(
@@ -372,16 +438,15 @@ impl App {
                 );
             }
             let color = self.banner_color(caster.0);
-            self.bm_text(
-                view,
-                1,
-                color,
-                &name,
-                142.0,
-                54.0 + line as f32 * 6.5,
-                Align::Left,
-            );
-            line += 1;
+            self.bm_text(view, 1, color, &name, 142.0, 54.0 + i * 7.0, Align::Left);
+            let rect = lay.rect(FIRST.0, FIRST.1 + i * 7.0, 60.0, 7.0);
+            if click && caster == HUMAN && rect.contains(mouse) {
+                self.sell_prompt = Some(SellPrompt::TurnOff {
+                    city,
+                    spell,
+                    name: def.name.clone(),
+                });
+            }
         }
     }
 
@@ -613,77 +678,88 @@ impl App {
         mouse_over
     }
 
-    /// The 5x5 worked area at original tile size, with shared tiles dimmed.
+    /// The 5x5 worked area at original tile size, drawn as the map is (`City_Screen_Draw_Map`):
+    /// terrain, resources and roads, the corners shaded, the cities on it, and a mark on the squares another city
+    /// of the player also works.
     fn draw_city_area(&mut self, city: hecs::Entity, lay: Layout) {
         let at = self.city_position(city);
         let Some(map) = self.game.map() else {
             return;
         };
-        let grid = map.plane(at.plane);
-        let plane_offset = if at.plane == f4x_core::map::Plane::Myrror {
-            crate::art::terrain_type::MYRROR_OFFSET
-        } else {
-            0
-        };
+        let (width, height) = (map.width() as i32, map.height() as i32);
         let area: Vec<_> = self.game.economy().city_area(at);
+        let tile = vec2(TILE_W * lay.scale, TILE_H * lay.scale);
+        let anim = (get_time() * 4.0) as usize;
+        // A click on the map shows or hides each square's food and production.
+        if is_mouse_button_pressed(MouseButton::Left)
+            && !self.choosing
+            && lay
+                .rect(215.0, 4.0, 5.0 * TILE_W, 5.0 * TILE_H)
+                .contains(mouse_position().into())
+        {
+            self.city_area_figures = !self.city_area_figures;
+        }
+        let gaia = self
+            .game
+            .economy()
+            .city_has_enchantment(city, "gaias_blessing");
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
-                if dx.abs() == 2 && dy.abs() == 2 {
-                    continue;
-                }
-                let r = lay.rect(
+                let corner = dx.abs() == 2 && dy.abs() == 2;
+                let (x, y) = ((at.x as i32 + dx).rem_euclid(width), at.y as i32 + dy);
+                let (cx, cy) = (
                     215.0 + (dx + 2) as f32 * TILE_W,
-                    5.0 + (dy + 2) as f32 * TILE_H,
-                    TILE_W,
-                    TILE_H,
+                    4.0 + (dy + 2) as f32 * TILE_H,
                 );
-                let x = grid.wrap_x(at.x as i32 + dx);
-                let y = at.y as i32 + dy;
-                let Some(def) = grid
-                    .get(x as i32, y)
-                    .and_then(|t| self.game.content().terrains.get(t))
-                else {
+                let r = lay.rect(cx, cy, TILE_W, TILE_H);
+                if !(0..height).contains(&y) {
                     draw_rectangle(r.x, r.y, r.w, r.h, BLACK);
                     continue;
+                }
+                crate::map_draw::draw_square(
+                    &self.game,
+                    &mut self.art,
+                    at.plane,
+                    x as u32,
+                    y as u32,
+                    r.x,
+                    r.y,
+                    tile,
+                    anim,
+                );
+                if corner {
+                    // The corners are shaded (`Gradient_Fill` with a remap block).
+                    draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.0, 0.5));
+                    continue;
+                }
+                let square = Position {
+                    plane: at.plane,
+                    x: x as u32,
+                    y: y as u32,
                 };
-                match self.art.terrain(base_type(def.class) + plane_offset) {
-                    Some(tex) => draw_texture_ex(
-                        tex,
-                        r.x,
-                        r.y,
-                        WHITE,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(r.w, r.h)),
-                            ..Default::default()
-                        },
-                    ),
-                    None => draw_rectangle(r.x, r.y, r.w, r.h, DARKGREEN),
+                if let Some(here) = self.game.economy().city_at(square) {
+                    crate::map_draw::draw_city(&self.game, &mut self.art, here, r.x, r.y, tile);
                 }
-                let shared = area.iter().any(|(p, s)| p.x == x && p.y as i32 == y && *s);
+                let shared = area
+                    .iter()
+                    .any(|(p, shared)| *shared && p.x == x as u32 && p.y == y as u32);
                 if shared {
-                    draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.0, 0.35));
+                    self.city_pic(lay, "backgrnd", 0, 0, cx + 7.0, cy + 4.0);
                 }
-                if let Some(f) = grid
-                    .feature(x as i32, y)
-                    .and_then(|f| self.game.content().features.get(f))
-                {
-                    draw_circle(r.x + r.w / 2.0, r.y + r.h / 2.0, r.h * 0.18, GOLD);
-                    let _ = f;
-                }
-                if dx == 0 && dy == 0 {
-                    draw_rectangle(
-                        r.x + r.w * 0.15,
-                        r.y + r.h * 0.3,
-                        r.w * 0.7,
-                        r.h * 0.55,
-                        Color::new(0.75, 0.6, 0.4, 1.0),
-                    );
-                    draw_triangle(
-                        vec2(r.x + r.w * 0.1, r.y + r.h * 0.3),
-                        vec2(r.x + r.w * 0.9, r.y + r.h * 0.3),
-                        vec2(r.x + r.w * 0.5, r.y + r.h * 0.05),
-                        Color::new(0.7, 0.2, 0.15, 1.0),
-                    );
+                if self.city_area_figures {
+                    let (food, production) = self.game.map().map_or((0, 0), |m| {
+                        let eco = self.game.economy();
+                        let half = |v: i32| if shared { v / 2 } else { v };
+                        let g = m.plane(at.plane);
+                        (
+                            half(eco.square_food(g, x, y)),
+                            half(eco.square_production(g, x, y, gaia)),
+                        )
+                    });
+                    // Food as stacked bread, half a loaf cut across the diagonal; production
+                    // as one hammer for each percent.
+                    self.draw_icon_stack(lay, 40, food / 2, food % 2 == 1, cx + 1.0, cy + 1.0);
+                    self.draw_icon_stack(lay, 41, production, false, cx + 1.0, cy + 9.0);
                 }
             }
         }
@@ -700,16 +776,17 @@ impl App {
             .enumerate()
             .map(|(i, u)| {
                 let (col, row) = ((i % 5) as f32, (i / 5) as f32);
-                let (x, y) = (216.0 + col * 19.0, 105.0 + row * 17.0);
-                (lay.rect(x - 1.0, y - 1.0, 18.0, 16.0), u)
+                let (x, y) = (GARRISON.0 + col * 20.0, GARRISON.1 + row * 17.0);
+                (lay.rect(x, y, 20.0, 18.0), u)
             })
             .collect()
     }
 
-    fn draw_city_garrison(&mut self, city: hecs::Entity, lay: Layout) {
+    /// The units in the city on their banner backgrounds (`City_Screen_Draw_Garrison_Window`),
+    /// five to a row; the ones picked (by a click) have a gold frame.
+    fn draw_city_garrison(&mut self, city: hecs::Entity, _lay: Layout) {
         let at = self.city_position(city);
-        let view = Self::view(lay);
-        let owner = self.game.economy().city_owner(city).map_or(0, |o| o.0);
+        let lay = crate::frame::Layout::new();
         for (i, u) in self
             .game
             .units()
@@ -718,42 +795,177 @@ impl App {
             .take(9)
             .enumerate()
         {
-            let (col, row) = ((i % 5) as f32, (i / 5) as f32);
-            let (x, y) = (216.0 + col * 19.0, 105.0 + row * 17.0);
-            let frame = lay.rect(x - 1.0, y - 1.0, 18.0, 16.0);
-            draw_rectangle(frame.x, frame.y, frame.w, frame.h, {
-                let c = self.banner_color(owner);
-                Color::new(c.r * 0.5, c.g * 0.3, c.b * 0.3, 1.0)
-            });
-            let art = self.game.units().unit_def(u).and_then(|d| d.art.clone());
-            let drawn = art.is_some_and(|(lbx, entry)| {
-                self.art
-                    .picture(&lbx, entry as usize, 0)
-                    .cloned()
-                    .map(|tex| {
+            let spot = (
+                GARRISON.0 + (i % 5) as f32 * 20.0,
+                GARRISON.1 + (i / 5) as f32 * 17.0,
+            );
+            self.draw_unit_picture(&lay, u, spot, true, WHITE);
+            if self.selection.contains(&u) {
+                let frame = lay.rect((spot.0, spot.1, 20.0, 18.0));
+                draw_rectangle_lines(frame.x, frame.y, frame.w, frame.h, 2.0, GOLD);
+            }
+        }
+    }
+
+    /// The progress as coins, ten production points to a coin and ten coins to a row: the full
+    /// coin (`backgrnd` 12) for each ten made, the empty one (11) for the rest, and half a coin
+    /// cut off for a partial one (`City_Screen_Draw_Production_Coins`).
+    fn draw_production_coins(&mut self, lay: Layout, progress: u32, cost: u32) {
+        let (mut per_row, mut space) = (10u32, 5.0f32);
+        let coins = (cost / 10).max(1);
+        if coins > 50 {
+            (per_row, space) = (20, 2.0);
+        }
+        let (whole, part) = (progress / 10, progress % 10);
+        for k in 0..coins {
+            let x = 262.0 + (k % per_row) as f32 * space;
+            let y = 151.0 + (k / per_row) as f32 * 6.0;
+            if k < whole {
+                self.city_pic(lay, "backgrnd", 12, 0, x, y);
+            } else {
+                self.city_pic(lay, "backgrnd", 11, 0, x, y);
+                if k == whole && part > 0 {
+                    // The left part of the full coin over the empty one.
+                    if let Some(tex) = self.art.picture("backgrnd", 12, 0).cloned() {
+                        let width = (part / 2) as f32;
+                        let at = lay.rect(x, y, width, tex.height());
                         draw_texture_ex(
                             &tex,
-                            frame.x + lay.scale,
-                            frame.y + lay.scale,
+                            at.x,
+                            at.y,
                             WHITE,
                             DrawTextureParams {
-                                dest_size: Some(vec2(16.0 * lay.scale, 14.0 * lay.scale)),
+                                dest_size: Some(vec2(at.w, tex.height() * lay.scale)),
+                                source: Some(Rect::new(0.0, 0.0, width, tex.height())),
                                 ..Default::default()
                             },
-                        )
-                    })
-                    .is_some()
-            });
-            if !drawn {
-                if let Some(def) = self.game.units().unit_def(u) {
-                    let short: String = def.name.chars().take(4).collect();
-                    self.bm_text(view, 1, WHITE, &short, x, y + 4.0, Align::Left);
+                        );
+                    }
                 }
             }
-            let (hp, max) = self.game.units().unit_hits(u);
-            if hp < max {
-                let bar_r = lay.rect(x, y + 13.0, 16.0 * hp as f32 / max as f32, 1.0);
-                draw_rectangle(bar_r.x, bar_r.y, bar_r.w, bar_r.h, RED);
+        }
+    }
+
+    /// `whole` icons of `backgrnd` entry `entry` in a row that overlaps as far as it must to fit
+    /// the 18 pixels of a square, and a half icon (cut along its diagonal) after them.
+    fn draw_icon_stack(
+        &mut self,
+        lay: Layout,
+        entry: usize,
+        whole: i32,
+        half: bool,
+        x: f32,
+        y: f32,
+    ) {
+        let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
+            return;
+        };
+        let slots = whole.max(0) + i32::from(half);
+        if slots == 0 {
+            return;
+        }
+        let step = if slots > 1 {
+            ((18.0 - tex.width()) / (slots - 1) as f32).clamp(0.5, tex.width())
+        } else {
+            0.0
+        };
+        for k in 0..slots {
+            let at = lay.rect(x + k as f32 * step, y, 0.0, 0.0);
+            let (w, h) = (tex.width() * lay.scale, tex.height() * lay.scale);
+            if half && k == slots - 1 {
+                // The half loaf: the triangle above the diagonal from the top right.
+                let corner = |dx: f32, dy: f32, u: f32, v: f32| {
+                    Vertex::new(at.x + dx, at.y + dy, 0.0, u, v, WHITE)
+                };
+                draw_mesh(&Mesh {
+                    vertices: vec![
+                        corner(0.0, 0.0, 0.0, 0.0),
+                        corner(w, 0.0, 1.0, 0.0),
+                        corner(0.0, h, 0.0, 1.0),
+                    ],
+                    indices: vec![0, 1, 2],
+                    texture: Some(tex.clone()),
+                });
+            } else {
+                draw_texture_ex(
+                    &tex,
+                    at.x,
+                    at.y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(w, h)),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
+    }
+
+    /// A `cityscap` picture centred in the 44 by 31 pixels at (215, 147).
+    fn draw_centred_building(&mut self, lay: Layout, entry: usize) {
+        let Some(size) = self.art.picture("cityscap", entry, 0).map(|t| t.size()) else {
+            return;
+        };
+        let x = 215.0 + ((44.0 - size.x) / 2.0).floor();
+        let y = 147.0 + ((31.0 - size.y) / 2.0).floor();
+        self.city_pic(lay, "cityscap", entry, 0, x, y);
+    }
+
+    /// What is being made, in the window's corner (`City_Screen_Draw2__WIP`): a unit's figures on
+    /// a diamond, a building's picture from the cityscape centred in 44 by 31 pixels.
+    fn draw_product_picture(&mut self, lay: Layout, city: hecs::Entity, item: ProductionItem) {
+        match item {
+            ProductionItem::Unit(id) => {
+                let def = self.game.content().rules.units.get(id).clone();
+                let Some(ty) = def
+                    .art
+                    .as_ref()
+                    .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize))
+                else {
+                    return;
+                };
+                let ships = def
+                    .stats
+                    .get(&f4x_core::rules::Stat::Transport)
+                    .is_some_and(|&t| t > 0);
+                if ships {
+                    self.city_pic(lay, "unitview", 34, 0, 219.0, 157.0);
+                } else {
+                    self.city_pic(lay, "cityscap", 103, 0, 218.0, 144.0);
+                }
+                let figures = def
+                    .stats
+                    .get(&f4x_core::rules::Stat::Figures)
+                    .copied()
+                    .unwrap_or(1);
+                let banner = self.banner_index(HUMAN.0);
+                self.draw_figures(
+                    &crate::frame::Layout::new(),
+                    ty,
+                    figures.max(1) as usize,
+                    banner,
+                    224.0,
+                    136.0,
+                );
+            }
+            ProductionItem::Building(id) => {
+                // The cityscape picture numbers the buildings from 3 in the order of the list;
+                // the walls have a big picture of their own.
+                let entry = if self.game.content().rules.buildings.get(id).id == "city_walls" {
+                    Some(114)
+                } else {
+                    crate::cityscape::sprite_of(id.index() as i16 + 3).map(|(entry, _)| entry)
+                };
+                if let Some(entry) = entry {
+                    self.draw_centred_building(lay, entry);
+                }
+            }
+            ProductionItem::TradeGoods => self.draw_centred_building(lay, 41),
+            ProductionItem::Housing => {
+                let house_type = self.game.city_race(city).map_or(0, |r| {
+                    self.game.content().rules.races.get(r).house_type as usize
+                });
+                self.draw_centred_building(lay, 42 + house_type.min(2));
             }
         }
     }
@@ -766,80 +978,63 @@ impl App {
         match prod.item {
             Some(item) => {
                 let name = self.item_name(item);
-                self.bm_text(view, 3, white, &name, 246.0, 177.0, Align::Center);
+                // The name wraps in 44 pixels and its last line is at y 179, as in the original.
+                let lines = self.bm_wrap(1, &name, 44.0);
+                let top = 179.0 - 6.0 * lines.len().saturating_sub(1) as f32;
+                for (i, line) in lines.iter().enumerate() {
+                    self.bm_text(
+                        view,
+                        1,
+                        white,
+                        line,
+                        216.0,
+                        top + 6.0 * i as f32,
+                        Align::Left,
+                    );
+                }
                 let cost = self.game.economy().item_cost(city, item);
                 if cost > 0 {
                     let remaining = cost.saturating_sub(prod.progress);
                     if eco.production > 0 {
+                        // "N Turns" as the original prints it: the number right-aligned at 286,
+                        // the word after it.
                         let turns = remaining.div_ceil(eco.production as u32);
-                        let label = if turns == 1 {
-                            "1 Turn".to_string()
-                        } else {
-                            format!("{turns} Turns")
-                        };
+                        let gold = Color::new(0.95, 0.7, 0.2, 1.0);
                         self.bm_text(
                             view,
-                            3,
-                            Color::new(0.95, 0.7, 0.2, 1.0),
-                            &label,
-                            313.0,
-                            142.0,
+                            1,
+                            gold,
+                            &turns.to_string(),
+                            286.0,
+                            140.0,
                             Align::Right,
                         );
+                        let word = if turns == 1 { "Turn" } else { "Turns" };
+                        self.bm_text(view, 1, gold, word, 291.0, 140.0, Align::Left);
                     }
-                    // Progress as rows of production icons, ten to a row.
-                    let done = (prod.progress as i32 * 30 / cost as i32).min(30);
-                    for k in 0..30 {
-                        let (x, y) = (262.0 + (k % 10) as f32 * 5.0, 151.0 + (k / 10) as f32 * 7.0);
-                        let tint = if k < done {
-                            WHITE
-                        } else {
-                            Color::new(1.0, 1.0, 1.0, 0.25)
-                        };
-                        if let Some(tex) = self.art.picture("backgrnd", 41, 0).cloned() {
-                            let at = lay.rect(x, y, 0.0, 0.0);
-                            draw_texture_ex(
-                                &tex,
-                                at.x,
-                                at.y,
-                                tint,
-                                DrawTextureParams {
-                                    dest_size: Some(tex.size() * lay.scale),
-                                    ..Default::default()
-                                },
-                            );
-                        }
-                    }
-                    self.bm_text(
-                        view,
-                        1,
-                        white,
-                        &format!("{}/{}", prod.progress, cost),
-                        313.0,
-                        168.0,
-                        Align::Right,
-                    );
-                } else if item == ProductionItem::TradeGoods {
-                    self.bm_text(
-                        view,
-                        1,
-                        white,
-                        &format!("{} gold", eco.production / 2),
-                        262.0,
-                        152.0,
-                        Align::Left,
-                    );
+                    self.draw_production_coins(lay, prod.progress, cost);
                 } else {
-                    self.bm_text(view, 1, white, "speeds", 262.0, 152.0, Align::Left);
-                    self.bm_text(view, 1, white, "growth", 262.0, 159.0, Align::Left);
-                }
-                // What is being made: the unit's picture.
-                if let ProductionItem::Unit(id) = item {
-                    let art = self.game.content().rules.units.get(id).art.clone();
-                    if let Some((lbx, entry)) = art {
-                        self.city_pic(lay, &lbx, entry as usize, 0, 217.0, 152.0);
+                    // Trade goods and housing cover the coins with their description
+                    // (`proddescr_tradegoods`, `proddescr_housing`).
+                    self.city_pic(lay, "backgrnd", 13, 0, 260.0, 149.0);
+                    let text = if item == ProductionItem::TradeGoods {
+                        "Converts production to gold."
+                    } else {
+                        "Increases population growth rate."
+                    };
+                    for (i, line) in self.bm_wrap(1, text, 50.0).iter().enumerate() {
+                        self.bm_text(
+                            view,
+                            1,
+                            white,
+                            line,
+                            262.0,
+                            159.0 + 6.0 * i as f32,
+                            Align::Left,
+                        );
                     }
                 }
+                self.draw_product_picture(lay, city, item);
             }
             None => {
                 self.bm_text(view, 3, GRAY, "Nothing", 246.0, 177.0, Align::Center);
@@ -848,27 +1043,18 @@ impl App {
         let gold = self.game.player(crate::view::HUMAN).map_or(0, |p| p.gold);
         let price = self.game.economy().buy_cost(city);
         let can_buy = price.is_some_and(|p| p as i32 <= gold);
-        if self.pic_button(lay, 7, 214.0, 190.0, can_buy && !self.choosing) {
-            let events = self.game.apply(Command::BuyProduction { city });
-            self.note(events);
+        if self.pic_button(lay, 7, 214.0, 188.0, can_buy && !self.choosing) {
+            if let (Some(price), Some(item)) = (price, prod.item) {
+                let name = self.item_name(item);
+                self.sell_prompt = Some(SellPrompt::Buy { city, name, price });
+            }
         }
-        if self.pic_button(lay, 8, 247.0, 190.0, !self.choosing) {
+        if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing) {
             self.choosing = true;
             self.choice_scroll = 0;
         }
-        if self.pic_button(lay, 9, 286.0, 190.0, !self.choosing) {
+        if self.pic_button(lay, 9, 286.0, 188.0, !self.choosing) {
             self.screen = Screen::Map;
-        }
-        if let Some(p) = price {
-            self.bm_text(
-                view,
-                1,
-                if can_buy { WHITE } else { GRAY },
-                &format!("{p} gold"),
-                229.0,
-                181.0,
-                Align::Center,
-            );
         }
     }
 

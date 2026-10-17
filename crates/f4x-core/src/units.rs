@@ -64,6 +64,21 @@ pub enum Order {
     GoTo(Vec<Position>),
 }
 
+/// What a player has told an idle unit to do about being asked for orders (the main screen's
+/// Done and Patrol buttons): `Done` skips it for this turn, `Patrol` until it moves again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Standby {
+    Done,
+    Patrol,
+}
+
+impl Units<'_> {
+    /// The unit's standby, if it has one.
+    pub fn unit_standby(&self, unit: hecs::Entity) -> Option<Standby> {
+        self.world.get::<&Standby>(unit).ok().map(|s| *s)
+    }
+}
+
 /// Owner of monsters and unclaimed sites. Its units last until someone kills them (the lair
 /// guards are made for a fight and removed after it; undead raised for the monsters stay).
 pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);

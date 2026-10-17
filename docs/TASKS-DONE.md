@@ -101,9 +101,14 @@ original task numbers. Newest work is merged in ascending order by number.
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
 | 117 | City | Selling buildings from the city picture (done) |
+| 118 | Client | Bitmap fonts on every screen and a text layout helper (done) |
+| 119 | Client | City screen details (done) |
+| 120 | Client | Overland screen details (done) |
 | 121 | Map | Unexplored-edge pictures (corner-based exploration) (done) |
 | 122 | Map | River mouths and shore pieces with rivers (done) |
 | 123 | Map | Call the Void, Great Wasting and Armageddon corruption (done) |
+| 125 | Client | Unit stack backgrounds in banner colours (done) |
+| 126 | Client | Bitmap font for the remaining overland text (done) |
 | 127 | Map | Lair rewards: original spell, book and retort selection (done) |
 | 128 | Client | Site encounter dialogs and treasure popup (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
@@ -112,6 +117,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 139 | Client | City list screen (done) |
 | 142 | Client | Item screen and the item pop-up (done) |
 | 145 | Client | Save and load screen with slots (done) |
+| 146 | Client | Palette cycling: the pulsing colour of index 198 (done) |
+| 149 | Client | Show squares that are known but not currently seen (fog of war) (done) |
 | 154 | Meta | Raiders from neutral cities (done) |
 | 156 | Combat | Defence bonuses of enchantments and the undead's immunities (done) |
 | 160 | Combat | ~~Battlefield node counter and node auras~~ (done) |
@@ -256,7 +263,17 @@ screen, the hero sheet and the diplomacy screen.
 
 **117. Selling buildings from the city picture (done).** A click on a building in the city picture (help topic 303) opens the original's confirmation box (`Confirmation_Box`, `resource.lbx` 0, 1, 3 and 4; `confirmation_box` in `sell_prompt.rs`): "Do you wish to sell back the X for N gold?", and Yes sends `Command::SellBuilding`. A building another one needs gets the red warning box (`Warn0`, `resource.lbx` 38 and 39): "You cannot sell back the X because it is required by the Y." (`Economy::first_dependant`). Selling what the current production needs warns "This will cease production of your Z" and puts the city back on Housing (`production_needs`, as the original). The fortress and the summoning circle are not for sale. `--shot FILE --city --sell` shows the box. See task 295 for the price and the one-sale-a-turn rule.
 
+**118. Bitmap fonts on every screen and a text layout helper (done).** Only the map frame and the city screen use the original's fonts. Move the magic, wizard creation, production menu, message log and unit panels to them, and add a bitmap-font word wrap, justify and column helper (`Print_Paragraph` style) so long help text and descriptions can be shown.
+
+**119. City screen details (done).** Checked against ReMoM's `CityScr.c` and `City_ovr55.c` on 17 October 2026 and brought in line. The worked area is the real map (terrain, resources, roads, the cities on it; the corners shaded, not white; a mark on squares another city also works). The enchantment list shows six at a time with the up and down arrows, and a click on one of the player's own asks "Do you wish to turn off the ... spell?" (`Command::TurnOffCitySpell`, tested); the fortress and summoning circle tags are gone from it (the cityscape draws them). The garrison units stand on their banner background. The production window shows what is made as the original does: a unit's figures on the grass or water diamond, a building's cityscape picture centred in 44 by 31 pixels, "N Turns" printed at (286, 140), the name wrapped in 44 pixels, and Buy asks "Do you wish to spend N Gold by purchasing a ...?" (the price is no longer on the screen). Added beyond the original, at the user's request: a left-click on a garrison unit picks it or lets it go (gold frame; the pick stays when the screen is left), a click on the city's name opens the name box (`Command::RenameCity`; Esc cancels), a click on the worked-area map shows or hides each square's food and production (halved on shared squares), and a right-click on a unit opens its sheet. Right-click help on each element is task 289. The Auto button moved into the Resources panel so it does not cover the enchantment list. The main screen's minimap is drawn as the original does: 58 by 30 squares round the map window, a pixel each in the terrain colours of `terrain.lbx` (`extract-art` writes `minimap.tsv`; run it again), cities in the banner colours and the box of corner ticks.
+
+**120. Overland screen details (done).** The right column now works as the original's main screen: while a stack is selected it shows up to nine unit pictures in a grid of three (`Main_Screen_Draw_Unit_Window`: slot backgrounds, banner background under the picked units, damage bar, experience medals, weapon icon, B and G marks), the stack's moves, and the Done, Patrol, Wait and Build, Meld or Purify buttons; with nothing selected it shows the gold, food and mana panels and the locked buttons, and the Next Turn button appears only when no unit is left that waits for orders. Clicking a picture picks that unit (the first click picks it alone), a right-click opens its sheet. Done skips the units for this turn and Patrol until they move (`Command::SetStandby`, saved); both and Wait pick the next stack waiting for orders, and so does a stack that has spent its moves. Keys: W waits, D still clears orders, Enter or N ends the turn. The surveyor, the Info menu, the Armies and Cities lists and the animated terrain were already there. Left: tasks 298 and 299.
+
 **121. Unexplored-edge pictures (done).** Kept simple: a tile is explored or not, and `Fog::corners` shades each corner of an explored tile that has an unexplored neighbour at it, so the border of the known land is drawn on its outermost tiles with `mapback.lbx` 0 to 13 (`map_draw::draw_unexplored_edge`). The original instead stores four corner bits per tile and gives the tiles round an explored one only some corners; the look is nearly the same.
+
+**125. Unit stack backgrounds (done).** A stack is drawn as the original's `Draw_Unit_Picture` does: the background of its owner's banner (`mapback.lbx` 14 to 19: blue, green, purple, red, yellow, neutral), then the top unit's `units1`/`units2` picture one pixel in, painted in the banner's shades (`extract-art` now writes the `_banner.png` mask for those pictures too; run it again to get them). Left: the status letters B, G, C, P, the grey of a patrolling unit and the outline of a unit enchantment.
+
+**126. Bitmap font for the remaining overland text (done).** The gold, mana, income panels and city names use the original fonts; still in the plain font are the turn/plane/race line, the selection and hover info (`Lines` helper), the message log, the "F1 keys" hint and key list, and the unit-count badge on stacks. Give `Lines` a bitmap-font mode (or replace it) and move these over, using the original's sizes and colours; see task 118 for the other screens.
 
 **127. Lair rewards: original spell, book and retort selection (done).** We follow the intent of
 `WIZ_RollSpellReward` and `EZ_SpecialTreasure` (ReMoM marks both as muddled): spell of the tier
@@ -266,6 +283,10 @@ Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroe
 tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
 
 **Checked against ReMoM on 17 October 2026:** `WIZ_RollSpellReward` and `EZ_SpecialTreasure` do not give a usable result as written (the spell index arithmetic always lands on the first ten spells; the special treasure never counts its points spent, so a book would repeat until the wizard has thirteen), so the intent stays. Done now: Famous gives its 10 fame, a wizard with six retorts is given a book and one with twelve books a retort (the original's two limits), and a book or retort hoard that finds nothing to give pays an item of 1200 or 1000 mana. The realm of a hoard's book is the original's `Lair_Magic_Realm` (nodes their own realm, caves and lairs any, dungeons, keeps and ruins death, temples life). Left: nothing known; the Alchemy/Warlord "arcane" quirk is not copied.
+
+**146. Palette cycling: the pulsing colour of index 198 (done).** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
+
+**149. Fog of war: known but unseen squares (done).** Checked against ReMoM on 17 October 2026: the original does not dim explored squares that nobody sees now. It draws every explored square in full (`Draw_Map_Terrain`, `Redraw_Map_Unexplored_Area`) and the cities on them as they are now (`Draw_Map_Cities` tests only the explored flag, so there is no remembered city either). What `Check_Square_Scouted` (explored and seen now) hides are the units (`Set_Entities_On_Map_Window`) and some advisor lists, as ours does. So no dimming and no city memory were added; the soft border is task 121.
 
 **154. Raiders from neutral cities (done).** Dropped, not built: the owner wants the independent cities to play strategically (build their own units and use them for goals of their own) instead of sending random raiders. That is planned item 33 in `PLANNED.md`; the settings `raiders_enabled` and `raider_percent` in `game-settings.md` become a `neutral_activity` setting there.
 

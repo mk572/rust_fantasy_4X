@@ -1,4 +1,6 @@
-//! Selling a building from the city picture (task 117). A click on a building asks "Do you wish
+//! Questions the city screen asks in the original's confirmation box: selling a building from
+//! the city picture (task 117) and turning off one of the player's spells on the city (task 119).
+//! Selling A click on a building asks "Do you wish
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
 
@@ -22,6 +24,18 @@ pub(crate) enum SellPrompt {
     },
     /// The sale is refused, with the reason.
     Refused(String),
+    /// "Do you wish to spend N Gold by purchasing a ...?", for the city's production.
+    Buy {
+        city: hecs::Entity,
+        name: String,
+        price: u32,
+    },
+    /// "Do you wish to turn off the ... spell?", for a spell of the player's on the city.
+    TurnOff {
+        city: hecs::Entity,
+        spell: f4x_core::rules::SpellId,
+        name: String,
+    },
 }
 
 impl App {
@@ -100,6 +114,17 @@ impl App {
                 text
             }
             SellPrompt::Refused(text) => text.clone(),
+            SellPrompt::Buy { name, price, .. } => {
+                let article = if name.starts_with(['A', 'E', 'I', 'O', 'U']) {
+                    "an"
+                } else {
+                    "a"
+                };
+                format!("Do you wish to spend {price} Gold by purchasing {article} {name}?")
+            }
+            SellPrompt::TurnOff { name, .. } => {
+                format!("Do you wish to turn off the {name} spell?")
+            }
         };
         match &prompt {
             SellPrompt::Ask { city, building, .. } => match self.confirmation_box(&lay, &text) {
@@ -107,6 +132,26 @@ impl App {
                     let events = self.game.apply(Command::SellBuilding {
                         city: *city,
                         building: *building,
+                    });
+                    self.note(events);
+                }
+                Some(false) => {}
+                None => self.sell_prompt = Some(prompt),
+            },
+            SellPrompt::Buy { city, .. } => match self.confirmation_box(&lay, &text) {
+                Some(true) => {
+                    let events = self.game.apply(Command::BuyProduction { city: *city });
+                    self.note(events);
+                }
+                Some(false) => {}
+                None => self.sell_prompt = Some(prompt),
+            },
+            SellPrompt::TurnOff { city, spell, .. } => match self.confirmation_box(&lay, &text) {
+                Some(true) => {
+                    let events = self.game.apply(Command::TurnOffCitySpell {
+                        player: crate::view::HUMAN,
+                        city: *city,
+                        spell: *spell,
                     });
                     self.note(events);
                 }

@@ -37,6 +37,19 @@ pub(crate) fn draw_unexplored_edge(art: &mut Art, corners: u8, sx: f32, sy: f32,
     }
 }
 
+/// A filled five-pointed star with its top point up.
+pub(crate) fn draw_star(centre: Vec2, outer: f32, colour: Color) {
+    let inner = outer * 0.4;
+    let point = |i: usize| {
+        let radius = if i.is_multiple_of(2) { outer } else { inner };
+        let angle = std::f32::consts::TAU * i as f32 / 10.0 - std::f32::consts::FRAC_PI_2;
+        centre + vec2(angle.cos(), angle.sin()) * radius
+    };
+    for i in 0..10 {
+        draw_triangle(centre, point(i), point((i + 1) % 10), colour);
+    }
+}
+
 /// Whether a neighbouring square counts as water for a river that runs into it.
 fn is_water(game: &Game, grid: &Grid, x: i32, y: i32) -> bool {
     pick::class_at(grid, game.content(), x, y) == Some(TerrainClass::Ocean)

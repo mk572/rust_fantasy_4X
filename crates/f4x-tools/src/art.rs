@@ -220,6 +220,9 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
             .collect();
         fs::write(dir.join("types.tsv"), rows).map_err(|e| e.to_string())?;
     }
+    if lbx.len() > 2 {
+        write_minimap_colours(&dir, lbx.entry(2), pal)?;
+    }
     for (i, px) in tiles.iter().enumerate() {
         // Terrain tiles are opaque: colour 0 is a real colour here.
         let mut rgba = to_rgba(px, pal);
@@ -254,6 +257,34 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
     write_png(&dir.join("sheet.png"), sw, sh, &sheet)?;
     extract_autotile(game_dir, &dir)?;
     Ok(tiles.len())
+}
+
+/// `minimap.tsv`: the colour of each terrain type on the minimap (one palette index a type in
+/// TERRAIN.LBX entry 2), and the palette indexes the original's minimap uses for the banners
+/// of the cities, the neutral cities, the box round the map window and the marked stack
+/// (`COL_MinimapBanners`, `COL_MinimapNeutral`, `REDUCED_MAP_BOX_COLOR`, `MINIMAP_MARK_COLOR`),
+/// and the colour of the gold and mana reserve text.
+/// Rows are `kind  number  red  green  blue`.
+fn write_minimap_colours(dir: &Path, entry2: &[u8], pal: &[u8]) -> Result<(), String> {
+    let row = |kind: &str, n: usize, index: u8| {
+        let at = usize::from(index) * 3;
+        let rgb = pal.get(at..at + 3).unwrap_or(&[0, 0, 0]);
+        let [r, g, b] = [rgb[0], rgb[1], rgb[2]].map(crate::image::vga_to_rgb8);
+        format!("{kind}\t{n}\t{r}\t{g}\t{b}\n")
+    };
+    let mut out = String::new();
+    for (t, &index) in entry2.iter().enumerate() {
+        out.push_str(&row("terrain", t, index));
+    }
+    for (b, index) in [171u8, 216, 205, 201, 210, 50].into_iter().enumerate() {
+        out.push_str(&row("banner", b, index));
+    }
+    out.push_str(&row("neutral", 0, 50));
+    out.push_str(&row("box", 0, 13));
+    out.push_str(&row("mark", 0, 15));
+    // The colour of the gold and mana reserve figures (`ST_GRAY`, index 8).
+    out.push_str(&row("reserve_text", 0, 8));
+    fs::write(dir.join("minimap.tsv"), out).map_err(|e| e.to_string())
 }
 
 /// `autotile.tsv` rows `table, mask, terrain type` from TERRTYPE.LBX: five tables of 256
@@ -331,6 +362,22 @@ fn banner_mask(pixels: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The palette index the original cycles through colours (`Cycle_Palette_Color`).
+const CYCLE_INDEX: u8 = 198;
+
+/// For a frame, a white picture of the pixels that use the cycling palette index, if it has any;
+/// the client tints it with the colour of the moment (task 146).
+fn cycle_mask(pixels: &[u8]) -> Option<Vec<u8>> {
+    if !pixels.contains(&CYCLE_INDEX) {
+        return None;
+    }
+    let mut out = vec![0u8; pixels.len() * 4];
+    for (k, _) in pixels.iter().enumerate().filter(|(_, &p)| p == CYCLE_INDEX) {
+        out[k * 4..k * 4 + 4].fill(255);
+    }
+    Some(out)
+}
+
 pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
@@ -397,7 +444,14 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
                     let _ = fs::remove_file(dir.join(format!("{i:03}_{f:02}.png")));
                 }
                 frames += 1;
-                if stem.starts_with("figure") {
+                let cycle_path = target.join(format!("{name}_{f:02}_cycle.png"));
+                match cycle_mask(&frame.pixels) {
+                    Some(mask) => write_png(&cycle_path, pic.width, pic.height, &mask)?,
+                    None => {
+                        let _ = fs::remove_file(&cycle_path);
+                    }
+                }
+                if stem.starts_with("figure") || stem.starts_with("units") {
                     let mask = banner_mask(&frame.pixels);
                     if placed.is_some() {
                         let _ = fs::remove_file(dir.join(format!("{i:03}_{f:02}_banner.png")));
@@ -465,6 +519,13 @@ mod tests {
         assert_eq!(folders[&5], "arcanus/ocean");
         assert_eq!(folders[&8], "arcanus/ocean");
         assert_eq!(folders[&9], "arcanus/grassland");
+    }
+
+    #[test]
+    fn the_cycle_mask_marks_the_cycling_index_and_only_pictures_that_use_it() {
+        assert_eq!(cycle_mask(&[0, 197, 199]), None);
+        let mask = cycle_mask(&[0, 198]).unwrap();
+        assert_eq!(mask, vec![0, 0, 0, 0, 255, 255, 255, 255]);
     }
 
     #[test]

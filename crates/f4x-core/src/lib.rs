@@ -110,6 +110,12 @@ pub enum Command {
         #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
+    /// Put units on standby (Done or Patrol), or take them off it with `None`.
+    SetStandby {
+        #[serde(with = "replay::stable_ref::many")]
+        units: Vec<hecs::Entity>,
+        standby: Option<units::Standby>,
+    },
     /// Begin a battle between two stacks of units.
     BeginBattle {
         #[serde(with = "replay::stable_ref::many")]
@@ -317,6 +323,13 @@ pub enum Command {
     /// enchantment): it ends and stops costing upkeep.
     TurnOffSpell {
         player: city::PlayerId,
+        spell: rules::SpellId,
+    },
+    /// Turn off one of the wizard's own spells on a city.
+    TurnOffCitySpell {
+        player: city::PlayerId,
+        #[serde(with = "replay::stable_ref::one")]
+        city: hecs::Entity,
         spell: rules::SpellId,
     },
     /// Trade gold and mana (two for one, one for one with the alchemy retort).
@@ -871,7 +884,25 @@ impl Game {
                 let unit = self.spawn_unit(owner, pos, unit);
                 vec![Event::UnitCreated { unit, pos }]
             }
-            Command::MoveStack { units, to } => self.do_move(&units, to),
+            Command::MoveStack { units, to } => {
+                for &u in &units {
+                    let _ = self.world.remove_one::<units::Standby>(u);
+                }
+                self.do_move(&units, to)
+            }
+            Command::SetStandby { units, standby } => {
+                for u in units {
+                    match standby {
+                        Some(s) => {
+                            let _ = self.world.insert_one(u, s);
+                        }
+                        None => {
+                            let _ = self.world.remove_one::<units::Standby>(u);
+                        }
+                    }
+                }
+                Vec::new()
+            }
             Command::GoTo { units, to } => match self.find_path(&units, to) {
                 Some(path) => {
                     for &u in &units {
@@ -1084,6 +1115,11 @@ impl Game {
                     None => Err(magic::MagicError::UnknownPlayer),
                 })
             }
+            Command::TurnOffCitySpell {
+                player,
+                city,
+                spell,
+            } => events_or_reject(self.turn_off_city_spell(player, city, spell)),
             Command::Alchemy {
                 player,
                 amount,
@@ -1287,6 +1323,9 @@ impl Game {
                 self.units().unit_max_moves(unit)
             };
             let _ = self.world.insert_one(unit, units::MovesLeft(moves));
+            if self.units().unit_standby(unit) == Some(units::Standby::Done) {
+                let _ = self.world.remove_one::<units::Standby>(unit);
+            }
         }
         let mut events = vec![Event::TurnStarted { turn: self.turn }];
         events.append(&mut corruption);
