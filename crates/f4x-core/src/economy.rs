@@ -320,21 +320,72 @@ impl<'a> Economy<'a> {
         }
         let food = i32::from(def.food);
         if def.class == TerrainClass::Ocean {
-            let shore = (-1i32..=1).any(|dy| {
-                (-1i32..=1).any(|dx| {
-                    (dx != 0 || dy != 0)
-                        && grid
-                            .get(x + dx, y + dy)
-                            .and_then(|t| self.content.terrains.get(t))
-                            .is_some_and(|d| d.class != TerrainClass::Ocean)
-                })
-            });
-            return food.max(i32::from(shore));
+            let land = |dx: i32, dy: i32| {
+                grid.get(x + dx, y + dy)
+                    .and_then(|t| self.content.terrains.get(t))
+                    .is_some_and(|d| d.class != TerrainClass::Ocean)
+            };
+            let mut shore = 0;
+            let mut river_in = false;
+            for (dx, dy) in [
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
+            ] {
+                if !land(dx, dy) {
+                    continue;
+                }
+                if (dx == 0 || dy == 0) && grid.has_river(x + dx, y + dy) {
+                    river_in = true;
+                } else {
+                    shore += 1;
+                }
+            }
+            // Where a river runs into a lake, or into the sea at a shore with at most three
+            // other land squares around it, the water gives two food. A shore hemmed in by
+            // four or more takes the plain shore's half food (the original's tile sets).
+            if river_in && (grid.is_lake(x, y) || shore <= 3) {
+                return food.max(4);
+            }
+            return food.max(i32::from(shore > 0 || river_in));
         }
         if grid.has_river(x, y) {
             return food.max(4);
         }
         food
+    }
+
+    /// What one square adds to the production of a city that works it, in percent (the
+    /// original's `Square_Production_Bonus`): the terrain's own, or the node's on a magic node. A
+    /// river square adds nothing, being a river and not the land it crosses. Gaia's Blessing
+    /// doubles forests and nature nodes.
+    pub fn square_production(&self, grid: &crate::map::Grid, x: i32, y: i32, gaia: bool) -> i32 {
+        let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
+            return 0;
+        };
+        let node = grid
+            .feature(x, y)
+            .and_then(|f| self.content.features.get(f))
+            .filter(|f| f.city.land_production.is_some());
+        let base = match node {
+            Some(f) => f.city.land_production.unwrap_or(0),
+            None if grid.has_river(x, y) => 0,
+            None => def.production_percent,
+        };
+        let doubled = match node {
+            Some(f) => f.id == "nature_node",
+            None => def.class == TerrainClass::Forest,
+        };
+        if gaia && doubled {
+            base * 2
+        } else {
+            base
+        }
     }
 
     /// What a city at `at` could grow to on its land alone, with no buildings, race or
@@ -430,6 +481,7 @@ impl<'a> Economy<'a> {
         let blight_proof = self
             .magic(owner)
             .is_some_and(|m| crate::globals::magic_has_global(m, self.content, "great_wasting"));
+        let gaia = self.city_has_enchantment(city, "gaias_blessing");
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
@@ -449,7 +501,11 @@ impl<'a> Economy<'a> {
             } else {
                 self.square_food(grid, p.x as i32, p.y as i32) * 2
             };
-            let mut prod = if spoiled { 0 } else { def.production_percent };
+            let mut prod = if spoiled {
+                0
+            } else {
+                self.square_production(grid, p.x as i32, p.y as i32, gaia)
+            };
             if shared {
                 food /= 2;
                 prod /= 2;
@@ -990,5 +1046,81 @@ mod handle_tests {
             "the shore (land one step south)"
         );
         assert_eq!(eco.square_food(g, 7, 3), 1, "the shore, diagonally");
+    }
+
+    #[test]
+    fn rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production() {
+        let mut content = content_with_economy();
+        let grass = content.terrains.id_of("grassland").unwrap();
+        let ocean = content.terrains.id_of("ocean").unwrap();
+        let forest = content.terrains.id_of("forest").unwrap();
+        let mut defs = content.features.defs().to_vec();
+        for (id, production) in [("nature_node", 3), ("chaos_node", 5)] {
+            defs.push(FeatureDef {
+                id: id.into(),
+                name: id.into(),
+                kind: FeatureKind::Node,
+                city: CityBonus {
+                    land_production: Some(production),
+                    ..Default::default()
+                },
+                spawn: vec![],
+            });
+        }
+        content.features = crate::content::Features::new(defs);
+        let nature = content.features.id_of("nature_node").unwrap();
+        let chaos = content.features.id_of("chaos_node").unwrap();
+        let mut grid = Grid::new(24, 14, grass);
+        // A lake with a river running into it from the north.
+        grid.set(5, 5, ocean);
+        grid.set_lake(5, 5, true);
+        grid.set_river(5, 4, true);
+        // A lake with no river.
+        grid.set(9, 5, ocean);
+        grid.set_lake(9, 5, true);
+        // The sea along the top rows, a river ending at (15, 2), a river whose mouth is hemmed in.
+        for x in 10..24 {
+            for y in 0..2 {
+                grid.set(x, y, ocean);
+            }
+        }
+        grid.set_river(15, 2, true);
+        grid.set(12, 7, forest);
+        grid.set(13, 7, forest);
+        grid.set_river(13, 7, true);
+        grid.set_feature(16, 7, Some(nature));
+        grid.set_feature(17, 7, Some(chaos));
+        grid.set(18, 7, forest);
+        let map = Map::new(grid.clone(), grid.clone());
+        let world = World::new();
+        let eco = Economy::new(&world, Some(&map), &content, &[]);
+        let g = map.plane(Plane::Arcanus);
+        assert_eq!(eco.square_food(g, 5, 5), 4, "a lake fed by a river");
+        assert_eq!(eco.square_food(g, 9, 5), 1, "a lake alone is a shore");
+        assert_eq!(eco.square_food(g, 15, 1), 4, "the sea where a river ends");
+        assert_eq!(eco.square_food(g, 14, 1), 1, "the shore beside it");
+        assert_eq!(eco.square_production(g, 12, 7, false), 3, "forest");
+        assert_eq!(
+            eco.square_production(g, 12, 7, true),
+            6,
+            "forest, Gaia's Blessing"
+        );
+        assert_eq!(
+            eco.square_production(g, 13, 7, false),
+            0,
+            "a river is not the forest"
+        );
+        assert_eq!(eco.square_production(g, 16, 7, false), 3, "nature node");
+        assert_eq!(
+            eco.square_production(g, 16, 7, true),
+            6,
+            "nature node, Gaia's Blessing"
+        );
+        assert_eq!(
+            eco.square_production(g, 17, 7, true),
+            5,
+            "chaos node, not doubled"
+        );
+        assert_eq!(eco.square_production(g, 18, 7, true), 6, "forest");
     }
 }

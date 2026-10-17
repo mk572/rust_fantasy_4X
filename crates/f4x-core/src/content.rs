@@ -117,6 +117,9 @@ pub struct CityBonus {
     /// For a square the feature takes over (a magic node): the food the square gives a city, in
     /// half-food units, instead of the terrain's own.
     pub land_food: Option<u8>,
+    /// For a square the feature takes over (a magic node): the percent of production it adds to
+    /// a city working it, instead of the terrain's own.
+    pub land_production: Option<i32>,
     /// Percent off the cost of military units built in the city (stacks up to a limit).
     pub unit_cost_percent: i32,
     /// Added to the chance an outpost grows each turn.

@@ -9,6 +9,6 @@
     (id: "hills",     name: "Hills",     class: Hills,     walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 3, planes: [Arcanus, Myrror]),
     (id: "mountains", name: "Mountains", class: Mountains, walkable: true,  can_found_city: false,  move_cost: 3, food: 0, production_percent: 5, planes: [Arcanus, Myrror]),
     (id: "swamp",     name: "Swamp",     class: Swamp,     walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 0, planes: [Arcanus, Myrror]),
-    (id: "desert",    name: "Desert",    class: Desert,    walkable: true,  can_found_city: true,  move_cost: 1, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "desert",    name: "Desert",    class: Desert,    walkable: true,  can_found_city: true,  move_cost: 1, food: 0, production_percent: 3, planes: [Arcanus, Myrror]),
     (id: "tundra",    name: "Tundra",    class: Tundra,    walkable: true,  can_found_city: true,  move_cost: 2, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
 ]

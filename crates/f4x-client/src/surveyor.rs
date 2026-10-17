@@ -73,8 +73,12 @@ impl App {
             .economy()
             .square_food(grid, pos.x as i32, pos.y as i32);
         text.effects[0] = food_text(food.clamp(0, 255) as u8);
-        if def.production_percent != 0 {
-            text.effects[1] = format!("+{}% production", def.production_percent);
+        let production =
+            self.game
+                .economy()
+                .square_production(grid, pos.x as i32, pos.y as i32, false);
+        if production != 0 {
+            text.effects[1] = format!("+{production}% production");
         }
         if grid.has_river(pos.x as i32, pos.y as i32) && survey.gold_percent >= 20 {
             let gold = format!("+{}% gold", survey.gold_percent);
