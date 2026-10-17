@@ -195,11 +195,11 @@ Each stage should end with something runnable and tested.
 **Early risk check (passed for steps 1-5):** the command/event design and the world model held up through units, movement and a full economy without rework. Revisit if wizards or combat strain it.
 
 ## 13. Open questions
-- Multiplayer: in scope for v1, or only keep the command log compatible?
+- Multiplayer: in scope for v1, or only keep the command log compatible? The command log now exists for local play (task 74); the scope question is `PLANNED.md` item 36.
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
 - How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema): proposed in [`heroes-items-design.md`](heroes-items-design.md).
-- Replays: a command log cannot cross a load because entity ids change; if replays or networked play are wanted, commands need stable references (creation numbers instead of entities).
+- Replays: commands name entities, and entity ids change on a load, so the log writes creation numbers (`Serial`) in their place (`replay.rs`, task 74, built for local play: replays and saving a game with its history).
 
 ## 14. Later considerations
 

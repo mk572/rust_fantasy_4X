@@ -2654,3 +2654,27 @@ fn an_offer_can_be_forced_listed_and_taken_by_number() {
     assert!(c.execute(&mut g, "reject 1").ok);
     assert!(g.override_log().iter().any(|l| l.contains("offer hero")));
 }
+
+#[test]
+fn a_recorded_game_is_played_again_by_text() {
+    let (mut g, mut c) = (game(), console());
+    assert!(c.execute(&mut g, "record").ok);
+    assert!(c.execute(&mut g, "tax 2").ok);
+    assert!(c.execute(&mut g, "end").ok);
+    let r = c.execute(&mut g, "record status");
+    assert!(r.text().contains("2 commands"), "{}", r.text());
+    let name = "console_replay_test";
+    let r = c.execute(&mut g, &format!("record stop {name}"));
+    assert!(r.ok, "{}", r.text());
+    let (turn, tax) = (g.turn, g.player(HUMAN).unwrap().tax_rate);
+    let mut fresh = game();
+    let r = c.execute(&mut fresh, &format!("replay {name}"));
+    let _ = std::fs::remove_file(format!("saves/{name}.replay.ron"));
+    let _ = std::fs::remove_dir("saves");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(
+        (fresh.turn, fresh.player(HUMAN).unwrap().tax_rate),
+        (turn, tax)
+    );
+    assert!(fresh.is_recording());
+}

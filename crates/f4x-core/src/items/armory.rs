@@ -74,19 +74,22 @@ impl Armory {
 }
 
 /// A place in the armory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Spot {
     Vault(usize),
     Award(usize),
 }
 
 /// A place an item can be taken from or put in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ItemSpot {
     Vault(usize),
     Award(usize),
     /// A slot (0 to 2) of a hero unit.
-    Hero(hecs::Entity, usize),
+    Hero(
+        #[serde(with = "crate::replay::stable_ref::one")] hecs::Entity,
+        usize,
+    ),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

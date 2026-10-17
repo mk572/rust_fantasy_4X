@@ -16,12 +16,15 @@ use crate::content::TerrainClass;
 use crate::map::Plane;
 
 /// Something an effect can act on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Target {
-    Unit(hecs::Entity),
-    City(hecs::Entity),
+    Unit(#[serde(with = "crate::replay::stable_ref::one")] hecs::Entity),
+    City(#[serde(with = "crate::replay::stable_ref::one")] hecs::Entity),
     /// A city and a realm: what a Spell Ward is aimed at.
-    CityRealm(hecs::Entity, crate::rules::RealmId),
+    CityRealm(
+        #[serde(with = "crate::replay::stable_ref::one")] hecs::Entity,
+        crate::rules::RealmId,
+    ),
     Tile(Position),
     Player(PlayerId),
     /// An enemy wizard's global enchantment: its owner and the spell.

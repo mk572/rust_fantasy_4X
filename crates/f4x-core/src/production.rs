@@ -14,7 +14,7 @@ use crate::rules::{BuildingId, Stat, UnitId, UnitKind};
 use crate::units::Experience;
 use crate::Game;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProductionItem {
     Building(BuildingId),
     Unit(UnitId),

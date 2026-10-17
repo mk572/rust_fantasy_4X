@@ -57,6 +57,20 @@ pub const TABLE: &[CommandDef] = &[
         run: load,
     },
     CommandDef {
+        name: "record",
+        kind: Kind::Legal,
+        usage: "record [start|stop [name]|status]",
+        help: "Record the commands played from now on. `stop` writes the record, with the game as it was at the start, to saves/<name>.replay.ron (default quick); `status` says how many commands are in it.",
+        run: record,
+    },
+    CommandDef {
+        name: "replay",
+        kind: Kind::Legal,
+        usage: "replay [name] [count]",
+        help: "Replace the game with a record from saves/<name>.replay.ron played to its end, or through its first <count> commands. The game goes on recording.",
+        run: replay,
+    },
+    CommandDef {
         name: "new",
         kind: Kind::Legal,
         usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful]",
@@ -181,7 +195,11 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 fn save_path(a: &Args) -> Result<PathBuf, ConsoleError> {
-    let name = a.get(0).unwrap_or("quick");
+    named_path(a.get(0))
+}
+
+fn named_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
+    let name = name.unwrap_or("quick");
     if name.is_empty()
         || !name
             .chars()
@@ -227,6 +245,75 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     *ctx.game = game;
     ctx.say(format!(
         "loaded {} (turn {})",
+        path.display(),
+        ctx.game.turn
+    ));
+    Ok(())
+}
+
+fn replay_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
+    let path = named_path(name)?;
+    Ok(path.with_extension("replay.ron"))
+}
+
+fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let failed = |e: f4x_core::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
+    match a.get(0).unwrap_or("start") {
+        "start" => {
+            ctx.game.start_recording().map_err(failed)?;
+            ctx.say("recording".to_string());
+        }
+        "status" => match ctx.game.replay_so_far() {
+            Ok(r) => ctx.say(format!("recording, {} commands so far", r.commands.len())),
+            Err(_) => ctx.say("not recording".to_string()),
+        },
+        "stop" => {
+            let path = replay_path(a.get(1))?;
+            let replay = ctx
+                .game
+                .stop_recording()
+                .ok_or_else(|| ConsoleError::Refused("not recording".into()))?;
+            let text = replay
+                .to_text()
+                .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
+            std::fs::create_dir_all("saves").map_err(|e| ConsoleError::Failed(e.to_string()))?;
+            std::fs::write(&path, text).map_err(|e| ConsoleError::Failed(e.to_string()))?;
+            ctx.say(format!(
+                "wrote {} ({} commands)",
+                path.display(),
+                replay.commands.len()
+            ));
+        }
+        other => {
+            return Err(ConsoleError::Usage(format!(
+                "record start, stop or status, not {other:?}"
+            )))
+        }
+    }
+    Ok(())
+}
+
+fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    replaces_game(ctx)?;
+    let path = replay_path(a.get(0))?;
+    let count = match a.get(1) {
+        Some(n) => n
+            .parse()
+            .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a number")))?,
+        None => usize::MAX,
+    };
+    let text = std::fs::read_to_string(&path).map_err(|e| ConsoleError::Failed(e.to_string()))?;
+    let replay = f4x_core::replay::Replay::from_text(&text)
+        .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
+    let (mut game, events) = replay
+        .play(ctx.game.content().clone(), count)
+        .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
+    game.human.get_or_insert(ctx.session.player);
+    game.set_undo(true);
+    *ctx.game = game;
+    ctx.say(format!(
+        "played {} commands from {} (turn {})",
+        events.len(),
         path.display(),
         ctx.game.turn
     ));

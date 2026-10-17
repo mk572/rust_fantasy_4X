@@ -117,7 +117,7 @@ pub fn range_percent(distance: Option<u32>, channeler: bool) -> i32 {
 }
 
 /// What a spell is aimed at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SpellAim {
     None,
     Unit(usize),

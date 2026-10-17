@@ -51,6 +51,7 @@ pub mod pathing;
 pub mod player;
 pub mod player_view;
 pub mod production;
+pub mod replay;
 pub mod rng;
 pub mod roads;
 pub mod roster;
@@ -82,7 +83,7 @@ pub mod world_spells;
 
 use rand::RngCore;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {
     EndTurn,
     /// Create a unit (summoning, production and scenario setup go through this).
@@ -93,54 +94,67 @@ pub enum Command {
     },
     /// Move a stack one tile.
     MoveStack {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: city::Position,
     },
     /// Give a stack a standing order to walk to a tile.
     GoTo {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: city::Position,
     },
     /// Cancel standing orders.
     ClearOrders {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Begin a battle between two stacks of units.
     BeginBattle {
+        #[serde(with = "replay::stable_ref::many")]
         attackers: Vec<hecs::Entity>,
+        #[serde(with = "replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
     },
     /// An order in the battle being fought.
     Battle(battle::BattleCommand),
     /// Fight a battle between two stacks to the end without the tactical map.
     AutoResolve {
+        #[serde(with = "replay::stable_ref::many")]
         attackers: Vec<hecs::Entity>,
+        #[serde(with = "replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
     },
     /// A stack next to a guarded site (tower, node or encounter site) assaults its guards.
     EnterSite {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: city::Position,
     },
     /// A stack with a purifying unit cleanses the corrupted square it stands on.
     Purify {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Engineers build a road along `path` (starting where they stand).
     BuildRoad {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         path: Vec<city::Position>,
     },
     /// Meld a spirit of the stack into the magic node it stands on.
     Meld {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Move a stack to the same tile on the other plane.
     ShiftPlane {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Teleport a stack from a city with an Earth Gate to another such city of the same wizard.
     EarthGate {
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: city::Position,
     },
@@ -154,6 +168,7 @@ pub enum Command {
     },
     /// The unit sheet's Dismiss: a unit leaves its owner's service for good (not heroes yet).
     DismissUnit {
+        #[serde(with = "replay::stable_ref::one")]
         unit: hecs::Entity,
     },
     /// The item screen: move an item between the vault, the award list and a hero's slots.
@@ -194,18 +209,22 @@ pub enum Command {
     },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
+        #[serde(with = "replay::stable_ref::one")]
         unit: hecs::Entity,
         name: String,
     },
     SetProduction {
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
         item: production::ProductionItem,
     },
     /// Pay gold to finish the current item at the next turn change.
     BuyProduction {
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
     },
     SetFarmers {
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
         farmers: u32,
     },
@@ -218,18 +237,21 @@ pub enum Command {
         population: u32,
     },
     SellBuilding {
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
         building: rules::BuildingId,
     },
     /// Give a city a new name (the box that names a new outpost). The name is trimmed and cut to
     /// twelve characters; an empty one changes nothing.
     RenameCity {
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
         name: String,
     },
     /// Raze a city just taken, instead of keeping it (until the end of the turn).
     RazeCity {
         player: city::PlayerId,
+        #[serde(with = "replay::stable_ref::one")]
         city: hecs::Entity,
     },
     SetTaxRate {
@@ -258,6 +280,7 @@ pub enum Command {
     /// and destroy the listed items for mana first to make room for a released hero's items.
     ReleaseTroops {
         player: city::PlayerId,
+        #[serde(with = "replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         scrap: Vec<items::armory::ItemSpot>,
     },
@@ -738,6 +761,7 @@ pub struct Game {
     pub(crate) prefab_taken: Vec<String>,
     /// Players of battles that play for some wizards (a learned one; see `battle::game`).
     pub(crate) battle_brains: Vec<(city::PlayerId, Box<dyn battle::game::BattleBrain>)>,
+    pub(crate) recording: Option<replay::Recording>,
     undo_on: bool,
     undo_stack: Vec<undo::UndoEntry>,
 }
@@ -764,6 +788,7 @@ impl Game {
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
+            recording: None,
             undo_on: false,
             undo_stack: Vec::new(),
         }

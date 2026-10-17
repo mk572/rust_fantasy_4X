@@ -36,6 +36,13 @@ fn label_of(command: &Command) -> String {
 }
 
 impl Game {
+    /// A refused command changed nothing, so it is not part of the record.
+    fn forget_if_rejected(&mut self, events: &[Event]) {
+        if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+            self.forget_last_command();
+        }
+    }
+
     /// Switch undo on or off; switching it off forgets the history.
     pub fn set_undo(&mut self, on: bool) {
         self.undo_on = on;
@@ -71,8 +78,11 @@ impl Game {
         if self.game_over.is_some() {
             return vec![Event::Rejected(crate::Rejection::GameOver)];
         }
+        self.record_command(&command);
         if !self.undo_on || self.battle.is_some() {
-            return self.execute(command);
+            let events = self.execute(command);
+            self.forget_if_rejected(&events);
+            return events;
         }
         let ends_history = matches!(
             command,
@@ -82,6 +92,7 @@ impl Game {
         let before = (!ends_history).then(|| self.snapshot());
         let (draws, explored) = (self.rng.draws(), self.explored_total());
         let events = self.execute(command);
+        self.forget_if_rejected(&events);
         let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
         let irreversible = ends_history
             || self.rng.draws() != draws
@@ -108,15 +119,19 @@ impl Game {
     pub fn undo(&mut self) -> Result<String, UndoError> {
         let entry = self.undo_stack.pop().ok_or(UndoError::NothingToUndo)?;
         let rest = std::mem::take(&mut self.undo_stack);
+        let recording = self.recording.take();
         let content = self.content.clone();
         match entry.snapshot.restore(content) {
             Ok(mut game) => {
                 game.undo_on = true;
                 game.undo_stack = rest;
+                game.recording = recording;
                 *self = game;
+                self.forget_last_command();
                 Ok(entry.label)
             }
             Err(_) => {
+                self.recording = recording;
                 self.undo_stack = rest;
                 Err(UndoError::Failed)
             }

@@ -514,7 +514,7 @@ impl BattleUnit {
 }
 
 /// Everything a player or AI can ask a unit to do.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BattleCommand {
     /// Walk to a square within reach.
     Move { unit: usize, to: Pos },

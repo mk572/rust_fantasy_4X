@@ -164,7 +164,7 @@ pub struct Stance {
 }
 
 /// What a wizard offers another.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProposalKind {
     Pact,
     Alliance,
@@ -259,7 +259,7 @@ pub enum DiplomacyEvent {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DiplomacyCommand {
     /// The player has heard the greeting of a wizard it met.
     Greeted {

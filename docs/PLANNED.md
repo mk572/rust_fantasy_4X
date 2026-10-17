@@ -46,6 +46,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 33 | AI | Neutral cities that play strategically (replaces the raiders of task 154) |
 | 34 | Rules | Larger tiles: up to 20 units on a square, armies and battles still limited to nine |
 | 35 | Content | Palette-swap wizards: variants of the 14 ready-made wizards |
+| 36 | Meta | Multiplayer: scope and design (to be discussed) |
 
 ## Descriptions
 
@@ -222,7 +223,7 @@ wizard in new-game settings.
 
 **19. Asynchronous multiplayer.** Play by message: each player takes a turn when it is theirs and
 the game state moves on, perhaps through a Discord bot that posts turn notices and takes the turn
-files. Needs a deterministic turn file (seed plus command log, which the core already supports), a
+files. Needs a deterministic turn file (a start snapshot plus a command log: the recording of task 74 in `replay.rs`), a
 server or shared store to hold the game and enforce whose turn it is, and rules for timeouts and
 skipped turns. Builds on hot seat (item 18).
 
@@ -465,3 +466,12 @@ Needs: the two limits in the core with tests (`movement.rs`, `gates.rs`, `specia
 - **AI.** The AI's personality and objective draw (task 64) is unchanged; the books and retorts decide its spells as they do now.
 
 Needs: the data file and its loader (`f4x-data`), the palette tables and the importer step that writes the recoloured portraits (`scripts/import_mom.py` or a new script, logged in `docs/scripts.md` with `--help`), the new-game screen's longer list, saves (the wizard is saved by its books and retorts, so a variant needs only its portrait number, to check), the console and the help, tests that every variant is a legal pick, and a balance pass.
+
+**36. Multiplayer (to be discussed).** Nothing is decided; this item holds the questions so the scope is settled before any work (`design.md` section 13 asks the same). Items 18 (hot seat) and 19 (asynchronous play) are the small versions; this one is for the rest, mainly play over a network at the same time.
+
+- **Scope.** Which kinds: hot seat (18), play by turn files (19), simultaneous turns over a network, or several of them. Whether wizards may be human and computer mixed, and how many humans (the game has up to five wizards).
+- **Turn model.** The game is turn based with every wizard moving in the same turn. Options: all humans play at once and the turn ends when all have ended it (with a timer, or a vote to end early); or in sequence, one wizard at a time. Battles between two humans need both players present (a battle is played command by command, so a wizard who is away needs auto-resolve or an AI standing in).
+- **Authority.** One side holds the game and checks every command (a server, or the host's game), and the others send commands and receive events. The core already works this way: a front end sends `Command` and gets `Event` back, and the game is deterministic from a seed.
+- **What exists for it.** Recording and replay for local play (task 74, `replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
+- **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player_view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
+- **Open questions.** Which scope first; peer to peer or a central server; how to settle disconnects and timeouts; whether the AI may be replaced by a human mid-game; how saves, replays and the Hall of Fame treat multiplayer games.
