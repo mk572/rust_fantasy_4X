@@ -343,7 +343,7 @@ impl App {
         let dpi = screen_dpi_scale();
         gl.quad_gl.scissor(Some((
             (r.x * dpi) as i32,
-            ((screen_height() - r.y - r.h) * dpi) as i32,
+            (r.y * dpi) as i32,
             (r.w * dpi) as i32,
             (r.h * dpi) as i32,
         )));

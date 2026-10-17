@@ -140,7 +140,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 | Window | What it does | Entered | Status here |
 |---|---|---|---|
-| **Combat screen** (`Combat_Screen`, `Combat.c`) | The tactical battle: the 21 by 22 map, units, spell book, Wait, Done, Flee and Auto buttons; the result goes back to the caller. | A stack moves into an enemy unit, city or guarded site (`Move_Units`, `Lair_Combat`); the computer fights its own battles without showing the screen. | **Partial.** `battle_screen.rs`: the grid, figures, animation, controls (task 132). Spell casting by list (43), no Auto button or attack prompt (133), no walls (41). |
+| **Combat screen** (`Combat_Screen`, `Combat.c`) | The tactical battle: the 21 by 22 map, units, spell book, Wait, Done, Flee and Auto buttons; the result goes back to the caller. | A stack moves into an enemy unit, city or guarded site (`Move_Units`, `Lair_Combat`); the computer fights its own battles without showing the screen. | **Partial.** `battle_screen.rs`: the grid, figures, animation, the original's bottom panel and buttons (task 132). Spell casting by list (43), no Auto button or attack prompt (133), no walls (41). |
 | Combat spell book (`Combat_Spellbook_Screen`) | Choose a combat spell. | The Spell button in combat. | **Missing.** Task 43. |
 | Combat spell target (`Combat_Spell_Target_Screen`) | Pick the target square or unit. | After choosing a combat spell. | **Missing.** Task 43. |
 | Combat information (`Combat_Information_Window`) | Battle-wide info: enchantments in force and so on. | The Info button in combat. | **Missing.** Task 132. |

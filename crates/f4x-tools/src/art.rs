@@ -190,7 +190,12 @@ fn tile_folders(map: &[(usize, bool)]) -> std::collections::HashMap<usize, Strin
     folders
 }
 
-fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize, String> {
+fn extract_terrain(
+    game_dir: &Path,
+    out_dir: &Path,
+    pal: &[u8],
+    combat_pal: &[u8],
+) -> Result<usize, String> {
     let Some(path) = find(game_dir, "TERRAIN.LBX") else {
         return Ok(0);
     };
@@ -221,7 +226,7 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
         fs::write(dir.join("types.tsv"), rows).map_err(|e| e.to_string())?;
     }
     if lbx.len() > 2 {
-        write_minimap_colours(&dir, lbx.entry(2), pal)?;
+        write_minimap_colours(&dir, lbx.entry(2), pal, combat_pal)?;
     }
     for (i, px) in tiles.iter().enumerate() {
         // Terrain tiles are opaque: colour 0 is a real colour here.
@@ -263,15 +268,21 @@ fn extract_terrain(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
 /// TERRAIN.LBX entry 2), and the palette indexes the original's minimap uses for the banners
 /// of the cities, the neutral cities, the box round the map window and the marked stack
 /// (`COL_MinimapBanners`, `COL_MinimapNeutral`, `REDUCED_MAP_BOX_COLOR`, `MINIMAP_MARK_COLOR`),
-/// and the colour of the gold and mana reserve text.
+/// the colour of the gold and mana reserve text, and the battle screen's text and damage bar.
 /// Rows are `kind  number  red  green  blue`.
-fn write_minimap_colours(dir: &Path, entry2: &[u8], pal: &[u8]) -> Result<(), String> {
-    let row = |kind: &str, n: usize, index: u8| {
+fn write_minimap_colours(
+    dir: &Path,
+    entry2: &[u8],
+    pal: &[u8],
+    combat_pal: &[u8],
+) -> Result<(), String> {
+    let row_in = |pal: &[u8], kind: &str, n: usize, index: u8| {
         let at = usize::from(index) * 3;
         let rgb = pal.get(at..at + 3).unwrap_or(&[0, 0, 0]);
         let [r, g, b] = [rgb[0], rgb[1], rgb[2]].map(crate::image::vga_to_rgb8);
         format!("{kind}\t{n}\t{r}\t{g}\t{b}\n")
     };
+    let row = |kind: &str, n: usize, index: u8| row_in(pal, kind, n, index);
     let mut out = String::new();
     for (t, &index) in entry2.iter().enumerate() {
         out.push_str(&row("terrain", t, index));
@@ -284,6 +295,18 @@ fn write_minimap_colours(dir: &Path, entry2: &[u8], pal: &[u8]) -> Result<(), St
     out.push_str(&row("mark", 0, 15));
     // The colour of the gold and mana reserve figures (`ST_GRAY`, index 8).
     out.push_str(&row("reserve_text", 0, 8));
+    // The battle screen's text and outline and the colours of its unit damage bar. Its panel
+    // picture carries a palette of its own, which the text colours come from.
+    for (kind, index) in [
+        ("combat_text", 243u8),
+        ("combat_outline", 227),
+        ("scan_text", 182),
+        ("bar_green", 217),
+        ("bar_yellow", 211),
+        ("bar_red", 202),
+    ] {
+        out.push_str(&row_in(combat_pal, kind, 0, index));
+    }
     fs::write(dir.join("minimap.tsv"), out).map_err(|e| e.to_string())
 }
 
@@ -362,6 +385,9 @@ fn banner_mask(pixels: &[u8]) -> Vec<u8> {
     out
 }
 
+/// `backgrnd.lbx` entry of the battle screen's bottom panel, whose palette the battle uses.
+const COMBAT_BOTTOM_ENTRY: usize = 3;
+
 /// The palette index the original cycles through colours (`Cycle_Palette_Color`).
 const CYCLE_INDEX: u8 = 198;
 
@@ -399,6 +425,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
     let mut index = String::new();
     let mut manifest = String::new();
     let (mut pictures, mut frames) = (0usize, 0usize);
+    let mut combat_pal = base.clone();
     for path in &lbx_files {
         let stem = path
             .file_stem()
@@ -431,6 +458,9 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
             let mut pal = file_palette.clone();
             if let Some((start, colours)) = &pic.palette {
                 pal[start * 3..start * 3 + colours.len()].copy_from_slice(colours);
+            }
+            if stem == "backgrnd" && i == COMBAT_BOTTOM_ENTRY {
+                combat_pal = pal.clone();
             }
             for (f, frame) in pic.frames.iter().enumerate() {
                 let rgba = to_rgba(&frame.pixels, &pal);
@@ -480,7 +510,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
         }
     }
     fs::write(root.join("index.tsv"), index).map_err(|e| e.to_string())?;
-    let tiles = extract_terrain(game_dir, out_dir, &base)?;
+    let tiles = extract_terrain(game_dir, out_dir, &base, &combat_pal)?;
     println!("extracted {tiles} terrain tiles");
     extract_font_atlases(game_dir, out_dir, &base)?;
     extract_map_sprites(game_dir, out_dir, &base)?;

@@ -22,7 +22,7 @@ use macroquad::prelude::*;
 
 use crate::battle_anim::{self, Anim, Visual};
 use crate::battle_ground::Piece;
-use crate::frame::Align;
+use crate::frame::{Align, Layout};
 use crate::ui::{bar, button, GOLD, PANEL};
 use crate::view::{App, Screen, HUMAN};
 
@@ -31,9 +31,6 @@ const CELL_W: f32 = 32.0;
 const CELL_H: f32 = 16.0;
 const STEP_X: f32 = 16.0;
 const STEP_Y: f32 = 8.0;
-/// Room above the top row for tall figures, in native pixels.
-const HEADROOM: f32 = 26.0;
-const PANEL_W: f32 = 290.0;
 /// Seconds between the opponent's orders.
 const AI_DELAY: f32 = 0.3;
 
@@ -138,16 +135,6 @@ pub(crate) fn cell_at(x: f32, y: f32) -> Option<Pos> {
         }
     }
     found
-}
-
-/// Native extent of the band of squares the original plays on (the cell origins run from
-/// -144 to 144 across and 88 to 248 down), with headroom for tall figures.
-const BAND_X: (f32, f32) = (-144.0, 144.0 + CELL_W);
-const BAND_Y: (f32, f32) = (88.0, 248.0 + CELL_H);
-
-/// Native width and height of the grid, with headroom.
-fn grid_extent() -> (f32, f32) {
-    (BAND_X.1 - BAND_X.0, BAND_Y.1 - BAND_Y.0 + HEADROOM)
 }
 
 /// The original's picture file for the ground of a fight on this terrain.
@@ -278,6 +265,8 @@ fn unfinished(u: &BattleUnit) -> bool {
 fn can_shoot(u: &BattleUnit) -> bool {
     matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic) && u.ranged > 0 && u.ammo > 0
 }
+
+mod bar;
 
 impl App {
     /// Which side the human commands in the current battle, if any.
@@ -429,6 +418,18 @@ impl App {
     /// After the test battle has begun: the walls of fire and darkness round the city, and
     /// mud over the middle of the field.
     pub fn set_test_effects(&mut self, kind: &str) {
+        use f4x_core::battle::field::Field;
+        let spells = &self.game.content().rules.spells;
+        let raised: Vec<_> = [
+            (Side::Attacker, "prayer"),
+            (Side::Attacker, "blur"),
+            (Side::Defender, "wrack"),
+            (Side::Defender, "terror"),
+            (Side::Defender, "entangle"),
+        ]
+        .into_iter()
+        .filter_map(|(side, id)| Some((side, Field::of(id)?, spells.id_of(id)?)))
+        .collect();
         let Some(active) = self.game.battle.as_mut() else {
             return;
         };
@@ -445,6 +446,12 @@ impl App {
                 battle.node_site = Some(f4x_core::battle::immunity::Realm::Chaos);
                 battle.node_aura = Some(f4x_core::battle::immunity::Realm::Chaos);
                 self.battle_ui.info_open = true;
+            }
+            "enchants" => {
+                for (side, field, spell) in raised {
+                    battle.raise_field(side, field, spell);
+                }
+                battle.cast_counter_magic(Side::Attacker, 20);
             }
             "mud" => {
                 for y in 8..13 {
@@ -705,8 +712,7 @@ impl App {
         }
 
         // Where the pointer is.
-        let (w, h) = (screen_width(), screen_height());
-        let (scale, ox, oy) = grid_view(w - PANEL_W, h - 30.0);
+        let (scale, ox, oy) = Self::battle_view();
         let mouse: Vec2 = mouse_position().into();
         let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
             .filter(|&p| battle.map.is_playable(p));
@@ -768,9 +774,8 @@ impl App {
             }
         }
         if is_mouse_button_pressed(MouseButton::Left) {
-            let (w, h) = (screen_width(), screen_height());
-            // Clicks on the side panel are the buttons' business.
-            if mouse_position().0 < w - PANEL_W && mouse_position().1 < h - 30.0 {
+            // Clicks on the panel are the buttons' business.
+            if Self::on_battle_map(mouse_position().into()) {
                 if let Some(cell) = hovered {
                     self.battle_click(battle, cell);
                 }
@@ -956,8 +961,7 @@ impl App {
         let target = if aimless {
             is_key_pressed(KeyCode::Enter).then_some(SpellAim::None)
         } else if is_mouse_button_pressed(MouseButton::Left) {
-            let (w, h) = (screen_width(), screen_height());
-            let on_grid = mouse_position().0 < w - PANEL_W && mouse_position().1 < h - 30.0;
+            let on_grid = Self::on_battle_map(mouse_position().into());
             hovered
                 .filter(|_| on_grid)
                 .and_then(|cell| match aim.target {
@@ -1193,8 +1197,18 @@ impl App {
 
     fn draw_battle(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let (w, h) = (screen_width(), screen_height());
-        let (scale, ox, oy) = grid_view(w - PANEL_W, h - 30.0);
+        let (scale, ox, oy) = Self::battle_view();
+        // The map window is clipped, as the original's is: figures stand taller than a cell.
+        let mut gl = unsafe { get_internal_gl() };
+        gl.flush();
+        let dpi = screen_dpi_scale();
+        let clip = Layout::new().rect((0.0, 0.0, 320.0, 164.0));
+        gl.quad_gl.scissor(Some((
+            (clip.x * dpi) as i32,
+            (clip.y * dpi) as i32,
+            (clip.w * dpi) as i32,
+            (clip.h * dpi) as i32,
+        )));
         let at = |pos: Pos| -> (f32, f32) {
             let (x, y) = cell_origin(pos);
             (ox + x * scale, oy + y * scale)
@@ -1312,6 +1326,8 @@ impl App {
             }
         }
         self.draw_aiming(battle, hovered, (ox, oy, scale));
+        gl.flush();
+        gl.quad_gl.scissor(None);
         self.draw_battle_panel(battle, my_turn, hovered);
         if my_turn && self.battle_ui.spell_list {
             self.draw_spell_list(battle);
@@ -1461,44 +1477,6 @@ impl App {
         );
     }
 
-    /// A button drawn with one of the original's `compix.lbx` pictures (frame 1 is pressed),
-    /// or a plain one without the art. Returns true on the frame it is clicked.
-    fn compix_button(
-        &mut self,
-        entry: usize,
-        label: &str,
-        (x, y): (f32, f32),
-        enabled: bool,
-    ) -> bool {
-        const SCALE: f32 = 3.0;
-        let Some(first) = self.art.picture("compix", entry, 0).cloned() else {
-            return button(Rect::new(x, y, 78.0, 30.0), label, enabled);
-        };
-        let rect = Rect::new(x, y, first.width() * SCALE, first.height() * SCALE);
-        let hover = rect.contains(mouse_position().into());
-        let down = enabled && hover && is_mouse_button_down(MouseButton::Left);
-        let tex = self
-            .art
-            .picture("compix", entry, usize::from(down))
-            .cloned()
-            .unwrap_or(first);
-        draw_texture_ex(
-            &tex,
-            rect.x,
-            rect.y,
-            if enabled {
-                WHITE
-            } else {
-                Color::new(1.0, 1.0, 1.0, 0.4)
-            },
-            DrawTextureParams {
-                dest_size: Some(rect.size()),
-                ..Default::default()
-            },
-        );
-        enabled && hover && is_mouse_button_pressed(MouseButton::Left)
-    }
-
     /// The arrow or bolt in flight during a shot.
     fn draw_missile(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32)) {
         let Some((Anim::Shot { attacker, defender }, t)) = self.battle_ui.playing.clone() else {
@@ -1539,248 +1517,6 @@ impl App {
                 Color::new(0.85, 0.7, 0.4, 1.0),
             );
         }
-    }
-
-    fn draw_battle_panel(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>) {
-        let (w, h) = (screen_width(), screen_height());
-        let x = w - PANEL_W;
-        draw_rectangle(x, 0.0, PANEL_W, h, PANEL);
-        let mut y = 28.0;
-        let attacker = self.player_label(battle.attacker);
-        let defender = self.player_label(battle.defender);
-        draw_text(
-            format!("{attacker}  vs  {defender}"),
-            x + 12.0,
-            y,
-            22.0,
-            GOLD,
-        );
-        y += 24.0;
-        let who = if my_turn {
-            "Your turn".to_string()
-        } else {
-            format!(
-                "{} acts",
-                self.player_label(battle.player_of(battle.active))
-            )
-        };
-        draw_text(
-            format!("Turn {}   {who}", battle.turn),
-            x + 12.0,
-            y,
-            20.0,
-            WHITE,
-        );
-        y += 22.0;
-        if let Some(c) = Self::my_caster(battle) {
-            draw_text(
-                format!(
-                    "Skill {}   Mana {}   Range x{:.1}{}",
-                    c.skill_left,
-                    c.mana,
-                    c.range as f32 / 10.0,
-                    if c.cast_this_turn { "   (cast)" } else { "" }
-                ),
-                x + 12.0,
-                y,
-                18.0,
-                Color::new(0.7, 0.8, 1.0, 1.0),
-            );
-        }
-        y += 22.0;
-        // The enchantments over the field, by who cast them.
-        let mine = Self::human_side(battle);
-        let over: Vec<String> = battle
-            .fields()
-            .map(|(side, _, spell)| {
-                let name = &self.game.content().rules.spells.get(spell).name;
-                if Some(side) == mine {
-                    name.clone()
-                } else {
-                    format!("{name} (enemy)")
-                }
-            })
-            .collect();
-        if !over.is_empty() {
-            for line in crate::ui::wrap(&over.join(", "), 16.0, PANEL_W - 24.0)
-                .iter()
-                .take(2)
-            {
-                draw_text(
-                    line,
-                    x + 12.0,
-                    y - 4.0,
-                    16.0,
-                    Color::new(0.8, 0.7, 1.0, 1.0),
-                );
-                y += 17.0;
-            }
-        }
-
-        // The magic node under the battle: its counter and its aura.
-        for line in [
-            battle
-                .node_site
-                .map(|r| format!("{r:?} node: dispels other realms")),
-            battle
-                .node_aura
-                .map(|r| format!("{r:?} aura: +2 to {r:?} creatures")),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            draw_text(
-                &line,
-                x + 12.0,
-                y - 4.0,
-                16.0,
-                Color::new(0.8, 0.7, 1.0, 1.0),
-            );
-            y += 17.0;
-        }
-
-        // The unit under the pointer, else the selected one.
-        let shown = hovered
-            .and_then(|p| Self::seen_unit_at(battle, p))
-            .or_else(|| self.battle_ui.selected.and_then(|i| battle.unit(i)));
-        if let Some(u) = shown {
-            draw_text(&u.name, x + 12.0, y, 22.0, WHITE);
-            y += 22.0;
-            let side = self.player_label(battle.player_of(u.side));
-            draw_text(&side, x + 12.0, y, 18.0, LIGHTGRAY);
-            y += 22.0;
-            let ammo = if u.ranged_kind == RangedKind::None {
-                String::new()
-            } else {
-                format!("  ammo {}", u.ammo)
-            };
-            for line in [
-                format!("Melee {}   Ranged {}{ammo}", u.melee, u.ranged),
-                format!("Defense {}   Resist {}", u.defense, u.resistance),
-                format!(
-                    "Figures {}/{}   Hits {}/{}",
-                    u.figures,
-                    u.figures_start,
-                    u.hit_points(),
-                    u.max_hit_points()
-                ),
-                format!(
-                    "Moves {:.1}/{:.1}",
-                    u.moves_left as f32 / 2.0,
-                    u.moves as f32 / 2.0
-                ),
-            ] {
-                draw_text(&line, x + 12.0, y, 18.0, WHITE);
-                y += 20.0;
-            }
-            if !u.abilities.is_empty() {
-                let text = u.abilities.join(", ").replace('_', " ");
-                for line in crate::ui::wrap(&text, 16.0, PANEL_W - 24.0).iter().take(3) {
-                    draw_text(line, x + 12.0, y, 16.0, LIGHTGRAY);
-                    y += 18.0;
-                }
-            }
-        }
-
-        // The original's picture buttons (`compix.lbx`): Spell, Wait, Done / Auto, Info, Flee.
-        let by = h - 190.0;
-        let sel = self.battle_ui.selected;
-        let mut order = None;
-        let col = |i: f32| x + 12.0 + i * 92.0;
-        // The selected unit casts its own spells when it has any it can cast now (a hero, a
-        // creature caster); otherwise the Spell button is the wizard's.
-        let unit_caster = sel.filter(|&u| {
-            my_turn
-                && (self.game.battle_unit_spells(u).iter().any(|s| s.castable)
-                    || self.game.can_summon_demon(u))
-        });
-        let can_cast = my_turn
-            && self.battle_ui.aiming.is_none()
-            && self.battle_ui.fallen_list.is_none()
-            && (unit_caster.is_some()
-                || Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn));
-        let spell = self.compix_button(1, "Spell", (col(0.0), by), can_cast);
-        if spell || (can_cast && is_key_pressed(KeyCode::S)) {
-            self.battle_ui.spell_list = !self.battle_ui.spell_list;
-            self.battle_ui.spell_unit = unit_caster.filter(|_| self.battle_ui.spell_list);
-        }
-        let wait = self.compix_button(2, "Wait", (col(1.0), by), my_turn);
-        if wait || (my_turn && is_key_pressed(KeyCode::W)) {
-            self.select_next(sel);
-        }
-        if self.compix_button(3, "Done", (col(2.0), by), my_turn && sel.is_some()) {
-            order = sel.map(|u| BattleCommand::Done { unit: u });
-        }
-        // Auto hands your side to the computer; pressed again, it takes it back.
-        let auto = self.battle_ui.auto;
-        let auto_on = self.compix_button(4, "Auto", (col(0.0), by + 40.0), my_turn || auto);
-        if auto_on || ((my_turn || auto) && is_key_pressed(KeyCode::A)) {
-            self.battle_ui.auto = !auto;
-            self.battle_ui.aiming = None;
-            self.battle_ui.spell_list = false;
-            self.battle_ui.spell_unit = None;
-            self.battle_ui.fallen_list = None;
-        }
-        // Info lists the effects in force; the original locks it when there are none.
-        let has_info = self
-            .game
-            .battle_info(HUMAN)
-            .is_some_and(|info| !info.is_empty());
-        let info = self.compix_button(20, "Info", (col(1.0), by + 40.0), has_info);
-        if (info || (has_info && is_key_pressed(KeyCode::U))) && !self.battle_ui.info_open {
-            self.battle_ui.info_open = true;
-            return;
-        }
-        let sure = self.battle_ui.confirm_flee;
-        let flee = self.compix_button(21, "Flee", (col(2.0), by + 40.0), my_turn);
-        if flee || (my_turn && is_key_pressed(KeyCode::F)) {
-            if sure {
-                order = Some(BattleCommand::Flee);
-            } else {
-                self.battle_ui.confirm_flee = true;
-            }
-        } else if is_mouse_button_pressed(MouseButton::Left) {
-            self.battle_ui.confirm_flee = false;
-        }
-        if sure {
-            draw_text("Flee? Click again", col(2.0) - 40.0, by + 84.0, 16.0, GOLD);
-        }
-        // The original has no end-of-turn button (it ends when every unit is done).
-        if button(
-            Rect::new(x + 12.0, by + 92.0, PANEL_W - 24.0, 26.0),
-            "End turn (Enter)",
-            my_turn,
-        ) {
-            order = Some(BattleCommand::EndTurn);
-        }
-        if let Some(order) = order {
-            let done = match order {
-                BattleCommand::Done { unit } => Some(unit),
-                _ => None,
-            };
-            self.battle_order(order);
-            match done {
-                Some(unit) => self.select_next(Some(unit)),
-                None => self.battle_ui.selected = None,
-            }
-            self.battle_ui.confirm_flee = false;
-        }
-
-        // The last lines of the fight.
-        let mut ly = by + 138.0;
-        for line in self.battle_ui.log.iter().rev().take(4).rev() {
-            for l in crate::ui::wrap(line, 15.0, PANEL_W - 24.0).iter().take(1) {
-                draw_text(l, x + 12.0, ly, 15.0, LIGHTGRAY);
-                ly += 16.0;
-            }
-        }
-        draw_text(
-            "Click: select / move / attack     Tab: next unit     Enter: end turn",
-            8.0,
-            h - 10.0,
-            16.0,
-            LIGHTGRAY,
-        );
     }
 
     fn player_label(&self, player: f4x_core::city::PlayerId) -> String {
@@ -1829,14 +1565,6 @@ fn draw_wall(wall: Wall, (sx, sy): (f32, f32), scale: f32) {
     draw_triangle(bottom, bottom + up, east + up, right);
     draw_triangle(north + up, east + up, west + up, top);
     draw_triangle(bottom + up, east + up, west + up, top);
-}
-
-pub(crate) fn grid_view(width: f32, height: f32) -> (f32, f32, f32) {
-    let (gw, gh) = grid_extent();
-    let scale = (width / gw).min(height / gh).max(0.5);
-    let ox = (width - gw * scale) / 2.0 - BAND_X.0 * scale;
-    let oy = (height - gh * scale) / 2.0 + (HEADROOM - BAND_Y.0) * scale;
-    (scale, ox, oy)
 }
 
 fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {

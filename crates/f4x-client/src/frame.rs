@@ -203,7 +203,7 @@ impl App {
         let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let view = (lay.origin.x, lay.origin.y, s);
         let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
-        let grey = self.art.minimap().reserve_text();
+        let grey = self.art.minimap().named("reserve_text", GRAY);
         for (value, right, unit) in [(gold, 265.0, "GP"), (mana, 303.0, "MP")] {
             self.bm_text_shadowed(
                 view,

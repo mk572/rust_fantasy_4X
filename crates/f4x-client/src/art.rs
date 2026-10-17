@@ -26,7 +26,8 @@ pub struct MinimapColours {
     neutral: Option<Color>,
     box_: Option<Color>,
     mark: Option<Color>,
-    reserve_text: Option<Color>,
+    /// Other colours by their row's name (`reserve_text`, `combat_text`...).
+    named: HashMap<String, Color>,
 }
 
 impl MinimapColours {
@@ -46,8 +47,9 @@ impl MinimapColours {
                 "neutral" => c.neutral = Some(colour),
                 "box" => c.box_ = Some(colour),
                 "mark" => c.mark = Some(colour),
-                "reserve_text" => c.reserve_text = Some(colour),
-                _ => {}
+                other => {
+                    c.named.insert(other.to_string(), colour);
+                }
             }
         }
         c
@@ -75,9 +77,9 @@ impl MinimapColours {
         self.mark.unwrap_or(WHITE)
     }
 
-    /// The colour of the gold and mana reserve figures (grey).
-    pub fn reserve_text(&self) -> Color {
-        self.reserve_text.unwrap_or(GRAY)
+    /// A colour of the table by name, `fallback` without it.
+    pub fn named(&self, kind: &str, fallback: Color) -> Color {
+        self.named.get(kind).copied().unwrap_or(fallback)
     }
 }
 

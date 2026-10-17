@@ -178,9 +178,6 @@ impl App {
         let file = look.map_or("cmbgrass", |l| ground_file(l.set, plane));
         for cgy in 0..H {
             for cgx in 0..W {
-                if !battle.map.is_playable(core_pos(cgx, cgy)) {
-                    continue;
-                }
                 let (sx, sy) = at(cgx, cgy);
                 let size = Some(vec2(CELL_W * scale, CELL_H * scale));
                 let tile = look.map_or(0, |l| l.tiles[(cgy * W + cgx) as usize]) as usize;

@@ -197,8 +197,17 @@ as its figures (`figures1`-`figure16`, positions and facing as in the original, 
 owner's banner), and orders play as animations (walking along the path, a lunge and hurt flash,
 a missile in flight, fading death). Still missing: the original's projectile and effect pictures
 (`cmbmagic`, `cmbtfx`; arrows and bolts are drawn as simple shapes), blood and gibs, enchantment
-outlines and figure effects, the unit window, enchantment icons, mouse
-pointers by action and sound. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
+outlines and figure effects, mouse pointers by action and sound. **Done (17 October 2026): the
+original's frame** (`battle_screen/bar.rs`): the map fills the 320 by 200 screen's top 164 rows with the
+fixed camera of `Combat_Screen_Map_Draw` (the ground is drawn on every cell, as the original does), the
+bottom panel (`backgrnd` 3) holds the two names, skill, mana and range, the selected unit with its
+attack, ranged and move icons and damage bar, the six buttons in the original's places with their
+locked pictures, Flee asks "Do you wish to flee?" in the confirmation box, the enchantment icons (four
+a side, `compix` 5 to 15, 41, 60, 79, 80), and a small window with the stats of the unit under the
+pointer (`Draw_Combat_Unit_Display`); the text colours come from the panel picture's own palette
+(`minimap.tsv`). The old side panel, End turn button and spell-ability text list are gone (Enter ends
+the turn). The spell lists are still plain boxes (task 300). Also fixed: the clip rectangle's y was
+taken from the bottom, which cut the main map's last 20 rows. **Done (17 October 2026): the Info window** (`battle_info.rs` in the
 client, `battle/info.rs` in the core, `--battle --battle-field info`): the field's effects (node
 dispel and aura, the besieged city's Cloud of Shadow and Heavenly Light, Chaos Surge, Eternal Night)
 over each wizard's Crusade, Holy Arms, Charm of Life and Zombie Mastery, in the original's layout and
