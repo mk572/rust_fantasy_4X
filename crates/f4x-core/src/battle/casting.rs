@@ -53,7 +53,6 @@ pub(crate) fn damage_unit_with_spell(
             ..nature
         },
         special: Default::default(),
-        sees_through: false,
         ..Combatant::default()
     };
     let dmg = spell_attack(&spell, volley, &mut state, rng);

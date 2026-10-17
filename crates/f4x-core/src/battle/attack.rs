@@ -48,8 +48,6 @@ pub struct Combatant {
     pub nature: AttackNature,
     /// Poison, touches, life steal and gazes (`special.rs`).
     pub special: SpecialAttacks,
-    /// The attacker sees through illusions, so Blur does not trouble it.
-    pub sees_through: bool,
     /// Eldritch Weapon: the defender blocks with one plus fewer.
     pub eldritch: bool,
     /// Immolation: every melee blow also burns the defender (strength 4, fire).
@@ -92,8 +90,6 @@ pub struct DefenderState {
     pub figures: u32,
     /// Damage already taken by the front figure.
     pub front_damage: i32,
-    /// Blur is on it: each point of damage may miss.
-    pub blur: bool,
     /// It carries a large shield: +2 defence against every attack but a melee blow.
     pub large_shield: bool,
 }
@@ -243,16 +239,6 @@ pub fn roll_successes(dice: i32, pluses: i32, rng: &mut dyn RngCore) -> i32 {
         .count() as i32
 }
 
-/// Blur: each point of damage has a one in ten chance to miss, however much of it that takes
-/// off (the original's loop shortens itself as it counts, which caps the loss near half; that is
-/// a bug there). Not against an attacker that sees through illusions.
-fn blurred(hits: i32, attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> i32 {
-    if !def.blur || attacker.sees_through {
-        return hits;
-    }
-    (0..hits).filter(|_| d10(rng) != 10).count() as i32
-}
-
 /// What one attack did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Damage {
@@ -390,12 +376,7 @@ pub fn process_attack(
         let mut dmg = if attacker.ignores_defense || def.asleep() {
             attacker.strength
         } else {
-            let hits = blurred(
-                roll_successes(attacker.strength, attacker.to_hit, rng),
-                attacker,
-                def,
-                rng,
-            );
+            let hits = roll_successes(attacker.strength, attacker.to_hit, rng);
             (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {

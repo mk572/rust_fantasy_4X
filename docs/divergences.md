@@ -523,7 +523,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   and magic nodes (which take over their square) give the original's food; Gaia's Blessing doubles
   forests and nature nodes. A river square gives no production bonus, as in the original, where a
   river replaces the land. Details in `help-vs-implementation-conflicts.md`.
-- **Blur** takes one roll per point of damage; the original's loop caps the loss near half.
+- **Blur** is a flat -1 to the attacker's chance to hit (none for an attacker immune to illusions), not the original's 10% miss for each point of damage.
 - **Invisibility in battle** (`Battle::seen_by`): as in the original, an invisible unit is hidden from
   the enemy (not drawn, not clickable, no ranged cursor) until an enemy unit is next to it or the
   enemy has a unit immune to illusions. Ours adds that a unit that attacks or casts shows itself

@@ -30,7 +30,7 @@ Written in our own words; nothing here is copied from either source.
 | B9 Heroism | Combat uses the same level calculation as overland: Heroism sets the Elite floor, Warlord and Crusade add on top. (ReMoM's note offers two fixes and does not pick; this one matches the help.) |
 | B10 Undead | Undead also get cold, poison and illusion immunity (done, task 29: `undead.rs`; Holy Word's extra -5 for undead also follows the help, the original has it reversed). |
 | B11 Evil Omens | Applied by one spell-cost function everywhere (spell book, summoning, counter magic, item spells, combat). |
-| B13 Blur | Checks the *attacker's* illusion immunity; no cap on the total reduction (done: one roll per point of damage). |
+| B13 Blur | Simplified (owner's decision): a flat -1 (10%) to the attacker's chance to hit, whatever the distance, none for an attacker immune to illusions. The original rolls a 10% miss for each point of damage (with a bug that caps the loss near half); that roll code is gone. |
 | B14 Forester's Guild | Its food counts toward a city's maximum size. |
 | B15 Swamp | Half a food (done: `terrain.ron` counts food in half-units, swamp is 1). |
 | B16 Nature node | 4 food (ReMoM treats the main game's 5 as the odd one out). Done: a node square takes over its terrain and gives the food in `land_food` on the feature (sorcery 4, nature 4, chaos 0, in half-food units). |

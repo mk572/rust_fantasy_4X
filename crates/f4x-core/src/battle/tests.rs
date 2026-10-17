@@ -2225,38 +2225,21 @@ mod fields {
     }
 
     #[test]
-    fn blur_turns_some_hits_away_and_illusion_immune_attackers_see_through_it() {
-        let hurt = |blur: bool, sees: bool| -> i32 {
-            let mut total = 0;
-            for seed in 0..300 {
-                let mut a = of(Side::Attacker, None, (5, 5));
-                a.melee = 10;
-                a.figures_start = 1;
-                a.figures = 1;
-                if sees {
-                    a.abilities.push("illusion_immunity".into());
-                }
-                let mut d = of(Side::Defender, None, (6, 5));
-                d.defense = 0;
-                d.hits = 1000;
-                d.melee = 0;
-                let mut b = duel(a, d, seed);
-                if blur {
-                    b.raise_field(Side::Defender, Field::Blur, spell());
-                }
-                b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-                    .unwrap();
-                total += b.units[1].max_hit_points() - b.units[1].hit_points();
-            }
-            total
-        };
-        let (plain, blurred, seen) = (hurt(false, false), hurt(true, false), hurt(true, true));
-        // About a tenth of the hits miss.
-        assert!(
-            blurred < plain && blurred as f64 > plain as f64 * 0.8,
-            "{blurred} of {plain}"
+    fn blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions() {
+        let mut b = pair(
+            of(Side::Attacker, None, (5, 5)),
+            of(Side::Defender, None, (9, 5)),
         );
-        assert_eq!(seen, plain);
+        assert_eq!(b.blur_penalty(0, 1), 0);
+        b.raise_field(Side::Defender, Field::Blur, spell());
+        assert_eq!(b.blur_penalty(0, 1), 1, "whatever the distance");
+        assert_eq!(
+            b.blur_penalty(1, 0),
+            0,
+            "only the blurred side's units are harder to hit"
+        );
+        b.units[0].abilities.push("illusion_immunity".into());
+        assert_eq!(b.blur_penalty(0, 1), 0);
     }
 
     #[test]

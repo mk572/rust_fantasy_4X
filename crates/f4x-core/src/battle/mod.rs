@@ -410,7 +410,6 @@ impl BattleUnit {
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
-            blur: self.field.blur,
             large_shield: self.has("large_shield"),
         }
     }
@@ -479,7 +478,6 @@ impl BattleUnit {
             mode,
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
             special,
-            sees_through: self.has("illusion_immunity"),
             eldritch: self.has("eldritch_weapon")
                 && (mode == Mode::Melee
                     || self.has("bow")
@@ -1098,6 +1096,12 @@ impl Battle {
         }]
     }
 
+    /// The penalty to hit that Blur on `hit` gives `attacker`: one, none if the attacker is
+    /// immune to illusions.
+    fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
+        i32::from(self.units[hit].field.blur && !self.units[attacker].has("illusion_immunity"))
+    }
+
     /// The penalty to hit that `hit`'s invisibility gives `attacker`: one for each square of
     /// distance (one when adjacent), none if the attacker is immune to illusions.
     fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
@@ -1378,7 +1382,7 @@ impl Battle {
         d.state.defense += self.city_defense_bonus(def, att);
         // Invisible creatures are harder to hit (by anyone not immune to illusions).
         for (fighter, hits, hit) in [(&mut a, att, def), (&mut d, def, att)] {
-            let penalty = self.invisibility_penalty(hits, hit);
+            let penalty = self.invisibility_penalty(hits, hit) + self.blur_penalty(hits, hit);
             fighter.melee.to_hit -= penalty;
             if let Some(t) = &mut fighter.thrown {
                 t.to_hit -= penalty;
@@ -1422,7 +1426,7 @@ impl Battle {
             }
         };
         let a = &self.units[att];
-        let penalty = penalty + self.invisibility_penalty(att, def);
+        let penalty = penalty + self.invisibility_penalty(att, def) + self.blur_penalty(att, def);
         let plus = if a.ranged_kind == RangedKind::Missile {
             a.weapon_plus()
         } else {
