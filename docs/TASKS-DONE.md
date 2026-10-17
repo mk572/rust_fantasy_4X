@@ -197,6 +197,10 @@ simply not loaded.
 B12 legendary fame (decided, not built), B13 Blur, C3
 Invisibility. (B15 swamp food and B16 node food are done, with river and shore food.) Decide each, apply to content and help, and add the "[Updated from game code]" note
 where the help changes.
+**Done:** B9 to B12 were built already (checked); square food and production follow the original
+(river, shore, lake, river-mouth, nodes, desert, Gaia's Blessing); Blur is a flat -1 to hit;
+Invisibility hides units in battle, with a ghost look and a penalty of -1 per square. See
+`divergences.md` section 24 and `help-vs-implementation-conflicts.md`.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 
