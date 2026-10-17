@@ -18,7 +18,6 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 |---|---|---|
 | 64 | Meta | Wizard personalities and AI objectives |
 | 68 | Meta | Random events |
-| 72 | Meta | Fame effects |
 | 74 | Meta | Stable command references for replays and multiplayer |
 | 76 | Client | Background music |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) |
@@ -148,9 +147,6 @@ here yet.
 **68. Random events.** Plague, population boom, conjunctions, moons, mana short and others, each
 ending with 5 percent chance per turn; switchable option [768-775, 683]. Follow intent for B18
 (count from the real turn, not from game start or load).
-
-**72. Fame effects.** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
-and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.7: `fame::total` (earned fame, Legendary heroes, Just Cause) replaces the plain `Player.fame` in `finance.rs` and the offers.
 
 **74. Stable command references.** Commands carry `hecs` entity ids, so a command log cannot
 cross a load. If replays or multiplayer are wanted, switch commands to creation numbers (`Serial`).

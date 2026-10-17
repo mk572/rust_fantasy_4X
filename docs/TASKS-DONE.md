@@ -68,6 +68,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 69 | Meta | Difficulty levels (done) |
 | 70 | Meta | ~~Victory conditions and score~~ (done) |
 | 71 | Meta | Advisors (done) |
+| 72 | Meta | Fame effects (done) |
 | 73 | Meta | Save-format migration (done) |
 | 75 | Client | Wizard overview screen (done) |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
@@ -179,6 +180,9 @@ original task numbers. Newest work is merged in ascending order by number.
 ## Descriptions
 
 **62. Player-chosen losses when mana runs short (done).** Not in the original (its `WIZ_MatchManaUpkeep` drops a random kind of asset and only the summons part exists), so this is our own rule, chosen by the project owner: before ending the turn the client asks `Game::upkeep_shortfall` and, if the reserve plus the coming mana income cannot pay, shows a prompt (`upkeep_prompt.rs`) with every item that costs mana, the default pre-marked; `Command::ReleaseUpkeep` gives up the chosen ones and the turn change drops only what is still missing. The AI and the console keep the deterministic newest-first rule. The "mana short" event interaction belongs to task 68 (random events).
+
+**72. Fame effects (done).** Fame sources (heroes, Just Cause, Famous retort) and effects on unit upkeep
+and hero availability [765]; follow the help for legendary heroes (+3 fame per level, B12). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.7: `fame::total` (earned fame, Legendary heroes, Just Cause) replaces the plain `Player.fame` in `finance.rs` and the offers. **Done:** the sources and effects were already built with tasks 47, 62 and 220 and the conquest and battle work (`Game::fame`, `finance.rs`, `offers.rs`); this task checked them against the help and corrected topic 765 (`divergences.md` section 23).
 
 **73. Save-format migration (done).** Dropped, not built: there are no old save games to convert, so a
 conversion step before `restore` has no use. Version 1 is the only format; saves from an older layout are

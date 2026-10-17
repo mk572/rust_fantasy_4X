@@ -373,6 +373,9 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (765, "winning a major battle (4 or more opponents), building a new city, or by capturing a village, city or capitol. Likewise, any wizard losing a major battle will lose one point of fame.",
+     "winning a major battle (4 or more opponents) or one that defeats a unit costing 600 or more, or by capturing a city (its size class less two points, so a hamlet or village gives none). Building a new city gives no fame. A wizard loses fame when a hero dies in battle (about half the hero's level), when a city is lost (as many points as its size) and, with more than 20 fame, one point for a major defeat.",
+     "the original's code gives no fame for founding a city, gives the winner a point for rare foes, and takes the fame of lost heroes and cities; only a human wizard with more than 20 fame loses a point for a major defeat"),
     (593, "fleeing heroes have a 25% chance.",
      "fleeing heroes have a 25% chance. On the Intro and Easy levels the player whose turn it is loses no unit by fleeing, and units that are asleep, confused or held in a web are always lost.",
      "the combat code skips the roll on Intro and Easy for the player on turn, and always destroys sleeping, confused and webbed fleeing units"),

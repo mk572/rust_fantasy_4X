@@ -505,3 +505,13 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   nearest shore with a free square, unloads there and is released. A ship in port or without
   passengers is released at once. If no shore is free the passengers are lost.
 - Announced to wizards in contact: the shortage of mana, gold or food, and any hero who leaves.
+
+## 23. Fame (task 72)
+
+- The help (topic 765) says building a new city earns fame and any lost major battle costs a point.
+  The original's code does neither, so the help now follows it (`HELP_CORRECTIONS`): founding gives
+  no fame; the loser loses the fame of fallen heroes (half their level, rounded up) and of a lost
+  city (its size), and a human wizard above 20 fame loses one more point for a major defeat.
+- What counts as fame: earned fame, Legendary heroes (task 47), and 10 while Just Cause lasts
+  (`Game::fame`). Fame lowers gold upkeep one for one and raises the chance and the quality of
+  hero, mercenary and merchant offers. Each wizard's own fame is used (section 11).

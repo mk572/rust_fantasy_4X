@@ -8,3 +8,4 @@ __pycache__/
 /saves
 /scripts/thermal_state
 /models-local
+/.venv
