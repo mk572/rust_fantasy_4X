@@ -552,6 +552,26 @@ fn the_vizier_command_turns_the_vizier_on_and_off() {
 }
 
 #[test]
+fn the_autobuild_command_sets_and_clears_a_citys_plan() {
+    let (mut g, mut c) = (game(), console());
+    let city = g.economy().cities()[0].0;
+    let r = c.execute(&mut g, "autobuild 1 both defense gold settlers=5");
+    assert!(r.ok, "{}", r.text());
+    let plan = g.autobuild_of(city).unwrap().plan;
+    assert_eq!(plan.mix, f4x_core::autobuild::Mix::Both);
+    assert_eq!(plan.primary, f4x_core::autobuild::Focus::Defense);
+    assert_eq!(plan.secondary, Some(f4x_core::autobuild::Focus::Gold));
+    assert!(plan.settlers && plan.min_settler_pop == 5);
+    assert!(c.execute(&mut g, "autobuild 1 off").ok);
+    assert!(g.autobuild_of(city).is_none());
+    assert!(c
+        .execute(&mut g, "autobuild 1 both nonsense")
+        .error
+        .is_some());
+    assert!(c.execute(&mut g, "autobuild 1 stuff gold").error.is_some());
+}
+
+#[test]
 fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
     let g = game();
     let awareness = g.content().rules.spells.id_of("awareness").unwrap();

@@ -45,6 +45,12 @@ pub const TABLE: &[CommandDef] = &[
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
     legal!("accept", "accept <offer> [name]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one.", accept),
     legal!("reject", "reject <offer>", "Turn an offer down.", reject),
+    legal!(
+        "autobuild",
+        "autobuild <city> off | <city> <buildings|units|both> <focus> [secondary-focus] [settlers[=pop]]",
+        "Give a city an auto-builder plan (focus: magic, population, production, defense, offense, exploration, gold or balanced), or switch it off.",
+        autobuild
+    ),
     legal!("vizier", "vizier <on|off>", "The Grand Vizier chooses what your cities build when they finish a building.", vizier),
     legal!("power", "power <mana> <research> <skill>", "Split your power base between mana, research and casting skill (percent, summing to 100).", power),
     legal!("research", "research <spell>", "Choose the spell to research.", research),
@@ -261,6 +267,58 @@ fn tax(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let rate = a.int(0, "rate")?.clamp(0, 255) as u8;
     let player = ctx.session.player;
     ctx.apply(Command::SetTaxRate { player, rate })
+}
+
+fn autobuild(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::autobuild::{BuildPlan, Focus, Mix};
+    let city = ctx.my_city(a, 0)?;
+    let first = a.need(1, "off, or buildings, units or both")?;
+    if first.eq_ignore_ascii_case("off") {
+        ctx.apply(Command::SetAutoBuild { city, plan: None })?;
+        ctx.say("Auto-builder off");
+        return Ok(());
+    }
+    let mix = Mix::parse(first)
+        .ok_or_else(|| ConsoleError::Parse(format!("{first:?} is not buildings, units or both")))?;
+    let word = a.need(2, "a focus")?;
+    let primary = Focus::parse(word)
+        .ok_or_else(|| ConsoleError::Parse(format!("{word:?} is not a focus")))?;
+    let mut plan = BuildPlan {
+        mix,
+        primary,
+        ..BuildPlan::default()
+    };
+    for i in 3..a.words.len() {
+        let w = a.words[i].to_lowercase();
+        if let Some(rest) = w.strip_prefix("settlers") {
+            plan.settlers = true;
+            if let Some(n) = rest.strip_prefix('=') {
+                plan.min_settler_pop = n
+                    .parse()
+                    .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a population")))?;
+            }
+        } else if let Some(f) = Focus::parse(&w).filter(|f| *f != Focus::Balanced) {
+            plan.secondary = Some(f);
+        } else {
+            return Err(ConsoleError::Parse(format!(
+                "{w:?} is not a focus or settlers"
+            )));
+        }
+    }
+    ctx.apply(Command::SetAutoBuild {
+        city,
+        plan: Some(plan),
+    })?;
+    ctx.say(format!(
+        "Auto-builder on: {} / {}{}{}",
+        mix.name(),
+        primary.name(),
+        plan.secondary
+            .map(|f| format!(" then {}", f.name()))
+            .unwrap_or_default(),
+        if plan.settlers { ", settlers" } else { "" }
+    ));
+    Ok(())
 }
 
 fn vizier(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

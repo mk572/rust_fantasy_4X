@@ -41,7 +41,7 @@ impl Layout {
         )
     }
 
-    fn text(self, s: &str, x: f32, y: f32, size: f32, color: Color) {
+    pub(crate) fn text(self, s: &str, x: f32, y: f32, size: f32, color: Color) {
         draw_text(
             s,
             self.ox + x * self.scale,
@@ -64,7 +64,12 @@ impl App {
             return;
         }
         let lay = Layout::new();
-        let choosing = self.choosing;
+        let dialog = self.autobuild_dialog.is_some();
+        if dialog && is_key_pressed(KeyCode::Escape) {
+            self.autobuild_dialog = None;
+            return;
+        }
+        let choosing = self.choosing || dialog;
         // A right-click on a unit of the garrison opens its statistics sheet.
         if is_mouse_button_pressed(MouseButton::Right) && !choosing {
             let over = self
@@ -109,13 +114,22 @@ impl App {
                 Color::new(0.3, 0.25, 0.2, 1.0),
             ),
         }
+        // While the auto-builder dialog is open the screen behind it takes no input.
+        let was_choosing = self.choosing;
+        if dialog {
+            self.choosing = true;
+        }
         self.draw_city_header(city, lay);
         self.draw_city_resources(city, lay);
         self.draw_city_buildings(city, lay);
         self.draw_city_area(city, lay);
         self.draw_city_garrison(city, lay);
         self.draw_city_production(city, lay);
-        if self.choosing {
+        self.draw_autobuild_button(city, lay);
+        if dialog {
+            self.choosing = was_choosing;
+            self.draw_autobuild_dialog(city, lay);
+        } else if self.choosing {
             self.draw_production_menu(city, lay);
         }
     }

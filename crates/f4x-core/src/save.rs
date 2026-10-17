@@ -444,6 +444,9 @@ pub struct CitySave {
     /// Taken this turn by this player, who may still raze it.
     #[serde(default)]
     pub conquered: Option<u8>,
+    /// The city's auto-builder plan and what it has spent so far (absent in older saves).
+    #[serde(default)]
+    pub autobuild: Option<crate::autobuild::AutoBuild>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -760,6 +763,11 @@ impl Game {
                         .get::<&crate::conquest::Conquered>(e)
                         .ok()
                         .map(|c| c.0 .0),
+                    autobuild: self
+                        .world
+                        .get::<&crate::autobuild::AutoBuild>(e)
+                        .ok()
+                        .map(|a| *a),
                 })
             })
             .collect();
@@ -1084,6 +1092,9 @@ impl Snapshot {
                 let _ = game
                     .world
                     .insert_one(entity, crate::city_spells::SpellWards(c.wards));
+            }
+            if let Some(a) = c.autobuild {
+                let _ = game.world.insert_one(entity, a);
             }
             if let Some(p) = c.conquered {
                 let _ = game

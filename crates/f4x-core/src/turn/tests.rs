@@ -579,31 +579,30 @@ fn without_the_vizier_a_finished_building_leaves_the_city_on_housing() {
 }
 
 #[test]
-fn the_vizier_picks_the_next_building_in_the_list() {
+fn the_vizier_keeps_choosing_new_buildings_until_none_is_worth_building() {
     let (mut g, city) = vizier_city(true);
-    g.apply_production(city, 1000);
+    let mut seen = Vec::new();
+    for _ in 0..40 {
+        g.apply_production(city, 1000);
+        match g.economy().city_production(city).item {
+            Some(ProductionItem::Building(b)) => {
+                assert!(!seen.contains(&b), "a building is chosen twice");
+                seen.push(b);
+            }
+            Some(ProductionItem::TradeGoods) | Some(ProductionItem::Housing) => break,
+            other => panic!("the Vizier builds buildings only, not {other:?}"),
+        }
+    }
+    assert!(seen.len() >= 2, "it built {} buildings", seen.len());
     let guild = building(&g, "fighters_guild");
-    assert_eq!(
-        g.economy().city_production(city).item,
-        Some(ProductionItem::Building(guild)),
-        "barracks done, so the guild that needs it comes next"
-    );
-    g.apply_production(city, 1000);
-    let granary = building(&g, "granary");
-    assert_eq!(
-        g.economy().city_production(city).item,
-        Some(ProductionItem::Building(granary))
-    );
-    g.apply_production(city, 1000);
-    assert_eq!(
-        g.economy().city_production(city).item,
-        Some(ProductionItem::Housing),
-        "nothing left on the list"
+    assert!(
+        seen.contains(&guild),
+        "what the barracks opens is worth building"
     );
 }
 
 #[test]
-fn the_vizier_skips_what_the_treasury_cannot_keep() {
+fn a_poor_treasury_builds_gold_and_skips_buildings_it_cannot_keep() {
     let (mut g, city) = vizier_city(true);
     g.player_mut(P0).unwrap().tax_rate = 0;
     let net = g.treasury(P0).net_gold();
@@ -612,10 +611,12 @@ fn the_vizier_skips_what_the_treasury_cannot_keep() {
         net < 3,
         "the test needs a poor treasury, net is {net} gold a turn"
     );
-    assert_eq!(
-        g.vizier_choice(city, P0),
-        Some(ProductionItem::Building(building(&g, "granary"))),
-        "the guild costs 3 a turn and is skipped"
+    let market = building(&g, "marketplace");
+    let choice = g.autobuild_choice(city, P0);
+    assert!(
+        choice == Some(ProductionItem::Building(market))
+            || choice == Some(ProductionItem::TradeGoods),
+        "low on gold the city builds gold or trades, not {choice:?}"
     );
 }
 
@@ -651,7 +652,7 @@ fn turning_the_vizier_on_gives_idle_cities_a_building() {
 fn the_vizier_leaves_outposts_alone() {
     let (mut g, _) = vizier_city(true);
     let outpost = found(&mut g, at(4, 6), "elf", 0);
-    assert_eq!(g.vizier_choice(outpost, P0), None);
+    assert_eq!(g.autobuild_choice(outpost, P0), None);
 }
 
 #[test]

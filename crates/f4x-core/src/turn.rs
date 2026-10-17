@@ -61,6 +61,7 @@ impl Game {
                 }
                 continue;
             }
+            self.autobuild_refresh(city);
             let Some(eco) = self.economy().city_economy(city) else {
                 continue;
             };

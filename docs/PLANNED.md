@@ -110,7 +110,8 @@ buildings' upkeep against the city's income, the race's strengths, what the neig
 provide, the wizard's strategy (retorts, books) and the game stage; avoid buildings that are
 about to be obsolete; let the player set priorities or a build profile (growth, production,
 research, defence); and share the evaluation with the AI's city production (T65) so both use
-one scoring function, tested on fixed city situations.
+one scoring function, tested on fixed city situations. **Design agreed and built in
+stages 1 to 4:** [`auto-builder.md`](auto-builder.md) (AI sides and the event prompt remain).
 
 **8. Hardcore mode.** A new-game option for one-life play, bundling three rules: **no undo** (the
 undo of orders, task 90, is off for the whole game); **permanent death** (a banished wizard is

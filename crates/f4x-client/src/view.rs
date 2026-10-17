@@ -111,6 +111,8 @@ pub struct App {
     pub(crate) log: Vec<String>,
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
+    /// The auto-builder dialog over the city screen, while it is open.
+    pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
     pub(crate) choice_scroll: usize,
     /// The magic screen's staves, locks and windows.
     pub(crate) magic_ui: crate::magic_screen::MagicUi,
@@ -231,6 +233,7 @@ impl App {
             selection: Vec::new(),
             log: Vec::new(),
             choosing: false,
+            autobuild_dialog: None,
             choice_scroll: 0,
             magic_ui: Default::default(),
             wizard_ui: Default::default(),

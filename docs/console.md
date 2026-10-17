@@ -110,6 +110,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Assault a lair, tower or node | `enter <units> <pos>` |
 | City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `sell <city> <building>` |
 | Tax rate, power split, Grand Vizier | `tax <rate>`, `power <mana> <research> <skill>`, `vizier <on\|off>` |
+| A city's auto-builder plan | `autobuild <city> <buildings\|units\|both> <focus> [secondary] [settlers[=pop]]`, `autobuild <city> off` |
 | Choose research | `research <spell>` |
 | Cast; aim a spell paid over turns; give up a cast | `cast <spell> [target]`, `target <target>`, `cancelcast` |
 | Give up while banished | `resign` |

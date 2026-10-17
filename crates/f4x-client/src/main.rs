@@ -6,6 +6,7 @@ mod advisors;
 mod army_screen;
 mod art;
 mod attack_prompt;
+mod autobuild_dialog;
 mod battle_anim;
 mod battle_ground;
 mod battle_screen;
@@ -61,6 +62,8 @@ struct Options {
     shot: Option<PathBuf>,
     /// With `--shot`, open the city screen first.
     city: bool,
+    /// With `--shot --city`, open the auto-builder dialog over it.
+    autobuild: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
     /// With `--shot`, open this wizard's sheet first (0 is you; a rival's shows as if met).
@@ -138,6 +141,7 @@ fn parse_args() -> Result<Options, String> {
         seed: 1,
         shot: None,
         city: false,
+        autobuild: false,
         magic: false,
         wizard: None,
         talk: None,
@@ -191,6 +195,7 @@ fn parse_args() -> Result<Options, String> {
             }
             "--shot" => o.shot = Some(value("--shot")?.into()),
             "--city" => o.city = true,
+            "--autobuild" => o.autobuild = true,
             "--select" => o.select = true,
             "--armies" => o.armies = true,
             "--cities" => o.cities = true,
@@ -301,7 +306,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--upkeep] [--sheet N] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -340,6 +345,17 @@ async fn main() {
     }
     if options.city {
         app.open_first_city();
+        if options.autobuild {
+            app.autobuild_dialog = Some(autobuild_dialog::AutoDialog {
+                plan: f4x_core::autobuild::BuildPlan {
+                    primary: f4x_core::autobuild::Focus::Defense,
+                    secondary: Some(f4x_core::autobuild::Focus::Gold),
+                    settlers: true,
+                    ..Default::default()
+                },
+                had_plan: true,
+            });
+        }
     }
     if options.reveal {
         app.reveal_all();

@@ -325,7 +325,7 @@ impl Game {
         self.balance_taxes(owner);
         let farmers = self.economy().city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
-        let item = self.vizier_choice(city, owner);
+        let item = self.autobuild_choice(city, owner);
         let _ = self.world.insert_one(
             city,
             Production {

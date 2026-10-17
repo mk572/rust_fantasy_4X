@@ -2,7 +2,7 @@
 //!
 //! The checks and the costs are methods of [`Economy`] (task 187): what a city may build, what
 //! it costs, how far it is, what a purchase or a sale would do, what finishing an item gives
-//! and what the Grand Vizier picks. They need only the world, the map, the content and the
+//! and (task: auto-builder, `autobuild.rs`) what the auto-builder picks. They need only the world, the map, the content and the
 //! players. `Game` makes the changes that need more (the owner's gold, the new unit, the
 //! treasury for the Vizier) and keeps the old names as thin methods that ask the handle.
 
@@ -355,35 +355,6 @@ impl Economy<'_> {
         }
         (self.city_starting_xp(city), weapons)
     }
-
-    /// What the Grand Vizier has the city build next: the first building in the rules'
-    /// `autobuild_order` that the city can build and whose upkeep the treasury can bear.
-    /// `None` when the player has not asked for the Vizier or nothing is left to build.
-    /// `net_gold` gives the treasury's net gold, asked only when it is needed.
-    pub(crate) fn vizier_choice(
-        &self,
-        city: hecs::Entity,
-        owner: PlayerId,
-        net_gold: impl FnOnce() -> i32,
-    ) -> Option<ProductionItem> {
-        if !self.player(owner)?.grand_vizier {
-            return None;
-        }
-        // An outpost builds nothing; housing is what makes it grow.
-        if self.city_economy(city).is_none_or(|e| e.figures == 0) {
-            return None;
-        }
-        let rules = &self.content.rules;
-        let net = net_gold();
-        rules
-            .config
-            .autobuild_order
-            .iter()
-            .filter_map(|name| rules.buildings.id_of(name))
-            .filter(|&b| self.can_build(city, ProductionItem::Building(b)).is_ok())
-            .find(|&b| net >= rules.buildings.get(b).upkeep_gold as i32)
-            .map(ProductionItem::Building)
-    }
 }
 
 impl Game {
@@ -449,16 +420,18 @@ impl Game {
                 owner,
             } => (item, production, at, owner),
         };
+        let cost = self.economy().item_cost(city, item);
         match item {
             ProductionItem::Building(b) => {
                 if let Ok(mut buildings) = self.world.get::<&mut Buildings>(city) {
                     buildings.0.push(b);
                 }
+                self.autobuild_spent(city, item, cost);
                 // Surplus production is lost; the city falls back to housing, unless the
-                // Grand Vizier picks the next building.
+                // auto-builder picks the next item.
                 p = Production {
                     item: Some(
-                        self.vizier_choice(city, owner)
+                        self.autobuild_choice(city, owner)
                             .unwrap_or(ProductionItem::Housing),
                     ),
                     progress: 0,
@@ -475,18 +448,16 @@ impl Game {
                         .insert_one(unit, crate::units::WeaponQuality(weapons));
                 }
                 p.progress = 0;
+                self.autobuild_spent(city, item, cost);
+                // A unit is built over and over, unless the auto-builder picks the next item.
+                if let Some(next) = self.autobuild_choice(city, owner) {
+                    p.item = Some(next);
+                }
             }
             ProductionItem::TradeGoods | ProductionItem::Housing => {}
         }
         let _ = self.world.insert_one(city, p);
         Some(item)
-    }
-
-    /// What the Grand Vizier has the city build next (see `Economy::vizier_choice`); the
-    /// treasury is asked only when the player has the Vizier on.
-    pub fn vizier_choice(&self, city: hecs::Entity, owner: PlayerId) -> Option<ProductionItem> {
-        self.economy()
-            .vizier_choice(city, owner, || self.treasury(owner).net_gold())
     }
 
     /// Turning the Vizier on: cities with nothing to build (or housing) get a building now.
@@ -502,7 +473,7 @@ impl Game {
             if !idle {
                 continue;
             }
-            if let Some(item) = self.vizier_choice(city, player) {
+            if let Some(item) = self.autobuild_choice(city, player) {
                 let _ = self.world.insert_one(
                     city,
                     Production {

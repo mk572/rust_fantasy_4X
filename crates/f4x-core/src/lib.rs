@@ -31,6 +31,7 @@ pub mod help;
 pub mod hero;
 mod hero_game;
 pub use hero_game::HeroError;
+pub mod autobuild;
 pub mod hero_spells;
 pub mod items;
 pub mod lairs;
@@ -235,6 +236,12 @@ pub enum Command {
         name: String,
         race: Option<rules::RaceId>,
         population: u32,
+    },
+    /// Give a city an auto-builder plan, or switch it off with `None` (docs/auto-builder.md).
+    SetAutoBuild {
+        #[serde(with = "replay::stable_ref::one")]
+        city: hecs::Entity,
+        plan: Option<autobuild::BuildPlan>,
     },
     /// A banished wizard gives up (the "Do you wish to resign?" of the original).
     Resign {
@@ -984,6 +991,10 @@ impl Game {
             },
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
+                Ok(()) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Production(e))],
+            },
+            Command::SetAutoBuild { city, plan } => match self.set_autobuild(city, plan) {
                 Ok(()) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
