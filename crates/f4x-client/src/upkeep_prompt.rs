@@ -262,6 +262,17 @@ impl App {
     }
 
     pub(crate) fn finish_turn(&mut self) {
+        // The hourglass is drawn for a frame before the computer plays.
+        self.turn_pending = 2;
+    }
+
+    /// Play the turn change once the hourglass has been shown.
+    pub(crate) fn run_pending_turn(&mut self) {
+        if self.turn_pending == 2 {
+            self.turn_pending = 1;
+            return;
+        }
+        self.turn_pending = 0;
         self.end_turn();
         // A turn held up by a battle is saved once it ends.
         if self.turn_events.is_none() {

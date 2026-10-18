@@ -777,6 +777,7 @@ impl App {
                     r.y,
                     tile,
                     anim,
+                    self.prefs.get(crate::preferences::Pref::ShowNodeOwners),
                 );
                 if corner {
                     // The corners are shaded (`Gradient_Fill` with a remap block).

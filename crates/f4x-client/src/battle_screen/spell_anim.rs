@@ -30,6 +30,13 @@ impl App {
             Ok(side) => side,
             Err(unit) => before.unit(unit)?.side,
         };
+        // The Settings screen's Spell Animations covers the spells you throw ("animations
+        // dealing with spells you have thrown", help 690); the rivals' casts still play.
+        if before.player_of(side) == crate::view::HUMAN
+            && !self.prefs.get(crate::preferences::Pref::SpellAnimations)
+        {
+            return None;
+        }
         let line = match caster {
             Ok(side) => format!(
                 "{} has cast {name}",

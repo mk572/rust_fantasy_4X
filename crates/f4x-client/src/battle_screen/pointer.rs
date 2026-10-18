@@ -3,32 +3,9 @@
 //! on a square the unit can walk to, crossed swords on an enemy it can strike, a bow on one it can
 //! shoot, a wand on a square a spell can be aimed at, and a red cross where nothing can be done.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use super::*;
-use crate::frame::Layout;
 
-/// The pictures of `cursors/NN.png` (the original's `crsr_*`).
-const FINGER: usize = 1;
-const WAND: usize = 2;
-const RED_CROSS: usize = 3;
-const BOW: usize = 4;
-const SWORDS: usize = 5;
-const BOOT: usize = 7;
-
-static HIDDEN: AtomicBool = AtomicBool::new(false);
-
-/// Show or hide the system pointer, only calling the window when it changes.
-fn set_system_pointer(shown: bool) {
-    if HIDDEN.swap(!shown, Ordering::Relaxed) == shown {
-        show_mouse(shown);
-    }
-}
-
-/// Give the system pointer back when another screen is up.
-pub(crate) fn show_system_pointer() {
-    set_system_pointer(true);
-}
+use crate::pointer::{BOOT, BOW, FINGER, RED_CROSS, SWORDS, WAND};
 
 impl App {
     /// What the pointer should look like over the battle.
@@ -86,22 +63,6 @@ impl App {
         hovered: Option<Pos>,
     ) {
         let image = self.pointer_image(battle, my_turn, hovered);
-        let Some(tex) = self.art.cursor(image).cloned() else {
-            set_system_pointer(true);
-            return;
-        };
-        set_system_pointer(false);
-        let lay = Layout::new();
-        let at: Vec2 = mouse_position().into();
-        draw_texture_ex(
-            &tex,
-            at.x,
-            at.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(tex.size() * lay.scale),
-                ..Default::default()
-            },
-        );
+        self.draw_pointer_image(image);
     }
 }

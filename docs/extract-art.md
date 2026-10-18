@@ -140,7 +140,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   `reference/screenshots/` when in doubt.
 - **A file shown under several palettes:** `wizlab` (used by the spell book, the conquest and the
   Spell of Mastery screens) is extracted with the base palette plus its own colours; the screens
-  that need another look may need their own copy. Nothing in the client uses it yet.
+  that need another look may need their own copy. The learn-spell animation (`learn_spell.rs`) draws it with the base palette and looks right.
 - **Palette cycling (task 146):** the original animates by changing one palette entry over
   time, so every pixel that uses that index changes colour at once, with no redrawing.
   `Cycle_Palette_Color(index, min r,g,b, max r,g,b, step)` (`Fonts.c`) moves the entry back and

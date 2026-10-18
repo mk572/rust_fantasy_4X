@@ -68,7 +68,8 @@ const ROAD_DIRS: [(i32, i32); 8] = [
 ];
 
 /// Draw the square at `(wx, y)` with its top-left at `(sx, sy)` and tile size `t`. `anim` is
-/// the animation step shared by water, roads and node auras.
+/// the animation step shared by water, roads and node auras. `node_owners` draws the owners'
+/// auras round the magic nodes (the Settings screen's Show Node Owners).
 #[allow(clippy::too_many_arguments)]
 pub fn draw_square(
     game: &Game,
@@ -80,6 +81,7 @@ pub fn draw_square(
     sy: f32,
     t: Vec2,
     anim: usize,
+    node_owners: bool,
 ) {
     let Some(map) = game.map() else {
         return;
@@ -199,7 +201,7 @@ pub fn draw_square(
     // The aura of a node somebody owns, in the owner's banner, shimmering.
     if let Some(i) = map.node_covering(plane, wx, y) {
         let node = &map.nodes()[i];
-        if let Some(owner) = node.owner {
+        if let Some(owner) = node.owner.filter(|_| node_owners) {
             let banner = banner_of(game, owner).min(4);
             let slot = node.aura.iter().position(|&a| a == (wx, y)).unwrap_or(0);
             let entry = 63 + usize::from(banner);

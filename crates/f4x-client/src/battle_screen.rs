@@ -372,8 +372,6 @@ mod pointer;
 mod specials;
 mod spell_anim;
 
-pub(crate) use pointer::show_system_pointer;
-
 impl App {
     /// Which side the human commands in the current battle, if any.
     fn human_side(battle: &Battle) -> Option<Side> {

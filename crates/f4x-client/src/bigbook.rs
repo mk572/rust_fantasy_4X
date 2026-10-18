@@ -35,6 +35,8 @@ pub(crate) struct BigBookUi {
     pub left: usize,
     /// Spells learned and not yet announced.
     pub learned: VecDeque<SpellId>,
+    /// The learn-spell animation of the first of them, once it has started (`learn_spell.rs`).
+    pub learn: Option<crate::learn_spell::LearnAnim>,
 }
 
 /// What a spell does, from the help text: the topic named for it, less its heading lines
@@ -91,8 +93,16 @@ impl App {
     /// Open the Apprentice's library: every spell the books allow, known or not, and the two
     /// pages of spells on offer for research at the end.
     pub fn open_apprentice(&mut self) {
+        if self.build_library_pages() {
+            self.screen = Screen::Apprentice;
+        }
+    }
+
+    /// Lay out the library (every spell known or researchable, then the research pages) in
+    /// `big_ui`, open at the research pages. False without a wizard.
+    pub(crate) fn build_library_pages(&mut self) -> bool {
         let Some(m) = self.game.magic(HUMAN).cloned() else {
-            return;
+            return false;
         };
         let all: Vec<SpellId> = m
             .known
@@ -107,7 +117,7 @@ impl App {
         self.big_ui.first_research = first;
         self.big_ui.left = first;
         self.big_ui.mode = BigMode::Apprentice;
-        self.screen = Screen::Apprentice;
+        true
     }
 
     /// The two pages that list the spells on offer for research.
@@ -183,7 +193,7 @@ impl App {
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_big_book(&lay, view);
+        self.draw_big_book(&lay, view, None);
     }
 
     pub(crate) fn research_screen(&mut self) {
@@ -223,7 +233,7 @@ impl App {
             }
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_big_book(&lay, view);
+        self.draw_big_book(&lay, view, None);
         let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
         self.bm_text_outlined(
             view,
@@ -237,7 +247,12 @@ impl App {
     }
 
     /// The open book: the dog-ears (browsing only), and the two pages.
-    fn draw_big_book(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+    pub(crate) fn draw_big_book(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        hide: Option<(usize, usize)>,
+    ) {
         let full = lay.rect((0.0, 0.0, 320.0, 200.0));
         if self.draw_pic(lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
             draw_rectangle(
@@ -285,13 +300,25 @@ impl App {
                 && self.big_ui.mode == BigMode::Apprentice
                 || self.big_ui.mode == BigMode::Research;
             for (i, &spell) in page.spells.iter().enumerate() {
-                self.draw_big_entry(lay, view, spell, x0, 28.0 + 37.0 * i as f32, research_page);
+                if hide == Some((page_i, i)) {
+                    continue;
+                }
+                self.draw_big_entry(
+                    lay,
+                    view,
+                    spell,
+                    x0,
+                    28.0 + 37.0 * i as f32,
+                    research_page,
+                    None,
+                );
             }
         }
     }
 
     /// One spell on a big page: its name, cost and time, and a paragraph on what it does.
-    fn draw_big_entry(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_big_entry(
         &mut self,
         _lay: &Layout,
         view: (f32, f32, f32),
@@ -299,6 +326,7 @@ impl App {
         x: f32,
         y: f32,
         research_page: bool,
+        ink_override: Option<Color>,
     ) {
         let def = self.game.content().rules.spells.get(spell).clone();
         let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
@@ -307,13 +335,13 @@ impl App {
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
         let faint = Color::new(0.5, 0.4, 0.3, 1.0);
         let hot = Color::new(0.7, 0.1, 0.05, 1.0);
-        let color = if current {
+        let color = ink_override.unwrap_or(if current {
             hot
         } else if known || research_page {
             ink
         } else {
             faint
-        };
+        });
         self.bm_text(view, 4, color, &def.name, x, y, Align::Left);
         let line = if research_page {
             let bonus = self.game.magic(HUMAN).map_or(0, |m| {
@@ -368,83 +396,6 @@ impl App {
                 Align::Left,
             );
         }
-    }
-
-    /// The notice of a spell just learned, over the big book; any key or click goes on.
-    pub(crate) fn learned_notice(&mut self) -> bool {
-        let Some(&spell) = self.big_ui.learned.front() else {
-            return false;
-        };
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
-        if self.draw_pic(&lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
-            draw_rectangle(
-                full.x,
-                full.y,
-                full.w,
-                full.h,
-                Color::new(0.55, 0.4, 0.2, 1.0),
-            );
-        }
-        let name = self.game.content().rules.spells.get(spell).name.clone();
-        let realm = self.game.content().rules.spells.get(spell).realm.clone();
-        let ink = Color::new(0.2, 0.12, 0.05, 1.0);
-        self.bm_text(
-            view,
-            5,
-            Color::new(0.45, 0.2, 0.1, 1.0),
-            "You have learned",
-            91.0,
-            40.0,
-            Align::Center,
-        );
-        self.bm_text(
-            view,
-            5,
-            Color::new(0.7, 0.1, 0.05, 1.0),
-            &name,
-            91.0,
-            56.0,
-            Align::Center,
-        );
-        self.bm_text(
-            view,
-            4,
-            ink,
-            &format!("{} magic", capitalise(&realm)),
-            91.0,
-            76.0,
-            Align::Center,
-        );
-        let text = self.spell_text(spell);
-        let line_h = self.art.text_height(0) + 1.0;
-        for (n, l) in self
-            .wrap_text(0, &text, 128.0)
-            .into_iter()
-            .take(12)
-            .enumerate()
-        {
-            self.bm_text(
-                view,
-                0,
-                ink,
-                &l,
-                27.0,
-                92.0 + line_h * n as f32,
-                Align::Left,
-            );
-        }
-        self.bm_text(view, 0, ink, "Click to go on", 231.0, 160.0, Align::Center);
-        if is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space)
-        {
-            self.big_ui.learned.pop_front();
-        }
-        true
     }
 }
 

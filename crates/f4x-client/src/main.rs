@@ -29,6 +29,7 @@ mod frame;
 mod game_over_screen;
 mod hall_of_fame;
 mod item_screen;
+mod learn_spell;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
@@ -37,6 +38,7 @@ mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
+mod pointer;
 mod preferences;
 mod river_art;
 mod road_plan;
@@ -133,6 +135,9 @@ struct Options {
     event: Option<String>,
     /// With `--shot`, announce this finished building (an id).
     built: Option<String>,
+    /// Announce this spell (an id) as just learned; `--learn-at` starts the animation that many seconds in.
+    learn: Option<String>,
+    learn_at: f64,
     /// With `--shot`, show the box of a spell that fizzled.
     fizzle: bool,
     /// With `--shot`, show the notices of a dispel: `city` or `unit`.
@@ -208,6 +213,8 @@ fn parse_args() -> Result<Options, String> {
         offer: None,
         event: None,
         built: None,
+        learn: None,
+        learn_at: 0.0,
         fizzle: false,
         dispelled: None,
         results: None,
@@ -248,6 +255,12 @@ fn parse_args() -> Result<Options, String> {
             "--dispelled" => o.dispelled = Some(value("--dispelled")?),
             "--fizzle" => o.fizzle = true,
             "--built" => o.built = Some(value("--built")?),
+            "--learn" => o.learn = Some(value("--learn")?),
+            "--learn-at" => {
+                o.learn_at = value("--learn-at")?
+                    .parse()
+                    .map_err(|_| "--learn-at must be a number of seconds")?
+            }
             "--results" => o.results = Some(value("--results")?),
             "--sheet" => {
                 o.sheet = Some(
@@ -345,7 +358,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -485,6 +498,9 @@ async fn main() {
     if let Some(kind) = &options.results {
         app.open_test_results(kind);
     }
+    if let Some(id) = &options.learn {
+        app.open_test_learn(id, options.learn_at);
+    }
     if let Some(id) = &options.built {
         app.open_test_built(id);
     }
@@ -538,6 +554,7 @@ async fn main() {
                 break;
             }
         }
+        app.draw_pointer();
         next_frame().await;
     }
 }

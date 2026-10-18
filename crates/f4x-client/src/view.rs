@@ -162,6 +162,11 @@ pub struct App {
         std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
+    /// The turn is ending: 2 until one frame with the hourglass has been drawn, then 1 while
+    /// the computer plays (`pointer.rs`).
+    pub(crate) turn_pending: u8,
+    /// Whether the selected stack can walk to the square under the pointer, for the boot.
+    pub(crate) pointer_walk: Option<((Position, Vec<hecs::Entity>), bool)>,
     /// A road being planned (task 102).
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
     /// The Surveyor is describing the square under the mouse (F1, task 71).
@@ -277,6 +282,8 @@ impl App {
             built_notices: Default::default(),
             spell_notices: Default::default(),
             targeting: None,
+            turn_pending: 0,
+            pointer_walk: None,
             road_plan: None,
             surveyor: false,
             survey_probe: None,
@@ -1044,6 +1051,9 @@ impl App {
 
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self) -> bool {
+        if self.turn_pending > 0 {
+            self.run_pending_turn();
+        }
         self.selection
             .retain(|&u| self.game.units().unit_position(u).is_some());
         if self.game.in_battle() {
@@ -1169,9 +1179,6 @@ impl App {
             && !matches!(self.screen, Screen::GameOver | Screen::Console)
         {
             self.screen = Screen::GameOver;
-        }
-        if !matches!(self.screen, Screen::Battle) {
-            crate::battle_screen::show_system_pointer();
         }
         match self.screen {
             Screen::GameOver => return self.game_over_screen(),
@@ -1769,6 +1776,7 @@ impl App {
                     sy,
                     t,
                     anim,
+                    self.prefs.get(crate::preferences::Pref::ShowNodeOwners),
                 );
                 if corners != 15 {
                     crate::map_draw::draw_unexplored_edge(

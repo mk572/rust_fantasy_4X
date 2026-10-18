@@ -559,3 +559,7 @@ Enchant Road is permanent in the original and nothing removes it. Ours is perman
 ## 29. The 100-turn battle limit (task 107)
 
 A battle still going after 100 turns is won by the defender (`TURN_LIMIT` in `battle/mod.rs`). The original has a limit too, **50 turns** (`Combat.c`, `Combat_Turn_Check`: `_combat_turn > 50` gives the battle to the defender), and ends with the message "All units retreat exhausted" (`message.lbx` 8) on the defeat scroll. We had recorded the limit as our own invention, which was wrong; the owner decided on 17 October 2026 to keep 100 knowing this.
+
+## 30. Spell Animations setting covers battle casts (task 280)
+
+In the original `magic_set.spell_animations` gates only the overland spell animations (summons, city enchantments, Change Terrain, the learn-spell scroll: `Spells130.c`, `Spells137.c`, `Spellbook.c`); `Combat_Cast_Apply_Spell_Effect` is always called with `anims_on` true, so battle animations ignore it. Ours skips the animations of the human's own battle casts when it is off, as the help (690, "spells you have thrown") reads and as a player who switches it off would expect. The rivals' casts still play. Decided 18 October 2026; `battle_screen/spell_anim.rs`. The overland animations do not exist yet (task 306, `overland_spell_animations.md`); when built they must check the same `Pref::SpellAnimations`, with the original's off path (the "You have completed casting..." box, which `spell_notices` already is).
