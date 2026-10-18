@@ -39,6 +39,18 @@ pub(crate) struct BookUi {
     /// A spell to start once the player has agreed to give up the one being cast, and whether
     /// giving it up is all that was asked (the spell clicked was the one being cast).
     pub replace: Option<(SpellId, bool)>,
+    /// The combat book (`Combat_Spellbook_Screen`): how each spell stands for the caster, in
+    /// place of the overland entries. `None` for the overland book.
+    pub combat: Option<std::collections::HashMap<SpellId, CombatEntry>>,
+}
+
+/// A spell in the combat book (`Combat_Spellbook_Compose`): what it costs now and how many
+/// times the caster could pay it this turn, shown as that many realm symbols (none: greyed).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CombatEntry {
+    pub cost: i32,
+    pub extra: bool,
+    pub icons: usize,
 }
 
 /// The realms in the order of the book's pages.
@@ -110,6 +122,7 @@ impl App {
         self.book_ui.pages = pages;
         self.book_ui.left = left - left % 2;
         self.book_ui.replace = None;
+        self.book_ui.combat = None;
         self.screen = Screen::Spellbook;
     }
 
@@ -164,6 +177,9 @@ impl App {
             }
             return;
         }
+        if self.book_turn.is_some() && !self.book_turn_frame() {
+            return;
+        }
         let pages = self.book_ui.pages.len();
         let left = self.book_ui.left;
         // Page turns: the corners, the arrow keys and the wheel.
@@ -171,21 +187,25 @@ impl App {
         if (is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::F) || wheel < 0.0)
             && left + 2 < pages
         {
-            self.book_ui.left += 2;
+            self.turn_book_page(false, true);
+            return;
         }
         if (is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::B) || wheel > 0.0) && left >= 2
         {
-            self.book_ui.left -= 2;
+            self.turn_book_page(false, false);
+            return;
         }
         let in_rect = |x: f32, y: f32, w: f32, h: f32| {
             lay.rect((x, y, w, h)).contains(mouse_position().into())
         };
         let clicked = is_mouse_button_pressed(MouseButton::Left);
         if clicked && in_rect(29.0, 14.0, 14.0, 13.0) && left >= 2 {
-            self.book_ui.left -= 2;
+            self.turn_book_page(false, false);
+            return;
         }
         if clicked && in_rect(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
-            self.book_ui.left += 2;
+            self.turn_book_page(false, true);
+            return;
         }
         // The ribbon at the bottom, Escape, V or a click outside the book close it.
         let ribbon = clicked && in_rect(175.0, 166.0, 19.0, 30.0);
@@ -225,52 +245,84 @@ impl App {
     }
 
     /// The open book: the page spread, its titles and spells, the corners and the ribbon.
-    fn draw_spellbook(&mut self, lay: &Layout, view: (f32, f32, f32)) {
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
-        draw_rectangle(
-            full.x,
-            full.y,
-            full.w,
-            full.h,
-            Color::new(0.1, 0.08, 0.06, 1.0),
-        );
+    pub(crate) fn draw_spellbook(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+        let (pages, left) = (self.book_ui.pages.len(), self.book_ui.left);
+        self.draw_book_spread(lay, view, left, left + 1, (left >= 2, left + 2 < pages));
+    }
+
+    /// The book picture with the pages `left_i` and `right_i` on it and the dog-ears `corners`
+    /// (left, right) asked for: a page turn shows other pages than the book's current spread.
+    pub(crate) fn draw_book_spread(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        left_i: usize,
+        right_i: usize,
+        corners: (bool, bool),
+    ) {
+        // The combat book lies on the battlefield; the overland one on a dark ground.
+        if self.book_ui.combat.is_none() {
+            let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+            draw_rectangle(
+                full.x,
+                full.y,
+                full.w,
+                full.h,
+                Color::new(0.1, 0.08, 0.06, 1.0),
+            );
+        }
         if self.draw_pic(lay, "spells", 0, 0, 16.0, 10.0).is_none() {
             let r = lay.rect((16.0, 10.0, 285.0, 186.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.55, 0.4, 0.2, 1.0));
         }
-        let (pages, left) = (self.book_ui.pages.len(), self.book_ui.left);
-        if left >= 2 {
+        if corners.0 {
             self.draw_pic(lay, "spells", 1, 0, 29.0, 14.0);
         }
-        if left + 2 < pages {
+        if corners.1 {
             self.draw_pic(lay, "spells", 2, 0, 274.0, 14.0);
         }
-        for (side, page_i) in [(0usize, left), (1, left + 1)] {
-            let Some(page) = self.book_ui.pages.get(page_i).cloned() else {
-                continue;
-            };
+        for (side, page_i) in [(0usize, left_i), (1, right_i)] {
             let x0 = if side == 0 { 32.0 } else { 164.0 };
-            // The title heads the left page, and a right page that starts a realm.
-            let starts_realm = page_i == 0
-                || self
-                    .book_ui
-                    .pages
-                    .get(page_i - 1)
-                    .is_none_or(|p| p.title != page.title);
-            if side == 0 || starts_realm {
-                self.bm_text(
-                    view,
-                    4,
-                    Color::new(0.45, 0.2, 0.1, 1.0),
-                    &page.title,
-                    x0 + 54.0,
-                    16.0,
-                    Align::Center,
-                );
-            }
-            for (i, &spell) in page.spells.iter().enumerate() {
-                self.draw_book_entry(lay, view, spell, x0, 31.0 + 22.0 * i as f32);
-            }
+            self.draw_book_page(lay, view, page_i, side == 1, x0, (x0 + 54.0, 16.0), 0.0);
+        }
+    }
+
+    /// A page of the small book: its title (on the left page and on a right page that starts a
+    /// realm) centred at `title`, and its spells with the page's left edge at `x0` and `dy`
+    /// added to their y.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_book_page(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        page_i: usize,
+        right: bool,
+        x0: f32,
+        title: (f32, f32),
+        dy: f32,
+    ) {
+        let Some(page) = self.book_ui.pages.get(page_i).cloned() else {
+            return;
+        };
+        let starts_realm = page_i == 0
+            || self
+                .book_ui
+                .pages
+                .get(page_i - 1)
+                .is_none_or(|p| p.title != page.title);
+        if !right || starts_realm {
+            self.bm_text(
+                view,
+                4,
+                Color::new(0.45, 0.2, 0.1, 1.0),
+                &page.title,
+                title.0,
+                title.1,
+                Align::Center,
+            );
+        }
+        for (i, &spell) in page.spells.iter().enumerate() {
+            self.draw_book_entry(lay, view, spell, x0, 31.0 + 22.0 * i as f32 + dy);
         }
     }
 
@@ -284,6 +336,16 @@ impl App {
         y: f32,
     ) {
         let def = self.game.content().rules.spells.get(spell).clone();
+        if let Some(entry) = self
+            .book_ui
+            .combat
+            .as_ref()
+            .and_then(|m| m.get(&spell))
+            .copied()
+        {
+            self.draw_combat_entry(lay, view, &def.name, &def.realm, entry, x, y);
+            return;
+        }
         let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
         let casting = magic.casting.filter(|c| c.spell == spell);
         let cost = casting.map_or_else(
@@ -291,7 +353,8 @@ impl App {
             |c| c.remaining,
         );
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
-        let hot = Color::new(0.7, 0.1, 0.05, 1.0);
+        // The spell being cast glows (palette index 198 cycling, `SmlBook_Draw`).
+        let hot = crate::cycle::SMALL_BOOK.colour(get_time());
         let color = if casting.is_some() { hot } else { ink };
         self.bm_text(view, 1, color, &def.name, x, y, Align::Left);
         self.bm_text(
@@ -339,6 +402,47 @@ impl App {
                     y + 7.0 + 6.0 * row as f32,
                 );
             }
+        }
+    }
+
+    /// One spell of the combat book (`Combat_Spellbook_Compose`): the name and what it costs
+    /// now, and a realm symbol for each time the caster could pay for it this turn (twenty to
+    /// a row); a spell that cannot be cast now is greyed.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_combat_entry(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        name: &str,
+        realm: &str,
+        entry: CombatEntry,
+        x: f32,
+        y: f32,
+    ) {
+        let ink = Color::new(0.2, 0.12, 0.05, 1.0);
+        let grey = Color::new(0.55, 0.5, 0.45, 1.0);
+        let color = if entry.icons == 0 { grey } else { ink };
+        self.bm_text(view, 1, color, name, x, y, Align::Left);
+        let cost = if entry.cost == 0 {
+            "?".to_string()
+        } else {
+            format!("{}{} MP", entry.cost, if entry.extra { "+" } else { "" })
+        };
+        self.bm_text(view, 1, color, &cost, x + 121.0, y, Align::Right);
+        let symbol = ["nature", "sorcery", "chaos", "life", "death", "arcane"]
+            .iter()
+            .position(|r| *r == realm)
+            .map_or(9, |i| 4 + i);
+        for t in 0..entry.icons.min(40) {
+            let (col, row) = (t % 20, t / 20);
+            self.draw_pic(
+                lay,
+                "spells",
+                symbol,
+                0,
+                x + 1.0 + 6.0 * col as f32,
+                y + 7.0 + 6.0 * row as f32,
+            );
         }
     }
 

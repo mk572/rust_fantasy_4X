@@ -527,6 +527,11 @@ impl App {
             self.test_spell_fx(id);
             return;
         }
+        if kind == "spell-book" {
+            self.battle_ui.ready = true;
+            self.battle_ui.spell_list = true;
+            return;
+        }
         use f4x_core::battle::field::Field;
         let spells = &self.game.content().rules.spells;
         let raised: Vec<_> = [
@@ -1277,10 +1282,13 @@ impl App {
         }
     }
 
-    /// The list of spells the wizard can cast, drawn over the field.
+    /// The spells the wizard (or the unit whose list is open) can cast, in the small spell book
+    /// over the field (`Combat_Spellbook_Screen`): each spell with what it costs now and a
+    /// realm symbol for every time it could be paid for this turn; one that cannot be cast is
+    /// greyed. A click on a spell picks it, the ribbon or Escape closes the book.
     fn draw_spell_list(&mut self, battle: &Battle) {
         let unit = self.battle_ui.spell_unit;
-        let spells = match unit {
+        let spells: Vec<f4x_core::battle::spells::BattleSpell> = match unit {
             Some(u) => self
                 .game
                 .battle_unit_spells(u)
@@ -1295,55 +1303,101 @@ impl App {
                 .collect(),
             None => self.game.battle_spells(HUMAN),
         };
-        let (row_h, width) = (26.0, 360.0);
+        // How many times the caster could pay: the skill left and the mana, or the unit's mana.
+        let caster = Self::my_caster(battle);
+        let limit = match unit.and_then(|u| battle.unit(u)) {
+            Some(u) => u.mana,
+            None => caster.map_or(0, |c| c.skill_left.min(c.mana)),
+        };
+        let entries: HashMap<SpellId, crate::spellbook::CombatEntry> = spells
+            .iter()
+            .map(|s| {
+                let icons = if !s.castable {
+                    0
+                } else if s.cost <= 0 {
+                    40
+                } else {
+                    ((limit / s.cost).max(1) as usize).min(40)
+                };
+                (
+                    s.spell,
+                    crate::spellbook::CombatEntry {
+                        cost: s.cost,
+                        extra: s.takes_extra_mana,
+                        icons,
+                    },
+                )
+            })
+            .collect();
+        let ids: Vec<SpellId> = spells.iter().map(|s| s.spell).collect();
+        self.book_ui.pages = self.book_pages(&ids, crate::spellbook::SMALL_PAGE);
+        self.book_ui.combat = Some(entries);
+        let (pages, last) = (
+            self.book_ui.pages.len(),
+            self.book_ui.pages.len().max(2) - 2,
+        );
+        self.book_ui.left = self.book_ui.left.min(last) & !1;
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        if self.book_turn.is_some() && !self.book_turn_frame() {
+            return;
+        }
+        let left = self.book_ui.left;
+        let (_, wheel) = mouse_wheel();
+        let forward = is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::F) || wheel < 0.0;
+        let back = is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::B) || wheel > 0.0;
+        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let in_rect = |x: f32, y: f32, w: f32, h: f32| {
+            lay.rect((x, y, w, h)).contains(mouse_position().into())
+        };
+        if (forward || (clicked && in_rect(274.0, 14.0, 14.0, 13.0))) && left + 2 < pages {
+            self.turn_book_page(false, true);
+            return;
+        }
+        if (back || (clicked && in_rect(29.0, 14.0, 14.0, 13.0))) && left >= 2 {
+            self.turn_book_page(false, false);
+            return;
+        }
+        if clicked && in_rect(175.0, 166.0, 19.0, 30.0) {
+            self.battle_ui.spell_list = false;
+            self.battle_ui.spell_unit = None;
+            return;
+        }
+        self.draw_spellbook(&lay, view);
+        if spells.is_empty() {
+            self.bm_text(
+                view,
+                1,
+                Color::new(0.2, 0.12, 0.05, 1.0),
+                "No spell to cast here",
+                60.0,
+                80.0,
+                Align::Left,
+            );
+        }
+        // Clicking a spell.
+        for (side, page_i) in [(0usize, left), (1, left + 1)] {
+            let Some(page) = self.book_ui.pages.get(page_i) else {
+                continue;
+            };
+            let x0 = if side == 0 { 32.0 } else { 164.0 };
+            for (i, &id) in page.spells.iter().enumerate() {
+                if clicked && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                    if let Some(spell) = spells.iter().find(|s| s.spell == id && s.castable) {
+                        self.pick_spell(spell);
+                        return;
+                    }
+                }
+            }
+        }
         // A unit with Creature Summoning also calls demons.
         let demons = unit
             .and_then(|u| battle.unit(u))
             .map_or(0, |u| u.casting.demons);
-        let rows = spells.len() + usize::from(demons > 0);
-        let height = (rows.max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
-        let (x, y) = (20.0, 20.0);
-        draw_rectangle(x, y, width, height, PANEL);
-        draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
-        let caster = Self::my_caster(battle);
-        let head = match unit.and_then(|u| battle.unit(u)) {
-            Some(u) => format!("{}   Mana {}   Esc closes", u.name, u.mana),
-            None => caster.map_or("No wizard".to_string(), |c| {
-                format!("Skill {}   Mana {}   Esc closes", c.skill_left, c.mana)
-            }),
-        };
-        draw_text(&head, x + 10.0, y + 22.0, 18.0, WHITE);
-        if spells.is_empty() && demons == 0 {
-            draw_text("No spell to cast here", x + 10.0, y + 50.0, 18.0, LIGHTGRAY);
-        }
-        let room = ((height - 34.0) / row_h) as usize;
-        for (i, spell) in spells.iter().take(room).enumerate() {
-            let def = self.game.content().rules.spells.get(spell.spell);
-            let label = format!(
-                "{}   {}{}",
-                def.name,
-                spell.cost,
-                if spell.takes_extra_mana { "+" } else { "" }
-            );
-            let rect = Rect::new(
-                x + 8.0,
-                y + 30.0 + i as f32 * row_h,
-                width - 16.0,
-                row_h - 2.0,
-            );
-            if button(rect, &label, spell.castable) {
-                self.pick_spell(spell);
-            }
-        }
         if let (Some(u), true) = (unit, demons > 0) {
-            let rect = Rect::new(
-                x + 8.0,
-                y + 30.0 + spells.len() as f32 * row_h,
-                width - 16.0,
-                row_h - 2.0,
-            );
-            let label = format!("Summon Demon   ({demons} left)");
-            if button(rect, &label, self.game.can_summon_demon(u)) {
+            let r = lay.rect((100.0, 170.0, 70.0, 16.0));
+            let label = format!("Summon Demon ({demons})");
+            if button(r, &label, self.game.can_summon_demon(u)) {
                 self.battle_ui.spell_list = false;
                 self.battle_ui.spell_unit = None;
                 self.battle_order(BattleCommand::SummonDemon { unit: u });

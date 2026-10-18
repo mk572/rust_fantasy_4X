@@ -23,6 +23,20 @@ pub const MAIN: Cycle = Cycle {
     step: 3,
 };
 
+/// The small spell book (`SmlBook_Draw`): the spell being cast, in pale greys.
+pub const SMALL_BOOK: Cycle = Cycle {
+    min: [41, 33, 29],
+    max: [48, 43, 43],
+    step: 3,
+};
+
+/// The big spell book (`BigBook_Draw`): the spell being researched, in pale blues.
+pub const BIG_BOOK: Cycle = Cycle {
+    min: [29, 41, 63],
+    max: [44, 56, 63],
+    step: 2,
+};
+
 /// The cycle the original runs while it shows a picture of this `.lbx` file: the start menu's and
 /// pictures pulse; the other screens that carry index 198 (the load screen, whose palette
 /// `LoadScr.c` loads without a cycle and only restarts the cycle on leaving it, the intro, the

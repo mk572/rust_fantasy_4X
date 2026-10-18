@@ -152,8 +152,9 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   animations). The client (`cycle.rs`, `draw_pic_tinted`) draws the mask over the picture in the
   colour of the moment, for the files whose screen cycles (`cycle::for_file`: the menu); the other screens keep the base colour, as in the original, which only cycles
   while the cycling screens run. Text uses the same colour (a negative income on the main screen).
-  The combat and spell book ranges are not wired up: no combat picture uses the index, and the
-  book's glow belongs to task 166.
+  The combat range is not wired up: no combat picture uses the index. The spell book ranges are
+  (`cycle::SMALL_BOOK`, `BIG_BOOK`): the book's pictures hold no index 198 pixels; it is the text of the
+  spell being cast or researched that is drawn in it, so the client tints that text.
 - **Glass (translucent) pixels:** in a picture that brings no palette of its own, the indexes
   from 232 on are not colours but tints: each blends a colour into what is under it
   (`Create_Remap_Palette`; the 24 blocks, six-bit red, green, blue and a percent, are in the base

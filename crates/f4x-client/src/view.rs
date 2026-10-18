@@ -145,6 +145,8 @@ pub struct App {
     pub(crate) book_ui: crate::spellbook::BookUi,
     /// The big spell book: the library, the research choice, spells just learned.
     pub(crate) big_ui: crate::bigbook::BigBookUi,
+    /// A page turn of the spell books in progress (`page_turn.rs`).
+    pub(crate) book_turn: Option<crate::page_turn::BookTurn>,
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
@@ -157,6 +159,8 @@ pub struct App {
     pub(crate) event_notices: std::collections::VecDeque<f4x_core::events::EventNotice>,
     /// The buildings the human's cities finished, to be announced, oldest first.
     /// The spells that fizzled or were dispelled, to be announced.
+    /// Global enchantments cast and not yet shown in the mirror (`global_spell.rs`).
+    pub(crate) global_casts: crate::global_spell::GlobalCasts,
     pub(crate) spell_notices: std::collections::VecDeque<crate::event_popup::SpellNotice>,
     pub(crate) built_notices:
         std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
@@ -273,6 +277,7 @@ impl App {
             defences: Default::default(),
             turn_events: None,
             book_ui: Default::default(),
+            book_turn: None,
             big_ui: Default::default(),
             help: Default::default(),
             event_texts: Vec::new(),
@@ -280,6 +285,7 @@ impl App {
             item_pool_warning: false,
             event_notices: Default::default(),
             built_notices: Default::default(),
+            global_casts: Default::default(),
             spell_notices: Default::default(),
             targeting: None,
             turn_pending: 0,
@@ -622,10 +628,13 @@ impl App {
                     self.greetings.extend(due);
                     None
                 }
-                Event::SpellCast { spell, .. } => Some(format!(
-                    "Cast {}",
-                    self.game.content().rules.spells.get(spell).name
-                )),
+                Event::SpellCast { player, spell } => {
+                    self.announce_global_cast(player, spell);
+                    Some(format!(
+                        "Cast {}",
+                        self.game.content().rules.spells.get(spell).name
+                    ))
+                }
                 Event::SpellFizzled { spell, city, .. } => Some(format!(
                     "{} fizzles: nightshade protects {}",
                     self.game.content().rules.spells.get(spell).name,
@@ -1147,6 +1156,10 @@ impl App {
             return true;
         }
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.event_popup_frame()
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.global_cast_frame()
         {
             return true;
         }

@@ -27,6 +27,7 @@ mod enemy_city_screen;
 mod event_popup;
 mod frame;
 mod game_over_screen;
+mod global_spell;
 mod hall_of_fame;
 mod item_screen;
 mod learn_spell;
@@ -38,6 +39,7 @@ mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
+mod page_turn;
 mod pointer;
 mod preferences;
 mod river_art;
@@ -137,6 +139,13 @@ struct Options {
     built: Option<String>,
     /// Announce this spell (an id) as just learned; `--learn-at` starts the animation that many seconds in.
     learn: Option<String>,
+    /// With `--spells` or `--apprentice`: show a page turn (`forward` or `back`) `--turn-at` seconds in.
+    turn: Option<String>,
+    turn_at: f64,
+    /// Show this global spell (an id) being cast, by `--global-by` (a player number, 0 you) and `--global-at` seconds in.
+    global: Option<String>,
+    global_by: u8,
+    global_at: f64,
     learn_at: f64,
     /// With `--shot`, show the box of a spell that fizzled.
     fizzle: bool,
@@ -214,6 +223,11 @@ fn parse_args() -> Result<Options, String> {
         event: None,
         built: None,
         learn: None,
+        turn: None,
+        turn_at: 0.0,
+        global: None,
+        global_by: 0,
+        global_at: 0.0,
         learn_at: 0.0,
         fizzle: false,
         dispelled: None,
@@ -256,6 +270,23 @@ fn parse_args() -> Result<Options, String> {
             "--fizzle" => o.fizzle = true,
             "--built" => o.built = Some(value("--built")?),
             "--learn" => o.learn = Some(value("--learn")?),
+            "--turn" => o.turn = Some(value("--turn")?),
+            "--turn-at" => {
+                o.turn_at = value("--turn-at")?
+                    .parse()
+                    .map_err(|_| "--turn-at must be a number of seconds")?
+            }
+            "--global" => o.global = Some(value("--global")?),
+            "--global-by" => {
+                o.global_by = value("--global-by")?
+                    .parse()
+                    .map_err(|_| "--global-by must be a player number")?
+            }
+            "--global-at" => {
+                o.global_at = value("--global-at")?
+                    .parse()
+                    .map_err(|_| "--global-at must be a number of seconds")?
+            }
             "--learn-at" => {
                 o.learn_at = value("--learn-at")?
                     .parse()
@@ -358,7 +389,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -438,6 +469,9 @@ async fn main() {
     if options.research {
         app.open_research_choice();
     }
+    if let Some(way) = &options.turn {
+        app.open_test_page_turn(options.apprentice, way == "forward", options.turn_at);
+    }
     if let Some(id) = &options.battle_site {
         app.set_test_feature(id);
     }
@@ -497,6 +531,9 @@ async fn main() {
     }
     if let Some(kind) = &options.results {
         app.open_test_results(kind);
+    }
+    if let Some(id) = &options.global {
+        app.open_test_global(id, options.global_by, options.global_at);
     }
     if let Some(id) = &options.learn {
         app.open_test_learn(id, options.learn_at);

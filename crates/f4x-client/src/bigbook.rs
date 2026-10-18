@@ -167,6 +167,9 @@ impl App {
     pub(crate) fn apprentice_screen(&mut self) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
+        if self.book_turn.is_some() && !self.book_turn_frame() {
+            return;
+        }
         let pages = self.big_ui.pages.len();
         let left = self.big_ui.left;
         let clicked = is_mouse_button_pressed(MouseButton::Left);
@@ -181,9 +184,11 @@ impl App {
             || is_key_pressed(KeyCode::Left)
             || wheel > 0.0;
         if forward && left + 2 < pages {
-            self.big_ui.left += 2;
+            self.turn_book_page(true, true);
+            return;
         } else if back && left >= 2 {
-            self.big_ui.left -= 2;
+            self.turn_book_page(true, false);
+            return;
         } else if is_key_pressed(KeyCode::Escape)
             || is_key_pressed(KeyCode::F3)
             || is_mouse_button_pressed(MouseButton::Right)
@@ -253,6 +258,23 @@ impl App {
         view: (f32, f32, f32),
         hide: Option<(usize, usize)>,
     ) {
+        let (pages, left) = (self.big_ui.pages.len(), self.big_ui.left);
+        let browsing = self.big_ui.mode == BigMode::Apprentice;
+        let corners = (browsing && left >= 1, browsing && left + 2 < pages);
+        self.draw_big_spread(lay, view, left, left + 1, corners, hide);
+    }
+
+    /// The book picture with the pages `left_i` and `right_i` and the dog-ears `corners` asked
+    /// for (a page turn shows other pages than the current spread).
+    pub(crate) fn draw_big_spread(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        left_i: usize,
+        right_i: usize,
+        corners: (bool, bool),
+        hide: Option<(usize, usize)>,
+    ) {
         let full = lay.rect((0.0, 0.0, 320.0, 200.0));
         if self.draw_pic(lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
             draw_rectangle(
@@ -263,56 +285,71 @@ impl App {
                 Color::new(0.55, 0.4, 0.2, 1.0),
             );
         }
-        let (pages, left) = (self.big_ui.pages.len(), self.big_ui.left);
-        if self.big_ui.mode == BigMode::Apprentice {
-            if left >= 1 {
-                self.draw_pic(lay, "scroll", 7, 0, 15.0, 9.0);
-            }
-            if left + 2 < pages {
-                self.draw_pic(lay, "scroll", 8, 0, 289.0, 9.0);
-            }
+        if corners.0 {
+            self.draw_pic(lay, "scroll", 7, 0, 15.0, 9.0);
         }
-        for (side, page_i) in [(0usize, left), (1, left + 1)] {
-            let Some(page) = self.big_ui.pages.get(page_i).cloned() else {
-                continue;
-            };
+        if corners.1 {
+            self.draw_pic(lay, "scroll", 8, 0, 289.0, 9.0);
+        }
+        for (side, page_i) in [(0usize, left_i), (1, right_i)] {
             let x0 = if side == 0 { 25.0 } else { 173.0 };
-            let title_x = x0 + if side == 0 { 66.0 } else { 58.0 };
-            let starts_realm = page_i == self.big_ui.first_research
-                || page_i == 0
-                || self
-                    .big_ui
-                    .pages
-                    .get(page_i - 1)
-                    .is_none_or(|p| p.title != page.title);
-            if side == 0 || starts_realm {
-                self.bm_text(
-                    view,
-                    5,
-                    Color::new(0.45, 0.2, 0.1, 1.0),
-                    &page.title,
-                    title_x,
-                    10.0,
-                    Align::Center,
-                );
+            let title = (x0 + if side == 0 { 66.0 } else { 58.0 }, 10.0);
+            self.draw_big_page(lay, view, page_i, side == 1, x0, title, 0.0, hide);
+        }
+    }
+
+    /// A page of the big book: its title (on the left page and on a right page that starts a
+    /// realm) centred at `title`, and its spells with the page's left edge at `x0` and `dy`
+    /// added to their y.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_big_page(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        page_i: usize,
+        right: bool,
+        x0: f32,
+        title: (f32, f32),
+        dy: f32,
+        hide: Option<(usize, usize)>,
+    ) {
+        let Some(page) = self.big_ui.pages.get(page_i).cloned() else {
+            return;
+        };
+        let starts_realm = page_i == self.big_ui.first_research
+            || page_i == 0
+            || self
+                .big_ui
+                .pages
+                .get(page_i - 1)
+                .is_none_or(|p| p.title != page.title);
+        if !right || starts_realm {
+            self.bm_text(
+                view,
+                5,
+                Color::new(0.45, 0.2, 0.1, 1.0),
+                &page.title,
+                title.0,
+                title.1,
+                Align::Center,
+            );
+        }
+        let research_page = page_i >= self.big_ui.first_research
+            && self.big_ui.mode == BigMode::Apprentice
+            || self.big_ui.mode == BigMode::Research;
+        for (i, &spell) in page.spells.iter().enumerate() {
+            if hide == Some((page_i, i)) {
+                continue;
             }
-            let research_page = page_i >= self.big_ui.first_research
-                && self.big_ui.mode == BigMode::Apprentice
-                || self.big_ui.mode == BigMode::Research;
-            for (i, &spell) in page.spells.iter().enumerate() {
-                if hide == Some((page_i, i)) {
-                    continue;
-                }
-                self.draw_big_entry(
-                    lay,
-                    view,
-                    spell,
-                    x0,
-                    28.0 + 37.0 * i as f32,
-                    research_page,
-                    None,
-                );
-            }
+            self.draw_big_entry(
+                lay,
+                view,
+                spell,
+                x0,
+                28.0 + 37.0 * i as f32 + dy,
+                research_page,
+                None,
+            );
         }
     }
 
@@ -334,7 +371,8 @@ impl App {
         let current = magic.researching == Some(spell);
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
         let faint = Color::new(0.5, 0.4, 0.3, 1.0);
-        let hot = Color::new(0.7, 0.1, 0.05, 1.0);
+        // The spell being researched glows (palette index 198 cycling, `BigBook_Draw`).
+        let hot = crate::cycle::BIG_BOOK.colour(get_time());
         let color = ink_override.unwrap_or(if current {
             hot
         } else if known || research_page {

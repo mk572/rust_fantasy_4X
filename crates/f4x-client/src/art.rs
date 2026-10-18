@@ -144,6 +144,7 @@ pub struct Art {
     /// Combat figures painted in a banner, by (unit type, direction, frame, banner).
     figures: HashMap<FigureKey, Option<Texture2D>>,
     unit_pictures: HashMap<(String, usize, u8), Option<Texture2D>>,
+    masked: HashMap<(String, usize, usize, usize, usize), Option<Texture2D>>,
     /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
 }
@@ -219,6 +220,7 @@ impl Art {
             figures: HashMap::new(),
             glows: HashMap::new(),
             unit_pictures: HashMap::new(),
+            masked: HashMap::new(),
         }
     }
 
@@ -710,6 +712,55 @@ impl Art {
     /// One of the original's mouse pointers, numbered from 1 (`crsr_Finger`).
     pub fn cursor(&mut self, number: usize) -> Option<&Texture2D> {
         self.texture(PathBuf::from(format!("cursors/{number:02}.png")))
+    }
+
+    /// A picture of `lbx` with its pixels cleared wherever frame `mask_frame` of `specfx` entry
+    /// `mask_entry` is transparent (`Clipped_Copy_Mask` as `OVL_DrawGlobalAnim` uses it): only
+    /// what lies under the mask's solid part shows.
+    pub fn masked_picture(
+        &mut self,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        mask_entry: usize,
+        mask_frame: usize,
+    ) -> Option<&Texture2D> {
+        let key = (lbx.to_string(), entry, frame, mask_entry, mask_frame);
+        if !self.masked.contains_key(&key) {
+            let tex = self.load_masked(lbx, entry, frame, mask_entry, mask_frame);
+            self.masked.insert(key.clone(), tex);
+        }
+        self.masked.get(&key).and_then(Option::as_ref)
+    }
+
+    fn load_masked(
+        &self,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        mask_entry: usize,
+        mask_frame: usize,
+    ) -> Option<Texture2D> {
+        let read = |lbx: &str, entry: usize, frame: usize| {
+            let path = self.dir.join(picture_path(&self.placed, lbx, entry, frame));
+            let bytes = std::fs::read(path).ok()?;
+            Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
+        };
+        let mut img = read(lbx, entry, frame)?;
+        let mask = read("specfx", mask_entry, mask_frame)?;
+        let (w, h) = (usize::from(img.width), usize::from(img.height));
+        let (mw, mh) = (usize::from(mask.width), usize::from(mask.height));
+        for y in 0..h {
+            for x in 0..w {
+                let solid = x < mw && y < mh && mask.bytes[(y * mw + x) * 4 + 3] > 0;
+                if !solid {
+                    img.bytes[(y * w + x) * 4 + 3] = 0;
+                }
+            }
+        }
+        let tex = Texture2D::from_image(&img);
+        tex.set_filter(FilterMode::Nearest);
+        Some(tex)
     }
 
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
