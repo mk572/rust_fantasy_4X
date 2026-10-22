@@ -101,13 +101,13 @@ impl App {
     /// Lay out the library (every spell known or researchable, then the research pages) in
     /// `big_ui`, open at the research pages. False without a wizard.
     pub(crate) fn build_library_pages(&mut self) -> bool {
-        let Some(m) = self.game.magic(HUMAN).as_deref().cloned() else {
+        let Some(m) = self.game.wizard(HUMAN) else {
             return false;
         };
         let all: Vec<SpellId> = m
-            .known
+            .known()
             .iter()
-            .chain(m.researchable.iter())
+            .chain(m.researchable().iter())
             .copied()
             .collect();
         let mut pages = self.book_pages(&all, BIG_PAGE);
@@ -124,8 +124,8 @@ impl App {
     fn research_pages(&self) -> Vec<BookPage> {
         let offer = self
             .game
-            .magic(HUMAN)
-            .map(|m| m.candidates.clone())
+            .wizard(HUMAN)
+            .map(|m| m.candidates().clone())
             .unwrap_or_default();
         let page = |i: usize, title: &str| BookPage {
             title: title.to_string(),
@@ -156,8 +156,8 @@ impl App {
         }
         let idle = self
             .game
-            .magic(HUMAN)
-            .is_some_and(|m| m.researching.is_none() && !m.candidates.is_empty());
+            .wizard(HUMAN)
+            .is_some_and(|m| m.researching().is_none() && !m.candidates().is_empty());
         let alive = self.game.player(HUMAN).is_some() && !self.game.is_defeated(HUMAN);
         if idle && alive && self.game.game_over.is_none() {
             self.open_research_choice();
@@ -217,8 +217,8 @@ impl App {
                 {
                     let Some(spell) = self
                         .game
-                        .magic(HUMAN)
-                        .and_then(|m| m.candidates.get(slot).copied())
+                        .wizard(HUMAN)
+                        .and_then(|m| m.candidates().get(slot).copied())
                     else {
                         continue;
                     };
@@ -366,14 +366,10 @@ impl App {
         ink_override: Option<Color>,
     ) {
         let def = self.game.content().rules.spells.get(spell).clone();
-        let magic = self
-            .game
-            .magic(HUMAN)
-            .as_deref()
-            .cloned()
-            .unwrap_or_default();
-        let known = magic.known.contains(&spell);
-        let current = magic.researching == Some(spell);
+        let magic = self.game.wizard(HUMAN);
+        let known = magic.is_some_and(|m| m.knows(spell));
+        let current = magic.is_some_and(|m| m.researching() == Some(spell));
+        let research_left = magic.map_or(0, |m| m.research_remaining());
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
         let faint = Color::new(0.5, 0.4, 0.3, 1.0);
         // The spell being researched glows (palette index 198 cycling, `BigBook_Draw`).
@@ -387,11 +383,11 @@ impl App {
         });
         self.bm_text(view, 4, color, &def.name, x, y, Align::Left);
         let line = if research_page {
-            let bonus = self.game.magic(HUMAN).map_or(0, |m| {
+            let bonus = self.game.wizard(HUMAN).map_or(0, |m| {
                 m.research_bonus(self.game.content().rules.spells.get(spell))
             });
             let cost = if current {
-                magic.research_remaining
+                research_left
             } else {
                 def.research_cost as i32 * 100 / (100 + bonus)
             };
@@ -407,10 +403,14 @@ impl App {
             )
         } else {
             let cost = self.game.casting_cost(HUMAN, spell, false);
-            let limit = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill()).min(
-                self.game.treasury(HUMAN).map_or(0, |p| p.mana)
-                    + self.game.income(HUMAN).split.mana,
-            );
+            let limit = self
+                .game
+                .wizard(HUMAN)
+                .map_or(0, |m| m.casting_skill())
+                .min(
+                    self.game.treasury(HUMAN).map_or(0, |p| p.mana)
+                        + self.game.income(HUMAN).split.mana,
+                );
             let turns = if limit <= 0 {
                 999
             } else {

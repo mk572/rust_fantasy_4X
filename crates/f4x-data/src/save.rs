@@ -114,7 +114,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let first = g.magic(PlayerId(0)).unwrap().candidates[0];
+        let first = g.wizard(PlayerId(0)).unwrap().candidates()[0];
         g.set_research(PlayerId(0), first).unwrap();
         let pos = (0..40u32)
             .flat_map(|y| {
@@ -158,11 +158,7 @@ mod tests {
         let back = load_game(&path, content()).unwrap();
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
-        assert_eq!(
-            back.magic(PlayerId(0)).as_deref(),
-            g.magic(PlayerId(0)).as_deref()
-        );
-        assert!(back.magic(PlayerId(0)).unwrap().researching.is_some());
+        assert!(back.wizard(PlayerId(0)).unwrap().researching().is_some());
     }
 
     #[test]

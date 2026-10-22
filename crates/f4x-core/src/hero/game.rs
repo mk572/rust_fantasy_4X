@@ -70,7 +70,7 @@ impl UnitView<'_> {
 
     /// What `roster::pick` asks of the wizard: fame and the books that unlock some heroes.
     pub fn hero_standing(&self, player: PlayerId) -> Standing {
-        let magic = self.magic(player);
+        let magic = self.wizard(player);
         Standing {
             fame: self.fame(player),
             life_books: magic.as_ref().map_or(0, |m| m.books_in("life")),
@@ -90,7 +90,7 @@ impl UnitView<'_> {
         let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
         let level = roster::level_of(rules, unit, record.xp);
         let charismatic = self
-            .magic(player)
+            .wizard(player)
             .is_some_and(|m| m.has(Retort::Charismatic));
         Some(roster::hire_cost(cost, level, charismatic))
     }
@@ -441,22 +441,25 @@ pub(crate) mod tests {
         );
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.
-        g.pl_mut(0).magic = crate::wizard::magic::Magic::new(&[("life", 2)], &[]);
+        g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         let spell = g.content.rules.spells.id_of("healing").unwrap();
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
-        let nominal = g.magic(P0).unwrap().casting_skill();
-        g.magic_mut(P0).unwrap().casting = Some(Casting {
+        let nominal = g.wizard(P0).unwrap().casting_skill();
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .casting = Some(Casting {
             spell,
             remaining: 1000,
         });
         g.tr_mut(0).mana = 5000;
         let _ = g.process_magic();
-        let left = g.magic(P0).unwrap().casting.unwrap().remaining;
+        let left = g.wizard(P0).unwrap().casting().unwrap().remaining;
         assert_eq!(1000 - left, nominal + hero_skill);
         // The heroes' skill counts for that turn only: the next payment is the wizard's alone.
         let _ = g.process_magic();
-        let after = g.magic(P0).unwrap().casting.unwrap().remaining;
+        let after = g.wizard(P0).unwrap().casting().unwrap().remaining;
         assert_eq!(
             left - after,
             nominal + hero_skill,
@@ -464,7 +467,7 @@ pub(crate) mod tests {
         );
         g.remove_unit(sage, Fate::Released);
         let _ = g.process_magic();
-        let last = g.magic(P0).unwrap().casting.unwrap().remaining;
+        let last = g.wizard(P0).unwrap().casting().unwrap().remaining;
         assert_eq!(after - last, nominal);
     }
 
@@ -549,9 +552,10 @@ pub(crate) mod tests {
             g.units().hero_hire_price(P0, 0),
             Some(100 + level as i32 * 100 / 4)
         );
-        g.pl_mut(0)
-            .magic
-            .retorts
+        g.wizard_mut(crate::player::PlayerId(0))
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
             .insert(crate::wizard::magic::Retort::Charismatic);
         assert_eq!(
             g.units().hero_hire_price(P0, 0),
@@ -568,7 +572,7 @@ pub(crate) mod tests {
             let k = g.pick_hero(P0, false, Class::Any);
             assert!(matches!(k, None | Some(0)), "{k:?}");
         }
-        g.pl_mut(0).fame = 50;
+        g.set_fame(crate::player::PlayerId(0), 50);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..400 {
             if let Some(k) = g.pick_hero(P0, false, Class::Any) {
@@ -577,7 +581,11 @@ pub(crate) mod tests {
         }
         assert!(seen.len() >= 4 && !seen.contains(&6), "{seen:?}");
         // A summoning ignores the fame; the death book unlocks the necromancer.
-        g.pl_mut(0).magic.books.insert("death".into(), 1);
+        g.wizard_mut(crate::player::PlayerId(0))
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Books>()
+            .0
+            .insert("death".into(), 1);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..800 {
             if let Some(k) = g.pick_hero(P0, true, Class::Any) {

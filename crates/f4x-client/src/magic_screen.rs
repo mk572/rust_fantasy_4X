@@ -126,8 +126,11 @@ pub(crate) struct MagicUi {
 impl App {
     pub fn open_magic(&mut self) {
         let (m, r, s) = {
-            let m = self.game.magic(HUMAN);
-            m.map_or((34, 33, 33), |m| (m.mana_pct, m.research_pct, m.skill_pct))
+            let m = self.game.wizard(HUMAN);
+            m.map_or((34, 33, 33), |m| {
+                let s = m.power_split();
+                (s.mana, s.research, s.skill)
+            })
         };
         self.magic_ui = MagicUi {
             pos: staves_from_split(m, r, s),
@@ -139,14 +142,15 @@ impl App {
     /// Every overland enchantment in play, with its wizard: the original lists all of them.
     fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::player::PlayerId)> {
         self.game
-            .players()
+            .player_ids()
             .into_iter()
-            .flat_map(|(id, p)| {
-                p.magic
-                    .global
-                    .iter()
-                    .map(move |&s| (s, id))
-                    .collect::<Vec<_>>()
+            .flat_map(|id| {
+                self.game
+                    .wizard(id)
+                    .map(|w| w.global())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(move |s| (s, id))
             })
             .collect()
     }
@@ -302,12 +306,8 @@ impl App {
         } else {
             income.split
         };
-        let magic = self
-            .game
-            .magic(HUMAN)
-            .as_deref()
-            .cloned()
-            .unwrap_or_default();
+        let researching_spell = self.game.wizard(HUMAN).and_then(|m| m.researching());
+        let casting_spell = self.game.wizard(HUMAN).and_then(|m| m.casting());
         self.bm_text(
             view,
             2,
@@ -317,7 +317,7 @@ impl App {
             160.0,
             Align::Right,
         );
-        if magic.researching.is_none() {
+        if researching_spell.is_none() {
             self.bm_text(view, 2, gold, "No Spell", 67.0, 100.0, Align::Left);
         } else {
             self.bm_text(
@@ -340,17 +340,13 @@ impl App {
             Align::Right,
         );
 
-        let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
+        let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
         let reserve = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let base = income.power_base;
         let name =
             |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
-        let casting = magic
-            .casting
-            .map_or("None".to_string(), |c| name(&self.game, c.spell));
-        let researching = magic
-            .researching
-            .map_or("None".to_string(), |s| name(&self.game, s));
+        let casting = casting_spell.map_or("None".to_string(), |c| name(&self.game, c.spell));
+        let researching = researching_spell.map_or("None".to_string(), |s| name(&self.game, s));
         let summon = self
             .game
             .player(HUMAN)
@@ -538,7 +534,7 @@ impl App {
         let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let skilled = self
             .game
-            .magic(HUMAN)
+            .wizard(HUMAN)
             .is_some_and(|m| m.has(Retort::Alchemy));
         let divisor = if skilled { 1 } else { 2 };
         let pool = if ui.gold_to_mana { gold } else { mana };

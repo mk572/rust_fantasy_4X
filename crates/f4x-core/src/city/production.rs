@@ -400,7 +400,7 @@ impl Economy<'_> {
         let mut weapons = self.city_weapon_quality(city);
         if weapons == 0
             && self
-                .magic(owner)
+                .wizard(owner)
                 .is_some_and(|m| m.has(crate::wizard::magic::Retort::Alchemy))
         {
             weapons = crate::unit::WEAPON_MAGIC;

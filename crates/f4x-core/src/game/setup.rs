@@ -248,6 +248,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.set_human((!spec.all_ai).then_some(HUMAN));
     game.apply_wizard_settings();
     for k in 0..wizards {
+        game.give_main_realm_spell(PlayerId(k));
+    }
+    for k in 0..wizards {
         let id = PlayerId(k);
         let human = game.human() == Some(id);
         let (gold, mana) = (
@@ -346,8 +349,7 @@ fn fallback_name(content: &Content, seed: u64, k: usize) -> String {
 
 /// Whether the wizard has the Myrran retort (and so starts on Myrror).
 fn is_myrran(game: &Game, player: PlayerId) -> bool {
-    game.player(player)
-        .is_some_and(|p| p.magic.has(Retort::Myrran))
+    game.wizard(player).is_some_and(|w| w.has(Retort::Myrran))
 }
 
 /// Where wizard `k` of `n` starts: spread round the middle of the map.

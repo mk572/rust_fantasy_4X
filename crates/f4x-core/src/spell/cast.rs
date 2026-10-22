@@ -324,12 +324,12 @@ impl EffectHost for GameHost<'_> {
         let Some(owner) = self.owner_of(who) else {
             return;
         };
-        if let Some((p, t)) = self.game.player_treasury_mut(owner) {
+        if let Some(t) = self.game.treasury_mut(owner) {
             t.gold += gold;
             t.mana += mana;
-            if p.magic.researching.is_some() {
-                p.magic.research_remaining = (p.magic.research_remaining - research).max(0);
-            }
+        }
+        if let Some(mut w) = self.game.wizard_mut(owner) {
+            w.add_research(research);
         }
     }
 
@@ -677,7 +677,7 @@ impl Game {
                         || self.mana_spent_casting(p).is_some())
             }
             (SpellTarget::GlobalEnchantment, Some(Target::Global(owner, s))) => {
-                owner != player && self.magic(owner).is_some_and(|m| m.global.contains(&s))
+                owner != player && self.wizard(owner).is_some_and(|m| m.has_global(s))
             }
             (SpellTarget::Tile, Some(Target::Tile(p))) => self
                 .map
@@ -715,10 +715,8 @@ impl Game {
                 let _ = self.world.insert_one(u, UnitEnchantments(list));
             }
             Target::Player(p) => {
-                if let Some(m) = self.player_mut(p).map(|p| &mut p.magic) {
-                    if !m.global.contains(&spell) {
-                        m.global.push(spell);
-                    }
+                if let Some(mut w) = self.wizard_mut(p) {
+                    w.add_global(spell);
                 }
                 self.reveal_for_globals(p);
             }
@@ -734,8 +732,8 @@ impl Game {
         spell: SpellId,
         target: Option<Target>,
     ) -> Vec<Event> {
-        if let Some(m) = self.player_mut(player).map(|p| &mut p.magic) {
-            m.casting = None;
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.clear_casting();
         }
         if let Some(by) = self.suppressed_by(player, spell) {
             return vec![Event::SpellSuppressed { player, spell, by }];
@@ -839,8 +837,8 @@ impl Game {
         let mut items = Vec::new();
         // Time Stop's wizard pays for that spell alone.
         let only_time_stop = self.time_stopper() == Some(player);
-        if let Some(m) = self.magic(player) {
-            for &s in &m.global {
+        if let Some(m) = self.wizard(player) {
+            for s in m.global() {
                 if only_time_stop && spells.get(s).id != "time_stop" {
                     continue;
                 }
@@ -909,8 +907,8 @@ impl Game {
     pub(crate) fn drop_upkeep_item(&mut self, player: PlayerId, item: UpkeepItem) -> Vec<Event> {
         match item.kind {
             UpkeepKind::Global(s) => {
-                if let Some(m) = self.player_mut(player).map(|p| &mut p.magic) {
-                    m.global.retain(|&x| x != s);
+                if let Some(mut w) = self.wizard_mut(player) {
+                    w.remove_global(s);
                 }
                 vec![Event::EnchantmentLapsed { player, spell: s }]
             }

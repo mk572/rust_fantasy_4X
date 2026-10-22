@@ -123,7 +123,7 @@ impl Game {
     /// How many times its cost a spell cast by `caster` resists: one, plus one for the
     /// caster's mastery of its realm and one for Archmage.
     pub fn dispel_multiplier(&self, realm: &str, caster: Option<PlayerId>) -> u32 {
-        let Some(m) = caster.and_then(|c| self.magic(c)) else {
+        let Some(m) = caster.and_then(|c| self.wizard(c)) else {
             return 1;
         };
         let mastery = match realm {
@@ -308,19 +308,16 @@ impl Game {
         steal: bool,
         rng: &mut dyn RngCore,
     ) -> Option<bool> {
-        if victim == by || !self.magic(victim)?.global.contains(&spell) {
+        if victim == by || !self.wizard(victim)?.has_global(spell) {
             return None;
         }
         let difficulty = self.dispel_difficulty(spell, Some(victim));
         if !dispel_roll(strength, difficulty, rng) {
             return Some(false);
         }
-        self.magic_mut(victim)?.global.retain(|&s| s != spell);
+        self.wizard_mut(victim)?.remove_global(spell);
         if steal {
-            let mine = self.magic_mut(by)?;
-            if !mine.global.contains(&spell) {
-                mine.global.push(spell);
-            }
+            self.wizard_mut(by)?.add_global(spell);
             self.reveal_for_globals(by);
         }
         Some(true)
@@ -328,7 +325,7 @@ impl Game {
 
     /// Spell Blast: the mana `victim` has put into the spell being cast, if any.
     pub fn mana_spent_casting(&self, victim: PlayerId) -> Option<i32> {
-        let c = self.magic(victim)?.casting?;
+        let c = self.wizard(victim)?.casting()?;
         Some((self.casting_cost(victim, c.spell, false) - c.remaining).max(0))
     }
 
@@ -343,9 +340,9 @@ impl Game {
         if self.treasury(by)?.mana < spent {
             return None;
         }
-        let spell = self.magic(victim)?.casting?.spell;
+        let spell = self.wizard(victim)?.casting()?.spell;
         self.treasury_mut(by)?.mana -= spent;
-        self.magic_mut(victim)?.casting = None;
+        self.wizard_mut(victim)?.clear_casting();
         Some((spell, spent))
     }
 

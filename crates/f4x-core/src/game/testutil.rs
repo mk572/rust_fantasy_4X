@@ -472,12 +472,22 @@ pub struct FakeView {
     pub treasuries: Vec<(crate::player::PlayerId, crate::player::Treasury)>,
     /// The players that are defeated.
     pub defeated: Vec<crate::player::PlayerId>,
+    /// The wizards' entities (one for each player of `new`), with their sheets.
+    pub world: hecs::World,
+    pub wizards: Vec<(crate::player::PlayerId, hecs::Entity)>,
 }
 
 impl FakeView {
     /// A view with a wizard for each id (and no content: use `with_content` for spells).
     pub fn new(ids: &[crate::player::PlayerId]) -> Self {
+        let mut world = hecs::World::new();
+        let wizards = ids
+            .iter()
+            .map(|&id| (id, world.spawn(crate::wizard::sheet::bundle())))
+            .collect();
         Self {
+            world,
+            wizards,
             turn: 1,
             human: None,
             difficulty: 2,
@@ -493,6 +503,23 @@ impl FakeView {
             treasuries: Vec::new(),
             defeated: Vec::new(),
         }
+    }
+
+    /// A write handle on a wizard's sheet.
+    ///
+    /// # Panics
+    /// If `id` was not given to [`FakeView::new`].
+    pub fn wizard_mut(
+        &mut self,
+        id: crate::player::PlayerId,
+    ) -> crate::wizard::sheet::WizardMut<'_> {
+        let e = self
+            .wizards
+            .iter()
+            .find(|(p, _)| *p == id)
+            .expect("a wizard of the view")
+            .1;
+        crate::wizard::sheet::WizardMut::new(&mut self.world, e)
     }
 
     pub fn with_content(mut self, content: Content) -> Self {
@@ -566,6 +593,11 @@ impl crate::game::view::WorldView for FakeView {
             .iter()
             .find(|(p, _)| *p == id)
             .map(|(_, p)| crate::player::PlayerHandle::Plain(p))
+    }
+
+    fn wizard(&self, id: crate::player::PlayerId) -> Option<crate::wizard::entity::Wizard<'_>> {
+        let e = self.wizards.iter().find(|(p, _)| *p == id)?.1;
+        Some(crate::wizard::entity::Wizard::new(&self.world, e))
     }
 
     fn foreign_sightings(

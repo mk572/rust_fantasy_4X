@@ -91,10 +91,10 @@ impl App {
 
     /// The spells the spell book offers: the known ones that can be cast on the map.
     fn castable_spells(&self) -> Vec<SpellId> {
-        let Some(m) = self.game.magic(HUMAN) else {
+        let Some(m) = self.game.wizard(HUMAN) else {
             return Vec::new();
         };
-        m.known
+        m.known()
             .iter()
             .copied()
             .filter(|&s| {
@@ -114,7 +114,7 @@ impl App {
         let pages = self.book_pages(&spells, SMALL_PAGE);
         // Open at the spell being cast, or where the book was left.
         let mut left = self.book_ui.last_left.min(pages.len().saturating_sub(2));
-        if let Some(c) = self.game.magic(HUMAN).and_then(|m| m.casting) {
+        if let Some(c) = self.game.wizard(HUMAN).and_then(|m| m.casting()) {
             if let Some(i) = pages.iter().position(|p| p.spells.contains(&c.spell)) {
                 left = i - i % 2;
             }
@@ -131,7 +131,7 @@ impl App {
     pub(crate) fn begin_cast(&mut self, spell: SpellId) {
         let needs = self.game.spell_needs_target(HUMAN, spell);
         let cost = self.game.casting_cost(HUMAN, spell, false);
-        let instant = self.game.magic(HUMAN).map_or(0, |m| m.skill_left);
+        let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
         let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         if needs && cost <= instant.min(mana) {
             self.targeting = Some(Targeting {
@@ -159,8 +159,8 @@ impl App {
             self.draw_spellbook(&lay, view);
             let casting = self
                 .game
-                .magic(HUMAN)
-                .and_then(|m| m.casting)
+                .wizard(HUMAN)
+                .and_then(|m| m.casting())
                 .map(|c| self.game.content().rules.spells.get(c.spell).name.clone())
                 .unwrap_or_default();
             match self.confirm_box(&format!("Do you wish to abort the {casting} spell?")) {
@@ -168,7 +168,12 @@ impl App {
                     self.book_ui.replace = None;
                     let events = self.game.apply(Command::CancelCast { player: HUMAN });
                     self.note(events);
-                    if !abort_only && self.game.magic(HUMAN).is_some_and(|m| m.casting.is_none()) {
+                    if !abort_only
+                        && self
+                            .game
+                            .wizard(HUMAN)
+                            .is_some_and(|m| m.casting().is_none())
+                    {
                         self.begin_cast(spell);
                     }
                 }
@@ -235,7 +240,7 @@ impl App {
 
     /// The player picked a spell in the book: cast it, asking first if another is under way.
     fn choose_spell_to_cast(&mut self, spell: SpellId) {
-        let casting = self.game.magic(HUMAN).and_then(|m| m.casting);
+        let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         match casting {
             // The spell being cast: only an offer to give it up.
             Some(c) if c.spell == spell => self.book_ui.replace = Some((spell, true)),
@@ -346,13 +351,11 @@ impl App {
             self.draw_combat_entry(lay, view, &def.name, &def.realm, entry, x, y);
             return;
         }
-        let magic = self
+        let casting = self
             .game
-            .magic(HUMAN)
-            .as_deref()
-            .cloned()
-            .unwrap_or_default();
-        let casting = magic.casting.filter(|c| c.spell == spell);
+            .wizard(HUMAN)
+            .and_then(|m| m.casting())
+            .filter(|c| c.spell == spell);
         let cost = casting.map_or_else(
             || self.game.casting_cost(HUMAN, spell, false),
             |c| c.remaining,
@@ -372,7 +375,7 @@ impl App {
             Align::Right,
         );
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
-        let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
+        let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
         let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let income = self.game.income(HUMAN).split.mana;
         let limit = skill.min(mana + income).max(0);
@@ -386,7 +389,12 @@ impl App {
             .position(|r| *r == def.realm)
             .map_or(9, |i| 4 + i);
         if turns < 1 {
-            let instant = magic.skill_left.min(mana) >= cost;
+            let instant = self
+                .game
+                .wizard(HUMAN)
+                .map_or(0, |m| m.skill_left())
+                .min(mana)
+                >= cost;
             let crafting = matches!(def.id.as_str(), "enchant_item" | "create_artifact");
             if instant && !crafting {
                 self.bm_text(view, 1, ink, "Instant Cast", x + 9.0, y + 7.0, Align::Left);

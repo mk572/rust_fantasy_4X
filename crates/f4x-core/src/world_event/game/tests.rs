@@ -189,10 +189,14 @@ fn disjunction_clears_every_wizards_overland_enchantments_and_needs_one_to_exist
     let mut rng = GameRng::new(3);
     assert!(g.try_event(K::Disjunction, P0, &mut rng).is_none());
     let spell = g.content.rules.spells.id_of("time_stop").unwrap();
-    g.magic_mut(P1).unwrap().global.push(spell);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(spell);
     assert!(g.try_event(K::Disjunction, P0, &mut rng).is_some());
     let told = play(&mut g, armed(K::Disjunction, P0, None));
-    assert!(g.magic(P1).unwrap().global.is_empty());
+    assert!(g.wizard(P1).unwrap().global().is_empty());
     assert_eq!(told[0].voice, Voice::Happened);
 }
 

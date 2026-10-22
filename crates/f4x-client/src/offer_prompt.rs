@@ -38,9 +38,7 @@ impl App {
             "mercenaries" => OfferKind::Mercenaries,
             _ => OfferKind::Item,
         };
-        if let Some(p) = self.game.player_mut(HUMAN) {
-            p.fame = 100;
-        }
+        self.game.set_fame(HUMAN, 100);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
             t.gold = 5000;
         }

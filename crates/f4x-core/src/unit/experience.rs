@@ -268,10 +268,10 @@ mod tests {
         set_xp(&mut g, unit, 120);
         assert_eq!(g.units().unit_level(unit), 3, "experience stops at elite");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 3);
-        g.player_mut(P0)
+        g.wizard_mut(P0)
             .unwrap()
-            .magic
-            .retorts
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
             .insert(Retort::Warlord);
         assert_eq!(g.units().unit_level(unit), 4, "warlord: ultra-elite");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 4);
@@ -296,10 +296,10 @@ mod tests {
         assert_eq!(g.units().unit_level(normal), 1);
         assert_eq!(g.units().unit_level(undead), 0, "not for the undead");
         assert_eq!(g.units().unit_level(creature), 0, "nor for creatures");
-        g.player_mut(P0)
+        g.wizard_mut(P0)
             .unwrap()
-            .magic
-            .retorts
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
             .insert(Retort::Warlord);
         assert_eq!(g.units().unit_level(undead), 1, "warlord is for every unit");
     }
@@ -313,13 +313,17 @@ mod tests {
         assert_eq!(g.units().unit_level(unit), 3);
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), 3 + 3);
         // Warlord goes on top of the floor.
-        g.player_mut(P0)
+        g.wizard_mut(P0)
             .unwrap()
-            .magic
-            .retorts
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
             .insert(Retort::Warlord);
         assert_eq!(g.units().unit_level(unit), 4);
-        g.player_mut(P0).unwrap().magic.retorts.clear();
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
+            .clear();
         // Enough experience for a veteran: the spell stays.
         set_xp(&mut g, unit, 60);
         g.process_experience();

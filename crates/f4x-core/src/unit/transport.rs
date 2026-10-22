@@ -408,16 +408,32 @@ mod tests {
         let max = |g: &Game, u| g.units().unit_max_moves(u);
         assert_eq!((max(&g, boat), max(&g, scout)), (8, 6));
         // The owner's Wind Mastery: half as far again, for ships and fliers only.
-        g.magic_mut(P0).unwrap().global.push(wm);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .push(wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
         assert_eq!(max(&g, walker), 4);
         // A rival's: halved for the wizard without it.
-        g.magic_mut(P0).unwrap().global.clear();
-        g.magic_mut(P1).unwrap().global.push(wm);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .clear();
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .push(wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (4, 3));
         assert_eq!(max(&g, walker), 4);
         // Both have it: both get the bonus, nothing stacks.
-        g.magic_mut(P0).unwrap().global.push(wm);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .push(wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
     }
 

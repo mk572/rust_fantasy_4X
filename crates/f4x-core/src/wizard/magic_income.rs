@@ -7,11 +7,12 @@ use crate::content::Content;
 use crate::game::Game;
 use crate::map::Plane;
 use crate::player::PlayerId;
-use crate::wizard::magic::PowerSplit;
+use crate::wizard::entity::Wizard;
+use crate::wizard::magic::PowerShares;
 
 /// What the income rules ask of the world, for one wizard at a time.
 pub(crate) trait IncomeView {
-    fn magic(&self, player: PlayerId) -> Option<crate::player::MagicRef<'_>>;
+    fn wizard(&self, player: PlayerId) -> Option<Wizard<'_>>;
     fn content(&self) -> &Content;
     /// Whether the wizard is casting the Spell of Return (then there is no income of any kind).
     fn casting_return(&self, player: PlayerId) -> bool;
@@ -47,7 +48,7 @@ pub struct Income {
     /// Research points the cities produce.
     pub city_research: i32,
     /// The power base split by the wizard's percentages.
-    pub split: PowerSplit,
+    pub split: PowerShares,
     /// Research points paid at the next turn change, with bonuses.
     pub research: i32,
     /// Mana per turn to keep lasting spells and summoned creatures going.
@@ -59,7 +60,7 @@ pub struct Income {
 fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
     let fortress = match view.fortress_plane(player) {
         Some(plane) => {
-            let books = view.magic(player).map_or(0, |m| m.total_books());
+            let books = view.wizard(player).map_or(0, |m| m.total_books());
             books + if plane == Plane::Myrror { 5 } else { 0 }
         }
         None => 0,
@@ -77,15 +78,15 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     } else {
         base_from(view, player, city_mana)
     };
-    let split = match view.magic(player) {
+    let split = match view.wizard(player) {
         Some(m) if !casting_return => m.split_power(power_base, city_research),
-        _ => PowerSplit::default(),
+        _ => PowerShares::default(),
     };
-    let research = view.magic(player).map_or(split.research.max(0), |m| {
+    let research = view.wizard(player).map_or(split.research.max(0), |m| {
         m.research_income(view.content(), &split)
     });
     let mana_upkeep =
-        view.upkeep_total(player) / view.magic(player).map_or(1, |m| m.upkeep_divisor());
+        view.upkeep_total(player) / view.wizard(player).map_or(1, |m| m.upkeep_divisor());
     Income {
         power_base,
         city_research,
@@ -104,8 +105,8 @@ impl IncomeView for GameIncome<'_> {
             .map_or(100, |b| b.mana)
     }
 
-    fn magic(&self, player: PlayerId) -> Option<crate::player::MagicRef<'_>> {
-        self.0.magic(player).map(crate::player::MagicRef::Held)
+    fn wizard(&self, player: PlayerId) -> Option<Wizard<'_>> {
+        self.0.wizard(player)
     }
 
     fn content(&self) -> &Content {

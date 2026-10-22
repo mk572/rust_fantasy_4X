@@ -178,13 +178,9 @@ impl Game {
         let loot = self.economy().conquest_loot(city);
         let loser_is_wizard = !self.is_neutral_player(loser);
         if loser_is_wizard {
-            if let Some(p) = self.player_mut(loser) {
-                p.fame = (p.fame - fame_lost).max(0);
-            }
+            self.add_fame(loser, -fame_lost);
         }
-        if let Some(p) = self.player_mut(winner) {
-            p.fame += fame_gained;
-        }
+        self.add_fame(winner, fame_gained);
         if let Some(t) = self.treasury_mut(winner) {
             t.gold += loot;
         }
@@ -274,9 +270,7 @@ impl Game {
             .unwrap_or(0);
         let pos: Option<Position> = self.world.get::<&Position>(city).map(|p| *p).ok();
         let fame_lost = razing_fame_loss(size);
-        if let Some(p) = self.player_mut(player) {
-            p.fame = (p.fame - fame_lost).max(0);
-        }
+        self.add_fame(player, -fame_lost);
         if let Some(t) = self.treasury_mut(player) {
             t.gold += loot;
         }

@@ -13,7 +13,6 @@
 
 use super::{Battle, BattleUnit, Status};
 use crate::game::{Event, Game};
-use crate::player::PlayerId;
 use crate::rules::UnitKind;
 
 /// Experience per dead enemy unit.
@@ -107,14 +106,5 @@ impl Game {
             fame: spoils.winner_fame,
             loser_fame,
         }]
-    }
-
-    fn add_fame(&mut self, player: PlayerId, change: i32) {
-        if change == 0 || self.is_neutral_player(player) {
-            return;
-        }
-        if let Some(p) = self.player_mut(player) {
-            p.fame = (p.fame + change).max(0);
-        }
     }
 }

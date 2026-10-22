@@ -119,7 +119,7 @@ mod tests {
     /// Force a hero offer; with little fame the pick can come up empty, so try again.
     fn offer_hero(g: &mut Game) {
         // A hero is only offered to a wizard whose fame exceeds its cost's step over 100.
-        g.player_mut(P1).unwrap().fame = 100;
+        g.set_fame(P1, 100);
         assert!(
             (0..500).any(|_| g.cheat_offer(P1, OfferKind::Hero).is_some()),
             "no hero was ever offered"

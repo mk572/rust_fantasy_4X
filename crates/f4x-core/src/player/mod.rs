@@ -40,8 +40,6 @@ pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
-    pub fame: i32,
-    pub magic: crate::wizard::magic::Magic,
     /// The wizard's items that are not on a hero: the vault and the award list.
     pub armory: crate::item::armory::Armory,
     /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
@@ -183,8 +181,6 @@ impl Default for Player {
 impl Player {
     pub fn new() -> Self {
         Self {
-            fame: 0,
-            magic: crate::wizard::magic::Magic::default(),
             armory: crate::item::armory::Armory::default(),
             roster: crate::hero::roster::Roster::default(),
             fortress: None,
@@ -215,32 +211,6 @@ pub fn bundle(
 /// A read handle on one player's data.
 pub type PlayerRef<'a> = hecs::Ref<'a, Player>;
 
-impl<'a> PlayerHandle<'a> {
-    /// The wizard's magic.
-    pub fn into_magic(self) -> MagicRef<'a> {
-        match self {
-            Self::Plain(p) => MagicRef::Plain(&p.magic),
-            Self::Held(p) => MagicRef::Held(hecs::Ref::map(p, |p| &p.magic)),
-        }
-    }
-}
-
-/// A wizard's magic from a game or from a test double of one (`WorldView`, `IncomeView`).
-pub enum MagicRef<'a> {
-    Plain(&'a crate::wizard::magic::Magic),
-    Held(hecs::Ref<'a, crate::wizard::magic::Magic>),
-}
-
-impl std::ops::Deref for MagicRef<'_> {
-    type Target = crate::wizard::magic::Magic;
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Plain(m) => m,
-            Self::Held(m) => m,
-        }
-    }
-}
-
 /// A player's data from a game or from a test double of one (`WorldView`).
 pub enum PlayerHandle<'a> {
     Plain(&'a Player),
@@ -264,14 +234,6 @@ pub fn find_entity(world: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
         .iter()
         .find(|(_, &p)| p == id)
         .map(|(e, _)| e)
-}
-
-/// A player's magic.
-pub fn magic(
-    world: &hecs::World,
-    id: PlayerId,
-) -> Option<hecs::Ref<'_, crate::wizard::magic::Magic>> {
-    find(world, id).map(|p| hecs::Ref::map(p, |p| &p.magic))
 }
 
 /// A component of the player with this id.

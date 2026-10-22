@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(g.fame(P0), fame + 9);
         assert_eq!(g.income(P0).research, research + 3);
         let other = crate::player::PlayerId(1);
-        assert_eq!(g.fame(other), g.player(other).unwrap().fame);
+        assert_eq!(g.fame(other), g.wizard(other).unwrap().fame());
     }
 
     #[test]

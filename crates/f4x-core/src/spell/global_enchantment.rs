@@ -17,12 +17,12 @@ use crate::unit::{Hurt, UnitView};
 
 /// Does this wizard keep the global spell with this id going?
 pub(crate) fn magic_has_global(
-    magic: &crate::wizard::magic::Magic,
+    wizard: &crate::wizard::entity::Wizard<'_>,
     content: &crate::content::Content,
     id: &str,
 ) -> bool {
-    magic
-        .global
+    wizard
+        .global()
         .iter()
         .any(|&s| content.rules.spells.get(s).id == id)
 }
@@ -37,7 +37,7 @@ pub(crate) const JUST_CAUSE_FAME: i32 = 10;
 impl Game {
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
-        self.magic(player)
+        self.wizard(player)
             .is_some_and(|m| magic_has_global(&m, &self.content, id))
     }
 
@@ -78,7 +78,7 @@ impl Game {
         self.player_ids()
             .into_iter()
             .filter(|&p| p != viewer)
-            .filter_map(|p| Some((p, self.magic(p)?.casting?.spell)))
+            .filter_map(|p| Some((p, self.wizard(p)?.casting()?.spell)))
             .collect()
     }
 
@@ -140,10 +140,11 @@ impl UnitView<'_> {
         let (Some(owner), Some(def)) = (self.unit_owner(unit), self.unit_def(unit)) else {
             return Vec::new();
         };
-        let Some(magic) = self.magic(owner) else {
+        let Some(magic) = self.wizard(owner) else {
             return Vec::new();
         };
-        if magic.global.is_empty() {
+        let globals = magic.global();
+        if globals.is_empty() {
             return Vec::new();
         }
         let facts = Facts {
@@ -159,7 +160,7 @@ impl UnitView<'_> {
             ..Facts::default()
         };
         let mut mods = Vec::new();
-        for &spell in &magic.global {
+        for &spell in &globals {
             let sdef = self.content.rules.spells.get(spell);
             for rule in &sdef.effects {
                 if rule.when != Trigger::Passive || !eval(&rule.condition, &facts) {
@@ -416,11 +417,11 @@ mod tests {
     #[test]
     fn just_cause_adds_ten_to_fame_while_it_lasts() {
         let mut g = world();
-        g.player_mut(P0).unwrap().fame = 3;
+        g.set_fame(P0, 3);
         assert_eq!(g.fame(P0), 3);
         grant(&mut g, P0, "just_cause");
         assert_eq!(g.fame(P0), 13);
-        assert_eq!(g.fame(P1), g.player(P1).unwrap().fame, "only the caster");
+        assert_eq!(g.fame(P1), g.wizard(P1).unwrap().fame(), "only the caster");
         assert_eq!(g.score(P0).fame, 26, "and it counts for the score");
     }
 
@@ -428,7 +429,10 @@ mod tests {
     fn detect_magic_shows_what_others_are_casting() {
         let mut g = world();
         let s = spell(&g, "healing");
-        g.magic_mut(P1).unwrap().casting = Some(crate::wizard::magic::Casting {
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .casting = Some(crate::wizard::magic::Casting {
             spell: s,
             remaining: 10,
         });

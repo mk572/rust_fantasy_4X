@@ -27,7 +27,7 @@ use crate::player::{Owner, PlayerId};
 use crate::game::{Event, Game};
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
-use crate::wizard::magic::{Magic, Retort};
+use crate::wizard::magic::Retort;
 
 /// Marks an entity as a unit of this definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,13 +102,13 @@ impl<'a> UnitView<'a> {
     }
 
     /// A player's magic (retorts and global spells), for what the owner adds to its units.
-    pub(crate) fn magic(&self, player: PlayerId) -> Option<hecs::Ref<'a, Magic>> {
-        crate::player::magic(self.world, player)
+    pub(crate) fn wizard(&self, player: PlayerId) -> Option<crate::wizard::entity::Wizard<'a>> {
+        crate::wizard::entity::find(self.world, player)
     }
 
     /// Does `player` keep the global spell with this id going?
     pub(crate) fn has_global(&self, player: PlayerId, id: &str) -> bool {
-        self.magic(player).is_some_and(|m| {
+        self.wizard(player).is_some_and(|m| {
             crate::spell::global_enchantment::magic_has_global(&m, self.content, id)
         })
     }
@@ -116,7 +116,7 @@ impl<'a> UnitView<'a> {
     /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
     /// add, and ten more while Just Cause is kept going.
     pub fn fame(&self, player: PlayerId) -> i32 {
-        let earned = crate::player::find(self.world, player).map_or(0, |p| p.fame);
+        let earned = self.wizard(player).map_or(0, |w| w.fame());
         let legendary: i32 = self
             .hero_units(player)
             .into_iter()
@@ -261,7 +261,7 @@ impl<'a> UnitView<'a> {
             level = HEROISM_LEVEL;
         }
         if let Some(owner) = self.unit_owner(unit) {
-            if self.magic(owner).is_some_and(|m| m.has(Retort::Warlord)) {
+            if self.wizard(owner).is_some_and(|m| m.has(Retort::Warlord)) {
                 level += 1;
             }
             let normal = self.unit_def(unit).is_some_and(|d| {

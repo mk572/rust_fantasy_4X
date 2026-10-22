@@ -132,7 +132,9 @@ impl App {
         let Some(wallet) = self.game.treasury(ui.who) else {
             return;
         };
-        let Some(player) = self.game.player(ui.who).as_deref().cloned() else {
+        let Some((owned_books, owned_retorts)) =
+            self.game.wizard(ui.who).map(|w| (w.books(), w.retorts()))
+        else {
             return;
         };
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
@@ -198,7 +200,7 @@ impl App {
         );
         self.bm_text(view, 0, gold, "GP", px + 34.0, py + 75.0, Align::Left);
         self.bm_text(view, 0, gold, "MP", px + 162.0, py + 75.0, Align::Left);
-        let books = book_entries(|r| player.magic.books_in(r));
+        let books = book_entries(|r| owned_books.get(r).map_or(0, |&n| i32::from(n)));
         let left = px + 90.0 - books.len() as f32 * BOOK_STEP / 2.0;
         for (i, &entry) in books.iter().enumerate() {
             self.draw_pic(
@@ -227,7 +229,7 @@ impl App {
         // The retorts as one sentence, then the heroes.
         let retorts: Vec<&str> = Retort::LISTED
             .into_iter()
-            .filter(|&r| player.magic.has(r))
+            .filter(|r| owned_retorts.contains(r))
             .map(f4x_core::wizard::retort_name)
             .collect();
         let start_y = py + 111.0 - if retorts.len() > 5 { 2.0 } else { 0.0 };

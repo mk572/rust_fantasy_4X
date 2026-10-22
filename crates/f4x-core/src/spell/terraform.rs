@@ -347,8 +347,15 @@ mod tests {
 
     fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
         let s = g.content.rules.spells.id_of(id).unwrap();
-        g.magic_mut(P0).unwrap().known.insert(s);
-        g.magic_mut(P0).unwrap().skill_left = 500;
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(s);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 500;
         g.treasury_mut(P0).unwrap().mana = 1000;
         g.apply(Command::CastSpell {
             player: P0,
@@ -400,8 +407,15 @@ mod tests {
         assert!(!g.can_raise_volcano(at(3, 3)));
         assert!(g.can_raise_volcano(at(5, 5)));
         let s = g.content.rules.spells.id_of("raise_volcano").unwrap();
-        g.magic_mut(P0).unwrap().known.insert(s);
-        g.magic_mut(P0).unwrap().skill_left = 500;
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(s);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 500;
         let events = g.apply(Command::CastSpell {
             player: P0,
             spell: s,

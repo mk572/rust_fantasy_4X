@@ -438,11 +438,8 @@ pub fn wizards(view: &dyn WorldView) -> Vec<PlayerId> {
 
 /// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
 fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
-    let books = |p: PlayerId, realm: &str| -> i32 {
-        view.magic(p)
-            .and_then(|m| m.books.get(realm).copied())
-            .map_or(0, i32::from)
-    };
+    let books =
+        |p: PlayerId, realm: &str| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
     let max_death = books(a, "death").max(books(b, "death"));
     let sum_life = books(a, "life") + books(b, "life");
     let max_chaos = books(a, "chaos").max(books(b, "chaos"));
@@ -459,8 +456,8 @@ fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
 }
 
 fn charismatic(view: &dyn WorldView, wizard: PlayerId) -> bool {
-    view.magic(wizard)
-        .is_some_and(|m| m.retorts.contains(&Retort::Charismatic))
+    view.wizard(wizard)
+        .is_some_and(|m| m.has(Retort::Charismatic))
 }
 
 /// How a threat weighs: the asker's army against the judge's, as the original rates it.
@@ -487,11 +484,7 @@ fn enchantment_reaction(
     spell: &str,
     other: PlayerId,
 ) -> Option<(i32, Action)> {
-    let books = |realm: &str| {
-        view.magic(other)
-            .and_then(|m| m.books.get(realm).copied())
-            .unwrap_or(0)
-    };
+    let books = |realm: &str| view.wizard(other).map_or(0, |m| m.books_in(realm));
     let reaction = match spell {
         "spell_of_mastery" => (-50, Action::SpellOfMastery),
         "eternal_night" => (-12, Action::Enchantment),
@@ -973,10 +966,10 @@ impl Diplomacy {
             }
             ProposalKind::Exchange { give, get } => {
                 status != Treaty::War
-                    && view.magic(from).is_some_and(|m| m.known.contains(&give))
-                    && view.magic(to).is_some_and(|m| m.known.contains(&get))
-                    && view.magic(to).is_some_and(|m| !m.known.contains(&give))
-                    && view.magic(from).is_some_and(|m| !m.known.contains(&get))
+                    && view.wizard(from).is_some_and(|m| m.knows(give))
+                    && view.wizard(to).is_some_and(|m| m.knows(get))
+                    && view.wizard(to).is_some_and(|m| !m.knows(give))
+                    && view.wizard(from).is_some_and(|m| !m.knows(get))
             }
         };
         if ok {
@@ -1108,7 +1101,7 @@ impl Diplomacy {
         spell: SpellId,
     ) -> Result<(), DiplomacyError> {
         self.check_gift(ctx.view, from, to)?;
-        let has = |p: PlayerId| ctx.view.magic(p).is_some_and(|m| m.known.contains(&spell));
+        let has = |p: PlayerId| ctx.view.wizard(p).is_some_and(|m| m.knows(spell));
         if !has(from) || has(to) {
             return Err(DiplomacyError::SpellUnavailable);
         }
@@ -1434,9 +1427,9 @@ impl Diplomacy {
         for wizard in wizards(ctx.view) {
             let mut active: Vec<(String, i32)> = ctx
                 .view
-                .magic(wizard)
+                .wizard(wizard)
                 .map(|m| {
-                    m.global
+                    m.global()
                         .iter()
                         .map(|&s| (ctx.view.content().rules.spells.get(s).id.clone(), 10))
                         .collect()
@@ -1445,8 +1438,8 @@ impl Diplomacy {
             // The Spell of Mastery is felt while it is being cast.
             let casting_mastery = ctx
                 .view
-                .magic(wizard)
-                .and_then(|m| m.casting)
+                .wizard(wizard)
+                .and_then(|m| m.casting())
                 .is_some_and(|c| {
                     ctx.view.content().rules.spells.get(c.spell).id
                         == crate::game::endgame::SPELL_OF_MASTERY

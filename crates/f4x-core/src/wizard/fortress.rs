@@ -15,7 +15,7 @@ use crate::player::{Player, PlayerId};
 use crate::wizard::entity::CapitalRace;
 
 use crate::game::{Event, Game};
-use crate::rules::{RaceId, SpellId};
+use crate::rules::RaceId;
 
 /// Why a fortress operation was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,20 +104,12 @@ pub(crate) fn fortress_falls(loser: &mut Player) {
     loser.summon_at = None;
 }
 
-/// The conqueror of a fortress city gains 5 fame (and the loser's half of the mana).
-pub(crate) fn fortress_prize(winner: &mut Player) {
-    winner.fame += 5;
-}
+/// The fame the conqueror of a fortress city gains (and the loser's half of the mana).
+pub(crate) const FORTRESS_PRIZE_FAME: i32 = 5;
 
-/// The wizard is banished and starts casting the Spell of Return, at the cost given.
-pub(crate) fn banish_player(player: &mut Player, spell_of_return: Option<(SpellId, i32)>) {
+/// The wizard is banished; the game starts the Spell of Return.
+pub(crate) fn banish_player(player: &mut Player) {
     player.banished = true;
-    if let Some((spell, cost)) = spell_of_return {
-        player.magic.casting = Some(crate::wizard::magic::Casting {
-            spell,
-            remaining: cost,
-        });
-    }
 }
 
 /// The wizard is out of the game.
@@ -126,7 +118,6 @@ pub(crate) fn defeat_player(player: &mut Player) {
     player.banished_by = None;
     player.fortress = None;
     player.summon_at = None;
-    player.magic.casting = None;
 }
 
 impl Economy<'_> {
@@ -289,15 +280,13 @@ impl Game {
     /// resigns on the spot, as in the original (`Banish_Wizard`).
     fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         let skill =
-            self.magic(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
+            self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
         let mana = self.treasury(loser).map_or(0, |p| p.mana);
         let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
         if let Some(p) = self.player_mut(loser) {
             fortress_falls(p);
         }
-        if let Some(w) = self.player_mut(winner) {
-            fortress_prize(w);
-        }
+        self.add_fame(winner, FORTRESS_PRIZE_FAME);
         if let Some(t) = self.treasury_mut(winner) {
             t.mana += half;
         }
@@ -311,8 +300,11 @@ impl Game {
         let spell = self.content.rules.spells.id_of("spell_of_return");
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(p) = self.player_mut(loser) {
-            banish_player(p, spell.zip(cost));
+            banish_player(p);
             p.banished_by = Some(winner);
+        }
+        if let (Some((spell, cost)), Some(mut w)) = (spell.zip(cost), self.wizard_mut(loser)) {
+            w.begin_casting(spell, cost);
         }
         vec![Event::WizardBanished {
             player: loser,
@@ -383,6 +375,9 @@ impl Game {
     pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         if let Some(p) = self.player_mut(loser) {
             defeat_player(p);
+        }
+        if let Some(mut w) = self.wizard_mut(loser) {
+            w.clear_casting();
         }
         if let Some(e) = self.player_entity(loser) {
             let _ = self

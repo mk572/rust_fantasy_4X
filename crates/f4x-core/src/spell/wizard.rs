@@ -52,17 +52,18 @@ impl Game {
     /// Cruel Unminding: the victim permanently loses 1 to 10 percent of their casting skill (at
     /// least a point). Returns the skill lost.
     pub(crate) fn cruel_unminding(&mut self, victim: PlayerId, rng: &mut GameRng) -> i32 {
-        let Some(magic) = self.magic_mut(victim) else {
+        let Some(mut wizard) = self.wizard_mut(victim) else {
             return 0;
         };
-        let archmage = magic.has(Retort::Archmage);
-        let skill = magic.casting_skill();
+        let archmage = wizard.view().has(Retort::Archmage);
+        let skill = wizard.view().casting_skill();
         let lost = (skill * rng.roll(10) as i32 / 100).max(1);
         // An archmage's ten extra points are not part of what the spell eats into.
         let target = (skill - lost - if archmage { 10 } else { 0 }).max(0);
-        magic.skill_points = magic.skill_points.min(skill_points_for(target, false));
-        let now = base_casting_skill(magic.skill_points, archmage);
-        magic.skill_left = magic.skill_left.min(now);
+        let mut sheet = wizard.get_mut::<crate::wizard::sheet::Skill>();
+        sheet.points = sheet.points.min(skill_points_for(target, false));
+        let now = base_casting_skill(sheet.points, archmage);
+        sheet.left = sheet.left.min(now);
         skill - now
     }
 

@@ -256,7 +256,7 @@ impl Game {
         if !self.can_be_offered(player) {
             return offers;
         }
-        let famous = self.magic(player).is_some_and(|m| m.has(Retort::Famous));
+        let famous = self.wizard(player).is_some_and(|m| m.has(Retort::Famous));
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
@@ -284,7 +284,7 @@ impl Game {
     }
 
     fn charismatic(&self, player: PlayerId) -> bool {
-        self.magic(player)
+        self.wizard(player)
             .is_some_and(|m| m.has(Retort::Charismatic))
     }
 

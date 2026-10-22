@@ -81,7 +81,11 @@ impl App {
         let mut spells: Vec<SpellId> = Vec::new();
         for realm in &realms {
             for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
-                let want = self.create.build.spell_choices_of(realm, rarity);
+                let want = self.create.build.spell_choices_of(
+                    &self.game.content().settings.spell_library,
+                    realm,
+                    rarity,
+                );
                 let mut chosen: Vec<SpellId> = self
                     .create
                     .build
@@ -94,11 +98,13 @@ impl App {
                     })
                     .collect();
                 chosen.truncate(want);
-                for s in self
-                    .game
-                    .default_starting_spells_of(realm, rarity)
+                for s in f4x_core::wizard::magic::default_spells(self.game.content(), realm, rarity)
                     .into_iter()
-                    .chain(self.game.starting_spell_pool_of(realm, rarity))
+                    .chain(f4x_core::wizard::magic::spells_of(
+                        self.game.content(),
+                        realm,
+                        rarity,
+                    ))
                 {
                     if chosen.len() >= want {
                         break;

@@ -29,7 +29,11 @@ use crate::rules::SpellId;
 use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit, UnitEnchantments};
 
 use crate::game::Game;
+use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{Casting, Magic, Retort};
+use crate::wizard::sheet::{
+    Books, Candidates, KnownSpells, PowerSplit, Research, Retorts, Skill, WizardMut,
+};
 
 /// Bumped when the snapshot layout changes in a way old files cannot be read.
 pub const SAVE_VERSION: u32 = 1;
@@ -173,14 +177,14 @@ pub struct MagicSave {
 
 impl Default for MagicSave {
     fn default() -> Self {
-        let m = Magic::default();
+        let split = PowerSplit::default();
         Self {
             books: Vec::new(),
             retorts: Vec::new(),
             skill_points: 0,
-            mana_pct: m.mana_pct,
-            research_pct: m.research_pct,
-            skill_pct: m.skill_pct,
+            mana_pct: split.mana,
+            research_pct: split.research,
+            skill_pct: split.skill,
             known: Vec::new(),
             researchable: Vec::new(),
             candidates: Vec::new(),
@@ -195,30 +199,37 @@ impl Default for MagicSave {
     }
 }
 
-impl Magic {
-    fn to_save(&self, rules: &crate::rules::Rules) -> MagicSave {
+impl MagicSave {
+    /// What the wizard's components hold (the default for a player without a wizard).
+    fn of(wizard: Option<Wizard<'_>>, rules: &crate::rules::Rules) -> Self {
+        let Some(w) = wizard else {
+            return Self::default();
+        };
         let name = |s: &SpellId| rules.spells.get(*s).id.clone();
-        MagicSave {
-            books: self.books.iter().map(|(r, &n)| (r.clone(), n)).collect(),
-            retorts: self.retorts.iter().copied().collect(),
-            skill_points: self.skill_points,
-            mana_pct: self.mana_pct,
-            research_pct: self.research_pct,
-            skill_pct: self.skill_pct,
-            known: self.known.iter().map(name).collect(),
-            researchable: self.researchable.iter().map(name).collect(),
-            candidates: self.candidates.iter().map(name).collect(),
-            researching: self.researching.as_ref().map(name),
-            research_remaining: self.research_remaining,
-            casting: self.casting.map(|c| (name(&c.spell), c.remaining)),
-            crafting: self.crafting.clone(),
-            raising: self.raising,
-            global: self.global.iter().map(name).collect(),
-            skill_left: self.skill_left,
+        let split = w.power_split();
+        Self {
+            books: w.books().into_iter().collect(),
+            retorts: w.retorts().into_iter().collect(),
+            skill_points: w.skill_points(),
+            mana_pct: split.mana,
+            research_pct: split.research,
+            skill_pct: split.skill,
+            known: w.known().iter().map(name).collect(),
+            researchable: w.researchable().iter().map(name).collect(),
+            candidates: w.candidates().iter().map(name).collect(),
+            researching: w.researching().as_ref().map(name),
+            research_remaining: w.research_remaining(),
+            casting: w.casting().map(|c| (name(&c.spell), c.remaining)),
+            crafting: w.crafting(),
+            raising: w.raising(),
+            global: w.global().iter().map(name).collect(),
+            skill_left: w.skill_left(),
         }
     }
 
-    fn from_save(m: MagicSave, rules: &crate::rules::Rules) -> Result<Self, LoadError> {
+    /// Put the saved magic on the wizard's components.
+    fn put(self, mut wizard: WizardMut<'_>, rules: &crate::rules::Rules) -> Result<(), LoadError> {
+        let m = self;
         let id = |s: &String| {
             rules
                 .spells
@@ -239,18 +250,27 @@ impl Magic {
                 "a spell is both known and researchable".into(),
             ));
         }
-        Ok(Magic {
-            books: m.books.into_iter().collect(),
-            retorts: m.retorts.into_iter().collect(),
-            skill_points: m.skill_points,
-            mana_pct: m.mana_pct,
-            research_pct: m.research_pct,
-            skill_pct: m.skill_pct,
+        *wizard.get_mut::<Books>() = Books(m.books.into_iter().collect());
+        *wizard.get_mut::<Retorts>() = Retorts(m.retorts.into_iter().collect());
+        *wizard.get_mut::<Skill>() = Skill {
+            points: m.skill_points,
+            left: m.skill_left,
+        };
+        *wizard.get_mut::<PowerSplit>() = PowerSplit {
+            mana: m.mana_pct,
+            research: m.research_pct,
+            skill: m.skill_pct,
+        };
+        *wizard.get_mut::<KnownSpells>() = KnownSpells {
             known,
             researchable,
-            candidates: ids(&m.candidates)?,
-            researching: m.researching.as_ref().map(id).transpose()?,
-            research_remaining: m.research_remaining,
+        };
+        *wizard.get_mut::<Candidates>() = Candidates(ids(&m.candidates)?);
+        *wizard.get_mut::<Research>() = Research {
+            spell: m.researching.as_ref().map(id).transpose()?,
+            remaining: m.research_remaining,
+        };
+        *wizard.get_mut::<Magic>() = Magic {
             casting: m
                 .casting
                 .map(|(s, remaining)| id(&s).map(|spell| Casting { spell, remaining }))
@@ -258,8 +278,8 @@ impl Magic {
             crafting: m.crafting,
             raising: m.raising,
             global: ids(&m.global)?,
-            skill_left: m.skill_left,
-        })
+        };
+        Ok(())
     }
 }
 
@@ -570,8 +590,8 @@ impl Game {
                     .wizard(*id)
                     .and_then(|w| w.capital_race())
                     .map(|r| rules.races.get(r).id.clone()),
-                fame: p.fame,
-                magic: p.magic.to_save(rules),
+                fame: self.wizard(*id).map_or(0, |w| w.fame()),
+                magic: MagicSave::of(self.wizard(*id), rules),
                 armory: p.armory.clone(),
                 roster: p.roster.clone(),
                 offers: self.offers(*id),
@@ -834,9 +854,8 @@ impl Snapshot {
             let (gold, mana, tax_rate, grand_vizier) = (p.gold, p.mana, p.tax_rate, p.grand_vizier);
             let (history, offers) = (p.history, p.offers);
             let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
+            let (fame, magic) = (p.fame, p.magic);
             let player = Player {
-                fame: p.fame,
-                magic: Magic::from_save(p.magic, &game.content.rules)?,
                 armory: p.armory,
                 roster: p.roster,
                 fortress: p.fortress,
@@ -858,6 +877,13 @@ impl Snapshot {
                     Offers(offers),
                 ),
             );
+            if !neutral {
+                game.set_fame(id, fame);
+                let rules = &game.content.rules;
+                let entity = crate::wizard::entity::of_player(&game.world, entity)
+                    .ok_or_else(|| LoadError::Inconsistent("a wizard without its entity".into()))?;
+                magic.put(WizardMut::new(&mut game.world, entity), rules)?;
+            }
             game.set_grand_vizier(id, grand_vizier);
             if defeated {
                 let _ = game.world.insert_one(entity, Defeat { by: defeated_by });

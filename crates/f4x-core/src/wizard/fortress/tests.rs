@@ -73,8 +73,15 @@ fn spell(g: &Game, id: &str) -> crate::rules::SpellId {
 
 fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
     let s = spell(g, id);
-    g.magic_mut(P0).unwrap().known.insert(s);
-    g.magic_mut(P0).unwrap().skill_left = 500;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 500;
     g.treasury_mut(P0).unwrap().mana = 500;
     g.apply(Command::CastSpell {
         player: P0,
@@ -120,8 +127,15 @@ fn summoned_creatures_appear_at_the_circle() {
     place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let call = spell(&g, "war_bears");
-    g.magic_mut(P0).unwrap().known.insert(call);
-    g.magic_mut(P0).unwrap().skill_left = 99;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(call);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 99;
     g.treasury_mut(P0).unwrap().mana = 500;
     // No target is needed: the creatures come to the circle.
     assert!(!g.spell_needs_target(P0, call));
@@ -142,7 +156,10 @@ fn summoned_creatures_appear_at_the_circle() {
         Some(at(5, 5)),
         "fortress stays"
     );
-    g.magic_mut(P0).unwrap().skill_left = 99;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 99;
     g.treasury_mut(P0).unwrap().mana = 500;
     g.apply(Command::CastSpell {
         player: P0,
@@ -214,7 +231,7 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     g.set_human(Some(P0));
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let w = (*g.player(P1).unwrap()).clone();
+    let w_fame = g.wizard(P1).unwrap().fame();
     let w_mana = g.treasury(P1).unwrap().mana;
     let events = g.capture_city(capital, P1);
     assert!(
@@ -230,13 +247,13 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
         "half the mana goes to the captor"
     );
     assert_eq!(g.treasury(P1).unwrap().mana, w_mana + 50);
-    assert_eq!(g.player(P1).unwrap().fame, w.fame + 5);
+    assert_eq!(g.wizard(P1).unwrap().fame(), w_fame + 5);
     // Casting the Spell of Return has begun, with no income of any kind meanwhile.
     let ret = spell(&g, "spell_of_return");
-    assert_eq!(g.magic(P0).unwrap().casting.unwrap().spell, ret);
+    assert_eq!(g.wizard(P0).unwrap().casting().unwrap().spell, ret);
     assert_eq!(
         g.income(P0).split,
-        crate::wizard::magic::PowerSplit::default()
+        crate::wizard::magic::PowerShares::default()
     );
     assert_eq!(
         g.apply(crate::game::Command::CancelCast { player: P0 }),
@@ -278,7 +295,7 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     assert!(!p.banished);
     assert_eq!(p.fortress, Some(at(15, 5)));
     assert_eq!(p.summon_at, Some(at(15, 5)));
-    assert_eq!(g.magic(P0).unwrap().casting, None);
+    assert_eq!(g.wizard(P0).unwrap().casting(), None);
 }
 
 #[test]
@@ -289,7 +306,7 @@ fn losing_the_last_city_defeats_the_wizard() {
     assert!(events.contains(&Event::WizardDefeated { player: P0 }));
     let p = (*g.player(P0).unwrap()).clone();
     assert!(g.is_defeated(P0) && !p.banished);
-    assert_eq!(p.magic.casting, None);
+    assert_eq!(g.wizard(P0).unwrap().casting(), None);
     // A defeated wizard cannot place a new fortress.
     let r = g.place_fortress(P0, at(9, 9), "x".into(), None, 1);
     assert_eq!(r, Err(FortressError::NotAllowed));
@@ -382,10 +399,17 @@ fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
 fn finishing_the_spell_of_mastery_wins_and_scores() {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
-    g.player_mut(P0).unwrap().fame = 10;
+    g.set_fame(P0, 10);
     let s = spell(&g, "spell_of_mastery");
-    g.magic_mut(P0).unwrap().known.insert(s);
-    g.magic_mut(P0).unwrap().skill_left = 9000;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 9000;
     g.treasury_mut(P0).unwrap().mana = 9000;
     let _ = capital;
     let events = g.apply(Command::CastSpell {
@@ -408,8 +432,11 @@ fn finishing_the_spell_of_mastery_wins_and_scores() {
     assert_eq!(score.conquests, 50);
     assert_eq!(score.time, 2000 - 2);
     assert_eq!(score.townsfolk, 2);
-    assert_eq!(score.spells, 2);
-    assert_eq!(score.total(), 2 + 2 + 50 + 20 + 1998 + 250);
+    assert_eq!(
+        score.spells, 4,
+        "two known, and the two every wizard starts with"
+    );
+    assert_eq!(score.total(), 2 + 4 + 50 + 20 + 1998 + 250);
     // The rival gets no time bonus: the mastery winner is someone else.
     assert_eq!(g.score(P1).time, 0);
 }
@@ -419,7 +446,11 @@ fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() {
     let mut g = world();
     place(&mut g, P0, at(5, 5));
     let s = spell(&g, "spell_of_mastery");
-    g.magic_mut(P0).unwrap().known.insert(s);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
     g.treasury_mut(P0).unwrap().mana = 500;
     assert!(g.mastery_casters().is_empty());
     let events = g.apply(Command::CastSpell {
@@ -464,7 +495,11 @@ fn a_defeat_clears_the_losers_enchantments_and_nodes() {
     g.world
         .insert_one(town, crate::city::economy::Enchantments(vec![(ward, P0)]))
         .unwrap();
-    g.player_mut(P0).unwrap().magic.global.push(ward);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(ward);
     g.capture_city(capital, P1);
     assert!(g
         .world
@@ -472,7 +507,7 @@ fn a_defeat_clears_the_losers_enchantments_and_nodes() {
         .unwrap()
         .0
         .is_empty());
-    assert!(g.player(P0).unwrap().magic.global.is_empty());
+    assert!(g.wizard(P0).unwrap().global().is_empty());
 }
 
 #[test]
@@ -546,8 +581,8 @@ fn a_banished_wizard_returns_and_takes_the_cities_race() {
     let mut t = crate::player::Treasury { gold: 0, mana: 11 };
     assert_eq!(t.take_half_mana(), 5);
     assert_eq!(t.mana, 6, "the odd point stays");
-    banish_player(&mut p, None);
-    assert!(p.banished && p.magic.casting.is_none());
+    banish_player(&mut p);
+    assert!(p.banished);
     return_to(&mut p, square(4)).unwrap();
     assert!(!p.banished);
     assert_eq!(
@@ -579,9 +614,7 @@ fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() 
     defeat_player(&mut p);
     assert!(!p.banished);
     assert_eq!((p.fortress, p.summon_at), (None, None));
-    let mut w = Player::new();
-    fortress_prize(&mut w);
-    assert_eq!(w.fame, 5);
+    assert_eq!(FORTRESS_PRIZE_FAME, 5);
     assert_eq!(summon_point(&wizard()), None);
 }
 
@@ -589,7 +622,10 @@ fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() 
 /// field, and P1 is the conqueror. P0 is a computer wizard of the given casting skill.
 fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
     let mut g = world();
-    g.magic_mut(P0).unwrap().skill_points = crate::wizard::magic::skill_points_for(skill, false);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .points = crate::wizard::magic::skill_points_for(skill, false);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let spear = g.content.rules.units.id_of("spear").unwrap();

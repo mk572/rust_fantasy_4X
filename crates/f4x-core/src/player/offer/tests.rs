@@ -53,7 +53,7 @@ fn world() -> Game {
         g.treasury_mut(id).unwrap().gold = 5000;
         let p = g.player_mut(id).unwrap();
         p.fortress = Some(at(1 + i as u32 * 6, 1));
-        p.fame = 190;
+        g.set_fame(id, 190);
     }
     g
 }
@@ -316,7 +316,11 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
 #[test]
 fn the_price_is_tested_after_the_charismatic_discount() {
     let mut g = world();
-    g.pl_mut(0).magic.retorts.insert(Retort::Charismatic);
+    g.wizard_mut(crate::player::PlayerId(0))
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::Charismatic);
     // Hardly any gold: the full price could never be paid, the half price can be.
     for _ in 0..3000 {
         g.tr_mut(0).gold = 100;

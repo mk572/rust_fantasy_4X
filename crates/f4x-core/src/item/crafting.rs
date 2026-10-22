@@ -154,7 +154,7 @@ pub fn cost(design: &ItemDesign, rules: &Rules) -> u32 {
 pub fn check(
     design: &ItemDesign,
     craft: Craft,
-    magic: &Magic,
+    magic: &crate::wizard::entity::Wizard<'_>,
     rules: &Rules,
 ) -> Result<(), CraftError> {
     let count = design.powers.len() + usize::from(design.charges.is_some());
@@ -193,8 +193,7 @@ pub fn check(
         }
         let id = rules.spells.id_of(spell).ok_or(CraftError::BadSpell)?;
         let def = rules.spells.get(id);
-        if !magic.known.contains(&id) || !def.contexts.contains(&crate::rules::CastContext::Battle)
-        {
+        if !magic.knows(id) || !def.contexts.contains(&crate::rules::CastContext::Battle) {
             return Err(CraftError::BadSpell);
         }
     }
@@ -205,7 +204,7 @@ fn check_power(
     power: &ItemPowerDef,
     kind: ItemKind,
     craft: Craft,
-    magic: &Magic,
+    magic: &crate::wizard::entity::Wizard<'_>,
 ) -> Result<(), CraftError> {
     if !power.kinds.contains(&kind) {
         return Err(CraftError::WrongKind);
@@ -227,7 +226,7 @@ fn check_power(
 pub fn available_powers<'a>(
     kind: ItemKind,
     craft: Craft,
-    magic: &Magic,
+    magic: &crate::wizard::entity::Wizard<'_>,
     rules: &'a Rules,
 ) -> Vec<&'a ItemPowerDef> {
     rules
@@ -389,7 +388,7 @@ impl crate::game::Game {
             .ok_or(CraftingError::UnknownPlayer)?
             .mana;
         let (item, price, now) = {
-            let magic = self.magic(player).ok_or(CraftingError::UnknownPlayer)?;
+            let magic = self.wizard(player).ok_or(CraftingError::UnknownPlayer)?;
             magic.check_can_cast(spell).map_err(CraftingError::Magic)?;
             check(design, craft, &magic, &self.content.rules).map_err(CraftingError::Design)?;
             let item = build(design, &self.content.rules);
@@ -399,13 +398,17 @@ impl crate::game::Game {
             let now = price <= magic.instant_budget(reserve);
             (item, price, now)
         };
-        if let Some((p, t)) = self.player_treasury_mut(player) {
+        if let Some(mut w) = self.wizard_mut(player) {
             if now {
-                p.magic.spend_skill(price);
-                t.mana -= price;
+                w.spend_skill(price);
             } else {
-                p.magic.begin_casting(spell, price);
-                p.magic.crafting = Some(item.clone());
+                w.begin_casting(spell, price);
+                w.get_mut::<Magic>().crafting = Some(item.clone());
+            }
+        }
+        if now {
+            if let Some(t) = self.treasury_mut(player) {
+                t.mana -= price;
             }
         }
         self.begin_cast_relations(player, spell);
@@ -442,8 +445,8 @@ impl crate::game::Game {
         player: crate::player::PlayerId,
     ) -> Vec<crate::game::Event> {
         let Some(item) = self
-            .player_mut(player)
-            .and_then(|p| p.magic.crafting.take())
+            .wizard_mut(player)
+            .and_then(|mut w| w.get_mut::<Magic>().crafting.take())
         else {
             return Vec::new();
         };
@@ -548,14 +551,23 @@ mod tests {
             .iter()
             .map(|s| g.content.rules.spells.id_of(s).unwrap())
             .collect();
-        let m = g.magic_mut(P0).unwrap();
-        m.researchable.retain(|s| !known.contains(s));
-        m.candidates.retain(|s| !known.contains(s));
-        if m.researching.is_some_and(|s| known.contains(&s)) {
-            m.researching = None;
+        let mut m = g.wizard_mut(P0).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .retain(|s| !known.contains(s));
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|s| !known.contains(s));
+        if m.get_mut::<crate::wizard::sheet::Research>()
+            .spell
+            .is_some_and(|s| known.contains(&s))
+        {
+            m.get_mut::<crate::wizard::sheet::Research>().spell = None;
         }
-        m.known.extend(known);
-        m.skill_left = skill;
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .extend(known);
+        m.get_mut::<crate::wizard::sheet::Skill>().left = skill;
         g
     }
 
@@ -570,7 +582,7 @@ mod tests {
     }
 
     fn check_in(g: &Game, craft: Craft, d: &ItemDesign) -> Result<(), CraftError> {
-        check(d, craft, &g.magic(P0).unwrap(), &g.content.rules)
+        check(d, craft, &g.wizard(P0).unwrap(), &g.content.rules)
     }
 
     #[test]
@@ -624,7 +636,11 @@ mod tests {
         // Two books in chaos are enough for Flaming, and one is not.
         assert_eq!(ok(ItemKind::Sword, &["flaming"]), Ok(()));
         let mut poor = world(0);
-        poor.magic_mut(P0).unwrap().books.insert("chaos".into(), 1);
+        poor.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Books>()
+            .0
+            .insert("chaos".into(), 1);
         assert_eq!(
             check_in(
                 &poor,
@@ -687,7 +703,7 @@ mod tests {
     fn the_powers_on_offer_follow_the_kind_the_cost_and_the_books() {
         let g = world(0);
         let ids = |kind, craft| -> Vec<String> {
-            available_powers(kind, craft, &g.magic(P0).unwrap(), &g.content.rules)
+            available_powers(kind, craft, &g.wizard(P0).unwrap(), &g.content.rules)
                 .iter()
                 .map(|p| p.id.clone())
                 .collect()
@@ -780,16 +796,17 @@ mod tests {
         );
         assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
         assert_eq!(g.tr(0).mana, 2000 - 200);
-        assert_eq!(g.magic(P0).unwrap().skill_left, 800);
-        assert!(g.magic(P0).unwrap().crafting.is_none());
+        assert_eq!(g.wizard(P0).unwrap().skill_left(), 800);
+        assert!(g.wizard(P0).unwrap().crafting().is_none());
     }
 
     #[test]
     fn artificer_halves_the_mana_not_the_value() {
         let mut g = world(1000);
-        g.magic_mut(P0)
+        g.wizard_mut(P0)
             .unwrap()
-            .retorts
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
             .insert(crate::wizard::magic::Retort::Artificer);
         g.apply(Command::CraftItem {
             player: P0,
@@ -810,9 +827,9 @@ mod tests {
             design: d,
         });
         assert!(events.is_empty(), "{events:?}");
-        let m = (*g.magic(P0).unwrap()).clone();
-        assert_eq!(m.casting.unwrap().remaining, 200);
-        assert!(m.crafting.is_some());
+        let m = g.wizard(P0).unwrap();
+        assert_eq!(m.casting().unwrap().remaining, 200);
+        assert!(m.crafting().is_some());
         // A second item cannot be started meanwhile.
         let again = g.apply(Command::CraftItem {
             player: P0,
@@ -833,8 +850,8 @@ mod tests {
         }
         assert!(made, "the item should come when the cost is paid");
         assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
-        assert!(g.magic(P0).unwrap().crafting.is_none());
-        assert!(g.magic(P0).unwrap().casting.is_none());
+        assert!(g.wizard(P0).unwrap().crafting().is_none());
+        assert!(g.wizard(P0).unwrap().casting().is_none());
     }
 
     #[test]
@@ -845,8 +862,8 @@ mod tests {
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &["attack_2"]),
         });
-        g.magic_mut(P0).unwrap().cancel_casting();
-        assert!(g.magic(P0).unwrap().crafting.is_none());
+        g.wizard_mut(P0).unwrap().cancel_casting();
+        assert!(g.wizard(P0).unwrap().crafting().is_none());
     }
 
     #[test]
@@ -864,7 +881,11 @@ mod tests {
             )))
         ));
         assert_eq!(g.tr(0).mana, 2000);
-        g.magic_mut(P0).unwrap().known.clear();
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .clear();
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::CreateArtifact,
@@ -896,9 +917,9 @@ mod tests {
             .unwrap()
             .restore(g.content.clone())
             .unwrap();
-        let (was, now) = (g.magic(P0).unwrap(), back.magic(P0).unwrap());
-        assert!(was.crafting.is_some());
-        assert_eq!(now.crafting, was.crafting);
-        assert_eq!(now.casting, was.casting);
+        let (was, now) = (g.wizard(P0).unwrap(), back.wizard(P0).unwrap());
+        assert!(was.crafting().is_some());
+        assert_eq!(now.crafting(), was.crafting());
+        assert_eq!(now.casting(), was.casting());
     }
 }

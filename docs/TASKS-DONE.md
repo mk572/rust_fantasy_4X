@@ -215,6 +215,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 312 | Wizard | Wizard entity and the player-wizard links (done) |
 | 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players (done) |
 | 314 | Player (done) | Treasury, tax, offers, defeat and the other player data as components |
+| 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame); the starting spells as in the original (done) |
 
 ## Descriptions
 
@@ -461,3 +462,20 @@ About 876 uses change; do it by module, tests green after each. *Needs:* 312.
 **314. Player data as components (done).** `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`,
 `Offers`, `Defeat` (with `defeated_by`), `Control`. About 230 gold and 280 mana use sites in core,
 plus the AI, client and console. *Needs:* 313.
+
+**315. Wizard data as components (done).** `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`
+and `Fame`. The methods of `Magic` become methods over a wizard read handle (the `Units<'a>` and
+`Economy<'a>` pattern); `magic_parts` and the borrow-apart logic adapt. Every site that reads
+`player.magic` today works for neutrals and must now handle "no wizard"; list them first. Spell
+instances come later, so `Magic.global`, `casting`, `crafting` and `raising` stay in a transitional
+component until 319 to 322. *Needs:* 314.
+Done, with the on-hold task 252 (starting spells) merged in at the owner's request, so this task
+changes game rules: a realm's known and researchable spells follow the original's tables, every
+wizard knows Magic Spirit and the Spell of Return, an Artificer also Enchant Item and Create
+Artifact, and a computer wizard knows a summoning spell of its main realm (and from Hard may
+research an uncommon one). All of it is in `content/settings.ron`, `spell_library`, and the level
+setting `ai.wizards.guaranteed_summoning_spell` (`magic.md` section 13, `divergences.md` 5b). The
+wizard's data is the components `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`,
+`KnownSpells`, `Candidates` and `Fame` (`wizard/sheet.rs`), read through `Game::wizard(id)` and
+changed through `Game::wizard_mut(id)`; `Magic` keeps the casting, the item and the hero being made
+and the lasting spells until 319 to 322. The computed split of power is `PowerShares`.

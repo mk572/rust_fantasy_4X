@@ -1,27 +1,20 @@
 //! The game's side of magic: what a wizard's power and upkeep need from the world (the cities,
 //! the fortress, the nodes, the units and city spells that cost mana), the commands, the turn
-//! change, and the glue to `Magic` (`wizard/magic.rs`), which holds the wizard's own state and rules.
+//! change, and the glue to the wizard's sheet (`wizard/sheet.rs`), which holds the wizard's components and their rules.
 //! Spell resolution is in `spell/cast.rs`, `spell/dispel.rs` and `spell/city.rs`.
 
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::{CastContext, SpellId};
-use crate::wizard::magic::{
-    collect_power, pay_for_casting, upkeep_plan, CastStart, Magic, MagicError, Retort,
-};
-use crate::wizard::magic_commands::found_wizard;
+use crate::wizard::magic::{upkeep_plan, CastStart, MagicError, PowerShares, Retort};
 
 impl Game {
-    pub fn magic(&self, player: PlayerId) -> Option<hecs::Ref<'_, Magic>> {
-        crate::player::magic(&self.world, player)
-    }
-
-    pub(crate) fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
-        self.player_mut(player).map(|p| &mut p.magic)
-    }
-
-    /// Set up a new wizard (see [`found_wizard`]), with the starting spells given instead of
-    /// drawn at random when `start_spells` is `Some`, and the first offer for research.
+    /// Set up a new wizard (see [`WizardMut::found`] and [`WizardMut::init_library`]), with the
+    /// starting spells given instead of drawn at random when `start_spells` is `Some`, and the
+    /// first offer for research.
+    ///
+    /// [`WizardMut::found`]: crate::wizard::sheet::WizardMut::found
+    /// [`WizardMut::init_library`]: crate::wizard::sheet::WizardMut::init_library
     pub fn init_wizard(
         &mut self,
         player: PlayerId,
@@ -29,55 +22,106 @@ impl Game {
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,
     ) -> Result<(), MagicError> {
-        let p =
-            crate::player::find_mut(&mut self.world, player).ok_or(MagicError::UnknownPlayer)?;
-        found_wizard(
-            p,
-            &self.content,
-            &mut self.rng,
-            books,
-            retorts,
-            start_spells,
-        );
+        let (content, rng) = (&self.content, &mut self.rng);
+        let entity = self
+            .player_index
+            .get(&player)
+            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .ok_or(MagicError::UnknownPlayer)?;
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
+        w.found(books, retorts);
+        w.init_library(content, rng, start_spells);
         self.refill_research(player);
         Ok(())
+    }
+
+    /// A computer wizard also knows one spell of its main realm, the realm with most books (the
+    /// first in the realms' order on a tie), from `spell_library.ai_main_realm_known`. The
+    /// human wizard and the independent players get none.
+    pub(crate) fn give_main_realm_spell(&mut self, player: PlayerId) {
+        if self.human() == Some(player) {
+            return;
+        }
+        let guaranteed = self.settings.ai.wizards.guaranteed_summoning_spell;
+        let Some(w) = self.wizard(player) else {
+            return;
+        };
+        let books = w.books();
+        let main = self
+            .content
+            .rules
+            .realms
+            .defs()
+            .iter()
+            .filter_map(|r| Some((r.id.as_str(), *books.get(&r.id)?)))
+            .fold(None, |best: Option<(&str, u8)>, (id, n)| match best {
+                Some((_, b)) if b >= n => best,
+                _ => Some((id, n)),
+            });
+        let Some((realm, _)) = main else {
+            return;
+        };
+        let library = &self.content.settings.spell_library;
+        let spells = &self.content.rules.spells;
+        let known = guaranteed
+            .then(|| library.ai_main_realm_known.get(realm))
+            .flatten()
+            .and_then(|id| spells.id_of(id));
+        let open = (self.settings.basic.difficulty >= library.ai_main_realm_researchable_from)
+            .then(|| library.ai_main_realm_researchable.get(realm))
+            .flatten()
+            .and_then(|id| spells.id_of(id));
+        if let Some(open) = open {
+            let known = self.wizard(player).is_some_and(|w| w.knows(open));
+            if let Some(mut w) = self.wizard_mut(player).filter(|_| !known) {
+                w.get_mut::<crate::wizard::sheet::KnownSpells>()
+                    .researchable
+                    .insert(open);
+            }
+        }
+        match known {
+            Some(spell) => self.learn_spell(player, spell),
+            None => self.refill_research(player),
+        }
     }
 
     // ---- power -------------------------------------------------------------------
 
     /// Is the wizard casting the Spell of Return? Then they get no income of any kind.
     pub fn casting_return(&self, player: PlayerId) -> bool {
-        self.magic(player)
-            .and_then(|m| m.casting)
+        self.wizard(player)
+            .and_then(|w| w.casting())
             .is_some_and(|c| self.spell_has_hook(c.spell, crate::wizard::fortress::RETURN))
     }
 
-    /// Mana needed to cast `spell` (`Magic::casting_cost`).
+    /// Mana needed to cast `spell` (`sheet::casting_cost`).
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
         let evil_omens = self.evil_omens_active();
-        match self.magic(player) {
-            Some(m) => m.casting_cost(def, in_battle, evil_omens),
-            None => Magic::default().casting_cost(def, in_battle, evil_omens),
-        }
+        crate::wizard::sheet::casting_cost(self.wizard(player).as_ref(), def, in_battle, evil_omens)
     }
 
     // ---- commands ----------------------------------------------------------------
 
     /// Choose what to research. The choice stands until the spell is learned.
     pub fn set_research(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
-        let p =
-            crate::player::find_mut(&mut self.world, player).ok_or(MagicError::UnknownPlayer)?;
-        p.magic.choose_research(&self.content, spell)
+        let content = &self.content;
+        let mut w = self
+            .player_index
+            .get(&player)
+            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+            .ok_or(MagicError::UnknownPlayer)?;
+        w.choose_research(content, spell)
     }
 
     /// The spell becomes known to `player`, as if researched (a gift or an exchange between
     /// wizards, `diplomacy.rs`).
     pub(crate) fn learn_spell(&mut self, player: PlayerId, spell: SpellId) {
-        let Some(m) = self.magic_mut(player) else {
+        let Some(mut w) = self.wizard_mut(player) else {
             return;
         };
-        m.learn(spell);
+        w.learn(spell);
         self.refill_research(player);
     }
 
@@ -85,9 +129,14 @@ impl Game {
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
         let income = self.income(player).research;
-        if let Some(p) = crate::player::find_mut(&mut self.world, player) {
-            p.magic
-                .refill_research(&self.content, &mut self.rng, income);
+        let (content, rng) = (&self.content, &mut self.rng);
+        if let Some(mut w) = self
+            .player_index
+            .get(&player)
+            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+        {
+            w.refill_research(content, rng, income);
         }
     }
 
@@ -108,12 +157,13 @@ impl Game {
                 continue;
             }
             let income = self.income(player);
-            if let Some((p, t)) = self.player_treasury_mut(player) {
-                collect_power(p, t, &income.split, income.research);
-            }
+            self.collect_power(player, &income.split, income.research);
         }
         for &player in &ids {
-            if let Some(spell) = self.magic_mut(player).and_then(|m| m.finish_research()) {
+            if let Some(spell) = self
+                .wizard_mut(player)
+                .and_then(|mut w| w.finish_research())
+            {
                 events.push(Event::SpellLearned { player, spell });
             }
         }
@@ -126,15 +176,43 @@ impl Game {
         for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
             // Heroes at the fortress add to the skill that pays for a spell over turns.
             let heroes = self.hero_casting_skill(player);
-            if let Some((p, t)) = self.player_treasury_mut(player) {
-                p.magic.skill_left += heroes;
-                pay_for_casting(p, t);
-            }
+            self.pay_for_casting(player, heroes);
         }
         for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
             events.extend(self.finish_casting(player));
         }
         events
+    }
+
+    /// The turn's income reaches the wizard: mana goes to the reserve, research to the spell being
+    /// researched and skill points to casting skill (`WizardMut::take_power`). `split` and
+    /// `research` are what the wizard's cities and fortress make, worked out by the game.
+    fn collect_power(&mut self, player: PlayerId, split: &PowerShares, research: i32) {
+        let Some(mana) = self
+            .wizard_mut(player)
+            .map(|mut w| w.take_power(split, research))
+        else {
+            return;
+        };
+        if let Some(t) = self.treasury_mut(player) {
+            t.mana = t.mana.saturating_add(mana);
+        }
+    }
+
+    /// Heroes at the fortress add their skill, then skill and mana are spent on the spell being
+    /// cast (`WizardMut::pay_casting`).
+    fn pay_for_casting(&mut self, player: PlayerId, heroes: i32) {
+        let Some(reserve) = self.treasury(player).map(|t| t.mana) else {
+            return;
+        };
+        let Some(mut w) = self.wizard_mut(player) else {
+            return;
+        };
+        w.add_skill_left(heroes);
+        let reserve = w.pay_casting(reserve);
+        if let Some(t) = self.treasury_mut(player) {
+            t.mana = reserve;
+        }
     }
 
     /// Pay the mana upkeep. If the reserve cannot cover it, the newest lasting spells and
@@ -144,7 +222,7 @@ impl Game {
         let reserve = self.treasury(player).map_or(0, |p| p.mana);
         let (dropped, owed) = upkeep_plan(
             &items,
-            self.magic(player).map_or(1, |m| m.upkeep_divisor()),
+            self.wizard(player).map_or(1, |w| w.upkeep_divisor()),
             reserve,
         );
         let mut events = Vec::new();
@@ -166,7 +244,7 @@ impl Game {
     /// A spell that has been paid for takes effect: at once if it needs no target, else
     /// the wizard is asked for one.
     fn finish_casting(&mut self, player: PlayerId) -> Vec<Event> {
-        let Some(spell) = self.magic(player).and_then(|m| m.casting_paid()) else {
+        let Some(spell) = self.wizard(player).and_then(|w| w.casting_paid()) else {
             return Vec::new();
         };
         if self.spell_needs_target(player, spell) {
@@ -211,13 +289,9 @@ impl Game {
             return Err(MagicError::NotAvailable);
         }
         let start = {
-            let m = self.magic(player).ok_or(MagicError::UnknownPlayer)?;
-            m.check_can_cast(spell)?;
-            if cost <= m.instant_budget(reserve) {
-                CastStart::Now
-            } else {
-                CastStart::Paid
-            }
+            let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
+            w.check_can_cast(spell)?;
+            w.cast_start(cost, reserve)
         };
         match start {
             CastStart::Now => {
@@ -225,8 +299,10 @@ impl Game {
                     return Err(MagicError::NeedsTarget);
                 }
                 self.check_target(player, spell, target)?;
-                if let Some((p, t)) = self.player_treasury_mut(player) {
-                    p.magic.spend_skill(cost);
+                if let Some(mut w) = self.wizard_mut(player) {
+                    w.spend_skill(cost);
+                }
+                if let Some(t) = self.treasury_mut(player) {
                     t.mana -= cost;
                 }
                 self.begin_cast_relations(player, spell);
@@ -235,8 +311,8 @@ impl Game {
                 Ok(events)
             }
             CastStart::Paid => {
-                if let Some(m) = self.magic_mut(player) {
-                    m.begin_casting(spell, cost);
+                if let Some(mut w) = self.wizard_mut(player) {
+                    w.begin_casting(spell, cost);
                 }
                 self.begin_cast_relations(player, spell);
                 Ok(self.mastery_announcement(player, spell))
@@ -251,8 +327,8 @@ impl Game {
         target: crate::rules::exec::Target,
     ) -> Result<Vec<Event>, MagicError> {
         let spell = self
-            .magic(player)
-            .and_then(|m| m.casting_paid())
+            .wizard(player)
+            .and_then(|w| w.casting_paid())
             .ok_or(MagicError::NothingToResolve)?;
         self.check_target(player, spell, Some(target))?;
         Ok(self.resolve_cast(player, spell, Some(target)))

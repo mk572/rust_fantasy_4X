@@ -66,7 +66,7 @@ impl App {
     /// The realm whose mascot stands in the box: the human's strongest book, life first and a
     /// later realm only when it has more.
     fn mascot_realm(&self) -> usize {
-        let books = |i: usize| self.game.magic(HUMAN).map_or(0, |m| m.books_in(REALMS[i]));
+        let books = |i: usize| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(REALMS[i]));
         let mut best = 2;
         for next in [0, 1, 3, 4] {
             if books(best) < books(next) {

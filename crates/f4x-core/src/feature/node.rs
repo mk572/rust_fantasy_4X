@@ -145,7 +145,7 @@ impl Game {
         let Some(owner) = node.owner else {
             return 0;
         };
-        if let Some(m) = self.magic(owner) {
+        if let Some(m) = self.wizard(owner) {
             let mastery = match node.realm.as_str() {
                 "sorcery" => m.has(Retort::SorceryMastery),
                 "nature" => m.has(Retort::NatureMastery),
@@ -406,7 +406,11 @@ pub(crate) mod tests {
         g.settings.basic.magic_strength = 0;
         assert_eq!(g.node_income(P0), power / 2, "weak: half");
         g.settings.basic.magic_strength = 1;
-        g.magic_mut(P0).unwrap().retorts.insert(Retort::NodeMastery);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
+            .insert(Retort::NodeMastery);
         assert_eq!(g.node_income(P0), power * 2);
         assert_eq!(
             g.income(P0).power_base,

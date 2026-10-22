@@ -137,9 +137,9 @@ impl Game {
         };
         if kind == EventKind::Disjunction
             && self
-                .players()
-                .iter()
-                .all(|(_, p)| p.magic.global.is_empty())
+                .player_ids()
+                .into_iter()
+                .all(|id| self.wizard(id).is_none_or(|w| w.global().is_empty()))
         {
             return None;
         }
@@ -352,8 +352,8 @@ impl Game {
                 self.give_item(victim, item);
             }
             EventKind::Disjunction => {
-                for (_, p) in self.world.query_mut::<&mut crate::player::Player>() {
-                    p.magic.global.clear();
+                for (_, magic) in self.world.query_mut::<&mut crate::wizard::magic::Magic>() {
+                    magic.global.clear();
                 }
                 notice.voice = Voice::Happened;
             }

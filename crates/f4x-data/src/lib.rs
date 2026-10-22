@@ -243,12 +243,49 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let features = parse_features(&read("features.ron")?)?;
     let rules = rules::load_rules(dirs, &features)?;
     let settings = load_settings(dirs)?;
+    if dirs.iter().any(|d| d.join("settings.ron").exists()) {
+        check_spell_library(&settings.spell_library, &rules)?;
+    }
     Ok(Content {
         terrains,
         features,
         rules,
         settings,
     })
+}
+
+/// The spells and realms the `spell_library` of `settings.ron` names must exist.
+fn check_spell_library(
+    library: &f4x_core::game::setting::SpellLibraryDef,
+    rules: &f4x_core::rules::Rules,
+) -> Result<(), ContentError> {
+    let mut problems = Vec::new();
+    let spells = library
+        .always_known
+        .iter()
+        .chain(library.retort_known.values().flatten())
+        .chain(&library.arcane_closed)
+        .chain(library.ai_main_realm_known.values())
+        .chain(library.ai_main_realm_researchable.values());
+    for id in spells {
+        if rules.spells.id_of(id).is_none() {
+            problems.push(format!("spell_library: unknown spell \"{id}\""));
+        }
+    }
+    for realm in library
+        .ai_main_realm_known
+        .keys()
+        .chain(library.ai_main_realm_researchable.keys())
+    {
+        if rules.realms.id_of(realm).is_none() {
+            problems.push(format!("spell_library: unknown realm \"{realm}\""));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(ContentError::Invalid(problems))
+    }
 }
 
 /// Read `settings.ron` from the first of `dirs` that has it. The file is optional (content
@@ -947,5 +984,40 @@ mod tests {
             load_settings(&[&over]),
             Err(ContentError::Parse(_))
         ));
+    }
+
+    #[test]
+    fn the_shipped_spell_library_is_the_originals() {
+        // The built-in default (used when there is no settings.ron) is the original's numbers,
+        // and so is the shipped file.
+        let c = real_content();
+        assert_eq!(
+            c.settings.spell_library,
+            f4x_core::game::setting::SpellLibraryDef::default()
+        );
+    }
+
+    #[test]
+    fn a_spell_library_naming_an_unknown_spell_or_realm_is_refused() {
+        let over = std::env::temp_dir().join("f4x-settings-spells");
+        std::fs::create_dir_all(&over).unwrap();
+        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        std::fs::write(
+            over.join("settings.ron"),
+            r#"(spell_library: (always_known: ["no_such_spell"]))"#,
+        )
+        .unwrap();
+        let err = load_content_layers(&[&over, &committed]).unwrap_err();
+        assert!(err.to_string().contains("no_such_spell"), "{err}");
+        std::fs::write(
+            over.join("settings.ron"),
+            r#"(spell_library: (ai_main_realm_known: {"no_realm": "sprites"}))"#,
+        )
+        .unwrap();
+        let err = load_content_layers(&[&over, &committed]).unwrap_err();
+        assert!(err.to_string().contains("no_realm"), "{err}");
+        std::fs::write(over.join("settings.ron"), "(spell_library: (known: []))").unwrap();
+        let err = load_content_layers(&[&over, &committed]).unwrap_err();
+        assert!(err.to_string().contains("0 rows"), "{err}");
     }
 }

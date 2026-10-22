@@ -120,6 +120,10 @@ pub struct AiWizardSettings {
     /// With four or more wizards, one or two AI wizards are made Myrran (three books become
     /// the retort) when none is: the original does it above Normal.
     pub myrran_rule: bool,
+    /// An AI wizard knows a common summoning spell of its main realm from the start
+    /// (`SpellLibraryDef::ai_main_realm_known`), even when erased books left the realm with
+    /// one; the original does it on every level. The human wizard never gets it.
+    pub guaranteed_summoning_spell: bool,
 }
 
 /// The original's difficulty bonuses for the computer wizards (`difficulty_modifiers_table`),
@@ -248,6 +252,147 @@ pub struct SettingsDef {
     pub levels: Vec<LevelDef>,
     /// The Settings screen's switches by name (the client knows the names), on or off.
     pub preferences: std::collections::BTreeMap<String, bool>,
+    /// The spells a new wizard knows and may research (the original's spell library set-up).
+    pub spell_library: SpellLibraryDef,
+}
+
+/// How many spells of each rarity: the columns of the tables in [`SpellLibraryDef`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rarities {
+    pub common: u8,
+    pub uncommon: u8,
+    pub rare: u8,
+    pub very_rare: u8,
+}
+
+/// `settings.ron`, `spell_library`: what a new wizard starts with. The tables are indexed by the
+/// number of books in a realm, `0` to [`SpellLibraryDef::MAX_BOOKS`] (so they have 12 rows). A
+/// count above what the realm has means all of them. The original's numbers are in
+/// `INITGAME.c` (`Init_Computer_Players_Spell_Library`) and `NewGame.c`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpellLibraryDef {
+    /// Spells of the realm the wizard knows at the start: the realm's chosen spells first, then
+    /// its default list (`realms.ron`) in order.
+    pub known: Vec<Rarities>,
+    /// Spells of the realm the wizard may research, the known ones included (picked at random).
+    pub researchable: Vec<Rarities>,
+    /// Spells of the realm the wizard chooses at creation (the rest of `known` are defaults).
+    pub chosen: Vec<Rarities>,
+    /// Spells every wizard knows at the start.
+    pub always_known: Vec<String>,
+    /// Spells a retort gives at the start.
+    pub retort_known: std::collections::BTreeMap<crate::wizard::magic::Retort, Vec<String>>,
+    /// Spells of the arcane realm nobody may research at the start (they come by other ways).
+    pub arcane_closed: Vec<String>,
+    /// A computer wizard also knows this spell of its main realm (the realm with most books;
+    /// the first of the realms in file order on a tie), by realm id. The original's table is
+    /// off by one spell from what its code names (`INITGAME.c`, `OGBUG`); these are the spells
+    /// it really gives, and the ones the wiki lists.
+    pub ai_main_realm_known: std::collections::BTreeMap<String, String>,
+    /// From this difficulty on (3 is Hard) a computer wizard may also research this spell of its
+    /// main realm, by realm id.
+    pub ai_main_realm_researchable: std::collections::BTreeMap<String, String>,
+    pub ai_main_realm_researchable_from: u8,
+}
+
+impl SpellLibraryDef {
+    /// Most books in a realm; the tables have one row more.
+    pub const MAX_BOOKS: usize = 11;
+
+    /// The row for a number of books (more than the most counts as the most).
+    pub fn row(table: &[Rarities], books: u8) -> Rarities {
+        let zero = Rarities {
+            common: 0,
+            uncommon: 0,
+            rare: 0,
+            very_rare: 0,
+        };
+        table
+            .get(usize::from(books).min(Self::MAX_BOOKS))
+            .copied()
+            .unwrap_or(zero)
+    }
+
+    /// Every problem in words.
+    pub fn validate(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        for (name, rows) in [
+            ("known", &self.known),
+            ("researchable", &self.researchable),
+            ("chosen", &self.chosen),
+        ] {
+            if rows.len() != Self::MAX_BOOKS + 1 {
+                problems.push(format!(
+                    "spell_library.{name} has {} rows, not {}",
+                    rows.len(),
+                    Self::MAX_BOOKS + 1
+                ));
+            }
+        }
+        problems
+    }
+}
+
+impl Default for SpellLibraryDef {
+    /// The original's numbers.
+    fn default() -> Self {
+        let r = |common, uncommon, rare, very_rare| Rarities {
+            common,
+            uncommon,
+            rare,
+            very_rare,
+        };
+        let books = |f: &dyn Fn(u8) -> Rarities| (0..=Self::MAX_BOOKS as u8).map(f).collect();
+        const COMMON: [u8; 12] = [0, 3, 5, 6, 7, 8, 9, 10, 10, 10, 10, 99];
+        const UNCOMMON: [u8; 12] = [0, 1, 2, 3, 4, 5, 6, 8, 99, 99, 99, 99];
+        const RARE: [u8; 12] = [0, 0, 1, 2, 3, 4, 5, 6, 7, 9, 99, 99];
+        const VERY_RARE: [u8; 12] = [0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 99, 99];
+        Self {
+            known: books(&|n| match n {
+                0 => r(0, 0, 0, 0),
+                11 => r(10, 2, 1, 0),
+                n => r(n - 1, 0, 0, 0),
+            }),
+            researchable: books(&|n| {
+                let i = usize::from(n);
+                r(COMMON[i], UNCOMMON[i], RARE[i], VERY_RARE[i])
+            }),
+            chosen: books(&|n| match n {
+                0 => r(0, 0, 0, 0),
+                11 => r(0, 2, 1, 0),
+                n => r(n - 1, 0, 0, 0),
+            }),
+            always_known: vec!["magic_spirit".into(), "spell_of_return".into()],
+            retort_known: [(
+                crate::wizard::magic::Retort::Artificer,
+                vec!["enchant_item".into(), "create_artifact".into()],
+            )]
+            .into(),
+            arcane_closed: vec!["spell_of_mastery".into(), "spell_of_return".into()],
+            ai_main_realm_known: [
+                ("nature", "sprites"),
+                ("sorcery", "nagas"),
+                ("chaos", "hell_hounds"),
+                ("life", "guardian_spirit"),
+                ("death", "ghouls"),
+            ]
+            .into_iter()
+            .map(|(a, b)| (a.into(), b.into()))
+            .collect(),
+            ai_main_realm_researchable: [
+                ("nature", "basilisk"),
+                ("sorcery", "phantom_beast"),
+                ("chaos", "chimeras"),
+                ("life", "unicorns"),
+                ("death", "shadow_demons"),
+            ]
+            .into_iter()
+            .map(|(a, b)| (a.into(), b.into()))
+            .collect(),
+            ai_main_realm_researchable_from: 3,
+        }
+    }
 }
 
 impl Default for SettingsDef {
@@ -267,6 +412,7 @@ impl Default for SettingsDef {
             ],
             levels: Vec::new(),
             preferences: Default::default(),
+            spell_library: SpellLibraryDef::default(),
         }
     }
 }
@@ -296,6 +442,7 @@ impl SettingsDef {
                     .map(|p| format!("level {d}: {p}")),
             );
         }
+        problems.extend(self.spell_library.validate());
         if !(1..=MAX_OPPONENTS).contains(&self.max_opponents) {
             problems.push(format!(
                 "max_opponents {} is not 1 to {MAX_OPPONENTS}",
@@ -387,6 +534,7 @@ impl GameSettings {
                     consolidate_percent: 0,
                     erasure_dice: (0, 0),
                     myrran_rule: false,
+                    guaranteed_summoning_spell: false,
                 },
             },
             world: WorldSettings {

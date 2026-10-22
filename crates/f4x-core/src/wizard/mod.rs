@@ -15,9 +15,11 @@ pub(crate) mod magic_commands;
 pub(crate) mod magic_game;
 pub mod magic_income;
 pub mod objective;
+pub mod sheet;
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::game::setting::SpellLibraryDef;
 use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::{Rarity, SpellId};
@@ -169,26 +171,22 @@ impl WizardBuild {
         i16::from(PICKS) - i16::from(self.picks_spent())
     }
 
-    /// Common spells the wizard may choose in a realm: one fewer than the books, up to nine
-    /// (eleven books give all ten commons, with no choice).
-    pub fn spell_choices(&self, realm: &str) -> usize {
-        match self.books.get(realm).copied().unwrap_or(0) {
-            n if n > 10 => 0,
-            n => usize::from(n.saturating_sub(1)),
-        }
-    }
-
-    /// Spells of a rarity the wizard may choose in a realm: the commons as
-    /// [`WizardBuild::spell_choices`], two uncommon and one rare with eleven books, nothing
-    /// else.
-    pub fn spell_choices_of(&self, realm: &str, rarity: Rarity) -> usize {
-        let eleven = self.books.get(realm).copied().unwrap_or(0) > 10;
-        match rarity {
-            Rarity::Common => self.spell_choices(realm),
-            Rarity::Uncommon if eleven => 2,
-            Rarity::Rare if eleven => 1,
-            _ => 0,
-        }
+    /// Spells of a rarity the wizard may choose in a realm: the `chosen` row of the library
+    /// table for the realm's books. The rest of what the wizard knows are defaults.
+    pub fn spell_choices_of(
+        &self,
+        library: &SpellLibraryDef,
+        realm: &str,
+        rarity: Rarity,
+    ) -> usize {
+        let row =
+            SpellLibraryDef::row(&library.chosen, self.books.get(realm).copied().unwrap_or(0));
+        usize::from(match rarity {
+            Rarity::Common => row.common,
+            Rarity::Uncommon => row.uncommon,
+            Rarity::Rare => row.rare,
+            Rarity::VeryRare => row.very_rare,
+        })
     }
 }
 
@@ -226,47 +224,6 @@ impl Game {
         Ok(())
     }
 
-    /// The spells a realm offers at the start: its common spells in file order.
-    pub fn starting_spell_pool(&self, realm: &str) -> Vec<SpellId> {
-        self.starting_spell_pool_of(realm, Rarity::Common)
-    }
-
-    /// The spells of one rarity a realm offers at the start, in file order.
-    pub fn starting_spell_pool_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
-        self.content
-            .rules
-            .spells
-            .iter()
-            .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
-            .map(|(id, _)| id)
-            .collect()
-    }
-
-    /// The realm's default starting spells that are common ones, in default order.
-    pub fn default_starting_spells(&self, realm: &str) -> Vec<SpellId> {
-        self.default_starting_spells_of(realm, Rarity::Common)
-    }
-
-    /// The realm's default starting spells of one rarity, in default order.
-    pub fn default_starting_spells_of(&self, realm: &str, rarity: Rarity) -> Vec<SpellId> {
-        let Some(def) = self
-            .content
-            .rules
-            .realms
-            .defs()
-            .iter()
-            .find(|r| r.id == realm)
-        else {
-            return Vec::new();
-        };
-        let pool = self.starting_spell_pool_of(realm, rarity);
-        def.default_spells
-            .iter()
-            .filter_map(|s| self.content.rules.spells.id_of(s))
-            .filter(|s| pool.contains(s))
-            .collect()
-    }
-
     /// Set up `player` as the wizard `build` describes: books, retorts, casting skill and
     /// starting spells (chosen ones first, then defaults, then any common spell).
     pub fn create_wizard(
@@ -281,38 +238,20 @@ impl Game {
         for &s in &build.spells {
             let def = self.content.rules.spells.get(s);
             let key = (def.realm.clone(), def.rarity);
-            let room = build.spell_choices_of(&def.realm, def.rarity);
+            let room = build.spell_choices_of(
+                &self.content.settings.spell_library,
+                &def.realm,
+                def.rarity,
+            );
             let list = per_realm.entry(key).or_default();
             if list.contains(&s) || list.len() >= room {
                 return Err(BuildError::BadSpell(s));
             }
             list.push(s);
         }
-        let mut start = Vec::new();
-        for realm in build.books.keys() {
-            for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
-                let want = build.spell_choices_of(realm, rarity);
-                let mut chosen = per_realm
-                    .remove(&(realm.clone(), rarity))
-                    .unwrap_or_default();
-                for s in self
-                    .default_starting_spells_of(realm, rarity)
-                    .into_iter()
-                    .chain(self.starting_spell_pool_of(realm, rarity))
-                {
-                    if chosen.len() >= want {
-                        break;
-                    }
-                    if !chosen.contains(&s) {
-                        chosen.push(s);
-                    }
-                }
-                start.extend(chosen);
-            }
-        }
         let books: Vec<(&str, u8)> = build.books.iter().map(|(r, &n)| (r.as_str(), n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
-        self.init_wizard(player, &books, &retorts, Some(&start))
+        self.init_wizard(player, &books, &retorts, Some(&build.spells))
             .map_err(BuildError::Magic)?;
         if !build.name.is_empty() {
             self.wizard_set(player, entity::Name(build.name.clone()));

@@ -144,7 +144,9 @@ impl Game {
             SUMMON_HERO => pick(Class::Hero),
             SUMMON_CHAMPION => pick(Class::Champion),
             INCARNATION => Some(torin(&self.content.rules)),
-            RESURRECTION => self.magic_mut(player).and_then(|m| m.raising.take()),
+            RESURRECTION => self
+                .wizard_mut(player)
+                .and_then(|mut w| w.get_mut::<crate::wizard::magic::Magic>().raising.take()),
             _ => return None,
         };
         let joined = kind.and_then(|k| self.arrive(player, k).ok().map(|u| (u, k)));
@@ -182,18 +184,22 @@ impl Game {
         let reserve = self.treasury(player).map_or(0, |p| p.mana);
         let now = {
             let m = self
-                .magic(player)
+                .wizard(player)
                 .ok_or(Rejection::Magic(MagicError::UnknownPlayer))?;
             m.check_can_cast(spell).map_err(Rejection::Magic)?;
             cost <= m.instant_budget(reserve)
         };
-        if let Some((p, t)) = self.player_treasury_mut(player) {
-            p.magic.raising = Some(kind);
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.get_mut::<crate::wizard::magic::Magic>().raising = Some(kind);
             if now {
-                p.magic.spend_skill(cost);
-                t.mana -= cost;
+                w.spend_skill(cost);
             } else {
-                p.magic.begin_casting(spell, cost);
+                w.begin_casting(spell, cost);
+            }
+        }
+        if now {
+            if let Some(t) = self.treasury_mut(player) {
+                t.mana -= cost;
             }
         }
         self.begin_cast_relations(player, spell);
@@ -201,8 +207,8 @@ impl Game {
             return Ok(Vec::new());
         }
         let events = self.resolve_cast(player, spell, None);
-        if let Some(m) = self.magic_mut(player) {
-            m.raising = None;
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.get_mut::<crate::wizard::magic::Magic>().raising = None;
         }
         Ok(events)
     }
@@ -224,15 +230,24 @@ mod tests {
         g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
         for id in HOOKS {
             let s = g.content.rules.spells.id_of(id).unwrap();
-            let m = g.magic_mut(P0).unwrap();
-            m.researchable.remove(&s);
-            m.candidates.retain(|c| *c != s);
-            if m.researching == Some(s) {
-                m.researching = None;
+            let mut m = g.wizard_mut(P0).unwrap();
+            m.get_mut::<crate::wizard::sheet::KnownSpells>()
+                .researchable
+                .remove(&s);
+            m.get_mut::<crate::wizard::sheet::Candidates>()
+                .0
+                .retain(|c| *c != s);
+            if m.get_mut::<crate::wizard::sheet::Research>().spell == Some(s) {
+                m.get_mut::<crate::wizard::sheet::Research>().spell = None;
             }
-            m.known.insert(s);
+            m.get_mut::<crate::wizard::sheet::KnownSpells>()
+                .known
+                .insert(s);
         }
-        g.magic_mut(P0).unwrap().skill_left = 99_999;
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 99_999;
         let t = g.treasury_mut(P0).unwrap();
         t.mana = 1000;
         t.gold = 100;
@@ -401,7 +416,7 @@ mod tests {
         assert_eq!(kind, 1);
         assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
         assert!(g.treasury(P0).unwrap().mana < mana);
-        assert_eq!(g.magic(P0).unwrap().raising, None);
+        assert_eq!(g.wizard(P0).unwrap().raising(), None);
         assert_eq!(g.player(P0).unwrap().roster.dead(), vec![0]);
         // A hero who is not dead, or never was, cannot be raised.
         for kind in [1, 5, 99] {
@@ -419,14 +434,20 @@ mod tests {
         g.treasury_mut(P0).unwrap().gold = 5000;
         let a = g.hire_hero(P0, 3).unwrap();
         g.remove_unit(a, Fate::Slain);
-        g.magic_mut(P0).unwrap().skill_left = 0;
-        g.magic_mut(P0).unwrap().skill_points = 0;
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 0;
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .points = 0;
         let events = g.apply(Command::ResurrectHero {
             player: P0,
             kind: 3,
         });
         assert!(events.is_empty(), "{events:?}");
-        assert_eq!(g.magic(P0).unwrap().raising, Some(3));
+        assert_eq!(g.wizard(P0).unwrap().raising(), Some(3));
         // (The test world has no city for the fortress to stand in, which a save refuses.)
         g.player_mut(P0).unwrap().fortress = None;
         g.player_mut(P0).unwrap().summon_at = None;
@@ -436,7 +457,7 @@ mod tests {
             .restore(g.content.clone())
             .unwrap();
         back.player_mut(P0).unwrap().summon_at = Some(at(3, 3));
-        assert_eq!(back.magic(P0).unwrap().raising, Some(3));
+        assert_eq!(back.wizard(P0).unwrap().raising(), Some(3));
         // The cost is paid; the spell takes effect.
         let spell = back.content.rules.spells.id_of(RESURRECTION).unwrap();
         let events = back.resolve_cast(P0, spell, None);
@@ -457,9 +478,12 @@ mod tests {
         assert!(matches!(events.as_slice(), [Event::Rejected(_)]));
         // Giving the spell up forgets the hero.
         let mut g = caster();
-        g.magic_mut(P0).unwrap().raising = Some(2);
-        g.magic_mut(P0).unwrap().cancel_casting();
-        assert_eq!(g.magic(P0).unwrap().raising, None);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .raising = Some(2);
+        g.wizard_mut(P0).unwrap().cancel_casting();
+        assert_eq!(g.wizard(P0).unwrap().raising(), None);
         let _ = (P1, Plane::Arcanus);
     }
 }

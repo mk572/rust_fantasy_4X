@@ -139,7 +139,7 @@ impl Game {
             0
         };
         Score {
-            spells: p.magic.known.len() as i32,
+            spells: self.wizard(player).map_or(0, |w| w.known().len()) as i32,
             townsfolk: (townsfolk / 2) as i32,
             people: townsfolk as i32,
             conquests: conquests as i32 * 50,
@@ -187,7 +187,7 @@ impl Game {
         self.player_ids()
             .into_iter()
             .filter_map(|id| {
-                let c = self.magic(id)?.casting?;
+                let c = self.wizard(id)?.casting()?;
                 self.spell_has_hook(c.spell, SPELL_OF_MASTERY)
                     .then_some((id, c.remaining))
             })
@@ -253,9 +253,10 @@ impl Game {
         if let Some(t) = self.treasury_mut(loser) {
             t.gold -= loot;
         }
-        if let Some(p) = self.player_mut(loser) {
-            p.magic.global.clear();
-            p.magic.casting = None;
+        if let Some(mut w) = self.wizard_mut(loser) {
+            let mut magic = w.get_mut::<crate::wizard::magic::Magic>();
+            magic.global.clear();
+            magic.casting = None;
         }
         if let Some(t) = self.treasury_mut(winner) {
             t.gold += loot;

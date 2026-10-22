@@ -25,7 +25,6 @@ use crate::player::finance::Budget;
 
 use crate::game::Game;
 use crate::rules::{SpellDef, SpellId, Stat, UnitDef};
-use crate::wizard::magic::Magic;
 
 pub struct PlayerView<'a> {
     game: &'a Game,
@@ -86,8 +85,9 @@ impl<'a> PlayerView<'a> {
         self.game.offers(self.me)
     }
 
-    pub fn magic(&self) -> Option<hecs::Ref<'a, Magic>> {
-        self.game.magic(self.me)
+    /// The player's wizard, if it has one.
+    pub fn wizard(&self) -> Option<crate::wizard::entity::Wizard<'a>> {
+        self.game.wizard(self.me)
     }
 
     /// What the player's income and expenses come to this turn.
@@ -98,8 +98,8 @@ impl<'a> PlayerView<'a> {
     /// The spells on offer for research.
     pub fn research_choices(&self) -> Vec<SpellId> {
         self.game
-            .magic(self.me)
-            .map(|m| m.candidates.clone())
+            .wizard(self.me)
+            .map(|w| w.candidates())
             .unwrap_or_default()
     }
 
@@ -129,14 +129,14 @@ impl<'a> PlayerView<'a> {
     /// spells it knows).
     pub fn research_cost(&self, spell: SpellId) -> i32 {
         self.game
-            .magic(self.me)
+            .wizard(self.me)
             .map_or(0, |m| m.research_cost(self.game.content(), spell))
     }
 
     /// A spell that has been paid for over several turns and now waits for its target (or takes
     /// effect at the turn's end).
     pub fn paid_spell(&self) -> Option<SpellId> {
-        self.game.magic(self.me).and_then(|m| m.casting_paid())
+        self.game.wizard(self.me).and_then(|m| m.casting_paid())
     }
 
     /// Does casting the spell ask for a target?

@@ -167,18 +167,18 @@ fn starting_spells_are_chosen_then_defaulted() {
     let mut b = build(&[("life", 4), ("chaos", 6)], &[Retort::Alchemy]);
     b.spells = vec![c7, c3];
     g.create_wizard(P0, &b).unwrap();
-    let m = g.magic(P0).unwrap();
+    let m = g.wizard(P0).unwrap();
     // Four life books: three commons; two were chosen, one is filled in.
-    let life: Vec<_> = m
-        .known
+    let known = m.known();
+    let life: Vec<_> = known
         .iter()
         .filter(|&&s| g.content.rules.spells.get(s).realm == "life")
         .collect();
     assert_eq!(life.len(), 3);
-    assert!(m.known.contains(&c7) && m.known.contains(&c3));
+    assert!(m.knows(c7) && m.knows(c3));
     // Six chaos books: five commons, all from the pool.
     let chaos = m
-        .known
+        .known()
         .iter()
         .filter(|&&s| g.content.rules.spells.get(s).realm == "chaos")
         .count();
@@ -255,7 +255,7 @@ fn presets_come_from_the_rules() {
     assert_eq!(g.portrait(P0) as usize, place);
     let restored = g.snapshot().restore(g.content.clone()).unwrap();
     assert_eq!(restored.portrait(P0) as usize, place);
-    assert!(g.magic(P0).unwrap().has(Retort::Channeler));
+    assert!(g.wizard(P0).unwrap().has(Retort::Channeler));
     assert!(g.preset_build("nobody").is_none());
 }
 
@@ -275,9 +275,14 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     );
     let very_rare = life(&g, Rarity::VeryRare, 0);
     let b = build(&[("life", 11)], &[]);
-    assert_eq!(b.spell_choices("life"), 0, "the commons are all given");
-    assert_eq!(b.spell_choices_of("life", Rarity::Uncommon), 2);
-    assert_eq!(b.spell_choices_of("life", Rarity::Rare), 1);
+    let lib = &g.content.settings.spell_library;
+    assert_eq!(
+        b.spell_choices_of(lib, "life", Rarity::Common),
+        0,
+        "the commons are all given"
+    );
+    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Uncommon), 2);
+    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Rare), 1);
     // Too many, or the wrong sort, are refused.
     for bad in [vec![u0, u1, u2], vec![rare, r4]] {
         let mut b = b.clone();
@@ -290,26 +295,29 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     let mut chosen = b.clone();
     chosen.spells = vec![u1, u2, rare];
     g.create_wizard(P0, &chosen).unwrap();
-    let magic = (*g.magic(P0).unwrap()).clone();
+    let magic = g.wizard(P0).unwrap();
     assert_eq!(magic.books_in("life"), 11);
-    let known = |spell| magic.known.contains(&spell);
+    let known = |spell| magic.knows(spell);
     assert!(
         (0..10).all(|i| known(life(&g, Rarity::Common, i))),
         "every common"
     );
     assert!(known(u1) && known(u2) && known(rare));
     assert!(!known(u0) && !known(r0), "only what was picked");
-    let researchable = |spell| magic.researchable.contains(&spell);
+    let researchable = |spell| magic.can_research(spell);
     assert!(researchable(u0) && researchable(very_rare) && researchable(r0));
     // Without a choice the realm's defaults fill in: still two uncommon and one rare.
     let mut g = game();
     g.create_wizard(P0, &b).unwrap();
-    let magic = (*g.magic(P0).unwrap()).clone();
+    let magic = g.wizard(P0).unwrap();
     let count = |r: Rarity| {
         magic
-            .known
+            .known()
             .iter()
-            .filter(|&&s| g.content.rules.spells.get(s).rarity == r)
+            .filter(|&&s| {
+                let d = g.content.rules.spells.get(s);
+                d.realm == "life" && d.rarity == r
+            })
             .count()
     };
     assert_eq!((count(Rarity::Uncommon), count(Rarity::Rare)), (2, 1));
@@ -318,9 +326,10 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
 #[test]
 fn ten_books_still_choose_nine_commons_and_nothing_else() {
     let b = build(&[("life", 10)], &[]);
-    assert_eq!(b.spell_choices("life"), 9);
-    assert_eq!(b.spell_choices_of("life", Rarity::Uncommon), 0);
-    assert_eq!(b.spell_choices_of("life", Rarity::Rare), 0);
+    let lib = &game().content.settings.spell_library;
+    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Common), 9);
+    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Uncommon), 0);
+    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Rare), 0);
     assert_eq!(b.picks_spent(), 10);
 }
 
@@ -330,48 +339,223 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
     let mut g = game();
     g.create_wizard(P0, &build(&[("life", 6), ("chaos", 5)], &[]))
         .unwrap();
-    let magic = (*g.magic(P0).unwrap()).clone();
-    assert_eq!(magic.candidates.len(), RESEARCH_SLOTS);
-    assert!(magic
-        .candidates
-        .iter()
-        .all(|s| magic.researchable.contains(s)));
+    let magic = g.wizard(P0).unwrap();
+    assert_eq!(magic.candidates().len(), RESEARCH_SLOTS);
+    assert!(magic.candidates().iter().all(|s| magic.can_research(*s)));
     // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
     // commons are on the offer.
     for realm in ["life", "chaos"] {
         let of_realm = |s: &&crate::rules::SpellId| g.content.rules.spells.get(**s).realm == realm;
         let commons_left_out = magic
-            .researchable
+            .researchable()
             .iter()
             .filter(of_realm)
             .filter(|&&s| g.content.rules.spells.get(s).rarity == Rarity::Common)
-            .any(|s| !magic.candidates.contains(s));
+            .any(|s| !magic.candidates().contains(s));
         let offered_other = magic
-            .candidates
+            .candidates()
             .iter()
             .filter(of_realm)
             .any(|&s| g.content.rules.spells.get(s).rarity != Rarity::Common);
         assert!(!(commons_left_out && offered_other), "{realm}");
     }
     // Only an offered spell can be researched.
-    let outside = *magic
-        .researchable
+    let researchable = magic.researchable();
+    let outside = *researchable
         .iter()
-        .find(|s| !magic.candidates.contains(s))
+        .find(|s| !magic.candidates().contains(s))
         .unwrap();
+    let pick = magic.candidates()[3];
     assert_eq!(
         g.set_research(P0, outside),
         Err(crate::wizard::magic::MagicError::NotAvailable)
     );
-    let pick = magic.candidates[3];
     g.set_research(P0, pick).unwrap();
     // Learning it takes it off the offer, and the offer is topped up again.
-    g.magic_mut(P0).unwrap().research_remaining = 0;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Research>()
+        .remaining = 0;
     let events = g.process_magic();
     assert!(events
         .iter()
         .any(|e| matches!(e, crate::game::Event::SpellLearned { spell, .. } if *spell == pick)));
-    let after = g.magic(P0).unwrap();
-    assert!(after.known.contains(&pick) && !after.candidates.contains(&pick));
-    assert_eq!(after.candidates.len(), RESEARCH_SLOTS);
+    let after = g.wizard(P0).unwrap();
+    assert!(after.knows(pick) && !after.candidates().contains(&pick));
+    assert_eq!(after.candidates().len(), RESEARCH_SLOTS);
+}
+
+/// A ready-made wizard: no pick budget, so a test can have any books.
+fn preset(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
+    WizardBuild {
+        preset: true,
+        ..build(books, retorts)
+    }
+}
+
+fn spell_id(g: &Game, id: &str) -> crate::rules::SpellId {
+    g.content.rules.spells.id_of(id).unwrap()
+}
+
+/// How many of the spells in `set` are of this realm and rarity.
+fn of_kind(
+    g: &Game,
+    set: &std::collections::BTreeSet<crate::rules::SpellId>,
+    realm: &str,
+    rarity: Rarity,
+) -> usize {
+    set.iter()
+        .filter(|&&s| {
+            let d = g.content.rules.spells.get(s);
+            d.realm == realm && d.rarity == rarity
+        })
+        .count()
+}
+
+#[test]
+fn a_realm_starts_with_the_first_default_commons_known() {
+    // The original: n books, n - 1 commons known, taken from the realm's default list.
+    let mut g = game();
+    g.create_wizard(P0, &preset(&[("nature", 3)], &[])).unwrap();
+    let m = g.wizard(P0).unwrap();
+    for id in ["war_bears", "stone_skin"] {
+        assert!(m.known().contains(&spell_id(&g, id)), "{id}");
+    }
+    assert!(
+        !m.known().contains(&spell_id(&g, "sprites")),
+        "the third is researchable"
+    );
+    assert_eq!(of_kind(&g, &m.known(), "nature", Rarity::Common), 2);
+}
+
+#[test]
+fn one_book_knows_no_spell_but_opens_three_commons_and_an_uncommon() {
+    let mut g = game();
+    g.create_wizard(P0, &preset(&[("chaos", 1)], &[])).unwrap();
+    let m = g.wizard(P0).unwrap();
+    assert_eq!(of_kind(&g, &m.known(), "chaos", Rarity::Common), 0);
+    assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Common), 3);
+    assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Uncommon), 1);
+    assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Rare), 0);
+}
+
+#[test]
+fn the_books_open_more_of_the_realm_as_in_the_tables() {
+    // (books, researchable commons, uncommons, rares, very rares) in the original's tables.
+    for (books, expect) in [
+        (2, (5, 2, 1, 0)),
+        (5, (8, 5, 4, 3)),
+        (7, (10, 8, 6, 5)),
+        (8, (10, 10, 7, 6)),
+        (9, (10, 10, 9, 7)),
+        (10, (10, 10, 10, 10)),
+    ] {
+        let mut g = game();
+        g.create_wizard(P0, &preset(&[("life", books)], &[]))
+            .unwrap();
+        let m = g.wizard(P0).unwrap();
+        let open = |r: Rarity| {
+            of_kind(&g, &m.researchable(), "life", r) + of_kind(&g, &m.known(), "life", r)
+        };
+        assert_eq!(
+            (
+                open(Rarity::Common),
+                open(Rarity::Uncommon),
+                open(Rarity::Rare),
+                open(Rarity::VeryRare)
+            ),
+            expect,
+            "{books} books"
+        );
+    }
+}
+
+#[test]
+fn eleven_books_know_the_default_uncommons_and_rare() {
+    let mut g = game();
+    g.create_wizard(P0, &preset(&[("sorcery", 11)], &[]))
+        .unwrap();
+    let m = g.wizard(P0).unwrap();
+    for id in ["flight", "phantom_beast", "storm_giant"] {
+        assert!(m.known().contains(&spell_id(&g, id)), "{id}");
+    }
+    assert_eq!(of_kind(&g, &m.known(), "sorcery", Rarity::Common), 10);
+    assert_eq!(
+        of_kind(&g, &m.researchable(), "sorcery", Rarity::VeryRare),
+        10
+    );
+}
+
+#[test]
+fn every_wizard_knows_magic_spirit_and_the_spell_of_return() {
+    let mut g = game();
+    g.create_wizard(P0, &preset(&[("life", 2)], &[])).unwrap();
+    let m = g.wizard(P0).unwrap();
+    assert!(m.known().contains(&spell_id(&g, "magic_spirit")));
+    assert!(m.known().contains(&spell_id(&g, "spell_of_return")));
+    assert!(
+        !m.known().contains(&spell_id(&g, "enchant_item")),
+        "not without the retort"
+    );
+    assert!(!m.researchable().contains(&spell_id(&g, "spell_of_mastery")));
+    assert!(m.researchable().contains(&spell_id(&g, "enchant_item")));
+}
+
+#[test]
+fn an_artificer_also_knows_enchant_item_and_create_artifact() {
+    let mut g = game();
+    g.create_wizard(
+        P0,
+        &preset(&[("life", 2), ("chaos", 2)], &[Retort::Artificer]),
+    )
+    .unwrap();
+    let m = g.wizard(P0).unwrap();
+    for id in ["enchant_item", "create_artifact"] {
+        assert!(m.known().contains(&spell_id(&g, id)), "{id}");
+        assert!(!m.researchable().contains(&spell_id(&g, id)), "{id}");
+    }
+}
+
+#[test]
+fn a_computer_wizard_knows_a_spell_of_its_main_realm_and_the_human_does_not() {
+    // Most books wins; on a tie the first realm in the order nature, sorcery, chaos, life, death.
+    for (books, spell) in [
+        (vec![("nature", 4), ("life", 2)], "sprites"),
+        (vec![("sorcery", 3), ("chaos", 3)], "nagas"),
+        (vec![("chaos", 1), ("life", 5)], "guardian_spirit"),
+        (vec![("death", 2), ("life", 2)], "guardian_spirit"),
+        (vec![("death", 3), ("life", 2)], "ghouls"),
+    ] {
+        let mut g = game();
+        g.settings.ai.wizards.guaranteed_summoning_spell = true;
+        g.create_wizard(P0, &preset(&books, &[])).unwrap();
+        g.give_main_realm_spell(P0);
+        assert!(
+            g.wizard(P0).unwrap().known().contains(&spell_id(&g, spell)),
+            "{spell}"
+        );
+    }
+    let mut g = game();
+    g.create_wizard(P0, &preset(&[("nature", 1)], &[])).unwrap();
+    g.set_human(Some(P0));
+    g.give_main_realm_spell(P0);
+    assert!(!g
+        .wizard(P0)
+        .unwrap()
+        .known()
+        .contains(&spell_id(&g, "sprites")));
+}
+
+#[test]
+fn from_hard_on_a_computer_wizard_may_research_an_uncommon_summoning_spell() {
+    for (difficulty, open) in [(2, false), (3, true), (4, true)] {
+        let mut g = game();
+        g.settings.basic.difficulty = difficulty;
+        g.create_wizard(P0, &preset(&[("nature", 1)], &[])).unwrap();
+        g.give_main_realm_spell(P0);
+        let m = g.wizard(P0).unwrap();
+        let basilisk = spell_id(&g, "basilisk");
+        assert_eq!(m.can_research(basilisk), open, "difficulty {difficulty}");
+        assert!(!m.knows(basilisk));
+    }
 }

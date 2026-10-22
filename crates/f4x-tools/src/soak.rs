@@ -252,19 +252,19 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
         .filter(|(id, _)| !game.is_neutral_player(*id))
     {
         let id = *id;
-        let Some(m) = game.magic(id) else {
+        let Some(m) = game.wizard(id) else {
             continue;
         };
         let name = |s: f4x_core::rules::SpellId| game.content().rules.spells.get(s).id.clone();
         let explored = game.explored_squares(id);
         let income = game.income(id);
-        let mut known: Vec<String> = m.known.iter().map(|&s| name(s)).collect();
+        let mut known: Vec<String> = m.known().iter().map(|&s| name(s)).collect();
         known.sort();
         out.push(format!("  known: {}", known.join(" ")));
         out.push(format!(
             "p{}: skill {}/{}, gold {} (cities {}, buildings -{}, units -{}, food {}), food {}, mana {} (+{} upkeep {}), spells {}, researching {} ({} left), casting {}, split {}/{}/{}, explored {}{}, scouts {:?}, campaign {:?}, landing {:?}",
             id.0,
-            m.skill_left,
+            m.skill_left(),
             m.casting_skill(),
             game.budget(id).net_gold(),
             game.budget(id).city_gold,
@@ -275,15 +275,15 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
             game.treasury(id).map_or(0, |t| t.mana),
             income.split.mana,
             income.mana_upkeep,
-            m.known.len(),
-            m.researching.map_or("-".into(), name),
-            m.research_remaining,
-            m.casting
+            m.known().len(),
+            m.researching().map_or("-".into(), name),
+            m.research_remaining(),
+            m.casting()
                 .as_ref()
                 .map_or("-".into(), |c| format!("{} ({} left)", name(c.spell), c.remaining)),
-            m.mana_pct,
-            m.research_pct,
-            m.skill_pct,
+            m.power_split().mana,
+            m.power_split().research,
+            m.power_split().skill,
             explored,
             if ais.iter().any(|a| a.player == id && a.frontier_closed()) {
                 " (frontier closed)"
@@ -316,11 +316,15 @@ fn grant_mastery_to_all(game: &mut Game) {
         .map(|(id, _)| id)
         .collect();
     for id in ids {
-        if let Some((p, t)) = game.player_treasury_mut(id) {
-            p.magic.known.insert(spell);
-            p.magic.researchable.remove(&spell);
-            p.magic.skill_points += 2000;
+        if let Some(t) = game.treasury_mut(id) {
             t.mana += 6000;
+        }
+        if let Some(mut w) = game.wizard_mut(id) {
+            let mut spells = w.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
+            spells.known.insert(spell);
+            spells.researchable.remove(&spell);
+            drop(spells);
+            w.get_mut::<f4x_core::wizard::sheet::Skill>().points += 2000;
         }
     }
 }

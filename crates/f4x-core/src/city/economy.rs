@@ -124,8 +124,8 @@ impl<'a> Economy<'a> {
         crate::player::find(self.world, id)
     }
 
-    pub(crate) fn magic(&self, id: PlayerId) -> Option<hecs::Ref<'a, crate::wizard::magic::Magic>> {
-        crate::player::magic(self.world, id)
+    pub(crate) fn wizard(&self, id: PlayerId) -> Option<crate::wizard::entity::Wizard<'a>> {
+        crate::wizard::entity::find(self.world, id)
     }
 
     /// All cities with their positions, oldest first.
@@ -202,17 +202,20 @@ impl<'a> Economy<'a> {
             // religious buildings: the original adds the buildings up, then takes 150 percent.
             let owner = self.city_owner(city);
             let devout = owner
-                .and_then(|o| self.magic(o))
+                .and_then(|o| self.wizard(o))
                 .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
             let (mut power, mut pacify) = (0, 0);
             // While any wizard keeps Armageddon going, no building calms a city.
-            let armageddon = crate::player::all(self.world).iter().any(|(_, p)| {
-                crate::spell::global_enchantment::magic_has_global(
-                    &p.magic,
-                    self.content,
-                    "armageddon",
-                )
-            });
+            let armageddon = crate::player::ids(self.world)
+                .into_iter()
+                .filter_map(|id| self.wizard(id))
+                .any(|w| {
+                    crate::spell::global_enchantment::magic_has_global(
+                        &w,
+                        self.content,
+                        "armageddon",
+                    )
+                });
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
@@ -259,7 +262,7 @@ impl<'a> Economy<'a> {
             // A moon in the sky changes what the religious buildings give.
             let books = |realm| {
                 owner
-                    .and_then(|o| self.magic(o))
+                    .and_then(|o| self.wizard(o))
                     .is_some_and(|m| m.books_in(realm) > 0)
             };
             let moon = self
@@ -478,7 +481,7 @@ impl<'a> Economy<'a> {
     /// its wizard. Nothing for anyone not keeping the spell. It joins the power base like a
     /// volcano's, outside the cities' own mana.
     pub fn blight_power(&self, owner: PlayerId) -> i32 {
-        let kept = self.magic(owner).is_some_and(|m| {
+        let kept = self.wizard(owner).is_some_and(|m| {
             crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
         });
         let Some(map) = self.map.filter(|_| kept) else {
@@ -525,7 +528,7 @@ impl<'a> Economy<'a> {
         let area = self.city_area(at);
         // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
         // squares still yield and add no unrest (and add power, see `blight_power`).
-        let blight_proof = self.magic(owner).is_some_and(|m| {
+        let blight_proof = self.wizard(owner).is_some_and(|m| {
             crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
         });
         let gaia = self.city_has_enchantment(city, "gaias_blessing");

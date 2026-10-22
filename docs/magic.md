@@ -7,7 +7,7 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 
 ## 1. The wizard
 
-> **Rework (task 310, built in tasks 311 to 317).** The wizard becomes an entity of its own, linked to a
+> **Rework (task 310, built in tasks 311 to 317; the sheet below is done, task 315).** The wizard becomes an entity of its own, linked to a
 > **player** entity that holds what the wizard has and does (gold, mana, tax rate, offers, defeat).
 > The `Magic` record below is split into components of the wizard: `Books`, `Retorts`, `Skill`
 > (invested points and `skill_left`), `Research` (`researching`, `research_remaining`), `KnownSpells`,
@@ -176,8 +176,8 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
   spells of eligibility 0). Eligibility 4 (Word of Recall, Disenchant True and Area) is in the
   original's battle list too, but stays overland-only here until their battle effects exist
   (task 159).
-- Starting known spells are random; the original takes them from a fixed table per named wizard,
-  or lets a custom wizard pick.
+- Starting known spells follow the original's rules (section 13): the tables are in
+  `content/settings.ron`, `spell_library`.
 
 ## 12. Fortress, summoning circle, banishment
 
@@ -232,18 +232,30 @@ books lets the wizard choose `n - 1` common spells at the start (more are filled
 `RealmDef::default_spells`); with eleven books in one realm the wizard knows all ten commons and
 chooses two uncommon and one rare (`WizardBuild::spell_choices_of`).
 
-The original's rule (`Init_Computer_Players_Spell_Library`, `Newgame_Screen_5`, `Human_Player_Wizard_Profile`
-in ReMoM), per realm and number of books: **0 books** nothing; **1 book** no spell is known (but the realm's
-research pool opens: 3 commons researchable); **2 to 10 books** the first `books - 1` common spells are known
-(the human chooses them on the custom screen; presets, the computer wizards and anyone who does not choose
-get the first ones of the realm's default list, `_default_spells`); the other commons become researchable up to
-5, 6, 7, 8, 9, 10, 10, 10, 10 for 2 to 10 books, and with more than 7 books every uncommon, with more than 9
-every rare and very rare spell; **11 books** all ten commons are known, plus two uncommons (default list
-slots 11 and 12) and one rare (slot 13), and everything else in the realm is researchable. Besides, every wizard
-gets the Arcane pool and Spell of Mastery as researchable, the computer wizards a spell of their main realm
-(Water Walking, Counter Magic, Fire Bolt, True Light or Black Sleep) and, on Hard and Impossible, one more
-creature spell to research. Our `WizardBuild::spell_choices_of` follows the first rule; the research pools are
-`research.rs`'s own.
+The original's rule (`Init_Computer_Players_Spell_Library`, `Newgame_Screen_5`, `Init_Magic_Personalities_Objectives`
+in ReMoM), which the game follows, with every number in `content/settings.ron` under `spell_library`
+(three tables by the number of books in a realm, 0 to 11, so a mod can change them):
+- **Known** (`known`): 0 and 1 books nothing; 2 to 10 books the first `books - 1` commons (the human chooses
+  them on the custom screen, `chosen`; presets, the computer wizards and anyone who does not choose get the
+  first ones of the realm's default list, `realms.ron`, in order); 11 books all ten commons, two uncommons
+  (default list slots 11 and 12) and one rare (slot 13).
+- **Researchable** (`researchable`, the known ones counted, drawn at random): 1 book 3 commons and 1
+  uncommon; then 5, 6, 7, 8, 9, 10 commons for 2 to 7 books, 2 to 6 and 8 uncommons for 2 to 7 books, 1 to 6
+  rares for 2 to 8 books (9 at 9), 1 to 7 very rares for 3 to 9 books; more than 7 books every uncommon,
+  more than 9 every rare and very rare spell; 11 books everything.
+- **Every wizard** knows Magic Spirit and the Spell of Return (`always_known`); an Artificer also Enchant
+  Item and Create Artifact (`retort_known`). The rest of the arcane realm is researchable except the
+  Spell of Mastery (`arcane_closed`), which is offered last.
+- **Computer wizards** know a common summoning spell of their main realm (the realm with most books; on a
+  tie the first of nature, sorcery, chaos, life, death): Sprites, Nagas, Hell Hounds, Guardian Spirit or
+  Ghouls (`ai_main_realm_known`). It is not a fallback: the original gives it to every computer wizard,
+  but it matters most when erased books left the realm with one (then it knows no other spell). The level
+  setting `ai.wizards.guaranteed_summoning_spell` switches it off. From Hard (`ai_main_realm_researchable_from`)
+  they may also research an uncommon summoning spell of that realm: Basilisk, Phantom Beast, Chimeras,
+  Unicorns or Shadow Demons (`ai_main_realm_researchable`). The original's code names other spells
+  in both places and adds the second one only after testing the wrong spell (`OGBUG`); we follow what it
+  really gives and what the community wiki lists.
+- When no starting spells are given at all (a test), the known ones are drawn at random.
 
 Ready-made wizards skip the budget check (the original's Lo Pan
 spent twelve; ours has four sorcery books and spends eleven, as the others). The client's creation screen is `create_screen.rs`.

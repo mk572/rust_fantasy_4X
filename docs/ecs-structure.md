@@ -38,7 +38,7 @@ Game                                   (lib.rs; the owner and the orchestrator)
 ├── map: Option<Map>                   two dense grids (terrain, feature, road); not entities
 ├── fog: Fog                           what each player has explored
 │   └── Player (component)             gold, mana, tax rate, fame, fortress...
-│       └── magic: Magic               the wizard: books, retorts, skill, research, casting (wizard/magic.rs)
+│       └── magic: Magic               legacy view; the wizard is now its own entity with the components of wizard/sheet.rs
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
 │                                      items, level paths
@@ -103,7 +103,7 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
 2. **A domain's fields are private to its module.** Other modules call its methods; they do
    not reach into its fields. (`Diplomacy` is private in this sense; `Magic` lives in a
    public `Player::magic` field because the game borrows the wizard, the content and the
-   generator apart, and the tests build it; its rules are still methods of `Magic`.)
+   generator apart, and the tests build it; its rules are methods of the wizard handles in `wizard/sheet.rs`.)
 3. **A domain takes what it needs, not `&mut Game`.** Its methods take `&Content`, `&mut GameRng`
    or numbers the game worked out (`Magic`), or a context value (`DiplomacyCtx`).
 4. **The rest of the world is asked through `WorldView`** (`game/view.rs`): a small read-only trait
@@ -120,7 +120,7 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
 Three ways to give a domain what it needs, all in use:
 
 - **Borrowing the fields apart**, where the domain's state is a field of something `Game` can
-  borrow beside the content and the generator (`Magic`: `Game::magic_parts`).
+  borrow beside the content and the generator (the wizard handles: `Game::wizard`, `Game::wizard_mut`).
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
   view (`Diplomacy`: `Game::with_diplomacy` takes the state and the generator out of the game,
   runs the rules over `&Game` as the `WorldView`, puts them back and applies the outcomes).

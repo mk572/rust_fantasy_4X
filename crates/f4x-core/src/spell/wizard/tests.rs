@@ -184,7 +184,10 @@ fn world() -> Game {
         g.add_player(id, name, Player::new());
         g.treasury_mut(id).unwrap().mana = 5000;
         g.init_wizard(id, &[("death", 3)], &[], None).unwrap();
-        g.magic_mut(id).unwrap().skill_left = 99_999;
+        g.wizard_mut(id)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 99_999;
     }
     g
 }
@@ -200,7 +203,11 @@ fn unit(g: &mut Game, owner: PlayerId, id: &str, pos: Position) -> hecs::Entity 
 
 fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
     let s = sp(g, spell);
-    g.magic_mut(P0).unwrap().known.insert(s);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
     g.apply(Command::CastSpell {
         player: P0,
         spell: s,
@@ -246,31 +253,44 @@ fn a_wizard_cannot_drain_themselves() {
 #[test]
 fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() {
     let mut g = world();
-    g.magic_mut(P1).unwrap().skill_points = skill_points_for(60, false);
-    let before = g.magic(P1).unwrap().casting_skill();
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .points = skill_points_for(60, false);
+    let before = g.wizard(P1).unwrap().casting_skill();
     assert_eq!(before, 60);
     cast(&mut g, "cruel_unminding", Some(Target::Player(P1)));
-    let after = g.magic(P1).unwrap().casting_skill();
+    let after = g.wizard(P1).unwrap().casting_skill();
     assert!((54..=59).contains(&after), "{after}");
     // A tiny skill still loses a point.
-    g.magic_mut(P2).unwrap().skill_points = skill_points_for(5, false);
-    let before = g.magic(P2).unwrap().casting_skill();
+    g.wizard_mut(P2)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .points = skill_points_for(5, false);
+    let before = g.wizard(P2).unwrap().casting_skill();
     let mut rng = crate::game::rng::GameRng::new(1);
     let lost = g.cruel_unminding(P2, &mut rng);
     assert_eq!(lost, 1);
-    assert_eq!(g.magic(P2).unwrap().casting_skill(), before - 1);
+    assert_eq!(g.wizard(P2).unwrap().casting_skill(), before - 1);
 }
 
 #[test]
 fn an_archmages_ten_points_are_safe() {
     let mut g = world();
-    g.magic_mut(P1).unwrap().retorts.insert(Retort::Archmage);
-    g.magic_mut(P1).unwrap().skill_points = skill_points_for(40, true);
-    assert_eq!(g.magic(P1).unwrap().casting_skill(), 40);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::Archmage);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .points = skill_points_for(40, true);
+    assert_eq!(g.wizard(P1).unwrap().casting_skill(), 40);
     let mut rng = crate::game::rng::GameRng::new(2);
     let lost = g.cruel_unminding(P1, &mut rng);
     assert!((1..=4).contains(&lost), "{lost}");
-    assert_eq!(g.magic(P1).unwrap().casting_skill(), 40 - lost);
+    assert_eq!(g.wizard(P1).unwrap().casting_skill(), 40 - lost);
 }
 
 #[test]
@@ -664,7 +684,11 @@ fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
 
 fn keep(g: &mut Game, player: PlayerId, spell: &str) {
     let s = sp(g, spell);
-    g.magic_mut(player).unwrap().global.push(s);
+    g.wizard_mut(player)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(s);
 }
 
 #[test]
@@ -754,9 +778,16 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
     );
     let _ = (city, spared);
     // The holder's own casting, or a spell of another realm, does nothing.
-    g.magic_mut(P1).unwrap().skill_left = 99_999;
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 99_999;
     let s = sp(&g, "drain_power");
-    g.magic_mut(P1).unwrap().known.insert(s);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
     let events = g.apply(Command::CastSpell {
         player: P1,
         spell: s,
@@ -862,7 +893,11 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
     assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
     keep(&mut g, P0, "great_wasting");
     assert_eq!(range(&mut g), 10, "while the spell lasts");
-    g.magic_mut(P0).unwrap().global.clear();
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .clear();
     assert_eq!(range(&mut g), far, "and not after");
 }
 
@@ -1112,7 +1147,10 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
     );
     assert!(enemies.iter().all(|&u| g.units().unit_moves_left(u) > 0));
     // A square with no enemy not already held is no target.
-    g.magic_mut(P0).unwrap().skill_left = 99_999;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 99_999;
     let held = unit(&mut g, P1, "walker", at(12, 8));
     cast(&mut g, "stasis", Some(Target::Tile(at(12, 8))));
     assert!(g.unit_in_stasis(held));
@@ -1139,7 +1177,10 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
     // Another global enchantment of the wizard's costs nothing now.
     g.treasury_mut(P0).unwrap().mana = 500;
     g.treasury_mut(P0).unwrap().gold = 100;
-    g.magic_mut(P1).unwrap().skill_left = 5;
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 5;
     g.apply(Command::EndTurn);
     assert!(g.units().unit_moves_left(mine) > 0);
     assert_eq!(

@@ -221,7 +221,8 @@ Notes:
   skipped (`CITYCALC.c`: "Skip human player 0"). Neutral cities and monsters are not computer
   wizards and get none. Keep both.
 - The Hard-level "knowable starting spell" for AI wizards (`INITGAME.c`, which has bugs the ReMoM
-  source marks `OGBUG`) is **not** a setting; it is left out and noted in `divergences.md`.
+  source marks `OGBUG`) is `spell_library.ai_main_realm_researchable` with
+  `ai_main_realm_researchable_from` (the spells the wiki lists, not what the buggy code does).
 - The original's AI aggression against the human (+5 target value above Average, again above
   Hard) is AI behaviour, part of task 148, not a number here.
 - Two lines in `Combat.c` (3863 and 4075) treat Intro and Easy differently when the current
@@ -445,7 +446,7 @@ three is chosen, and the game-over text for a defeat by banishment names the rul
 | Final score scale | `score_percent`, applied where the score is made (task 148) |
 | Fleeing (`Combat.c` 3863 and 4075) | `rules.safe_flee`, below |
 | AI race limits above Normal (nine races, then five); Myrran count rule above Normal with more than three wizards | `wizards.ai_race_limit` switch (on / off), default by preset; task 155 item 2 |
-| Hard-level extra starting spells for AI wizards | left out (the original's code is buggy there); noted in `divergences.md` |
+| Starting spells, researchable spells, the AI's main-realm spells (known; and researchable from Hard) | `spell_library` (the tables) and `ai.wizards.guaranteed_summoning_spell`; `magic.md` section 13 |
 | AI aggression against the human | AI behaviour, task 148 |
 
 **The flee rule (read in `Combat.c`).** When a side flees, each of its fleeing units is lost with a
@@ -509,9 +510,10 @@ randomises them in phases, and several phases depend on difficulty:
 6. **Banner colour.** An AI takes the first banner free whose colour matches a realm it has more
    than three books in (green nature, red chaos, blue sorcery, purple death, and white for life),
    else a random free one. The human's banner is excluded.
-7. Starting spells come from `Init_Computer_Players_Spell_Library` (the usual starting-spell rules).
-   On Hard and above the original also adds one extra knowable spell per realm (buggy: it tests
-   the wrong spell id for most realms, `OGBUG`); we leave it out.
+7. Starting spells come from `Init_Computer_Players_Spell_Library` (the usual starting-spell rules),
+   plus the main-realm summoning spell (known) and, from Hard, one uncommon summoning spell to
+   research: both in `settings.ron` (`magic.md` section 13). The original's code for them is buggy
+   (`OGBUG`: off by one spell); the game gives the spells it means.
 
 The record keeps this as an `AiWizardSettings` block, so each phase can be turned off or tuned:
 

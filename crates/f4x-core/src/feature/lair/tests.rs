@@ -337,14 +337,14 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     // A spell: from a realm the wizard has no books in, newly known.
     l.special = 2;
     g.map.as_mut().unwrap().set_lairs(vec![l.clone()]);
-    let known_before = g.magic(P0).unwrap().known.len();
+    let known_before = g.wizard(P0).unwrap().known().len();
     let events = g.claim_lair(0, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         panic!("{events:?}");
     };
     let spell = loot.spell.expect("a spell");
-    assert!(g.magic(P0).unwrap().known.contains(&spell));
-    assert_eq!(g.magic(P0).unwrap().known.len(), known_before + 1);
+    assert!(g.wizard(P0).unwrap().knows(spell));
+    assert_eq!(g.wizard(P0).unwrap().known().len(), known_before + 1);
     assert_ne!(
         g.content.rules.spells.get(spell).realm,
         "life",
@@ -358,8 +358,9 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     l.site = "dungeon".into();
     l.special = 5;
     let mut loot = Loot::default();
-    let p = crate::player::find_mut(&mut g.world, P0).unwrap();
-    award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
+    let e = crate::wizard::entity::of_player(&g.world, g.player_entity(P0).unwrap()).unwrap();
+    let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
+    award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
     assert!(
         !loot.books.contains(&"death".to_string()),
         "life and death exclude each other"
@@ -370,13 +371,14 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
-        let p = crate::player::find_mut(&mut g.world, P0).unwrap();
-        award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
+        let e = crate::wizard::entity::of_player(&g.world, g.player_entity(P0).unwrap()).unwrap();
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
+        award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
         assert!(loot.books.iter().all(|b| b == "life"));
     }
     assert!(books > 0);
-    assert!(g.magic(P0).unwrap().total_books() <= 12);
+    assert!(g.wizard(P0).unwrap().total_books() <= 12);
 }
 
 fn fight_to_the_end(g: &mut Game) {
@@ -589,7 +591,11 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     spells.push(zm);
     g.content.rules.spells = Registry::new(spells);
     let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
-    g.magic_mut(P0).unwrap().global.push(zm);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(zm);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -804,9 +810,21 @@ fn clearing_a_tower_clears_its_twin_on_the_other_plane() {
     assert!(map.lairs()[2].intact, "another tower stays");
 }
 
+/// A wizard's sheet with no game: a world holding one wizard.
+fn sheet(
+    books: &[(&str, u8)],
+    retorts: &[crate::wizard::magic::Retort],
+) -> (hecs::World, hecs::Entity) {
+    let mut world = hecs::World::new();
+    let e = world.spawn(crate::wizard::sheet::bundle());
+    crate::wizard::sheet::WizardMut::new(&mut world, e).found(books, retorts);
+    (world, e)
+}
+
 #[test]
 fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
-    let mut magic = crate::wizard::magic::Magic::new(&[("life", 11)], &[]);
+    let (mut world, e) = sheet(&[("life", 11)], &[]);
+    let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(5);
     let mut l = lair(1, 1, vec![]);
     l.site = "ruins".into();
@@ -819,7 +837,7 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     for _ in 0..60 {
         award_special(&mut magic, &mut rng, &l, 2, &mut Loot::default());
     }
-    assert!(magic.total_books() <= 12);
+    assert!(magic.view().total_books() <= 12);
 }
 
 #[test]
@@ -828,33 +846,36 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
     let mut l = lair(1, 1, vec![]);
     l.site = "nature_node".into();
     // Six retorts: only books can come.
-    let mut magic = crate::wizard::magic::Magic::new(
+    let (mut world, e) = sheet(
         &[("nature", 3)],
         &[Alchemy, Warlord, Charismatic, Famous, Artificer, Conjurer],
     );
+    let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
     for _ in 0..40 {
         let mut loot = Loot::default();
         award_special(&mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.retorts.is_empty());
     }
-    assert_eq!(magic.retorts.len(), 6);
+    assert_eq!(magic.view().retorts().len(), 6);
     // Twelve books: only retorts can come.
-    let mut magic = crate::wizard::magic::Magic::new(&[("nature", 6), ("sorcery", 6)], &[]);
+    let (mut world, e) = sheet(&[("nature", 6), ("sorcery", 6)], &[]);
+    let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     for _ in 0..40 {
         let mut loot = Loot::default();
         award_special(&mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.books.is_empty());
     }
-    assert_eq!(magic.total_books(), 12);
+    assert_eq!(magic.view().total_books(), 12);
 }
 
 #[test]
 fn a_spell_award_teaches_a_spell_from_a_realm_without_books() {
     let c = content();
-    let mut magic = crate::wizard::magic::Magic::new(&[("life", 2)], &[]);
+    let (mut world, e) = sheet(&[("life", 2)], &[]);
+    let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
     let spell = award_spell(&mut magic, &c, &mut rng, 1).expect("a spell");
-    assert!(magic.known.contains(&spell));
+    assert!(magic.view().knows(spell));
     assert_ne!(c.rules.spells.get(spell).realm, "life");
 }

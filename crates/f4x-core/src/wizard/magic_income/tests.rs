@@ -1,12 +1,14 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
-use crate::wizard::magic::{Magic, Retort};
+use crate::wizard::magic::Retort;
+use crate::wizard::sheet::{Books, Retorts, WizardMut};
 
 const P0: PlayerId = PlayerId(0);
 
 /// A world seen as numbers: what each source gives, no cities or nodes behind it.
 struct Fake {
-    magic: Magic,
+    world: hecs::World,
+    wizard: hecs::Entity,
     content: Content,
     casting_return: bool,
     city: (i32, i32),
@@ -17,10 +19,15 @@ struct Fake {
 }
 
 fn fake() -> Fake {
-    let mut magic = Magic::default();
-    magic.books.insert("life".into(), 2);
+    let mut world = hecs::World::new();
+    let wizard = world.spawn(crate::wizard::sheet::bundle());
+    WizardMut::new(&mut world, wizard)
+        .get_mut::<Books>()
+        .0
+        .insert("life".into(), 2);
     Fake {
-        magic,
+        world,
+        wizard,
         content: content_with_magic(),
         casting_return: false,
         city: (4, 2),
@@ -32,8 +39,8 @@ fn fake() -> Fake {
 }
 
 impl IncomeView for Fake {
-    fn magic(&self, _: PlayerId) -> Option<crate::player::MagicRef<'_>> {
-        Some(crate::player::MagicRef::Plain(&self.magic))
+    fn wizard(&self, _: PlayerId) -> Option<Wizard<'_>> {
+        Some(Wizard::new(&self.world, self.wizard))
     }
     fn content(&self) -> &Content {
         &self.content
@@ -81,23 +88,28 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() {
     assert_eq!(i.city_research, 2);
     assert_eq!(
         i.split,
-        PowerSplit {
+        PowerShares {
             mana: 2,
             skill: 2,
             research: 2 + 2
         }
     );
     assert_eq!(i.research, 4);
-    v.magic.set_split(100, 0, 0).unwrap();
+    WizardMut::new(&mut v.world, v.wizard)
+        .set_split(100, 0, 0)
+        .unwrap();
     assert_eq!(
         income(&v, P0).split,
-        PowerSplit {
+        PowerShares {
             mana: 6,
             skill: 0,
             research: 2
         }
     );
-    v.magic.retorts.insert(Retort::ManaFocusing);
+    WizardMut::new(&mut v.world, v.wizard)
+        .get_mut::<Retorts>()
+        .0
+        .insert(Retort::ManaFocusing);
     assert_eq!(income(&v, P0).split.mana, 7, "a quarter more mana");
 }
 
@@ -109,7 +121,7 @@ fn the_spell_of_return_stops_all_income() {
     v.casting_return = true;
     let i = income(&v, P0);
     assert_eq!(i.power_base, 0);
-    assert_eq!(i.split, PowerSplit::default());
+    assert_eq!(i.split, PowerShares::default());
     assert_eq!(i.research, 0);
     assert_eq!(i.mana_upkeep, 6, "the upkeep is still owed");
 }
@@ -119,6 +131,9 @@ fn a_channeler_pays_half_the_upkeep() {
     let mut v = fake();
     v.upkeep = 9;
     assert_eq!(income(&v, P0).mana_upkeep, 9);
-    v.magic.retorts.insert(Retort::Channeler);
+    WizardMut::new(&mut v.world, v.wizard)
+        .get_mut::<Retorts>()
+        .0
+        .insert(Retort::Channeler);
     assert_eq!(income(&v, P0).mana_upkeep, 4);
 }

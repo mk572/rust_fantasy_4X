@@ -71,9 +71,11 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() {
         .spells
         .id_of("spell_of_mastery")
         .expect("the spell exists");
-    let p = g.player_mut(P0).unwrap();
-    p.magic.known.insert(mastery);
-    p.magic.skill_points = 5000;
+    let mut w = g.wizard_mut(P0).unwrap();
+    w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+        .known
+        .insert(mastery);
+    w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 5000;
     g.treasury_mut(P0).unwrap().mana = 20_000;
     play(&mut g, 80);
     let over = g.game_over.expect("the game ended");
@@ -88,9 +90,11 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() {
         let mut g = game(1);
         if lore {
             let spell = g.content().rules.spells.id_of("earth_lore").unwrap();
-            let p = g.player_mut(P0).unwrap();
-            p.magic.known.insert(spell);
-            p.magic.skill_points = 400;
+            let mut w = g.wizard_mut(P0).unwrap();
+            w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+                .known
+                .insert(spell);
+            w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 400;
             g.treasury_mut(P0).unwrap().mana = 2000;
         }
         play(&mut g, 6);

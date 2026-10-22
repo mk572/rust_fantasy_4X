@@ -123,11 +123,12 @@ impl Game {
 
     /// Teach a wizard a spell.
     pub fn cheat_learn_spell(&mut self, player: PlayerId, spell: SpellId) -> bool {
-        let Some(m) = self.magic_mut(player) else {
+        let Some(mut w) = self.wizard_mut(player) else {
             return false;
         };
-        m.researchable.remove(&spell);
-        m.known.insert(spell);
+        let mut spells = w.get_mut::<crate::wizard::sheet::KnownSpells>();
+        spells.researchable.remove(&spell);
+        spells.known.insert(spell);
         true
     }
 

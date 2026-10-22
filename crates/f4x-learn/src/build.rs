@@ -81,20 +81,23 @@ fn set_wizard(game: &mut Game, player: PlayerId, spec: &Option<WizardSpec>) {
         .flat_map(|w| w.spells.iter())
         .filter_map(|s| game.content().rules.spells.id_of(s))
         .collect();
-    let Some((p, t)) = game.player_treasury_mut(player) else {
+    let (mana, points) = spec
+        .as_ref()
+        .map_or((0, 0), |w| (w.mana, w.skill_points as i32));
+    if let Some(t) = game.treasury_mut(player) {
+        t.mana = mana;
+    }
+    let Some(mut w) = game.wizard_mut(player) else {
         return;
     };
-    p.magic.known.clear();
-    match spec {
-        Some(w) => {
-            t.mana = w.mana;
-            p.magic.skill_points = w.skill_points as _;
-            p.magic.known.extend(ids);
-        }
-        None => {
-            t.mana = 0;
-            p.magic.skill_points = 0;
-        }
+    w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+        .known
+        .clear();
+    w.get_mut::<f4x_core::wizard::sheet::Skill>().points = points;
+    if spec.is_some() {
+        w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+            .known
+            .extend(ids);
     }
 }
 

@@ -225,7 +225,7 @@ impl Economy<'_> {
     /// refuses to cast it there.
     pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
         self.city_owner(city)
-            .and_then(|o| self.magic(o))
+            .and_then(|o| self.wizard(o))
             .is_some_and(|m| m.books_in("death") > 0)
     }
 

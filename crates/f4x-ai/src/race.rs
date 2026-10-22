@@ -22,14 +22,14 @@ pub(crate) type Sighting = (u32, i32);
 /// Turns the AI itself needs to have the spell cast, or `None` when it cannot get it: it
 /// neither knows it nor is offered it in research.
 fn own_turns(view: &PlayerView, mastery: SpellId) -> Option<f32> {
-    let magic = view.magic()?;
+    let magic = view.wizard()?;
     let mana = view.treasury().mana;
     let income = view.income();
     let skill = magic.casting_skill().max(1) as f32;
     let mana_rate = income.split.mana.max(1) as f32;
-    let (left, research) = match magic.casting {
+    let (left, research) = match magic.casting() {
         Some(c) if c.spell == mastery => (c.remaining, 0.0),
-        _ if magic.known.contains(&mastery) => (view.casting_cost(mastery), 0.0),
+        _ if magic.knows(mastery) => (view.casting_cost(mastery), 0.0),
         _ if view.research_choices().contains(&mastery) => {
             let cost = view.research_cost(mastery) as f32;
             (
@@ -79,13 +79,13 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (mine, own_rate, casting_other) = {
         let view = PlayerView::new(game, me);
         let rate = view
-            .magic()
+            .wizard()
             .map_or(1.0, |m| m.casting_skill().max(1) as f32);
         (
             own_turns(&view, mastery),
             rate,
-            view.magic()
-                .is_some_and(|m| m.casting.is_some_and(|c| c.spell != mastery)),
+            view.wizard()
+                .is_some_and(|m| m.casting().is_some_and(|c| c.spell != mastery)),
         )
     };
     // The rival that will finish first is the one to beat or to stop.
@@ -109,8 +109,8 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.war_on = None;
         // Drop whatever else is being cast: the next step casts the Spell of Mastery.
         let knows = PlayerView::new(game, me)
-            .magic()
-            .is_some_and(|m| m.known.contains(&mastery));
+            .wizard()
+            .is_some_and(|m| m.knows(mastery));
         if casting_other && knows {
             ai.send(game, Command::CancelCast { player: me }, events);
         }
@@ -152,7 +152,10 @@ mod tests {
     }
 
     fn casts(g: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
-        g.player_mut(who).unwrap().magic.casting = Some(f4x_core::wizard::magic::Casting {
+        g.wizard_mut(who)
+            .unwrap()
+            .get_mut::<f4x_core::wizard::magic::Magic>()
+            .casting = Some(f4x_core::wizard::magic::Casting {
             spell,
             remaining: left,
         });
@@ -182,10 +185,12 @@ mod tests {
             .find(|&id| id != mastery)
             .unwrap();
         {
-            let p = g.player_mut(P0).unwrap();
-            p.magic.known.insert(mastery);
-            p.magic.known.insert(other);
-            p.magic.skill_points = 20_000;
+            let mut w = g.wizard_mut(P0).unwrap();
+            let mut spells = w.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
+            spells.known.insert(mastery);
+            spells.known.insert(other);
+            drop(spells);
+            w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
             g.treasury_mut(P0).unwrap().mana = 20_000;
         }
         casts(&mut g, P0, other, 300);
@@ -197,7 +202,7 @@ mod tests {
         assert_eq!(war_target(&ai), None);
         assert_ne!(g.treaty(P0, P1), Treaty::War);
         assert!(
-            g.magic(P0).unwrap().casting.is_none(),
+            g.wizard(P0).unwrap().casting().is_none(),
             "the other spell is dropped"
         );
     }

@@ -2483,11 +2483,17 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
     g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
     let call = g.content.rules.spells.id_of("call_chaos").unwrap();
     {
-        let m = g.magic_mut(A).unwrap();
-        m.researchable.remove(&call);
-        m.candidates.retain(|c| *c != call);
-        m.known.insert(call);
-        m.skill_left = 500;
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&call);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != call);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(call);
+        m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let ours = g.spawn_unit(A, at(4, 4), walker);
@@ -3491,13 +3497,13 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
     let a = g.spawn_unit(A, at(4, 4), walker);
     let fallen = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
-    g.player_mut(A).unwrap().fame = 3;
+    g.set_fame(A, 3);
     let events = finish_with_dead(&mut g, &[a, fallen], &foes, &[1, 2, 3, 4, 5]);
     assert!(g.world.contains(a));
     // Four dead enemies: 2 each. The fallen of its own side give nothing, nor does it gain.
     let xp = g.world.get::<&crate::unit::Experience>(a).unwrap().0;
     assert_eq!(xp, 8);
-    assert_eq!(g.player(A).unwrap().fame, 4);
+    assert_eq!(g.wizard(A).unwrap().fame(), 4);
     assert!(events.iter().any(|e| matches!(
         e,
         Event::BattleSpoils { player, experience: 8, fame: 1, .. } if *player == A
@@ -3512,7 +3518,7 @@ fn fewer_than_four_kills_give_experience_but_no_fame() {
     let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
     assert_eq!(g.world.get::<&crate::unit::Experience>(a).unwrap().0, 4);
-    assert_eq!(g.player(A).unwrap().fame, 0);
+    assert_eq!(g.wizard(A).unwrap().fame(), 0);
 }
 
 #[test]
@@ -3526,11 +3532,11 @@ fn a_very_rare_foe_is_worth_a_point_of_fame() {
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
-    g.player_mut(D).unwrap().fame = 5;
+    g.set_fame(D, 5);
     finish_with_dead(&mut g, &[a], &[d], &[1]);
-    assert_eq!(g.player(A).unwrap().fame, 1);
+    assert_eq!(g.wizard(A).unwrap().fame(), 1);
     assert_eq!(
-        g.player(D).unwrap().fame,
+        g.wizard(D).unwrap().fame(),
         5,
         "no hero fell, so the loser keeps its fame"
     );
@@ -3551,19 +3557,19 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
     g.world
         .insert_one(foes[0], crate::unit::Experience(20))
         .unwrap();
-    g.player_mut(D).unwrap().fame = 25;
+    g.set_fame(D, 25);
     g.set_human(Some(D));
     finish_with_dead(&mut g, &[a], &foes, &[1, 2, 3, 4]);
     // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
-    assert_eq!(g.player(D).unwrap().fame, 23);
+    assert_eq!(g.wizard(D).unwrap().fame(), 23);
     // A hero's level 0 costs nothing.
     let mut g2 = game_with_abilities("walker", &[]);
     let walker = g2.content.rules.units.id_of("walker").unwrap();
     let a = g2.spawn_unit(A, at(4, 4), walker);
     let d = g2.spawn_unit(D, at(5, 4), walker);
-    g2.player_mut(D).unwrap().fame = 5;
+    g2.set_fame(D, 5);
     finish_with_dead(&mut g2, &[a], &[d], &[1]);
-    assert_eq!(g2.player(D).unwrap().fame, 5);
+    assert_eq!(g2.wizard(D).unwrap().fame(), 5);
 }
 
 #[test]

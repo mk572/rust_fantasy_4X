@@ -250,9 +250,9 @@ mod tests {
         let side = env.to_play().unwrap();
         let player = env.battle().unwrap().player_of(side);
         env.game
-            .player_mut(player)
+            .wizard_mut(player)
             .unwrap()
-            .magic
+            .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
             .known
             .insert(spell);
         // Skill and mana enough for it.

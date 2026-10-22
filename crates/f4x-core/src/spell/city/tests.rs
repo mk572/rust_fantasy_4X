@@ -86,8 +86,15 @@ fn wall_of_stone_builds_walls_once() {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
     let spell = g.content.rules.spells.id_of("wall_of_stone").unwrap();
-    g.magic_mut(P0).unwrap().known.insert(spell);
-    g.magic_mut(P0).unwrap().skill_left = 500;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(spell);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 500;
     assert!(!g.economy().city_has_building(city, "city_walls"));
     let cast = |g: &mut Game| {
         g.apply(Command::CastSpell {
@@ -129,7 +136,11 @@ fn evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic(
     enchant(&mut g, city, "evil_presence", P1);
     assert_eq!(mana(&g), bare, "Evil Presence destroys it");
     assert_eq!(rebels(&g), calm, "but they still pacify");
-    g.magic_mut(P0).unwrap().books.insert("death".into(), 1);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Books>()
+        .0
+        .insert("death".into(), 1);
     assert_eq!(mana(&g), blessed, "a wizard with death magic is unharmed");
 }
 
@@ -153,7 +164,11 @@ fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() {
         };
         let (power, pacify) = totals(&g);
         assert!(power >= 6 && pacify >= 3, "{power} {pacify}");
-        g.magic_mut(P0).unwrap().retorts.insert(retort);
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
+            .insert(retort);
         assert_eq!(totals(&g), (power * 3 / 2, pacify + pacify / 2));
     }
 }
@@ -269,7 +284,11 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() {
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
     let night = g.content.rules.spells.id_of("eternal_night").unwrap();
-    g.magic_mut(P1).unwrap().global.push(night);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(night);
     let dark = |g: &Game| {
         g.battle().unwrap().fields[Side::Defender.index()]
             .iter()
@@ -289,8 +308,15 @@ fn realm(g: &Game, id: &str) -> crate::rules::RealmId {
 
 fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
     let spell = g.content.rules.spells.id_of("spell_ward").unwrap();
-    g.magic_mut(P0).unwrap().known.insert(spell);
-    g.magic_mut(P0).unwrap().skill_left = 500;
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(spell);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Skill>()
+        .left = 500;
     g.treasury_mut(P0).unwrap().mana = 5000;
     let realm = realm(g, id);
     g.apply(Command::CastSpell {
@@ -356,8 +382,15 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() {
     // P1's Evil Presence is a death spell; Chaos Rift is chaos and gets through.
     for (name, fizzles) in [("evil_presence", true), ("chaos_rift", false)] {
         let spell = g.content.rules.spells.id_of(name).unwrap();
-        g.magic_mut(P1).unwrap().known.insert(spell);
-        g.magic_mut(P1).unwrap().skill_left = 500;
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(spell);
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 500;
         let events = g.apply(Command::CastSpell {
             player: P1,
             spell,
@@ -426,7 +459,11 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() {
     let city = found(&mut g, P0, at(10, 6), 4);
     let spell = g.content.rules.spells.id_of("evil_presence").unwrap();
     assert_eq!(g.check_target(P1, spell, Some(Target::City(city))), Ok(()));
-    g.magic_mut(P0).unwrap().books.insert("death".into(), 1);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Books>()
+        .0
+        .insert("death".into(), 1);
     assert_eq!(
         g.check_target(P1, spell, Some(Target::City(city))),
         Err(crate::wizard::magic::MagicError::NoSuchTarget)
@@ -446,10 +483,22 @@ fn while_armageddon_lasts_no_building_calms_a_city() {
     assert!(pacify(&g) >= 3);
     // Anyone's Armageddon, the city owner's own included.
     let a = g.content.rules.spells.id_of("armageddon").unwrap();
-    g.magic_mut(P1).unwrap().global.push(a);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(a);
     assert_eq!(pacify(&g), 0, "an enemy's Armageddon");
-    g.magic_mut(P1).unwrap().global.clear();
-    g.magic_mut(P0).unwrap().global.push(a);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .clear();
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(a);
     assert_eq!(pacify(&g), 0, "and one's own");
 }
 
@@ -477,7 +526,11 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
     );
     // Its owner's Great Wasting: the same yields as before, and a mana a square.
     let gw = g.content.rules.spells.id_of("great_wasting").unwrap();
-    g.magic_mut(P0).unwrap().global.push(gw);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(gw);
     let proof = eco(&g);
     assert_eq!(proof.food, clean.food);
     assert_eq!(proof.rebels, clean.rebels);
@@ -488,12 +541,24 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
         "four squares, a power each"
     );
     // Someone else's Great Wasting does not protect it.
-    g.magic_mut(P0).unwrap().global.clear();
-    g.magic_mut(P1).unwrap().global.push(gw);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .clear();
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(gw);
     assert_eq!(eco(&g).food, blighted.food);
     assert_eq!(g.economy().blight_power(P0), 0);
     // And the protection ends with the spell.
-    g.magic_mut(P1).unwrap().global.clear();
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .clear();
     assert_eq!(eco(&g).food, blighted.food);
 }
 

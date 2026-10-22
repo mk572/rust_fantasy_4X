@@ -1,38 +1,35 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::player::Treasury;
+use crate::wizard::magic::Retort;
 
-fn player() -> (Player, Treasury) {
-    (
-        Player::new(),
-        Treasury {
-            gold: 100,
-            mana: 20,
-        },
-    )
+fn treasury() -> Treasury {
+    Treasury {
+        gold: 100,
+        mana: 20,
+    }
 }
 
 #[test]
 fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() {
-    let (mut p, mut t) = player();
-    alchemy(&p, &mut t, 10, true).unwrap();
+    let mut t = treasury();
+    alchemy(false, &mut t, 10, true).unwrap();
     assert_eq!((t.gold, t.mana), (90, 25));
-    alchemy(&p, &mut t, 10, false).unwrap();
+    alchemy(false, &mut t, 10, false).unwrap();
     assert_eq!((t.gold, t.mana), (95, 15));
-    p.magic.retorts.insert(Retort::Alchemy);
-    alchemy(&p, &mut t, 10, true).unwrap();
+    alchemy(true, &mut t, 10, true).unwrap();
     assert_eq!((t.gold, t.mana), (85, 25));
 }
 
 #[test]
 fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
-    let (p, mut t) = player();
+    let mut t = treasury();
     assert_eq!(
-        alchemy(&p, &mut t, 101, true),
+        alchemy(false, &mut t, 101, true),
         Err(MagicError::NotEnoughGold)
     );
     assert_eq!(
-        alchemy(&p, &mut t, 21, false),
+        alchemy(false, &mut t, 21, false),
         Err(MagicError::NotEnoughMana)
     );
     assert_eq!((t.gold, t.mana), (100, 20));
@@ -40,27 +37,30 @@ fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
 
 #[test]
 fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() {
-    let (mut p, _) = player();
-    assert_eq!(cancel_cast(&mut p, true), Err(MagicError::NotAvailable));
-    assert_eq!(cancel_cast(&mut p, false), Ok(()));
+    let mut g = crate::game::Game::new(3);
+    g.content = content_with_magic();
+    g.add_player(
+        crate::player::PlayerId(0),
+        "W",
+        crate::player::Player::new(),
+    );
+    let mut w = g.wizard_mut(crate::player::PlayerId(0)).unwrap();
+    assert_eq!(cancel_cast(&mut w, true), Err(MagicError::NotAvailable));
+    assert_eq!(cancel_cast(&mut w, false), Ok(()));
 }
 
 #[test]
 fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() {
-    let content = content_with_magic();
-    let mut rng = GameRng::new(3);
-    let (mut p, _) = player();
-    found_wizard(
-        &mut p,
-        &content,
-        &mut rng,
-        &[("life", 2)],
-        &[Retort::Famous],
-        None,
-    );
-    assert_eq!(p.fame, 10);
-    assert_eq!(p.magic.books_in("life"), 2);
-    assert!(!p.magic.known.is_empty());
-    found_wizard(&mut p, &content, &mut rng, &[("life", 2)], &[], None);
-    assert_eq!(p.fame, 0);
+    let mut g = crate::game::Game::new(3);
+    g.content = content_with_magic();
+    let id = crate::player::PlayerId(0);
+    g.add_player(id, "W", crate::player::Player::new());
+    g.init_wizard(id, &[("life", 2)], &[Retort::Famous], None)
+        .unwrap();
+    let w = g.wizard(id).unwrap();
+    assert_eq!(w.fame(), 10);
+    assert_eq!(w.books_in("life"), 2);
+    assert!(!w.known().is_empty());
+    g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
+    assert_eq!(g.wizard(id).unwrap().fame(), 0);
 }

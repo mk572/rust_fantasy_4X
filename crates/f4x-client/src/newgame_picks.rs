@@ -237,12 +237,17 @@ impl App {
     fn spell_sections(&self, realm: &str) -> Vec<(Rarity, usize)> {
         let build = &self.create.build;
         let mut out = Vec::new();
-        let common = build.spell_choices_of(realm, Rarity::Common);
+        let common = build.spell_choices_of(
+            &self.game.content().settings.spell_library,
+            realm,
+            Rarity::Common,
+        );
         if (1..10).contains(&common) {
             out.push((Rarity::Common, common));
         }
         for rarity in [Rarity::Uncommon, Rarity::Rare] {
-            let n = build.spell_choices_of(realm, rarity);
+            let n =
+                build.spell_choices_of(&self.game.content().settings.spell_library, realm, rarity);
             if n > 0 {
                 out.push((rarity, n));
             }
@@ -261,7 +266,8 @@ impl App {
                     .spells
                     .retain(|&s| self.game.content().rules.spells.get(s).realm != realm);
                 for (rarity, n) in sections {
-                    let defaults = self.game.default_starting_spells_of(realm, rarity);
+                    let defaults =
+                        f4x_core::wizard::magic::default_spells(self.game.content(), realm, rarity);
                     self.create
                         .build
                         .spells
@@ -343,9 +349,9 @@ impl App {
             // The commons are listed in the original's order (the realm's default list), the rest in the
             // order of the rules.
             let pool = if rarity == Rarity::Common {
-                self.game.default_starting_spells_of(realm, rarity)
+                f4x_core::wizard::magic::default_spells(self.game.content(), realm, rarity)
             } else {
-                self.game.starting_spell_pool_of(realm, rarity)
+                f4x_core::wizard::magic::spells_of(self.game.content(), realm, rarity)
             };
             let chosen = pool
                 .iter()

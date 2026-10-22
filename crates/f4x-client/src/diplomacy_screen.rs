@@ -220,15 +220,15 @@ impl App {
 
     /// Spells `a` knows and `b` lacks, the more valuable first.
     fn spells_to_give(&self, a: PlayerId, b: PlayerId) -> Vec<SpellId> {
-        let (Some(ma), Some(mb)) = (self.game.magic(a), self.game.magic(b)) else {
+        let (Some(ma), Some(mb)) = (self.game.wizard(a), self.game.wizard(b)) else {
             return Vec::new();
         };
         let spells = &self.game.content().rules.spells;
         let mut out: Vec<SpellId> = ma
-            .known
+            .known()
             .iter()
             .copied()
-            .filter(|s| !mb.known.contains(s))
+            .filter(|s| !mb.knows(*s))
             .collect();
         out.sort_by_key(|&s| (std::cmp::Reverse(spells.get(s).research_cost), s));
         out

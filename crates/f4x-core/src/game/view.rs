@@ -12,7 +12,8 @@
 
 use crate::content::Content;
 use crate::map::Position;
-use crate::player::{MagicRef, PlayerHandle, PlayerId, Treasury};
+use crate::player::{PlayerHandle, PlayerId, Treasury};
+use crate::wizard::entity::Wizard;
 
 use crate::game::Game;
 
@@ -63,10 +64,8 @@ pub trait WorldView {
     /// How many cities (outposts too) a player has.
     fn city_count(&self, player: PlayerId) -> usize;
 
-    /// A wizard's magic.
-    fn magic(&self, id: PlayerId) -> Option<MagicRef<'_>> {
-        self.player(id).map(PlayerHandle::into_magic)
-    }
+    /// A player's wizard, if it has one.
+    fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>>;
 
     /// A player that is a wizard: neither the monsters nor an independent city.
     fn is_wizard(&self, id: PlayerId) -> bool {
@@ -83,8 +82,8 @@ pub trait WorldView {
 
     /// Does the wizard keep the global spell with this id going?
     fn has_global(&self, player: PlayerId, spell: &str) -> bool {
-        self.magic(player).is_some_and(|m| {
-            m.global
+        self.wizard(player).is_some_and(|w| {
+            w.global()
                 .iter()
                 .any(|&s| self.content().rules.spells.get(s).id == spell)
         })
@@ -114,6 +113,10 @@ impl WorldView for Game {
 
     fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>> {
         Game::player(self, id).map(PlayerHandle::Held)
+    }
+
+    fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>> {
+        Game::wizard(self, id)
     }
 
     fn treasury(&self, id: PlayerId) -> Option<Treasury> {
@@ -295,7 +298,10 @@ mod tests {
             .next()
             .unwrap();
         assert!(!view.has_global(P0, &spell.1));
-        view.players[0].1.magic.global.push(spell.0);
+        view.wizard_mut(P0)
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .push(spell.0);
         assert!(view.has_global(P0, &spell.1));
         assert!(!view.has_global(P1, &spell.1));
     }

@@ -191,6 +191,27 @@ impl Game {
         Some(wizard::entity::Wizard::new(&self.world, w))
     }
 
+    /// A write handle on the wizard of a player, if it has one.
+    pub fn wizard_mut(&mut self, id: player::PlayerId) -> Option<wizard::sheet::WizardMut<'_>> {
+        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
+        Some(wizard::sheet::WizardMut::new(&mut self.world, w))
+    }
+
+    /// Change a wizard's fame by `change`; it stays above zero.
+    pub fn add_fame(&mut self, id: player::PlayerId, change: i32) {
+        if let Some(mut w) = self.wizard_mut(id) {
+            let mut fame = w.get_mut::<wizard::sheet::Fame>();
+            fame.0 = (fame.0 + change).max(0);
+        }
+    }
+
+    /// Set a wizard's fame.
+    pub fn set_fame(&mut self, id: player::PlayerId, fame: i32) {
+        if let Some(mut w) = self.wizard_mut(id) {
+            *w.get_mut::<wizard::sheet::Fame>() = wizard::sheet::Fame(fame);
+        }
+    }
+
     /// How a player is called: its wizard's name, or its city's.
     pub fn player_name(&self, id: player::PlayerId) -> String {
         wizard::entity::player_name(&self.world, id)
@@ -604,8 +625,8 @@ impl Game {
                 mana,
                 research,
                 skill,
-            } => reject(match self.magic_mut(player) {
-                Some(m) => m.set_split(mana, research, skill),
+            } => reject(match self.wizard_mut(player) {
+                Some(mut w) => w.set_split(mana, research, skill),
                 None => Err(wizard::magic::MagicError::UnknownPlayer),
             }),
             Command::ReleaseUpkeep { player, items } => {
@@ -621,14 +642,14 @@ impl Game {
             Command::SetResearch { player, spell } => reject(self.set_research(player, spell)),
             Command::CancelCast { player } => {
                 let returning = self.casting_return(player);
-                reject(match self.player_mut(player) {
-                    Some(p) => wizard::magic_commands::cancel_cast(p, returning),
+                reject(match self.wizard_mut(player) {
+                    Some(mut w) => wizard::magic_commands::cancel_cast(&mut w, returning),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
                 })
             }
             Command::TurnOffSpell { player, spell } => {
-                events_or_reject(match self.magic_mut(player) {
-                    Some(m) => m
+                events_or_reject(match self.wizard_mut(player) {
+                    Some(mut w) => w
                         .turn_off(spell)
                         .map(|_| vec![Event::EnchantmentLapsed { player, spell }]),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
@@ -648,10 +669,15 @@ impl Game {
                 player,
                 amount,
                 gold_to_mana,
-            } => reject(match self.player_treasury_mut(player) {
-                Some((p, t)) => wizard::magic_commands::alchemy(p, t, amount, gold_to_mana),
-                None => Err(wizard::magic::MagicError::UnknownPlayer),
-            }),
+            } => {
+                let skilled = self
+                    .wizard(player)
+                    .is_some_and(|w| w.has(wizard::magic::Retort::Alchemy));
+                reject(match self.treasury_mut(player) {
+                    Some(t) => wizard::magic_commands::alchemy(skilled, t, amount, gold_to_mana),
+                    None => Err(wizard::magic::MagicError::UnknownPlayer),
+                })
+            }
             Command::CastSpell {
                 player,
                 spell,

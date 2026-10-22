@@ -46,7 +46,10 @@ fn world() -> Game {
         g.add_player(id, name, Player::new());
         g.treasury_mut(id).unwrap().mana = 20_000;
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
-        g.magic_mut(id).unwrap().skill_left = 99_999;
+        g.wizard_mut(id)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 99_999;
     }
     g
 }
@@ -57,7 +60,11 @@ fn sp(g: &Game, id: &str) -> SpellId {
 
 fn cast(g: &mut Game, spell: &str, target: Target) -> Vec<Event> {
     let s = sp(g, spell);
-    g.magic_mut(P0).unwrap().known.insert(s);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(s);
     g.apply(Command::CastSpell {
         player: P0,
         spell: s,
@@ -85,25 +92,31 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty"); // sorcery, 400
     assert_eq!(g.dispel_difficulty(aura, Some(P0)), 400);
-    g.magic_mut(P0)
+    g.wizard_mut(P0)
         .unwrap()
-        .retorts
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
         .insert(Retort::SorceryMastery);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
         800,
         "its realm's mastery"
     );
-    g.magic_mut(P0)
+    g.wizard_mut(P0)
         .unwrap()
-        .retorts
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
         .insert(Retort::NatureMastery);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
         800,
         "another realm's does not count"
     );
-    g.magic_mut(P0).unwrap().retorts.insert(Retort::Archmage);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::Archmage);
     assert_eq!(g.dispel_difficulty(aura, Some(P0)), 1200);
     assert_eq!(g.dispel_difficulty(aura, Some(P1)), 400);
     assert_eq!(g.dispel_difficulty(aura, None), 400);
@@ -218,7 +231,11 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
     g.map.as_mut().unwrap().node_mut(0).unwrap().warped = true;
     // The same cast by the other wizard takes it all.
     let da = sp(&g, "disenchant_area");
-    g.magic_mut(P1).unwrap().known.insert(da);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(da);
     let events = g.apply(Command::CastSpell {
         player: P1,
         spell: sp(&g, "disenchant_area"),
@@ -250,11 +267,15 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
         }),
         "{events:?}"
     );
-    assert!(g.magic(P0).unwrap().global.contains(&aura));
-    assert!(!g.magic(P1).unwrap().global.contains(&aura));
+    assert!(g.wizard(P0).unwrap().has_global(aura));
+    assert!(!g.wizard(P1).unwrap().has_global(aura));
     // Now P1 ends it with Disjunction.
     let dj = sp(&g, "disjunction");
-    g.magic_mut(P1).unwrap().known.insert(dj);
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(dj);
     let events = g.apply(Command::CastSpell {
         player: P1,
         spell: sp(&g, "disjunction"),
@@ -268,7 +289,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
         }),
         "{events:?}"
     );
-    assert!(g.magic(P0).unwrap().global.is_empty());
+    assert!(g.wizard(P0).unwrap().global().is_empty());
     // Nothing to take: refused.
     let events = cast(&mut g, "disjunction", Target::Global(P1, aura));
     assert!(
@@ -302,7 +323,10 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
-    g.magic_mut(P1).unwrap().casting = Some(Casting {
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .casting = Some(Casting {
         spell: aura,
         remaining: cost - 60,
     });
@@ -321,7 +345,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
         "{events:?}"
     );
     assert_eq!(g.treasury(P0).unwrap().mana, mana - paid - 60);
-    assert_eq!(g.magic(P1).unwrap().casting, None);
+    assert_eq!(g.wizard(P1).unwrap().casting(), None);
     // Nothing being cast: not a target.
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
     assert!(
@@ -335,7 +359,10 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
-    g.magic_mut(P1).unwrap().casting = Some(Casting {
+    g.wizard_mut(P1)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .casting = Some(Casting {
         spell: aura,
         remaining: cost - 90,
     });
@@ -347,7 +374,7 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() {
             .any(|e| matches!(e, Event::SpellBlasted { .. })),
         "{events:?}"
     );
-    assert!(g.magic(P1).unwrap().casting.is_some());
+    assert!(g.wizard(P1).unwrap().casting().is_some());
 }
 
 #[test]
@@ -411,13 +438,17 @@ fn a_stopped_spell_is_lost_and_reported() {
         {
             stopped += 1;
             assert!(!g
-                .magic(P0)
+                .wizard(P0)
                 .unwrap()
-                .global
+                .global()
                 .contains(&sp(&g, "aura_of_majesty")));
             break;
         }
-        g.magic_mut(P0).unwrap().global.clear();
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<crate::wizard::magic::Magic>()
+            .global
+            .clear();
     }
     assert_eq!(
         stopped, 1,

@@ -154,10 +154,10 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let casting_mastery = {
         let view = PlayerView::new(game, me);
-        let Some(m) = view.magic() else {
+        let Some(m) = view.wizard() else {
             return;
         };
-        m.casting
+        m.casting()
             .is_some_and(|c| kind(view.spell(c.spell)) == Kind::Mastery)
     };
     if casting_mastery {
@@ -234,13 +234,13 @@ fn research_score(
 fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let spell = {
         let view = PlayerView::new(game, ai.player);
-        let Some(m) = view.magic() else {
+        let Some(m) = view.wizard() else {
             return;
         };
-        if m.researching.is_some() {
+        if m.researching().is_some() {
             return;
         }
-        let have: Vec<(Kind, bool)> = m.known.iter().map(|&s| category(view.spell(s))).collect();
+        let have: Vec<(Kind, bool)> = m.known().iter().map(|&s| category(view.spell(s))).collect();
         let income = view.income().research;
         view.research_choices().into_iter().min_by(|&a, &b| {
             research_score(&view, a, &have, income, ai.racing)
@@ -388,10 +388,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let choice: Option<(SpellId, Option<Target>)> = {
         let view = PlayerView::new(game, me);
-        let Some(magic) = view.magic() else {
+        let Some(magic) = view.wizard() else {
             return;
         };
-        if magic.casting.is_some() {
+        if magic.casting().is_some() {
             return;
         }
         let mana = view.treasury().mana;
@@ -403,7 +403,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .count();
         // What each known spell is, dearest first within a kind so the strongest is tried first.
         let mut options: Vec<(Kind, i32, SpellId)> = magic
-            .known
+            .known()
             .iter()
             .copied()
             .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
@@ -420,7 +420,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // Summoned creatures and lasting spells cost mana every turn: not when the upkeep
             // already takes more than half of what the power makes (the split then leaves research
             // starved).
-            let room = magic.mana_pct <= 55;
+            let room = magic.power_split().mana <= 55;
             let target = pick_target(&view, spell);
             let wanted = match k {
                 Kind::Mastery => true,
@@ -434,7 +434,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && room
                         && mana - cost >= GLOBAL_RESERVE
                         && upkeep_ok(&view, def)
-                        && !magic.global.contains(&spell)
+                        && !magic.has_global(spell)
                 }
                 Kind::Explore | Kind::Cure => now && target.is_some(),
                 Kind::Other => false,

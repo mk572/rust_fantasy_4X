@@ -249,10 +249,14 @@ impl App {
             self.game.spawn_unit(HUMAN, at, *u);
         }
         let _ = self.game.spawn_hero(HUMAN, at, 0);
-        if let Some((p, t)) = self.game.player_treasury_mut(HUMAN) {
+        if let Some(t) = self.game.treasury_mut(HUMAN) {
             t.gold = 0;
             t.mana = 0;
-            p.magic.global.extend(spells);
+        }
+        if let Some(mut w) = self.game.wizard_mut(HUMAN) {
+            w.get_mut::<f4x_core::wizard::magic::Magic>()
+                .global
+                .extend(spells);
         }
         self.game.apply(Command::SetTaxRate {
             player: HUMAN,

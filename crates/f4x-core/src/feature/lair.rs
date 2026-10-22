@@ -481,14 +481,14 @@ pub(crate) fn clear_site(map: &mut Map, content: &Content, index: usize) -> Opti
 /// The original's selection is muddled (ReMoM calls its index arithmetic wrong); this follows
 /// its intent.
 pub(crate) fn award_spell(
-    magic: &mut crate::wizard::magic::Magic,
+    wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     content: &Content,
     rng: &mut crate::game::rng::GameRng,
     rarity: i32,
 ) -> Option<SpellId> {
     let mut realms: Vec<String> = ["nature", "sorcery", "chaos", "life", "death"]
         .iter()
-        .filter(|r| magic.books.get(**r).copied().unwrap_or(0) == 0)
+        .filter(|r| wizard.view().books_in(r) == 0)
         .map(|r| r.to_string())
         .collect();
     realms.push("arcane".to_string());
@@ -504,7 +504,7 @@ pub(crate) fn award_spell(
             };
             let pool: Vec<SpellId> = crate::wizard::magic::spells_of(content, &realm, level)
                 .into_iter()
-                .filter(|s| !magic.known.contains(s))
+                .filter(|s| !wizard.view().knows(*s))
                 .filter(|s| {
                     !matches!(
                         content.rules.spells.get(*s).id.as_str(),
@@ -514,8 +514,9 @@ pub(crate) fn award_spell(
                 .collect();
             if !pool.is_empty() {
                 let spell = pool[rng.roll(pool.len() as u32) as usize - 1];
-                magic.researchable.remove(&spell);
-                magic.known.insert(spell);
+                let mut spells = wizard.get_mut::<crate::wizard::sheet::KnownSpells>();
+                spells.researchable.remove(&spell);
+                spells.known.insert(spell);
                 return Some(spell);
             }
         }
@@ -528,7 +529,7 @@ pub(crate) fn award_spell(
 /// gives a two-pick retort or two books. The original's version loops and awards oddly (its
 /// own comments call these bugs); this keeps the odds and the restrictions.
 pub(crate) fn award_special(
-    magic: &mut crate::wizard::magic::Magic,
+    wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     rng: &mut crate::game::rng::GameRng,
     lair: &Lair,
     picks: i32,
@@ -544,36 +545,44 @@ pub(crate) fn award_special(
     };
     // Three times in four a book; the original turns to the other kind when the wizard is at
     // the limit of six retorts or twelve books.
-    let wants_retort = if magic.retorts.len() >= crate::wizard::MAX_RETORTS {
+    let wants_retort = if wizard.view().retorts().len() >= crate::wizard::MAX_RETORTS {
         false
-    } else if magic.total_books() >= 12 {
+    } else if wizard.view().total_books() >= 12 {
         true
     } else {
         rng.roll(100) > 75
     };
     if wants_retort {
         let double = |r| retort_cost(r) == 2;
+        let (view, books) = (wizard.view(), wizard.view().books());
         let options: Vec<_> = ALL_RETORTS
             .iter()
             .copied()
-            .filter(|r| !magic.has(*r) && retort_available(*r, &magic.books))
+            .filter(|r| !view.has(*r) && retort_available(*r, &books))
             .filter(|r| *r != crate::wizard::magic::Retort::Myrran)
             .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
             .collect();
         if !options.is_empty() {
             let r = options[rng.roll(options.len() as u32) as usize - 1];
-            magic.retorts.insert(r);
+            wizard
+                .get_mut::<crate::wizard::sheet::Retorts>()
+                .0
+                .insert(r);
             loot.retorts.push(r);
             return;
         }
     }
     for _ in 0..picks {
-        let clash = (realm == "life" && magic.books_in("death") > 0)
-            || (realm == "death" && magic.books_in("life") > 0);
-        if clash || magic.total_books() >= 12 {
+        let clash = (realm == "life" && wizard.view().books_in("death") > 0)
+            || (realm == "death" && wizard.view().books_in("life") > 0);
+        if clash || wizard.view().total_books() >= 12 {
             continue;
         }
-        *magic.books.entry(realm.clone()).or_insert(0) += 1;
+        *wizard
+            .get_mut::<crate::wizard::sheet::Books>()
+            .0
+            .entry(realm.clone())
+            .or_insert(0) += 1;
         loot.books.push(realm.clone());
     }
 }
@@ -672,11 +681,16 @@ impl Game {
             t.gold += lair.gold as i32;
             t.mana += lair.mana as i32;
         }
-        if let Some(p) = crate::player::find_mut(&mut self.world, player) {
+        if let Some(mut w) = self
+            .player_index
+            .get(&player)
+            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+        {
             match lair.special {
                 1..=4 => {
                     loot.spell = award_spell(
-                        &mut p.magic,
+                        &mut w,
                         &self.content,
                         &mut self.rng,
                         i32::from(lair.special),
@@ -684,10 +698,10 @@ impl Game {
                 }
                 5 | 6 => {
                     let picks = i32::from(lair.special) - 4;
-                    award_special(&mut p.magic, &mut self.rng, &lair, picks, &mut loot);
+                    award_special(&mut w, &mut self.rng, &lair, picks, &mut loot);
                     // Famous brings its ten points of fame with it.
                     if loot.retorts.contains(&crate::wizard::magic::Retort::Famous) {
-                        p.fame += 10;
+                        w.get_mut::<crate::wizard::sheet::Fame>().0 += 10;
                     }
                 }
                 _ => {}

@@ -341,12 +341,12 @@ impl Game {
     /// The spells `player` knows that can be cast in a battle, in the order of the spell list.
     /// While a battle is on, `castable` says whether the wizard can cast each now.
     pub fn battle_spells(&self, player: PlayerId) -> Vec<BattleSpell> {
-        let Some(magic) = self.magic(player) else {
+        let Some(magic) = self.wizard(player) else {
             return Vec::new();
         };
         let caster = self.battle_caster_of(player);
         magic
-            .known
+            .known()
             .iter()
             .filter_map(|&spell| {
                 let def = self.content.rules.spells.get(spell);
@@ -392,7 +392,7 @@ impl Game {
         if pool < def.cost as i32 {
             return Err(SpellError::TooLittle);
         }
-        let cut = self.magic(player).map_or(0, |m| {
+        let cut = self.wizard(player).map_or(0, |m| {
             m.cost_reduction(self.content.rules.spells.get(spell))
         });
         Ok((least + (pool - def.cost as i32) * (100 - cut) / 100, pool))
@@ -422,14 +422,14 @@ impl Game {
             if self.is_neutral_player(player) {
                 continue;
             }
-            let (Some(p), Some(magic)) = (self.player(player), self.magic(player)) else {
+            let (Some(p), Some(magic)) = (self.player(player), self.wizard(player)) else {
                 continue;
             };
             // A wizard on the way home from banishment has nothing to cast with.
             let skill = if self.casting_return(player) {
                 0
             } else {
-                self.magic(player).map_or(0, |m| m.casting_skill())
+                self.wizard(player).map_or(0, |m| m.casting_skill())
             };
             let distance = p.fortress.filter(|f| f.plane == site.plane).and_then(|f| {
                 let map = self.map.as_ref()?;
@@ -483,7 +483,7 @@ impl Game {
         let side = battle.active;
         let player = battle.player_of(side);
         let def = self.content.rules.spells.get(spell).clone();
-        if !self.magic(player).is_some_and(|m| m.known.contains(&spell)) {
+        if !self.wizard(player).is_some_and(|m| m.knows(spell)) {
             return Err(err(SpellError::NotKnown));
         }
         if !def.contexts.contains(&CastContext::Battle) {
@@ -560,7 +560,7 @@ impl Game {
         difficulty: u32,
     ) -> bool {
         let mastery = self
-            .magic(player)
+            .wizard(player)
             .is_some_and(|m| m.has(crate::wizard::magic::Retort::NodeMastery));
         let Some(active) = self.battle.as_mut() else {
             return false;

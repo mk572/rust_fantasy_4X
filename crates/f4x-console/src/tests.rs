@@ -458,12 +458,12 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
                 .wizards()
                 .into_iter()
                 .filter(|&w| w != human)
-                .filter_map(|w| Some((w, g.player(w)?)))
+                .filter_map(|w| Some((w, g.wizard(w)?)))
             {
-                let spent = p.magic.total_books()
+                let spent = p.total_books()
                     + ALL_RETORTS
                         .iter()
-                        .filter(|&&r| p.magic.has(r))
+                        .filter(|&&r| p.has(r))
                         .map(|&r| i32::from(retort_cost(r)))
                         .sum::<i32>();
                 // Erasure takes books and refilling puts them back; a wizard may end a pick or
@@ -492,8 +492,8 @@ fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
                 .wizards()
                 .into_iter()
                 .filter(|&w| w != human)
-                .filter_map(|w| g.player(w))
-                .filter(|p| p.magic.has(f4x_core::wizard::magic::Retort::Myrran))
+                .filter_map(|w| g.wizard(w))
+                .filter(|p| p.has(f4x_core::wizard::magic::Retort::Myrran))
                 .count();
             assert!(
                 (1..=2).contains(&n),
@@ -1233,8 +1233,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     let loser = PlayerId(1);
     for (p, gold, fame) in [(HUMAN, 10, 0), (loser, 200, 5)] {
         g.treasury_mut(p).unwrap().gold = gold;
-        let p = g.player_mut(p).unwrap();
-        p.fame = fame;
+        g.set_fame(p, fame);
     }
     // The rival's other cities share the gold out by citizens: the capital is all of theirs.
     let total: u32 = g
@@ -1277,8 +1276,8 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     assert_eq!(g.treasury(loser).unwrap().gold, 0);
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
     // wizard's fortress is worth 5 more.
-    assert_eq!(g.player(loser).unwrap().fame, 2);
-    assert_eq!(g.player(HUMAN).unwrap().fame, 6);
+    assert_eq!(g.wizard(loser).unwrap().fame(), 2);
+    assert_eq!(g.wizard(HUMAN).unwrap().fame(), 6);
     // It is the taker's, with 50 percent as the most citizens lost and the rest alive.
     assert_eq!(g.economy().city_owner(city), Some(HUMAN));
     let now = g
@@ -1357,10 +1356,10 @@ fn an_outpost_is_destroyed_when_taken() {
 #[test]
 fn a_taken_city_can_be_razed_until_the_turn_ends() {
     let (mut g, city) = neutral_world(12, &["marketplace", "library"]);
-    g.player_mut(HUMAN).unwrap().fame = 10;
+    g.set_fame(HUMAN, 10);
     g.treasury_mut(HUMAN).unwrap().gold = 0;
     g.conquer_city(city, HUMAN, 0);
-    let fame_after_taking = g.player(HUMAN).unwrap().fame;
+    let fame_after_taking = g.wizard(HUMAN).unwrap().fame();
     let gold_after_taking = g.treasury(HUMAN).unwrap().gold;
     // Only the taker may raze it.
     let events = g.apply(f4x_core::game::Command::RazeCity {
@@ -1390,7 +1389,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
     );
     assert!(g.component::<f4x_core::city::City>(city).is_none());
     assert_eq!(
-        g.player(HUMAN).unwrap().fame,
+        g.wizard(HUMAN).unwrap().fame(),
         (fame_after_taking - (size + 1)).max(0)
     );
     assert!(g.treasury(HUMAN).unwrap().gold > gold_after_taking);
@@ -1494,9 +1493,11 @@ fn arm_human(g: &mut Game, spells: &[&str]) {
         })
         .collect();
     g.treasury_mut(HUMAN).unwrap().mana = 5000;
-    let p = g.player_mut(HUMAN).unwrap();
-    p.magic.skill_points = 20_000;
-    p.magic.known.extend(ids);
+    let mut w = g.wizard_mut(HUMAN).unwrap();
+    w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
+    w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+        .known
+        .extend(ids);
 }
 
 fn cast(g: &mut Game, line: &str) -> crate::Reply {
@@ -1543,7 +1544,7 @@ fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
     let g = casting_siege(&["fire_bolt"]);
     let b = g.battle().unwrap();
     let mine = b.caster(Side::Attacker).expect("the human wizard casts");
-    assert_eq!(mine.skill_left, g.magic(HUMAN).unwrap().casting_skill());
+    assert_eq!(mine.skill_left, g.wizard(HUMAN).unwrap().casting_skill());
     assert_eq!(mine.mana, 5000);
     assert!(mine.range >= 5 && mine.range <= 30 && mine.range % 5 == 0);
     assert!(b.caster(Side::Defender).is_some(), "so does the rival");
@@ -1769,9 +1770,11 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
     {
         g.treasury_mut(HUMAN).unwrap().mana = 5000;
-        let p = g.player_mut(HUMAN).unwrap();
-        p.magic.skill_points = 20_000;
-        p.magic.known.insert(dispel);
+        let mut w = g.wizard_mut(HUMAN).unwrap();
+        w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
+        w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+            .known
+            .insert(dispel);
     }
     start_siege(&mut g, city);
     let enemy = g
@@ -2237,20 +2240,16 @@ fn gifts_move_gold_and_spells() {
     assert!(broke.text().contains("not enough gold"), "{}", broke.text());
     let unknown = c.execute(&mut g, &format!("givespell {w} no-such-spell"));
     assert!(!unknown.ok);
-    let me = g
-        .magic(HUMAN)
+    let me = g.wizard(HUMAN).unwrap().known().into_iter().next().unwrap();
+    g.wizard_mut(other)
         .unwrap()
+        .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
-        .iter()
-        .copied()
-        .next()
-        .unwrap();
-    let theirs = &mut g.player_mut(other).unwrap().magic;
-    theirs.known.remove(&me);
+        .remove(&me);
     let name = g.content().rules.spells.get(me).id.clone();
     let spell = c.execute(&mut g, &format!("givespell {w} {name}"));
     assert!(spell.ok, "{}", spell.text());
-    assert!(g.magic(other).unwrap().known.contains(&me));
+    assert!(g.wizard(other).unwrap().knows(me));
 }
 
 #[test]

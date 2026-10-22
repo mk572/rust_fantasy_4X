@@ -58,6 +58,7 @@
                     consolidate_percent: 0,
                     erasure_dice: (0, 0),
                     myrran_rule: false,
+                    guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
@@ -92,6 +93,7 @@
                     consolidate_percent: 0,
                     erasure_dice: (0, 0),
                     myrran_rule: false,
+                    guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
@@ -126,6 +128,7 @@
                     consolidate_percent: 0,
                     erasure_dice: (1, 3),
                     myrran_rule: false,
+                    guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
@@ -160,6 +163,7 @@
                     consolidate_percent: 20,
                     erasure_dice: (2, 3),
                     myrran_rule: true,
+                    guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
@@ -194,6 +198,7 @@
                     consolidate_percent: 20,
                     erasure_dice: (2, 5),
                     myrran_rule: true,
+                    guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
@@ -207,6 +212,94 @@
             scoring: (score_percent: 300),
         ),
     ],
+
+    // What a new wizard knows and may research (the original's spell library set-up, `INITGAME.c`
+    // `Init_Computer_Players_Spell_Library` and `NewGame.c`). The three tables have twelve rows,
+    // one for each number of books in a realm, 0 to 11. A count above the number of spells the
+    // realm has means all of them.
+    spell_library: (
+        // Spells of the realm the wizard knows at the start: the ones chosen at creation first,
+        // then the realm's default list (`realms.ron`) in order. 2 to 10 books: books - 1
+        // commons. 11 books: all ten commons, two uncommon and one rare.
+        known: [
+            (common: 0, uncommon: 0, rare: 0, very_rare: 0),   // 0 books
+            (common: 0, uncommon: 0, rare: 0, very_rare: 0),   // 1
+            (common: 1, uncommon: 0, rare: 0, very_rare: 0),   // 2
+            (common: 2, uncommon: 0, rare: 0, very_rare: 0),   // 3
+            (common: 3, uncommon: 0, rare: 0, very_rare: 0),   // 4
+            (common: 4, uncommon: 0, rare: 0, very_rare: 0),   // 5
+            (common: 5, uncommon: 0, rare: 0, very_rare: 0),   // 6
+            (common: 6, uncommon: 0, rare: 0, very_rare: 0),   // 7
+            (common: 7, uncommon: 0, rare: 0, very_rare: 0),   // 8
+            (common: 8, uncommon: 0, rare: 0, very_rare: 0),   // 9
+            (common: 9, uncommon: 0, rare: 0, very_rare: 0),   // 10
+            (common: 10, uncommon: 2, rare: 1, very_rare: 0),  // 11
+        ],
+        // Spells of the realm the wizard may research (the known ones count), drawn at random.
+        // More than 7 books open every uncommon spell, more than 9 every rare and very rare one.
+        researchable: [
+            (common: 0, uncommon: 0, rare: 0, very_rare: 0),    // 0 books
+            (common: 3, uncommon: 1, rare: 0, very_rare: 0),    // 1
+            (common: 5, uncommon: 2, rare: 1, very_rare: 0),    // 2
+            (common: 6, uncommon: 3, rare: 2, very_rare: 1),    // 3
+            (common: 7, uncommon: 4, rare: 3, very_rare: 2),    // 4
+            (common: 8, uncommon: 5, rare: 4, very_rare: 3),    // 5
+            (common: 9, uncommon: 6, rare: 5, very_rare: 4),    // 6
+            (common: 10, uncommon: 8, rare: 6, very_rare: 5),   // 7
+            (common: 10, uncommon: 99, rare: 7, very_rare: 6),  // 8
+            (common: 10, uncommon: 99, rare: 9, very_rare: 7),  // 9
+            (common: 10, uncommon: 99, rare: 99, very_rare: 99), // 10
+            (common: 99, uncommon: 99, rare: 99, very_rare: 99), // 11
+        ],
+        // Spells of the realm the wizard chooses on the creation screen. The rest of `known`
+        // are taken from the realm's default list.
+        chosen: [
+            (common: 0, uncommon: 0, rare: 0, very_rare: 0),   // 0 books
+            (common: 0, uncommon: 0, rare: 0, very_rare: 0),   // 1
+            (common: 1, uncommon: 0, rare: 0, very_rare: 0),   // 2
+            (common: 2, uncommon: 0, rare: 0, very_rare: 0),   // 3
+            (common: 3, uncommon: 0, rare: 0, very_rare: 0),   // 4
+            (common: 4, uncommon: 0, rare: 0, very_rare: 0),   // 5
+            (common: 5, uncommon: 0, rare: 0, very_rare: 0),   // 6
+            (common: 6, uncommon: 0, rare: 0, very_rare: 0),   // 7
+            (common: 7, uncommon: 0, rare: 0, very_rare: 0),   // 8
+            (common: 8, uncommon: 0, rare: 0, very_rare: 0),   // 9
+            (common: 9, uncommon: 0, rare: 0, very_rare: 0),   // 10
+            (common: 0, uncommon: 2, rare: 1, very_rare: 0),   // 11
+        ],
+        // Spells every wizard knows at the start (spell ids).
+        always_known: ["magic_spirit", "spell_of_return"],
+        // Spells a retort gives at the start.
+        retort_known: {
+            Artificer: ["enchant_item", "create_artifact"],
+        },
+        // Arcane spells nobody may research at the start. (Spell of Mastery is offered last, when
+        // nothing else is left to research; Spell of Return is known.)
+        arcane_closed: ["spell_of_mastery", "spell_of_return"],
+        // A computer wizard also knows this spell of its main realm (the realm with most books;
+        // the first of the realms on a tie). The original's code names Water Walking, Counter
+        // Magic, Fire Bolt, True Light and Black Sleep here, but its table is off by one spell
+        // and really gives these. Leave it empty for no such spell.
+        ai_main_realm_known: {
+            "nature": "sprites",
+            "sorcery": "nagas",
+            "chaos": "hell_hounds",
+            "life": "guardian_spirit",
+            "death": "ghouls",
+        },
+        // From the difficulty `ai_main_realm_researchable_from` on (3 is Hard), a computer
+        // wizard may also research this spell of its main realm. The original's code checks the
+        // wrong spell before adding it (`OGBUG`), so it does so on every level from Hard; the
+        // wiki lists these as the spells it means.
+        ai_main_realm_researchable_from: 3,
+        ai_main_realm_researchable: {
+            "nature": "basilisk",
+            "sorcery": "phantom_beast",
+            "chaos": "chimeras",
+            "life": "unicorns",
+            "death": "shadow_demons",
+        },
+    ),
 
     // The switches of the Settings screen (client preferences, kept in `saves/preferences.txt`
     // once the player changes them): the state of each before that.

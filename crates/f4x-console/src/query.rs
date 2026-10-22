@@ -171,24 +171,24 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             game.fame(me),
             tax.0
         ));
-        if let Some(m) = game.magic(me) {
+        if let Some(m) = game.wizard(me) {
             let split = game.income(me).split;
             lines.push(format!(
                 "power split mana {}% research {}% skill {}% (yielding {} mana, {} research, {} skill)",
-                m.mana_pct, m.research_pct, m.skill_pct, split.mana, split.research, split.skill
+                m.power_split().mana, m.power_split().research, m.power_split().skill, split.mana, split.research, split.skill
             ));
             let research = m
-                .researching
+                .researching()
                 .map(|s| {
                     format!(
                         "{} ({} to go)",
                         describe::spell(game, s),
-                        m.research_remaining
+                        m.research_remaining()
                     )
                 })
                 .unwrap_or_else(|| "nothing".into());
             lines.push(format!("researching {research}"));
-            if let Some(c) = m.casting {
+            if let Some(c) = m.casting() {
                 lines.push(format!(
                     "casting {} ({} mana to go)",
                     describe::spell(game, c.spell),
@@ -605,7 +605,7 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let game = &*ctx.game;
     let (known, researchable) = {
         let m = game
-            .magic(me)
+            .wizard(me)
             .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
         let rules = &game.content().rules;
         let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>,
@@ -621,8 +621,8 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             })
             .collect::<Vec<_>>()
         };
-        let known = line(&mut m.known.iter(), false);
-        let researchable = line(&mut m.researchable.iter(), true);
+        let known = line(&mut m.known().iter(), false);
+        let researchable = line(&mut m.researchable().iter(), true);
         (known, researchable)
     };
     ctx.say(format!("known (id, name, mana): {}", join(&known)));

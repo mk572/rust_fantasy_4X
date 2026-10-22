@@ -5,6 +5,10 @@
 
 use crate::player::{PlayerId, BANNER_CHOICES, PORTRAITS};
 use crate::rules::RaceId;
+use crate::wizard::magic::Magic;
+use crate::wizard::sheet::{
+    self, Books, Candidates, Fame, KnownSpells, PowerSplit, Research, Retorts, Skill,
+};
 
 /// The wizard's name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,18 +32,45 @@ pub struct CapitalRace(pub Option<RaceId>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerLink(pub hecs::Entity);
 
+/// The components of a new wizard.
+pub(crate) type WizardBundle = (
+    Name,
+    Portrait,
+    Banner,
+    CapitalRace,
+    PlayerLink,
+    Books,
+    Retorts,
+    Skill,
+    PowerSplit,
+    Research,
+    KnownSpells,
+    Candidates,
+    Fame,
+    Magic,
+);
+
 /// The components a new wizard starts with; banner and picture default to the player's place.
-pub(crate) fn bundle(
-    id: PlayerId,
-    name: String,
-    player: hecs::Entity,
-) -> (Name, Portrait, Banner, CapitalRace, PlayerLink) {
+/// The sheet (books, retorts, skill and the rest) is empty until [`Game::init_wizard`] fills it.
+///
+/// [`Game::init_wizard`]: crate::game::Game::init_wizard
+pub(crate) fn bundle(id: PlayerId, name: String, player: hecs::Entity) -> WizardBundle {
+    let (books, retorts, skill, split, research, spells, candidates, fame, magic) = sheet::bundle();
     (
         Name(name),
         Portrait(id.0 % PORTRAITS),
         Banner(id.0 % BANNER_CHOICES),
         CapitalRace(None),
         PlayerLink(player),
+        books,
+        retorts,
+        skill,
+        split,
+        research,
+        spells,
+        candidates,
+        fame,
+        magic,
     )
 }
 
@@ -57,6 +88,11 @@ impl<'a> Wizard<'a> {
 
     pub fn entity(&self) -> hecs::Entity {
         self.entity
+    }
+
+    /// A component of the wizard.
+    pub(crate) fn component<T: hecs::Component>(&self) -> Option<hecs::Ref<'a, T>> {
+        self.world.get::<&T>(self.entity).ok()
     }
 
     pub fn name(&self) -> String {

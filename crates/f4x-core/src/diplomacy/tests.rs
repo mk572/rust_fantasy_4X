@@ -63,8 +63,11 @@ impl Rig {
     fn new() -> Rig {
         let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
         view.human = Some(P0);
-        for (_, p) in &mut view.players {
-            p.magic.books.insert("sorcery".into(), 2);
+        for id in [P0, P1, P2] {
+            view.wizard_mut(id)
+                .get_mut::<crate::wizard::sheet::Books>()
+                .0
+                .insert("sorcery".into(), 2);
         }
         Rig {
             diplomacy: Diplomacy::default(),
@@ -90,22 +93,18 @@ impl Rig {
                     self.view.treasury_mut(to).unwrap().gold += amount;
                 }
                 Outcome::Spell { player, spell } => {
-                    self.magic_mut_for_tests(player).known.insert(spell);
+                    self.wizard_mut_for_tests(player)
+                        .get_mut::<crate::wizard::sheet::KnownSpells>()
+                        .known
+                        .insert(spell);
                 }
             }
         }
         result
     }
 
-    fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut crate::wizard::magic::Magic {
-        &mut self
-            .view
-            .players
-            .iter_mut()
-            .find(|(p, _)| *p == player)
-            .map(|(_, p)| p)
-            .unwrap()
-            .magic
+    fn wizard_mut_for_tests(&mut self, player: PlayerId) -> crate::wizard::sheet::WizardMut<'_> {
+        self.view.wizard_mut(player)
     }
 
     fn wizards(&self) -> Vec<PlayerId> {
@@ -448,7 +447,11 @@ fn nature_awareness_meets_everyone() {
     let spell = g.content.rules.spells.id_of("nature_awareness").unwrap();
     // The spell's upkeep is paid from the reserve.
     g.treasury_mut(P0).unwrap().mana = 1000;
-    g.magic_mut(P0).unwrap().global.push(spell);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::magic::Magic>()
+        .global
+        .push(spell);
     g.apply(Command::EndTurn);
     assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
 }
@@ -509,8 +512,9 @@ fn temper_and_charm_change_what_a_deed_is_worth() {
     assert_eq!(g.relation(P1, P2), 0);
     // A charismatic attacker halves its penalties and doubles its gains.
     g.diplomacy.set_personality(P1, Personality::Chaotic);
-    g.magic_mut_for_tests(P2)
-        .retorts
+    g.wizard_mut_for_tests(P2)
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
         .insert(Retort::Charismatic);
     set_rel(&mut g, P1, P2, 0);
     g.change_relations(-10, P2, P1, Action::AttackedCity, None);
@@ -1008,8 +1012,14 @@ fn a_spell_given_is_known_and_wins_trust() {
     let mut g = Rig::new();
     met(&mut g, P0, P1);
     let famine = g.content.rules.spells.id_of("famine").unwrap();
-    g.magic_mut_for_tests(P0).known.insert(famine);
-    g.magic_mut_for_tests(P1).known.remove(&famine);
+    g.wizard_mut_for_tests(P0)
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(famine);
+    g.wizard_mut_for_tests(P1)
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .remove(&famine);
     set_rel(&mut g, P0, P1, 0);
     let events = command(
         &mut g,
@@ -1020,7 +1030,7 @@ fn a_spell_given_is_known_and_wins_trust() {
         },
     );
     assert!(rejected(&events).is_none(), "{events:?}");
-    assert!(g.magic(P1).unwrap().known.contains(&famine));
+    assert!(g.wizard(P1).unwrap().knows(famine));
     assert!(g.relation(P0, P1) > 0);
     let hidden = g.diplomacy.stance(P1, P0).unwrap().hidden;
     assert!((2..=9).contains(&hidden), "{hidden}");
@@ -1044,11 +1054,20 @@ fn spells_are_exchanged_one_for_one() {
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
     for s in [famine, gaia] {
         for p in [P0, P1] {
-            g.magic_mut_for_tests(p).known.remove(&s);
+            g.wizard_mut_for_tests(p)
+                .get_mut::<crate::wizard::sheet::KnownSpells>()
+                .known
+                .remove(&s);
         }
     }
-    g.magic_mut_for_tests(P0).known.insert(famine);
-    g.magic_mut_for_tests(P1).known.insert(gaia);
+    g.wizard_mut_for_tests(P0)
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(famine);
+    g.wizard_mut_for_tests(P1)
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(gaia);
     let kind = ProposalKind::Exchange {
         give: famine,
         get: gaia,
@@ -1070,8 +1089,8 @@ fn spells_are_exchanged_one_for_one() {
             accept: true,
         },
     );
-    assert!(g.magic(P0).unwrap().known.contains(&gaia));
-    assert!(g.magic(P1).unwrap().known.contains(&famine));
+    assert!(g.wizard(P0).unwrap().knows(gaia));
+    assert!(g.wizard(P1).unwrap().knows(famine));
     // Nothing left to swap.
     assert!(g.check_proposal(P0, P1, kind).is_err());
 }
@@ -1260,7 +1279,9 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
         assert_eq!(g.relation(P0, P1), -50);
     }
     // Begun, the Spell of Mastery keeps bothering them a little each turn (half of fifty).
-    g.magic_mut_for_tests(P1).casting = Some(crate::wizard::magic::Casting {
+    g.wizard_mut_for_tests(P1)
+        .get_mut::<crate::wizard::magic::Magic>()
+        .casting = Some(crate::wizard::magic::Casting {
         spell: mastery,
         remaining: 100,
     });

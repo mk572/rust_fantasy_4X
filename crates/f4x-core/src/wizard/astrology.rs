@@ -42,8 +42,8 @@ impl Game {
             rank.insert(id, *n);
         }
         let research: i32 = self
-            .magic(player)
-            .map_or(0, |m| m.known.iter().filter_map(|s| rank.get(s)).sum());
+            .wizard(player)
+            .map_or(0, |m| m.known().iter().filter_map(|s| rank.get(s)).sum());
         Astrology {
             power: (self.income(player).power_base - 10).max(0),
             strength: upkeep / 5,

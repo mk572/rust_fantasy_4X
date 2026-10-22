@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame) |
 | 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components |
 | 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates |
 | 318 | Spell | Spell instance model: components, lifecycle, queries |
@@ -101,13 +100,6 @@ neighbours.
 ## Descriptions
 
 ### B. Player and wizard
-
-**315. Wizard data as components.** `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`
-and `Fame`. The methods of `Magic` become methods over a wizard read handle (the `Units<'a>` and
-`Economy<'a>` pattern); `magic_parts` and the borrow-apart logic adapt. Every site that reads
-`player.magic` today works for neutrals and must now handle "no wizard"; list them first. Spell
-instances come later, so `Magic.global`, `casting`, `crafting` and `raising` stay in a transitional
-component until 319 to 322. *Needs:* 314.
 
 **316. Fortress, banishment, personality and objective.** `Fortress`, `SummonAt` and `Banishment`
 (with `banished_by`) on the wizard; `Personality` and `Objective` move from `Diplomacy`'s own tables

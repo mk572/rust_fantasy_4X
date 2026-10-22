@@ -129,6 +129,15 @@ Decided October 2026, `spell/special.rs`.
 - **Earth Lore's block.** The original explores the map window on screen (12 by 10 squares).
   We explore a block of that size centred on the tile the wizard picks.
 
+## 5b. Starting spells (tasks 252 and 315)
+
+- **The AI's main-realm spells follow the wiki, not the code.** `INITGAME.c`
+  (`Init_Magic_Personalities_Objectives`) indexes the spell list one place off, so it gives Sprites,
+  Nagas, Hell Hounds, Guardian Spirit and Ghouls where its comments name Water Walking, Counter Magic,
+  Fire Bolt, True Light and Black Sleep, and on Hard it tests the wrong spell before making the
+  uncommon one researchable. We give the first five and, from Hard, Basilisk, Phantom Beast, Chimeras,
+  Unicorns and Shadow Demons, as the wiki lists them. All of it is in `settings.ron`.
+
 ## 6. The Spell of Mastery's research cost (task 226)
 
 Decided October 2026, `Magic::research_cost`.

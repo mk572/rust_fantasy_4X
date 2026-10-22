@@ -195,7 +195,7 @@ impl Game {
             if self.human() == Some(id) {
                 continue;
             }
-            let Some(magic) = crate::player::magic(&self.world, id) else {
+            let Some(magic) = crate::wizard::entity::find(&self.world, id) else {
                 continue;
             };
             let personality = personality_weights(|r| magic.books_in(r), |r| magic.has(r));

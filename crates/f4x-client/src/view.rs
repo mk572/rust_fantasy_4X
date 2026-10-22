@@ -1326,7 +1326,7 @@ impl App {
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
     fn resign_prompt_frame(&mut self) -> bool {
-        let casting = self.game.magic(HUMAN).and_then(|m| m.casting);
+        let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         let Some(casting) = casting.filter(|_| self.game.casting_return(HUMAN)) else {
             self.resign_prompt = false;
             return true;
@@ -1355,7 +1355,7 @@ impl App {
         draw_rectangle_lines(w / 2.0 - 300.0, h / 2.0 - 60.0, 600.0, 120.0, 3.0, GOLD);
         let skill = self
             .game
-            .magic(HUMAN)
+            .wizard(HUMAN)
             .map_or(1, |m| m.casting_skill())
             .max(1);
         let turns = (casting.remaining + skill - 1) / skill;

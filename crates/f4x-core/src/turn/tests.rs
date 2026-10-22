@@ -919,9 +919,10 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() {
     };
     let plain = train(&mut g);
     assert_eq!(g.units().unit_weapon_quality(plain), 0);
-    g.magic_mut(P0)
+    g.wizard_mut(P0)
         .unwrap()
-        .retorts
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
         .insert(crate::wizard::magic::Retort::Alchemy);
     let magic = train(&mut g);
     assert_eq!(
@@ -1341,7 +1342,11 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
         .0
         .push((rituals, P0));
     assert_eq!(mana(&g), plain + 2, "a temple's 2 mana doubled");
-    g.magic_mut(P0).unwrap().retorts.insert(Retort::DivinePower);
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::DivinePower);
     assert_eq!(
         mana(&g),
         plain + 4,
