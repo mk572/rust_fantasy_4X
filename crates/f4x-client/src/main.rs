@@ -1,8 +1,8 @@
 //! The desktop client: reads the core's state and draws it, never mutating the
 //! world except by sending commands.
 
-mod advisor_screens;
-mod advisors;
+mod advisor;
+mod advisor_screen;
 mod army_screen;
 mod art;
 mod attack_prompt;
@@ -17,7 +17,7 @@ mod chancellor;
 mod city_list_screen;
 mod city_screen;
 mod cityscape;
-mod combat_results;
+mod combat_result;
 mod console_screen;
 mod create_screen;
 mod cycle;
@@ -432,9 +432,9 @@ async fn main() {
         app.open_first_city();
         if options.autobuild {
             app.autobuild_dialog = Some(autobuild_dialog::AutoDialog {
-                plan: f4x_core::autobuild::BuildPlan {
-                    primary: f4x_core::autobuild::Focus::Defense,
-                    secondary: Some(f4x_core::autobuild::Focus::Gold),
+                plan: f4x_core::city::autobuild::BuildPlan {
+                    primary: f4x_core::city::autobuild::Focus::Defense,
+                    secondary: Some(f4x_core::city::autobuild::Focus::Gold),
                     settlers: true,
                     ..Default::default()
                 },
@@ -548,7 +548,7 @@ async fn main() {
         app.survey_probe = if x == u32::MAX {
             app.game.economy().cities().first().map(|c| c.2)
         } else {
-            Some(f4x_core::city::Position {
+            Some(f4x_core::map::Position {
                 plane: f4x_core::map::Plane::Arcanus,
                 x,
                 y,

@@ -1,7 +1,7 @@
 //! The new-game options step: difficulty, opponents, land size and node strength, shown
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
-use f4x_core::setup::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
+use f4x_core::game::setup::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -180,7 +180,7 @@ impl App {
 }
 
 /// What a game was made with, one line each (the Settings screen of a running game).
-pub(crate) fn settings_lines(s: &f4x_core::settings::GameSettings) -> Vec<String> {
+pub(crate) fn settings_lines(s: &f4x_core::game::setting::GameSettings) -> Vec<String> {
     let b = &s.basic;
     fn name<'a>(names: &[&'a str], i: u8) -> &'a str {
         names.get(usize::from(i)).copied().unwrap_or("?")
@@ -242,11 +242,11 @@ mod tests {
 
     #[test]
     fn a_running_games_settings_read_as_words() {
-        let lines = settings_lines(&f4x_core::settings::GameSettings::for_difficulty(4));
+        let lines = settings_lines(&f4x_core::game::setting::GameSettings::for_difficulty(4));
         assert_eq!(lines[0], "Difficulty: Impossible");
         assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
         assert!(lines.iter().any(|l| l.contains("production 400%")));
-        let mut custom = f4x_core::settings::GameSettings::default();
+        let mut custom = f4x_core::game::setting::GameSettings::default();
         custom.wizards.starting_gold.human = 300;
         assert_eq!(settings_lines(&custom)[0], "Difficulty: Average (custom)");
     }

@@ -15,8 +15,8 @@
 
 use super::immunity::Realm;
 use super::Battle;
-use crate::city::PlayerId;
-use crate::Game;
+use crate::game::Game;
+use crate::player::PlayerId;
 
 /// One line of the window.
 #[derive(Debug, Clone, PartialEq, Eq)]

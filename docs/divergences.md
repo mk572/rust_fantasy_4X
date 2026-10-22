@@ -33,7 +33,7 @@ Decided October 2026, `design.md` section 8.
   the section lists "AI knowledge of hidden information" among what we skip.
   **Not checked:** we have not looked at what the original's AI can actually see, so this is
   design.md's claim, not a finding; check it in the original's AI code (ReMoM) before relying on
-  it. What we do: the AI reads the game only through `PlayerView` (`player_view.rs`): its own units and
+  it. What we do: the AI reads the game only through `PlayerView` (`player/view.rs`): its own units and
   cities, the cities of others on squares it has explored, the units on squares it sees now,
   and the terrain, rivers, nodes and lairs of explored squares. Why: the decision of October
   2026 that the AI has no advantage; our first AI broke it (it chose city sites on terrain it had
@@ -50,7 +50,7 @@ Decided October 2026, `design.md` section 8.
 
 ## 2. Neutral cities (task 31)
 
-Decided with task 31; code in `neutral_cities.rs`, `player.rs`, `turn.rs`, `fortress.rs`.
+Decided with task 31; code in `city/neutral.rs`, `player/mod.rs`, `turn.rs`, `wizard/fortress.rs`.
 
 - **They pay upkeep.** The original gives a neutral garrison free upkeep. Ours pay food and
   gold like anyone's, which is design.md section 8 applied.
@@ -66,14 +66,14 @@ Decided with task 31; code in `neutral_cities.rs`, `player.rs`, `turn.rs`, `fort
   (`balance_taxes`). Nobody else decides for it.
 - **Capturing one removes its player** and any garrison left; it defeats nobody. Neutral players
   are not wizards (`is_wizard`, `living_wizards`): no magic, fog or victory.
-- **Monsters and lair guards keep the shared owner `units::NEUTRAL`** (255): they have no
+- **Monsters and lair guards keep the shared owner `unit::NEUTRAL`** (255): they have no
   treasury and no upkeep to pay.
 - **Not copied:** the neutral cities' extra rules in the original's growth and production code
   (design.md section 8).
 
 ## 3. Sieges (task 41)
 
-Decided with task 41; code in `conquest.rs`, `battle/`.
+Decided with task 41; code in `city/conquest.rs`, `battle/`.
 
 - **The field is mirrored in the rules:** the original has the defenders and the city at low x;
   the core has them at high x (the city at x 12 to 15, `x = 20 - cgx`). Only the code differs: the
@@ -93,7 +93,7 @@ Decided with task 41; code in `conquest.rs`, `battle/`.
 
 ## 4. The starting setup (task 32)
 
-Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
+Decided with task 32; code in `game/setup.rs`, `city/economy.rs` (`site_max_size`).
 
 - **Starting gold follows the level (task 247).** The human gets `(5 - difficulty) * 25` (125 on
   Intro down to 25 on Impossible) and every AI 150, as in the original; both are settings.
@@ -116,7 +116,7 @@ Decided with task 32; code in `setup.rs`, `economy.rs` (`site_max_size`).
 
 ## 5. Special spells (task 56)
 
-Decided October 2026, `special_spells.rs`.
+Decided October 2026, `spell/special.rs`.
 
 - **Word of Recall into a full circle.** The original sends the unit anyway and then evicts the
   weakest unit of the stack (`Evict_Weakest_Unit`, lowest upkeep plus level). We make the spell
@@ -290,7 +290,7 @@ Where the item rules differ from the original's code or are read from ReMoM with
   human only, which leaves the computer wizards without a source of items. **Ours:** every wizard
   rolls it, with the same chance, price and Charismatic discount. A computer wizard buys when it
   has a hero to carry the item and the price is at most half its gold, and puts items on heroes at
-  the fortress (`f4x-ai/src/offers.rs`; the first fit, a better choice is task 222).
+  the fortress (`f4x-ai/src/offer.rs`; the first fit, a better choice is task 222).
 - **Every wizard's chances use their own fame.** The original computes the fame once, in the
   human's merchant branch, and reuses it for every wizard's mercenary and hero chances, so the
   computer wizards were offered by the human's fame (or 0 when the human is skipped). **Ours:**
@@ -444,7 +444,7 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   mountains (the original rolls `Random(100) < 3`, two in a hundred; its comment says three). Neither
   was in the game before.
 - **Meteor Storm:** strength 4 fire attack on every unit outside a city, the caster's too, then
-  1 percent for each building of other wizards' cities (`world_spells.rs`).
+  1 percent for each building of other wizards' cities (`spell/world.rs`).
 - **Call the Void:** no loss of citizens (the original loses half); the surrounding squares are
   corrupted at one in two.
 - **Nature's Wrath** shakes the cities of the wizard who casts a death or chaos spell (not the

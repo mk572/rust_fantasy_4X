@@ -199,7 +199,7 @@ pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
 
 /// Load the optional event messages (`event_texts.ron`, from `EVENTMSG.LBX`) from a content
 /// directory. A directory without them yields none, and the events are told without words.
-pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::events::EventText>, ContentError> {
+pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::world_event::EventText>, ContentError> {
     let path = dir.join("event_texts.ron");
     if !path.exists() {
         return Ok(Vec::new());
@@ -353,9 +353,9 @@ mod tests {
 
     #[test]
     fn rolled_hero_rosters_follow_init_heroes() {
+        use f4x_core::game::rng::GameRng;
+        use f4x_core::hero::roster::{roll, Availability};
         use f4x_core::hero::{HeroAbilities, Tier};
-        use f4x_core::rng::GameRng;
-        use f4x_core::roster::{roll, Availability};
         use f4x_core::rules::PickType;
         let c =
             load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
@@ -465,7 +465,7 @@ mod tests {
                     if !unit
                         .abilities
                         .iter()
-                        .any(|x| f4x_core::roster::MAGIC_RANGED.contains(&x.as_str()))
+                        .any(|x| f4x_core::hero::roster::MAGIC_RANGED.contains(&x.as_str()))
                     {
                         assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
                     }
@@ -569,7 +569,7 @@ mod tests {
             features: shipped_features(),
             ..Default::default()
         };
-        let g = f4x_core::Game::with_generated_map(1, &Default::default(), &c).unwrap();
+        let g = f4x_core::game::Game::with_generated_map(1, &Default::default(), &c).unwrap();
         assert!(g.map().is_some());
     }
 
@@ -631,7 +631,7 @@ mod tests {
         let c =
             load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
                 .unwrap();
-        for id in f4x_core::nightshade::NIGHTSHADE_BUILDINGS {
+        for id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
             assert!(c.rules.buildings.id_of(id).is_some(), "no building {id}");
         }
     }
@@ -683,7 +683,7 @@ mod tests {
         for power in c.rules.item_powers.defs() {
             if power.bonus.is_none() {
                 assert!(
-                    f4x_core::items::power_is_handled(power),
+                    f4x_core::item::power_is_handled(power),
                     "item power {} has no effect in the rules",
                     power.id
                 );
@@ -700,11 +700,11 @@ mod tests {
 
     #[test]
     fn any_wizard_can_be_given_any_prefab_item_once() {
-        use f4x_core::items::make::{make_item, Grade};
+        use f4x_core::item::make::{make_item, Grade};
         let c = real_content();
         let rules = &c.rules;
         // The wizard's books play no part in generating an item, only in crafting.
-        let mut rng = f4x_core::rng::GameRng::new(3);
+        let mut rng = f4x_core::game::rng::GameRng::new(3);
         let mut taken = Vec::new();
         let mut ids = Vec::new();
         for _ in 0..2000 {
@@ -720,7 +720,7 @@ mod tests {
         for seed in 0..100 {
             let mut taken = Vec::new();
             let item = make_item(
-                &mut f4x_core::rng::GameRng::new(seed),
+                &mut f4x_core::game::rng::GameRng::new(seed),
                 rules,
                 Grade::Artifact,
                 1200,
@@ -753,11 +753,11 @@ mod tests {
 
     #[test]
     fn random_items_stay_within_their_grade() {
-        use f4x_core::items::make::{random_item, Grade};
+        use f4x_core::item::make::{random_item, Grade};
         let c = real_content();
         let rules = &c.rules;
         for seed in 0..300 {
-            let mut rng = f4x_core::rng::GameRng::new(seed);
+            let mut rng = f4x_core::game::rng::GameRng::new(seed);
             // An Enchant Item grade item has at most two plain powers, each of 200 or less.
             let item = random_item(&mut rng, rules, Grade::Enchant, 0);
             assert!(
@@ -772,9 +772,9 @@ mod tests {
     #[test]
     fn generated_maps_obey_placement_rules() {
         let c = shipped_content();
-        let p = f4x_core::mapgen::GenParams::default();
+        let p = f4x_core::map::mapgen::GenParams::default();
         for seed in 0..5 {
-            let map = f4x_core::mapgen::generate(seed, &p, &c).unwrap();
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
             let towers = |plane| -> Vec<(u32, u32)> {
                 feature_ids(map.plane(plane), &c)
                     .into_iter()
@@ -826,10 +826,10 @@ mod tests {
     #[test]
     fn myrror_has_its_own_minerals_and_more_of_them() {
         let c = shipped_content();
-        let p = f4x_core::mapgen::GenParams::default();
+        let p = f4x_core::map::mapgen::GenParams::default();
         let (mut arc_minerals, mut myr_minerals) = (0, 0);
         for seed in 0..10 {
-            let map = f4x_core::mapgen::generate(seed, &p, &c).unwrap();
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
             let arcanus = feature_ids(map.plane(Plane::Arcanus), &c);
             let myrror = feature_ids(map.plane(Plane::Myrror), &c);
             let is_myrror_only = |id: &str| id == "adamantium_ore" || id == "crysx_crystal";
@@ -853,9 +853,9 @@ mod tests {
     #[test]
     fn myrror_only_minerals_appear_across_many_seeds() {
         let c = shipped_content();
-        let p = f4x_core::mapgen::GenParams::default();
+        let p = f4x_core::map::mapgen::GenParams::default();
         let found = (0..10).any(|seed| {
-            let map = f4x_core::mapgen::generate(seed, &p, &c).unwrap();
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
             feature_ids(map.plane(Plane::Myrror), &c)
                 .iter()
                 .any(|(_, _, id)| id == "adamantium_ore")

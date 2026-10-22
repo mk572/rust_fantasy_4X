@@ -207,6 +207,10 @@ original task numbers. Newest work is merged in ascending order by number.
 | 296 | Magic | Melding on a node you already own and guard (the original forbids it) (done) |
 | 297 | Map | Scout range and the starting reveal as in the original (done) |
 | 301 | Client | The original's mouse pointers on every screen (done) |
+| 307 | Core | Game version 0.0.2, shown prominently (done) |
+| 308 | Core | Singular names for modules and types (done) |
+| 309 | Core | Lay out `f4x-core` by game concept; move misplaced types; split `lib.rs` (done) |
+| 310 | Docs | Entity model design: player, wizard, hero, spell; ids, links, lifecycles (done) |
 
 ## Descriptions
 
@@ -372,3 +376,63 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 **297. Scout range and the starting reveal as in the original (done).** Sight counts a diagonal step as 1.5 and reaches `range + 0.5` (`fog::in_sight`, used by exploring, the visible squares and the AI's scouts): range 1 is the tile and the eight round it, range 2 a 5 by 5 block without its corners, the original's shape. A new city explores with its sight when it is founded, so every wizard, the AI's too, starts with the capital's view and no special start code. Each player's exploration is kept apart, units and cities alike. Awareness (`Cast_Awareness`, range 1) reveals the 3 by 3 block round every city.
 
 **301. The original's mouse pointers on every screen (done).** **Done:** `pointer.rs` draws the pointer from the frame loop (finger; hourglass for a frame before the computer plays the turn change; boot or red cross over the map with a stack selected, by `find_path`; wand while a spell targets); the battle screen keeps its own through the same `draw_pointer_image`. ReMoM sets only the finger and hourglass lists outside combat, so the boot and cross on the overland map are ours. Only the battle screen draws the original's pointers (`cursors/NN.png`, `battle_screen/pointer.rs`); every other screen shows the system pointer. Draw the game's own on all screens: the finger as the default (`mouse_list_default`), the hourglass while the computer plays (`mouse_list_hourglass`), the winged boot over a reachable square and the red cross on the overland map when a click would do nothing, and the casting wand while a spell picks a target. Check `Set_Mouse_List` and the screens' mouse lists in ReMoM for what each one sets, hide the system pointer in one place (the frame loop, not per screen), and keep the system pointer when the art is missing.
+
+**307. Game version 0.0.2, shown prominently (done).** `[workspace.package] version` goes from `0.0.1` to
+`0.0.2`: the entity rework changes the save format, so it is a new version. Put a **Version** line at
+the top of `CLAUDE.md` and `README.md` that states the version and that saves of other versions are
+refused, and one line in `docs/ecs-structure.md`, so a later agent finds it at once. A test fails when
+`CLAUDE.md`, `README.md` and the `Cargo.toml` version disagree, so the number cannot rot. The save
+already writes `game_version`; the check on loading is task 335. *Needs:* nothing.
+
+**308. Singular names for modules and types (done).** Rule in `CLAUDE.md`: modules, files and types for an
+entity or a concept are singular; plural stays for `Vec` fields, registries and `.ron` files.
+Renames in `f4x-core`: `units` to `unit` (`Units<'a>` to `UnitView`), `lairs` to `lair`, `nodes` to
+`node`, `offers` to `offer`, `roads` to `road`, `items` to `item` (`Items` to `ItemView`), `globals` to
+`global_enchantment`, `settings` to `setting`, `events` to `event`, `events_game` to `event_game`,
+`ai_wizards` to `ai_wizard`, `battle/spells` to `battle/spell`. Check the other crates for the same
+pattern (`advisors`, `cheats`, `args`, `bank`, `agent`). One module per commit; the change is
+mechanical. **Done:** all of the above, plus `neutral_cities` to `neutral_city` and, in the other
+crates, `f4x-ai` `offers` and `scouts`, `f4x-client` `advisors`, `advisor_screens` and
+`combat_results`, `f4x-console` `cheats`; stale file names in comments and docs updated; the rule is
+in `CLAUDE.md`. Kept on purpose: `args`, `rules`, `obs`, `fonts`, `screens`, `preferences`,
+`newgame_picks` (names of a collection, a title or a tool). Left for the tasks that touch them: the
+`*_spells` modules and `magic_commands` (309 regroups them), `temp_effects` (321). *Needs:* 307.
+
+**309. Lay out `f4x-core` by game concept (done).** Directories in `f4x-core/src`: `player/`, `wizard/`,
+`hero/`, `spell/`, `unit/`, `city/`, `map/` (with node, lair, gate, fog and vision), `battle/`,
+`diplomacy/`, `event/`, `item/`, `turn/` and `game/` (state, command, apply). Audit where each type
+is defined and move it to its concept: `PlayerId` (now in `city.rs`), `NEUTRAL` (now in `units.rs`),
+`Node` and `Lair` (now in `map.rs`, to `feature/`), and whatever else the audit finds. The new
+directories include `feature/` (node, lair, tower, volcano, mineral, generation). Files that mix concepts are
+split: `fortress` (city part and wizard part), `wizard_spells` (wizard part and spell part), `cast`,
+`economy` (city and player), `items/crafting` (wizard state), `lairs` (site, loot, defenders),
+`battle/spells`, `battle/spoils`. `lib.rs` (about 1,400 lines) becomes `Game`, `Command` and the
+`apply` routing in separate files. No re-export shims are left behind.
+**Done:** `f4x-core/src` now has `player/`, `wizard/`, `hero/`, `spell/`, `unit/`, `city/`, `map/`,
+`feature/`, `world_event/` and `game/` next to `battle/`, `item/`, `rules/`, `diplomacy`, `turn`,
+`content` and `help`. The random-event module is `world_event` (so `game::Event` means only what a
+command reported). All the spell-effect files are in `spell/` (`city`, `hero`, `wizard`, `world`,
+`special`, `terraform`, `cast`, `dispel`, `global_enchantment`, `temp_effects`). `lib.rs` is 25 lines;
+`Game`, `Command` and `Event` (with `Rejection`, `LossCause`, `Shortage`) are in `game/`. Types moved:
+`PlayerId`, `Owner` and `NEUTRAL` to `player`, `Position` to `map`, `Node` to `feature::node`, `Lair`
+to `feature::lair`. The audit found no other misplaced type (the rest are shared hub types such as
+`Game`, `Plane`, `Content`). The `Game` method baseline (`game_method_limits.txt`) is rewritten for
+the new paths. **Not done, by decision:** the mixed files are moved whole and are split in the task
+that changes their data model: `wizard/fortress` (city part and wizard part, 316), `city/economy` and
+`player/finance` (314), `item/crafting` (322), `feature/lair` (331), `spell/wizard`, `spell/cast`,
+`battle/spell`, `battle/spoils` (with the spell tasks 318 to 325). The crate root exports nothing:
+the main types are reached as `game::{Game, Command, Event, LossCause, Rejection, Shortage}`, and
+`HeroError` now lives in `hero`. *Needs:* 308.
+
+**310. Entity model design (done).** Docs first, so the code tasks implement a written design. The design
+is in [`ecs-structure.md`](ecs-structure.md) section 3 (entity kinds and their components; player and
+wizard; links and ids; the spell instance, hero, terrain feature and item; lifecycles; saving and
+replaying; what stays outside the world; how the code reads and writes the new entities).
+[`design.md`](design.md) section 4 (the entity table and the map) and [`magic.md`](magic.md)
+(a "Rework" note in sections 1, 4, 6, 8, 12, 13, 14 and 15) point at it. The older text of those
+documents describes the code as it is until each task lands; task 337 finishes the pass. Decisions
+made while writing it: the power split (`mana_pct`, `research_pct`, `skill_pct`) is a wizard
+component (`PowerSplit`); fame is the wizard's, offers and the armory the player's; defeating a wizard
+despawns its spell instances (as `aftermath` removes its enchantments today), banishing despawns only
+the fortress and circle; neutral players get ids after the real players and the `NEUTRAL` sentinel goes; battlefield
+spell instances live in the battle's own world. *Needs:* 309.

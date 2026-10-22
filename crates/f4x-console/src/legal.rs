@@ -2,10 +2,10 @@
 //! They build the same `Command`s the client does and send them through `Game::apply`.
 
 use f4x_core::battle::BattleCommand;
-use f4x_core::city::Position;
-use f4x_core::map::Plane;
-use f4x_core::production::ProductionItem;
-use f4x_core::Command;
+use f4x_core::city::production::ProductionItem;
+use f4x_core::map::{Plane, Position};
+
+use f4x_core::game::Command;
 
 use crate::args::{city_by_serial, parse_pos, parse_target, parse_units, resolve, Args};
 use crate::{CommandDef, ConsoleError, Ctx, Kind};
@@ -272,7 +272,7 @@ fn tax(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn autobuild(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    use f4x_core::autobuild::{BuildPlan, Focus, Mix};
+    use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
     let city = ctx.my_city(a, 0)?;
     let first = a.need(1, "off, or buildings, units or both")?;
     if first.eq_ignore_ascii_case("off") {

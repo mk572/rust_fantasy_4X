@@ -1,0 +1,556 @@
+//! Deterministic procedural map generation.
+//!
+//! Integer-only value noise (no floats) so a seed gives the same map on every
+//! platform. Noise wraps horizontally so the world has no seam.
+
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
+
+use crate::content::{Content, FeatureKind, TerrainClass, Terrains, REQUIRED_CLASSES};
+use crate::feature::place;
+use crate::map::{Grid, Map, Plane, TerrainId};
+
+/// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaneParams {
+    /// Share of mineral-capable land tiles that get a mineral, 0..=100.
+    pub mineral_percent: u8,
+    /// Number of magic nodes to place.
+    pub node_count: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GenParams {
+    pub width: u32,
+    pub height: u32,
+    /// Share of tiles that are land, 1..=99.
+    pub land_percent: u8,
+    /// Towers placed at identical coordinates on both planes.
+    pub tower_count: u8,
+    /// Strong and weak random encounter sites, on either plane (the original's 25 and 32).
+    pub strong_sites: u32,
+    pub weak_sites: u32,
+    /// The game's difficulty, 0 (intro) to 4 (impossible), as `Game::with_generated_map` records
+    /// it. The lairs read the two percents below, not this.
+    pub difficulty: u8,
+    /// Guards of lairs, towers and nodes as a percent of the budget (`world.lair_guard_percent`).
+    pub lair_guard_percent: u16,
+    /// Treasure of lairs as a percent (`world.lair_treasure_percent`).
+    pub lair_treasure_percent: u16,
+    /// The game's node setting, 0 weak to 2 powerful.
+    pub magic_strength: u8,
+    /// Indexed by [`Plane::index`].
+    pub planes: [PlaneParams; 2],
+}
+
+impl Default for GenParams {
+    fn default() -> Self {
+        Self {
+            width: 60,
+            height: 40,
+            land_percent: 30,
+            tower_count: 6,
+            strong_sites: 25,
+            weak_sites: 32,
+            difficulty: 2,
+            lair_guard_percent: 75,
+            lair_treasure_percent: 133,
+            magic_strength: 1,
+            planes: [
+                PlaneParams {
+                    mineral_percent: 6,
+                    node_count: 16,
+                },
+                PlaneParams {
+                    mineral_percent: 10,
+                    node_count: 14,
+                },
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GenError {
+    BadParams(String),
+    MissingTerrain { class: TerrainClass, plane: Plane },
+    MissingFeature { kind: FeatureKind },
+}
+
+impl std::fmt::Display for GenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenError::BadParams(m) => write!(f, "bad map parameters: {m}"),
+            GenError::MissingTerrain { class, plane } => {
+                write!(f, "no terrain of class {class:?} defined for {plane:?}")
+            }
+            GenError::MissingFeature { kind } => write!(f, "no feature of kind {kind:?} defined"),
+        }
+    }
+}
+
+impl std::error::Error for GenError {}
+
+pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map, GenError> {
+    let terrains = &content.terrains;
+    if params.width < 8 || params.height < 8 {
+        return Err(GenError::BadParams(
+            "width and height must be at least 8".into(),
+        ));
+    }
+    if params.width > 1024 || params.height > 1024 {
+        return Err(GenError::BadParams(
+            "width and height must be at most 1024".into(),
+        ));
+    }
+    if !(1..=99).contains(&params.land_percent) {
+        return Err(GenError::BadParams("land_percent must be in 1..=99".into()));
+    }
+    if params.planes.iter().any(|p| p.mineral_percent > 100) {
+        return Err(GenError::BadParams(
+            "mineral_percent must be at most 100".into(),
+        ));
+    }
+    let [arcanus, myrror] = Plane::ALL.map(|p| generate_plane(seed, p, params, terrains));
+    let mut map = Map::new(arcanus?, myrror?);
+    place::place_features(seed, params, content, &mut map)?;
+    crate::feature::node::generate_nodes(seed, &mut map, content);
+    crate::feature::lair::generate_lairs(seed, params, &mut map, content);
+    Ok(map)
+}
+
+fn generate_plane(
+    seed: u64,
+    plane: Plane,
+    params: &GenParams,
+    terrains: &Terrains,
+) -> Result<Grid, GenError> {
+    let pick = |class| {
+        terrains
+            .first_of_class(class, plane)
+            .ok_or(GenError::MissingTerrain { class, plane })
+    };
+    // Fail early if anything is missing, even if the generator wouldn't place it.
+    for class in REQUIRED_CLASSES {
+        pick(class)?;
+    }
+    let (ocean, grass, forest, hills, mountains, swamp, desert, tundra) = (
+        pick(TerrainClass::Ocean)?,
+        pick(TerrainClass::Grassland)?,
+        pick(TerrainClass::Forest)?,
+        pick(TerrainClass::Hills)?,
+        pick(TerrainClass::Mountains)?,
+        pick(TerrainClass::Swamp)?,
+        pick(TerrainClass::Desert)?,
+        pick(TerrainClass::Tundra)?,
+    );
+
+    let (w, h) = (params.width, params.height);
+    let plane_seed =
+        seed.wrapping_add((plane.index() as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    let elevation = noise_field(plane_seed, w, h, 3, 4);
+    let moisture = noise_field(plane_seed ^ 0xA5A5_5A5A_1234_4321, w, h, 5, 3);
+
+    // Land is the top `land_percent` of elevation.
+    let sea_level = percentile(&elevation, 100 - params.land_percent as usize);
+    let is_land: Vec<bool> = elevation.iter().map(|&e| e >= sea_level).collect();
+
+    let land_elev: Vec<i32> = pick_where(&elevation, &is_land);
+    let land_moist: Vec<i32> = pick_where(&moisture, &is_land);
+    let mountain_at = percentile(&land_elev, 94);
+    let hills_at = percentile(&land_elev, 80);
+    let desert_below = percentile(&land_moist, 10);
+    let swamp_above = percentile(&land_moist, 92);
+    let forest_above = percentile(&land_moist, 67);
+    let polar_rows = h / 12;
+
+    let mut grid = Grid::new(w, h, ocean);
+    for y in 0..h {
+        for x in 0..w {
+            let i = (y * w + x) as usize;
+            if !is_land[i] {
+                continue;
+            }
+            let (e, m) = (elevation[i], moisture[i]);
+            let from_pole = y.min(h - 1 - y);
+            let t = if from_pole < polar_rows {
+                tundra
+            } else if e >= mountain_at {
+                mountains
+            } else if e >= hills_at {
+                hills
+            } else if m <= desert_below {
+                desert
+            } else if m >= swamp_above {
+                swamp
+            } else if m >= forest_above {
+                forest
+            } else {
+                grass
+            };
+            grid.set(x, y, t);
+        }
+    }
+    place_rivers(
+        &mut grid,
+        &elevation,
+        &is_land,
+        [hills, mountains],
+        ocean,
+        plane_seed,
+    );
+    place_lakes(&mut grid, ocean, [hills, mountains], plane_seed);
+    Ok(grid)
+}
+
+/// Rivers start on mountain and hill tiles and run downhill (4-neighbour steps, lowest
+/// neighbour first) until they reach the sea or another river. Only gentle land carries the
+/// flag: hills, mountains and ocean never do.
+fn place_rivers(
+    grid: &mut Grid,
+    elevation: &[i32],
+    is_land: &[bool],
+    steep: [TerrainId; 2],
+    ocean: TerrainId,
+    seed: u64,
+) {
+    let (w, h) = (grid.width(), grid.height());
+    let land = is_land.iter().filter(|&&l| l).count();
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x5249_5645_5253);
+    let mut sources: Vec<(u32, u32)> = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| {
+            is_land[(y * w + x) as usize]
+                && y >= 2
+                && y + 2 < h
+                && elevation[(y * w + x) as usize] > 150
+        })
+        .collect();
+    for i in (1..sources.len()).rev() {
+        sources.swap(i, rng.gen_range(0..=i));
+    }
+    sources.truncate((land / 120).max(1));
+    for (sx, sy) in sources {
+        let mut seen = std::collections::HashSet::new();
+        let (mut x, mut y) = (sx, sy);
+        let mut flagged = Vec::new();
+        let mut reached_water = false;
+        let mut lake_at = None;
+        for _ in 0..(w + h) {
+            if !seen.insert((x, y)) {
+                break;
+            }
+            let i = (y * w + x) as usize;
+            if !is_land[i] {
+                reached_water = true;
+                break;
+            }
+            if grid.has_river(x as i32, y as i32) {
+                reached_water = true;
+                break;
+            }
+            flagged.push((x, y));
+            let next = [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)]
+                .iter()
+                .filter_map(|&(dx, dy)| {
+                    let ny = y as i32 + dy;
+                    (ny >= 0 && ny < h as i32).then(|| (grid.wrap_x(x as i32 + dx), ny as u32))
+                })
+                .filter(|p| !seen.contains(p))
+                .min_by_key(|&(nx, ny)| (elevation[(ny * w + nx) as usize], ny, nx));
+            match next {
+                // A basin: the water has nowhere lower to go, so it pools into a lake.
+                Some((nx, ny))
+                    if elevation[(ny * w + nx) as usize] > elevation[i]
+                        && flagged.len() >= 3
+                        && y >= 2
+                        && y + 2 < h =>
+                {
+                    lake_at = Some((x, y));
+                    reached_water = true;
+                    break;
+                }
+                Some(p) => (x, y) = p,
+                None => break,
+            }
+        }
+        if let Some((lx, ly)) = lake_at {
+            flagged.retain(|&p| p != (lx, ly));
+            let here = grid.get(lx as i32, ly as i32);
+            if here.is_some_and(|t| !steep.contains(&t) && t != ocean) {
+                grid.set(lx, ly, ocean);
+                grid.set_lake(lx, ly, true);
+            }
+        }
+        // A river that never reaches water or another river would be a puddle: drop it.
+        if !reached_water {
+            continue;
+        }
+        for (x, y) in flagged {
+            if grid
+                .get(x as i32, y as i32)
+                .is_some_and(|t| !steep.contains(&t))
+            {
+                grid.set_river(x, y, true);
+            }
+        }
+    }
+}
+
+/// A few standalone lakes: single water squares with land on every side, away from
+/// rivers and from each other.
+fn place_lakes(grid: &mut Grid, ocean: TerrainId, steep: [TerrainId; 2], seed: u64) {
+    let (w, h) = (grid.width(), grid.height());
+    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x4C41_4B45_5321);
+    let land = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| grid.get(x as i32, y as i32).is_some_and(|t| t != ocean))
+        .count();
+    let want = land / 450;
+    let mut tries = want * 40 + 20;
+    let mut placed = 0;
+    while placed < want && tries > 0 {
+        tries -= 1;
+        let (x, y) = (
+            rng.gen_range(0..w),
+            rng.gen_range(2..h.saturating_sub(2).max(3)),
+        );
+        let quiet = (-2i32..=2).all(|dy| {
+            (-2i32..=2).all(|dx| {
+                let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                grid.get(nx, ny)
+                    .is_some_and(|t| t != ocean && !steep.contains(&t))
+                    && !grid.has_river(nx, ny)
+            })
+        });
+        if quiet {
+            grid.set(x, y, ocean);
+            grid.set_lake(x, y, true);
+            placed += 1;
+        }
+    }
+}
+
+fn pick_where(values: &[i32], mask: &[bool]) -> Vec<i32> {
+    values
+        .iter()
+        .zip(mask)
+        .filter(|(_, &m)| m)
+        .map(|(&v, _)| v)
+        .collect()
+}
+
+/// Value at the given percentile (0..=100) of `values`; empty input yields 0.
+fn percentile(values: &[i32], pct: usize) -> i32 {
+    if values.is_empty() {
+        return 0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    sorted[(sorted.len() * pct / 100).min(sorted.len() - 1)]
+}
+
+/// Multi-octave value noise in `0..=255`, wrapping horizontally.
+fn noise_field(seed: u64, w: u32, h: u32, base_freq: u32, octaves: u32) -> Vec<i32> {
+    let total_weight: i32 = (1 << octaves) - 1;
+    let mut out = vec![0i32; (w * h) as usize];
+    for o in 0..octaves {
+        let freq = base_freq << o;
+        let weight = 1 << (octaves - 1 - o);
+        // Cells are square: `freq` cells span the width, so y needs freq*h/w of them.
+        let rows = (freq as u64 * h as u64 / w as u64) as u32 + 2;
+        let mut rng =
+            Pcg64Mcg::seed_from_u64(seed ^ (o as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
+        let lattice: Vec<i32> = (0..freq * rows).map(|_| rng.gen_range(0..=255)).collect();
+        let at = |ix: u32, iy: u32| lattice[(iy * freq + ix % freq) as usize];
+        for y in 0..h {
+            let yf = (y as u64 * freq as u64 * 256 / w as u64) as u32;
+            let (iy, fy) = (yf >> 8, (yf & 255) as i32);
+            for x in 0..w {
+                let xf = (x as u64 * freq as u64 * 256 / w as u64) as u32;
+                let (ix, fx) = (xf >> 8, (xf & 255) as i32);
+                let top = lerp(at(ix, iy), at(ix + 1, iy), smooth(fx));
+                let bottom = lerp(at(ix, iy + 1), at(ix + 1, iy + 1), smooth(fx));
+                out[(y * w + x) as usize] += weight * lerp(top, bottom, smooth(fy));
+            }
+        }
+    }
+    out.iter_mut().for_each(|v| *v /= total_weight);
+    out
+}
+
+/// Smoothstep on a 0..=256 fixed-point fraction.
+fn smooth(t: i32) -> i32 {
+    (t * t * (3 * 256 - 2 * t)) >> 16
+}
+
+/// Linear interpolation with a 0..=256 fixed-point fraction.
+fn lerp(a: i32, b: i32, t: i32) -> i32 {
+    a + (((b - a) * t) >> 8)
+}
+
+/// Fraction of land tiles on a grid, in percent (for tests and tooling).
+pub fn land_percent(grid: &Grid, terrains: &Terrains) -> u32 {
+    let mut land = 0;
+    for y in 0..grid.height() {
+        for x in 0..grid.width() {
+            let id: TerrainId = grid.get(x as i32, y as i32).expect("in bounds");
+            if terrains
+                .get(id)
+                .is_some_and(|d| d.class != TerrainClass::Ocean)
+            {
+                land += 1;
+            }
+        }
+    }
+    land * 100 / (grid.width() * grid.height())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::testutil::content;
+
+    #[test]
+    fn same_seed_same_map_different_seed_differs() {
+        let (c, p) = (content(), GenParams::default());
+        assert_eq!(generate(7, &p, &c).unwrap(), generate(7, &p, &c).unwrap());
+        assert_ne!(generate(7, &p, &c).unwrap(), generate(8, &p, &c).unwrap());
+    }
+
+    #[test]
+    fn land_share_matches_request_and_planes_differ() {
+        let (c, p) = (content(), GenParams::default());
+        let map = generate(1, &p, &c).unwrap();
+        for plane in Plane::ALL {
+            let pct = land_percent(map.plane(plane), &c.terrains);
+            assert!((p.land_percent as u32).abs_diff(pct) <= 2, "land {pct}%");
+        }
+        assert_ne!(map.plane(Plane::Arcanus), map.plane(Plane::Myrror));
+    }
+
+    #[test]
+    fn rejects_bad_params_and_missing_content() {
+        let c = content();
+        let bad = GenParams {
+            land_percent: 0,
+            ..GenParams::default()
+        };
+        assert!(matches!(generate(1, &bad, &c), Err(GenError::BadParams(_))));
+        let tiny = GenParams {
+            width: 2,
+            ..GenParams::default()
+        };
+        assert!(matches!(
+            generate(1, &tiny, &c),
+            Err(GenError::BadParams(_))
+        ));
+
+        let mut no_swamp = c.clone();
+        no_swamp.terrains = Terrains::new(
+            c.terrains
+                .defs()
+                .iter()
+                .filter(|d| d.class != TerrainClass::Swamp)
+                .cloned()
+                .collect(),
+        );
+        assert!(matches!(
+            generate(1, &GenParams::default(), &no_swamp),
+            Err(GenError::MissingTerrain {
+                class: TerrainClass::Swamp,
+                ..
+            })
+        ));
+
+        let mut no_tower = c.clone();
+        no_tower.features = crate::content::Features::new(
+            c.features
+                .defs()
+                .iter()
+                .filter(|d| d.kind != FeatureKind::Tower)
+                .cloned()
+                .collect(),
+        );
+        assert!(matches!(
+            generate(1, &GenParams::default(), &no_tower),
+            Err(GenError::MissingFeature {
+                kind: FeatureKind::Tower
+            })
+        ));
+    }
+
+    #[test]
+    fn rivers_exist_on_gentle_land_and_are_deterministic() {
+        let c = content();
+        let a = generate(7, &GenParams::default(), &c).unwrap();
+        let b = generate(7, &GenParams::default(), &c).unwrap();
+        assert_eq!(a, b);
+        let mut count = 0;
+        for plane in Plane::ALL {
+            let g = a.plane(plane);
+            for y in 0..g.height() as i32 {
+                for x in 0..g.width() as i32 {
+                    if g.has_river(x, y) {
+                        count += 1;
+                        let class = c.terrains.get(g.get(x, y).unwrap()).unwrap().class;
+                        assert!(
+                            !matches!(
+                                class,
+                                TerrainClass::Ocean | TerrainClass::Hills | TerrainClass::Mountains
+                            ),
+                            "river on {class:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(count > 0, "the default map has rivers");
+    }
+
+    #[test]
+    fn lakes_are_single_water_squares_away_from_the_sea() {
+        let c = content();
+        let mut lakes = 0;
+        for seed in 1..=30 {
+            let m = generate(seed, &GenParams::default(), &c).unwrap();
+            for plane in Plane::ALL {
+                let g = m.plane(plane);
+                for y in 0..g.height() as i32 {
+                    for x in 0..g.width() as i32 {
+                        if !g.is_lake(x, y) {
+                            continue;
+                        }
+                        lakes += 1;
+                        let class = |x, y| g.get(x, y).map(|t| c.terrains.get(t).unwrap().class);
+                        assert_eq!(class(x, y), Some(TerrainClass::Ocean), "a lake is water");
+                        assert!(g.feature(x, y).is_none(), "nothing stands in a lake");
+                        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                            let n = class(x + dx, y + dy);
+                            assert!(
+                                n != Some(TerrainClass::Ocean) || g.is_lake(x + dx, y + dy),
+                                "seed {seed}: lake at ({x},{y}) touches the sea"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(lakes >= 20, "30 maps should hold lakes, found {lakes}");
+    }
+
+    #[test]
+    fn handles_non_square_and_odd_sizes() {
+        let c = content();
+        for (w, h) in [(8, 8), (61, 37), (120, 20), (20, 120)] {
+            let p = GenParams {
+                width: w,
+                height: h,
+                land_percent: 40,
+                ..GenParams::default()
+            };
+            let map = generate(3, &p, &c).unwrap();
+            assert_eq!((map.width(), map.height()), (w, h));
+        }
+    }
+}

@@ -73,7 +73,7 @@ Difficulty therefore means two things, kept apart in the data:
 
 ### 3.1 `GameSettings`
 
-A new module `crates/f4x-core/src/settings.rs`. One struct, grouped in sub-structs so the screen
+A new module `crates/f4x-core/src/setting.rs`. One struct, grouped in sub-structs so the screen
 and the save can walk it, every field `#[serde(default)]` so a new field never breaks an old save.
 
 ```rust
@@ -108,9 +108,9 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
-| wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `setup.rs::start_player` |
+| wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `game/setup.rs::start_player` |
 | ai | `apply_to_human` | bool | off | not built (a custom setting: the human gets the same multipliers) |
-| ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `setup.rs` |
+| ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `game/setup.rs` |
 | ai | `growth_percent` | 100..=800 | 150 | not built (original table) |
 | ai | `outpost_growth_percent` | 100..=800 | 150 | not built |
 | ai | `production_percent` | 100..=800 | 150 | not built |
@@ -128,11 +128,11 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `lairs_enabled`, `neutral_cities_enabled`, `raiders_enabled` | bool | on | always on |
 | world | `myrror_enabled` | bool | on | always two planes (stage 4, 4.9) |
 | world | `heroes_enabled` | bool | on | heroes are not built yet (tasks 218, 219); read when they are |
-| world | `lair_guard_percent` | 0..=300 | from preset | `lairs.rs`: `budget * (d + 1) / 4` |
-| world | `lair_treasure_percent` | 0..=500 | from preset | `lairs.rs`: `loot * 4 / (d + 1)` |
-| world | `neutral_city_size_bonus` | -2..=6 | from preset | `neutral_cities.rs`: `(d + 1) / 3` terms |
+| world | `lair_guard_percent` | 0..=300 | from preset | `feature/lair.rs`: `budget * (d + 1) / 4` |
+| world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
+| world | `neutral_city_size_bonus` | -2..=6 | from preset | `city/neutral.rs`: `(d + 1) / 3` terms |
 | world | `raider_percent` | 0..=300 | from preset | task 154's raiders, `troops * d / 6` in the original |
-| rules | `max_stack` | one value, 1..=9 now (4.3) | 9 | `units::MAX_STACK` |
+| rules | `max_stack` | one value, 1..=9 now (4.3) | 9 | `unit::MAX_STACK` |
 | rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
 | rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |
 | rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/game.rs::overland_aftermath` (4.7) |
@@ -228,7 +228,7 @@ Notes:
 
 - `Game` gets `settings: GameSettings` (read through `Game::settings()`; the old public
   `difficulty` and `magic_strength` fields are gone, callers read `settings.basic`).
-- `Snapshot` (`save.rs`) holds `#[serde(default)] settings: GameSettings`. **Old saves are not
+- `Snapshot` (`game/save.rs`) holds `#[serde(default)] settings: GameSettings`. **Old saves are not
   migrated**: the two old fields `difficulty` and `magic_strength` are no longer written or read,
   and a save without the record reads as the defaults. Out-of-range values are clamped on load.
   - Settings that took effect at creation (`picks`, `starting_gold`, map size) are saved too, for
@@ -251,7 +251,7 @@ Today the values travel in separate places: `setup::NewGame` (difficulty, magic,
    it by `GameSettings::gen_params()`.
 2. `Game::with_generated_map` takes the settings and stores them before any rule runs (setup
    already uses `difficulty` at creation).
-3. The wizard builder (`wizard.rs`) takes `picks` and `max_books_per_realm` from settings; the
+3. The wizard builder (`wizard/mod.rs`) takes `picks` and `max_books_per_realm` from settings; the
    custom-wizard screen shows "picks left" from the same source.
 4. The console's `new` command takes `key=value` pairs for every field (it already takes `land=`,
    `difficulty=` and `magic=`), so tests and the soak can set them without a screen.
@@ -286,7 +286,7 @@ Today the values travel in separate places: `setup::NewGame` (difficulty, magic,
 
 ### 4.2 Starting units and other start values
 
-Today `setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
+Today `game/setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
 race's spearmen and swordsmen (two swordsmen for a race without spearmen), and three buildings.
 The unit list becomes a setting, **split human and AI** like gold:
 
@@ -312,7 +312,7 @@ The default list is today's start, so nothing changes unless the player edits it
   is skipped, and the start reports it.
 - **FirstSummon** is the creature of the **first summoning spell among the wizard's starting
   spells**, the ones the books bought (the common spells chosen at creation, section 4.1 of
-  `wizard.rs`'s rules). A summoning spell is one whose cast effect is `Summon(unit, count)` in
+  `wizard/mod.rs`'s rules). A summoning spell is one whose cast effect is `Summon(unit, count)` in
   `spells.ron` (War Bears, Sprites and the like), so no new data is needed. "First" is the order the
   starting spells are listed in when the wizard is made; **I have not checked that order** (it
   may be by realm, or the order of choice), and it must be fixed and tested. A wizard with no
@@ -320,8 +320,8 @@ The default list is today's start, so nothing changes unless the player edits it
 - **Scout** is a **free starting Magic Spirit** (`magic_spirit` in `units.ron`), the same for every
   race and wizard. It is not a Summon spell cast: the unit is simply given at the start. Its data
   gives it an upkeep of 1 mana a turn (`upkeep: (mana: 1)`), so the wizard must really get at
-  least one mana a turn. **What the code does today** (`magic_game.rs::process_magic`,
-  `magic.rs::upkeep_plan`, `magic_income.rs`):
+  least one mana a turn. **What the code does today** (`wizard/magic_game.rs::process_magic`,
+  `wizard/magic.rs::upkeep_plan`, `wizard/magic_income.rs`):
   1. Each turn the mana share of the power is added to the reserve first, then the upkeep is
      paid from the reserve. If the reserve cannot pay, **the newest upkeep items are given up**,
      so a spirit with no mana is lost at the first turn change.
@@ -374,7 +374,7 @@ is a second copy of the same 9, and `battle/game.rs` caps the raised dead by `MA
 ### 4.4 Spell of Mastery victory on / off
 
 Today the Spell of Mastery is always in the spell pool (the research list offers it last, see
-`magic.rs`; `endgame.rs` ends the game when it is cast). With `victory.spell_of_mastery = false`:
+`wizard/magic.rs`; `game/endgame.rs` ends the game when it is cast). With `victory.spell_of_mastery = false`:
 
 - the spell is **not offered in research** and cannot be cast (the cast refuses with a clear
   reason, for saves of games that had it started);
@@ -411,12 +411,12 @@ a player who dislikes Meteor can drop just that one. Not in the first stages.
 
 ### 4.6 Spell of Return: off / human only / all
 
-`PLANNED.md` item 2. Today `fortress.rs::banish` always gives the banished wizard the Spell of
+`PLANNED.md` item 2. Today `wizard/fortress.rs::banish` always gives the banished wizard the Spell of
 Return casting. The check goes there:
 
 | Setting | Human banished | AI wizard banished |
 |---|---|---|
-| `All` (as the original) | Return casting starts | Return casting starts, unless skill is under 40 or mana is gone: then it resigns (`fortress.rs`) |
+| `All` (as the original) | Return casting starts | Return casting starts, unless skill is under 40 or mana is gone: then it resigns (`wizard/fortress.rs`) |
 | `HumanOnly` | Return casting starts | defeated at once (`defeat`) |
 | `Off` | defeated at once | defeated at once |
 
@@ -463,8 +463,8 @@ with the `rules.safe_flee` setting. Web hit points are not modelled yet (task 15
 counts as holding the unit.
 
 Only one place in the code reads `difficulty` outside the generator today (neutral city size,
-`neutral_cities.rs`). The `ai` group is new code: city calculation (`city.rs`, `economy.rs`,
-`finance.rs`) multiplies the city's figures by the owner's percent when the owner is not the human.
+`city/neutral.rs`). The `ai` group is new code: city calculation (`city/mod.rs`, `city/economy.rs`,
+`player/finance.rs`) multiplies the city's figures by the owner's percent when the owner is not the human.
 All of these are applied **at the end of the calculation**, as the original does, so the figures the
 city screen shows for an AI city are the multiplied ones and nothing else needs to know.
 
@@ -524,7 +524,7 @@ pub struct AiWizardSettings {
 today's behaviour. Everything uses the game's seeded generator, so the soak stays reproducible.
 Races are chosen later, in the start (task 155 item 2): the original limits AI races above Normal
 to nine, then five; that is `wizards.ai_race_limit`. Whether a preset wizard keeps its fixed race
-or portrait is already handled in `setup.rs`; this list does not change it.
+or portrait is already handled in `game/setup.rs`; this list does not change it.
 
 ### 4.9 No Myrror (stage 4)
 
@@ -685,7 +685,7 @@ console and the loader:
 - every field within its range;
 - `picks` at least the cheapest legal wizard; `max_books_per_realm * 5 >= picks - 1` is not
   required (a wizard may leave picks unused? No: the original forces all picks to be spent, and
-  `wizard.rs` reports `UnspentPicks`; a `picks` the books cannot absorb is refused here with the
+  `wizard/mod.rs` reports `UnspentPicks`; a `picks` the books cannot absorb is refused here with the
   reason);
 - `opponents` fit on the map (a minimum area per wizard; the existing check
   `Fortress sites that feed eight` fails for tiny maps, so a size below it is refused here instead of
@@ -725,7 +725,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
 
 ## 9. Stages
 
-1. **Wireframe, save, load, default difficulty.** `settings.rs` with `GameSettings` holding the
+1. **Wireframe, save, load, default difficulty.** `game/setting.rs` with `GameSettings` holding the
    basic block and the groups as empty or default structs; `Game::settings()`; the snapshot field
    (old saves are not migrated: a save without the record reads as the defaults);
    `validate`; presets as functions that so far return the same numbers as the code uses today;

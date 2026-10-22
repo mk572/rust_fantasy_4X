@@ -14,10 +14,10 @@ use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
     Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,
 };
+use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
 use f4x_core::rules::defs::SpellTarget;
 use f4x_core::rules::SpellId;
-use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
 use crate::art::FigureEffect;
@@ -455,7 +455,7 @@ impl App {
             return;
         };
         // Out of the city, which would have the field to itself.
-        let to = f4x_core::city::Position {
+        let to = f4x_core::map::Position {
             x: pos.x + 3,
             ..pos
         };
@@ -481,7 +481,7 @@ impl App {
         if !matches!(kind, "river" | "river-myrror" | "sea") {
             return;
         }
-        let mut to = f4x_core::city::Position {
+        let mut to = f4x_core::map::Position {
             x: pos.x + 3,
             ..pos
         };
@@ -497,7 +497,7 @@ impl App {
                 self.game.cheat_set_terrain(to, t);
             }
             for dx in [-1i32, 0, 1] {
-                let at = f4x_core::city::Position {
+                let at = f4x_core::map::Position {
                     x: (to.x as i32 + dx) as u32,
                     ..to
                 };
@@ -606,7 +606,7 @@ impl App {
                     u.enchantments.push(id.into());
                 }
                 for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
-                    u.combat_spells.push((spell, f4x_core::city::PlayerId(0)));
+                    u.combat_spells.push((spell, f4x_core::player::PlayerId(0)));
                 }
             }
             "mud" => {
@@ -678,7 +678,7 @@ impl App {
         }
         let defenders: Vec<_> = ids
             .into_iter()
-            .map(|id| self.game.spawn_unit(f4x_core::units::NEUTRAL, pos, id))
+            .map(|id| self.game.spawn_unit(f4x_core::player::NEUTRAL, pos, id))
             .collect();
         self.begin_battle(Command::BeginBattle {
             attackers: mine
@@ -1141,7 +1141,7 @@ impl App {
 
     /// Choose a spell from the list: cast it at once if it needs no target and no extra mana,
     /// otherwise wait for the target (and the amount of mana).
-    fn pick_spell(&mut self, spell: &f4x_core::battle::spells::BattleSpell) {
+    fn pick_spell(&mut self, spell: &f4x_core::battle::spell::BattleSpell) {
         self.battle_ui.spell_list = false;
         let cost = self.game.content().rules.spells.get(spell.spell).cost as i32;
         let unit = self.battle_ui.spell_unit.take();
@@ -1153,8 +1153,8 @@ impl App {
         }
         // Animate Dead and Raise Dead choose among the fallen, who are not on the field to click.
         if [
-            f4x_core::battle::spells::ANIMATE_DEAD,
-            f4x_core::battle::spells::RAISE_DEAD,
+            f4x_core::battle::spell::ANIMATE_DEAD,
+            f4x_core::battle::spell::RAISE_DEAD,
         ]
         .into_iter()
         .any(|h| self.game.spell_has_hook(spell.spell, h))
@@ -1288,12 +1288,12 @@ impl App {
     /// greyed. A click on a spell picks it, the ribbon or Escape closes the book.
     fn draw_spell_list(&mut self, battle: &Battle) {
         let unit = self.battle_ui.spell_unit;
-        let spells: Vec<f4x_core::battle::spells::BattleSpell> = match unit {
+        let spells: Vec<f4x_core::battle::spell::BattleSpell> = match unit {
             Some(u) => self
                 .game
                 .battle_unit_spells(u)
                 .into_iter()
-                .map(|s| f4x_core::battle::spells::BattleSpell {
+                .map(|s| f4x_core::battle::spell::BattleSpell {
                     spell: s.spell,
                     cost: s.cost,
                     takes_extra_mana: s.takes_extra_mana,
@@ -1940,8 +1940,8 @@ impl App {
         }
     }
 
-    fn player_label(&self, player: f4x_core::city::PlayerId) -> String {
-        if player == f4x_core::units::NEUTRAL {
+    fn player_label(&self, player: f4x_core::player::PlayerId) -> String {
+        if player == f4x_core::player::NEUTRAL {
             return "Monsters".to_string();
         }
         self.game

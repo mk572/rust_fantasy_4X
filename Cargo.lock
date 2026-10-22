@@ -2560,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-ai"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "f4x-core",
  "f4x-data",
@@ -2569,7 +2569,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-client"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "f4x-ai",
  "f4x-console",
@@ -2583,7 +2583,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-console"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "f4x-ai",
  "f4x-core",
@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "hecs",
  "rand 0.8.8",
@@ -2604,7 +2604,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-data"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "f4x-core",
  "ron",
@@ -2613,7 +2613,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-learn"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "burn",
  "f4x-core",
@@ -2627,7 +2627,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-tools"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "f4x-ai",
  "f4x-console",

@@ -1,358 +1,395 @@
-# Open tasks
+# Open Tasks
 
-Everything not yet implemented, collected from the whole project history and the docs
-(`mechanics-gaps.md`, `help-vs-implementation-conflicts.md`, `magic.md`, `map-layers.md`,
-`design.md`). Keep the table in ascending order by number; new tasks go at their numeric place
-(or take the next free number). Bracketed numbers like [430] point at topics in the original help
-(`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
+Everything not yet implemented.
 
-Combat is under way: 33, 34 and 40 are done (see [`combat.md`](combat.md)).
+Next open task number: 342 (increase when a task is created)
+Keep the table in ascending order by number.
+Add a summary to the table, then details under Descriptions.
+
+Bracketed numbers like [430] point at topics in the original help
+(`content-local/help.ron`)
+B/C numbers point at `help-vs-implementation-conflicts.md`.
+
 Gaps found while working on the base game are added here as new tasks, not left in notes.
+
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
-Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md) (replacement art, formerly task 79, is item 12 there).
+
+The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
+
+## The rework: concept entities (tasks 307 to 341)
+
+Goal: the code is organised by the game's concepts, and the concepts are entities. Today only unit
+and city are `hecs` entities. After the rework **player**, **wizard**, **hero**, **spell instance**,
+**terrain feature** (nodes, lairs, towers, minerals, volcanoes) and **item** are too, names are
+singular, and `PlayerId` lives with the player it identifies.
+
+Rules for every task of the rework:
+- **No change in the game's rules** (the one exception is task 338, which says so). Seeds do not
+  need to stay consistent: the RNG draw order, the event order, the learned-AI observations and old
+  saves may change. The tests (`cargo test --workspace`), `cargo fmt --all` and
+  `cargo clippy --workspace --tests` pass after each task.
+- **Do not keep a bad structure to avoid churn.** When a type, a name or a field is in the wrong place,
+  move it and fix every use. No re-export shims or wrapper methods are left behind.
+- **Docs first**: the design that the later tasks implement is in `docs/ecs-structure.md` section 3
+  (written by task 310). Read it before starting task 311. Where a task and the design disagree, the
+  design wins; fix the task text.
+- **Saves in between.** Until task 335 the save format keeps its layout: each task adapts the mapping
+  in `game/save.rs` so that the save round-trip tests stay green, and 335 redesigns the format. Old
+  saves need not load after 335 (the game version is checked).
+- **The rules treat the AI like a human.** A game rule never decides for the AI. If an AI wizard needs
+  to do something (convert gold to mana, answer an offer), its script in `f4x-ai` does it with the same
+  commands a human has.
+- **One task at a time, then mark it done.** Run `cargo fmt --all`, `cargo clippy --workspace --tests`
+  and `cargo test --workspace`; mark the task "(done)" in `TASKS.md` and run
+  `python3 scripts/archive_done_tasks.py`. Update the docs the task names. Commits are made when the
+  project owner asks.
+
+Phases and dependencies (a task needs the tasks before it in its chain):
+
+```
+A prepare  307 > 308 > 309 > 310
+B player   311 > 312 > 313 > 314 > 315 > 316 > 317     (needs A)
+C spell    318 (needs 315) > 319, 320, 321, 322, 323, 324 (each needs 318) > 325
+           340 (the art folders; no code dependency, placed last in C)
+D hero     326 (needs 317) > 327 > 328                  (328 also needs 318)
+E feature  329 (needs 313) > 330, 331, 332 (each needs 329)   (330 also needs 323 for warped nodes; 332 needs 313)
+           338 (needs 329 and 330; it belongs to phase E but was added last)
+F item     333 (needs 313, 315, 326) > 334 (needs 322, 327, 328, 331)
+G close    335 (needs B to F and 338) > 336 > 337 > 339 (the AI, last)
+H gaps     341 (needs 315, 317 and 325; its AI part is done with 339's AI work, after 339 if 339 comes first)
+```
+
+Phases B and C meet only at 315 (the wizard's spell lists) and 322 (the cast in progress). Phase E
+needs only the player entity, so it can run in parallel with C and D; phase F needs both its
+neighbours.
 
 ## Table
 
 | # | Area | Summary |
 |---|---|---|
-| 64 | Meta | Wizard personalities and AI objectives |
-| 76 | Client | Background music |
-| 81 | Housekeeping | Packaging for Mac |
-| 85 | Client | Import and play the original's opening movie |
-| 89 | Meta | Game settings |
-| 95 | Client | Tutorial |
-| 97 | Client | Sound effects |
-| 99 | Combat | Saving during a battle |
-| 106 | Combat | Battle views for the AI and for tools |
-| 115 | Client | Cityscape: road masking |
-| 116 | Client | Cityscape: animation, wards and rubble |
-| 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
-| 130 | Client | Warped node and cleared site pictures (low priority) |
-| 134 | Client | Game-end cut-scenes and the original's score screen |
-| 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
-| 137 | Client | Teleport and merge animation in the battle screen (low priority) |
-| 140 | Client | Unit statistics window and the enemy stack list |
-| 141 | Client | Outpost screen, enemy city screen and the naming boxes |
-| 143 | Client | Offer, hire and event pop-ups |
-| 144 | Client | Turn summary and message pop-ups |
-| 147 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
-| 148 | Core | Difficulty beyond lairs: the final score, AI strength and the seed field |
-| 150 | Map | Generator parity with the original |
-| 151 | Client | Choose an enemy global enchantment as a target (Disjunction, Spell Binding) |
-| 152 | Client | Show temporary effects on units and cities |
-| 153 | Magic | Dispelling temporary effects |
-| 155 | Core | Starting setup: the original's random placement and AI race rules |
-| 157 | Combat | Special attack leftovers |
-| 158 | Combat | Siege leftovers: magic walls, the AI's raze decision, diplomacy |
-| 159 | Combat | Casting leftovers: the rest of the battle spells |
-| 161 | Combat | Dispelling battlefield enchantments |
-| 162 | Client | Weapon quality icons and help |
-| 163 | Combat | Wall of Stone in battle |
-| 164 | Combat | Heavenly Light's True Light |
-| 167 | Meta | Diplomacy leftovers |
-| 168 | Client | The original's diplomacy dialog as a local resource |
-| 172 | Meta | Learning AI: battle AI follow-ups |
-| 176 | Housekeeping | Mac installer: asks for the original files, extracts, builds a local app |
-| 222 | Heroes | AI and console for heroes and items |
-| 223 | Heroes | Hero and item help conflicts: record H1 to H25 and settle the Check rows |
-| 228 | Meta | Scripted AI steps 4 and 5: casting beyond summons, the win spell, special spells |
-| 229 | Meta | Scripted AI steps 6 and 7: war targets, memory, defence, shared strength |
-| 230 | Meta | Scripted AI step 8: ships and other land masses |
-| 232 | Combat | Conventional battle AI steps 10 and 11: target values, focus fire, defence, fleeing |
-| 233 | Combat | Sea battles: rules for fights on the ocean (ship combat, passengers, terrain) |
-| 234 | Combat | Attacking from a ship: can land units attack a city or stack from a boat? |
-| 235 | Units | A ship lost in battle or by a spell: what happens to its passengers |
-| 236 | Units | The nine-unit stack limit and ships: passengers and capacity |
-| 238 | AI | Wizard objectives steering the scripted AI (design: `ai-objectives.md`) |
-| 240 | Content | Check the original's terrain tables (`TERRSTAT.LBX`, `TERRTYPE.LBX`) against `terrain.ron` |
-| 241 | Content | Check the lair and monster data (`MONSTER.LBX`) and the event tables (`EVENTS.LBX`) against `lairs.rs` and the event code |
-| 242 | Content | Check the other text and list tables the importer skips (`DESC`, `BUILDESC`, `LISTDAT`, `RESOURCE`, `EVENTMSG`, `DIPLOMSG`, `MESSAGE`) |
-| 243 | Content | Find out what `WIZARDS.LBX`, `SPECIAL.LBX`, `SPLMASTR.LBX` and the other unread data files hold |
-| 248 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
-| 249 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
-| 251 | Magic | Check where the AI mana bonus applies: fortress and volcano power |
-| 252 | Magic | Check and implement the starting spells each wizard gets in a new game |
-| 253 | Map | Lakes with an inflow and the original's rewriting of extra river inflows |
-| 256 | Combat | Unit spell-like abilities: Fireball, Healing, Doom Bolt and Web spells |
-| 258 | Combat | Summon Demons (Demon Lord) |
-| 259 | Combat | Bug fix: path abilities and flight in battle movement |
-| 260 | Client | Item crafting screen (Enchant Item and Create Artifact) |
-| 263 | Magic | Audit every immunity against the spells and effects it should cover |
-| 264 | Client | Pop-up leftovers: level-up and event messages, item power texts, hire variants, attack box |
-| 266 | Client | Settings: Sound Effects |
-| 267 | Client | Settings: Background Music |
-| 268 | Client | Settings: Event Music |
-| 269 | Client | Settings: City Spell Events |
-| 270 | Client | Settings: Overland Spell Events |
-| 271 | Client | Settings: Summoning Events |
-| 273 | Client | Settings: Raze City |
-| 275 | Client | Settings: End of Turn Wait |
-| 276 | Client | Settings: Auto Unit Information |
-| 277 | Client | Settings: Enemy Moves |
-| 278 | Client | Settings: Enemy Spells |
-| 279 | Client | Settings: Spell Book Ordering |
-| 281 | Client | Settings: Movement Animations |
-| 283 | Client | Settings: Expanding Help |
-| 285 | Client | Spell interface: Stasis, mutations, vortices, Time Stop |
-| 286 | Rules | Leftovers of the last ten spells (unrest, Time Stop, Call the Void) |
-| 287 | Client | Spell of Mastery announcement: the swirling animation and sound |
-| 289 | Client | Help pop-ups in general: right-click help on screens, buttons and icons |
-| 291 | Combat | Variant river pictures for the battlefield (low priority) |
-| 293 | Items | Extend the armory beyond the four vault slots |
-| 294 | Items | Sell items for gold instead of disenchanting them for mana |
-| 298 | Client | Overland: smooth unit movement and unit animation |
-| 299 | Client | Minimap: drag to scroll, and the other plane |
-| 300 | Client | Bitmap fonts for the battle, settings, console and prompt screens |
-| 302 | Core | Test suite audit: test the game we are cloning, not an imagined one |
-| 303 | Core | Random events: what is left after task 68 |
-| 304 | AI | Neutral city AI: goals and objectives, and units that move |
-| 305 | Core | Lair spell treasure: research the original's intent, consider a change |
-| 306 | Client | Overland spell animations (summons, city and global spells, map squares) |
+| 311 | Player | Player entity; `PlayerId` moves into `player/` as its component; index and identity |
+| 312 | Wizard | Wizard entity and the player-wizard links |
+| 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players |
+| 314 | Player | Treasury, tax, offers, defeat and the other player data as components |
+| 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame) |
+| 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components |
+| 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates |
+| 318 | Spell | Spell instance model: components, lifecycle, queries |
+| 319 | Spell | Global enchantments as spell entities |
+| 320 | Spell | City enchantments as spell entities |
+| 321 | Spell | Unit enchantments and temporary effects as spell entities |
+| 322 | Spell | Casts in progress, crafting and raising as spell entities |
+| 323 | Spell | Map-square spells and lasting world events |
+| 324 | Spell | Battlefield enchantments in the battle's own world |
+| 325 | Spell | Dispel, upkeep and removal in one place |
+| 326 | Hero | Hero entity that outlives its unit body |
+| 327 | Hero | Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
+| 328 | Hero | Hero spells as spell instances; the armory moves to the player |
+| 329 | Feature | Terrain feature entity: position index, mapgen as a placement list, minerals and encounter markers |
+| 330 | Feature | Node entity |
+| 331 | Feature | Lair and site entity, tower on both planes, loot |
+| 332 | Feature | Volcano and tower ownership as feature entities |
+| 333 | Item | Item entity: components, holder, lifecycle |
+| 334 | Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
+| 335 | Core | Save format 2 and the game-version check |
+| 336 | Core | Other crates: `PlayerView`, console, client, tools |
+| 337 | Docs | Update the docs; guard tests; knowledge-base entry |
+| 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production |
+| 339 | AI | Scripted and trained AI on the new framework |
+| 340 | Spell | One art folder per spell in `assets-local/art/spells` |
+| 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 
 ## Descriptions
 
-### Meta: diplomacy, AI, events, victory
-
-**64. Wizard personalities and AI objectives.** Maniacal to peaceful personalities and the
-pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
-[271, 782-794]. See `docs/diplomacy.md`. **Done:** both are drawn at game start for every wizard
-but the human, as the original's `Init_Magic_Personalities_Objectives` does (`objective.rs`: the
-primary realm's weight row plus the retort bonuses, personality first, then objective; both stored in
-`Diplomacy` and in saves; `Game::objective`, `Game::personality`). Personality already acted in
-diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Open:** what
-the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
-(`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
-here yet.
-
-### Client, content, housekeeping
-
-**76. Background music.** Play music in the client: a track per situation (title, map, city, battle,
-victory and defeat, and the diplomacy screen's own tune), looping and crossfading, with a volume setting (94). The original's music
-can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
-repo ships none); decide the audio crate, and keep the game silent and working without files.
-
-**81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
-per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the
-author has a developer account (otherwise documented right-click-open steps), a disk image or
-zip, and the local-assets workflow documented for players who supply their own original files
-(`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
-to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
-
-**85. Import and play the original's opening movie.** Extract the intro from the author's own
-copy of the game (its animation frames and palette from the intro `.lbx` files, and the sound
-and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
-which order and with which timing) into `assets-local/` with a new `f4x-tools` step, and play it
-in the client at start-up, skippable with any key and switchable off in the settings. The
-movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
-for the sound.
-
-**89. Game settings.** The options screens of the original [675-692]: automatic saving, event
-switches, strategic-only combat, animation and message speeds, and so on. Store them as a
-settings record, `serde(default)` and saved with the game where they change rules (events,
-Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
-change presentation. Reachable from the start menu (86) and in game. The rules half is designed in [`game-settings.md`](game-settings.md) (draft); built in tasks 246 to 249.
-Built: the presentation half, as the original's Settings page (19 switches, `preferences.rs`,
-`settings_screen.rs`), saved in `saves/preferences.txt`; wiring them is tasks 266 to 283, one for each switch except Strategic Combat Only (done).
-
-**95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
-researching and casting, with a way to skip or switch it off.
-
-**97. Sound effects.** Short sounds for UI clicks, turn end, city growth, spell casting, combat
-hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the
-same audio layer as the music (76) with its own volume, from locally extracted files. Events
-(`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
-
-**99. Saving during a battle.** A battle in progress is not part of a save today (`Game::battle`
-is skipped, so saving mid-fight would lose it, and the client should block saving). Make
-`Battle` serialisable: units with their statistics, cells, turn, active side, and the random
-generator state (seed plus draw count, as for the game), plus the list of overland units the
-fighters were copied from (by creation number). Restore it on load, check it for consistency
-(units on the map, sources still alive), and test that a save in the
-middle of a battle continues exactly like the unsaved one.
-
-**106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
-
-**115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
-
-**116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
-
-**124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
-use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
-cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**134. Game-end cut-scenes and the original's score screen.** **Done: the score screen** (`game_over_screen.rs`, on `halofam` with the icon rows and the bar, `--score`) **and the Hall of Fame** (task 88, `hall_of_fame.rs`, `saves/hall_of_fame.txt`, `--hall`, from the start menu and after the score). **Left:** the win, lose and conquest animations and the parade of portraits (`conquest`, `win`, `lose` in `assets-local/screens/`), the music, and the old buttons are gone: after the table the game returns to the start menu as the original does. The game-over screen is plain text
-and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
-a conquest, a conquest animation; announces when a wizard *starts* casting the Spell of Mastery
-(full-screen, with a two-line caption) and, when it completes, parades each surviving wizard's
-portrait; and draws the score as icon rows (book, townsfolk, defeated wizards' portraits, fame,
-time, Spell of Mastery) with a running bar of `min(score / 40, 200)`. Needs the local art and
-music (task 93). See `docs/game_end.md`.
-
-**136. Earth Gate and Astral Gate in the client and the AI.** The core has both (task 12). The client
-should offer the teleport when a stack in an Earth Gate city moves onto another gate city (a button
-or a prompt) and enable the plane-shift button in an Astral Gate city; the AI should use them to
-reinforce threatened cities and to cross planes. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**137. Teleport and merge animation in the battle screen.** The core reports a teleport or merge as a
-`Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
-the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
-and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**140. Unit statistics window and the enemy stack list.** **Done:** the sheet (`unit_sheet.rs` builds it, `unit_screen.rs` draws it, following ReMoM `Unit_Statistics_Popup`/`Thing_View_Draw`): the unit's figures on their diamond (grass or water), the name (a race's unit with the race first), moves with the movement icon, upkeep icons or (in battle) the front figure's damage, five icon rows (melee by weapon quality, range by attack type, armour, resistance, hearts; gold icons for bonuses, darkened ones for curses and damage), and the abilities list, eight to a page with the up and down arrows (level with experience, quiver, to hit, construction, abilities with the original's icons, undead, lasting spells), Dismiss (with a yes/no, `Command::DismissUnit`; not heroes) and OK on the map. Opened by a right-click on a unit's line in the selected-stack text or on a unit in the battle; `--sheet N` for screenshots. **Also built:** `Unit_List_Window` (`unit_list_screen.rs`, `--unit-list`). **Also built:** a left-click on a lasting spell of yours on the map sheet asks "Do you wish to turn off the X spell?" (`UV_Remove_Unit_Enchantment`; no click in battle, as `enable_disenchant`) and `Command::TurnOffUnitSpell` ends it; a unit left at sea without what kept it afloat drowns at once, with the original's warning ("This unit will die..." or "This unit and other units..."), through `drown_stranded`. The original lets Wind Walking on another unit of the stack save the rest; ours counts each unit's own abilities. **Left:** (2) The help pop-up of an ability or spell (right-click on its line); the removal box (and the Dismiss question) use the original's `Confirmation_Box` art; `--sheet N --sheet-spell ID [--sheet-ask]` puts a spell on the unit and opens the question for a screenshot. (3) Heroes: portrait, items row and item powers, hero abilities (tasks 218 to 221, 47); Dismiss for heroes (task 48). (4) The sheet from the city garrison is done (a right-click on a garrison unit; `garrison_cells` in `city_screen.rs`); from the Army list and the item screen it comes with those screens (tasks 138 and 142, which do not exist yet); the production screen's version (cost, upkeep for a unit not yet built), and the expanding-box opening. (5) The battle's sheet is a snapshot taken on opening and sits on a plain background instead of over the field. (6) Scouting, Summon Demons use count, mana left (`Caster 12 (20) mp`) and Warp Creature's three icons, once those exist. (7) The hits row shows hit points of one figure; the original also draws it so (the figure count is the pictures on the diamond).
-
-**141. Outpost screen, enemy city screen and the naming boxes.** `Outpost_Screen` (a small city sheet for an outpost; also names a newly founded one), `Enemy_City_Screen` (what is known about another wizard's city) and the rename boxes for the capital (first turn) and new outposts. **Built:** the outpost screen (`outpost_screen.rs`: reduced cityscape, houses, garrison, enchantments; `--outpost`) with the naming box that a newly founded outpost opens (`Command::RenameCity`; `--outpost-new`), and the enemy city screen (`enemy_city_screen.rs`, opened by a click on an explored city of another wizard; `--enemy-city`). **Also built:** the capital's rename box on turn 1 (`--capital-name`). **Also built:** the outpost's enchantment list pages and turns off your own spell as the city screen's does (`city_enchantment_list`, shared; `--outpost` now puts eight city spells on the outpost to see it). **Left:** the music `MUSIC_New_Outpost`; the outpost garrison slots follow the city screen's grid by guess (the original's arithmetic in `Outpost_Garrison_Picture_Coords` looks mistyped).
-
-**143. Offer, hire and event pop-ups.** `Merchant_Popup`, `Hire_Merc_Popup`, `Hire_Hero_Popup`, `Hero_LevelUp_Popup` and `Show_Event_Message`: the offers made at a turn's start (chance rising with fame, `Determine_Offer`), hero hiring, level-up announcements and the random-event announcements. Needs 48 (heroes), 68 (events) and 72 (fame). Design: [`heroes-items-design.md`](heroes-items-design.md) section 3.8 (task 220 makes the offers; this task shows them). Hero names are placeholders until the original's are imported (task 218): the hire box names the hero, with the unit's own name as the default. **Built with task 220:** plain boxes over the map for the hero, mercenary and merchant offers (`offer_prompt.rs`; Enter or the buttons answer, a hero is named in the box, `--offer KIND` with `--shot` shows one). **Drawn as the original does** (`offer_prompt.rs`, after `HIRE.c`): the hero and mercenary boxes are the unit sheet (`draw_sheet_panel`) under the `HIRE.LBX` banner with the price in the title and the Hire and Reject buttons, a hero is named in the `BACKGRND` 33 box after Hire; the merchant has the merchant banner, his words and the item card with its picture. Left: the level-up announcement, the event messages, the item card's power texts and the hire box variants, in task 264.
-
-**144. Turn summary and message pop-ups.** The Chancellor's scroll after a turn (random events, units disbanded, units killed, city growth, city deaths), the building-complete message, the evict message, the retreat-loss message, spell-cast banners, and a common yes/no confirmation box with the original's questions, including the warning before ending a turn that units will die for lack of food. Today events go to a log list; the Chancellor's scroll (task 272) is built. **Built:** the building-complete box (`built_popup.rs`, after `City_Built_Building_Message`: the green `Notify2` with the grass picture and the building centred on it, the wall's big picture, "The Capital of X has completed the construction of a Library."; shown after the Chancellor's scroll, one per building; `--built ID` with `--shot`). The food warning before ending a turn is covered by the upkeep prompt (task 62/292), which asks which troops to give up and is richer than the original's yes/no `Confirmation_Box`; the yes/no box itself exists (`confirmation_box`). **Also built:** the combat results scroll (`combat_results.rs`, after `Combat_Results_Scroll`: `scroll.lbx` 9, 10 or 11 by outcome, "You are triumphant", "You have been defeated", "Your forces have retreated", "Your opponent has fled", "X has been conquered", with fame, gold looted, inhabitants killed and the buildings destroyed; the Raze City setting asks before it with the original's Raze and No buttons, R on the scroll asks otherwise; `--results won|lost|fled|city|raze`; the core events carry the fame, the lost buildings' ids and the loser's fame for it), and the fizzle box for Suppress Magic, Spell Blast and Disjunction when you are one of the two (`Fizzle_Notification`, the red `Notify2` with `specfx` 50; `--fizzle`), and the "X has been dispelled." boxes when another wizard's dispel takes your spell off a city or a unit (`EnchantmentDispelled` event; the first four named, the fifth "Other city enchantments / unit spells have been dispelled."; `specfx` 52 and 51; `--dispelled city|unit`). **Left:** the evict message and the turn-limit heading ("All units retreat exhausted": the core gives the defender the win and has no event for it), the rampage, ruins and raiders lines (`_active_battle_unit` 666 to 668: no data yet), the raze prompt showing over the scroll rather than before it, the "has been dispelled" notices for combat enchantments (Spells131) and the stasis one (message 20), and the Tranquility and Life Force fizzles (no such counter in the core), the "can no longer produce" and "maximum number of units exceeded by production" warnings (the core has no unit cap or unbuildable-item event yet), and the music `MUSIC_Bldng_Finished` and `MUSIC_Spell_Failure`.
-
-**147. Find the use of the unreferenced art files.** ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
-
-**148. Difficulty: the AI's strength, and the seed field.** The original's difficulty effects on the world, the computer wizards' bonuses and the score are in (task 247, `game-settings.md`). Still open: let the difficulty set how well the new AI plays once it exists (the AI reads `settings.basic.difficulty`, not the bonuses), and add a map-seed field to the settings screen (the seed is a command-line option now).
-
-**150. Generator parity with the original.** Our generator is our own design (noise-based
-elevation with a land percentage). Optionally port the original's `NEWG_CreateLands`: random walkers
-from origins spread over map sections (3 to 5 arms of 6-15, 11-20 or 21-30 steps by land size, with
-a bias against straight coastlines, 2-tile and 4-tile borders) and its shore fix-up, as described in
-`reference/ReMoM/doc/MoX-MapGen-NEWG_CreateLands__WIP.md`. The new-game settings (difficulty,
-opponents, land size, node strength) are done (task 10 in TASKS-DONE). Lair placement parity is done (task 129 in TASKS-DONE).
-Parity task, low priority.
-
-**151. Choose an enemy global enchantment as a target.** Disjunction, Disjunction True and Spell Binding take `Target::Global(owner, spell)`. The client cannot pick one yet: casting them does nothing. Add a picker (the original's list of each rival's global enchantments by wizard, with the spell's name and cost) that opens when the spell needs it, then sends the cast with the chosen target. The console already takes `global:<player>:<spell>`.
-
-**152. Show temporary effects on units and cities.** The temporary effects store (task 30, `temp_effects.rs`) changes stats and abilities, but nothing says so. Show them on the unit info screen and the city screen (what, how much, turns left or "permanent"), and list them in the console's unit and city views.
-
-**153. Dispelling temporary effects.** Temporary effects (task 30) are not enchantments, so Dispel Magic, Disenchant and Disjunction cannot remove them. Decide which ones a dispel should reach (the original makes instant grants permanent; timed ones may be the exception), give those a source spell and caster so dispel difficulty and the enemy-only rule apply (task 59), and have `dispel_target` include them.
-
-**155. Starting setup: the original's random placement and AI race rules.** Task 32 brought the start in line with the original's `Generate_Home_Cities` (capital of four with three farmers, spearmen and swordsmen, smithy, barracks and builders hall, tax index 2, Myrran wizards on Myrror, sites that feed eight). Left out: (1) the original picks fortress sites at random (1000 tries per distance, fortress distance 16 relaxing to 10, node/tower/lair distance 7 relaxing to 1, halved in the check) while ours takes the nearest fitting site to a spread-out anchor, and measures every distance with `Range` where the original uses the wrapping delta for fortresses, nodes and lairs; (2) AI races: up to normal difficulty any of the nine Arcanus races, above it only Klackon, High Elf, Halfling, High Men and Nomad (a settings switch, `wizards.ai_race_limit`, in task 248), and a High Elf capital is moved off non-forest only by accident in the original; (3) starting gold: done in task 247 (the human gets `(5 - difficulty) * 25`, every AI 150, as settings); (4) fame 10 for the Famous retort (check it is set). Low priority.
-
-**157. Special attack leftovers.** Task 36 did armour piercing, chaos (doom) damage, illusion, poison, life steal, stoning and death touch, destruction, dispel evil and the gazes. Done since: cause fear (`battle/attack.rs` `feared_figures`; row B34 in `help-vs-implementation-conflicts.md`); **extra hit points from life steal** (`DefenderState::heal_overflow`: what is left once every figure is whole becomes one more hit point per figure for each figure's worth, `BattleUnit::extra_hits`, which the damage written back ignores, and which end with the battle; the original's `Battle_Unit_Heal` also adds them when the front figure is still damaged by more than the figure count, which looks like a bug and is not copied); the **damage types** (`Damage::drained` and `gone`, `BattleUnit::fate`, `heal_points`, `heal_kinds`): life steal and create-undead damage leaves the victim to the winner as undead; what destruction, stoning (touch and gaze), dispel evil or a severing spell kills is gone for good, and healing (`BattleUnit::healable`) never brings back damage that destroys, only the ordinary damage first and then the drained, with the damage tally falling as it heals; death touch and gaze kills heal like any other. Left: (1) **Power drain** (the target resists or loses 2 to 20 spell points): in the original only an item's power has it (no unit uses it); the item power now gives its carrier the ability `power_drain` (task 49), which no battle code reads yet. (2) Attacks that come from an **item or spell** rather than the unit: the original gives them an extra penalty (stoning touch -1, death touch and life steal -3) and halves doom damage; the unit's own count in full. Needs the source of an ability to be known (task 30's store); an item's special attacks are now plain abilities of the hero (task 49), so the source is lost there. (3) The **Life Drain spell** as the third damage type (drained, healing the caster), with task 159. (4) Fear from ranged and gaze attacks is not rolled (the original does not either).
-
-**158. Siege leftovers: magic walls, the AI's raze decision, diplomacy.** Task 41 did city battles with walls and a gate, wall crushers, the defence bonus, city damage, loot, fame, losses and razing. Left: (1) the **battlefield spells** Wall of Stone (raises a wall in battle: task 163) and Disrupt (breaks a section); Wall of Fire, Wall of Darkness and Flying Fortress are done (task 25). (2) The **AI's decision to raze**: the original's `Raze_Check` scores the wizard's personality, how few troops it has left to garrison the city, and its units on the continent against the loser's; it needs an AI player (design.md section 8: the decision lives in `f4x-ai` and arrives as `RazeCity`). (3) *(Diplomacy, done with task 63: a city that holds costs the attacker -20, or -60 for the fortress city, and one taken -40 and a war.)* (4) **Monsters and raiders** taking a city: the neutral attackers' extra losses (50 percent more citizens, 50 more building chance) and the rampage that can leave ruins (with task 154). (5) The **city damage from spells** such as Magic Vortex (5 for each turn spent in the city). (6) The wizard whose fortress falls to a razed city: check the banishment and the summoning circle when the capital is razed (the original changes the owner first and then destroys the city, as here).
-
-**159. Casting leftovers.** Tasks 43 and 44 did the wizard's casting in battle and the battlefield spells (`combat.md` sections 8 and 9), and part of this list: Word of Death, Petrify, Animate Dead (the wizard's own dead, not heroes or the destroyed; the client lists the fallen: task 175), Dispel Evil, Banish, Disintegrate, Holy Word, Death Spell, Flame Strike, Mass Healing, Call Chaos, Raise Dead (a dead normal unit of the wizard's, not destroyed outright, returns with half its figures rounded up and without its enchantments; the client lists the fallen: task 175), Warp Wood, Shatter and Warp Creature (all three are enemy-unit spells here; normal units only; Warp Creature picks one of its three harms for the whole unit and lasts to the end of the battle, as the user confirmed), the curses Weakness, Vertigo and Mind Storm, and the Invisibility spell. Done since: Earth to Mud (a 5 by 5 area of open ground, 12 half-moves to enter, not for fliers or the bodiless), Cracks Call (one square: a walker there is destroyed one time in four, a wall on it falls), Disrupt (one wall section), **Life Drain** (a death resistance check, harder by one per 5 extra mana; the drained life heals a hero or creature that cast it and gives a wizard 3 mana a point: the help says mana, the original's code adds casting-skill points, see `divergences.md` section 13), **Word of Recall** in battle (any of the wizard's units goes to the summoning circle), and the **casting of units** (task 265: a hero's own spells and its items' charges, creature casters' realm spells, the `casts_...` abilities). Creature Binding and Possession are in: Creature Binding (fantastic creatures, resistance -2) and Possession (normal units, not heroes; resistance penalty 0, which the help does not give) change the unit's side until the battle ends or, for the binding, a dispel, then (Possession) goes home; a creature still bound when the battle ends is destroyed (the original's wording, given by the user). The dispel path and the hero refusal have no test. **Magic Vortex** (a moving battlefield object, `battle/vortex.rs`) and **Chaos Channels** (`mutation.rs`) are in (`divergences.md` section 19). Left: (1) Disenchant True and Disenchant Area as battle dispels (the importer keeps them overland-only; with task 161). (2) The dispelling of battlefield enchantments is task 161, the node counter and auras task 160. (3) The AI's use of the new spells: it casts none of them (`brain.rs` scores damage, healing, summons and blessings only; the learned agent is not trained on them either: `f4x-learn` leaves them out of its wizards). (4) The units' power drain (task 157). (5) Hit points from **Lionheart** (and Black Channels' hit points) are only counted during the fight; damage taken above the unit's real maximum is capped when the battle is written back. (6) A spell animation and sound (art not extracted); the client shows the log line only. This includes the cell effect on a targeted square (`cmbtcity` 120 and the spell's own animation) and the wall-rise animation (`wallrise`) when a wall spell is cast in battle. (7) **Undead** in the spells that treat them differently (Holy Word, Dispel Evil -9, Wraith Form), with task 29. (8) **True Sight** is in (it grants illusion immunity, which cancels invisibility); still open: "an invisible unit is seen when it is next to an enemy".
-
-**161. Dispelling battlefield enchantments.** Battlefield enchantments (`battle/field.rs`) cannot be dispelled: Dispel Magic aims at a unit, while the original's `Combat_Cast_Dispel` takes a square and works on the enchantments of the battlefield too, and the combat Disenchant spells (`Combat_Cast_Disenchant`) go for the field's spells only. Add what the dispel can reach: each enchantment the caster's enemy has up is tried at its dispel difficulty (`Game::dispel_difficulty`, the caster's masteries doubling it) with the strength of the mana put in (Disenchant True three times), a success removes it and `Battle::refresh_fields` puts the bonuses right. Decide how the player picks it (the unit's square, as now, plus the field?) and whether Counter Magic should be dispellable (the original's Disenchant True can), and add an event. `combat.md` section 9 lists it under "Not here".
-
-**162. Weapon quality icons and help.** Task 18 gave units a weapon quality but nothing shows it. The original draws a magic, mithril or adamantium weapon icon on the unit in the army and stack views (`MainScr.c`, the `main_lbx` icons 55 and on, animated) and in the battle (`Battle_Unit_Melee_Attack_Icon`: the melee icon changes with the weapon), and the unit screen's help topics 386 (Mithril Weapon) and 762 (Adamantium Weapon) are there to open. Also the console's unit line should name the weapons.
-
-**163. Wall of Stone in battle.** The spell is a combat spell too: `Wall_Rise` in `Combat.c` lets the defender raise the walls of its city during the battle (the original refuses it for an attacker or a city that has walls). Task 25 did the overland casting only (`city_spells.rs`: it builds City Walls). Needs the `Wall::Standing` sites made mid-battle (`BattleMap::with_city`) and the spell in `battle/spells.rs`; Disrupt (breaks a section) belongs with it (task 159).
-
-**164. Heavenly Light's True Light.** The original gives the defender True Light in every battle at a city with Heavenly Light, as Cloud of Shadow gives Darkness (`Calc_Battlefield_Bonuses`); here Heavenly Light is only its unrest modifier. Task 25 did Cloud of Shadow (`Game::start_battle`); this is the mirror: raise `Field::TrueLight` for the defender when the city has `heavenly_light`.
-
-**167. Diplomacy leftovers.** What task 63 left out of `diplomacy.md`: (1) **Threaten to Attack** and the AI's reaction to it (section 4); (2) **trespass**, `DIPL_GetOffMyLawn` (section 8), the warnings for units next to another wizard's city and the treaty broken on the third; (3) the relation after **battle losses** (`-diplomatic_value`, type 8, `Combat.c` 14557: the formula has not been read); (4) **city curses between two wizards are cancelled when peace is signed** (`Cancel_Players_City_Enchantments`); (5) the **threat of an army** is the whole army of each wizard, not the strength on the other wizard's home continent (`Invader_Army_Strength_Comparison`), and the "too many cities" reaction assumes a medium map (`LAND_SIZE`): keep the map size in the game; (6) a treaty **clears the unit orders** of the wizards in it (`Player_Clear_All_Unit_Orders`); (7) **AI-to-AI** treaty negotiations, `G_DIPL_PickSides`, `G_DIPL_NeedForWar` and the AI's own greetings, demands and war or peace offers (tasks 64 and 65; the core takes them as commands); (8) the AI should **not attack a wizard it has a pact or alliance with** (movement treats every other wizard as hostile; the attack now breaks the treaty). (9) **Client leftovers of the diplomacy screen** (task 91 is done without them): the fade-in and fade-out of the room (`diplomac` entries 38+); a right-click on a wizard's gem on the Magic screen opens that wizard's sheet; the confirm box "You have a treaty with X. Do you still wish to attack?" before an attack on a pact or alliance partner; and the readable colour of disabled menu rows. The talk sounds and music are in tasks 76 and 97. (7) **The AI opens talks.** The rivals only answer proposals; none ever proposes a treaty, asks for tribute or threatens the human (found with task 135).
-
-**168. The original's diplomacy dialog as a local resource.** The wizards of task 91 speak lines of the game's own (`diplomacy_text.rs`); the original's are in `DIPLOMSG.LBX` and are its prose, so they may only be used locally, like the help text (`docs/local-assets.md`). Extract them with `scripts/import_mom.py` (or `f4x-tools`) into `content-local/diplomsg.ron`: entry 0 holds, for each of the situations (`diplomsg_0_record_number`, the original's `do_*` message numbers), a 6-byte record with the count of variants; entry 1 holds the variants, 15 to a situation and 200 bytes each (`Get_Diplomacy_Statement`, `DIPLOMAC.c`). The text has control codes (bytes above 127, `code & 0x7F` up to 20) that stand for the player's name, the wizard's name, a spell, gold or a treaty: decode them into placeholders and read how each is filled in. Then the client (`diplomacy_text.rs`) uses the original's line for a situation when the file is there, picking a variant at random as the original does (one fewer in a two-player game), and falls back to its own otherwise. Map each situation to what the core does (greeting by personality, accept, refuse, counter, threat, war, peace offer, tribute thanks, get-off-my-lawn, treaty broken; `diplomacy.md` section 9.5). The situations the game cannot yet reach (threats, trespass, demands: task 167) can wait. Gitignored output, as for the help text.
-
-**172. Learning AI: battle AI follow-ups.** What tasks 170 and 171 left (`learning-ai.md` 7.7 and 7.8): (1) stronger yardsticks than the scripted AI, which random orders already beat: past checkpoints as opponents (the league of 6.4), Elo, and an evaluation as the defender; (2) the agent chooses **which unit** moves (a pointer over the units) and can cast later in the turn, not only at its start; (3) fleeing: it is found only with the help of a head that compares the value of fleeing with the critic's, and it still flees in fights it would win; (4) longer runs and a checkpoint chosen by its held-out score; (5) the AI wizards' real battles as training data (task 8.3), difficulty levels from checkpoints, and a client setting for `--battle-ai` (the client needs the `learned` feature and a checkpoint file); (6) the battle outcome model for the strategic AI (8.4); (7) a gap the first runs show: the odds classes were measured with the scripted AI, so a better player makes them easy. (8) The bank was made before the undead, experience and neutral-unit changes of 13 October, and no run has trained on **Animate Dead** (the agent can now aim it: the fallen have tokens); remake the bank and train again. Remaking the bank also picks up the 11 spells of eligibility 2 and 3 that are castable in battle now (task 55).
-
-**176. Mac installer.** One program (a script, or a small installer app) that sets the game up on a Mac from the player's own copy of the original: it asks for the path to the original files, runs the extraction (the art with `f4x-tools extract-art`, and the importer `scripts/import_mom.py` for the help text, wizards and city names into `assets-local/` and `content-local/`; `docs/local-assets.md`), checks that the files are the right ones and says what is missing, and then builds the local app (`scripts/make_app.sh` makes `target/Fantasy4X.app`). It should also say what it needs first (the Rust toolchain through rustup, the system Python) and offer to stop there instead of installing anything itself, report progress and errors in plain words, and leave the app and its data where the player can find them (perhaps copying the app to Applications). Nothing from the original is ever uploaded or committed; the result is for play on that machine only. Builds on task 81 (packaging for distribution, which carries no original files).
-
-**222. The AI and the console for heroes and items.** Section 4 of [`heroes-items-design.md`](heroes-items-design.md). `f4x-ai`: accept hero offers (`AI_Accept_Hero`), equip items by fit (`AI_ProcessItems`: best attack in the weapon slot, armour in the armour slot), keep heroes with the army, craft nothing at first. `PlayerView` shows a wizard its own heroes and items only. `f4x-console`: commands and queries for the roster, the vault, equip, scrap, craft, accept and reject an offer, so the whole feature can be played and tested without the client. Soak: computer wizards must hire and equip heroes without refused orders. Task 219 changed the random draws at game creation (the rosters are rolled last in `new_game`), so the soak numbers in `ai-design.md` and the learning AI's training data are one more reason to regenerate; no soak has been run since. A computer wizard that knows Resurrection (the original weighs it 100 when it has a free place and a dead hero) raises `Units::ai_resurrection_pick`, the last dead hero in type order, as `Cast_Resurrection` does; `start_cast` refuses the spell, so the AI casts it through `Command::ResurrectHero`. **Done with task 220:** the computer wizards answer hero and mercenary offers (`f4x-ai/src/offers.rs`), and the console has `offers`, `accept`, `reject` and the override `offer`. **Baseline kept for the offers (decided 16 October 2026):** the computer wizard hires a hero for at most nine tenths of its gold, a company from turn 50 for at most half its gold, and an item for at most half its gold if it has a hero. To tune later: whether the wizard is at war, its gold against its production, whether it is aggressive, and the turn-50 gate on mercenaries (the human may hire from turn 30).
-
-**223. Hero and item help conflicts.** Section 7 of [`heroes-items-design.md`](heroes-items-design.md) lists 25 places where the help, the original's code and ReMoM disagree (Leadership per two or three levels, Constitution's defence, Agility without a help topic, Sage's super factor, Famous's cap, Lucky, item attack by kind, and more). Add them to `help-vs-implementation-conflicts.md` with the next B numbers, read the code again for each row marked Check (Leadership, Legendary's price cut, Sage, Lucky, Charismatic's order, Recall Hero overland, the number of powers in Enchant Item, hero 24's name, whether a slain hero can be resurrected, where offers fall in the turn), record the decision, and write `HELP_CORRECTIONS` notes where we deviate from the help. Do this before the steps that depend on each row.
-
-**228. Scripted AI steps 4 and 5: casting (partly done).** Done in `wizardry.rs`: the kinds the AI casts (Spell of Mastery, summons, unit and city buffs, good globals, Earth Lore, Nature's Cures), paid over as many turns as the casting skill needs, the Spell of Mastery never abandoned; tested with a wizard that knows it (`behaviour.rs`) and `soak --grant-mastery`. Still open: the last ten spells (Stasis, Chaos Channels, Magic Vortex, Time Stop, Call the Void, Meteor Storm, Great Wasting, Armageddon and the rest of task 286's list), Word of Recall, Transmute and Plane Shift, disenchant and disjunction, curses on the target wizard, the original's weighted pick among kinds. Sections 5.3 and 7.3. The eleven category weights with our own pickers, the affordability check, the mana gate, the special spells of task 56 (Earth Lore, Word of Recall, Nature's Cures, Transmute, Plane Shift), and the Spell of Mastery: weight 500 when known, never abandoned, upkeep shed first.
-
-**229. Scripted AI steps 6 and 7: war (partly done).** Done in `military.rs` and `economy.rs`: a march state, gathering within two squares, chunks of nine, unreachable targets dropped for 40 turns, remembered garrisons and a lightly-held target preferred, a strike force before buildings, units re-chosen every turn. Still open: defence of threatened cities, a shared strength function for the overland and battle AI, an army size from the war plan. Sections 5.2 and 5.4. Memory of enemy garrisons, target wizard then city, a stack that suits the target, defence of threatened cities, army size from the war plan, income-first buildings, a strength function shared with the battle AI.
-
-**230. Scripted AI step 8: ships (not started).** What was learned is in `ai-design.md` 11.3: four of eight soak seeds put the wizards on separate land masses or planes.  Section 5.2 and 10. About half the soak seeds put the wizards on separate land masses or planes; without transports those games cannot end by conquest. Needs `transport.rs` and `movement.rs` queries on the view.
-
-**232. Conventional battle AI steps 10 and 11 (partly done).** Done in `battle/ai.rs`: targets by value (`expected_damage`, `worth`), focus fire, shooters hold, defenders hold the walls; the old AI is `ai::baseline_command`. These unit tactics are within the dice's spread (123 to 117 in mirrored fights); only the wizard's spells showed a gain. Still open: sallying out, fleeing, kiting, not stepping into a worse fight. Sections 6.3 and 6.4. Target values after ReMoM's `Target_Unit_Value`, focus fire, no steps into worse fights, kiting, holding the walls, sallying out, fleeing when hopeless. Run the learn tests at each step; `learning-ai.md` section 13 gets a note.
-
-**233. Sea battles.** `battle/map.rs` treats an ocean fight as an open field (no obstacles, no rough ground) and the battle code has no notion of ships. Decide what the original does (and what the help says) for a fight at sea: whether ships fight as ordinary units, whether passengers fight or sit out, whether ranged attacks and spells differ over water, and what the fight map looks like. Record the answer in `combat.md` (and `divergences.md` where we differ), implement it, and test it with the real ships (`trireme`, `galley`, `warship`). Found while checking the ship mechanics before task 230.
-
-**234. Attacking from a ship.** Moving a stack onto an enemy square starts a fight (`Entry::Hostile`) whatever the stack stands on; no rule bars land units aboard a ship from attacking a city or a stack on land, and none is tested. Find out what the original and the help say (a landing may have to happen first, or an attack from a ship may suffer a penalty), then enforce and test it, and tell the AI (`f4x-ai/naval.rs` lands its troops first and attacks from land, so it works either way today). Related: 233.
-
-**235. A ship lost with passengers.** Passengers of a ship that is destroyed in battle or removed by a spell are only lost later, by `drown_stranded` at the next turn end (`transport.rs`). Decide the rule (lost at once, with the ship; or saved when land is adjacent), make the loss part of the battle result and the events, and test it: a ship sunk in a fight, a ship dismissed, a ship killed by a spell, passengers aboard each time. Check where in the turn order `drown_stranded` runs.
-
-**236. The stack limit and ships.** A tile holds nine units (`MAX_STACK`); a galley carries five, so a loaded galley and its passengers take six places, and a port or sea square with several ships fills fast. Check how passengers count towards the limit when boarding, sailing into a city and landing, whether a landing stack can be refused for lack of room, and make the AI's gathering (chunks of nine in `military.rs`, loads of two to five in `naval.rs`) agree with it. Test with a full galley and a crowded square.
-
-**238. Wizard objectives steering the AI.** Task 64 draws an objective for every AI wizard but nothing reads it. Design in [`ai-objectives.md`](ai-objectives.md): an objective table in `f4x-ai` read through the AI's own view; step 1 the plumbing (no change in play), step 2 the small hooks (cities wanted, strike size, research share, research score), step 3 weighted building and casting choices (a redesign, decided after step 2), step 4 war declarations by Militarist and Expansionist wizards. Each step that changes play gets a soak, only when asked.
-
-**240. Terrain tables.** `TERRSTAT.LBX` (770 six-byte records and a 196-byte table) and `TERRTYPE.LBX` (five 512-byte tables of tile indexes) are not read by the importer. Find out what they hold (per-tile terrain type, food, movement cost, the tile-to-terrain map), compare with `content/terrain.ron` (14 hand-written rows) and the map generator, and note differences in `divergences.md` or fix the data. Nothing is known yet beyond the sizes.
-
-**241. Lairs, monsters and events.** `MONSTER.LBX` (checked 17 October 2026: it holds the creatures' pictures, `MONSTER1` to `MONSTER4`, not guard tables; the guards come from `Create_Lair` over the unit table, which `lairs.rs` follows, see `docs/lairs.md`) and `EVENTS.LBX` (18 entries of 41 records of 43 bytes) are not read. Decode them, compare the guard sets, treasures and event chances with `lairs.rs` and the event code, and fix the data or record the difference.
-
-**242. Other text and list tables.** `DESC.LBX` (241 descriptions of 110 bytes), `BUILDESC.LBX` (36 of 200), `LISTDAT.LBX` (75 of 200), `RESOURCE.LBX`, `EVENTMSG.LBX`, `DIPLOMSG.LBX` and `MESSAGE.LBX` are text; the original's prose stays in `content-local/` like the help text. Decide for each whether the game or the client needs it (screens, event and diplomacy messages), check that no rule hides in the numbers beside the text, and import what is used.
-
-**243. Unread data files.** Find out what `WIZARDS.LBX` (14 entries of 109 records of 104 bytes), `SPECIAL.LBX` and `SPECIAL2.LBX`, `SPLMASTR.LBX` (32 entries of about 94 KB) and the remaining files the importer does not open hold (most of the 98 `.LBX` files are art, sound and music). List them in `docs/` with what each is, and add a task for each one that carries rules or text.
-
-**248. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs 247. (Hardcore is stage 4, task 249.)
-
-**249. Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings.** Stage 4 of `game-settings.md`. No Myrror (section 4.9: one plane, no Myrran wizards, Planar Travel, Plane Shift or Planar Seal) and hardcore mode (4.10 and `PLANNED.md` item 8: no undo, permanent death, one constantly updated save file). Larger unit stacks are designed in [`large-stacks.md`](large-stacks.md); a raised city size cap needs its own check (growth tables, art for larger cities, balance); more than four opponents and per-event switches are listed in section 6. Each gets its own task before it starts. Needs 248.
-
-**251. Check where the computer wizards' mana bonus applies.** Task 247 multiplies a computer wizard's city mana (at the end of the city calculation) and the power of its **nodes** (`magic_income.rs`, `node_percent`) by `ai.mana_percent`, as the original's `Do_City_Calculations` and the power-base phases (`CITYCALC.c`, "Apply AI Difficulty Modifiers", right after the node phase and before the city phase) do. It does **not** multiply the fortress's power (a point per book, five more on Myrror) or the volcanoes' power, because I could not tell from `CITYCALC.c` where the original adds them. Read the power-base function in ReMoM (`Player_Magic_Power` or the routine at the top of that file's power section) and find out whether the fortress and the volcanoes are added before or after the multiplier; if before, multiply them too (`base_from`), add a test, and record the result in `docs/game-settings.md` (3.2 notes) and `divergences.md`.
-
-**252. Check and implement the starting spells each wizard gets in a new game.** What a wizard knows when the game begins is not settled against the original. Today `wizard.rs` gives the spells the books buy (the common spells chosen at creation, defaulted by `default_starting_spells_of`), and the ready-made wizards and the computer wizards go through the same path. Read the original's start (ReMoM `INITGAME.c` and the wizard-creation code) and write down what it gives each wizard: any spells every wizard starts with, the spells per book and realm (how many, which rarity, chosen or random), the starting research choice, and what the ready-made wizards and the computer wizards get beyond the player's own picks. Then compare with `wizard.rs` and fix the differences, with a test per rule. Points that depend on the answer: the order the starting spells are listed in, which `FirstSummon` in `game-settings.md` (4.2) needs fixed and tested; the Hard-level "knowable starting spell" for computer wizards, now left out because the original's code has bugs there (`divergences.md`); and the spells of a ready-made wizard with other than 11 picks (`game-settings.md`, open questions). Record any change in `divergences.md` and, where behaviour differs from the original help, in `HELP_CORRECTIONS` in `scripts/import_mom.py`.
-
-**253. Lakes with an inflow and the original's rewriting of extra river inflows.** Left out of task 122. (1) A lake (a sea square with land all round) that a river runs into takes the `_1LakeRiv_N/E/S/W` piece for the side the river comes from, as block 1 of `River_Autotile` does in ReMoM `MAPGEN.c` (about 5029-5120); a lake with no inflow becomes desert (`_1Desert`) there. (2) Where more than one river runs into a lake or a shore square, the original keeps one outlet, turns the other inflow squares into grassland and goes back over the squares it changed. Our map keeps its rivers, so `terrain_pick::shore_with_rivers` falls back to fewer sides instead. Decide whether map generation should do the same rewrite (changes the maps of new games, so it is a rule-set question) or only the drawing should; then draw the lake pieces, check the look against the original, and test it.
-
-**256. Unit spell-like abilities: Fireball, Healing, Doom Bolt and Web spells.** Twelve non-hero units carry `casts_fireball` (Magicians of six races), `casts_healing` (the four races' Priests), `casts_doom_bolt` (Dark Elf Warlocks) or `casts_web` (Giant Spiders), and no code reads these abilities (`abilities.ron` only describes them); their ranged attacks (`fireball_attack`, `shaman_bolt`) work, but the spell does not exist. Help (entries 421 to 423 and 426): Healing heals a target unit by 5 hit points at most; Fireball is a strength 5 explosion hitting every figure of the target (the help adds one strength per 3 extra mana, which a unit cannot pay); Doom Bolt does 10 points ignoring defence; Web is a 12 hit point web (full melee and magic ranged damage breaks it; flying units stay grounded afterwards). ReMoM (`CMBTAI.c` 440 to 460 and 1100 to 1150, `Combat.c` 3659 to 3675) keeps each as a flag on the battle unit that is cleared when the spell is cast, so the spell can be cast once per battle, without mana, instead of the unit's attack, and the AI values Fireball and Doom Bolt by 16 minus the target's defence. Port: a once-per-battle cast command for the unit (reusing the Fireball, Healing, Doom Bolt and Web spells already in `battle/spells.rs`), the buttons or console command for it, the battle AI and learning AI's use of it (`legal_commands` and the observation grow, so retrain; ask first), a test per spell, the `auto` placeholder AI, and the unit window text. Check first whether the original lets a human cast Healing when the AI cannot (`CMBTAI.c` 462 notes the AI never executes it: an original bug, so do not copy it).
-
-**258. Summon Demons.** `summon_demon` (Demon Lord) does nothing. Help (entry 552): instead of attacking, the unit conjures one demon into combat; the demon appears where the wizard's units began, stays if the summoner dies, and disappears after the combat. ReMoM (`Combat.c` `Summon_Demon` 11674 to 11712, `CMBMAGIC.c` 289, `UnitView.c` 1862 to 1880): the unit type carries two bits (1 or 2 uses; the unit window shows the count), each summon uses up one and ends the unit's movement, the demon is created for the controller, and a full set of squares loops forever (an original bug: do not copy). Port: a battle command for it, the `demon` unit (it exists in `units.ron`) added to the battle on a free square of the summoner's deployment area, the use count, the end-of-battle removal (see how the battle spell Summon handles it, `battle/spells.rs`), the cap on creatures in a battle (`casting.rs`), the AI's use and a test. Also note that `cavalry` (nine units) has no combat meaning in the original either: it only chooses the movement icon in the unit window (`UnitStat.c` 1645, the same picture as walking); show it there with task 140 and nothing else.
-
-**259. Bug fix: path abilities and flight in battle movement.** (1) Forester, Mountaineer and Pathfinding (the abilities, the Path Finding spell, and a stack that shares them) should apply to movement in battle too: the forest, hills and mountains of the battlefield (trees and rocks add to the walking cost, `battle/map`) should cost such a unit what the overland rules give it (Pathfinding: every square at the cost of a road). Today the battle's cost map ignores them; check what the original does and decide per ability which squares they cancel. (2) The order of movement bonuses and Flight: the original (`COMBINIT.c`, after `Unit_Moves2`) first adds the moves of jewellery, Endurance and the like, then, when the unit has fewer than 3 moves, sets its moves to 3 for Flight, which throws the bonuses away (it also tests whole moves against half-moves, `OGBUG`). The rule should be the other way round: Flight sets the unit to 3 moves first, then the bonuses are added. Check the same order overland (`NEXTTURN.c` sets 6 half-moves for Flight, then adds Endurance and items, which is the right order there) and in our stat engine (`Modify Moves Set 3` in `content/spells.ron` is applied after `Add` modifiers by `compute`, so a bonus would be lost: this needs a `Min`/floor applied before the additions, or the order of operations changed for this stat). Test: a unit with Flight and Endurance has 3 + 1 moves in battle and overland; a Forester walks the battle's forest at the cheaper cost.
-
-**260. Item crafting screen.** `Item_Make_Screen` (`ItemMake.c`) and its spell pop-up: the screen the wizard designs an item on when casting Enchant Item or Create Artifact. Ten kind buttons, the power list of the kind (`crafting::available_powers`, one column for the plain powers and one for the special ones, the ones the wizard has no books for left out), the icon arrows (needs 261), the name box (empty takes `crafting::default_name`), the running cost with the wizard's reduction (`Magic::cost_reduction`) and the OK button; Spell Charges opens the spell list (known spells that can be cast in battle) and the choice of one to four charges. A design with no power asks whether to give up (`Confirmation_Box`). Sends `Command::CraftItem`. The Spellbook screen must route the two spells here (`Game::start_cast` refuses them: they need a design). The art is `SPELLSCR.LBX` entries 13 to 41 (see `heroes-items-design.md` section 6). Needs 261.
-
-**263. Audit the immunities.** Check every immunity in the game (Magic Immunity, Elemental/Fire/Cold/Poison/Stoning/Death/Illusion/Weapon Immunity, Resist Elements, Righteousness, Invulnerability, Bless, the Large Shield and the like, Non-Corporeal, Wraith Form, city and node protections) against the spells, attacks and effects it should and should not stop, using the original's rules (ReMoM, manual) and what the community wikis document. Several bugs in this area are known from wikis and not yet listed here, so start by collecting them (wiki pages, the manual's tables, `help.ron`), then write a table of immunity x effect in `magic.md`, test each cell, and fix the mismatches (record deliberate departures in `divergences.md`; fixed original bugs go there too). Also check the effects that ignore immunities in the original (for example Disenchant, Wrack and Cracks Call) and whether they still do. Asked for by the user, 16 October 2026.
-
-**264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`), drawn from `HIRE.c` in ReMoM with the art in `HIRE.LBX` (the random-event messages are done with task 68); (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.
-
-**266. Settings: Sound Effects.** Play the effects of task 97 only when Sound Effects is on; the switch also mutes any sound played by other tasks (spell casting, combat). Needs 97. The switch is `Pref::SoundEffects` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**267. Settings: Background Music.** Play the music of task 76 only when Background Music is on; switching it off in the Settings page stops the track at once and switching it on starts the one for the current screen. Needs 76. The switch is `Pref::BackgroundMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**268. Settings: Event Music.** The short pieces the original plays for events (a wizard's victory or defeat, a city falling, a new spell or hero) play only when Event Music is on. Needs 76 for the audio layer; find the triggers among the `Event` values. The switch is `Pref::EventMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**269. Settings: City Spell Events.** Show a message when a city spell (an enchantment on a city, a spell that hits one) is cast that the player can see; off hides them. Check what the client shows now for spells cast on the player's cities and by the computer wizards, and what the original's help says about whose spells count. The switch is `Pref::CitySpellEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**270. Settings: Overland Spell Events.** Show a message when an overland spell (a global enchantment, a curse, a spell cast on a unit or on the map) is cast by a wizard the player can see; off hides them. Related to 87 (remaining global enchantments). The switch is `Pref::OverlandSpellEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**271. Settings: Summoning Events.** Show a message when a wizard summons a creature, hero or champion (Summon Hero, Summon Champion, Summoning Circle and the realm summons); off hides them. Includes the player's own summons if the original shows them. The switch is `Pref::SummoningEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**273. Settings: Raze City.** Whether the player is asked to keep or raze a conquered city. The prompt exists (`raze_prompt` in `view.rs`); read the original's help for what Off does (probably keeps the city without asking) and make the switch decide. Note the rules half: whether the human may raze at all is a game rule, not a preference, if the original treats it so. The switch is `Pref::RazeCity` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**275. Settings: End of Turn Wait.** Whether the turn waits for the player after the end-of-turn steps (the messages and the computer wizards' turns) before the next turn begins. Read the original's help for exactly what it pauses on, then add the pause and the switch. Needs 135 if it concerns the computer wizards' turns. The switch is `Pref::EndofTurnWait` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**276. Settings: Auto Unit Information.** Show a unit's information automatically when it is selected, as the original's help describes. Check which panel it means (the side column's unit box or the unit statistics sheet) and wire the switch. The switch is `Pref::AutoUnitInformation` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**277. Settings: Enemy Moves.** Show the computer wizards' unit movements during their turn (the map follows and the moves play) when on; off skips straight to the result. Needs 135 (running the AI in the client) and 281 for the movement display. The switch is `Pref::EnemyMoves` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**278. Settings: Enemy Spells.** Show the computer wizards' spells being cast during their turn (the cast spell and its target) when on. Needs 135. Related to 269 to 271, which are about messages; this is about showing the cast itself. The switch is `Pref::EnemySpells` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**279. Settings: Spell Book Ordering.** Spells in the spell book listed in categories (the original's help says so) when on, in one long list when off. Check `spellbook.rs` for the current order, add the other layout, and reset the page to the first when the switch changes (the original does; the Settings page already resets `book_ui`). The switch is `Pref::SpellBookOrdering` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**281. Settings: Movement Animations.** Animate units stepping from square to square on the map (an eased slide) when on; off jumps. Check what the client does today; it also feeds 277's following of enemy moves. The switch is `Pref::MovementAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**283. Settings: Expanding Help.** The original's help pop-up grows (opens with an expanding animation) when on. Check how the help pop-up works in the client today and whether the animation is wanted; low priority. The switch is `Pref::ExpandingHelp` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**285. Spell interface for the last ten spells.** The core works; the client lacks: a Stasis marker and text on the unit sheet and a pale tint on the map; the vortices drawn as the original's animation (now rings) with a cursor for the steering move and a "Move Magic Vortex 1 Space" button as in `Combat.c`; the mutation (armour, wings or breath) named on the unit sheet; messages for Meteor Storm, Call the Void and Nature's Wrath in the Chancellor's scroll and the original's spell animations and sounds; a note when Time Stop is on (the Next Turn button, the other wizards frozen).
-
-**286. Leftovers of the last ten spells.** (1) Great Wasting's unrest in other wizards' cities (-1, `CITYCALC.c`, written there as an assignment that looks like a bug); Armageddon's own unrest effect is done in another form (no building calms any city). (2) Time Stop: block the other wizards' non-movement commands (founding a city, production and casting orders) and have the AI skip its turn. (3) Call the Void's loss of citizens, if wanted (conflicts B40). (4) Stasis in a battle is only "asleep"; check the original. (5) The AI casting and scoring the new spells (task 56) and steering a vortex.
-
-**287. Spell of Mastery announcement: animation and sound.** The notice is plain text over a dark screen. The original (`Cast_Spell_Of_Mastery`, `SPLMASTR.c`) plays the vortex animation `SPELLSCR.LBX` 67 to 70 (frames swapped at ticks 17, 33 and 49, 200 ticks in all, ESC skips) in the palette 4 with the two lines in outlined font 5 at y 160 and 180, and the music `MUSIC_SoM_Started`. Extract the animation to `assets-local/`, draw it, add the music and the palette. The AI's announcements for other things (Eternal Night and the like) are not shown at all yet.
-
-**289. Help pop-ups in general.** The original explains almost everything on screen: a right-click on a button, icon, stat or list line opens a help pop-up with that topic's text (`Help.c`, `_help_entries` per screen, topics in `HELP.LBX`), and F1 opens help for the current screen. The client has no such system yet; the help text is already imported (`content-local/help.ron` and `help_screens.ron`, which say which topic each area opens), but nothing shows it. Build: (1) a per-screen table of help areas (rectangle, topic) the screens register as they draw, in the original's pixel coordinates; (2) the pop-up itself (the original's help window with title, text, "More" for linked topics, a click or Esc closes), drawn over any screen; (3) wire every screen that is already on the original's art, starting with the main screen, city screen, unit sheet and list, army list, magic screen and the new-game steps; the stat icons of the unit list (`Unit_List_Window`'s `_help_entries`: HLP_MELEE, HLP_RANGE, HLP_ARMOR, HLP_HITS, HLP_UNIT_MOVES) and the ability and spell lines of the unit sheet (task 140 item 2) are the first uses; (4) the expanding opening animation when `Pref::ExpandingHelp` is on (task 283); (5) where our behaviour deviates from the original's help, the help text is corrected (`HELP_CORRECTIONS`) and noted; (6) a right-click on a spell line in the small, big and combat spell books opens that spell's help (moved from task 166; `_help_entries` 3 to 14 of `Combat_Spellbook_Screen`, topic = the spell's index). Without the local help files the game runs as before, with no pop-ups. Asked for by the user, 17 October 2026.
-
-**291. Variant river pictures for the battlefield (low priority).** Each river shape has two pictures in the original, a first variant (`cmbtcity` 97 to 102) and a second (103 to 108), chosen at random per square (`56 + 6 * variant + shape` in `Look::tiles`). The shipped files hold only the second variant, and Myrror's `chriver` 0 to 11 are empty, so every river square of a shape looks the same (`river_art.rs`, `crates/f4x-client/assets/rivers/`). Make a first variant by mirroring or rotating the existing six pictures (a left-right piece mirrored is up-down in the other diagonal, corners swap in pairs; check each against a screenshot so the banks still join), generate it once for both planes, keep the PNG files in `assets/rivers/` like the others, and have `river_art.png` pick the variant from the tile number. Until then the client takes the shape from `tile % 6` and ignores the variant. Asked for by the user, 17 October 2026; follows task 255, now archived.
-
-**298. Overland: smooth unit movement and unit animation.** A moving stack jumps from square to square; the original slides it over the map and animates the unit pictures (the weapon icons and the unit enchantment outlines already animate in the window, not on the map). Add a slide for our own and visible enemy moves, with the original's speed setting, and the status letters and grey of a patrolling unit on the map pictures. Split from task 120.
-
-**300. Bitmap fonts for the battle, settings, console and prompt screens.** Tasks 118 and 126 moved the magic, wizard, production, unit and overland text to the original's fonts (`Bitmap_wrap` is `bm_wrap`). Still in the plain font: the battle screen's panels and buttons (`battle_screen.rs`), the settings, options and console screens, the attack prompt and autobuild dialog, the road planner, and the plain `ui::button` / `confirm_box` fallbacks. Move them over with the original's box and button art where it has some.
-
-**302. Test suite audit: test the game we are cloning, not an imagined one.** Low priority for now. The core tests grew around mechanics and content the original game does not have (for example `Duration::Turns`, timed spells, which no real spell uses, and its `timers.rs`: both removed, see `docs/events.md`), around hand-made copies of real spells (`hook_game` rebuilt the real Earth to Mud, Cracks Call and others), and around made-up spell libraries (ten spells a rarity in two realms, "zap", "mend"); some tests asserted nothing (the Nature Awareness test sat in an `if let Some(spell)` and never ran). The spell library is now the real one (task 132 follow-up), but the rest of the suite, and the engine behind it, has not been checked. Audit it: (1) list the mechanics, data fields and rules that no part of the original needs (check against ReMoM and the manual) and decide for each whether to remove the code and its tests or keep it for a reason that is written down; (2) find tests that build their own copy of something the real content already defines (`grep` for `defs().to_vec()` followed by `push`, hand-made `SpellDef`, `UnitDef`, `BuildingDef`) and make them use the real one, changing the real data in place with a comment only where a test needs a number it does not have; (3) find tests that pass without asserting anything (guarded `if let`, loops over nothing, a registry that silently keeps the first of two equal ids: consider making `Registry::new` refuse duplicates in tests); (4) check that each rule that is in the original has at least one test that runs the real data through it, and list what has none; (5) note what each test protects, and delete the ones that protect only our own invention. Report the findings in a table before deleting anything.
-
-**303. Random events: what is left after task 68.** The events work (see `events.md`); these parts do not yet: (1) **help**: the world event's name under the minimap and the city's Plague and Pop. Boom marks should open help topics 768 to 775 on a right-click (`HLP_PLAGUE`...); (2) the **reports** (`REPORT.c`, the Chancellor's and the others' lines that name the running plague, boom and world events); (3) the **music** of the event box (`MUSIC_Events`, `MUSIC_Bad_Event`, by task 76); (4) **Depletion and New Minerals** pick the square by our own rule (a square in the area of one of the victim's cities, the mineral by its spawn weights), because ReMoM stubs both functions and the original's are said to be bugged, so any fix is fine; (5) decide the remaining quirks of `events.md` (a Population Boom triples where the original quadruples with Stream of Life, the Pirates formula, the rising end chance of the world events against the 5 percent in the help) and write the departures into `divergences.md`; (6) a **soak** that watches the events over 500 turns, when asked for.
-
-**304. Neutral city AI: goals and objectives, and units that move.** The independent cities are played by `f4x-ai/src/neutral.rs` (`play_neutrals`, written with task 135): farmers, taxes, a Barracks first, then soldiers while the garrison is short and buildings after, from a fixed rule with no goals, and nothing ever moves. Make it a real AI, in the way of the wizards' (`ai-design.md`, `ai-objectives.md`). (1) **Goals and objectives.** Each city gets an objective it works towards and that steers its builds and spending, for instance Fortress (walls, guilds, a strong garrison), Trader (gold and growth), Breeder (population), Warband (units to send out), with the weights in one table as in `ai-objectives.md`; a city may change its objective when its situation changes (a rival wizard's army near, a lost garrison, a good treasury). The objective is state kept by the AI (`Ai` per city, or a small `Neutrals` holder in the host like the wizards' AIs, saved with the game or rebuilt from the cities). (2) **Moving units.** Garrison units may leave the city and return: step out to drive off a weaker stack beside the city, retake a square, escort a settler or caravan if there are any, and go home when a stronger enemy comes; never leave a city with fewer defenders than it wants. Units a city sends away must still be paid for by its own treasury. (3) **What the original does.** Read ReMoM's neutral turn before designing (`AI_Next_Turn` after the wizards: the neutral player's colony autobuild, farmers, destinations and movement, then the raiders and monsters: `AIBUILD.c`, `AIDATA.c`, `AIMOVE.c`, and `Make_Monsters` in `AIDATA.c` 167 to 182, which also needs checking against our monsters and raiders) and decide with the priorities in `design.md`: playability first, so neutral cities must stay places the player can take with an army and not threats that snowball. (4) **Hosts.** The client, the console and `play_round` already call `play_neutrals`; units that move need the same battle handling as the wizards' (an attack on the human is fought by the human, task 135). (5) Tests: an objective changes what a city builds; a garrison sallies against a weak stack and goes home; no city is ever left empty. A soak only when asked. Asked for by the user, 18 October 2026.
-
-**305. Lair spell treasure: research the original's intent, consider a change.** `award_spell` (`lairs.rs`) gives a lair's spell treasure from a realm the wizard has no books in, or arcane, so a wizard can be handed a spell they cannot cast (found by the user in play, 18 October 2026). The code comment says the original's selection is muddled and that ours follows its intent; that intent was not checked against the manual or the help. Research it: (1) read `Lair_Generate_Treasure` (`Lair.c` 448 to 456, the spell part) and what the manual and `content-local/help.ron` say about spells found in a lair, and whether the original really picks realms the wizard lacks or only seems to because of its index arithmetic; (2) find out what a found spell does in the original when the wizard has no book of its realm (learned and listed but not castable, or not given), including how Spell Library, research and `Learn_Spell` treat it; (3) decide with the priorities in `design.md` (play first) whether to keep it, or to give spells from realms the wizard has books in (perhaps with a fallback), and write the outcome into `divergences.md` if we differ; (4) change `award_spell` and its test (`the_hoard_can_hold_a_spell_book_a_retort_or_a_spell`) to match, and the treasure popup text if it names the spell as unusable. Asked for by the user, 18 October 2026.
-
-**299. Minimap: drag to scroll, and the other plane.** The minimap centres the map on a click; the original also scrolls while the button is held and shows the other plane through the Plane button's behaviour on it. Check the original's `Main_Screen` input for the minimap field before building it. Split from task 120.
-
-**306. Overland spell animations (summons, city and global spells, map squares).** Only the battle spell animations exist (`spell_fx.rs`, `battle_screen/spell_anim.rs`); the spells cast on the main map show a plain notice box or nothing. The original plays several kinds, listed spell by spell in [`overland_spell_animations.md`](overland_spell_animations.md) (152 spells, with the picture, the function and the conditions): (1) the **summon scene** for creature summons, Summon Hero and Champion, Enchant Item and Create Artifact (`Summon_Animation`, SPELLSCR backgrounds by race, `cmbtfx` 22); (2) the **city spell scroll** (SPELLSCR 73 with the cityscape, the building appearing, Earthquake's shake) for city enchantments, curses, Move Fortress, Wall of Stone, Spell Ward and Spell of Return; (3) the **global spell mirror** (**done, 18 October 2026**: `global_spell.rs`, for every wizard's cast; the swirl clearing the glass, the face dissolving into the spell's picture and the off-path still, with `--global SPELL [--global-by N] [--global-at SECONDS]` for screenshots; `Clipped_Copy_Mask` is read as clearing the picture where the mask is transparent, which ReMoM's own port does not do and notes as "IDGI"; the stage pace is the original's 110 ms; the music is task 76); (4) **square animations** (`Spell_Animation_Screen`: the map scrolls to the square and a `specfx` or `cmbtfx` picture plays) for unit enchantments, Change Terrain, Transmute, Raise Volcano, Corruption, Black Wind, Call the Void, Warp Node, Stasis, Nature's Cures, Chaos Channels, Lycanthropy, Word of Recall, Floating Island, Resurrection, Disenchant Area and True, Ice Storm and Fire Storm; (5) **Earth Lore and Enchant Road** (`specfx` 45 and 46, 22 steps), **Plane Shift**'s transition, and the **target-wizard** pictures (Spell Blast, Cruel Unminding, Drain Power, Subversion); (6) the **learn-spell animation** (**done, 18 October 2026**: `learn_spell.rs`, the wizard's lab then the library page decoded under the `specfx` 49 sparkle, and the "You have mastered the spell of X" box with the setting off; `--learn SPELL [--learn-at SECONDS]` for screenshots; the 110 ms lab loop is the original's, the 80 ms decode stage our own pace, the lab's fade to black and the fade into the book are not drawn). Wire each to the human's own casts first, then rivals' under the original's conditions (Enemy Spells setting, Detect Magic, contact, explored square; the table's rules section), and make all of them honour `Pref::SpellAnimations` with the original's off paths (task 280 only covers battle; `divergences.md` 30). The music of the summon, city and global scenes belongs to task 76. Doom Bolt, Star Fires and Warp Lightning have no overland cast in our content; decide whether they should (the original lets them hit an enemy stack). Task 287 (Spell of Mastery) stays separate. Asked for by the user, 18 October 2026.
+### B. Player and wizard
+
+**311. Player entity.** `Player` entity with the `PlayerId` component; `PlayerId` moves out of `city.rs`
+into `player/`. One index `PlayerId` to `Entity` on `Game`; `Game::player(id)` returns a read handle.
+The old `Player` struct stays for the fields not moved yet, as a component of the same entity,
+until 317. *Needs:* 310.
+
+**312. Wizard entity.** `Wizard` entity with `Name`, `Portrait`, `Banner` and `CapitalRace`;
+`WizardLink` on the player and `PlayerLink` on the wizard; both are created together at setup (`game/setup.rs`,
+`wizard/mod.rs` creation rules) and by `wizard/ai.rs`. `Game::wizard(id)` returns a handle. *Needs:* 311.
+
+**313. Owner links become `Entity`.** `Owner(Entity)` on units, cities and heroes; the owner part of
+`Conquered`, `Lasting.victim`, `item_awards` and `battle_brains`. Typed owners (`PlayerId`) in
+`Node.owner`, `tower_owners` and `volcanoes`, replacing raw `u8` (a stop-gap: tasks 330 to 332 make
+these `Owner(Entity)` on feature entities). The `Neutral` component replaces the
+`NEUTRAL` sentinel; one neutral player owns the monsters of lairs and nodes; each neutral city keeps
+its own neutral player and none of them has a wizard. Enchantment casters are rewired in 319 and 320.
+About 876 uses change; do it by module, tests green after each. *Needs:* 312.
+
+**314. Player data as components.** `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`,
+`Offers`, `Defeat` (with `defeated_by`), `Control`. About 230 gold and 280 mana use sites in core,
+plus the AI, client and console. *Needs:* 313.
+
+**315. Wizard data as components.** `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`
+and `Fame`. The methods of `Magic` become methods over a wizard read handle (the `Units<'a>` and
+`Economy<'a>` pattern); `magic_parts` and the borrow-apart logic adapt. Every site that reads
+`player.magic` today works for neutrals and must now handle "no wizard"; list them first. Spell
+instances come later, so `Magic.global`, `casting`, `crafting` and `raising` stay in a transitional
+component until 319 to 322. *Needs:* 314.
+
+**316. Fortress, banishment, personality and objective.** `Fortress`, `SummonAt` and `Banishment`
+(with `banished_by`) on the wizard; `Personality` and `Objective` move from `Diplomacy`'s own tables
+(`objective.rs`) to the wizard. Saves keep their layout until 335 (see the rules above). *Needs:* 315.
+
+**317. Remove the `Player` struct.** Delete `Player`, `Vec<Player>`, `Game::players()` and the linear
+`player()` lookup. `PlayerView`, `testutil::FakeView`, `DiplomacyCtx` and the `WorldView` trait adapt.
+The other crates are fixed in the same task where they stop compiling; the full pass over them is
+task 336. *Needs:* 316.
+
+### C. Spell
+
+**318. Spell instance model.** Components `SpellCast`, `Caster`, `SpellTarget`, `Duration`; helpers to
+spawn, despawn and query instances by target, caster or definition, in `Serial` order wherever the
+order is observable. Lifecycle: an instance is despawned when it expires, is dispelled, its caster is
+banished or defeated, or its target is gone (unit, city or square). New module `spell/`. *Needs:* 315.
+
+**319. Global enchantments.** `Magic.global`, `globals.rs` (Evil Omens and the rest) and
+`world_spells.rs` read and write spell instances with target `Global`. *Needs:* 318.
+
+**320. City enchantments.** `city::economy::Enchantments`, `spell::city`, wards and the Nightshade dispel
+strength use spell instances with target `City`. The caster is the wizard entity. *Needs:* 318.
+
+**321. Unit enchantments and temporary effects.** `UnitEnchantments` and `TempEffects` become spell
+instances with target `Unit`; the stat modifier engine reads the instances of a unit. Temporary
+effects that no spell causes (the three kinds `Modifier`, `Grant`, `Remove` with a duration) are
+checked first and kept as a component if some source is not a spell. *Needs:* 318.
+
+**322. Casts in progress.** `Magic.casting`, `crafting` and `raising` become spell instances in a
+casting state, owned by the wizard; `raising` stops indexing the roster (finished in 327). The
+transitional component from 315 is removed. *Needs:* 318.
+
+**323. Map-square spells and lasting world events.** Enchanted roads and `events::Lasting` use spell
+instances with target `Square` or `Global`. Corruption is map data, not a spell, and stays in `Map`.
+Warped nodes use target `Feature` and are finished in 330, when the node entity exists (until then
+the `warped` flag stays on `Node`). *Needs:* 318.
+
+**324. Battlefield enchantments.** `Battle.fields`, `counter_magic`, `wall_of_fire`, `warded_realms`
+and `vortex` become spell instances in a battle-local `hecs::World`. Battles are not saved today;
+saving a battle (on hold, task 99) will need to include this world. *Needs:* 318.
+
+**325. Dispel, upkeep and removal in one place.** `dispel.rs`, the mana upkeep and "caster banished or
+defeated" become queries over spell instances. Remove the old containers and the transitional
+component. *Needs:* 319 to 324.
+
+**340. One art folder per spell.** The extracted art is one folder per source `.lbx` in
+`assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,
+`magic` 54, `spells` 12), files named `<entry>_<frame>.png`, listed in `manifest.tsv`. Which spell
+uses which picture is only in code and docs: the tables in `spell_fx.rs` (battle), `global_spell.rs`,
+`event_popup.rs`, `learn_spell.rs` and `overland_spell_animations.md`. Change it to
+`assets-local/art/spells/<spell id>/`, one folder for each spell of `content/spells.ron`, holding
+that spell's pictures and animation frames, moved out of the `.lbx` folders (not copied), file names
+kept as `<lbx>_<entry>_<frame>.png` so the source stays traceable.
+- **The spell-to-art table first.** Write it as one data file (`content/spell_art.ron`: spell id to
+  a list of `(lbx, entry, role)`, roles such as cast, projectile, impact, summon, global, notice),
+  built from the existing tables and the doc, and make `spell_fx.rs`, `global_spell.rs`,
+  `event_popup.rs` and `learn_spell.rs` read it instead of their own copies. A test checks that every
+  id in it is a spell and every spell with art has a folder.
+- **Shared pictures.** Some pictures belong to many spells (the five realm pictures `specfx` 0 to
+  5, the summon backgrounds `spellscr` 46 and up, the city-spell scroll `spellscr` 73, the sparkle
+  `specfx` 49). They go to `spells/_shared/` and the table points at them; they are not copied into
+  every spell folder. Pictures that belong to no spell stay in their `.lbx` folder (units,
+  screens). The 12 spell book pictures now directly in `spells/` move to `spells/_book/`.
+- **Extractor and migration.** `f4x-tools` (`art.rs`, `extract-art`) writes the new layout and
+  `manifest.tsv` gets the new paths, so a fresh extraction is right from the start. For art
+  already extracted, a move mode (or a script logged in `docs/scripts.md`, with `--help`) moves the
+  existing files by the table, so the original files need not be read again.
+- **Client.** `Art` (`art.rs`) loads a spell's pictures by spell id and role; `draw_pic` by
+  `(lbx, entry, frame)` stays for everything else. The game still runs with no files (no art found,
+  no change).
+- **Docs.** `extract-art.md`, `local-assets.md`, `overland_spell_animations.md` and the on-hold tasks
+  that name `specfx` and `cmbtfx` entries (285, 287, 306) say where the files are now.
+
+*Needs:* nothing in code; it is placed last in phase C so that it does not collide with the spell
+entity work in 318 to 325 (the folder name is the spell's definition id, which does not change).
+
+### D. Hero
+
+**326. Hero entity.** A `Hero` entity with `HeroState`, abilities, experience, casting skill and
+spells, linked to its unit body while it serves (`Unit` and `Position` only then). Replaces the
+`Hero` component copied from the roster record at hiring. *Needs:* 317.
+
+**327. Hero slots, hiring, recall and resurrection over hero entities.** The six slots, hire, recall,
+resurrect and `Offer::Hero` work on hero entities. `Roster`, `HeroRecord`, `Availability` and the
+roster index in `Magic.raising` go away. `hero::game::remove_unit` stays the single exit path for a
+hero's body. *Needs:* 326.
+
+**328. Hero spells and the armory.** The hero's own spells (a hero's casting skill and its spell
+list) cast as spell instances; the armory (vault slots and awards) moves from `Player` to the player
+entity's components. The items themselves stay plain structs until 333. *Needs:* 327 and 318.
+
+### E. Terrain feature
+
+Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, `Map.lairs`,
+`tower_owners` and an owner byte per volcano. Nodes and lairs are found by `Vec` index
+(`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
+
+**329. Terrain feature entity.** The `TerrainFeature(FeatureId)` entity with `Position` and `Serial`,
+and a position index (square to entity) in place of `Grid.features`. `feature::place`, `feature::node::generate_nodes`
+and `feature::lair::generate_lairs` become one placement step: the map generator returns the terrain layers
+and a list of placements, and the game spawns the entities. Minerals and encounter markers are features with no further component. A tower is one entity
+on both planes. The move of `Node` and `Lair` out of `map.rs` (309) is already done. *Needs:* 313.
+
+**330. Node entity.** The `Node` component (realm, power, aura, guardian, `Owner(Entity)`) on the
+feature entity; `Map.nodes`, `node_at`, `node_covering`, melding, node income, corruption of nodes and
+the dispel and Armageddon paths use it. A warped node is a spell instance targeting the feature
+(323). *Needs:* 329, 323.
+
+**331. Lair and site entity.** The `Site` component (intact, guards, gold, mana, loot values, prisoner,
+special) on the feature entity; `Map.lairs` and `Entry::Site(usize)` go, entry and clearing address
+the entity. Check first whether the twin lairs of a tower differ between the planes; if they do,
+`Site` keeps a guard list per plane. Guards are still spawned as neutral units at entry and
+despawned after the fight (no change in the rules). Decide where the loot items are made: at map
+creation (item entities held as `Loot` by the feature) or at clearing, as now; the draw order no
+longer matters. *Needs:* 329.
+
+**332. Volcano and tower ownership.** `Grid.volcanoes` (owner byte) and `tower_owners` become
+`Volcano` and `Owner(Entity)` on feature entities. `terraform` spawns a volcano feature when it makes
+one and despawns it when it cools. Mana per turn, the tower claim (`claim_tower`) and `map_draw` in
+the client read the entities. *Needs:* 329 and 313.
+
+**338. Node base terrains.** In the original a node is two things: the base terrain of its square
+(`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself
+(`_NODES`). Here the node is a feature on an ordinary terrain, so a node square counts as grassland,
+hills or whatever it was generated on. Add three terrain definitions to `content/terrain.ron`
+(`sorcery_node`, `nature_node`, `chaos_node`, on both planes) and put the matching base terrain under
+every node feature when the placement step (329) spawns it, as `MAPGEN.c` does. Only the node's own
+square changes; its aura squares keep their terrain. Values from ReMoM (`MoM/src/Terrain.c`,
+`Square_Food_x2` and `Square_Production_Bonus`; half-food units as in `terrain.ron`):
+
+| Base terrain | Food | Production | Like |
+|---|---|---|---|
+| Sorcery node | 4 | 0 | none |
+| Nature node | 5 (the MGC build has 4: a recorded original bug, `OGBUG` in ReMoM; pick one and write it in `divergences.md`) | 3 | forest |
+| Chaos node | 0 | 5 | mountains |
+
+Still to read from the original: the movement cost of the three (the `TERRSTAT.LBX` records 168 to
+170; `f4x-tools` has the LBX reader), whether a city may be founded on them (the original has
+`Square_Is_Node`; check its use), the wild-game and mineral rules, and the battlefield each node type
+gives (`Combat.c`, around line 15627). The terrain classes in `terrain.ron` gain three node classes,
+so `f4x-tools validate` and the map generator's class check (at least one definition per class and
+plane) are updated; the client needs a tile for each (the original's TERRAIN tiles, not the node
+overlay). **This task changes behaviour on purpose:** cities and units near a node see new food,
+production and movement values, so the tests that pin them change with it, and the learned networks
+in `models-local/` and the mirror tests (`cargo test -p f4x-learn --test mirror -- --ignored`) are
+checked afterwards and retrained if they drift. Update `map-layers.md` and `divergences.md`.
+*Needs:* 329 and 330.
+
+### F. Item
+
+**333. Item entity.** One entity per item instance with `ItemKind`, `Name`, `Bonus`, `Powers`,
+`Charges`, `Prefab` and `HeldBy` (see `ecs-structure.md` section 3.7). Replaces the `Item` struct that is copied around today
+(`from_def`). Lifecycle: spawned when made (`make_item`, `random_item`, crafting, offer, loot); an
+item with no holder is despawned. `ItemSpot` and the `MoveItem` and `ScrapItem` commands address
+holders. `Game.prefab_taken` stays as a registry. `Game.item_awards` (names only) becomes items
+held as `Award`. *Needs:* 313, 315 and 326.
+
+**334. Items over the holders.** Convert every holder: `HeroItems` (hero slots), the armory vault and
+awards, `Magic.crafting`, `Offer::Item`, the spoils of a battle (an item of a slain hero passes to the
+heir or winner by changing `HeldBy`) and lair loot (`Loot.items`, `claim_lair`). Item charges
+written back after a battle are a component change. *Needs:* 333, 322, 327, 328 and 331.
+
+### G. Closing
+
+**335. Save format 2 and the game-version check.** `SAVE_VERSION = 2`. Entities are saved in `Serial`
+order as now, with player, wizard, hero, spell, terrain feature and item entities. `PlayerSave`,
+`MagicSave`, `UnitSave.hero`, `UnitSave.items`, the roster and the node, lair and tower tables go;
+`MapSave` keeps the terrain layers (with the node base terrains of 338). The loader refuses any other game version with a plain message
+("saved by 0.0.1, this is 0.0.2"); replay files are checked the same way. Round-trip tests for each
+new entity. *Needs:* 317, 325, 332, 334 and 338.
+
+**336. Other crates.** `PlayerView`, `f4x-console`, `f4x-client` (about 65 player lookups; node and
+lair drawing, `surveyor`, `site_prompt`, `map_draw`) and `f4x-tools` use the new handles. The AI
+crates (`f4x-ai`, `f4x-learn`) only need to compile and pass their tests here, with the smallest
+change that does it; the real work on them is task 339. *Needs:* 335.
+
+**337. Docs and guards.** Bring `ecs-structure.md`, `design.md`, `magic.md`, `map-layers.md`, `lairs.md`
+and `architecture-plan.md` up to date. A test (or a script, logged in `docs/scripts.md`) fails on
+plural module names. Update the method-count limits of task 183's test. A knowledge-base entry
+(project docs, or `~/projects/KNOWLEDGE_BASE.md` if general) for anything non-obvious found in the
+rework. *Needs:* 336.
+
+**339. Scripted and trained AI on the new framework.** The last task, because both AIs sit on top of
+everything else.
+- **Scripted AI (`f4x-ai`, about 4,400 lines):** `economy`, `expand`, `military`, `wizardry`,
+  `naval`, `scouts`, `race`, `offers`, `shortfall`, `diplomacy` read the game through
+  `PlayerView` (336). Rewrite them on the player and wizard handles (a wizard's books, retorts,
+  skill and fame; a player's gold, mana and orders), on spell instances for enchantments and
+  casts in progress, on hero entities instead of the roster, and on feature and item entities
+  (node and lair targets by entity, not by `Vec` index; items by holder). Neutral players have no
+  wizard: the neutral-city AI (`city/neutral.rs`) takes that explicitly. The objectives and
+  personalities now live on the wizard (316). Check the tests in `crates/f4x-ai/tests` and the
+  scripted battle AI (`battle/ai.rs`, `brain.rs`).
+- **Trained AI (`f4x-learn`, about 6,200 lines):** `obs.rs`, `act.rs`, `env.rs`, `reward.rs`,
+  `scenario.rs`, `duel.rs`, `net.rs`, `train.rs` and the agents. The observation and action
+  encodings may change where the new entities make them simpler. Stored networks in `models-local/`
+  (`battle-v1.bpk`, the banks and the run folders) that no longer load or no longer match are
+  retrained or dropped; say which in the task's notes. Scenario files that use the old save or
+  setup format are converted or rebuilt. After 338 (node terrains change food, production and
+  movement) run the mirror tests and the battle behaviour tests. Slow runs only when asked:
+  `cargo test -p f4x-ai --test behaviour -- --ignored`,
+  `cargo test -p f4x-learn --test mirror -- --ignored`, `f4x-tools soak`.
+- **Docs:** `ai-design.md`, `ai-objectives.md`, `learning-ai.md` and `auto-builder.md` describe the
+  new entities. The tournament and training scripts (`scripts/tournament.sh`, `train_battle.sh`) still
+  work, and `docs/scripts.md` says so.
+
+*Needs:* 336, 337 and 338.
+
+### H. Gaps found during the rework
+
+**341. Banishment and defeat as in the original.** Read from ReMoM (`CONQUEST.c`: `Resolve_Wizard_Conquest`,
+`Banish_Wizard`, `CP_Is_Dead`; `City_ovr55.c`: `Change_City_Ownership`; `Spells128.c`: `Conquest_Spells`;
+`NEXTTURN.c`: `All_Players_Apply_Spell_Casting`; `CITYCALC.c`; `AIDUDES.c`; `DIPLOMAC.c`; `MagicScr.c`;
+`MainScr.c`) and compared with `wizard/fortress.rs`, `game/endgame.rs` (`aftermath`) and
+`city/conquest.rs`. The trigger is the same as ours (the fortress city falls, or the last city). Already
+as in the original: the fortress and circle go, the winner gets 5 fame and half the loser's mana, the
+other wizards' relations drop by 20 (banished) or 40 (defeated), the Spell of Return starts at once, a
+banished wizard gets no income of any kind and no casting skill in battle, offers stop, the loser's
+units and heroes are dismissed, the enchantments it cast on cities and its global spells end, its
+nodes are freed, the winner takes half its gold, its cities turn neutral, diplomacy with it is reset.
+What differs or is missing:
+- **The auto-defeat test applies to everyone.** In `Banish_Wizard` the test (base casting skill plus
+  hero skill under 40, or mana under 1: defeated on the spot, no banishment) runs for every loser that
+  is not the player whose turn it is, which in practice is every wizard whose fortress is taken by an
+  attack, the human included. Ours exempts the human. (The original asks "Do you wish to resign?" only
+  when a wizard loses its fortress on its own turn, which cannot happen to us; `Command::Resign` stays
+  as the way to give up.) This is the rule the project owner chose ("as ReMoM"). It is turn-based, not
+  AI-only, and it also covers the wiki's "zero mana: defeated" (which leaves out the skill part).
+- **Paying the Spell of Return: one rule for every wizard.** The game's rules do not decide for the AI.
+  Every banished wizard, human or AI, pays with mana from its reserve, as ours does now. With no mana
+  the spell cannot advance; the wizard can only resign. The original's special case (a banished AI pays
+  its nominal skill every turn whether or not the reserve covers it, and the reserve floors at 0) is not
+  copied; record it in `divergences.md`.
+- **The AI covers the payment in its script.** In `f4x-ai` (`wizardry`), a wizard that is casting the
+  Spell of Return checks whether its mana reserve covers this turn's payment; if not, it converts as much
+  gold as it needs, and no more, into mana with the existing `Command::Alchemy` (2 gold for 1 mana, 1 for 1
+  with the Alchemy retort). The original does this inside the rules (`AI_Update_Gold_And_Mana_Reserves`
+  turns all of a returning AI's gold into mana each turn, overwriting the reserve; ReMoM marks the `=` as
+  a bug); ours is a choice of the script, not a rule. Done with the AI work of 339 if that comes first.
+- **Conquest spells.** `Conquest_Spells`: the winner takes up to two spells, picked at random from those
+  the loser knows and the winner does not (`Get_Differential_Spell_List`), when an AI wizard is banished and
+  again when a wizard is defeated. A human winner gets a box: "You find no new spells in the ruins." or
+  "You found a X spell [, a Y spell] in the ruins." Ours has nothing like it. Needs a new event and the box.
+- **Defeat without banishment.** When the last city falls and it is not the fortress, the original still
+  gives the winner 5 fame and half the loser's mana (`Resolve_Wizard_Conquest`); ours gives them only in
+  the banishment path, so that case loses them.
+- **No diplomacy while banished.** The client refuses the diplomacy screen ("You may not contact other
+  wizards while you are banished", `MagicScr.c`); the AI makes no overtures and no delayed orders to a
+  banished human (`NPC_To_Human_Diplomacy`, `Resolve_Delayed_Diplomacy_Orders`). Do not copy the early return
+  in `NPC_To_NPC_Treaty_Negotiations`: ReMoM marks it `OGBUG` (it tests the human's casting in AI-to-AI
+  talks). Word of Recall and Recall Hero are refused while banished (ours: refused through the one cast at a
+  time rule; add the explicit check and its message). The spell button says "You may not throw any spells
+  while you are banished. There are at least N turns remaining until you may return."
+- **Ownership change.** `Change_City_Ownership` ends the previous owner's enchantments on any city that
+  changes hands; ours does it on the post-battle path (`city/conquest.rs`) only. Do it in `capture_city`.
+- **A difference we keep.** The original cannot remove a unit enchantment by its caster (it stores none);
+  ours removes the loser's enchantments on other wizards' units too (`aftermath`). With spell instances (325)
+  this is "all the spell instances the wizard cast"; record it in `divergences.md`.
+- **Screens and animations (client, low priority):** the conquest animation, the "begins casting the Spell
+  of Return" scene for a banished AI, the defeat and victory scenes, the banished wizard's portrait.
+Each rule gets a test; `magic.md` section 12 and `divergences.md` section 25 are brought up to date.
+*Needs:* 315, 317 and 325.

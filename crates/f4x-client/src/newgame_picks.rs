@@ -5,8 +5,8 @@
 //! rare). The pick rules are the core's (`WizardBuild`, `retort_available`, `retort_cost`);
 //! this file is the pictures and the clicks. Positions are the original's.
 
-use f4x_core::magic::Retort;
 use f4x_core::rules::Rarity;
+use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{retort_available, retort_cost, retort_name, ALL_RETORTS, MAX_RETORTS};
 use macroquad::prelude::*;
 

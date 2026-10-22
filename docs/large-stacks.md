@@ -9,14 +9,14 @@ What is checked and what is not is marked. Where a line says "to check", I have 
 
 ## 1. What the limit is today
 
-`units::MAX_STACK = 9` (`crates/f4x-core/src/units.rs`). It is read in:
+`unit::MAX_STACK = 9` (`crates/f4x-core/src/unit.rs`). It is read in:
 
 | Place | What it limits |
 |---|---|
-| `movement.rs` (two checks), `gates.rs` (two), `special_spells.rs` (three) | moving, gating and teleporting a stack onto a square |
-| `transport.rs` | to check: boarding and landing |
-| `neutral_cities.rs` | the garrison of a neutral city (`population / 4`, at most nine) |
-| `lairs.rs` | the defenders of a lair |
+| `unit/movement.rs` (two checks), `city/gates.rs` (two), `spell/special.rs` (three) | moving, gating and teleporting a stack onto a square |
+| `unit/transport.rs` | to check: boarding and landing |
+| `city/neutral.rs` | the garrison of a neutral city (`population / 4`, at most nine) |
+| `feature/lair.rs` | the defenders of a lair |
 | `battle/game.rs` | how many raised dead a winner can keep (`room = MAX_STACK - standing units`) |
 | `battle/casting.rs` | `MAX_SIDE_UNITS = 9`, a **second copy** of the same number: summons, Possession, Creature Binding, Raise Dead, Animate Dead |
 | `f4x-ai` `military.rs`, `naval.rs` | gathering in chunks of nine, boat loads of two to five |

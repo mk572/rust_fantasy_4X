@@ -1,9 +1,9 @@
 //! The city screen: economy, buildings, worked area and the production list, drawn on
 //! the original screen layout (320x200) when the art is available.
 
-use f4x_core::city::Position;
-use f4x_core::production::ProductionItem;
-use f4x_core::Command;
+use f4x_core::city::production::ProductionItem;
+use f4x_core::game::Command;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
@@ -270,8 +270,11 @@ impl App {
         let mut race_name = race_name;
         let serial = self.game.serial_of(city);
         for (kind, mark) in [
-            (f4x_core::events::EventKind::Plague, " (Plague)"),
-            (f4x_core::events::EventKind::PopulationBoom, " (Pop. Boom)"),
+            (f4x_core::world_event::EventKind::Plague, " (Plague)"),
+            (
+                f4x_core::world_event::EventKind::PopulationBoom,
+                " (Pop. Boom)",
+            ),
         ] {
             if self.game.events().on_city(kind, serial) {
                 race_name += mark;

@@ -9,10 +9,10 @@
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
-use f4x_core::city::PlayerId;
-use f4x_core::magic::Retort;
+use f4x_core::game::Command;
+use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
-use f4x_core::Command;
+use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -137,7 +137,7 @@ impl App {
     }
 
     /// Every overland enchantment in play, with its wizard: the original lists all of them.
-    fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::city::PlayerId)> {
+    fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::player::PlayerId)> {
         self.game
             .players()
             .iter()
@@ -332,7 +332,8 @@ impl App {
         let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
         let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
         let base = income.power_base;
-        let name = |g: &f4x_core::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
+        let name =
+            |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
         let casting = magic
             .casting
             .map_or("None".to_string(), |c| name(&self.game, c.spell));

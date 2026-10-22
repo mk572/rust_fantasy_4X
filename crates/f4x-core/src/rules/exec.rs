@@ -11,18 +11,18 @@ use rand::RngCore;
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::battle::immunity::{resistance_failure, Realm};
-use crate::city::{PlayerId, Position};
 use crate::content::TerrainClass;
-use crate::map::Plane;
+use crate::map::{Plane, Position};
+use crate::player::PlayerId;
 
 /// Something an effect can act on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Target {
-    Unit(#[serde(with = "crate::replay::stable_ref::one")] hecs::Entity),
-    City(#[serde(with = "crate::replay::stable_ref::one")] hecs::Entity),
+    Unit(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
+    City(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
     /// A city and a realm: what a Spell Ward is aimed at.
     CityRealm(
-        #[serde(with = "crate::replay::stable_ref::one")] hecs::Entity,
+        #[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity,
         crate::rules::RealmId,
     ),
     Tile(Position),

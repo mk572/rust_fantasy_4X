@@ -5,7 +5,7 @@
 //! map; a right-click opens the unit's sheet. U and D (or the arrows, or the wheel) scroll, Esc
 //! or OK leaves. Positions are the original's.
 
-use f4x_core::city::Position;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

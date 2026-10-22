@@ -4,8 +4,8 @@ use std::fmt;
 use std::path::Path;
 
 use f4x_core::content::Content;
-use f4x_core::save::{LoadError, Snapshot};
-use f4x_core::Game;
+use f4x_core::game::save::{LoadError, Snapshot};
+use f4x_core::game::Game;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -80,11 +80,12 @@ pub fn summarize_save(path: &Path) -> Result<SaveSummary, SaveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::city::{PlayerId, Position};
+    use f4x_core::game::Command;
+    use f4x_core::map::mapgen::{generate, GenParams};
     use f4x_core::map::Plane;
-    use f4x_core::mapgen::{generate, GenParams};
+    use f4x_core::map::Position;
     use f4x_core::player::Player;
-    use f4x_core::Command;
+    use f4x_core::player::PlayerId;
     use std::path::PathBuf;
 
     fn dir(name: &str) -> PathBuf {
@@ -109,7 +110,7 @@ mod tests {
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],
-            &[f4x_core::magic::Retort::Alchemy],
+            &[f4x_core::wizard::magic::Retort::Alchemy],
             None,
         )
         .unwrap();

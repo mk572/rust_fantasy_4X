@@ -4,7 +4,7 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 
-use f4x_core::events::{compose, EventKind};
+use f4x_core::world_event::{compose, EventKind};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -151,12 +151,12 @@ impl App {
     /// first, then the one whose spell it was, "Your" and "your" for the human wizard.
     pub(crate) fn fizzle_text(
         &self,
-        caster: f4x_core::city::PlayerId,
-        counter: f4x_core::city::PlayerId,
+        caster: f4x_core::player::PlayerId,
+        counter: f4x_core::player::PlayerId,
         spell: &str,
         counter_spell: &str,
     ) -> String {
-        let possessive = |player: f4x_core::city::PlayerId, you: &str| {
+        let possessive = |player: f4x_core::player::PlayerId, you: &str| {
             if player == HUMAN {
                 return you.to_string();
             }
@@ -250,8 +250,8 @@ impl App {
     /// them (the original says nothing of what two rivals do to each other).
     pub(crate) fn announce_fizzle(
         &mut self,
-        caster: f4x_core::city::PlayerId,
-        counter: f4x_core::city::PlayerId,
+        caster: f4x_core::player::PlayerId,
+        counter: f4x_core::player::PlayerId,
         spell: f4x_core::rules::SpellId,
         counter_spell: &str,
     ) {

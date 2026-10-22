@@ -1,9 +1,9 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
-use f4x_core::city::Position;
 use f4x_core::content::TerrainClass;
-use f4x_core::player_view::PlayerView;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
 
 use crate::view::{distance, nearest_unexplored};
 use crate::Ai;

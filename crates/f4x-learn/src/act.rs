@@ -9,7 +9,7 @@
 //!   something to decide: cast nothing, flee, or a spell, then its aim and its mana.
 //!
 //! Every choice is masked by what [`f4x_core::battle::Battle::legal_commands`] and
-//! [`f4x_core::Game::legal_battle_casts`] allow, so the agent cannot give a refused order.
+//! [`f4x_core::game::Game::legal_battle_casts`] allow, so the agent cannot give a refused order.
 
 use f4x_core::battle::map::{GRID_H, GRID_W};
 use f4x_core::battle::{BattleCommand, SpellAim};
@@ -166,7 +166,7 @@ impl WizardOptions {
 }
 
 pub fn wizard_options(
-    casts: &[f4x_core::battle::spells::LegalCast],
+    casts: &[f4x_core::battle::spell::LegalCast],
     may_flee: bool,
     obs: &Observation,
 ) -> WizardOptions {
@@ -200,7 +200,7 @@ pub fn wizard_options(
 
 /// The spell cast, if the choice is one: its id, from the slot.
 pub fn wizard_cast(
-    casts: &[f4x_core::battle::spells::LegalCast],
+    casts: &[f4x_core::battle::spell::LegalCast],
     obs: &Observation,
     slot: usize,
     aim: usize,

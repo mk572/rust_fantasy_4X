@@ -1,10 +1,10 @@
 use super::*;
-use crate::city::Position;
-use crate::map::{Grid, Map, Plane};
+use crate::game::save::Snapshot;
+use crate::game::testutil::{content_with_magic, FakeView};
+use crate::map::{Grid, Map, Plane, Position};
+
+use crate::game::{Command, Rejection};
 use crate::player::Player;
-use crate::save::Snapshot;
-use crate::testutil::{content_with_magic, FakeView};
-use crate::{Command, Rejection};
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -107,7 +107,7 @@ impl Rig {
         result
     }
 
-    fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut crate::magic::Magic {
+    fn magic_mut_for_tests(&mut self, player: PlayerId) -> &mut crate::wizard::magic::Magic {
         &mut self
             .view
             .players
@@ -543,7 +543,7 @@ fn strangers_do_not_react_and_neither_does_a_monster() {
     g.change_relations(-40, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), before);
     met(&mut g, P2, P1);
-    g.change_relations(-40, crate::units::NEUTRAL, P1, Action::AttackedCity, None);
+    g.change_relations(-40, crate::player::NEUTRAL, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), before);
 }
 
@@ -1265,7 +1265,7 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
         assert_eq!(g.relation(P0, P1), -50);
     }
     // Begun, the Spell of Mastery keeps bothering them a little each turn (half of fifty).
-    g.magic_mut_for_tests(P1).casting = Some(crate::magic::Casting {
+    g.magic_mut_for_tests(P1).casting = Some(crate::wizard::magic::Casting {
         spell: mastery,
         remaining: 100,
     });

@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use f4x_ai::{play_round, Ai};
-use f4x_core::city::PlayerId;
-use f4x_core::setup::{new_game, NewGame};
-use f4x_core::Game;
+use f4x_core::game::setup::{new_game, NewGame};
+use f4x_core::game::Game;
+use f4x_core::player::PlayerId;
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE]";
 
@@ -150,15 +150,15 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
             battles += events
                 .iter()
-                .filter(|e| matches!(e, f4x_core::Event::BattleEnded { .. }))
+                .filter(|e| matches!(e, f4x_core::game::Event::BattleEnded { .. }))
                 .count();
             captures += events
                 .iter()
-                .filter(|e| matches!(e, f4x_core::Event::CityCaptured { .. }))
+                .filter(|e| matches!(e, f4x_core::game::Event::CityCaptured { .. }))
                 .count();
             rejected += events
                 .iter()
-                .filter(|e| matches!(e, f4x_core::Event::Rejected(_)))
+                .filter(|e| matches!(e, f4x_core::game::Event::Rejected(_)))
                 .count();
             if every > 0 && game.turn % every == 0 {
                 println!("seed {seed} turn {}: {}", game.turn, status(&game));

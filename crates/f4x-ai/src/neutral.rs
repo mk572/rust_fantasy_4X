@@ -4,10 +4,10 @@
 //! once it is not, never settlers. They never move, attack or cast. The game does none of this
 //! itself, so a host that ends turns must call [`play_neutrals`] first, or the cities starve.
 
-use f4x_core::autobuild::{BuildPlan, Focus, Mix};
-use f4x_core::player_view::PlayerView;
-use f4x_core::production::ProductionItem;
-use f4x_core::{Command, Event, Game};
+use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
+use f4x_core::city::production::ProductionItem;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::player::view::PlayerView;
 
 use crate::view::is_fighter;
 use crate::Ai;

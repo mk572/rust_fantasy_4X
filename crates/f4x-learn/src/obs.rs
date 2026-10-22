@@ -10,8 +10,8 @@ use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{in_city_area, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, RangedKind, Side};
 use f4x_core::content::Content;
+use f4x_core::game::Game;
 use f4x_core::rules::defs::SpellTarget;
-use f4x_core::Game;
 
 use crate::reward::{is_hurt, unit_value, FLEE_SURVIVAL, HURT_ENEMY_CREDIT, HURT_OWN_DISCOUNT};
 

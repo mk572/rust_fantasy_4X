@@ -4,13 +4,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::Content;
-use f4x_core::map::Plane;
-use f4x_core::mapgen::GenParams;
-use f4x_core::setup::{self, NewGame};
+use f4x_core::game::setup::{self, NewGame};
+use f4x_core::map::mapgen::GenParams;
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::PlayerId;
+
+use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::WizardBuild;
-use f4x_core::{Command, Event, Game};
 use macroquad::prelude::*;
 
 use crate::art::{Art, TILE_H, TILE_W};
@@ -92,7 +93,7 @@ pub struct App {
     /// The player's preferences (the Settings screen), shared by every game.
     pub(crate) prefs: crate::preferences::Preferences,
     /// A list box over the map: the advisors, the tax rates (task 71).
-    pub(crate) list_box: Option<crate::advisors::SelectionBox>,
+    pub(crate) list_box: Option<crate::advisor::SelectionBox>,
     /// The question before the Grand Vizier is switched on.
     pub(crate) vizier_ask: bool,
     /// The plane the Cartographer shows.
@@ -150,13 +151,13 @@ pub struct App {
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
-    pub(crate) event_texts: Vec<f4x_core::events::EventText>,
+    pub(crate) event_texts: Vec<f4x_core::world_event::EventText>,
     /// The original's short messages (`messages.ron`).
     pub(crate) messages: Vec<f4x_core::help::MessageText>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
     /// The events the player has yet to be told of, oldest first.
-    pub(crate) event_notices: std::collections::VecDeque<f4x_core::events::EventNotice>,
+    pub(crate) event_notices: std::collections::VecDeque<f4x_core::world_event::EventNotice>,
     /// The buildings the human's cities finished, to be announced, oldest first.
     /// The spells that fizzled or were dispelled, to be announced.
     /// Global enchantments cast and not yet shown in the mirror (`global_spell.rs`).
@@ -213,9 +214,9 @@ pub struct App {
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
-    pub(crate) combat_results: Option<crate::combat_results::CombatResults>,
+    pub(crate) combat_results: Option<crate::combat_result::CombatResults>,
     /// The battle last begun, for the scroll's paper.
-    pub(crate) battle_site: Option<crate::combat_results::BattleSite>,
+    pub(crate) battle_site: Option<crate::combat_result::BattleSite>,
     /// The question after the human's fortress falls: resign, or cast the Spell of Return.
     pub(crate) resign_prompt: bool,
     /// The question of what to give up when the mana reserve cannot pay the upkeep.
@@ -224,7 +225,7 @@ pub struct App {
     /// paid for (`Targeting::resolve`).
     pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
     /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
-    pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::city::PlayerId>,
+    pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
 
 impl App {
@@ -348,7 +349,8 @@ impl App {
             build: human.cloned(),
             race: content.rules.races.defs().get(race).map(|r| r.id.clone()),
             settings: {
-                let mut s = f4x_core::settings::GameSettings::for_difficulty(options.difficulty);
+                let mut s =
+                    f4x_core::game::setting::GameSettings::for_difficulty(options.difficulty);
                 s.basic.opponents = options.opponents.clamp(1, 4);
                 s.basic.land_percent = options.land_percent();
                 s.basic.magic_strength = options.magic;
@@ -475,17 +477,17 @@ impl App {
                     Some(format!("Items fall to the victor: {}{lost}", items.join(", ")))
                 }
                 Event::RandomEvent(notice) => {
-                    if notice.kind == f4x_core::events::EventKind::Gift
-                        && notice.voice == f4x_core::events::Voice::Started
+                    if notice.kind == f4x_core::world_event::EventKind::Gift
+                        && notice.voice == f4x_core::world_event::Voice::Started
                     {
                         self.item_pool_pending = true;
                     }
-                    let line = f4x_core::events::compose(&self.event_texts, &notice);
+                    let line = f4x_core::world_event::compose(&self.event_texts, &notice);
                     self.event_notices.push_back(notice);
                     line
                 }
                 Event::ProductionCompleted { city, item } => {
-                    if let f4x_core::production::ProductionItem::Building(b) = item {
+                    if let f4x_core::city::production::ProductionItem::Building(b) = item {
                         self.announce_built(city, b);
                     }
                     let what = self.item_name(item);
@@ -779,8 +781,8 @@ impl App {
         self.game.city_name(city).unwrap_or_else(|| "?".to_string())
     }
 
-    pub(crate) fn item_name(&self, item: f4x_core::production::ProductionItem) -> String {
-        use f4x_core::production::ProductionItem::*;
+    pub(crate) fn item_name(&self, item: f4x_core::city::production::ProductionItem) -> String {
+        use f4x_core::city::production::ProductionItem::*;
         let rules = &self.game.content().rules;
         match item {
             Building(b) => rules.buildings.get(b).name.clone(),
@@ -1554,7 +1556,7 @@ impl App {
                 });
                 let ok = !events
                     .iter()
-                    .any(|e| matches!(e, f4x_core::Event::Rejected(_)));
+                    .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
                 self.note(events);
                 ok
             };
@@ -2083,7 +2085,7 @@ impl App {
 }
 
 /// One log line for the treasure a cleared site gave.
-fn loot_line(loot: &f4x_core::lairs::Loot) -> String {
+fn loot_line(loot: &f4x_core::feature::lair::Loot) -> String {
     let mut parts = Vec::new();
     if loot.gold > 0 {
         parts.push(format!("{} gold", loot.gold));

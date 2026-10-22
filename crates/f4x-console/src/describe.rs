@@ -1,9 +1,10 @@
 //! Words for things: units, cities, positions and events, as the console prints them.
 
-use f4x_core::city::{PlayerId, Position};
-use f4x_core::map::Plane;
-use f4x_core::production::ProductionItem;
-use f4x_core::{Event, Game};
+use f4x_core::city::production::ProductionItem;
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::PlayerId;
+
+use f4x_core::game::{Event, Game};
 
 pub fn plane_letter(p: Plane) -> char {
     match p {
@@ -64,8 +65,8 @@ fn units(game: &Game, list: &[hecs::Entity]) -> String {
 }
 
 /// One line for an offer waiting for an answer.
-pub fn offer(game: &Game, o: &f4x_core::offers::Offer) -> String {
-    use f4x_core::offers::Offer;
+pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
+    use f4x_core::player::offer::Offer;
     let rules = &game.content().rules;
     match o {
         Offer::Hero { kind, price } => {

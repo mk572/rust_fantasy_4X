@@ -1,0 +1,171 @@
+//! Players (wizards): what each one owns that is not an entity on the map.
+
+pub mod finance;
+pub mod offer;
+pub mod shortfall;
+pub mod upkeep;
+pub mod view;
+
+use serde::{Deserialize, Serialize};
+
+use crate::rules::RaceId;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct PlayerId(pub u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Owner(pub PlayerId);
+
+/// Owner of monsters and unclaimed sites. Its units last until someone kills them (the lair
+/// guards are made for a fight and removed after it; undead raised for the monsters stay).
+pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Player {
+    pub id: PlayerId,
+    pub name: String,
+    pub gold: i32,
+    pub mana: i32,
+    /// Index into the tax table in the rules config.
+    pub tax_rate: u8,
+    /// Race of the first city; some races dislike or like each other's cities.
+    pub capital_race: Option<RaceId>,
+    pub fame: i32,
+    pub magic: crate::wizard::magic::Magic,
+    /// The wizard's items that are not on a hero: the vault and the award list.
+    pub armory: crate::item::armory::Armory,
+    /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
+    /// hired, is serving, dead or gone, and the experience it keeps.
+    pub roster: crate::hero::roster::Roster,
+    /// What this turn's merchant, mercenaries and hero asked of the wizard and is waiting for
+    /// an answer (task 220); they lapse at the next turn change.
+    pub offers: Vec<crate::player::offer::Offer>,
+    /// Where the wizard's fortress stands (a city); `None` before it is placed or while
+    /// banished.
+    pub fortress: Option<crate::map::Position>,
+    /// Where summoned creatures appear; defaults to the fortress.
+    pub summon_at: Option<crate::map::Position>,
+    /// The fortress fell: the wizard is casting the Spell of Return.
+    pub banished: bool,
+    /// Who took the fortress while the wizard is banished (the one a resignation is to).
+    pub banished_by: Option<PlayerId>,
+    /// The wizard has lost everything.
+    pub defeated: bool,
+    /// Who took the wizard's last city.
+    pub defeated_by: Option<PlayerId>,
+    /// The banner colour: 0 blue, 1 green, 2 purple, 3 red, 4 yellow (5, brown, is the
+    /// neutral player's). Flags, cities and units are drawn in it.
+    pub banner: u8,
+    /// Which of the original's fourteen wizard pictures (0 to 13) shows the wizard: the
+    /// portrait of the creation screen, the gem on the magic screen and the diplomacy screen.
+    pub portrait: u8,
+    /// The Grand Vizier chooses what this player's cities build next.
+    pub grand_vizier: bool,
+    /// An independent city's own player (task 31): it has a treasury and pays its way like a
+    /// wizard, but is no wizard (no magic, no victory, no AI).
+    pub neutral: bool,
+    /// The computer wizards' difficulty bonuses (percents of what a human would get). Set from
+    /// the game's settings (`Game::apply_wizard_settings`), not saved.
+    pub bonus: Bonus,
+    /// The wizard's power at each turn, for the History screen (task 71); the last 288 turns.
+    pub history: Vec<u8>,
+}
+
+/// What a wizard's cities and army are multiplied by, in percent (100 changes nothing). The
+/// original gives these to computer wizards by difficulty (`difficulty_modifiers_table`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bonus {
+    pub growth: i32,
+    pub outpost_growth: i32,
+    pub production: i32,
+    pub gold: i32,
+    pub mana: i32,
+    pub food: i32,
+    pub research: i32,
+    /// Building maintenance.
+    pub maintenance: i32,
+    /// Gold upkeep of units.
+    pub unit_upkeep: i32,
+}
+
+impl Default for Bonus {
+    fn default() -> Self {
+        Self {
+            growth: 100,
+            outpost_growth: 100,
+            production: 100,
+            gold: 100,
+            mana: 100,
+            food: 100,
+            research: 100,
+            maintenance: 100,
+            unit_upkeep: 100,
+        }
+    }
+}
+
+impl Bonus {
+    /// `value` as a percent of itself.
+    pub fn of(percent: i32, value: i32) -> i32 {
+        if percent == 100 {
+            value
+        } else {
+            value * percent / 100
+        }
+    }
+}
+
+/// The banner of the neutral player and of monsters.
+pub const NEUTRAL_BANNER: u8 = 5;
+
+/// The tax rate everyone starts with: a gold for each citizen.
+pub const START_TAX_RATE: u8 = 2;
+
+/// How many wizard pictures there are (`wizards.lbx`, `lilwiz.lbx` and `moodwiz.lbx`).
+pub const PORTRAITS: u8 = 14;
+
+/// How many banners wizards can choose from.
+pub const BANNER_CHOICES: u8 = 5;
+
+impl Player {
+    pub fn new(id: PlayerId, name: impl Into<String>) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            gold: 100,
+            mana: 0,
+            tax_rate: START_TAX_RATE,
+            capital_race: None,
+            fame: 0,
+            magic: crate::wizard::magic::Magic::default(),
+            armory: crate::item::armory::Armory::default(),
+            roster: crate::hero::roster::Roster::default(),
+            offers: Vec::new(),
+            fortress: None,
+            summon_at: None,
+            banished: false,
+            banished_by: None,
+            defeated: false,
+            defeated_by: None,
+            banner: if id.0 == u8::MAX {
+                NEUTRAL_BANNER
+            } else {
+                id.0 % BANNER_CHOICES
+            },
+            portrait: if id.0 == u8::MAX { 0 } else { id.0 % PORTRAITS },
+            grand_vizier: false,
+            neutral: false,
+            bonus: Bonus::default(),
+            history: Vec::new(),
+        }
+    }
+
+    /// The player of one neutral city: builds by the Grand Vizier's order, brown banner.
+    pub fn new_neutral(id: PlayerId, name: impl Into<String>) -> Self {
+        Self {
+            banner: NEUTRAL_BANNER,
+            neutral: true,
+            ..Self::new(id, name)
+        }
+    }
+}

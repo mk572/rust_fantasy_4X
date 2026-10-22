@@ -62,7 +62,7 @@ Two things worth knowing before the tables:
 | **Magic screen** (`Magic_Screen`, `MagicScr.c`) | The wizard overview: the power split (mana, research, skill), research, the alchemy pop-up, the spells and retorts, the other wizards' portraits and treaty icons. Click a portrait to talk. | The **Magic** button on the main screen; back from the Diplomacy screen. | **Done** in the original's layout (`magic_screen.rs`: staves with locks, text block, overland enchantments, alchemy window); the gems stay grey until portraits (83) and diplomacy (63, 91), and the wizard sheet is task 75. |
 | **Diplomacy** (`Diplomacy_Screen__WIP`, `DIPLOMAC.c`) | The talk with a rival wizard: greeting, treaty proposals, threats, tribute, spell exchange. | Clicking another wizard's portrait on the Magic screen (refused while banished); also when an AI wizard opens a talk with the human at the start of a turn (`Npc_Diplomacy_Screen`). | **Missing.** Task 91; the rules are planned in `docs/diplomacy.md` (tasks 63, 64). |
 | **Spellbook** (`Spellbook_Screen`, `SBookScr.c`) | The spell book the wizard casts from: pages by realm, the cost and the casting time, choose a spell to cast overland. In combat the Spell button opens a second book, `Combat_Spellbook_Screen`. | The **Spells** button on the main screen. | **Done** (`spellbook.rs`, task 93): the Spells button or V; animations and the combat book are task 166. |
-| **Advisor** (`Advisor_Screen`, `AdvsrScr.c`) | A menu of nine information screens (section 4). | The **Info** button on the main screen; F1 to F9 keys. | **Done** (task 71): `advisors.rs` and `advisor_screens.rs`, `surveyor.rs`; the Mirror is task 75. |
+| **Advisor** (`Advisor_Screen`, `AdvsrScr.c`) | A menu of nine information screens (section 4). | The **Info** button on the main screen; F1 to F9 keys. | **Done** (task 71): `advisor.rs` and `advisor_screens.rs`, `surveyor.rs`; the Mirror is task 75. |
 | **Item screen** (`Item_Screen`, `ItemScrn.c`) | Heroes' equipment: move magic items between hero slots and the vault of the wizard; destroy an item; look at it. | The Items button on the Army list; after a hero or lair reward is taken, to place the items found. | **Done** (`item_screen.rs`, task 142). |
 | **Road building** (`Road_Build_Screen`, `Roads.c`) | Pick the end of a road for the stack's engineers: shows the map, how many turns the road will take, and refuses a road across a large body of water. | The **Build** (special) button on the main screen when the active stack has engineers. | **Done** (task 102): the side panel of `main` art with the turns and OK/Cancel, the path drawn on the map. |
 | **Production** (`Production_Screen`, `ProdScr.c`) | A pop-up list of what a city can build (buildings and units, with costs and the building each needs); choosing sets the production. | The Change button of the City screen; the City list's production column. | **Done** as the production menu of the city screen (`city_screen.rs`), not as a separate pop-up. |
@@ -87,7 +87,7 @@ and forth between them (Cancel goes back one step).
 
 ## 4. The advisors (`Advisor_Screen`, `AdvsrScr.c`)
 
-A menu of nine entries, each a screen or window. All are **Done** (task 71): the list box `advisors.rs`, History, Astrologer and Cartographer in `advisor_screens.rs`, the Surveyor in `surveyor.rs`, the Chancellor in `chancellor.rs`.
+A menu of nine entries, each a screen or window. All are **Done** (task 71): the list box `advisor.rs`, History, Astrologer and Cartographer in `advisor_screens.rs`, the Surveyor in `surveyor.rs`, the Chancellor in `chancellor.rs`.
 
 | Key | Name | What it shows |
 |---|---|---|
@@ -157,7 +157,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Win or lose animation | `Win_Animation`, `Lose_Animation` (`CONQUEST.c`): a short full-screen picture sequence. | **Missing.** Task 134. |
 | Score screen | `End_Of_Game_Score` (`SCORE.c`): the score and its parts. | **Done** (`game_over_screen.rs`, on the original's art: icon rows, bar). |
 | Hall of fame | After the score, then the main menu. | **Done** (task 88). |
-| Triggered by | A wizard finishing the Spell of Mastery (checked each turn, `Get_Winner`); the last wizard standing; the human wizard banished. | **Done** in the core (`endgame.rs`). |
+| Triggered by | A wizard finishing the Spell of Mastery (checked each turn, `Get_Winner`); the last wizard standing; the human wizard banished. | **Done** in the core (`game/endgame.rs`). |
 
 ## 7. Screens this project has that the original lacks
 

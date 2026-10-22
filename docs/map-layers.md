@@ -24,17 +24,17 @@ Data: `content/terrain.ron`, `content/features.ron`.
 
 | Layer | Stored as | Holds | Who changes it |
 |---|---|---|---|
-| **Base terrain** | `Grid` tile array of `TerrainId` | one terrain per tile | map generation; terraforming spells (`terraform.rs`) |
+| **Base terrain** | `Grid` tile array of `TerrainId` | one terrain per tile | map generation; terraforming spells (`spell/terraform.rs`) |
 | **Feature** | `Grid` array of `Option<FeatureId>` | at most one feature per tile | map generation; clearing an encounter site removes it |
-| **Road** | `Grid` array of `bool` | whether a road runs through the tile | engineers (`roads.rs`) |
+| **Road** | `Grid` array of `bool` | whether a road runs through the tile | engineers (`map/road.rs`) |
 | **Enchanted road** | `Grid` array of `bool` | roads that cost nothing to travel | Enchant Road; all Myrror roads count |
 | **River** | `Grid` array of `bool` | a river runs through the tile | map generation (rivers end in the sea or a basin lake) |
 | **Lake** | `Grid` array of `bool` | water tile inside land, drawn as a shore with land all round | map generation |
 | **Volcano** | `Grid` array of `Option<owner>` | a volcano and who raised it | the Raise Volcano spell |
 | **Corruption** | `Grid` array of `bool` | corrupted land: no food or production, no mineral bonus | Corruption, Land Corruption; purified by engineers or Gaia's Blessing |
-| **Nodes** | `Map::nodes` | power, aura squares, owner, guardian and warped flags | generation (`nodes.rs`), melding, Warp Node |
+| **Nodes** | `Map::nodes` | power, aura squares, owner, guardian and warped flags | generation (`feature/node.rs`), melding, Warp Node |
 | **Tower owners** | `Map::tower_owners` | who last stood in each tower | movement |
-| **Lairs** | `Map::lairs` | guards and hoard of every tower, node and encounter site | generation (`lairs.rs`), clearing |
+| **Lairs** | `Map::lairs` | guards and hoard of every tower, node and encounter site | generation (`feature/lair.rs`), clearing |
 | **Cities** | entities with a `Position` | founded cities and outposts | `FoundCity`, `SettleOutpost` |
 | **Units** | entities with a `Position` | everything that moves | movement commands |
 | **Exploration** | `Fog`, one flag per tile per plane per player | what a player has seen | moving, founding, creating units |
@@ -88,7 +88,7 @@ modelled yet.
 - **Rivers:** generated from high ground to the sea; a city on a river gets +20% trade, on a
   river mouth +30%, on a shore +10%.
 - **Volcanoes:** raised by a spell on a land tile that becomes mountains; each gives its
-  owner +1 power (see `terraform.rs`).
+  owner +1 power (see `spell/terraform.rs`).
 
 ## 4. Features
 
@@ -138,7 +138,7 @@ A road is a flag on a tile. Effects today:
   count in full if its race differs, half if it is the same race. The bonus, together with
   the coast bonus and any race trade bonus, is capped at three times the city's citizens.
 
-Roads are drawn from the original's road sprites by direction (see [`map-sprites.md`](map-sprites.md)). Engineers build them (`roads.rs`)
+Roads are drawn from the original's road sprites by direction (see [`map-sprites.md`](map-sprites.md)). Engineers build them (`map/road.rs`)
 and Enchant Road makes every road within two squares free to travel; all roads on Myrror are
 enchanted already.
 
@@ -205,7 +205,7 @@ generator).
 2. **Nodes.** At least 4 tiles from every tower and from each other node, at least 3 rows
    from a pole. The type is chosen by the terrain under it (nature favours forest and swamp,
    sorcery grassland, tundra and desert, chaos mountains and hills).
-3. **Encounter sites.** `strong_sites + weak_sites` in all (57), each on a random plane at a random land square from 2 squares inside the map's top and bottom edges, at least 2 squares from every tower, node and other site on either plane; the kind is picked by terrain weight. Exactly `strong_sites` of them, chosen at random, get the strong budget (`lairs.rs`). A world has 12 tower lairs, 30 node lairs and these 57: 99 in all, as the original.
+3. **Encounter sites.** `strong_sites + weak_sites` in all (57), each on a random plane at a random land square from 2 squares inside the map's top and bottom edges, at least 2 squares from every tower, node and other site on either plane; the kind is picked by terrain weight. Exactly `strong_sites` of them, chosen at random, get the strong budget (`feature/lair.rs`). A world has 12 tower lairs, 30 node lairs and these 57: 99 in all, as the original.
 4. **Minerals.** `mineral_percent` of the free land tiles whose class has any mineral that
    can spawn there, drawn by weight.
 

@@ -47,7 +47,7 @@ From `s_WIZ_DIPL`. `A -> B` means what wizard A holds about wizard B.
 
 Per wizard: `personality` (Maniacal 0, Ruthless 1, Aggressive 2, Chaotic 3, Lawful 4,
 Peaceful 5), `objective` (Expansionist, Militarist, Perfectionist, Pragmatist, Theurgist), and the
-`Charismatic` retort (already in `magic.rs`).
+`Charismatic` retort (already in `wizard/magic.rs`).
 
 ### The relation scale
 
@@ -281,7 +281,7 @@ with `-5`. Wizards at war ignore it.
 ## 9. Implementation plan
 
 New module `crates/f4x-core/src/diplomacy.rs` (and `diplomacy/` submodules if it grows), data in
-`Game`, saved and loaded with the game (`save.rs`).
+`Game`, saved and loaded with the game (`game/save.rs`).
 
 **9.1 State.** `Diplomacy` in `Game`: a vector of `Relation` records indexed by ordered pair
 (`PlayerId` is a `u8`; PLANNED item 3 wants more than four rivals, so size it by the number of

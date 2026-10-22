@@ -8,10 +8,10 @@
 //! `Command::ScrapItem`); a move to a hero somewhere else asks to pay its mana first.
 //! Positions are the original's.
 
-use f4x_core::items::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
-use f4x_core::items::Item;
+use f4x_core::game::Command;
+use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
+use f4x_core::item::Item;
 use f4x_core::rules::SlotKind;
-use f4x_core::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -87,7 +87,7 @@ impl App {
 
     /// The item at a spot.
     fn item_at(&self, spot: ItemSpot) -> Option<Item> {
-        use f4x_core::items::armory::ItemWorld;
+        use f4x_core::item::armory::ItemWorld;
         match spot {
             ItemSpot::Vault(i) => self.game.player(HUMAN)?.armory.vault.get(i)?.clone(),
             ItemSpot::Award(i) => self.game.player(HUMAN)?.armory.awards.get(i).cloned(),
@@ -130,7 +130,7 @@ impl App {
             pay,
         });
         let error = events.iter().find_map(|e| match e {
-            f4x_core::Event::Rejected(f4x_core::Rejection::Item(err)) => Some(*err),
+            f4x_core::game::Event::Rejected(f4x_core::game::Rejection::Item(err)) => Some(*err),
             _ => None,
         });
         match error {

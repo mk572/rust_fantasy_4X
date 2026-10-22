@@ -7,7 +7,7 @@
 
 use f4x_core::battle::{Battle, BattleCommand, BattleEvent, Side};
 use f4x_core::content::Content;
-use f4x_core::Game;
+use f4x_core::game::Game;
 
 use crate::build::{build, ATTACKER, DEFENDER};
 use crate::reward::{hit_points, is_hurt, unit_value};
@@ -227,7 +227,7 @@ impl BattleEnv {
         self.steps += 1;
         let mut seen = Vec::new();
         for e in &events {
-            if let f4x_core::Event::Battle(b) = e {
+            if let f4x_core::game::Event::Battle(b) = e {
                 seen.push(b.clone());
             }
         }
@@ -277,7 +277,7 @@ impl BattleEnv {
         // Fleeing costs units, settled when the battle ends (task 250): only those that got
         // away count as saved.
         for e in &events {
-            if let f4x_core::Event::UnitsLostFleeing { player, units } = e {
+            if let f4x_core::game::Event::UnitsLostFleeing { player, units } = e {
                 let side = if *player == ATTACKER {
                     Side::Attacker
                 } else {
@@ -316,4 +316,4 @@ impl BattleEnv {
 }
 
 /// The wizards of a scenario: who is the attacker and who the defender.
-pub const WIZARDS: [f4x_core::city::PlayerId; 2] = [ATTACKER, DEFENDER];
+pub const WIZARDS: [f4x_core::player::PlayerId; 2] = [ATTACKER, DEFENDER];

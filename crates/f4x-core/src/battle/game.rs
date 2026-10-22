@@ -1,10 +1,11 @@
 //! Joining battles to the game: building one from overland units, running it through
 //! commands, and writing its results back.
 
-use crate::city::{PlayerId, Position};
+use crate::game::{Event, Game};
+use crate::map::Position;
+use crate::player::PlayerId;
 use crate::rules::{MovementType, Stat};
-use crate::units::Hurt;
-use crate::{Event, Game};
+use crate::unit::Hurt;
 
 use super::field::Field;
 use super::immunity::Realm;
@@ -130,7 +131,7 @@ impl Game {
                 casting.innate = hero.spells.iter().filter_map(|s| spells.id_of(s)).collect();
             }
         }
-        if let Ok(items) = self.world.get::<&crate::items::HeroItems>(unit) {
+        if let Ok(items) = self.world.get::<&crate::item::HeroItems>(unit) {
             for (slot, item) in items.0.iter().enumerate() {
                 let Some(item) = item else { continue };
                 casting.spell_save += item.bonus.spell_save;
@@ -295,7 +296,7 @@ impl Game {
         };
         let _ = super::casting::damage_unit_with_spell(&mut bu, strength, traits, nature, rng);
         if bu.figures == 0 {
-            self.remove_unit(unit, crate::roster::Fate::Slain);
+            self.remove_unit(unit, crate::hero::roster::Fate::Slain);
             return true;
         }
         let hurt = (bu.max_hit_points() - bu.hit_points()).max(0);
@@ -636,7 +637,7 @@ impl Game {
                 if side != winner {
                     self.remove_unit_to(
                         unit,
-                        crate::roster::Fate::Slain,
+                        crate::hero::roster::Fate::Slain,
                         Some(battle.player_of(winner)),
                     );
                 }
@@ -661,7 +662,7 @@ impl Game {
             };
             // The charges an item's spell has left stay on the item.
             if !u.casting.item_charges.is_empty() {
-                if let Ok(mut items) = self.world.get::<&mut crate::items::HeroItems>(entity) {
+                if let Ok(mut items) = self.world.get::<&mut crate::item::HeroItems>(entity) {
                     for &(slot, _, left) in &u.casting.item_charges {
                         if let Some((_, charges)) =
                             items.0[slot].as_mut().and_then(|i| i.charges.as_mut())
@@ -684,9 +685,9 @@ impl Game {
                     // Disintegrate and the other spells that destroy leave a hero gone for good,
                     // with its items; a slain one's items go to the winner.
                     let fate = if u.fate() == super::Fate::Gone {
-                        crate::roster::Fate::Gone
+                        crate::hero::roster::Fate::Gone
                     } else {
-                        crate::roster::Fate::Slain
+                        crate::hero::roster::Fate::Slain
                     };
                     let heir = battle.winner.map(|side| battle.player_of(side));
                     self.remove_unit_to(entity, fate, heir);
@@ -778,26 +779,26 @@ impl Game {
         let heir = winner.map(|(_, player)| player);
         let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
             for u in dead {
-                self.remove_unit_to(u, crate::roster::Fate::Slain, heir);
+                self.remove_unit_to(u, crate::hero::roster::Fate::Slain, heir);
             }
             return Vec::new();
         };
         self.sort_by_serial(&mut dead);
         // As in the original, the winner's units that stand count against the stack's nine.
-        let mut room = crate::units::MAX_STACK.saturating_sub(battle.active_units(side).count());
+        let mut room = crate::unit::MAX_STACK.saturating_sub(battle.active_units(side).count());
         let mut raised = 0;
         for unit in dead {
             if room == 0 {
-                self.remove_unit_to(unit, crate::roster::Fate::Slain, heir);
+                self.remove_unit_to(unit, crate::hero::roster::Fate::Slain, heir);
                 continue;
             }
             room -= 1;
             self.make_undead(unit);
             let _ = self.world.remove_one::<Hurt>(unit);
-            let _ = self.world.remove_one::<crate::units::Order>(unit);
+            let _ = self.world.remove_one::<crate::unit::Order>(unit);
             let _ = self.world.insert(
                 unit,
-                (crate::units::Owner(player), pos, crate::units::MovesLeft(0)),
+                (crate::player::Owner(player), pos, crate::unit::MovesLeft(0)),
             );
             raised += 1;
         }
@@ -854,7 +855,7 @@ impl Game {
                 };
                 if held || (!safe && self.roll(100) <= percent) {
                     let heir = battle.winner.map(|w| battle.player_of(w));
-                    self.remove_unit_to(unit, crate::roster::Fate::Slain, heir);
+                    self.remove_unit_to(unit, crate::hero::roster::Fate::Slain, heir);
                     lost += 1;
                 }
             }
@@ -926,13 +927,13 @@ impl Game {
             Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
         };
         if near(self) == Some(false) {
-            return vec![Event::Rejected(crate::Rejection::BattleStart(
+            return vec![Event::Rejected(crate::game::Rejection::BattleStart(
                 BattleStartError::NotAdjacent,
             ))];
         }
         let mut events = match self.start_battle(attackers, defenders) {
             Ok(e) => e,
-            Err(e) => return vec![Event::Rejected(crate::Rejection::BattleStart(e))],
+            Err(e) => return vec![Event::Rejected(crate::game::Rejection::BattleStart(e))],
         };
         for _ in 0..20_000 {
             let Some(command) = self.next_battle_command() else {

@@ -3,9 +3,9 @@
 //! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
-use f4x_core::city::Position;
-use f4x_core::units::Standby;
-use f4x_core::Command;
+use f4x_core::game::Command;
+use f4x_core::map::Position;
+use f4x_core::unit::Standby;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, FrameClick, Layout};
@@ -74,7 +74,7 @@ impl App {
             .units_at(at)
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
-            .take(f4x_core::units::MAX_STACK)
+            .take(f4x_core::unit::MAX_STACK)
             .collect()
     }
 

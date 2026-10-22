@@ -2,7 +2,7 @@
 
 The design the project owner agreed, with every weight. Numbers marked *(tune)* are first
 guesses to adjust in play; they are constants and one table at the top of
-`crates/f4x-core/src/autobuild.rs`, so tuning touches no rules.
+`crates/f4x-core/src/city/autobuild.rs`, so tuning touches no rules.
 
 Before this, the Grand Vizier was one switch per player walking a fixed list
 (`rules.ron: autobuild_order`). The list stays as the **tie-break** between equal scores.
@@ -193,7 +193,7 @@ building. Off by default; the garrison rule alone reacts then.
 
 ## 10. Shared with the AI
 
-- The scoring and choice live in `f4x-core` (`autobuild.rs`) and take the player's view of the
+- The scoring and choice live in `f4x-core` (`city/autobuild.rs`) and take the player's view of the
   game, so the human's auto-builder, the scripted AI and the learning AI all call them. They are
   tested on fixed city situations.
 - The **scripted AI** sets plans by rule instead of its own build list (`f4x-ai/src/economy.rs`,
@@ -219,7 +219,7 @@ building. Off by default; the garrison rule alone reacts then.
 1. `BuildPlan`, per-city storage, saving, the command and the console command. **Done**
    (`Command::SetAutoBuild`, console `autobuild`, `CitySave::autobuild`).
 2. The scoring and the choice (sections 3 to 8), with tests on fixed cities. **Done**
-   (`autobuild.rs`, `autobuild/tests.rs`, and `f4x-data/tests/autobuild.rs` against the shipped
+   (`city/autobuild.rs`, `autobuild/tests.rs`, and `f4x-data/tests/autobuild.rs` against the shipped
    content). The event prompt flag is stored but does nothing yet.
 3. Hooking it to production: the choice after each item, the Vizier default, the news message.
    **Done**: `apply_production` asks `Game::autobuild_choice` after a building and after a unit;

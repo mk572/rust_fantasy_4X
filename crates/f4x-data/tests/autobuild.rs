@@ -1,7 +1,7 @@
 //! The auto-builder's table against the shipped content (docs/auto-builder.md).
 
-use f4x_core::autobuild::{choose, AutoBuild, BuildPlan, CityFacts, Focus, Mix, AFFINITY};
-use f4x_core::production::ProductionItem;
+use f4x_core::city::autobuild::{choose, AutoBuild, BuildPlan, CityFacts, Focus, Mix, AFFINITY};
+use f4x_core::city::production::ProductionItem;
 
 fn content() -> f4x_core::content::Content {
     f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")

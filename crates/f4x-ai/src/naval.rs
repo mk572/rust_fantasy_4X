@@ -9,12 +9,12 @@
 //! are ordinary units after that: standing next to the enemy city they attack it when they are
 //! strong enough, and each trip adds to them.
 
-use f4x_core::city::Position;
-use f4x_core::player_view::PlayerView;
-use f4x_core::production::{ProductionError, ProductionItem};
+use f4x_core::city::production::{ProductionError, ProductionItem};
+use f4x_core::game::serial::Serial;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
 use f4x_core::rules::Stat;
-use f4x_core::serial::Serial;
-use f4x_core::{Command, Event, Game};
 
 use crate::view::{garrison_wanted, is_coastal, is_fighter, is_ship};
 use crate::Ai;

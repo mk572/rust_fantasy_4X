@@ -3,8 +3,8 @@
 //! a road can be built, red where it cannot) with the turns each takes, and OK builds the whole
 //! path with `Command::BuildRoad`. Cancel, Escape or a right-click leave the mode.
 
-use f4x_core::city::Position;
-use f4x_core::Command;
+use f4x_core::game::Command;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

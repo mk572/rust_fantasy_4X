@@ -1,9 +1,9 @@
 # Heroes and items: design
 
 Plan for tasks 47 to 51 and the parts of 72, 127, 128, 138 to 143, 174 and 175 that wait for them.
-Built so far: the data (task 218), the item rules and armory (task 49: `items/mod.rs`, `items/armory.rs`),
-crafting (task 50: `items/crafting.rs`) and the roster and hero component (task 219: `roster.rs`, `hero.rs`,
-`hero_game.rs`); see section 1. Offers, hero spells, the abilities' effects and loot are not. It follows the base rule of `design.md`: each system is plain data plus
+Built so far: the data (task 218), the item rules and armory (task 49: `item/mod.rs`, `item/armory.rs`),
+crafting (task 50: `item/crafting.rs`) and the roster and hero component (task 219: `hero/roster.rs`, `hero/mod.rs`,
+`hero/game.rs`); see section 1. Offers, hero spells, the abilities' effects and loot are not. It follows the base rule of `design.md`: each system is plain data plus
 functions over the pieces they need, not methods on `Game` (`ecs-structure.md`, guideline 12).
 
 Sources, so every number can be checked: the original's data files (`ITEMDATA.LBX`, `ITEMPOW.LBX`,
@@ -18,14 +18,14 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 |---|---|
 | 35 hero units in `content/units.ron`, `content/heroes.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (kind: Warrior / Bow / SwordOrStaff / Mage, portrait, hire_cost)` (task 218: the type fixes the three slots, `HeroKind::slots`, `SlotKind::fits`) and the 35 starting records of `NewGame.c:_hero_premade_table` (picks, fixed abilities by `HSA_*` name, casting skill, four innate spells), loaded into `Rules::hero_templates` and checked by `validate`. |
 | 250 items in `content/items.ron`, 66 powers in `content/item_powers.ron` | Hand-kept data of every original item and power (task 218 steps 1 and 2): `ItemDef {id, name, slot, kind, cost, effects, spell_skill, spell_save, powers, charges, books, flag}`; plain bonuses are effects (movement as `HalfMoves`, to hit in pluses). What the special powers do, and the books' meaning, are open. |
-| `items/mod.rs` (task 49) | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies), `HeroItems` (the three slots, a component), `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities` (large shield, special attacks), `power_is_handled`. `Source::Item(slot)`. The unit's stats, abilities, lasting spells and battle form read them (`Units::unit_items`, `item_spells`, `item_modifiers`). New stats `MeleeToHit`, `RangedToHit`.. `items::Items` is the item rules' read-only view of the game (world, content, players), as `Units` is the unit rules'; `Game::items()` gets one, and it answers what a unit carries (`carried`), the lasting spells, abilities and stat modifiers its items give, and a wizard's armory; the unit rules ask it. Which lasting spell or attack ability a power gives is data in `item_powers.ron` (`spell`, `attack`); only the few powers the code handles by id are in `OTHER_POWERS`. |
-| `items/armory.rs` (task 49) | `Armory` on `Player` (vault of four, award list of six), `Game::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`.. The item screen's rules are `plan_move` over the `ItemWorld` trait (a hero's slots, items and place, the fortress), tested without a `Game`; `Game::move_item` applies the plan and checks the drowning. |
-| `items/crafting.rs` (task 50) | `ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `default_name`, `Game::craft_item` / `Command::CraftItem`, `Magic::crafting` (the pending item), the hook `craft_item` of the two spells, `Event::ItemMade`. Not built: random and prefab items (task 262), the screen (260), icons (261). |
-| `hero.rs`, `roster.rs`, `hero_game.rs` (task 219) | `Hero` (name, `HeroAbilities`, casting skill, innate spells) is the component of a hero unit and `HeroAbilities::ids` feeds `unit_abilities` (so Noble, Armsmaster and the rest are unit abilities already). `Roster` of `HeroRecord`s on `Player` (state `Free`/`Serving`/`Dead`/`Gone`, abilities, skill, spells, name, xp), `roll` (`Init_Heroes`, called last in `new_game`), `pick` (`Pick_Random_Hero`), `hire_cost`, `level_of`. `Units::hero_units`, `open_hero_slots` (six), `hero_kind`, `hero_standing`, `hero_hire_price` (read-only, on the `Units` view) and `Game::spawn_hero`, `pick_hero`, and `remove_unit(unit, Fate)`, which every place that takes a unit out of the game uses so the roster follows. Saved with the players and the units. |
-| `experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
+| `item/mod.rs` (task 49) | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies), `HeroItems` (the three slots, a component), `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities` (large shield, special attacks), `power_is_handled`. `Source::Item(slot)`. The unit's stats, abilities, lasting spells and battle form read them (`Units::unit_items`, `item_spells`, `item_modifiers`). New stats `MeleeToHit`, `RangedToHit`.. `items::Items` is the item rules' read-only view of the game (world, content, players), as `Units` is the unit rules'; `Game::items()` gets one, and it answers what a unit carries (`carried`), the lasting spells, abilities and stat modifiers its items give, and a wizard's armory; the unit rules ask it. Which lasting spell or attack ability a power gives is data in `item_powers.ron` (`spell`, `attack`); only the few powers the code handles by id are in `OTHER_POWERS`. |
+| `item/armory.rs` (task 49) | `Armory` on `Player` (vault of four, award list of six), `Game::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`.. The item screen's rules are `plan_move` over the `ItemWorld` trait (a hero's slots, items and place, the fortress), tested without a `Game`; `Game::move_item` applies the plan and checks the drowning. |
+| `item/crafting.rs` (task 50) | `ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `default_name`, `Game::craft_item` / `Command::CraftItem`, `Magic::crafting` (the pending item), the hook `craft_item` of the two spells, `Event::ItemMade`. Not built: random and prefab items (task 262), the screen (260), icons (261). |
+| `hero/mod.rs`, `hero/roster.rs`, `hero/game.rs` (task 219) | `Hero` (name, `HeroAbilities`, casting skill, innate spells) is the component of a hero unit and `HeroAbilities::ids` feeds `unit_abilities` (so Noble, Armsmaster and the rest are unit abilities already). `Roster` of `HeroRecord`s on `Player` (state `Free`/`Serving`/`Dead`/`Gone`, abilities, skill, spells, name, xp), `roll` (`Init_Heroes`, called last in `new_game`), `pick` (`Pick_Random_Hero`), `hire_cost`, `level_of`. `Units::hero_units`, `open_hero_slots` (six), `hero_kind`, `hero_standing`, `hero_hire_price` (read-only, on the `Units` view) and `Game::spawn_hero`, `pick_hero`, and `remove_unit(unit, Fate)`, which every place that takes a unit out of the game uses so the roster follows. Saved with the players and the units. |
+| `unit/experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
 | `battle/spoils.rs` | Fame for fallen heroes. Their items are not looted. |
-| `lairs.rs` | `Loot {items: Vec<u32>, prisoner: bool}`: a value and a flag, no item and no hero. |
-| `Player.fame` | Plain number; `finance.rs` takes it off the troop upkeep. |
+| `feature/lair.rs` | `Loot {items: Vec<u32>, prisoner: bool}`: a value and a flag, no item and no hero. |
+| `Player.fame` | Plain number; `player/finance.rs` takes it off the troop upkeep. |
 | Spells `summon_hero`, `summon_champion`, `incarnation`, `resurrection`, `recall_hero` | In `content/spells.ron`, on the `unimplemented` hook. (`enchant_item` and `create_artifact` run the hook `craft_item`.) |
 | `help.ron` topics 133, 142, 205, 207, 208, 211, 212, 240, 243, 246, 357, 515 to 526, 532, 533, 697, 702, 704, 765, 802 | The hero and item help. |
 
@@ -206,7 +206,7 @@ Random items follow `Create_Random_Item` (type 1 to 10, powers drawn from the pl
 group, stop at the value or the power count); prefab items follow `Make_Item` (250 records, each
 once per game; the wizard's books are not looked at).
 
-**Built (tasks 244 and 262)** in `items/make.rs`: `make_item(rng, rules, grade, value, taken)` with `Grade::{Any, Enchant, Artifact}` (the original's `Power` 0, 1, 2) and `random_item`, as `Make_Item` and `Create_Random_Item` with the fixes of `divergences.md` section 10 (value test, no book check, a power count that follows the kind). `taken` is `Game::prefab_taken` (saved). A prefab item is found by up to 50 draws; the random item draws a kind, then plain powers (one per group, at most 200 each for Enchant) until the count (Enchant 2; else 4 for sword, mace, axe, staff, wand, 3 for the rest), the value or 50 draws; no value means 700 to 1700. Icons are task 261.
+**Built (tasks 244 and 262)** in `item/make.rs`: `make_item(rng, rules, grade, value, taken)` with `Grade::{Any, Enchant, Artifact}` (the original's `Power` 0, 1, 2) and `random_item`, as `Make_Item` and `Create_Random_Item` with the fixes of `divergences.md` section 10 (value test, no book check, a power count that follows the kind). `taken` is `Game::prefab_taken` (saved). A prefab item is found by up to 50 draws; the random item draws a kind, then plain powers (one per group, at most 200 each for Enchant) until the count (Enchant 2; else 4 for sword, mace, axe, staff, wand, 3 for the rest), the value or 50 draws; no value means 700 to 1700. Icons are task 261.
 
 ### 3.4 `armory` (where a wizard's items are)
 
@@ -220,12 +220,12 @@ pub fn take_from_hero(hero: &mut HeroItems) -> Vec<Item>;                  // a 
 
 `HeroItems` is the `[Option<Item>; 3]` on the hero component. Moving between heroes in different
 places is refused as in `Check_Same_Location`; a hero may not be left to drown by taking away its
-Water Walking or Flight (`Check_Wont_Drown`; `Game::drown_stranded` in `transport.rs` is the existing
+Water Walking or Flight (`Check_Wont_Drown`; `Game::drown_stranded` in `unit/transport.rs` is the existing
 stranded rule to reuse).
 
 ### 3.5 `roster` (per-wizard hero records)
 
-**Built (task 219)** in `roster.rs` with these differences from the sketch: the hero type is the index into `Rules::hero_templates` (the order of the hero units), spells are spell-id strings, `Fate` is `Slain`/`Released`/`Gone`, `pick` takes a `Standing` (fame and life and death books) and a `Class`, and the game's side (`spawn_hero`, `remove_unit`, `hero_hire_price`) is in `hero_game.rs`. Sketch:
+**Built (task 219)** in `hero/roster.rs` with these differences from the sketch: the hero type is the index into `Rules::hero_templates` (the order of the hero units), spells are spell-id strings, `Fate` is `Slain`/`Released`/`Gone`, `pick` takes a `Standing` (fame and life and death books) and a `Class`, and the game's side (`spawn_hero`, `remove_unit`, `hero_hire_price`) is in `hero/game.rs`. Sketch:
 
 ```rust
 pub struct HeroRecord { pub state: Availability, pub abilities: HeroAbilities,
@@ -246,7 +246,7 @@ Dead, free and gone are separate states instead of the original's level coding (
 
 ### 3.6 `hero` (the unit component and the abilities)
 
-**Built (task 219)** in `hero.rs`: `Hero {name, abilities, casting_skill, spells}` and `HeroAbilities` with `Tier`; the items stay in their own `HeroItems` component, and the effect functions below are task 47. Sketch:
+**Built (task 219)** in `hero/mod.rs`: `Hero {name, abilities, casting_skill, spells}` and `HeroAbilities` with `Tier`; the items stay in their own `HeroItems` component, and the effect functions below are task 47. Sketch:
 
 ```rust
 pub struct Hero { pub kind: HeroKindId, pub name: String, pub abilities: HeroAbilities,
@@ -262,14 +262,14 @@ pub fn research(heroes) -> i32;  pub fn fame(heroes) -> i32;  pub fn gold(heroes
 
 The abilities are copied from the roster when the hero is hired, so the unit carries what it needs
 and `unit_modifiers` / `unit_abilities` read the component: the ids `armsmaster` and
-`super_armsmaster` that `experience.rs` reads come out of `HeroAbilities` the same way. Task 47's
+`super_armsmaster` that `unit/experience.rs` reads come out of `HeroAbilities` the same way. Task 47's
 13 abilities become the table above, not 13 ability records in `abilities.ron` (the help text
 for them stays there for the unit sheet).
 
 ### 3.7 `fame` (task 72)
 
 `fame::total(base, heroes, just_cause) -> i32` (base + legendary + 10 for Just Cause) replaces the
-plain `Player.fame` where `finance.rs` and the offers read it; `Player.fame` stays the earned part.
+plain `Player.fame` where `player/finance.rs` and the offers read it; `Player.fame` stays the earned part.
 Gains and losses stay where they are (`spoils.rs`, conquest).
 
 ### 3.8 `offers` (hire, mercenary and merchant offers each turn)
@@ -289,19 +289,19 @@ hero or unit created at the fortress, item to the armory). Computer wizards acce
 Mercenaries are not heroes; they ride on this system because they share the schedule, fame and the
 pop-up (task 143).
 
-**Built (task 220)** in `offers.rs`, with these differences from the sketch: there is no `OfferView`
+**Built (task 220)** in `player/offer.rs`, with these differences from the sketch: there is no `OfferView`
 trait (the chances, prices and the computer's answers are plain functions, tested without a game, and
 `Game` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
 waits in `Player::offers` (saved) until `AcceptOffer { player, index, name }` or `RejectOffer`, and
 lapses at the next turn change. `determine_offers` runs last in `process_turn`. Every wizard
-meets the merchant; the computer wizards answer in `f4x-ai/src/offers.rs`. The console has `offers`,
+meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs`. The console has `offers`,
 `accept`, `reject` and the override `offer <hero|mercenaries|item>`; the client shows a box over the map
 (`offer_prompt.rs`, `--offer KIND` with `--shot`). The fixes of the original's bugs are in
 `divergences.md` section 11.
 
 ### 3.9 Hero spells (resolve through the existing effect host)
 
-**Built (task 48)** as one hook for each of the four overland spells in `hero_spells.rs` (the effect host lends out the game's generator, so the pick draws from the one the hook is given) and `Kind::Recall` in `battle/spells.rs`; the `Heroes<'a>` handle was not needed. Sketch:
+**Built (task 48)** as one hook for each of the four overland spells in `spell/hero.rs` (the effect host lends out the game's generator, so the pick draws from the one the hook is given) and `Kind::Recall` in `battle/spell.rs`; the `Heroes<'a>` handle was not needed. Sketch:
 
 New effect primitives (`rules/exec.rs`): `SummonHero(class)`, `Incarnate`, `Resurrect`, `RecallHero`,
 `CraftItem(Craft)`. Each calls the `roster` / `hero` / `armory` functions through a small `Heroes<'a>`
@@ -313,7 +313,7 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 
 - **Components and state.** `Hero` component on hero units; `Player` gets `roster: Roster` and
   `armory: Armory` (nothing else; `Game` gets no new field). `Magic` gets `crafting: Option<Item>`.
-  `lairs::Loot.items` becomes `Vec<Item>` (made on claim from the lair's value, `random_item`) and
+  `lair::Loot.items` becomes `Vec<Item>` (made on claim from the lair's value, `random_item`) and
   `prisoner` a `Option<HeroKindId>`.
 - **Commands** (`Command` enum in `lib.rs`): `HireHero`/`DismissHero` through offers, `AcceptOffer`,
   `RejectOffer`, `EquipItem {hero, slot, from}`, `UnequipItem`, `ScrapItem`, `MoveItem`,
@@ -324,11 +324,11 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 - **Turn.** `process_turn` gains the offers step (`Determine_Offer` runs in the turn change at
   `NEXTTURN.c:810`; where it falls against upkeep I have not checked) and the Noble gold, Sage research
   and Legendary fame, which only add to the existing `Income` and `Treasury` inputs
-  (`magic_income.rs`, `finance.rs`).
+  (`wizard/magic_income.rs`, `player/finance.rs`).
 - **Removal.** A hero unit that dies runs `roster::on_dead` and the loot step (items to the winner
   or destroyed). Units are removed in a few places (the despawn after a battle, banishing spells,
   dismissal); the hook must go in every one, so step 4 starts by listing them.
-- **Save.** `save.rs` stores the `Hero` component, `Roster`, `Armory`, `Magic.crafting`; the order of
+- **Save.** `game/save.rs` stores the `Hero` component, `Roster`, `Armory`, `Magic.crafting`; the order of
   `GameRng` draws at start-up changes only by `roster::roll`, which is new (a new seed comparison for
   the soak is needed once, then the check is the usual one).
 - **Player view and AI.** `PlayerView` shows a wizard its own heroes and items. `f4x-ai` needs three rules (it
@@ -422,7 +422,7 @@ comment or one read of the code and need a second look before they are built (th
 | H21 | Item attack and to hit | "attack" on every item | Goes to melee or to ranged by item kind (2.1); to hit is per attack | Port the kind rule; the current import puts every bonus on `Melee`. **Done** (task 49, `items::modifiers`; the plain bonuses are the item's `ItemBonus`, the import's `Melee` effect is read as its attack). |
 | H22 | Embedded spells | any slot | Only `Items[0]` is ever usable (`COMBINIT.c:511`, marked OGBUG) | Allow every slot (the bug is not copied); say so in `divergences.md`. |
 | H23 | Spells of a dead hero's owner | item and hero spells | Several places use the current battle controller, not the hero's owner (OGBUG notes at `CMBMAGIC.c:543` and others) | Use the owner. |
-| H24 | Fame and upkeep [765] | "decreases the total amount paid for troop maintenance by one gold per fame point" | `Player_Fame` + the upkeep subtraction (`CITYCALC.c:312`) | Ours (`finance.rs`); only the fame total changes with heroes. |
+| H24 | Fame and upkeep [765] | "decreases the total amount paid for troop maintenance by one gold per fame point" | `Player_Fame` + the upkeep subtraction (`CITYCALC.c:312`) | Ours (`player/finance.rs`); only the fame total changes with heroes. |
 | H25 | Hero 24's name | not looked up | ReMoM's unit table names row 24 "Unknown" (23 is Warlock, 25 Illusionist) | **Check** against the original's names before importing. |
 
 The original's own bugs listed in `content-local/OGBUG_INDEX.md` for these areas
@@ -459,8 +459,8 @@ Each step is testable without a screen; later steps add the client screens.
    (spell skill, spell save and charges are with the hero's casting, task 51).
 4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (219) **Done** (hiring with gold, the offers and dismissing a hero are 48, 220 and 221).
 5. **Hero abilities in battle and overland**: stat abilities, leadership and prayermaster, Sage, Legendary and
-   `fame::total`; hero level bonuses (with 174). (47, 72, 174) **Done for 47** (`hero.rs` functions; the fame total of task 72 and the hero level bonuses of 174 are theirs).
-6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48) **Done** (`hero_spells.rs`; Resurrection through `Command::ResurrectHero`, see `divergences.md` section 11).
+   `fame::total`; hero level bonuses (with 174). (47, 72, 174) **Done for 47** (`hero/mod.rs` functions; the fame total of task 72 and the hero level bonuses of 174 are theirs).
+6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48) **Done** (`spell/hero.rs`; Resurrection through `Command::ResurrectHero`, see `divergences.md` section 11).
 7. **Loot**: fallen heroes' items, the removal spells, lair items and prisoners (127). (49)
 8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
    prefab items, `Make_Item`, are task 262; the crafting screen 260).

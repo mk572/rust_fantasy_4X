@@ -61,23 +61,34 @@ whole game, and the borrow checker forces `&mut self` everywhere. The audit and 
 
 ## 4. Core entities and components
 
-| Entity | Components today | Planned |
+The entity model is written out in [`ecs-structure.md`](ecs-structure.md) section 3 (task 310). In
+short, the entities of the game are:
+
+| Entity | Components | Status |
 |---|---|---|
-| **Player** (wizard) | Not an entity: a `Player` record in `Game::players` (gold, mana, tax rate, capital race, fame) | wizard picks, known spells, research, relations |
-| **Unit** | `Unit` (definition id), `Owner`, `Position`, `Hurt`, `Experience`, `MovesLeft`, optional `Order` | `Enchantments`, `Equipment`, hero data |
-| **City** | `City` (name, owner), `Position`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Enchantments`, `Production` | garrison orders, walls state |
-| **Map tile** | Dense grid per plane (terrain, feature, road); fog per player | node ownership, corruption |
-| **Enchantment** | City list of `(spell, caster)` | entities for unit and global enchantments |
-| **Spell / unit / building definitions** | Not entities: typed-id registries loaded from data | |
-| **Battle** | not started | temporary world or sub-state |
+| **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters | tasks 311, 313, 314. Today a `Player` record in `Game::players` |
+| **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment | tasks 312, 315, 316. Today the `Magic` record inside `Player` |
+| **Unit** | definition id, owner, position, damage, experience, moves, orders, temporary state | exists |
+| **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328. Today a unit with a `Hero` component and a roster record |
+| **City** | name, owner, position, population, buildings, race, production | exists |
+| **Spell instance** | spell definition, caster (a wizard), target (global, wizard, city, unit, feature, square, battlefield), duration | tasks 318 to 325. Today bare spell ids in eight containers |
+| **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner | tasks 329 to 332 and 338. Today `Grid.features`, `Map.nodes`, `Map.lairs`, `tower_owners`, `volcanoes` |
+| **Item** | kind, name, bonus, powers, charges, prefab, and who holds it | tasks 333, 334. Today a copied struct in five places |
+| **Definitions** (spells, units, buildings, features, items...) | not entities: typed-id registries loaded from data | |
+| **Battle** | a `Battle` outside the world, with a small world of its own for its spell instances | exists; spell world in task 324 |
+
+Links between entities are `Entity` values; `PlayerId` identifies a player for what lives outside the
+world (fog, diplomacy, saves, display).
 
 Derived values are never stored: unit stats, city yields, rebels and growth are computed on demand from the definition plus modifiers.
 
 ### The map
-The world is two wrapping planes of tiles with a base terrain, an optional feature (mineral,
-encounter site, tower, node) and a road flag per tile; cities and units are entities on top,
-and exploration is remembered per player. Cities are entities, not tiles, and must be at
-least four squares apart. Layers, rules, generation and differences from the original are in
+The world is two wrapping planes of tiles with a base terrain, a road flag, rivers, lakes and
+corruption per tile. What is placed on it (minerals, encounter sites, towers, nodes, volcanoes) is a
+terrain feature entity, found by a position index; cities and units are entities too, and
+exploration is remembered per player. The three node kinds also have a base terrain of their own
+under the node (task 338). Cities are entities, not tiles, and must be at least four squares
+apart. Layers, rules, generation and differences from the original are in
 [`map-layers.md`](map-layers.md).
 
 ## 5. Data-driven content
@@ -199,7 +210,7 @@ Each stage should end with something runnable and tested.
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
 - How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema): proposed in [`heroes-items-design.md`](heroes-items-design.md).
-- Replays: commands name entities, and entity ids change on a load, so the log writes creation numbers (`Serial`) in their place (`replay.rs`, task 74, built for local play: replays and saving a game with its history).
+- Replays: commands name entities, and entity ids change on a load, so the log writes creation numbers (`Serial`) in their place (`game/replay.rs`, task 74, built for local play: replays and saving a game with its history).
 
 ## 14. Later considerations
 

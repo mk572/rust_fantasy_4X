@@ -5,7 +5,7 @@
 //! screen is left. A click anywhere or Esc leaves, a click on a garrison unit selects the stack
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
-use f4x_core::Command;
+use f4x_core::game::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

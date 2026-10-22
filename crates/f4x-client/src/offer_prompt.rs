@@ -4,8 +4,8 @@
 //! and the next offer comes after it. Without the local art the pictures are missing and the
 //! text and buttons are still drawn.
 
-use f4x_core::offers::Offer;
-use f4x_core::Command;
+use f4x_core::game::Command;
+use f4x_core::player::offer::Offer;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -32,7 +32,7 @@ impl App {
     /// For screenshots and checks: give the human wizard the fame, gold and turn an offer
     /// needs and make the offer (`hero`, `mercenaries` or `item`).
     pub fn open_test_offer(&mut self, kind: &str) {
-        use f4x_core::offers::OfferKind;
+        use f4x_core::player::offer::OfferKind;
         let what = match kind {
             "hero" => OfferKind::Hero,
             "mercenaries" => OfferKind::Mercenaries,
@@ -116,7 +116,7 @@ impl App {
     fn merchant_box(
         &mut self,
         lay: &Layout,
-        item: &f4x_core::items::Item,
+        item: &f4x_core::item::Item,
         price: i32,
         affordable: bool,
     ) -> (bool, bool) {
@@ -163,10 +163,10 @@ impl App {
                 let level = self
                     .game
                     .roster(HUMAN)
-                    .zip(f4x_core::roster::unit_of(&rules, *kind))
+                    .zip(f4x_core::hero::roster::unit_of(&rules, *kind))
                     .and_then(|(r, u)| {
                         r.get(*kind)
-                            .map(|rec| f4x_core::roster::level_of(&rules, u, rec.xp))
+                            .map(|rec| f4x_core::hero::roster::level_of(&rules, u, rec.xp))
                     });
                 (unit, level)
             }
@@ -249,7 +249,7 @@ impl App {
     pub(crate) fn draw_item_card(
         &mut self,
         lay: &Layout,
-        item: &f4x_core::items::Item,
+        item: &f4x_core::item::Item,
         x: f32,
         y: f32,
     ) {

@@ -4,9 +4,9 @@
 //! F9 shows your own; a right-click on a rival's gem on the magic screen shows theirs. Esc or a
 //! click leaves. Positions are the original's, measured from the panel's top-left.
 
-use f4x_core::city::PlayerId;
 use f4x_core::diplomacy::relation_word;
-use f4x_core::magic::Retort;
+use f4x_core::player::PlayerId;
+use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

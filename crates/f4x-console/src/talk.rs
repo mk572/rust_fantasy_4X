@@ -1,8 +1,8 @@
 //! Talking to the other wizards: what is known of them, proposals, answers, gifts, treaties.
 
-use f4x_core::city::PlayerId;
 use f4x_core::diplomacy::{relation_word, DiplomacyCommand, DiplomacyError, ProposalKind, Treaty};
-use f4x_core::Command;
+use f4x_core::game::Command;
+use f4x_core::player::PlayerId;
 
 use crate::args::{parse_player, resolve, Args};
 use crate::{CommandDef, ConsoleError, Ctx, Kind};
@@ -254,7 +254,9 @@ fn talk(ctx: &mut Ctx, command: DiplomacyCommand) -> Result<(), ConsoleError> {
         Err(ConsoleError::Refused(_)) => {
             // `apply` has printed the event; find the reason among them.
             let why = ctx.events.iter().rev().find_map(|e| match e {
-                f4x_core::Event::Rejected(f4x_core::Rejection::Diplomacy(d)) => Some(*d),
+                f4x_core::game::Event::Rejected(f4x_core::game::Rejection::Diplomacy(d)) => {
+                    Some(*d)
+                }
                 _ => None,
             });
             Err(ConsoleError::Refused(

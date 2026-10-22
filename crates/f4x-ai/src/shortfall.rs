@@ -5,8 +5,8 @@
 //! buildings that do the AI no good, then let go of the cheapest units, ships with passengers and
 //! heroes last; food: the cheapest units that eat.
 
-use f4x_core::shortfall::TreasuryShortfall;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::player::shortfall::TreasuryShortfall;
 
 use crate::Ai;
 
@@ -68,9 +68,9 @@ fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 fn next_sale(
     game: &Game,
-    me: f4x_core::city::PlayerId,
+    me: f4x_core::player::PlayerId,
 ) -> Option<(hecs::Entity, f4x_core::rules::BuildingId)> {
-    let cities = f4x_core::player_view::PlayerView::new(game, me).my_cities();
+    let cities = f4x_core::player::view::PlayerView::new(game, me).my_cities();
     let rules = &game.content().rules;
     for name in SELL_ORDER {
         for &(city, _) in &cities {
@@ -141,7 +141,7 @@ mod tests {
         assert!(events.iter().any(|e| matches!(
             e,
             Event::Shortage {
-                what: f4x_core::Shortage::Food,
+                what: f4x_core::game::Shortage::Food,
                 ..
             }
         )));
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn heroes_and_loaded_ships_are_the_last_to_go() {
-        use f4x_core::shortfall::{TreasuryShortfall, TroopLine};
+        use f4x_core::player::shortfall::{TreasuryShortfall, TroopLine};
         let mut world = hecs::World::new();
         let e: Vec<_> = (0..4).map(|_| world.spawn(())).collect();
         let line = |unit, cost, hero, ship, aboard| TroopLine {

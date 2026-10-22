@@ -38,7 +38,7 @@ module boundaries are only convention.
 - Its tests build a whole `Game` (a map, three players, three wizards). Whether each needs more
   than the list above has not been checked; task 179 starts with that.
 
-### Magic (`magic.rs`, 1,443 lines, 36 methods, 18 tests)
+### Magic (`wizard/magic.rs`, 1,443 lines, 36 methods, 18 tests)
 
 - Its state is `Player::magic` (`Magic`: books, retorts, skill points, known and researchable
   spells, research, the spell being cast, global enchantments), one per player.
@@ -46,11 +46,11 @@ module boundaries are only convention.
   power split) reads only the content and the players. Its outward calls are few: `economy`
   (power base), `nodes` (node income), `fortress`, `globals` (Evil Omens), `experience` and
   `temp_effects` (the turn's ticks), and the cast resolution below.
-- The part that does reach everywhere is **resolving a spell** (`cast.rs`, `dispel.rs`,
-  `city_spells.rs`, `terraform`, `corruption`, `battle/spells.rs`): changing units, cities and
+- The part that does reach everywhere is **resolving a spell** (`spell/cast.rs`, `spell/dispel.rs`,
+  `spell/city.rs`, `terraform`, `corruption`, `battle/spell.rs`): changing units, cities and
   the map. That is a different thing from the wizard's own state and should be a separate layer:
   the spell *executor* (`rules/exec.rs` is already pure) and the glue that applies its outcomes.
-- Who calls magic: `diplomacy` (10), `battle/spells` (8), `dispel` (8), `lairs` (7), `lib.rs`
+- Who calls magic: `diplomacy` (10), `battle/spell` (8), `dispel` (8), `lair` (7), `lib.rs`
   (7), `globals`, `cast`, `cheat`, and a few more: mostly `magic(player)` reads.
 
 ## 2. Target
@@ -93,7 +93,7 @@ Rules that keep it from growing back:
 ## 3. Order of work
 
 1. **Groundwork (177, 178):** the RNG as its own struct, and the `WorldView` trait with
-   `Game`'s implementation. 177 and 178 are done (`rng.rs`; `view.rs`).
+   `Game`'s implementation. 177 and 178 are done (`game/rng.rs`; `game/view.rs`).
 2. **Diplomacy (179, done):** move its 46 methods onto `Diplomacy` with a context; callers in other
    files go through `Game` wrappers that build the context. Move its tests to a fake view so they
    no longer need a map and three wizards. The result is checked by the existing 51 tests
@@ -107,7 +107,7 @@ Rules that keep it from growing back:
    Magic did not need the take-out trick: the wizard is a field of a `Player` in a `Vec`, so the
    game borrows the wizard, the content and the generator apart (`magic_parts`) and the rules
    of `Magic` take them as arguments.
-4. **Read-only view for the AI and client (181, done: `access.rs`, `player_view.rs`)**, replacing direct use of `game.world`,
+4. **Read-only view for the AI and client (181, done: `game/access.rs`, `player/view.rs`)**, replacing direct use of `game.world`,
    `game.map` and `game.content` outside the core where a query would do.
 5. **Docs and guard (182, 183):** bring `ecs-structure.md` up to date, write the rules above
    into it (182, done: sections 2 and "Domains" of `ecs-structure.md`), add the method-count test.
@@ -127,6 +127,6 @@ pattern applies.
   diplomacy about a cast on another wizard's city: `begin_cast_relations`) must become either
   view questions or returned outcomes, or they will recreate the coupling inside the context.
 - **Event order** is observable (tests, replays, the learning AI's scenarios): keep it as it is.
-- **Save format** does not change; `save.rs` keeps mapping the structures.
+- **Save format** does not change; `game/save.rs` keeps mapping the structures.
 - Do not start with a big move. Each domain moves one group of methods at a time, with the
   suite green after each.

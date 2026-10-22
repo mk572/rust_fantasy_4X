@@ -433,7 +433,7 @@ impl App {
             .create
             .build
             .retorts
-            .contains(&f4x_core::magic::Retort::Myrran);
+            .contains(&f4x_core::wizard::magic::Retort::Myrran);
         let (arcanian, myrran_list) = self.race_lists();
         let names: Vec<String> = self
             .game
@@ -544,7 +544,7 @@ impl App {
             self.create
                 .build
                 .retorts
-                .insert(f4x_core::magic::Retort::Alchemy);
+                .insert(f4x_core::wizard::magic::Retort::Alchemy);
         } else {
             self.pick_preset(Some(0));
             self.create.custom = false;

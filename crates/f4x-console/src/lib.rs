@@ -14,7 +14,7 @@
 //! send lines and read a [`Reply`]. What a front end may do at most is its [`Access`].
 
 pub mod args;
-mod cheats;
+mod cheat;
 pub mod describe;
 mod legal;
 mod meta;
@@ -22,8 +22,8 @@ mod query;
 pub mod setup;
 pub mod talk;
 
-use f4x_core::city::PlayerId;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::player::PlayerId;
 
 use args::Args;
 
@@ -183,7 +183,7 @@ pub fn commands() -> Vec<&'static CommandDef> {
         query::TABLE,
         legal::TABLE,
         talk::TABLE,
-        cheats::TABLE,
+        cheat::TABLE,
     ] {
         all.extend(table.iter());
     }

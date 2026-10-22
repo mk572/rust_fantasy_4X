@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 
-use f4x_core::city::PlayerId;
+use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 use macroquad::prelude::*;
 

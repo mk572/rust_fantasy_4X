@@ -4,8 +4,9 @@
 //! it, or why none can be founded. A click on the map centres it there, and Cancel, C or Escape
 //! (or a right-click) leave.
 
-use f4x_core::city::{FoundCityError, Position};
+use f4x_core::city::FoundCityError;
 use f4x_core::content::{FeatureKind, TerrainClass};
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

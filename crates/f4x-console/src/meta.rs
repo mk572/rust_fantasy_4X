@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use f4x_core::settings::EventFrequency;
+use f4x_core::game::setting::EventFrequency;
 
 use crate::args::Args;
 use crate::setup::{new_game, parse_retort, NewGame};
@@ -196,7 +196,7 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let e = ctx.game.settings().events;
     if e.random_events {
         let chance = |turns| {
-            f4x_core::events::scaled_pressure(turns, b.difficulty, e.frequency) as f32 * 100.0
+            f4x_core::world_event::scaled_pressure(turns, b.difficulty, e.frequency) as f32 * 100.0
                 / 512.0
         };
         ctx.say(format!(
@@ -275,7 +275,7 @@ fn replay_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 }
 
 fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let failed = |e: f4x_core::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
+    let failed = |e: f4x_core::game::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
     match a.get(0).unwrap_or("start") {
         "start" => {
             ctx.game.start_recording().map_err(failed)?;
@@ -321,7 +321,7 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => usize::MAX,
     };
     let text = std::fs::read_to_string(&path).map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    let replay = f4x_core::replay::Replay::from_text(&text)
+    let replay = f4x_core::game::replay::Replay::from_text(&text)
         .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
     let (mut game, events) = replay
         .play(ctx.game.content().clone(), count)
@@ -384,8 +384,8 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 // A level brings the original's figures for it; the other basic choices stay.
                 let level = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?;
                 let basic = spec.settings.basic;
-                spec.settings = f4x_core::settings::GameSettings::for_difficulty(level);
-                spec.settings.basic = f4x_core::settings::BasicSettings {
+                spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(level);
+                spec.settings.basic = f4x_core::game::setting::BasicSettings {
                     difficulty: level,
                     ..basic
                 };
@@ -428,9 +428,9 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 const ON_OFF: [(&str, u8); 2] = [("off", 0), ("on", 1)];
 const LAND: [(&str, u8); 3] = [
-    ("small", f4x_core::setup::LAND_SMALL),
-    ("medium", f4x_core::setup::LAND_MEDIUM),
-    ("large", f4x_core::setup::LAND_LARGE),
+    ("small", f4x_core::game::setup::LAND_SMALL),
+    ("medium", f4x_core::game::setup::LAND_MEDIUM),
+    ("large", f4x_core::game::setup::LAND_LARGE),
 ];
 const DIFFICULTY: [(&str, u8); 5] = [
     ("intro", 0),

@@ -12,9 +12,9 @@
 use super::ai::{self, worth};
 use super::casting::SpellAim;
 use super::{Battle, BattleCommand, BattleUnit, Side};
+use crate::game::Game;
 use crate::rules::effects::{Effect, EffectRule, TargetSel};
 use crate::rules::{SpellDef, Stat};
-use crate::Game;
 
 /// A cast must be worth at least this share of the dearest enemy unit to be made.
 const WORTH_FLOOR: f32 = 0.12;

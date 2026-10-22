@@ -14,9 +14,9 @@ mod expand;
 mod military;
 mod naval;
 mod neutral;
-mod offers;
+mod offer;
 mod race;
-mod scouts;
+mod scout;
 mod shortfall;
 #[cfg(test)]
 mod testworld;
@@ -26,10 +26,11 @@ mod wizardry;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use f4x_core::city::{PlayerId, Position};
-use f4x_core::player_view::PlayerView;
-use f4x_core::serial::Serial;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::serial::Serial;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
 
 /// A command the game refused, with where in the AI it was sent from (for finding out why the AI
 /// sends orders the game will not take).
@@ -195,14 +196,14 @@ impl Ai {
             }
         }
         diplomacy::answer(self, game, &mut events);
-        offers::answer(self, game, &mut events);
-        offers::equip(self, game, &mut events);
+        offer::answer(self, game, &mut events);
+        offer::equip(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
         race::run(self, game, &mut events);
         wizardry::run(self, game, &mut events);
         expand::settlers(self, game, &mut events);
-        scouts::scout(self, game, &mut events);
+        scout::scout(self, game, &mut events);
         military::army(self, game, &mut events);
         naval::run(self, game, &mut events);
         economy::cities(self, game, &mut events);

@@ -4,9 +4,9 @@
 //! Cast"). Clicking a spell starts casting it; one that needs a target is aimed on the map.
 //! The big book (the library and research) is in `bigbook.rs`.
 
+use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, SpellId, SpellTarget};
-use f4x_core::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -447,7 +447,7 @@ impl App {
     }
 
     /// The player clicked `pos` while choosing a target.
-    pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::city::Position) {
+    pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::map::Position) {
         let def = self.game.content().rules.spells.get(t.spell);
         let target = match def.target {
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
@@ -485,7 +485,7 @@ impl App {
         // A Spell Ward also needs a realm: ask for it.
         if self
             .game
-            .spell_has_hook(t.spell, f4x_core::city_spells::SPELL_WARD)
+            .spell_has_hook(t.spell, f4x_core::spell::city::SPELL_WARD)
         {
             match target {
                 Some(Target::City(city))
@@ -523,7 +523,7 @@ impl App {
         let events = self.game.apply(cmd);
         let rejected = events
             .iter()
-            .any(|e| matches!(e, f4x_core::Event::Rejected(_)));
+            .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
         self.note(events);
         if rejected {
             self.targeting = Some(t);

@@ -1,11 +1,11 @@
 //! Turn a [`BattleScenario`] into a game with its battle begun.
 
-use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::{Content, TerrainClass};
-use f4x_core::map::Plane;
-use f4x_core::setup::{new_game, NewGame};
+use f4x_core::game::setup::{new_game, NewGame};
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::PlayerId;
 
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::{Command, Event, Game};
 
 use crate::scenario::{BattleScenario, Ground, UnitPick, WizardSpec};
 

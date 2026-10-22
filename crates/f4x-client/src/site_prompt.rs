@@ -5,9 +5,9 @@
 //! site shows the first box without buttons on arrival. The boxes come one after another over
 //! the map, in the order the events arrived.
 
-use f4x_core::city::Position;
-use f4x_core::lairs::Loot;
-use f4x_core::Command;
+use f4x_core::feature::lair::Loot;
+use f4x_core::game::Command;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

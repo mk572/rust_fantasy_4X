@@ -62,7 +62,7 @@ direction (up or down stream) before any asymmetric rule; the river layer curren
 direction.
 
 **2. Spell of Return options.** Today every banished wizard can cast the Spell of Return
-(`fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is built (task 82). Add a
+(`wizard/fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is built (task 82). Add a
 new-game setting with three values: **off** (banishment is final: the wizard is defeated),
 **player only** (the human may return, AI wizards are defeated on banishment) and **all
 wizards** (as in the original). Store it in the game settings saved with the game (new field,
@@ -226,7 +226,7 @@ wizard in new-game settings.
 
 **19. Asynchronous multiplayer.** Play by message: each player takes a turn when it is theirs and
 the game state moves on, perhaps through a Discord bot that posts turn notices and takes the turn
-files. Needs a deterministic turn file (a start snapshot plus a command log: the recording of task 74 in `replay.rs`), a
+files. Needs a deterministic turn file (a start snapshot plus a command log: the recording of task 74 in `game/replay.rs`), a
 server or shared store to hold the game and enforce whose turn it is, and rules for timeouts and
 skipped turns. Builds on hot seat (item 18).
 
@@ -236,7 +236,7 @@ capital, and a faster research start. Each as an independent option with sensibl
 (e.g. "quick start"); recorded in the saved settings so a game remembers how it began.
 
 **21. Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
-(`grow_outpost` in `city_growth.rs`; the chance comes from the race, the land and features, task 21 of
+(`grow_outpost` in `city/growth.rs`; the chance comes from the race, the land and features, task 21 of
 `TASKS.md` for the original's edge rules) and needs 100 tens, one citizen, to become a city. In
 AI-against-AI soak runs (`f4x-tools soak`) most outposts were still outposts after 100 to 250
 turns: one wizard held 15 "cities", 12 of them outposts, which stalls expansion, production and
@@ -334,7 +334,7 @@ kill citizens rather than buildings, Black Wind and Death spells kill citizens o
 that kills units in the city kills a share of the citizens too. Decide the numbers per spell in
 data (a `collateral` block on the effect: chance per building, chance per citizen, an element
 filter such as "fire does not harm walls"), not in code; the rules are written once for overland
-spells (`devastate_city` in `terraform.rs` and `shake_city` in `wizard_spells.rs` are the
+spells (`devastate_city` in `spell/terraform.rs` and `shake_city` in `spell/wizard.rs` are the
 patterns) and once for a battle fought in a city (`city_damage` in `battle/`, which already turns
 into lost citizens and buildings when the city falls). Needs: a setting to switch it off, an
 event line for the loss (the `WorldSpellStruck` event has the counts), the Chancellor's scroll
@@ -358,7 +358,7 @@ it costs citizens; decide the cap, whether the store feeds the city's units as w
 it grows the city faster, and whether it is lost when the city is taken or starved. Needs: a list of every building with its current
 effect (some, like the temple, already have several), a target for each building that has none,
 new stats where a benefit has no stat yet (experience per turn for the stationed units is a
-turn-change step in `experience.rs`; a building cost reduction is a stat the production code
+turn-change step in `unit/experience.rs`; a building cost reduction is a stat the production code
 reads), care not to make the early game worse (Builder's Hall is built first in every city) and
 not to double what a retort or an enchantment already does, building upkeep changes if a benefit
 makes the building worth more than its gold, help-text entries written in the local help and
@@ -372,7 +372,7 @@ swordsmen, bowmen, and their equivalents of each race) by a stated amount, and m
 nothing to keep, gold and food. Both are data in `content/units.ron` (`upkeep`), so the change is
 a rule set: a table of the old and new upkeep per unit, a decision about which units count as
 basic (the tier-1 units a city can build with no prerequisite beyond a barracks), whether the food
-cost stays (a settler that eats nothing is a rule change in `finance.rs` if Normal units always eat
+cost stays (a settler that eats nothing is a rule change in `player/finance.rs` if Normal units always eat
 one), what a free settler does to the number of settlers the AI builds (it may build far too many;
 cap in `f4x-ai`), and the effect on the gold economy and the unrest of garrisons (a cheaper
 garrison makes troop-based pacification cheaper). Check with soak runs (item 24) that wars still
@@ -394,7 +394,7 @@ Gnoll AI that sacrifices, a Barbarian AI that expands by sea), the new-game race
 help text describing them, and the divergence recorded in `divergences.md`. Do the balance
 with item 24, one race at a time, so the effect of each change is measured alone.
 
-**31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `neutral_cities.rs`.
+**31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `city/neutral.rs`.
 
 0. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
 1. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
@@ -413,7 +413,7 @@ with item 24, one race at a time, so the effect of each change is measured alone
 Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text.
 
 **Decided (17 October 2026):**
-- **Strength** is the wizard strength score the game already computes for the advisor screens (`astrology.rs`: the Astrologer's power, strength and research figures and the History graph's power; `endgame.rs`'s score for the hall of fame is the related one). A neutral city compares that with its own (its size, buildings and garrison, scored the same way); no new measure.
+- **Strength** is the wizard strength score the game already computes for the advisor screens (`wizard/astrology.rs`: the Astrologer's power, strength and research figures and the History graph's power; `game/endgame.rs`'s score for the hall of fame is the related one). A neutral city compares that with its own (its size, buildings and garrison, scored the same way); no new measure.
 - **Surrender** adds fame to the wizard who receives it, and lowers the diplomatic standing of that wizard with the enemy wizards (those at war with them or hostile to them), who see a rival grow.
 - **Protection and free passage in a battle.** With a protection pact, the wizard's units that stand in the city join the battle at once on the defender's side. The human plays that battle (unless auto-battle is on); an AI wizard's battle is played by the battle AI. With only free passage, the wizard's units sit out any battle, and are evicted if an enemy conquers the city.
 
@@ -432,7 +432,7 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 
 **33. Neutral cities that play strategically.** Replaces the raiders of task 154 (random troops sent out from neutral cities to cause trouble; dropped, not built). The independent cities become players with goals of their own: they build their own units and use them for those goals, as the AI wizards do, instead of throwing units at whoever is near. Design after the base game is playable, together with items 31 (attitude and deals) and 32 (spells).
 
-- **They are players.** A neutral city already has a player record, a budget and an upkeep (`neutral_cities.rs`, task 292); `design.md` says the AI sees what a human sees and obeys the same commands, so the neutral ones use the same commands too. Give them a driver in `f4x-ai` (a neutral personality and objectives beside the wizards', `ai-objectives.md`), run at the turn change for every neutral player, deterministic and cheap.
+- **They are players.** A neutral city already has a player record, a budget and an upkeep (`city/neutral.rs`, task 292); `design.md` says the AI sees what a human sees and obeys the same commands, so the neutral ones use the same commands too. Give them a driver in `f4x-ai` (a neutral personality and objectives beside the wizards', `ai-objectives.md`), run at the turn change for every neutral player, deterministic and cheap.
 - **Goals** (a first set): defend the city and its land; keep the roads and the sea lanes near it clear; take or clear nearby lairs and unguarded nodes for their treasure and mana; take a weak neighbouring city (another neutral city, a wizard's outpost or a badly garrisoned city) when strong enough; trade with friendly cities and wizards (item 31); ask a strong wizard for protection when threatened; found a new outpost with settlers when there is room (the outpost becomes a new independent city).
 - **Units.** Each city chooses what to build for its goals from its budget, with the same production rules as anyone (the AI's `economy::cities` logic, tuned for a small city); no free units. Armies are small and local; they go home when the goal is met.
 - **Attitude** (item 31) steers who they fight: a city does not attack a wizard it likes, shares an enemy with a protector, and may break a deal when a bigger neighbour offers more.
@@ -452,18 +452,18 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 - **Rules.** A square holds at most 20 units (`MAX_TILE`, new). An army, the set of units selected to move or attack together, holds at most nine (`MAX_STACK` stays nine). A battle side has at most nine units (`MAX_SIDE_UNITS` stays nine, and the second copy in `battle/casting.rs` is merged with it).
 - **Attacking.** The attacker's army is at most nine units, picked from the square (as today, by selection). The defender's side is chosen from every unit on the defending square.
 - **Defending.** If more than nine units stand on the defended square, the defender chooses the nine who fight. The preset is the strongest nine, in this order: heroes first; then combat units by cost, the dearest first; among units of the same kind, the more experienced first; settlers, engineers and other non-combat units last; the human can change the choice in a pick screen before the battle (a list of the units on the square with checkmarks, nine allowed); the AI uses the preset or its own rule. Units that do not fight stay out of the battle and are not hurt. If the defender loses, the units that did not fight follow the fleeing rules (`overland_aftermath` in `battle/game.rs`, task 42): half are lost and a quarter of the heroes, the rest are driven out to a free neighbouring square (or are lost if there is none, as a fleeing stack with nowhere to go); units asleep, confused or held in a web are always lost. If the defender wins, they stay.
-- **Cities.** A city's garrison can be up to 20 for the same reason, and the nine fighting units use the city deployment; the rest do not fight. Unrest and every other rule that counts a city's garrison count at most nine units (the strongest nine, in the defenders' preset order), so a larger garrison changes nothing there. The aim is that play is the same as with a limit of nine: the extra units are a reserve, a place to park units, and a choice of who fights. Upkeep does not depend on the square a unit stands on (`finance.rs` sums every unit the player owns), so it is unchanged.
+- **Cities.** A city's garrison can be up to 20 for the same reason, and the nine fighting units use the city deployment; the rest do not fight. Unrest and every other rule that counts a city's garrison count at most nine units (the strongest nine, in the defenders' preset order), so a larger garrison changes nothing there. The aim is that play is the same as with a limit of nine: the extra units are a reserve, a place to park units, and a choice of who fights. Upkeep does not depend on the square a unit stands on (`player/finance.rs` sums every unit the player owns), so it is unchanged.
 - **Ships and gates.** A ship's passengers, a gate or teleport, and a stack standing on a ship stay by the existing capacities and the 20 limit for a square; an army of nine moves through a gate.
 - **Selection and the client.** The main screen's stack panel and the unit list must show up to 20 (scrolling, or two rows) and let the player select up to nine of them as an army; the city screen's garrison list (`.take(9)`, task 119) shows 20 and scrolls.
 - **AI.** `f4x-ai` gathers armies in nines (`military.rs`, `naval.rs`) and may leave a larger garrison; it picks defenders by the preset rule.
 - **Settings.** `max_stack` in `game-settings.md` splits into `max_tile` (up to 20) and `max_army` (up to nine), with the defaults 20 and 9 (decided 17 October 2026); a game can set both to nine for the old rule.
 
-Needs: the two limits in the core with tests (`movement.rs`, `gates.rs`, `special_spells.rs`, `transport.rs`, `neutral_cities.rs`, `lairs.rs`, the raise-dead room), the defender choice (a command `ChooseDefenders` carrying the units, with the preset when the defender does not answer), the battle start using the chosen nine, the pick screen and the larger lists in the client, the AI's rules, the help text, and a save check (the old limit of nine is already satisfied). Do `large-stacks.md` section 2's list of places built for nine first for what still depends on nine.
+Needs: the two limits in the core with tests (`unit/movement.rs`, `city/gates.rs`, `spell/special.rs`, `unit/transport.rs`, `city/neutral.rs`, `feature/lair.rs`, the raise-dead room), the defender choice (a command `ChooseDefenders` carrying the units, with the preset when the defender does not answer), the battle start using the chosen nine, the pick screen and the larger lists in the client, the AI's rules, the help text, and a save check (the old limit of nine is already satisfied). Do `large-stacks.md` section 2's list of places built for nine first for what still depends on nine.
 
 **35. Palette-swap wizards.** Variants of the 14 ready-made wizards: the same portrait with changed colours (hair, skin, robes, eyes) and a different set of books and retorts, so the player and the AI have more starting wizards to choose from. A list of new wizards in `content/wizards.ron` (id, a variant name, books, retorts, the base wizard and the palette change), shown in the new-game wizard pick and used by the AI's wizard draw.
 
 - **Portraits.** The portraits are the original's art and so local-only (`docs/local-assets.md`), and a recoloured portrait is derived from it. The variants are made from the player's own copy. The recoloured portraits are committed (decided 17 October 2026), like the Myrror river pictures, as a documented exception in `docs/local-assets.md` (add the entry when they are made). The original portraits stay local-only. Recolour the base portrait once by index remapping (the portraits are 256-colour pictures: remap the palette entries that hold the hair, skin or cloth to new colours; a per-variant table of `(index range → new colour)` in the data), and generate the result once and keep it as files in the repository (as the Myrror river pictures are, under `crates/f4x-client/assets/`), so the variants show without the local art. Because the originals are not committed, the generator needs the player's own copy to run; the committed files are the output. A variant's portrait is there without the local art; the base wizards' portraits are not.
-- **Variants.** For each of the 14 wizards one or more variants with a new name and description. A variant changes the portrait colours and starts with other books and retorts than its base (a different realm mix, or a different retort), within the pick rules the custom wizard follows (`wizard.rs`: the same budget of picks, the same limits). Examples to write: a dark-haired Merlin who is a chaos and life wizard rather than life and nature; a red-robed Raven. Decide the number per wizard (one to three) and who writes the lists (a first set by hand, balanced with item 24's soak runs).
+- **Variants.** For each of the 14 wizards one or more variants with a new name and description. A variant changes the portrait colours and starts with other books and retorts than its base (a different realm mix, or a different retort), within the pick rules the custom wizard follows (`wizard/mod.rs`: the same budget of picks, the same limits). Examples to write: a dark-haired Merlin who is a chaos and life wizard rather than life and nature; a red-robed Raven. Decide the number per wizard (one to three) and who writes the lists (a first set by hand, balanced with item 24's soak runs).
 - **Choice.** The new-game screen's ready-made list grows (a second page or a scrolling list; the original shows 14 portraits in a grid); the opponents' draw uses all of them; a setting can limit the pool to the original 14.
 - **Names and text.** Each variant gets its own name and a short description in the style of the originals, written for the project (not the original's text; the original's descriptions belong to the base wizards).
 - **AI.** The AI's personality and objective draw (task 64) is unchanged; the books and retorts decide its spells as they do now.
@@ -475,11 +475,11 @@ Needs: the data file and its loader (`f4x-data`), the palette tables and the imp
 - **Scope.** Which kinds: hot seat (18), play by turn files (19), simultaneous turns over a network, or several of them. Whether wizards may be human and computer mixed, and how many humans (the game has up to five wizards).
 - **Turn model.** The game is turn based with every wizard moving in the same turn. Options: all humans play at once and the turn ends when all have ended it (with a timer, or a vote to end early); or in sequence, one wizard at a time. Battles between two humans need both players present (a battle is played command by command, so a wizard who is away needs auto-resolve or an AI standing in).
 - **Authority.** One side holds the game and checks every command (a server, or the host's game), and the others send commands and receive events. The core already works this way: a front end sends `Command` and gets `Event` back, and the game is deterministic from a seed.
-- **What exists for it.** Recording and replay for local play (task 74, `replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
-- **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player_view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
+- **What exists for it.** Recording and replay for local play (task 74, `game/replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
+- **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player/view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
 - **Open questions.** Which scope first; peer to peer or a central server; how to settle disconnects and timeouts; whether the AI may be replaced by a human mid-game; how saves, replays and the Hall of Fame treat multiplayer games.
 
-**37. Record the battle AI's orders for replays.** Replays (task 74, `replay.rs`) record the commands the game is given, and every order a person or the scripted battle AI gives goes through `Game::apply` and is recorded. A learned battle brain (`set_battle_brain`, `next_battle_command`, `f4x-learn`) is asked for its orders inside the core (the auto-resolve loop in `battle/game.rs` calls `battle_command` directly), so those orders are not recorded, and a replay asks the brain again, which gives the same battle only if the brain answers the same way every time.
+**37. Record the battle AI's orders for replays.** Replays (task 74, `game/replay.rs`) record the commands the game is given, and every order a person or the scripted battle AI gives goes through `Game::apply` and is recorded. A learned battle brain (`set_battle_brain`, `next_battle_command`, `f4x-learn`) is asked for its orders inside the core (the auto-resolve loop in `battle/game.rs` calls `battle_command` directly), so those orders are not recorded, and a replay asks the brain again, which gives the same battle only if the brain answers the same way every time.
 
 - **Aim.** A replay of a game with a learned brain plays the same battles whether or not that brain is present, in the same version or another.
 - **How.** Record each order the brain gives, in order, with the battle's start, as part of the recording (the commands become `Battle` orders in the log, or a list kept with the `BeginBattle`/`AutoResolve` entry), and on replay feed the recorded orders back in place of asking the brain. The replay then needs no network weights.
@@ -501,7 +501,7 @@ first (requested 18 October 2026).
   wizard has to spend (`budget` in `Caster`) and the AI's cost estimates read the same function, so
   they follow. Make the figures data (a table in `rules.ron`: the first step, the step width, the
   added share and the cap) so a mod can set its own and the original's are the default.
-- **A Channeler that costs one pick.** The retort costs two picks (`retort_cost` in `wizard.rs`);
+- **A Channeler that costs one pick.** The retort costs two picks (`retort_cost` in `wizard/mod.rs`);
   the mod makes it one. The cost of the other two-pick retorts (Warlord, Divine Power, Famous,
   Infernal Power) stays. Move the pick prices into data (`rules.ron` or the retort table) so the
   creation screen, the custom-wizard checks and the AI's wizard builder all read them.

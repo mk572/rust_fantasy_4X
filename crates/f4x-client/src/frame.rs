@@ -6,7 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
-use f4x_core::city::Position;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::ui::GOLD;

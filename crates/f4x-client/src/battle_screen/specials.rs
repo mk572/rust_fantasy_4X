@@ -5,7 +5,7 @@
 use super::*;
 use crate::frame::Layout;
 use crate::unit_sheet::special_picture;
-use f4x_core::battle::spells::BattleSpell;
+use f4x_core::battle::spell::BattleSpell;
 
 const LEFT: f32 = 228.0;
 const WIDTH: f32 = 90.0;

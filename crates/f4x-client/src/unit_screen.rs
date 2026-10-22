@@ -7,7 +7,7 @@
 //! is the panel alone. Positions are the original's, from the panel's top-left (`UnitStat.c`).
 
 use f4x_core::battle::Battle;
-use f4x_core::Command;
+use f4x_core::game::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

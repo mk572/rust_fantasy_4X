@@ -3,10 +3,11 @@
 
 use std::collections::HashMap;
 
-use f4x_core::city::{PlayerId, Position};
-use f4x_core::player_view::PlayerView;
-use f4x_core::serial::Serial;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::serial::Serial;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
 
 use crate::view::{distance, garrison_wanted, is_fighter, stack_strength, unit_strength};
 use crate::{race, Ai};
@@ -368,7 +369,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
         for (_, units) in &by_square {
-            for chunk in units.chunks(f4x_core::units::MAX_STACK) {
+            for chunk in units.chunks(f4x_core::unit::MAX_STACK) {
                 let serials: Vec<Serial> = {
                     let view = PlayerView::new(game, me);
                     chunk.iter().map(|&u| view.serial_of(u)).collect()
@@ -567,7 +568,7 @@ fn march_landed(
     }
     let mut launched: Vec<Serial> = Vec::new();
     for (_, units) in &by_square {
-        for chunk in units.chunks(f4x_core::units::MAX_STACK) {
+        for chunk in units.chunks(f4x_core::unit::MAX_STACK) {
             let serials: Vec<Serial> = {
                 let view = PlayerView::new(game, me);
                 chunk.iter().map(|&u| view.serial_of(u)).collect()
@@ -587,7 +588,7 @@ fn march_landed(
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY};
-    use f4x_core::city::PlayerId;
+    use f4x_core::player::PlayerId;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

@@ -5,8 +5,8 @@
 
 use std::collections::VecDeque;
 
+use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
-use f4x_core::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -228,7 +228,7 @@ impl App {
                     });
                     let ok = !events
                         .iter()
-                        .any(|e| matches!(e, f4x_core::Event::Rejected(_)));
+                        .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
                     self.note(events);
                     if ok {
                         self.screen = Screen::Map;

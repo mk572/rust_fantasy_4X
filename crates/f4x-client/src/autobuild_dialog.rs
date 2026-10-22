@@ -1,8 +1,8 @@
 //! The dialog that sets a city's auto-builder plan (docs/auto-builder.md), opened from the
 //! city screen. Left-click a row for the next value, right-click for the previous one.
 
-use f4x_core::autobuild::{BuildPlan, Focus, Mix};
-use f4x_core::Command;
+use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
+use f4x_core::game::Command;
 use macroquad::prelude::*;
 
 use crate::city_screen::Layout;

@@ -1,7 +1,7 @@
 # Game end
 
-Code: `crates/f4x-core/src/endgame.rs` (the rules and the score), `fortress.rs` (`defeat`,
-`capture_city`), `cast.rs` (the Spell of Mastery hook); client: `game_over_screen.rs`.
+Code: `crates/f4x-core/src/endgame.rs` (the rules and the score), `wizard/fortress.rs` (`defeat`,
+`capture_city`), `spell/cast.rs` (the Spell of Mastery hook); client: `game_over_screen.rs`.
 The original's rules come from ReMoM's `CONQUEST.c`, `SCORE.c` and `SPLMASTR.c` and the review
 notes under `reference/ReMoM/doc/@CodeReview/` (`CONQUEST-Resolve_Wizard_Conquest.md`,
 `CONQUEST-CP_Is_Dead.md`, `CONQUEST-End_Of_Game_Score.md`, `SPLMASTR-*.md`).

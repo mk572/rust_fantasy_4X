@@ -175,7 +175,7 @@ Other core changes, small:
 - The observation tensors of section 5.1 and 7.2 are built in `f4x-learn` (`obs.rs`) from the
   core's public accessors: the core stays free of any tensor layout.
 - `mana_budget` as a battle setting checked in `Cast`.
-- Starting games and battles from a `Snapshot` (exists in `save.rs`), for the curriculum.
+- Starting games and battles from a `Snapshot` (exists in `game/save.rs`), for the curriculum.
 - The policy's RNG is separate from the game's; episodes replay from the command log.
 
 ## 5. Strategic AI

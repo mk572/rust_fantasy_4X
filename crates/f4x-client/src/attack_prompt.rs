@@ -2,7 +2,7 @@
 //! fight it, leave it to the computer (Auto-resolve) or call the attack off, as a box over the
 //! map. Plain box for now; the original's picture is task 143.
 
-use f4x_core::Command;
+use f4x_core::game::Command;
 use macroquad::prelude::*;
 
 use crate::ui::{button, GOLD};
@@ -99,7 +99,7 @@ impl App {
             .first()
             .and_then(|&u| self.game.units().unit_owner(u));
         let who = match owner {
-            Some(p) if p != f4x_core::units::NEUTRAL => format!("wizard {}'s", p.0 + 1),
+            Some(p) if p != f4x_core::player::NEUTRAL => format!("wizard {}'s", p.0 + 1),
             _ => "monster".to_string(),
         };
         if attack.defending {

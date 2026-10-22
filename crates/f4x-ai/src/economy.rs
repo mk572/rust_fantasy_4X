@@ -1,10 +1,10 @@
 //! Research, spells and what the cities build.
 
-use f4x_core::autobuild::{BuildPlan, Focus, Mix};
-use f4x_core::city::Position;
-use f4x_core::player_view::PlayerView;
-use f4x_core::production::ProductionItem;
-use f4x_core::{Command, Event, Game};
+use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
+use f4x_core::city::production::ProductionItem;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
 
 use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
@@ -275,7 +275,7 @@ fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem>
 mod tests {
     use super::*;
     use crate::testworld::{game, COAST_CITY, P0};
-    use f4x_core::autobuild::Focus;
+    use f4x_core::city::autobuild::Focus;
 
     #[test]
     fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() {

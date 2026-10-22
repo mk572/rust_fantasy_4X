@@ -6,12 +6,12 @@
 #[path = "../src/testworld.rs"]
 mod testworld;
 
-use f4x_core::city::Position;
-use f4x_core::movement::{Entry, MoveError};
-use f4x_core::player_view::PlayerView;
-use f4x_core::production::{ProductionError, ProductionItem};
+use f4x_core::city::production::{ProductionError, ProductionItem};
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
 use f4x_core::rules::{MovementType, Stat};
-use f4x_core::{Command, Event, Game};
+use f4x_core::unit::movement::{Entry, MoveError};
 use testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0};
 
 fn port() -> Position {

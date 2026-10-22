@@ -168,7 +168,7 @@ the client at game start, that sets farmers so the cities also feed the army.
 
 ## 6. Healing
 
-Each unit with damage heals once per turn, except Death creatures (born so or made undead, `undead.rs`) and units under Black Channels. The base
+Each unit with damage heals once per turn, except Death creatures (born so or made undead, `unit/undead.rs`) and units under Black Channels. The base
 is a fraction of its total hit points: one twentieth in the field, one tenth in a city of
 its owner, one sixth in such a city if it has an animist's guild. The remainder is settled by
 a seeded roll so the average is exact. Every unit in a stack that contains a unit with the
@@ -196,7 +196,7 @@ one point.
 
 `Game::snapshot()` captures a whole game as a `Snapshot`; `Snapshot::restore(content)` builds
 the game again. `f4x_data::save::{save_game, load_game}` do the file work. Code:
-`f4x-core/src/save.rs`, `f4x-data/src/save.rs`.
+`f4x-core/src/game/save.rs`, `f4x-data/src/save.rs`.
 
 **What a save holds:** the seed and how many random numbers have been drawn (so the random
 stream resumes exactly), the turn, the creation counter, the map (terrain, features, roads),

@@ -126,7 +126,7 @@ to roll against each attack (`attack::process_attack`).
   Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
   gazes and touches that call a resistance check (36).
 
-- **Weapon quality** (task 18, `units::WeaponQuality`): set where a unit is trained (an alchemists
+- **Weapon quality** (task 18, `unit::WeaponQuality`): set where a unit is trained (an alchemists
   guild gives magic weapons, mithril or adamantium in the city's area raises them, the Alchemy
   retort gives at least magic) and copied into `BattleUnit::weapon_quality`. Mithril adds one and
   adamantium two to melee, thrown and missile attacks and to defence (magic adds nothing to
@@ -175,7 +175,7 @@ Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit i
 `BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a
 creator of undead (a victim with magic immunity is spared), has fallen `Fate::Drained`: the
 winner takes it after the battle as an undead unit, full strength, unless it was a
-creature of the Death realm or a hero (`raise_drained`, `battle/game.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `units::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
+creature of the Death realm or a hero (`raise_drained`, `battle/game.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `unit::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
 attack or a severing spell (Disintegrate, Dispel Evil, Petrify and the other slaying spells)
 kills is `Fate::Gone`. Animate Dead raises one of the casting wizard's own dead (not a hero,
 not summoned in the battle, not gone) on a free square of their half of the field, undead for
@@ -321,7 +321,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 ## 7. City sieges (task 41)
 
 Code: `battle/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, the defence bonus,
-city damage), `battle/game.rs` (starting a city battle), `conquest.rs` (what a fallen city
+city damage), `battle/game.rs` (starting a city battle), `city/conquest.rs` (what a fallen city
 costs). The numbers are the original's (`Generate_Combat_Map`, `Deploy_Battle_Units`,
 `Update_Move_Map_City_Area_Restrictions`, `Battle_Unit_Attack`, `End_Of_Combat`); the field is
 mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 10 to 13.
@@ -346,20 +346,20 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   have come inside get none of it.
 - **City damage:** at the start of each turn of the battle every attacking unit inside the city area adds one
   (`Battle::city_damage`): a siege that gets into the city and stays there costs the city more when it falls.
-- **Taking the city** (`Game::conquer_city`, `conquest.rs`): an outpost is destroyed; any other city
+- **Taking the city** (`Game::conquer_city`, `city/conquest.rs`): an outpost is destroyed; any other city
   changes hands with the loser losing fame equal to its size (1 to 5), the winner gaining the size less
   two, and the winner looting the loser's gold in proportion to the city's share of their citizens.
   The fighting kills each citizen but one with a chance of 10 percent plus twice the city
   damage (at most 50), and destroys each building nothing else needs with a chance of the city
   damage plus 10 percent (at most 75). The old owner's spells on the city end, production
-  starts at trade goods. A fortress city's wizard is banished (`fortress.rs`).
+  starts at trade goods. A fortress city's wizard is banished (`wizard/fortress.rs`).
 - **Razing:** until the turn ends the taker may `RazeCity` (console `raze <city>`, the client asks): the size plus one more fame
   lost, a tenth of every building's cost looted, and the city is destroyed. This is the original's
   path when the player presses R on the results scroll. The client asks at once; an AI never razes (no
   decision exists for it yet).
 - **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
   `bshootwall <unit> <x,y>` strike a wall, `bvortex <n> <x,y>` moves a Magic Vortex one square, `raze <city>` razes.
-- **City enchantments** (task 25, `city_spells.rs`; read when the battle starts, `Game::start_battle`):
+- **City enchantments** (task 25, `spell/city.rs`; read when the battle starts, `Game::start_battle`):
   - *Wall of Fire* (`Battle::wall_of_fire`): a walker (not a flier, not a teleporter or merger) that steps
     from outside the city area into it, or strikes into it from outside, takes the original's Fireball of
     its base strength 5 (fire, each figure, stopped by fire and magic immunity). Shots are not affected.
@@ -415,7 +415,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   damage pools; the overflow is not blocked again). Star Fires can only be thrown at chaos and
   death creatures.
 - **Counter Magic.** The caster's enemy's reserve tries to stop every spell: a dispel of the
-  reserve's strength against the mana put in (times the caster's mastery, as in `dispel.rs`);
+  reserve's strength against the mana put in (times the caster's mastery, as in `spell/dispel.rs`);
   the attempt drains the reserve by five whether or not it works, and a stopped spell still
   costs its mana and the wizard's turn.
 - **Lasting spells** change the unit's numbers for the battle only (`BattleUnit::apply_lasting`):

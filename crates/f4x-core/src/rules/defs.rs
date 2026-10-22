@@ -329,7 +329,7 @@ pub struct WizardDef {
     pub description: String,
     /// Spell books as `(realm id, count)`.
     pub books: Vec<(String, u8)>,
-    pub retorts: Vec<crate::magic::Retort>,
+    pub retorts: Vec<crate::wizard::magic::Retort>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

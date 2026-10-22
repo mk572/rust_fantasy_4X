@@ -1,13 +1,13 @@
 use super::*;
-use crate::city::{PlayerId, Position};
-use crate::economy::{Buildings, Enchantments, Population};
-use crate::map::{Grid, Map, Plane};
-use crate::player::Player;
-use crate::production::{Production, ProductionError, ProductionItem};
+use crate::city::economy::{Buildings, Enchantments, Population};
+use crate::city::production::{Production, ProductionError, ProductionItem};
+use crate::game::testutil::content_with_economy;
+use crate::map::{Grid, Map, Plane, Position};
+use crate::player::{Player, PlayerId};
+
+use crate::game::Command;
 use crate::rules::{ModOp, Stat};
-use crate::testutil::content_with_economy;
-use crate::units::Hurt;
-use crate::Command;
+use crate::unit::Hurt;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -494,10 +494,7 @@ fn production_builds_units_and_buildings() {
     let units = g.units().units_at(at(10, 6));
     assert_eq!(units.len(), 1, "20 production at 5 a turn: one spearman");
     assert_eq!(
-        g.world
-            .get::<&crate::units::Experience>(units[0])
-            .unwrap()
-            .0,
+        g.world.get::<&crate::unit::Experience>(units[0]).unwrap().0,
         20,
         "fighters guild: regular"
     );
@@ -710,7 +707,7 @@ fn buying_needs_the_gold() {
         .unwrap();
     assert_eq!(
         g.apply(Command::BuyProduction { city }),
-        vec![Event::Rejected(crate::Rejection::Production(
+        vec![Event::Rejected(crate::game::Rejection::Production(
             ProductionError::NotEnoughGold
         ))]
     );
@@ -789,7 +786,7 @@ fn a_sale_is_remembered_in_a_save() {
     let barracks = building(&g, "barracks");
     g.sell_building(city, barracks).unwrap();
     let text = g.snapshot().to_text().unwrap();
-    let back = crate::save::Snapshot::from_text(&text)
+    let back = crate::game::save::Snapshot::from_text(&text)
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
@@ -799,7 +796,7 @@ fn a_sale_is_remembered_in_a_save() {
 
 #[test]
 fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
-    use crate::units::Standby;
+    use crate::unit::Standby;
     let mut g = world();
     found(&mut g, at(10, 6), "elf", 4);
     g.player_mut(P0).unwrap().gold = 100;
@@ -815,7 +812,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
         standby: Some(Standby::Patrol),
     });
     let text = g.snapshot().to_text().unwrap();
-    let back = crate::save::Snapshot::from_text(&text)
+    let back = crate::game::save::Snapshot::from_text(&text)
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
@@ -838,7 +835,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
 
 #[test]
 fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() {
-    use crate::economy::Enchantments;
+    use crate::city::economy::Enchantments;
     let mut g = world();
     let city = found(&mut g, at(10, 6), "elf", 4);
     let spell = crate::rules::SpellId::new(0);
@@ -854,14 +851,17 @@ fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() {
     };
     assert!(matches!(
         off(&mut g, PlayerId(2))[..],
-        [crate::Event::Rejected(_)]
+        [crate::game::Event::Rejected(_)]
     ));
     assert_eq!(
         off(&mut g, P0),
-        vec![crate::Event::EnchantmentLapsed { player: P0, spell }]
+        vec![crate::game::Event::EnchantmentLapsed { player: P0, spell }]
     );
     assert_eq!(g.city_enchantments(city), vec![(spell, PlayerId(1))]);
-    assert!(matches!(off(&mut g, P0)[..], [crate::Event::Rejected(_)]));
+    assert!(matches!(
+        off(&mut g, P0)[..],
+        [crate::game::Event::Rejected(_)]
+    ));
 }
 
 fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
@@ -921,7 +921,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() {
     g.magic_mut(P0)
         .unwrap()
         .retorts
-        .insert(crate::magic::Retort::Alchemy);
+        .insert(crate::wizard::magic::Retort::Alchemy);
     let magic = train(&mut g);
     assert_eq!(
         g.units().unit_weapon_quality(magic),
@@ -1010,7 +1010,7 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() {
     assert!(events.iter().any(|e| matches!(
         e,
         Event::UnitLost {
-            cause: crate::LossCause::Food,
+            cause: crate::game::LossCause::Food,
             ..
         }
     )));
@@ -1175,7 +1175,7 @@ fn settlers_found_outposts_and_are_used_up() {
         "an outpost"
     );
     assert!(
-        g.world.get::<&crate::economy::CityRace>(city).is_ok(),
+        g.world.get::<&crate::city::economy::CityRace>(city).is_ok(),
         "of the settlers' race"
     );
     assert!(
@@ -1189,7 +1189,7 @@ fn settlers_found_outposts_and_are_used_up() {
             unit: again,
             name: "Nope".into()
         }),
-        vec![Event::Rejected(crate::Rejection::FoundCity(
+        vec![Event::Rejected(crate::game::Rejection::FoundCity(
             crate::city::FoundCityError::TooCloseToCity
         ))]
     );
@@ -1303,7 +1303,7 @@ fn a_city_of_one_is_safe_from_pestilence() {
 
 #[test]
 fn the_moons_change_the_mana_of_the_temples_by_the_wizards_books() {
-    use crate::events::EventKind;
+    use crate::world_event::EventKind;
     let mut g = world();
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     let city = found(&mut g, at(10, 6), "elf", 4);
@@ -1326,7 +1326,7 @@ fn the_moons_change_the_mana_of_the_temples_by_the_wizards_books() {
 
 #[test]
 fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_makes_it_triple() {
-    use crate::magic::Retort;
+    use crate::wizard::magic::Retort;
     let mut g = world();
     g.init_wizard(P0, &[("death", 2)], &[], None).unwrap();
     let city = found(&mut g, at(10, 6), "elf", 4);

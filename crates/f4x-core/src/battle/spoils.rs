@@ -12,9 +12,9 @@
 //! A neutral winner (monsters) gets nothing. Loot from fallen heroes' items is task 49.
 
 use super::{Battle, BattleUnit, Status};
-use crate::city::PlayerId;
+use crate::game::{Event, Game};
+use crate::player::PlayerId;
 use crate::rules::UnitKind;
-use crate::{Event, Game};
 
 /// Experience per dead enemy unit.
 pub const XP_PER_KILL: u32 = 2;

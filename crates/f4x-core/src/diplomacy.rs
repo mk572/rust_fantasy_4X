@@ -12,18 +12,19 @@
 //! read-only [`WorldView`], the random numbers and a list of changes it asks the game to make
 //! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
 //! (`with_diplomacy`) and keeps thin methods with the old names for the other modules and the
-//! crates around. Tests of the rules run on a [`FakeView`](crate::testutil::FakeView), without a
+//! crates around. Tests of the rules run on a [`FakeView`](crate::game::testutil::FakeView), without a
 //! world.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::city::{PlayerId, Position};
-use crate::magic::Retort;
-use crate::rng::GameRng;
+use crate::game::rng::GameRng;
+use crate::game::view::WorldView;
+use crate::game::{Event, Game};
+use crate::map::Position;
+use crate::player::PlayerId;
 use crate::rules::SpellId;
-use crate::view::WorldView;
-use crate::{Event, Game};
+use crate::wizard::magic::Retort;
 
 /// What a wizard is bound to with another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -304,7 +305,7 @@ pub struct Diplomacy {
     pairs: BTreeMap<(u8, u8), Pair>,
     stances: BTreeMap<(u8, u8), Stance>,
     personalities: BTreeMap<u8, Personality>,
-    objectives: BTreeMap<u8, crate::objective::Objective>,
+    objectives: BTreeMap<u8, crate::wizard::objective::Objective>,
     proposals: Vec<Proposal>,
     /// Events that hooks (battles, spells, the turn) raise; the next command returns them.
     queue: Vec<DiplomacyEvent>,
@@ -348,11 +349,15 @@ impl Diplomacy {
         self.personalities.insert(wizard.0, personality);
     }
 
-    pub fn objective(&self, wizard: PlayerId) -> Option<crate::objective::Objective> {
+    pub fn objective(&self, wizard: PlayerId) -> Option<crate::wizard::objective::Objective> {
         self.objectives.get(&wizard.0).copied()
     }
 
-    pub fn set_objective(&mut self, wizard: PlayerId, objective: crate::objective::Objective) {
+    pub fn set_objective(
+        &mut self,
+        wizard: PlayerId,
+        objective: crate::wizard::objective::Objective,
+    ) {
         self.objectives.insert(wizard.0, objective);
     }
 
@@ -390,7 +395,7 @@ pub fn met_in_sight(view: &dyn WorldView, player: PlayerId) -> Vec<PlayerId> {
     owners(view.foreign_sightings(player))
 }
 
-fn owners(sightings: Vec<crate::view::Sighting>) -> Vec<PlayerId> {
+fn owners(sightings: Vec<crate::game::view::Sighting>) -> Vec<PlayerId> {
     let mut met: Vec<PlayerId> = sightings.into_iter().map(|s| s.owner).collect();
     met.sort();
     met.dedup();
@@ -574,7 +579,7 @@ impl Diplomacy {
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
         player: PlayerId,
-        at: crate::city::Position,
+        at: crate::map::Position,
         radius: u32,
     ) {
         if !ctx.view.is_wizard(player) {
@@ -1196,7 +1201,7 @@ impl Diplomacy {
         };
         let mut events = Vec::new();
         if let Err(e) = result {
-            events.push(Event::Rejected(crate::Rejection::Diplomacy(e)));
+            events.push(Event::Rejected(crate::game::Rejection::Diplomacy(e)));
         }
         events
     }
@@ -1272,7 +1277,7 @@ impl Diplomacy {
         }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
-        if id != crate::endgame::SPELL_OF_MASTERY {
+        if id != crate::game::endgame::SPELL_OF_MASTERY {
             self.enchantment_relations(ctx, caster, &id, 1);
         }
     }
@@ -1284,8 +1289,8 @@ impl Diplomacy {
         player: PlayerId,
         spell: SpellId,
     ) {
-        if ctx.view.content().rules.spells.get(spell).id == crate::endgame::SPELL_OF_MASTERY {
-            self.enchantment_relations(ctx, player, crate::endgame::SPELL_OF_MASTERY, 1);
+        if ctx.view.content().rules.spells.get(spell).id == crate::game::endgame::SPELL_OF_MASTERY {
+            self.enchantment_relations(ctx, player, crate::game::endgame::SPELL_OF_MASTERY, 1);
         }
     }
 
@@ -1446,10 +1451,10 @@ impl Diplomacy {
                 .and_then(|m| m.casting)
                 .is_some_and(|c| {
                     ctx.view.content().rules.spells.get(c.spell).id
-                        == crate::endgame::SPELL_OF_MASTERY
+                        == crate::game::endgame::SPELL_OF_MASTERY
                 });
             if casting_mastery {
-                active.push((crate::endgame::SPELL_OF_MASTERY.to_string(), 2));
+                active.push((crate::game::endgame::SPELL_OF_MASTERY.to_string(), 2));
             }
             for (spell, divisor) in active {
                 self.enchantment_relations(ctx, wizard, &spell, divisor);
@@ -1763,7 +1768,7 @@ pub struct DiplomacySave {
     pub stances: Vec<(u8, u8, Stance)>,
     pub personalities: Vec<(u8, Personality)>,
     #[serde(default)]
-    pub objectives: Vec<(u8, crate::objective::Objective)>,
+    pub objectives: Vec<(u8, crate::wizard::objective::Objective)>,
     pub proposals: Vec<ProposalSave>,
 }
 

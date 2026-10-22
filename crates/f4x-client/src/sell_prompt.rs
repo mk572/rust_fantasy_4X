@@ -4,8 +4,8 @@
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
 
+use f4x_core::game::Command;
 use f4x_core::rules::BuildingId;
-use f4x_core::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};

@@ -3,11 +3,11 @@
 //! `cargo test -p f4x-ai --test behaviour -- --ignored` when the AI changes.
 
 use f4x_ai::{play_round, Ai};
-use f4x_core::city::PlayerId;
 use f4x_core::content::Content;
-use f4x_core::endgame::EndKind;
-use f4x_core::setup::{new_game, NewGame};
-use f4x_core::Game;
+use f4x_core::game::endgame::EndKind;
+use f4x_core::game::setup::{new_game, NewGame};
+use f4x_core::game::Game;
+use f4x_core::player::PlayerId;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);

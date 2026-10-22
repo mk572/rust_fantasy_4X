@@ -1,6 +1,6 @@
 use super::*;
+use crate::game::testutil::content_with_magic;
 use crate::player::Player;
-use crate::testutil::content_with_magic;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -298,7 +298,7 @@ fn ten_books_still_choose_nine_commons_and_nothing_else() {
 
 #[test]
 fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
-    use crate::magic::RESEARCH_SLOTS;
+    use crate::wizard::magic::RESEARCH_SLOTS;
     let mut g = game();
     g.create_wizard(P0, &build(&[("life", 6), ("chaos", 5)], &[]))
         .unwrap();
@@ -333,7 +333,7 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
         .unwrap();
     assert_eq!(
         g.set_research(P0, outside),
-        Err(crate::magic::MagicError::NotAvailable)
+        Err(crate::wizard::magic::MagicError::NotAvailable)
     );
     let pick = magic.candidates[3];
     g.set_research(P0, pick).unwrap();
@@ -342,7 +342,7 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
     let events = g.process_magic();
     assert!(events
         .iter()
-        .any(|e| matches!(e, crate::Event::SpellLearned { spell, .. } if *spell == pick)));
+        .any(|e| matches!(e, crate::game::Event::SpellLearned { spell, .. } if *spell == pick)));
     let after = g.magic(P0).unwrap();
     assert!(after.known.contains(&pick) && !after.candidates.contains(&pick));
     assert_eq!(after.candidates.len(), RESEARCH_SLOTS);

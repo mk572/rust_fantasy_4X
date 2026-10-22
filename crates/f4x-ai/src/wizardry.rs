@@ -7,12 +7,12 @@
 //! Mastery when it is known, a summoning spell, a buff for the strongest units, a buff for a
 //! city, a lasting spell on the whole wizard.
 
-use f4x_core::city::Position;
-use f4x_core::player_view::PlayerView;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
 use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
-use f4x_core::{Command, Event, Game};
 
 use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
@@ -64,7 +64,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
         return Kind::Other;
     }
-    if has_hook(def, f4x_core::endgame::SPELL_OF_MASTERY) {
+    if has_hook(def, f4x_core::game::endgame::SPELL_OF_MASTERY) {
         return Kind::Mastery;
     }
     if def
@@ -74,10 +74,10 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Summon;
     }
-    if has_hook(def, f4x_core::special_spells::EARTH_LORE) {
+    if has_hook(def, f4x_core::spell::special::EARTH_LORE) {
         return Kind::Explore;
     }
-    if has_hook(def, f4x_core::special_spells::NATURES_CURES) {
+    if has_hook(def, f4x_core::spell::special::NATURES_CURES) {
         return Kind::Cure;
     }
     if def.effects.is_empty() || has_hook(def, "unimplemented") {
@@ -180,7 +180,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     ai.send(game, set_split(me, chosen), events);
 }
 
-fn set_split(player: f4x_core::city::PlayerId, (mana, research, skill): (u8, u8, u8)) -> Command {
+fn set_split(player: f4x_core::player::PlayerId, (mana, research, skill): (u8, u8, u8)) -> Command {
     Command::SetPowerSplit {
         player,
         mana,

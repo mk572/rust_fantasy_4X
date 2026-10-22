@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// About how many methods on `Game` one file should have; `access.rs` and `cheat.rs` are
+/// About how many methods on `Game` one file should have; `game/access.rs` and `game/cheat.rs` are
 /// deliberate surfaces and may go beyond it.
 const GUIDELINE: usize = 12;
 
@@ -40,7 +40,10 @@ fn opens_game_impl(line: &str) -> bool {
         return false;
     };
     let target = head.rsplit(" for ").next().unwrap_or(head).trim();
-    matches!(target, "Game" | "crate::Game" | "f4x_core::Game")
+    matches!(
+        target,
+        "Game" | "crate::game::Game" | "f4x_core::game::Game"
+    )
 }
 
 /// Methods in `impl Game` blocks of one file: `fn` items at the block's top level (four spaces in).
@@ -155,7 +158,7 @@ impl Trait for Game {
     fn e(&self) {}
 }
 
-impl crate::Game {
+impl crate::game::Game {
     pub fn f(&self) {}
 }
 ";

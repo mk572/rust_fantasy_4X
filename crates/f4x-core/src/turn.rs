@@ -1,11 +1,11 @@
 //! The turn change: `process_turn` runs the steps in order (the cities, the treasury, the
 //! wizards' magic, healing). What each step does is in its domain: city growth in
-//! `city_growth.rs`, the treasury in `finance.rs`, magic in `magic_game.rs`, healing in
-//! `healing.rs`.
+//! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_game.rs`, healing in
+//! `unit/healing.rs`.
 
-use crate::city::PlayerId;
-use crate::economy::{Farmers, Population};
-use crate::{Event, Game};
+use crate::city::economy::{Farmers, Population};
+use crate::game::{Event, Game};
+use crate::player::PlayerId;
 use rand::SeedableRng;
 
 impl Game {

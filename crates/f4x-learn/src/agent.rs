@@ -10,9 +10,9 @@
 //! scripted AI's own order for that unit is the *advice*. A turn ends by itself when the
 //! scripted AI has nothing left to move.
 
-use f4x_core::battle::spells::LegalCast;
+use f4x_core::battle::spell::LegalCast;
 use f4x_core::battle::{Battle, BattleCommand, Side};
-use f4x_core::Game;
+use f4x_core::game::Game;
 
 use crate::act::{self, WizardOptions};
 use crate::env::BattleEnv;

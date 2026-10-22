@@ -20,14 +20,15 @@ pub mod info;
 pub mod legal;
 pub mod map;
 pub mod special;
-pub mod spells;
+pub mod spell;
 pub mod spoils;
 pub mod vortex;
 
 use rand::{RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::city::{PlayerId, Position};
+use crate::map::Position;
+use crate::player::PlayerId;
 use crate::rules::SpellId;
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
@@ -175,12 +176,12 @@ pub struct BattleUnit {
     /// Its weapons are magical, so weapon immunity does not stop its normal attacks: heroes,
     /// fantastic and summoned creatures, units with a flaming or blessed blade.
     pub magical_weapon: bool,
-    /// The quality of its weapons (`units::WeaponQuality`): above normal, its attacks have a
+    /// The quality of its weapons (`unit::WeaponQuality`): above normal, its attacks have a
     /// plus to hit (its thrown and missile attacks too, but not breath, gazes or spell shots).
     pub weapon_quality: u8,
     /// `Stat::SpecialLevel`: poison strength, or the penalty of its gaze and touches.
     pub special_level: i32,
-    /// A hero's Leadership and Prayermaster in this battle (`hero.rs`), 0 for anything else: the
+    /// A hero's Leadership and Prayermaster in this battle (`hero/mod.rs`), 0 for anything else: the
     /// best one on a side counts for all its units.
     pub leadership: i32,
     pub prayermaster: i32,
@@ -815,12 +816,12 @@ impl Battle {
 
     /// Whether `side`'s enemy's Counter Magic stops a spell of `difficulty` that `side` casts: a
     /// dispel of the reserve's strength must beat the spell. Every attempt drains the reserve
-    /// by [`crate::dispel::COUNTER_MAGIC_DRAIN`], whether or not it stopped the spell.
+    /// by [`crate::spell::dispel::COUNTER_MAGIC_DRAIN`], whether or not it stopped the spell.
     pub fn counter_magic_stops(&mut self, side: Side, difficulty: u32) -> bool {
         let reserve = &mut self.counter_magic[side.other().index()];
         let strength = *reserve;
-        *reserve = reserve.saturating_sub(crate::dispel::COUNTER_MAGIC_DRAIN);
-        crate::dispel::dispel_roll(strength, difficulty, &mut self.rng)
+        *reserve = reserve.saturating_sub(crate::spell::dispel::COUNTER_MAGIC_DRAIN);
+        crate::spell::dispel::dispel_roll(strength, difficulty, &mut self.rng)
     }
 
     /// Whether the node under the battle stops a spell of `realm` and `difficulty`: a dispel of
@@ -833,7 +834,7 @@ impl Battle {
         if realm == Some(node) {
             return false;
         }
-        crate::dispel::dispel_roll(NODE_COUNTER_STRENGTH, difficulty, &mut self.rng)
+        crate::spell::dispel::dispel_roll(NODE_COUNTER_STRENGTH, difficulty, &mut self.rng)
     }
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.

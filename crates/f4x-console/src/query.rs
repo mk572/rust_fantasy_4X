@@ -1,7 +1,7 @@
 //! Read-only commands. In legal mode they show only what the console's player can see.
 
-use f4x_core::city::Position;
-use f4x_core::map::Plane;
+use f4x_core::map::{Plane, Position};
+
 use f4x_core::rules::Stat;
 
 use crate::args::{city_by_serial, parse_pos, unit_by_serial, Args};
@@ -430,7 +430,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    use f4x_core::production::ProductionItem;
+    use f4x_core::city::production::ProductionItem;
     let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
     if ctx.game.economy().city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed("not your city".into()));
@@ -778,7 +778,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    use f4x_core::battle::spells::SpellSource;
+    use f4x_core::battle::spell::SpellSource;
     use f4x_core::rules::defs::SpellTarget;
     let unit = a.int(0, "battle unit number")?.max(0) as usize;
     let b = ctx

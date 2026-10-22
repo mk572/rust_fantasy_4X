@@ -4,8 +4,8 @@
 //! Escape, Enter or a click rolls it up; U, D, the arrows or the wheel scroll a long one.
 //! The "End of Turn Summary" switch of the Settings page turns it off.
 
+use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
-use f4x_core::{Event, LossCause};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -71,7 +71,7 @@ impl App {
         let mut rivals = Vec::new();
         let mut ships = Vec::new();
         // Wizards we have met are known by name; their shortages are news.
-        let rival_name = |player: &f4x_core::city::PlayerId| {
+        let rival_name = |player: &f4x_core::player::PlayerId| {
             (*player != HUMAN && self.game.have_met(HUMAN, *player))
                 .then(|| self.game.player(*player).map(|p| p.name.clone()))
                 .flatten()
@@ -94,9 +94,9 @@ impl App {
                 }
                 Event::Shortage { player, what } if rival_name(player).is_some() => {
                     let what = match what {
-                        f4x_core::Shortage::Mana => "mana",
-                        f4x_core::Shortage::Gold => "gold",
-                        f4x_core::Shortage::Food => "food",
+                        f4x_core::game::Shortage::Mana => "mana",
+                        f4x_core::game::Shortage::Gold => "gold",
+                        f4x_core::game::Shortage::Food => "food",
                     };
                     rivals.push(format!(
                         "{} has run short of {what}.",

@@ -1,6 +1,6 @@
 # AI objectives: steering the scripted AI
 
-Task 238. Design for letting a wizard's objective (task 64: `objective.rs`, drawn at game start)
+Task 238. Design for letting a wizard's objective (task 64: `wizard/objective.rs`, drawn at game start)
 steer the strategic AI in `crates/f4x-ai`. Part of the scripted AI ([`ai-design.md`](ai-design.md)).
 
 ## 1. State today

@@ -1,10 +1,10 @@
 //! Drawing one overland map square the way the original does: ground, river, corruption,
 //! the thing standing on it (mineral, site, tower, node), roads, and the owner's node aura.
 
-use f4x_core::city::PlayerId;
 use f4x_core::content::{FeatureKind, TerrainClass};
+use f4x_core::game::Game;
 use f4x_core::map::{Grid, Plane};
-use f4x_core::Game;
+use f4x_core::player::PlayerId;
 use macroquad::prelude::*;
 
 use crate::art::{terrain_type as tt, Art, TILE_W};
@@ -169,7 +169,7 @@ pub fn draw_square(
         let magic = plane == Plane::Myrror || grid.has_enchanted_road(x, yi);
         let joins = |dx: i32, dy: i32| {
             grid.has_road(x + dx, yi + dy) || {
-                let p = f4x_core::city::Position {
+                let p = f4x_core::map::Position {
                     plane,
                     x: grid.wrap_x(x + dx),
                     y: (yi + dy).max(0) as u32,

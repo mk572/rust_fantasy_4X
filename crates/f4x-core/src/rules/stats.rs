@@ -27,7 +27,7 @@ pub enum Stat {
     Sight,
     /// Pluses added to the to-hit chance, ten percentage points each (may be negative).
     ToHit,
-    /// Pluses to hit that count for the melee attack only (a sword's; see `items::modifiers`).
+    /// Pluses to hit that count for the melee attack only (a sword's; see `item::modifiers`).
     MeleeToHit,
     /// Pluses to hit that count for the ranged attack only (a bow's).
     RangedToHit,
@@ -116,7 +116,7 @@ pub enum Source {
     Item(u8),
     /// Experience level reached, 0-based.
     Level(u8),
-    /// One of a hero's abilities (Might, Agility, ...; `hero.rs`).
+    /// One of a hero's abilities (Might, Agility, ...; `hero/mod.rs`).
     Hero,
     Other,
 }

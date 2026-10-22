@@ -3,8 +3,8 @@
 //! proposal (`Game::rate_proposal`, docs/diplomacy.md section 4) as the starting logic.
 
 use f4x_core::diplomacy::{DiplomacyCommand, Verdict};
-use f4x_core::player_view::PlayerView;
-use f4x_core::{Command, Event, Game};
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::player::view::PlayerView;
 
 use crate::Ai;
 
@@ -30,9 +30,9 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::city::PlayerId;
     use f4x_core::diplomacy::{DiplomacyEvent, ProposalKind};
     use f4x_core::player::Player;
+    use f4x_core::player::PlayerId;
 
     const HUMAN: PlayerId = PlayerId(0);
     const AI: PlayerId = PlayerId(1);

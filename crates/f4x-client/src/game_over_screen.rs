@@ -4,7 +4,7 @@
 //! fame, time, the Spell of Mastery), the final score and a bar of `score / 40` up to 200. A click
 //! or Esc goes on: the score is entered in the Hall of Fame (task 88) and the table is shown.
 
-use f4x_core::endgame::EndKind;
+use f4x_core::game::endgame::EndKind;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -46,7 +46,7 @@ pub(crate) fn bar_width(score: i32) -> i32 {
 impl App {
     /// For the screenshot check: end the game as a win by the Spell of Mastery now.
     pub fn open_test_game_over(&mut self) {
-        self.game.game_over = Some(f4x_core::endgame::GameOver {
+        self.game.game_over = Some(f4x_core::game::endgame::GameOver {
             winner: HUMAN,
             kind: EndKind::SpellOfMastery,
             turn: self.game.turn,

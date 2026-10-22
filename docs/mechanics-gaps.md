@@ -64,7 +64,7 @@ diplomacy, AI, random events, victory and score.
   can be enchanted), movement types: walking, forester, mountaineer, pathfinding,
   swimming, sailing, flying, wind walking, non-corporeal (half cost anywhere), planar
   travel, plane shift, teleporting and merging [253-261, 545-551, 565, 575].
-- Gates (`gates.rs`, task 12): Earth Gate links two own cities with gates on the same plane for
+- Gates (`city/gates.rs`, task 12): Earth Gate links two own cities with gates on the same plane for
   one move (`Command::EarthGate`); Astral Gate lets a stack in the city change plane, unless a
   city lies on the other side; towers link planes; Planar Seal closes them [750, 752].
 - Fog of war: unexplored squares, sight radius (scouting), Oracle sees 4 squares, walls 3,
@@ -87,7 +87,7 @@ diplomacy, AI, random events, victory and score.
   healing, +50% upkeep for fantastic undead) [402, 552-553]. Large shield, wall crusher,
   healer, invisibility, long range, regeneration, luck, negate first strike, mana leak, the
   quiver and the casters' spell shots are done (tasks 37, 38).
-- Experience gain and the original's level bonuses (tasks 173, 174). Warlord, Crusade, Heroism and the Armsmaster training are done (task 27, `experience.rs`).
+- Experience gain and the original's level bonuses (tasks 173, 174). Warlord, Crusade, Heroism and the Armsmaster training are done (task 27, `unit/experience.rs`).
 - Heroes: 13 hero abilities with levels and "super" versions; item slots by hero type
   (sword/bow/staff/armor/misc); item powers, charges, anvil to scrap items, hiring,
   noble/charmed/lucky traits, resurrection, recall [515-526, 577-588, 240, 246].
@@ -113,7 +113,7 @@ still open.
 - Casting: overland vs combat lists, cost ranges ("5/25 mana" = base/maximum), cancel loses
   mana spent, research, learning, spell books ordered by rarity [759, 217].
 - Dispel mathematics, Disenchant, Disjunction, Spell Blast, Spell Binding, Suppress Magic and
-  the Counter Magic reserve (done, task 59, `dispel.rs`); dispelling in a battle is in (task 43).
+  the Counter Magic reserve (done, task 59, `spell/dispel.rs`); dispelling in a battle is in (task 43).
 - (Done: fortress, summoning circle, banishment, Spell of Return; see `magic.md` section 12.)
   Spell of Mastery as a victory condition remains open,
   Spell of Mastery as a victory condition [749, 753, 804].

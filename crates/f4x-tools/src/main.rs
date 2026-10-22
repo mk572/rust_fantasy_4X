@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use f4x_core::content::{Content, FeatureKind, TerrainClass};
+use f4x_core::map::mapgen::{generate, GenParams};
 use f4x_core::map::Plane;
-use f4x_core::mapgen::{generate, GenParams};
 
 const USAGE: &str = "usage:
   f4x-tools validate [content-dir]            check content files (default: content)

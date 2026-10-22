@@ -1,6 +1,6 @@
 # Lairs (guarded sites)
 
-Source: ReMoM `Create_Lair`, `Generate_Lairs`, `Lair_Make_Guardians`, `Lair.c`. Code: `crates/f4x-core/src/lairs.rs`.
+Source: ReMoM `Create_Lair`, `Generate_Lairs`, `Lair_Make_Guardians`, `Lair.c`. Code: `crates/f4x-core/src/lair.rs`.
 
 - Every tower, node and encounter site gets a `Lair` (guards + hoard) at map generation; towers share one on both planes.
 - Guards are neutral units made on entry (`Command::EnterSite`), fought with the battle model, then removed. Winning takes the hoard and clears the site (encounter sites vanish; towers and nodes stay).

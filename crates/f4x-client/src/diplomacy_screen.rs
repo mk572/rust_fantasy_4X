@@ -8,10 +8,10 @@
 //! A proposal is put to the core and the wizard answers at once (`f4x_ai::answer_proposals`),
 //! as it does on this screen in the original.
 
-use f4x_core::city::PlayerId;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
+use f4x_core::game::{Command, Event};
+use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
-use f4x_core::{Command, Event};
 use macroquad::prelude::*;
 
 use crate::diplomacy_text as say;

@@ -297,7 +297,7 @@ mod tests {
     use super::*;
     use crate::battle::map::BattleMap;
     use crate::battle::{BattleUnit, Side};
-    use crate::city::PlayerId;
+    use crate::player::PlayerId;
 
     fn duel(a: Pos, d: Pos) -> Battle {
         let units = vec![

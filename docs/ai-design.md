@@ -67,14 +67,14 @@ crusher goes for the wall.
   spells go from 12 to 16 in 200 turns. Nobody casts after the first summoning spells.
 - **Seed 2** has one wizard stuck on two cities and no mana (upkeep equals income).
 - **The win spell cannot be had**: the Spell of Mastery is excluded from research, treasure and
-  starting spells (`magic.rs` `NOT_RESEARCHABLE`, `lairs.rs`), and the importer reads its
+  starting spells (`wizard/magic.rs` `NOT_RESEARCHABLE`, `feature/lair.rs`), and the importer reads its
   research cost, 60,000 as an unsigned 16-bit value, as the signed -5,536 and clamps it to 1.
 
 These numbers are the baseline of section 8.
 
 ## 3. Access: what the AI can ask the game
 
-The AI crate depends on `f4x-core` and uses `PlayerView` (`player_view.rs`) for every read. The
+The AI crate depends on `f4x-core` and uses `PlayerView` (`player/view.rs`) for every read. The
 view keeps the rule that lists are limited to what the player knows. It wraps `Game`'s own
 queries and the domain handles `Units` (`game.units()`) and `Economy` (`game.economy()`), so a
 new query is added once, in the domain, and exposed on the view if the AI may know it.
@@ -99,9 +99,9 @@ nodes, lairs, `can_found_city`, `shift`, `distance`), other wizards' cities on e
 | Enemy wizards: contact, relations, their visible globals, who is casting the Spell of Mastery | war target, disjunction, the race | `diplomacy`, `Game::magic` of others (only what a player sees) |
 | Remembered enemy garrisons | a city out of sight is not forgotten | new memory kept by the AI, or in the view |
 | Unit levels, experience, mana, hero data | stack value | `Units` |
-| Lairs and nodes: guard strength, reward | free growth for a strong stack | `lairs.rs`, `nodes.rs` |
+| Lairs and nodes: guard strength, reward | free growth for a strong stack | `feature/lair.rs`, `feature/node.rs` |
 | Threat map: where enemy stacks are near my cities | defend, recall | derived in the AI from `hostile_at` |
-| Ships and transports | reach other land masses | `transport.rs`, `movement.rs` |
+| Ships and transports | reach other land masses | `unit/transport.rs`, `unit/movement.rs` |
 | Battle: legal casts, spell costs, field state | the battle AI as a wizard | `Game::legal_battle_casts`, `battle_spells` |
 
 **Added so far** (all read-only methods on `PlayerView`, each a call into a domain function):
@@ -431,13 +431,13 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/mirror.r
 ### 11.1 Strategic AI
 
 - **Cities built the same unit for ever.** A city that finishes a unit starts the same unit again
-  (`production.rs`: the item stays, progress goes to zero). The AI only chose production for a
+  (`city/production.rs`: the item stays, progress goes to zero). The AI only chose production for a
   city that was not building a unit, so the capital made settlers until the wizard held 15 or 25
   outposts, most of which stay outposts for hundreds of turns (`PLANNED.md` item 21). Now units
   are looked at again every turn. The change also made the games much quicker to run (seed 1 took 40 s for 300
   turns; 150 turns now take about a second) and, with the other changes, put
   real armies in the field.
-- **Exploration** (`scouts.rs`). One scout (two with four or more cities) walks to the reachable
+- **Exploration** (`scout.rs`). One scout (two with four or more cities) walks to the reachable
   square that shows the most unexplored ground within its own sight, less the walk. Two fixes
   came from watching games: the count of unexplored squares must use the unit's own sight
   radius (with a larger one the scouts shuttled between two squares for ever), and a scout that

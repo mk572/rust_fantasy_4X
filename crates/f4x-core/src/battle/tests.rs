@@ -1,11 +1,11 @@
 use super::game::BattleStartError;
 use super::map::{distance, Cell, GRID_H, GRID_W};
-use super::spells::SpellSource;
+use super::spell::SpellSource;
 use super::*;
-use crate::city::PlayerId;
+use crate::game::testutil::content_with_units;
+use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
-use crate::testutil::content_with_units;
-use crate::{Command, Event, Game, Rejection};
+use crate::player::PlayerId;
 
 const A: PlayerId = PlayerId(0);
 const D: PlayerId = PlayerId(1);
@@ -489,8 +489,8 @@ fn game() -> Game {
     g
 }
 
-fn at(x: u32, y: u32) -> crate::city::Position {
-    crate::city::Position {
+fn at(x: u32, y: u32) -> crate::map::Position {
+    crate::map::Position {
         plane: Plane::Arcanus,
         x,
         y,
@@ -572,7 +572,7 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     assert!(ended, "the battle finished");
     assert!(!g.in_battle());
     // Whoever lost everything is gone; survivors carry their wounds.
-    let alive = |u| g.world.get::<&crate::units::Unit>(u).is_ok();
+    let alive = |u| g.world.get::<&crate::unit::Unit>(u).is_ok();
     assert!(alive(d1) != (alive(a1) || alive(a2)) || (alive(d1) && (alive(a1) || alive(a2))));
     for u in [a1, a2, d1] {
         if alive(u) {
@@ -617,7 +617,7 @@ fn wounded_units_enter_a_battle_wounded() {
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     // 3 figures x 2 hit points: five damage leaves one figure with one hit point.
-    g.world.insert_one(a, crate::units::Hurt(5)).unwrap();
+    g.world.insert_one(a, crate::unit::Hurt(5)).unwrap();
     g.apply(Command::BeginBattle {
         attackers: vec![a],
         defenders: vec![d],
@@ -637,7 +637,7 @@ fn wounded_units_enter_a_battle_wounded() {
 /// on the first attackers before the attacker flees. Returns the attackers (alive or not).
 fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity>) {
     let mut g = game();
-    g.settings = crate::settings::GameSettings::for_difficulty(difficulty);
+    g.settings = crate::game::setting::GameSettings::for_difficulty(difficulty);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -696,7 +696,7 @@ fn ranged_abilities_map_to_battle_kinds() {
     assert_eq!(ranged_kind_of(&v(&["forester"])), RangedKind::None);
 }
 
-fn found(g: &mut Game, owner: PlayerId, pos: crate::city::Position) -> hecs::Entity {
+fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Entity {
     let race = g.content.rules.races.id_of("elf");
     g.apply(Command::FoundCity {
         owner,
@@ -2311,7 +2311,7 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
     for (quality, extra, plus) in [(1, 0, 1), (2, 1, 1), (3, 2, 1)] {
         let _ = g
             .world
-            .insert_one(unit, crate::units::WeaponQuality(quality));
+            .insert_one(unit, crate::unit::WeaponQuality(quality));
         let bu = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
         assert_eq!(bu.melee, plain.melee + extra, "melee, quality {quality}");
         assert_eq!(
@@ -2325,12 +2325,12 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
 
 #[test]
 fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
-    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::item::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
     g.content.rules.item_powers = crate::rules::Registry::new(vec![
-        crate::testutil::item_power("vampiric", None, Some("life_steal")),
-        crate::testutil::item_power("flaming", None, None),
+        crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
+        crate::game::testutil::item_power("flaming", None, None),
     ]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
@@ -2385,7 +2385,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
 #[test]
 fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     use crate::hero::{Hero, HeroAbilities};
-    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::item::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
     let walker = g.content.rules.units.id_of("walker").unwrap();
@@ -2437,7 +2437,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
 /// A game with the game's real spells, for battle units that cast them.
 fn casting_game() -> Game {
     let mut g = game();
-    g.content.rules.spells = crate::testutil::content_with_magic().rules.spells;
+    g.content.rules.spells = crate::game::testutil::content_with_magic().rules.spells;
     g
 }
 
@@ -2619,7 +2619,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
 
 #[test]
 fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
-    use crate::items::{HeroItems, Item, ItemBonus};
+    use crate::item::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = casting_game();
     let hero = a_caster(&mut g, &[], 0);
@@ -3443,7 +3443,7 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
     let slain_walker = g.spawn_unit(A, at(4, 4), walker);
     let foe = g.spawn_unit(D, at(5, 4), walker);
     g.world
-        .insert_one(hurt_troll, crate::units::Hurt(4))
+        .insert_one(hurt_troll, crate::unit::Hurt(4))
         .unwrap();
     let events = finish_with_dead(
         &mut g,
@@ -3457,11 +3457,8 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
     assert!(g.world.contains(alive));
     assert!(!g.world.contains(slain_walker), "the dead stay dead");
     assert!(g.world.contains(slain_troll), "regeneration brings it back");
-    assert_eq!(
-        g.world.get::<&crate::units::Hurt>(slain_troll).unwrap().0,
-        0
-    );
-    assert_eq!(g.world.get::<&crate::units::Hurt>(hurt_troll).unwrap().0, 0);
+    assert_eq!(g.world.get::<&crate::unit::Hurt>(slain_troll).unwrap().0, 0);
+    assert_eq!(g.world.get::<&crate::unit::Hurt>(hurt_troll).unwrap().0, 0);
     assert_eq!(
         g.units().unit_position(slain_troll),
         Some(at(5, 4)),
@@ -3497,7 +3494,7 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
     let events = finish_with_dead(&mut g, &[a, fallen], &foes, &[1, 2, 3, 4, 5]);
     assert!(g.world.contains(a));
     // Four dead enemies: 2 each. The fallen of its own side give nothing, nor does it gain.
-    let xp = g.world.get::<&crate::units::Experience>(a).unwrap().0;
+    let xp = g.world.get::<&crate::unit::Experience>(a).unwrap().0;
     assert_eq!(xp, 8);
     assert_eq!(g.player(A).unwrap().fame, 4);
     assert!(events.iter().any(|e| matches!(
@@ -3513,7 +3510,7 @@ fn fewer_than_four_kills_give_experience_but_no_fame() {
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
-    assert_eq!(g.world.get::<&crate::units::Experience>(a).unwrap().0, 4);
+    assert_eq!(g.world.get::<&crate::unit::Experience>(a).unwrap().0, 4);
     assert_eq!(g.player(A).unwrap().fame, 0);
 }
 
@@ -3551,7 +3548,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // The first foe is a Veteran (level 1): half of 1 + 1 is 1.
     g.world
-        .insert_one(foes[0], crate::units::Experience(20))
+        .insert_one(foes[0], crate::unit::Experience(20))
         .unwrap();
     g.player_mut(D).unwrap().fame = 25;
     g.human = Some(D);

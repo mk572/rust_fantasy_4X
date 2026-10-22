@@ -163,19 +163,19 @@ let hits = console.complete("spa");                     // names this console ma
 - **Access, not trust.** A front end is given the access it may use and nothing can raise it
   from inside; an AI player gets `Play`, a remote spectator `ReadOnly`.
 - **One path to the rules.** Legal commands call `Game::apply`; override mutators live in
-  `f4x-core/src/cheat.rs`, are only called by the override commands and are logged.
+  `f4x-core/src/game/cheat.rs`, are only called by the override commands and are logged.
 - **Same state.** The console holds no game state of its own (only the player it acts as, the
   mode and the access); `load` and `new` replace the `Game` it was given, so a front end can
   keep its own copy in step by reading `Game` after each line.
 
 To add a command: write a handler `fn(&mut Ctx, &Args) -> Result<(), ConsoleError>` in the
-fitting module (`query.rs`, `legal.rs`, `cheats.rs`, `meta.rs`), add it to that module's
+fitting module (`query.rs`, `legal.rs`, `cheat.rs`, `meta.rs`), add it to that module's
 `TABLE` with its kind, usage and help, and (for a new `Command` of the game) give it a legal
 command so every client action keeps a text equivalent.
 
 ## 6. Notes and open work
 
-- `new` repeats the client's new-game setup (`setup.rs`); the client should call it instead
+- `new` repeats the client's new-game setup (`game/setup.rs`); the client should call it instead
   of keeping its own copy, and the wizard creation screen's remaining choices (spell picks,
   banner) have no text equivalent yet.
 - Messages for events are one line each (`describe.rs`); events without a nicer line print in

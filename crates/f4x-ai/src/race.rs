@@ -5,11 +5,11 @@
 //! drops what it was casting and runs for it. Otherwise the rival must be stopped by force: it
 //! declares war on the caster, whatever the treaty, and its armies go for that wizard's cities.
 
-use f4x_core::city::PlayerId;
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
-use f4x_core::player_view::PlayerView;
+use f4x_core::game::{Command, Event, Game};
+use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
-use f4x_core::{Command, Event, Game};
 
 use crate::Ai;
 
@@ -72,7 +72,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         .content()
         .rules
         .spells
-        .id_of(f4x_core::endgame::SPELL_OF_MASTERY)
+        .id_of(f4x_core::game::endgame::SPELL_OF_MASTERY)
     else {
         return;
     };
@@ -152,7 +152,7 @@ mod tests {
     }
 
     fn casts(g: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
-        g.player_mut(who).unwrap().magic.casting = Some(f4x_core::magic::Casting {
+        g.player_mut(who).unwrap().magic.casting = Some(f4x_core::wizard::magic::Casting {
             spell,
             remaining: left,
         });

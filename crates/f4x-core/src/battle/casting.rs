@@ -12,7 +12,7 @@ use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, M
 use super::immunity::{effective_resistance, AttackNature, Realm};
 use super::map::{is_wall_corner, Pos};
 use super::{Battle, BattleEvent, BattleUnit, Side, Status};
-use crate::city::PlayerId;
+use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
 use crate::rules::stats::{compute, Modifier, Stat};
 use crate::rules::SpellId;

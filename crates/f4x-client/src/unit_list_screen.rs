@@ -4,7 +4,7 @@
 //! Monsters" for the neutral ones) and the unit's melee, range, armour, hits and moves. It is
 //! read only: a click or Escape closes it.
 
-use f4x_core::city::Position;
+use f4x_core::map::Position;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -94,7 +94,7 @@ impl App {
         self.draw_pic(&lay, "unitview", 29, 0, LEFT, bottom);
 
         let owner = self.game.units().unit_owner(units[0]);
-        let neutral = owner == Some(f4x_core::units::NEUTRAL);
+        let neutral = owner == Some(f4x_core::player::NEUTRAL);
         let title = if neutral {
             let fantastic = self
                 .game
@@ -112,7 +112,7 @@ impl App {
                 .map_or_else(String::new, |p| p.name.clone());
             format!("{name} Units")
         };
-        let banner = self.banner_color(owner.map_or(f4x_core::units::NEUTRAL.0, |o| o.0));
+        let banner = self.banner_color(owner.map_or(f4x_core::player::NEUTRAL.0, |o| o.0));
         self.bm_text(
             view,
             4,

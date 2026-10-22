@@ -1,13 +1,14 @@
 //! Splitting a line into words and reading the things commands take: positions, unit
 //! lists, targets and definitions by id or name.
 
-use f4x_core::city::{PlayerId, Position};
-use f4x_core::map::Plane;
+use f4x_core::game::serial::Serial;
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::PlayerId;
+
+use f4x_core::game::Game;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::ids::Id;
 use f4x_core::rules::{Def, Registry};
-use f4x_core::serial::Serial;
-use f4x_core::Game;
 
 use crate::ConsoleError;
 

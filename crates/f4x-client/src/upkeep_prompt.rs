@@ -3,10 +3,10 @@
 //! Without an answer the turn change lets go of the newest. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
-use f4x_core::cast::UpkeepKind;
-use f4x_core::shortfall::{ItemOverflow, TreasuryShortfall};
-use f4x_core::upkeep::Shortfall;
-use f4x_core::Command;
+use f4x_core::game::Command;
+use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
+use f4x_core::player::upkeep::Shortfall;
+use f4x_core::spell::cast::UpkeepKind;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -112,7 +112,7 @@ impl UpkeepPrompt {
         })
     }
 
-    fn scrapped(&self) -> Vec<f4x_core::items::armory::ItemSpot> {
+    fn scrapped(&self) -> Vec<f4x_core::item::armory::ItemSpot> {
         self.items.as_ref().map_or_else(Vec::new, |o| {
             o.lines
                 .iter()

@@ -1,11 +1,11 @@
 //! A small hand-made world with the shipped content, for the unit tests of the AI modules: two
 //! islands in an ocean, one wizard on each, so that a unit cannot walk to the other side.
 
-use f4x_core::city::{PlayerId, Position};
 use f4x_core::content::Content;
-use f4x_core::map::{Grid, Map, Plane};
-use f4x_core::player::Player;
-use f4x_core::{Command, Game};
+use f4x_core::map::{Grid, Map, Plane, Position};
+use f4x_core::player::{Player, PlayerId};
+
+use f4x_core::game::{Command, Game};
 
 pub const P0: PlayerId = PlayerId(0);
 pub const P1: PlayerId = PlayerId(1);
@@ -69,7 +69,7 @@ pub fn game(city0: (u32, u32), race: &str) -> Game {
         assert!(
             !events
                 .iter()
-                .any(|e| matches!(e, f4x_core::Event::Rejected(_))),
+                .any(|e| matches!(e, f4x_core::game::Event::Rejected(_))),
             "city {name} not founded: {events:?}"
         );
     }

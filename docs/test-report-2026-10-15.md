@@ -45,13 +45,13 @@ regressed; not yet found out which.
 
 ## Code check of the new files
 
-Read: `naval.rs`, `scouts.rs`, `wizardry.rs`, `battle/brain.rs`, `tests/behaviour.rs`,
+Read: `naval.rs`, `scout.rs`, `wizardry.rs`, `battle/brain.rs`, `tests/behaviour.rs`,
 `f4x-learn/tests/mirror.rs`. Not read in full: the changed (not new) files.
 
 - **Fixed:** `naval.rs` `sea_scout` held a leftover debug print (`AIDBG` environment variable,
   `eprintln!`). Removed; clippy and the f4x-ai tests pass after.
 - `naval.rs` has no unit tests, only the island exploration test in `behaviour.rs`. No test
-  checks that a landing happens. `scouts.rs` likewise has none of its own.
+  checks that a landing happens. `scout.rs` likewise has none of its own.
 - `naval.rs`: `view_turn` is a one-line wrapper over `view.turn()` while another call uses
   `game.turn`; harmless, worth tidying.
 - `mirror.rs`: `bolt_scenario` takes a `content` argument it discards (`let _ = content;`).
