@@ -36,7 +36,7 @@ fn unexplored_land_counts_for_nothing_and_is_flagged() {
     let before = g.site_survey(P0, at(8, 5));
     assert!(before.unexplored);
     assert_eq!(before.max_size, 0);
-    g.explore(P0, at(8, 5), 3);
+    g.explore(P0, at(8, 5), 7);
     let after = g.site_survey(P0, at(8, 5));
     assert!(!after.unexplored);
     assert!(after.max_size > 0);
@@ -46,7 +46,7 @@ fn unexplored_land_counts_for_nothing_and_is_flagged() {
 #[test]
 fn the_shore_adds_ten_percent_gold_and_water_cannot_be_settled() {
     let mut g = world();
-    g.explore(P0, at(1, 5), 3);
+    g.explore(P0, at(1, 5), 7);
     assert_eq!(g.site_survey(P0, at(1, 5)).gold_percent, 10);
     assert_eq!(g.site_survey(P0, at(8, 5)).gold_percent, 0);
     assert!(g.site_survey(P0, at(0, 5)).blocked.is_some());

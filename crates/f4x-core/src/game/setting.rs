@@ -37,6 +37,10 @@ pub struct BasicSettings {
     /// Node strength: 0 weak, 1 normal, 2 powerful.
     #[serde(default = "default_magic")]
     pub magic_strength: u8,
+    /// A diagonal step on the overland map costs half as much again as a straight one (3
+    /// half-moves on open ground); off, it costs the same (the original's rule).
+    #[serde(default)]
+    pub diagonal_extra_cost: bool,
 }
 
 fn default_difficulty() -> u8 {
@@ -62,6 +66,7 @@ impl Default for BasicSettings {
             opponents: 1,
             land_percent: LAND_LARGE,
             magic_strength: DEFAULT_MAGIC_STRENGTH,
+            diagonal_extra_cost: false,
         }
     }
 }

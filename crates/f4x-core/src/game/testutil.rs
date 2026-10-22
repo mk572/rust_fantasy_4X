@@ -117,7 +117,7 @@ pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) ->
         (Stat::MaxHp, 2),
         (Stat::Figures, 3),
         (Stat::Moves, moves),
-        (Stat::Sight, 1),
+        (Stat::Sight, 3),
     ] {
         stats.insert(stat, v);
     }

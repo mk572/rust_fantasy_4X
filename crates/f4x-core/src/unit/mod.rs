@@ -378,17 +378,18 @@ impl<'a> UnitView<'a> {
         self.world.get::<&MovesLeft>(unit).map_or(0, |m| m.0)
     }
 
-    /// How far the unit sees on the map: its `Sight` stat (the original's scouting level), at
-    /// least 2 for a flier or a Wind Walker (`Update_Scouted_And_Contacted`).
+    /// How far the unit sees on the map, in half-squares like movement (`map::fog::in_sight`):
+    /// its `Sight` stat, at least 5 (the original's scouting level 2) for a flier or a Wind
+    /// Walker (`Update_Scouted_And_Contacted`).
     pub fn unit_sight(&self, unit: hecs::Entity) -> i32 {
-        let sight = self.unit_stat(unit, Stat::Sight).max(1);
+        let sight = self.unit_stat(unit, Stat::Sight).max(3);
         let flies = self
             .unit_def(unit)
             .is_some_and(|d| d.movement == crate::rules::MovementType::Flying)
             || self.unit_has_ability(unit, "flying")
             || self.unit_has_ability(unit, "wind_walking");
         if flies {
-            sight.max(2)
+            sight.max(5)
         } else {
             sight
         }

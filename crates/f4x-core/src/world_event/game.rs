@@ -532,7 +532,7 @@ impl Game {
                 progress: 0,
             },
         );
-        self.explore(to, pos, 3);
+        self.explore(to, pos, crate::map::fog::sight_for(3));
     }
 
     /// The plague on a city for a turn. False when the plague is over and nobody is told (it

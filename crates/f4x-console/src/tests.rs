@@ -546,7 +546,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
         .unwrap();
     let eye = g.content().rules.spells.id_of("natures_eye").unwrap();
     assert!(g.cheat_learn_spell(HUMAN, eye));
-    assert_eq!(g.economy().city_sight(city), 2);
+    assert_eq!(g.economy().city_sight(city), 5);
     // A rival's plain unit four squares away and an invisible one three squares away, and a
     // plain one five squares away.
     let home = g.city_position(city).unwrap();
@@ -584,7 +584,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
         });
     }
     assert!(g.city_enchantments(city).iter().any(|&(s, _)| s == eye));
-    assert_eq!(g.economy().city_sight(city), 4);
+    assert_eq!(g.economy().city_sight(city), 9);
     assert!(sees(&g, near), "the eye reveals what is four squares away");
     assert!(!sees(&g, ghost), "an invisible unit stays hidden");
     assert!(!sees(&g, far), "five squares is still out of sight");

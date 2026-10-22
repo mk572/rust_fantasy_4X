@@ -133,13 +133,13 @@ impl Game {
         city::check_site(self.map.as_ref(), &self.content, pos, existing)
     }
 
-    /// Let `player` see the tiles within `radius` of `at`.
-    pub fn explore(&mut self, player: player::PlayerId, at: map::Position, radius: u32) {
+    /// Let `player` see the tiles within `sight` (half-squares) of `at`.
+    pub fn explore(&mut self, player: player::PlayerId, at: map::Position, sight: u32) {
         if let (Some(map), true) = (self.map.as_ref(), self.fog.is_empty()) {
             self.fog = map::fog::Fog::new(map.width(), map.height());
         }
-        self.fog.explore(player, at, radius);
-        self.contact_near(player, at, radius);
+        self.fog.explore(player, at, sight);
+        self.contact_near(player, at, map::fog::squares_seen(sight));
     }
 
     /// The seed this game started from.
@@ -811,7 +811,7 @@ impl Game {
             let _ = self.world.insert_one(u, to);
             let _ = self.world.insert_one(u, unit::MovesLeft(0));
         }
-        self.explore(owner, to, 2);
+        self.explore(owner, to, map::fog::sight_for(2));
         let mut events = vec![Event::UnitsMoved {
             units: units.to_vec(),
             from,

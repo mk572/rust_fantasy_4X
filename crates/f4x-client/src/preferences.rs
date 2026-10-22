@@ -1,4 +1,5 @@
-//! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`. Eighteen
+//! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and one of
+//! ours (Left Click Moves Units; off: a right click moves). Eighteen
 //! switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
@@ -27,9 +28,10 @@ pub(crate) enum Pref {
     ShowNodeOwners,
     ExpandingHelp,
     MovementAnimations,
+    LeftClickMoves,
 }
 
-pub(crate) const PREFS: [Pref; 19] = [
+pub(crate) const PREFS: [Pref; 20] = [
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -49,6 +51,7 @@ pub(crate) const PREFS: [Pref; 19] = [
     Pref::ShowNodeOwners,
     Pref::ExpandingHelp,
     Pref::MovementAnimations,
+    Pref::LeftClickMoves,
 ];
 
 impl Pref {
@@ -74,6 +77,7 @@ impl Pref {
             Pref::ShowNodeOwners => "show_node_owners",
             Pref::ExpandingHelp => "expanding_help",
             Pref::MovementAnimations => "movement_animations",
+            Pref::LeftClickMoves => "left_click_moves",
         }
     }
 
@@ -99,6 +103,7 @@ impl Pref {
             Pref::ShowNodeOwners => "Show Node Owners",
             Pref::ExpandingHelp => "Expanding Help",
             Pref::MovementAnimations => "Movement Animations",
+            Pref::LeftClickMoves => "Left Click Moves Units",
         }
     }
 
@@ -113,7 +118,7 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 19],
+    on: [bool; 20],
 }
 
 impl Default for Preferences {

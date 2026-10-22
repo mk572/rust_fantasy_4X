@@ -72,7 +72,7 @@ impl Game {
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
         }
-        self.explore(owner, to, 2);
+        self.explore(owner, to, crate::map::fog::sight_for(2));
         Ok(vec![Event::UnitsMoved {
             units: units.to_vec(),
             from,

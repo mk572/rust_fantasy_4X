@@ -24,7 +24,7 @@ fn world() -> (Game, Serial) {
     g.add_player(P0, "W");
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let u = g.spawn_unit(P0, at(5, 5), walker);
-    g.fog.explore(P0, at(10, 5), 12);
+    g.fog.explore(P0, at(10, 5), 25);
     let serial = g.serial_of(u);
     (g, serial)
 }

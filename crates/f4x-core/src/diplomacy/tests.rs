@@ -379,9 +379,9 @@ fn a_wizard_whose_city_is_seen_is_met() {
     let mut g = world();
     city(&mut g, P1, at(10, 10));
     assert!(!g.have_met(P0, P1));
-    g.explore(P0, at(6, 10), 2);
+    g.explore(P0, at(6, 10), 5);
     assert!(!g.have_met(P0, P1), "out of sight");
-    g.explore(P0, at(8, 10), 2);
+    g.explore(P0, at(8, 10), 5);
     assert!(g.have_met(P0, P1));
     assert!(g.have_met(P1, P0));
     assert_eq!(g.diplomacy.stance(P0, P1).unwrap().stage, Stage::Greeted);

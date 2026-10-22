@@ -97,6 +97,8 @@ pub struct Economy<'a> {
     pub(crate) content: &'a Content,
     /// The world events going on; none unless [`Economy::with_events`] says otherwise.
     pub(crate) events: &'a crate::world_event::Events,
+    /// A diagonal step costs half as much again (`BasicSettings::diagonal_extra_cost`).
+    pub(crate) diagonal_extra: bool,
 }
 
 impl<'a> Economy<'a> {
@@ -106,7 +108,14 @@ impl<'a> Economy<'a> {
             map,
             content,
             events: &crate::world_event::NONE,
+            diagonal_extra: false,
         }
+    }
+
+    /// The same view with diagonal steps costing half as much again, or not.
+    pub fn with_diagonal_extra(mut self, extra: bool) -> Self {
+        self.diagonal_extra = extra;
+        self
     }
 
     /// The same view with the world events that are going on.
@@ -859,7 +868,9 @@ impl<'a> Economy<'a> {
 impl Game {
     /// The economy rules over the world, the map, the content and the players.
     pub fn economy(&self) -> Economy<'_> {
-        Economy::new(&self.world, self.map.as_ref(), &self.content).with_events(&self.events)
+        Economy::new(&self.world, self.map.as_ref(), &self.content)
+            .with_events(&self.events)
+            .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
     }
 }
 

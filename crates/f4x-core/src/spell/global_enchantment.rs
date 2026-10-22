@@ -96,7 +96,8 @@ impl Game {
                     x: w / 2,
                     y: h / 2,
                 };
-                self.fog.explore(player, at, w.max(h));
+                self.fog
+                    .explore(player, at, crate::map::fog::sight_for(w.max(h)));
             }
         } else if self.has_global(player, "awareness") {
             let cities: Vec<_> = self
@@ -106,7 +107,7 @@ impl Game {
                 .map(|(_, _, p)| p)
                 .collect();
             for at in cities {
-                self.fog.explore(player, at, 1);
+                self.fog.explore(player, at, crate::map::fog::sight_for(1));
             }
         }
     }

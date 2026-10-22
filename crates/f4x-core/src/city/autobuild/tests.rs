@@ -42,7 +42,7 @@ fn content() -> Content {
         MovementType::Flying,
         4,
         30,
-        &[(Stat::Melee, 1), (Stat::Sight, 3)],
+        &[(Stat::Melee, 1), (Stat::Sight, 7)],
     );
     add(
         "engineer",

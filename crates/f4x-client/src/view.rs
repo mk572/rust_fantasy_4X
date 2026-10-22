@@ -17,6 +17,7 @@ use macroquad::prelude::*;
 use crate::art::{Art, TILE_H, TILE_W};
 use crate::frame::{spot, Align};
 use crate::options_screen::OptionsState;
+use crate::preferences::Pref;
 use crate::ui::GOLD;
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
@@ -1605,14 +1606,23 @@ impl App {
                 && self.foreign_stack_at(pos)
                 && self.open_unit_list(pos)
             {
-            } else if is_mouse_button_pressed(MouseButton::Right) && !self.selection.is_empty() {
-                let events = self.game.apply(Command::GoTo {
-                    units: self.selection.clone(),
-                    to: pos,
-                });
-                self.note(events);
+            } else if is_mouse_button_pressed(MouseButton::Right)
+                && !self.selection.is_empty()
+                && !self.prefs.get(Pref::LeftClickMoves)
+            {
+                self.go_to(pos);
             }
         }
+    }
+
+    /// Send the selected units to `pos` (the click that moves units is the preference
+    /// `Left Click Moves Units`).
+    fn go_to(&mut self, pos: Position) {
+        let events = self.game.apply(Command::GoTo {
+            units: self.selection.clone(),
+            to: pos,
+        });
+        self.note(events);
     }
 
     fn click(&mut self, pos: Position) {
@@ -1641,6 +1651,8 @@ impl App {
             .any(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
         if has_mine {
             self.select_at(pos);
+        } else if !self.selection.is_empty() && self.prefs.get(Pref::LeftClickMoves) {
+            self.go_to(pos);
         } else if let Some(city) = self.game.economy().city_at(pos) {
             self.selection.clear();
             if self.game.economy().city_owner(city) == Some(HUMAN) {

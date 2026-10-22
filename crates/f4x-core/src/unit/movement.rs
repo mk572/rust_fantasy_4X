@@ -86,8 +86,24 @@ impl Economy<'_> {
     }
 
     /// Cost in half-moves for `unit` to step from `from` to the adjacent `to`, with the
-    /// abilities its stack shares.
+    /// abilities its stack shares. With the setting `diagonal_extra_cost` a diagonal step costs
+    /// one and a half times a straight one (3 half-moves on open ground), rounded up.
     pub fn step_cost(
+        &self,
+        unit: hecs::Entity,
+        from: Position,
+        to: Position,
+        traits: StackTraits,
+    ) -> Result<u32, MoveError> {
+        let straight = self.straight_step_cost(unit, from, to, traits)?;
+        Ok(if self.diagonal_extra && from.x != to.x && from.y != to.y {
+            (straight * 3).div_ceil(2)
+        } else {
+            straight
+        })
+    }
+
+    fn straight_step_cost(
         &self,
         unit: hecs::Entity,
         from: Position,
@@ -382,7 +398,11 @@ impl Game {
             m.set_tower_owner(at.x, at.y, owner);
         }
         for plane in Plane::ALL {
-            self.fog.explore(owner, Position { plane, ..at }, 1);
+            self.fog.explore(
+                owner,
+                Position { plane, ..at },
+                crate::map::fog::sight_for(1),
+            );
         }
     }
 

@@ -900,7 +900,7 @@ impl Game {
             for &u in &movers {
                 let _ = self.world.insert_one(u, pos);
             }
-            self.explore(attacker, pos, 2);
+            self.explore(attacker, pos, crate::map::fog::sight_for(2));
             events.push(Event::UnitsMoved {
                 units: movers,
                 from,

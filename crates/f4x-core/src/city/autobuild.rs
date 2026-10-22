@@ -441,7 +441,7 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
         matches!(d.movement, MovementType::Flying) || d.abilities.iter().any(|a| a == "flying");
     let sailing = matches!(d.movement, MovementType::Sailing);
     let exploration = moves
-        + stat(d, Stat::Sight) * 0.5
+        + (stat(d, Stat::Sight) - 1.0) * 0.25
         + if flying { 2.0 } else { 0.0 }
         + if sailing { 1.5 } else { 0.0 }
         + stat(d, Stat::Transport) * 0.3

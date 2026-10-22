@@ -21,11 +21,25 @@ const AT_CORNER: [(u8, [(i32, i32); 3]); 4] = [
     (BOTTOM_RIGHT, [(1, 0), (1, 1), (0, 1)]),
 ];
 
-/// Whether a square `dx, dy` away is within a sight `range`: a diagonal step counts 1.5 and
-/// a square is in sight up to `range + 0.5`, which makes the original's shapes (range 1 is
-/// the tile and the eight round it, range 2 a 5 by 5 block without its corners).
-pub fn in_sight(dx: i32, dy: i32, range: i32) -> bool {
-    in_radius(dx, dy, range as f32 + 0.5)
+/// Sight, like movement, is counted in half-squares: a step along a row or column costs 2, a
+/// diagonal step 3, and a square is in sight when its cost is at most the sight. So sight 3 is
+/// the tile and the eight round it, sight 5 a 5 by 5 block without its corners.
+///
+/// The sight that shows `squares` squares along a row or column and the diagonal step after
+/// it (the original's scouting level).
+pub const fn sight_for(squares: u32) -> u32 {
+    2 * squares + 1
+}
+
+/// The most squares a `sight` shows along a row or column.
+pub const fn squares_seen(sight: u32) -> u32 {
+    sight / 2
+}
+
+/// Whether a square `dx, dy` away is within a `sight`, in half-squares.
+pub fn in_sight(dx: i32, dy: i32, sight: i32) -> bool {
+    let (long, short) = (dx.abs().max(dy.abs()), dx.abs().min(dy.abs()));
+    2 * long + short <= sight
 }
 
 /// Whether a square `dx, dy` away is within `radius`, where a step along a row or column counts 1
@@ -90,21 +104,21 @@ impl Fog {
             .or_insert_with(|| [vec![false; len], vec![false; len]])[plane.index()]
     }
 
-    /// Mark every tile within sight `radius` (see `in_sight`, wrapping horizontally) as
+    /// Mark every tile within `sight` (half-squares, see `in_sight`, wrapping horizontally) as
     /// explored.
-    pub fn explore(&mut self, player: PlayerId, at: Position, radius: u32) {
+    pub fn explore(&mut self, player: PlayerId, at: Position, sight: u32) {
         if self.width == 0 {
             return;
         }
         let (w, h) = (self.width as i32, self.height as i32);
         let layer = self.layer(player, at.plane);
-        let r = radius as i32;
+        let r = squares_seen(sight) as i32;
         for dy in -r..=r {
             let y = at.y as i32 + dy;
             if !(0..h).contains(&y) {
                 continue;
             }
-            for dx in (-r..=r).filter(|&dx| in_sight(dx, dy, r)) {
+            for dx in (-r..=r).filter(|&dx| in_sight(dx, dy, sight as i32)) {
                 let x = (at.x as i32 + dx).rem_euclid(w);
                 layer[(y * w + x) as usize] = true;
             }
@@ -219,7 +233,7 @@ mod tests {
     fn explores_a_square_and_wraps() {
         let mut fog = Fog::new(10, 8);
         let p = PlayerId(0);
-        fog.explore(p, pos(0, 0), 1);
+        fog.explore(p, pos(0, 0), 3);
         // rows -1 is off the map; rows 0..=1, columns 9, 0, 1
         assert_eq!(fog.explored_count(p, Plane::Arcanus), 6);
         assert!(fog.is_explored(p, Plane::Arcanus, 9, 1));
@@ -232,7 +246,7 @@ mod tests {
     fn the_border_is_drawn_on_the_explored_squares_beside_unexplored_ones() {
         let mut fog = Fog::new(10, 8);
         let p = PlayerId(0);
-        fog.explore(p, pos(4, 4), 1);
+        fog.explore(p, pos(4, 4), 3);
         let corners = |x, y| fog.corners(p, Plane::Arcanus, x, y);
         // The middle is clear; the edge squares are shaded on the side that faces the dark.
         assert_eq!(corners(4, 4), ALL);
@@ -245,7 +259,7 @@ mod tests {
         assert_eq!(corners(6, 4), 0);
         // Across the wrap.
         let mut fog = Fog::new(10, 8);
-        fog.explore(p, pos(0, 4), 1);
+        fog.explore(p, pos(0, 4), 3);
         assert_eq!(
             fog.corners(p, Plane::Arcanus, 9, 4),
             TOP_RIGHT | BOTTOM_RIGHT
@@ -253,26 +267,29 @@ mod tests {
     }
 
     #[test]
-    fn sight_counts_a_diagonal_step_as_one_and_a_half() {
-        let shape = |range| {
+    fn sight_is_in_half_squares_and_a_diagonal_step_costs_three() {
+        let shape = |sight| {
             (-4..=4)
                 .flat_map(|dy| (-4..=4).map(move |dx| (dx, dy)))
-                .filter(|&(dx, dy)| in_sight(dx, dy, range))
+                .filter(|&(dx, dy)| in_sight(dx, dy, sight))
                 .count()
         };
-        assert_eq!(shape(0), 1);
-        assert_eq!(shape(1), 9);
+        assert_eq!(shape(1), 1);
+        assert_eq!(shape(2), 5, "one square along a row or column only");
+        assert_eq!(shape(3), 9, "the tile and the eight round it");
         // A 5 by 5 block without its four corners.
-        assert_eq!(shape(2), 21);
-        assert!(in_sight(2, 1, 2) && !in_sight(2, 2, 2));
-        assert_eq!(shape(3), 37);
+        assert_eq!(shape(5), 21);
+        assert!(in_sight(2, 1, 5) && !in_sight(2, 2, 5));
+        assert_eq!(shape(7), 37);
+        assert_eq!(sight_for(2), 5);
+        assert_eq!(squares_seen(sight_for(2)), 2);
     }
 
     #[test]
     fn every_player_has_an_exploration_of_their_own() {
         let mut fog = Fog::new(10, 8);
-        fog.explore(PlayerId(0), pos(2, 2), 2);
-        fog.explore(PlayerId(1), pos(7, 4), 1);
+        fog.explore(PlayerId(0), pos(2, 2), 5);
+        fog.explore(PlayerId(1), pos(7, 4), 3);
         assert!(fog.is_explored(PlayerId(0), Plane::Arcanus, 2, 2));
         assert!(!fog.is_explored(PlayerId(1), Plane::Arcanus, 2, 2));
         assert!(fog.is_explored(PlayerId(1), Plane::Arcanus, 7, 4));

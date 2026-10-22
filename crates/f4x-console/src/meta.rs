@@ -162,6 +162,14 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         level(&DIFFICULTY, b.difficulty)
     ));
     ctx.say(format!("opponents {}", b.opponents));
+    ctx.say(format!(
+        "diagonal steps cost {}",
+        if b.diagonal_extra_cost {
+            "50% more"
+        } else {
+            "the same"
+        }
+    ));
     ctx.say(format!("land {}%", b.land_percent));
     ctx.say(format!(
         "magic power {} ({})",

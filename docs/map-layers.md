@@ -162,8 +162,8 @@ each city gets half its food, production bonus and mine yield. The city's own ti
 ## 7. Exploration and visibility
 
 - **Exploration** is permanent. Whenever a unit is created or moves, or a city is founded,
-  the owner explores a square of radius *r* around it: the unit's `Sight` stat (at least 1)
-  or 2 for a city. Exploring a plane is independent of the other.
+  the owner explores the squares within its sight (half-squares, `map::fog::in_sight`): the
+  unit's `Sight` stat (at least 3) or 5 for a city. Exploring a plane is independent of the other.
 - **Visibility** is what a player can see *now*: the same squares, computed from the
   player's units and cities as they stand (`Game::visibility`). Enemy units are shown only on
   visible tiles; explored but not visible tiles show terrain, dimmed.

@@ -86,7 +86,7 @@ impl Game {
     pub(crate) fn word_of_recall(&mut self, caster: crate::player::PlayerId, unit: hecs::Entity) {
         if let Some(to) = self.recall_destination(caster, unit) {
             let _ = self.world.insert_one(unit, to);
-            self.explore(caster, to, 1);
+            self.explore(caster, to, crate::map::fog::sight_for(1));
         }
     }
 
@@ -129,7 +129,7 @@ impl Game {
         for u in self.units().units_at(from) {
             let _ = self.world.insert_one(u, to);
         }
-        self.explore(caster, to, 1);
+        self.explore(caster, to, crate::map::fog::sight_for(1));
     }
 
     /// Run a unit-target special hook. Returns whether the hook was one of these.

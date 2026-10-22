@@ -40,7 +40,7 @@ impl Game {
                     x: w / 2,
                     y: h / 2,
                 },
-                w.max(h),
+                crate::map::fog::sight_for(w.max(h)),
             );
         }
     }

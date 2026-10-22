@@ -357,6 +357,7 @@ fn every_setting_survives_a_save() {
         opponents: 4,
         land_percent: 15,
         magic_strength: 0,
+        diagonal_extra_cost: true,
     };
     let text = g.snapshot().to_text().unwrap();
     let back = Snapshot::from_text(&text)

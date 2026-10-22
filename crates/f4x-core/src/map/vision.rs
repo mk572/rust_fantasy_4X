@@ -8,8 +8,8 @@ use crate::player::PlayerId;
 use crate::rules::stats::compute;
 use crate::rules::Stat;
 
-/// Sight radius of a city before walls, an Oracle or Nature's Eye raise it.
-const CITY_SIGHT: i32 = 2;
+/// Sight of a city (half-squares) before walls, an Oracle or Nature's Eye raise it.
+const CITY_SIGHT: i32 = 5;
 
 impl Economy<'_> {
     /// Can `viewer` make out `unit`? One's own units always, others unless invisible; an
@@ -30,12 +30,14 @@ impl Economy<'_> {
             units.unit_has_ability(u, "illusion_immunity")
                 && units.unit_position(u).is_some_and(|p| {
                     p.plane == at.plane
-                        && grid.chebyshev((p.x, p.y), (at.x, at.y)) <= units.unit_sight(u) as u32
+                        && grid.chebyshev((p.x, p.y), (at.x, at.y)) * 2
+                            <= units.unit_sight(u) as u32
                 })
         })
     }
 
-    /// How far a city sees: 2, or more with an Oracle (4), City Walls (3) or Nature's Eye (4).
+    /// How far a city sees, in half-squares: 5, or more with an Oracle (9), City Walls (7) or
+    /// Nature's Eye (9).
     pub fn city_sight(&self, city: hecs::Entity) -> i32 {
         compute(Stat::CitySight, CITY_SIGHT, &self.city_modifiers(city))
     }
@@ -51,16 +53,17 @@ impl Economy<'_> {
             return vec![true; (w * h) as usize];
         }
         let mut seen = vec![false; (w * h) as usize];
-        let mut reveal = |at: Position, radius: i32| {
+        let mut reveal = |at: Position, sight: i32| {
             if at.plane != plane {
                 return;
             }
+            let radius = crate::map::fog::squares_seen(sight.max(0) as u32) as i32;
             for dy in -radius..=radius {
                 let y = at.y as i32 + dy;
                 if !(0..h).contains(&y) {
                     continue;
                 }
-                for dx in (-radius..=radius).filter(|&dx| crate::map::fog::in_sight(dx, dy, radius))
+                for dx in (-radius..=radius).filter(|&dx| crate::map::fog::in_sight(dx, dy, sight))
                 {
                     let x = (at.x as i32 + dx).rem_euclid(w);
                     seen[(y * w + x) as usize] = true;
@@ -147,7 +150,7 @@ mod tests {
             population: 3,
         });
         let city = g.economy().city_at(at).unwrap();
-        assert_eq!(g.economy().city_sight(city), 2);
+        assert_eq!(g.economy().city_sight(city), 5);
         let seen = |g: &Game| {
             g.economy()
                 .visibility(PlayerId(0), Plane::Arcanus)
@@ -159,11 +162,11 @@ mod tests {
         assert_eq!(seen(&g), 21);
         // The sources are Min modifiers, so the best one counts and they do not add up.
         let mods = [
-            Modifier::new(Stat::CitySight, ModOp::Min, 3, Source::Other),
-            Modifier::new(Stat::CitySight, ModOp::Min, 4, Source::Other),
+            Modifier::new(Stat::CitySight, ModOp::Min, 7, Source::Other),
+            Modifier::new(Stat::CitySight, ModOp::Min, 9, Source::Other),
         ];
-        assert_eq!(compute(Stat::CitySight, 2, &mods), 4);
-        assert_eq!(compute(Stat::CitySight, 2, &mods[..1]), 3);
+        assert_eq!(compute(Stat::CitySight, 5, &mods), 9);
+        assert_eq!(compute(Stat::CitySight, 5, &mods[..1]), 7);
         // A real building with the modifier widens what the city sees and explores.
         let mut oracle = g.content.rules.buildings.defs()[0].clone();
         oracle.id = "oracle".into();
@@ -174,7 +177,7 @@ mod tests {
             effect: crate::rules::effects::Effect::Modify {
                 stat: Stat::CitySight,
                 op: ModOp::Min,
-                value: 4,
+                value: 9,
             },
         }];
         let mut defs = g.content.rules.buildings.defs().to_vec();
@@ -186,7 +189,7 @@ mod tests {
             .unwrap()
             .0
             .push(id);
-        assert_eq!(g.economy().city_sight(city), 4);
+        assert_eq!(g.economy().city_sight(city), 9);
         assert_eq!(seen(&g), 61);
         g.process_globals();
         assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));

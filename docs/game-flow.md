@@ -84,6 +84,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 | Walking | terrain `move_cost` x 2; impossible on ocean or non-walkable terrain |
 | Walking, between two road tiles | 1 |
 | Pathfinding ability | at most 1 |
+| A diagonal step (both x and y change), with the setting `diagonal_extra_cost` (off by default) | one and a half times the cost above, rounded up (3 on open ground) |
 | Forester ability, onto forest | at most 2 |
 | Mountaineer ability, onto hills or mountains | at most 2 |
 
@@ -96,9 +97,11 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 - **Plane shift.** Allowed on a tower tile, or for a stack whose every unit has planar
   travel. The destination (same x, y on the other plane) must be enterable by every unit,
   free of hostile units, and have room. It costs one full move.
-- **Exploration.** After each move the owner explores around the new tile (unit `Sight`,
-  at least 1) as far as it sees: a diagonal step counts 1.5 and a square is in sight up to the range plus 0.5
-  (range 2 is a 5 by 5 block without its corners).
+- **Exploration.** After each move the owner explores around the new tile as far as the unit
+  sees. `Sight` is counted in half-squares like movement (a step along a row or column costs 2,
+  a diagonal step 3, and a square is in sight when its cost is at most the sight): sight 3 is
+  the tile and the eight round it, sight 5 a 5 by 5 block without its corners (the original's
+  scouting levels 1 and 2). A unit has at least 3, a flier or wind walker at least 5; a city 5.
   The border of the known land is drawn on its outermost tiles. Every player, the AI's too,
   has an exploration of their own, and starts with what their capital sees, since a new city explores when it is founded.
 

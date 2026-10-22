@@ -176,7 +176,7 @@ fn best_target(
 ) -> Option<Position> {
     let reachable = view.reachable(&[unit]);
     // A unit shows the squares within its sight of where it stands, and no more.
-    let look = view.unit_stat(unit, Stat::Sight).max(1);
+    let look = view.unit_stat(unit, Stat::Sight).max(3);
     let mut best: Option<(f32, Position)> = None;
     for &p in &reachable {
         if p == from
@@ -205,11 +205,12 @@ fn best_target(
     best.map(|(_, p)| p)
 }
 
-/// How many squares within `look` of `at` the wizard has not explored.
+/// How many squares within the sight `look` (half-squares) of `at` the wizard has not explored.
 fn unexplored_near(view: &PlayerView, at: Position, look: i32) -> u32 {
     let mut n = 0;
-    for dy in -look..=look {
-        for dx in (-look..=look).filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look)) {
+    let reach = f4x_core::map::fog::squares_seen(look as u32) as i32;
+    for dy in -reach..=reach {
+        for dx in (-reach..=reach).filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look)) {
             if let Some(p) = view.shift(at, dx, dy) {
                 if !view.explored(p) {
                     n += 1;
@@ -244,15 +245,15 @@ mod tests {
         let far = at(4, 4);
         let view = PlayerView::new(&g, P0);
         assert_eq!(
-            unexplored_near(&view, far, 2),
+            unexplored_near(&view, far, 5),
             21,
-            "all 21 squares of a look of 2 unseen"
+            "all 21 squares of a look of 5 half-squares unseen"
         );
         // The city's own surroundings are known.
-        assert_eq!(unexplored_near(&view, city(), 0), 0);
+        assert_eq!(unexplored_near(&view, city(), 1), 0);
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        assert_eq!(unexplored_near(&view, far, 2), 0);
+        assert_eq!(unexplored_near(&view, far, 5), 0);
     }
 
     #[test]
@@ -263,7 +264,7 @@ mod tests {
         let target = best_target(&view, walker, city(), &[]).expect("something to explore");
         assert_ne!(target, city());
         assert!(view.reachable(&[walker]).contains(&target));
-        assert!(unexplored_near(&view, target, 1) > 0);
+        assert!(unexplored_near(&view, target, 3) > 0);
         // The same choice every time.
         assert_eq!(best_target(&view, walker, city(), &[]), Some(target));
     }

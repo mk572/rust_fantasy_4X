@@ -489,7 +489,7 @@ mod tests {
         );
         drop(view);
         // Once the player has explored the square it knows the city; seeing it is another thing.
-        g.explore(ME, at(20, 10), 2);
+        g.explore(ME, at(20, 10), 5);
         let view = PlayerView::new(&g, ME);
         assert!(view
             .known_cities()

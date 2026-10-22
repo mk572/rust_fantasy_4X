@@ -13,6 +13,8 @@
         opponents: 1,        // computer wizards, 1 to 4
         land_percent: 30,    // share of each plane's tiles: 15 small, 20 medium, 30 large
         magic_strength: 1,   // nodes: 0 weak, 1 normal, 2 powerful
+        diagonal_extra_cost: false, // false: a diagonal step costs the same as a straight one;
+                                    // true: it costs 50% more (3 half-moves instead of 2)
     ),
 
     // The most computer wizards a new game can have (1 to 4; more wizards need more start
@@ -323,5 +325,6 @@
         "show_node_owners": true,
         "expanding_help": true,
         "movement_animations": true,
+        "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
     },
 )

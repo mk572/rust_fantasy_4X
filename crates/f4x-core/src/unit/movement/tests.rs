@@ -75,6 +75,24 @@ fn terrain_costs_for_a_walker() {
 }
 
 #[test]
+fn a_diagonal_step_costs_one_and_a_half_times_a_straight_one_when_the_setting_says_so() {
+    let mut g = world();
+    let walker = unit(&mut g, P0, "walker", at(5, 4));
+    assert_eq!(
+        cost(&g, walker, at(5, 4), at(6, 3)),
+        Ok(2),
+        "the same by default"
+    );
+    g.settings.basic.diagonal_extra_cost = true;
+    assert_eq!(cost(&g, walker, at(5, 4), at(6, 4)), Ok(2));
+    assert_eq!(cost(&g, walker, at(5, 4), at(6, 3)), Ok(3));
+    // Forest costs 2 moves = 4 half-moves, diagonally 6.
+    assert_eq!(cost(&g, walker, at(3, 1), at(2, 2)), Ok(6));
+    // Across the sideways wrap too.
+    assert_eq!(cost(&g, walker, at(0, 4), at(11, 3)), Ok(3));
+}
+
+#[test]
 fn abilities_change_costs() {
     let mut g = world();
     let ranger = unit(&mut g, P0, "ranger", at(1, 2));
@@ -272,8 +290,8 @@ fn fliers_and_wind_walkers_see_two_squares_at_least() {
     let mut g = world();
     let mage = unit(&mut g, P0, "mage", at(5, 4));
     let walker = unit(&mut g, P0, "walker", at(5, 4));
-    assert_eq!(g.units().unit_sight(walker), 1);
-    assert_eq!(g.units().unit_sight(mage), 2);
+    assert_eq!(g.units().unit_sight(walker), 3);
+    assert_eq!(g.units().unit_sight(mage), 5);
 }
 
 #[test]
