@@ -24,9 +24,7 @@ impl Default for ConsoleUi {
         Self {
             console: Console::new(HUMAN, Access::Full),
             input: String::new(),
-            lines: vec![
-                "Console. `help` lists the commands; `mode override` allows cheats.".into(),
-            ],
+            lines: vec!["Console. `help` lists the commands.".into()],
             recall: None,
             back: Screen::Map,
         }
@@ -50,7 +48,6 @@ impl App {
             return;
         }
         let prompt = match self.console.console.session.mode {
-            Mode::Override => "override>",
             Mode::Legal => "legal>",
             Mode::ReadOnly => "readonly>",
         };
@@ -127,10 +124,7 @@ impl App {
         for line in &self.console.lines[skip..] {
             let color = if line.starts_with("error:") {
                 Color::new(1.0, 0.5, 0.45, 1.0)
-            } else if line.starts_with("override>")
-                || line.starts_with("legal>")
-                || line.starts_with("readonly>")
-            {
+            } else if line.starts_with("legal>") || line.starts_with("readonly>") {
                 GOLD
             } else {
                 WHITE
@@ -139,7 +133,6 @@ impl App {
             y += size * 1.15;
         }
         let (prompt, color) = match self.console.console.session.mode {
-            Mode::Override => ("[OVERRIDE]>", Color::new(1.0, 0.4, 0.35, 1.0)),
             Mode::Legal => ("[legal]>", Color::new(0.5, 0.9, 0.5, 1.0)),
             Mode::ReadOnly => ("[read-only]>", Color::new(0.6, 0.75, 1.0, 1.0)),
         };

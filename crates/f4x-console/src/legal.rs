@@ -84,10 +84,7 @@ impl Ctx<'_> {
             .iter()
             .any(|&u| self.game.units().unit_owner(u) != Some(me))
         {
-            if !self.overriding() {
-                return Err(ConsoleError::NotAllowed("those are not your units".into()));
-            }
-            self.bypassed = true;
+            return Err(ConsoleError::NotAllowed("those are not your units".into()));
         }
         Ok(units)
     }
@@ -95,10 +92,7 @@ impl Ctx<'_> {
     fn my_city(&mut self, a: &Args, i: usize) -> Result<hecs::Entity, ConsoleError> {
         let c = city_by_serial(self.game, a.int(i, "city number")? as u64)?;
         if self.game.economy().city_owner(c) != Some(self.session.player) {
-            if !self.overriding() {
-                return Err(ConsoleError::NotAllowed("that is not your city".into()));
-            }
-            self.bypassed = true;
+            return Err(ConsoleError::NotAllowed("that is not your city".into()));
         }
         Ok(c)
     }
@@ -435,12 +429,9 @@ fn battle_order(ctx: &mut Ctx, order: BattleCommand) -> Result<(), ConsoleError>
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     if b.player_of(b.active) != ctx.session.player {
-        if !ctx.overriding() {
-            return Err(ConsoleError::NotAllowed(
-                "it is not your side's turn".into(),
-            ));
-        }
-        ctx.bypassed = true;
+        return Err(ConsoleError::NotAllowed(
+            "it is not your side's turn".into(),
+        ));
     }
     ctx.apply(Command::Battle(order))
 }

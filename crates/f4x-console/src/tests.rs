@@ -53,7 +53,7 @@ fn the_table_is_well_formed() {
         );
         assert!(!c.help.is_empty());
     }
-    for kind in [Kind::Query, Kind::Legal, Kind::Override] {
+    for kind in [Kind::Query, Kind::Legal] {
         assert!(all.iter().any(|c| c.kind == kind));
     }
 }
@@ -84,35 +84,6 @@ fn queries_describe_the_new_game() {
 }
 
 #[test]
-fn override_commands_need_the_override_mode() {
-    let (mut g, mut c) = (game(), console());
-    let refused = c.execute(&mut g, "give gold 500");
-    assert!(!refused.ok);
-    assert!(
-        matches!(err(&refused), ConsoleError::NotAllowed(_)),
-        "{refused:?}"
-    );
-    let gold = g.treasury(HUMAN).unwrap().gold;
-
-    assert!(c.execute(&mut g, "mode override").ok);
-    assert_eq!(c.session.mode, Mode::Override);
-    assert!(c.execute(&mut g, "give gold 500").ok);
-    assert_eq!(g.treasury(HUMAN).unwrap().gold, gold + 500);
-
-    assert!(c.execute(&mut g, "mode legal").ok);
-    assert!(!c.execute(&mut g, "give gold 500").ok);
-    assert_eq!(g.treasury(HUMAN).unwrap().gold, gold + 500);
-
-    // Switching the mode on and each cheat are in the game's saved log.
-    let log = g.override_log().to_vec();
-    assert_eq!(log.len(), 2, "{log:?}");
-    assert!(log[0].contains("mode override") && log[1].contains("give gold 500"));
-    let restored = g.snapshot().restore(g.content().clone()).unwrap();
-    assert_eq!(restored.override_log(), log.as_slice());
-    assert!(c.execute(&mut g, "history").text().contains("give gold"));
-}
-
-#[test]
 fn access_limits_what_a_front_end_can_ever_do() {
     let mut g = game();
     let mut spectator = Console::new(HUMAN, Access::ReadOnly);
@@ -120,31 +91,28 @@ fn access_limits_what_a_front_end_can_ever_do() {
     assert!(!spectator.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 1);
     let mut player = Console::new(HUMAN, Access::Play);
-    assert!(!player.execute(&mut g, "mode override").ok);
     assert!(player.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 2);
-    assert!(!player.execute(&mut g, "give gold 1").ok);
     assert!(
         !player.execute(&mut g, "new 5").ok,
         "a player may not replace the game"
     );
     assert!(!player.execute(&mut g, "load quick").ok);
-    // Placing a fortress is not normal play: the legal commands do not have it.
-    assert!(!player.execute(&mut g, "fortress 5,5").ok);
     assert_eq!(player.complete("sp"), ["spells"]);
-    assert!(!console().complete("sp").contains(&"spawn"));
-    let mut full = console();
-    full.execute(&mut g, "mode override");
-    assert!(full.complete("sp").contains(&"spawn"));
 }
 
 #[test]
 fn legal_commands_check_ownership() {
     let (mut g, mut c) = (game(), console());
-    c.execute(&mut g, "mode override");
-    let spawn = c.execute(&mut g, "spawn spearmen 3,3 1");
-    assert!(spawn.ok, "{}", spawn.text());
-    c.execute(&mut g, "mode legal");
+    g.apply(f4x_core::game::Command::CreateUnit {
+        owner: PlayerId(1),
+        pos: f4x_core::map::Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: 3,
+            y: 3,
+        },
+        unit: g.content().rules.units.id_of("barbarian_spearmen").unwrap(),
+    });
     // The rival's unit is the newest one.
     let newest = g
         .units()
@@ -155,12 +123,6 @@ fn legal_commands_check_ownership() {
         .unwrap();
     let r = c.execute(&mut g, &format!("stop {newest}"));
     assert!(matches!(err(&r), ConsoleError::NotAllowed(_)), "{r:?}");
-    // In override mode the same line works and is logged.
-    c.execute(&mut g, "mode override");
-    let before = g.override_log().len();
-    let r = c.execute(&mut g, &format!("stop {newest}"));
-    assert!(r.ok, "{}", r.text());
-    assert_eq!(g.override_log().len(), before + 1);
 }
 
 #[test]
@@ -221,10 +183,15 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             it.next().unwrap().parse().unwrap(),
         )
     };
-    c.execute(&mut g, "mode override");
-    let r = c.execute(&mut g, &format!("spawn spearmen {},{},a 1", x + 1, y));
-    assert!(r.ok, "{}", r.text());
-    c.execute(&mut g, "mode legal");
+    g.apply(f4x_core::game::Command::CreateUnit {
+        owner: PlayerId(1),
+        pos: f4x_core::map::Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: x + 1,
+            y,
+        },
+        unit: g.content().rules.units.id_of("barbarian_spearmen").unwrap(),
+    });
     let r = c.execute(&mut g, &format!("attack @{x},{y} {},{y}", x + 1));
     assert!(r.ok, "{}", r.text());
     assert!(g.in_battle(), "{}", r.text());
@@ -277,25 +244,13 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
 }
 
 #[test]
-fn a_cheat_can_end_the_game_and_the_console_then_refuses_play() {
+fn a_finished_game_makes_the_console_refuse_play() {
     let (mut g, mut c) = (game(), console());
-    c.execute(&mut g, "mode override");
-    let r = c.execute(&mut g, "win 0");
-    assert!(r.ok, "{}", r.text());
+    assert!(!g.win_by_mastery(HUMAN).is_empty());
     assert!(g.game_over.is_some());
     assert!(c.execute(&mut g, "status").text().contains("GAME OVER"));
     assert!(!c.execute(&mut g, "end").ok);
     assert!(c.execute(&mut g, "score").ok);
-}
-
-#[test]
-fn eliminating_the_rival_wins_by_conquest() {
-    let (mut g, mut c) = (game(), console());
-    c.execute(&mut g, "mode override");
-    let r = c.execute(&mut g, "eliminate 1");
-    assert!(r.ok, "{}", r.text());
-    assert!(r.text().contains("GAME OVER"), "{}", r.text());
-    assert_eq!(g.game_over.unwrap().winner, HUMAN);
 }
 
 #[test]
@@ -305,22 +260,8 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     assert_eq!(c.session.mode, Mode::ReadOnly);
     assert!(c.execute(&mut g, "status").ok);
     assert!(c.execute(&mut g, "cities").ok);
-    for line in [
-        "end",
-        "tax 1",
-        "save",
-        "new 3",
-        "give gold 5",
-        "mode override",
-    ] {
+    for line in ["end", "tax 1", "save", "new 3"] {
         let r = c.execute(&mut g, line);
-        // Switching up needs a deliberate `mode legal` first for legal commands; the
-        // mode word itself is how you leave read-only, so that one is allowed.
-        if line == "mode override" {
-            assert!(r.ok);
-            assert!(c.execute(&mut g, "mode readonly").ok);
-            continue;
-        }
         assert!(
             matches!(err(&r), ConsoleError::NotAllowed(_)),
             "{line}: {r:?}"
@@ -334,11 +275,9 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     let mut spectator = Console::new(HUMAN, Access::ReadOnly);
     assert_eq!(spectator.session.mode, Mode::ReadOnly);
     assert!(!spectator.execute(&mut g, "mode legal").ok);
-    assert!(!spectator.execute(&mut g, "mode override").ok);
     let mut player = Console::new(HUMAN, Access::Play);
     assert!(player.execute(&mut g, "mode readonly").ok);
     assert!(player.execute(&mut g, "mode legal").ok);
-    assert!(!player.execute(&mut g, "mode override").ok);
 }
 
 fn content() -> f4x_core::content::Content {
@@ -2383,29 +2322,6 @@ fn healing_does_not_work_on_a_death_creature() {
 }
 
 #[test]
-fn the_undead_cheat_needs_override_and_makes_units_undead() {
-    let (mut g, _) = siege_world(6, &[]);
-    let unit = g
-        .units()
-        .all_units()
-        .into_iter()
-        .find(|&u| g.units().unit_owner(u) == Some(HUMAN))
-        .unwrap();
-    let serial = g.serial_of(unit).0;
-    let mut play = Console::new(HUMAN, Access::Play);
-    let refused = play.execute(&mut g, &format!("undead {serial}"));
-    assert!(!refused.ok);
-    assert!(!g.units().unit_is_undead(unit));
-    let mut full = Console::new(HUMAN, Access::Full);
-    assert!(full.execute(&mut g, "mode override").ok);
-    let r = full.execute(&mut g, &format!("undead {serial}"));
-    assert!(r.ok, "{}", r.text());
-    assert!(g.units().unit_is_undead(unit));
-    let info = full.execute(&mut g, &format!("unit {serial}"));
-    assert!(info.text().contains("undead"), "{}", info.text());
-}
-
-#[test]
 fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["fire_bolt"]);
@@ -2710,16 +2626,13 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
 }
 
 #[test]
-fn an_offer_can_be_forced_listed_and_taken_by_number() {
+fn an_offer_can_be_listed_and_taken_by_number() {
     let (mut g, mut c) = (game(), console());
     assert!(c.execute(&mut g, "offers").text().contains("no offers"));
-    // A forced offer is an override, so it is logged.
-    assert!(!c.execute(&mut g, "offer hero").ok);
-    c.execute(&mut g, "mode override");
-    c.execute(&mut g, "give fame 100");
-    c.execute(&mut g, "give gold 5000");
-    let made = c.execute(&mut g, "offer hero");
-    assert!(made.ok, "{}", made.text());
+    g.add_fame(HUMAN, 100);
+    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    let made = g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero);
+    assert!(made.is_some());
     let listed = c.execute(&mut g, "offers");
     assert!(listed.text().contains("1: "), "{}", listed.text());
     assert!(
@@ -2739,9 +2652,10 @@ fn an_offer_can_be_forced_listed_and_taken_by_number() {
     assert!(c.execute(&mut g, "accept 1").error.is_some());
     assert!(c.execute(&mut g, "reject 0").error.is_some());
     // The merchant's item and a rejection.
-    assert!(c.execute(&mut g, "offer item").ok);
+    assert!(g
+        .cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Item)
+        .is_some());
     assert!(c.execute(&mut g, "reject 1").ok);
-    assert!(g.override_log().iter().any(|l| l.contains("offer hero")));
 }
 
 #[test]

@@ -11,42 +11,32 @@ command, and the commands are split by what they let you do:
 |---|---|---|
 | **query** | Reads the game (and the console's own settings). | always |
 | **legal** | Anything a player may do in normal play. Sent through `Game::apply` as the same `Command`s the client uses, with ownership checked. | always (unless the console is read-only) |
-| **override** | Cheating: adding units, removing players, setting gold. | only in **override mode** |
 
 `help` lists every command with its kind; `help <command>` describes one.
 
 ## 1. Modes and access
 
-- **Mode** is the toggle, three values: `mode readonly` (queries only: nothing typed can change
-  the game, a guard against slips), `mode legal` (the default: queries and legal commands) and
-  `mode override` (also the cheats). Commands the mode does not allow are refused with a message
+- **Mode** is the toggle, two values: `mode readonly` (queries only: nothing typed can change
+  the game, a guard against slips) and `mode legal` (the default: queries and legal commands). Commands the mode does not allow are refused with a message
   that says which `mode` to switch to. Going down a mode is always allowed; going up is limited
   by the console's access (below). A read-only mode console cannot save, load or start a new
   game either.
-- In override mode a legal command may also be used on things that are not yours (another
-  wizard's units or cities, or a battle side that is not to play); that use is an override too.
-- **Every override is written to the game's override log** (`Game::override_log`, saved with
-  the game): switching override mode on, each override command that worked, and each legal
-  command that acted for someone else. `history` shows it, `status` says how many there are,
-  so a saved game that was tampered with can be told apart. Hardcore mode (`PLANNED.md` item 8)
-  should refuse a console whose access is below `Full`.
 - **Access** is what a front end may ever do, set when the console is made, and not changeable
   from inside it:
 
 | Access | Allows | For |
 |---|---|---|
 | `ReadOnly` | queries; starts and stays in read-only mode | a spectator, a read-only remote |
-| `Play` | queries and legal commands; `mode override` is refused | an AI player, a networked player, hardcore games |
-| `Full` | everything, once the mode is `override` | the local player, developers |
+| `Play` | queries and legal commands; may not replace the game | an AI player, a networked player, hardcore games |
+| `Full` | everything, including `new`, `load` and `replay` | the local player, developers |
 
 In legal mode the queries only show what the console's player can see: the player's own
-units and cities, and others' units and cities on visible squares. Override mode sees
-everything.
+units and cities, and others' units and cities on visible squares.
 
 ## 2. Using it
 
 **In the client:** The backquote key (`) opens the console as a screen (the same key or Esc closes it). The prompt shows the
-mode (`[read-only]>`, `[legal]>` or red `[OVERRIDE]>`). Up and Down walk through the history and Tab completes a
+mode (`[read-only]>` or `[legal]>`). Up and Down walk through the history and Tab completes a
 command name. A battle that starts from a console line keeps the console open, so a fight can
 be played from text (`battle`, `bmove`, `battack`, ...).
 
@@ -93,7 +83,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | `battle` | the battle being fought: units, squares, figures, moves |
 | `blegal [unit]` | what your side may do in the battle now: each unit's moves, attacks, shots and wall attacks, and the casts with their aims and mana (the list the learning environment uses) |
 | `score [player]` | the score breakdown (`game_end.md`) |
-| `mode`, `history` | the mode; the override log |
+| `mode` | the mode |
 | `settings` | the settings the game is played with |
 
 ### Legal commands
@@ -123,24 +113,13 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 Pure view actions (camera, zoom, screens, selection, help pages) have no command: the queries
 give the same information.
 
-### Override commands
+### Override commands (taken out for now)
 
-| Command | Does |
-|---|---|
-| `give <gold\|mana\|fame> <n> [player]` | add (or remove, with a negative number) |
-| `spawn <unit> <pos> [player]`, `kill <units>`, `restore <units>`, `teleport <units> <pos>` | make, remove, heal and refill, or move units |
-| `undead <units>` | make units undead (task 29) |
-| `fortress <pos> [name] [race=] [player=]` | place a wizard's fortress and first city. A game-start action, not normal play: the game refuses it once the wizard has one |
-| `newcity <pos> <name> [player] [race=] [pop=]`, `build <city> <building>` | found a city, add a building without cost |
-| `terrain <pos> <terrain-id>` | change a square |
-| `learn <spell> [player]`, `reveal [player]` | teach a spell, explore the map |
-| `event <name> [player]` | make a random event happen to the wizard now (`great_meteor`, `gift`, `plague`, `good_moon`...; task 68); the vetoes apply, except the wait until turn 150 |
-| `offer <hero\|mercenaries\|item> [player]` | make the wizard that offer now, whatever the chance (task 220); answer with `accept` or `reject` |
-| `eliminate <player>`, `win <player>` | defeat a wizard on the spot (the usual aftermath and game-end checks follow), or end the game with this wizard winning by the Spell of Mastery |
-| `as <player>` | play as another wizard from now on |
-
-Not done yet: setting a feature or lair, clearing a lair, triggering events (the random events
-are task 68), setting the turn number.
+The cheat commands (`give`, `spawn`, `kill`, `restore`, `teleport`, `undead`, `fortress`, `newcity`,
+`build`, `terrain`, `learn`, `reveal`, `event`, `offer`, `eliminate`, `win`, `as`), the override
+mode, the override log commands (`history`) and the bypass of ownership and fog are removed from
+the console. The code, its tests and a patch to wire it back in are in
+`reference/console-cheat/` (see its `README.md`).
 
 ## 5. Hooks for other front ends
 
@@ -162,14 +141,14 @@ let hits = console.complete("spa");                     // names this console ma
   server maps each command to a tool, the `commands` query gives the same as text).
 - **Access, not trust.** A front end is given the access it may use and nothing can raise it
   from inside; an AI player gets `Play`, a remote spectator `ReadOnly`.
-- **One path to the rules.** Legal commands call `Game::apply`; override mutators live in
-  `f4x-core/src/game/cheat.rs`, are only called by the override commands and are logged.
+- **One path to the rules.** Legal commands call `Game::apply`. The debug mutators in
+  `f4x-core/src/game/cheat.rs` are not reachable from the console.
 - **Same state.** The console holds no game state of its own (only the player it acts as, the
   mode and the access); `load` and `new` replace the `Game` it was given, so a front end can
   keep its own copy in step by reading `Game` after each line.
 
 To add a command: write a handler `fn(&mut Ctx, &Args) -> Result<(), ConsoleError>` in the
-fitting module (`query.rs`, `legal.rs`, `cheat.rs`, `meta.rs`), add it to that module's
+fitting module (`query.rs`, `legal.rs`, `meta.rs`), add it to that module's
 `TABLE` with its kind, usage and help, and (for a new `Command` of the game) give it a legal
 command so every client action keeps a text equivalent.
 
