@@ -442,11 +442,11 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
             let g = level_game(level, 3, seed);
             let human = g.human.unwrap();
             let mut names = Vec::new();
-            for p in g
+            for (id, p) in g
                 .wizards()
                 .into_iter()
                 .filter(|&w| w != human)
-                .filter_map(|w| g.player(w))
+                .filter_map(|w| Some((w, g.player(w)?)))
             {
                 let spent = p.magic.total_books()
                     + ALL_RETORTS
@@ -459,9 +459,9 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
                 assert!(
                     (picks..=picks + 1).contains(&spent),
                     "level {level} seed {seed}: {} spent {spent} of {picks}",
-                    p.name
+                    g.player_name(id)
                 );
-                names.push(p.name.clone());
+                names.push(g.player_name(id));
             }
             names.sort();
             names.dedup();
@@ -2250,9 +2250,10 @@ fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
 fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
     let g = game();
     let mut seen = std::collections::BTreeSet::new();
-    for (_, p) in g.players().iter().filter(|(_, p)| !p.neutral) {
-        assert!(p.portrait < f4x_core::player::PORTRAITS);
-        assert!(seen.insert(p.portrait), "picture {} twice", p.portrait);
+    for (id, _) in g.players().iter().filter(|(_, p)| !p.neutral) {
+        let portrait = g.portrait(*id);
+        assert!(portrait < f4x_core::player::PORTRAITS);
+        assert!(seen.insert(portrait), "picture {portrait} twice");
     }
 }
 
@@ -2568,12 +2569,16 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
     .unwrap();
     let human = g.human.unwrap();
     assert_eq!(g.objective(human), None, "the human has no objective");
-    for (id, p) in g
+    for (id, _) in g
         .players()
         .iter()
         .filter(|(id, p)| !p.neutral && *id != human)
     {
-        assert!(g.objective(*id).is_some(), "{} has an objective", p.name);
+        assert!(
+            g.objective(*id).is_some(),
+            "{} has an objective",
+            g.player_name(*id)
+        );
     }
     let back = g.snapshot().restore(content).unwrap();
     for (id, _) in g.players().iter().filter(|(_, p)| !p.neutral) {
@@ -2600,7 +2605,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
             .players()
             .iter()
             .filter(|(id, p)| !p.neutral && *id != g.human.unwrap())
-            .map(|(_, p)| p.name.clone())
+            .map(|(id, _)| g.player_name(*id))
             .collect();
         names
     };

@@ -176,7 +176,7 @@ impl Game {
             if self.is_neutral_player(p) {
                 return None;
             }
-            let name = self.player(p)?.name.clone();
+            let name = self.wizard(p)?.name();
             Some((
                 name,
                 WizardSpells {

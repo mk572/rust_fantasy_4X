@@ -434,8 +434,8 @@ mod tests {
         let mut g = Game::new(2);
         g.content = c;
         g.map = Some(Map::new(build(), build()));
-        g.add_player(P0, crate::player::Player::new(P0, "A"));
-        g.add_player(P1, crate::player::Player::new(P1, "B"));
+        g.add_player(P0, "A", crate::player::Player::new());
+        g.add_player(P1, "B", crate::player::Player::new());
         g.pl_mut(0).fortress = Some(at(1, 1));
         g.pl_mut(0).mana = 100;
         g

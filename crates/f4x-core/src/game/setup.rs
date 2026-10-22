@@ -129,7 +129,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             (0, false) => "You".to_string(),
             _ => format!("Wizard {}", k + 1),
         };
-        game.add_player(PlayerId(k), Player::new(PlayerId(k), name));
+        game.add_player(PlayerId(k), name, Player::new());
     }
     let fixed = |books: &[(&str, u8)], retort| WizardBuild {
         name: String::new(),
@@ -221,27 +221,23 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut used = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut banner = game.player(id).map_or(0, |p| p.banner);
+        let mut banner = game.banner(id);
         while used.contains(&banner) {
             banner = (banner + 1) % crate::player::BANNER_CHOICES;
         }
         used.insert(banner);
-        if let Some(p) = game.player_mut(id) {
-            p.banner = banner;
-        }
+        game.wizard_set(id, crate::wizard::entity::Banner(banner));
     }
     // And a picture of their own.
     let mut shown = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut portrait = game.player(id).map_or(0, |p| p.portrait);
+        let mut portrait = game.portrait(id);
         while shown.contains(&portrait) {
             portrait = (portrait + 1) % crate::player::PORTRAITS;
         }
         shown.insert(portrait);
-        if let Some(p) = game.player_mut(id) {
-            p.portrait = portrait;
-        }
+        game.wizard_set(id, crate::wizard::entity::Portrait(portrait));
     }
     game.human = (!spec.all_ai).then_some(HUMAN);
     game.apply_wizard_settings();

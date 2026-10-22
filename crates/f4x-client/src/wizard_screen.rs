@@ -133,13 +133,14 @@ impl App {
         };
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let wizard_picture = usize::from(player.portrait) * 5 + usize::from(player.banner);
+        let wizard_picture =
+            usize::from(self.game.portrait(ui.who)) * 5 + usize::from(self.game.banner(ui.who));
         self.draw_pic(&lay, "lilwiz", wizard_picture, 0, px + 11.0, py + 11.0);
         self.bm_text(
             view,
             4,
             gold,
-            &player.name,
+            &self.game.player_name(ui.who),
             px + 114.0,
             py + 11.0,
             Align::Center,

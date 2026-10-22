@@ -162,8 +162,8 @@ impl App {
             }
             let name = self
                 .game
-                .player(player)
-                .map_or("A rival".to_string(), |p| p.name.clone());
+                .wizard(player)
+                .map_or("A rival".to_string(), |w| w.name());
             if name.ends_with('s') {
                 format!("{name}' ")
             } else {

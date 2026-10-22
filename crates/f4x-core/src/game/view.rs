@@ -292,7 +292,7 @@ mod tests {
             crate::map::Grid::new(30, 20, grass),
         ));
         for id in [P0, P1, P2] {
-            g.add_player(id, crate::player::Player::new(id, "W"));
+            g.add_player(id, "W", crate::player::Player::new());
         }
         let walker = g.content.rules.units.id_of("walker").unwrap();
         g.spawn_unit(P1, at(11, 10), walker);

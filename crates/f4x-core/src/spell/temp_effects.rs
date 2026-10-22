@@ -308,7 +308,7 @@ mod tests {
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        g.add_player(P0, Player::new(P0, "W"));
+        g.add_player(P0, "W", Player::new());
         g
     }
 

@@ -397,7 +397,7 @@ mod tests {
         g.content.rules.spells = Registry::new(vec![wm]);
         let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
         for id in [P0, P1] {
-            g.add_player(id, crate::player::Player::new(id, "W"));
+            g.add_player(id, "W", crate::player::Player::new());
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
         }
         let boat = unit(&mut g, "boat", at(5, 4));

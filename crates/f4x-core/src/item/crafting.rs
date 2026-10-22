@@ -541,9 +541,9 @@ mod tests {
         let mut g = Game::new(7);
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
-        let mut p = Player::new(P0, "Merlin");
+        let mut p = Player::new();
         p.mana = 2000;
-        g.add_player(P0, p);
+        g.add_player(P0, "Merlin", p);
         g.init_wizard(P0, &[("chaos", 2)], &[], None).unwrap();
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
             .iter()

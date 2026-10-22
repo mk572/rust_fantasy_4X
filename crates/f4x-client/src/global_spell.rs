@@ -125,15 +125,15 @@ impl App {
         let (x, y) = MIRROR;
         let face = self
             .game
-            .player(cast.player)
-            .map_or(0, |p| usize::from(p.portrait));
+            .wizard(cast.player)
+            .map_or(0, |w| usize::from(w.portrait()));
         let words = if cast.player == crate::view::HUMAN {
             "You have completed casting...".to_string()
         } else {
             let who = self
                 .game
-                .player(cast.player)
-                .map_or("A rival wizard".to_string(), |p| p.name.clone());
+                .wizard(cast.player)
+                .map_or("A rival wizard".to_string(), |w| w.name());
             format!("{who} has cast...")
         };
         let name = self

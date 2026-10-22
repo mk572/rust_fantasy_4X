@@ -24,10 +24,10 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
-        let mut p = Player::new(id, if id == P0 { "Merlin" } else { "Rjak" });
+        let mut p = Player::new();
         p.gold = 1000;
         p.mana = 100;
-        g.add_player(id, p);
+        g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" }, p);
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
     }
     g.human = Some(P0);
@@ -150,7 +150,7 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
 #[test]
 fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() {
     let mut g = world();
-    let owner = g.new_city_player("Free");
+    let owner = g.new_city_player();
     let race = g.content.rules.races.id_of("elf");
     g.apply(Command::FoundCity {
         owner,

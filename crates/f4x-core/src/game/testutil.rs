@@ -472,7 +472,7 @@ impl FakeView {
             content: Content::default(),
             players: ids
                 .iter()
-                .map(|&id| (id, crate::player::Player::new(id, "W")))
+                .map(|&id| (id, crate::player::Player::new()))
                 .collect(),
             sightings: Vec::new(),
             units: Vec::new(),

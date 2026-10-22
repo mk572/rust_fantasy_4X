@@ -125,8 +125,11 @@ impl Game {
         ));
         if let Some(r) = race {
             let _ = self.world.insert_one(city, CityRace(r));
-            if let Some(p) = self.player_mut(owner) {
-                p.capital_race.get_or_insert(r);
+            if self
+                .wizard(owner)
+                .is_some_and(|w| w.capital_race().is_none())
+            {
+                self.wizard_set(owner, crate::wizard::entity::CapitalRace(Some(r)));
             }
         }
         let farmers = self.economy().city_min_farmers(city);

@@ -12,8 +12,8 @@ use crate::terrain_pick as pick;
 
 /// Which banner a player's things are drawn in.
 pub fn banner_of(game: &Game, owner: u8) -> u8 {
-    game.player(PlayerId(owner))
-        .map_or(f4x_core::player::NEUTRAL_BANNER, |p| p.banner)
+    game.wizard(PlayerId(owner))
+        .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
 }
 
 fn draw_pic(tex: &Texture2D, x: f32, y: f32, scale: f32) {

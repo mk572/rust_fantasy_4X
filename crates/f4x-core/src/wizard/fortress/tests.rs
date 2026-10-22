@@ -24,9 +24,9 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
-        let mut p = Player::new(id, "W");
+        let mut p = Player::new();
         p.mana = 100;
-        g.add_player(id, p);
+        g.add_player(id, "W", p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     // The test content has no bears: War Bears brings a copy of the spear.
@@ -91,7 +91,10 @@ fn placing_the_fortress_founds_the_capital_once() {
     let p = (*g.player(P0).unwrap()).clone();
     assert_eq!(p.fortress, Some(at(5, 5)));
     assert_eq!(p.summon_at, Some(at(5, 5)));
-    assert_eq!(p.capital_race, g.content.rules.races.id_of("elf"));
+    assert_eq!(
+        g.wizard(P0).unwrap().capital_race(),
+        g.content.rules.races.id_of("elf")
+    );
     assert_eq!(g.economy().fortress_city(P0), Some(capital));
     assert!(g.economy().is_fortress_city(capital));
     // A second fortress, or one on a bad site, is refused.
@@ -355,14 +358,14 @@ fn taking_the_last_rivals_last_city_wins_by_conquest() {
 #[test]
 fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
     let mut g = world();
-    g.add_player(PlayerId(2), Player::new(PlayerId(2), "Third"));
+    g.add_player(PlayerId(2), "Third", Player::new());
     let capital = place(&mut g, P1, at(5, 5));
     let events = g.capture_city(capital, P0);
     assert!(events.contains(&Event::WizardDefeated { player: P1 }));
     assert!(g.game_over.is_none(), "wizards 0 and 2 still stand");
 
     let mut g = world();
-    g.add_player(PlayerId(2), Player::new(PlayerId(2), "Third"));
+    g.add_player(PlayerId(2), "Third", Player::new());
     g.human = Some(P0);
     let capital = place(&mut g, P0, at(5, 5));
     let events = g.capture_city(capital, P1);
@@ -486,7 +489,7 @@ fn the_end_of_the_game_is_saved() {
 // ---- the rules over a player, with no game ------------------------------------------------
 
 fn wizard() -> Player {
-    Player::new(P0, "Merlin")
+    Player::new()
 }
 
 fn square(x: u32) -> Position {
@@ -501,7 +504,7 @@ fn square(x: u32) -> Position {
 fn a_wizard_may_found_a_fortress_once_and_never_banished_or_defeated() {
     let mut p = wizard();
     assert_eq!(can_place(&p), Ok(()));
-    place_at(&mut p, square(1), None);
+    place_at(&mut p, square(1));
     assert_eq!(
         (p.fortress, p.summon_at),
         (Some(square(1)), Some(square(1)))
@@ -522,7 +525,7 @@ fn moving_the_fortress_needs_one_and_takes_the_circle_with_it() {
         move_fortress_to(&mut p, square(2)),
         Err(FortressError::WrongState)
     );
-    place_at(&mut p, square(1), None);
+    place_at(&mut p, square(1));
     p.summon_at = Some(square(5));
     move_fortress_to(&mut p, square(2)).unwrap();
     assert_eq!(
@@ -534,11 +537,8 @@ fn moving_the_fortress_needs_one_and_takes_the_circle_with_it() {
 #[test]
 fn a_banished_wizard_returns_and_takes_the_cities_race() {
     let mut p = wizard();
-    place_at(&mut p, square(1), None);
-    assert_eq!(
-        return_to(&mut p, square(4), None),
-        Err(FortressError::WrongState)
-    );
+    place_at(&mut p, square(1));
+    assert_eq!(return_to(&mut p, square(4)), Err(FortressError::WrongState));
     let half = fortress_falls(&mut p);
     assert_eq!((p.fortress, p.summon_at, half), (None, None, 0));
     p.mana = 11;
@@ -547,7 +547,7 @@ fn a_banished_wizard_returns_and_takes_the_cities_race() {
     assert_eq!(p.mana, 6, "the odd point stays");
     banish_player(&mut p, None);
     assert!(p.banished && p.magic.casting.is_none());
-    return_to(&mut p, square(4), None).unwrap();
+    return_to(&mut p, square(4)).unwrap();
     assert!(!p.banished);
     assert_eq!(
         (p.fortress, p.summon_at),
@@ -558,7 +558,7 @@ fn a_banished_wizard_returns_and_takes_the_cities_race() {
 #[test]
 fn the_circle_falls_back_to_the_fortress_when_its_city_is_lost() {
     let mut p = wizard();
-    place_at(&mut p, square(1), None);
+    place_at(&mut p, square(1));
     p.summon_at = Some(square(7));
     circle_lost_to_capture(&mut p, square(7));
     assert_eq!(p.summon_at, Some(square(1)));
@@ -573,12 +573,12 @@ fn the_circle_falls_back_to_the_fortress_when_its_city_is_lost() {
 #[test]
 fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() {
     let mut p = wizard();
-    place_at(&mut p, square(1), None);
+    place_at(&mut p, square(1));
     p.banished = true;
     defeat_player(&mut p);
     assert!(p.defeated && !p.banished);
     assert_eq!((p.fortress, p.summon_at), (None, None));
-    let mut w = Player::new(P1, "Rival");
+    let mut w = Player::new();
     fortress_prize(&mut w, 7);
     assert_eq!((w.fame, w.mana), (5, 7));
     assert_eq!(summon_point(&wizard()), None);

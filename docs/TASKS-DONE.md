@@ -212,6 +212,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 309 | Core | Lay out `f4x-core` by game concept; move misplaced types; split `lib.rs` (done) |
 | 310 | Docs | Entity model design: player, wizard, hero, spell; ids, links, lifecycles (done) |
 | 311 | Player | (done) Player entity; `PlayerId` moves into `player/` as its component; index and identity |
+| 312 | Wizard | Wizard entity and the player-wizard links (done) |
 
 ## Descriptions
 
@@ -442,3 +443,7 @@ spell instances live in the battle's own world. *Needs:* 309.
 into `player/`. One index `PlayerId` to `Entity` on `Game`; `Game::player(id)` returns a read handle.
 The old `Player` struct stays for the fields not moved yet, as a component of the same entity,
 until 317. *Needs:* 310.
+
+**312. Wizard entity (done).** `Wizard` entity with `Name`, `Portrait`, `Banner` and `CapitalRace`;
+`WizardLink` on the player and `PlayerLink` on the wizard; both are created together at setup (`game/setup.rs`,
+`wizard/mod.rs` creation rules) and by `wizard/ai.rs`. `Game::wizard(id)` returns a handle. *Needs:* 311.

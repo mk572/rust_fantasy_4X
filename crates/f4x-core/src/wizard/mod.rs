@@ -8,6 +8,7 @@
 
 pub(crate) mod ai;
 pub mod astrology;
+pub mod entity;
 pub mod fortress;
 pub mod magic;
 pub(crate) mod magic_commands;
@@ -313,16 +314,20 @@ impl Game {
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
         self.init_wizard(player, &books, &retorts, Some(&start))
             .map_err(BuildError::Magic)?;
-        if let Some(p) = self.player_mut(player) {
-            if !build.name.is_empty() {
-                p.name = build.name.clone();
-            }
-            if let Some(b) = build.banner {
-                p.banner = b.min(crate::player::BANNER_CHOICES - 1);
-            }
-            if let Some(b) = build.portrait {
-                p.portrait = b.min(crate::player::PORTRAITS - 1);
-            }
+        if !build.name.is_empty() {
+            self.wizard_set(player, entity::Name(build.name.clone()));
+        }
+        if let Some(b) = build.banner {
+            self.wizard_set(
+                player,
+                entity::Banner(b.min(crate::player::BANNER_CHOICES - 1)),
+            );
+        }
+        if let Some(b) = build.portrait {
+            self.wizard_set(
+                player,
+                entity::Portrait(b.min(crate::player::PORTRAITS - 1)),
+            );
         }
         Ok(())
     }

@@ -23,6 +23,7 @@ use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
 use crate::player::{Owner, Player, PlayerId};
+use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 
 use crate::rules::SpellId;
 use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit, UnitEnchantments};
@@ -556,14 +557,17 @@ impl Game {
             .iter()
             .map(|(id, p)| PlayerSave {
                 id: id.0,
-                name: p.name.clone(),
+                name: self.player_name(*id),
                 gold: p.gold,
                 mana: p.mana,
                 tax_rate: p.tax_rate,
                 grand_vizier: p.grand_vizier,
                 neutral: p.neutral,
                 history: p.history.clone(),
-                capital_race: p.capital_race.map(|r| rules.races.get(r).id.clone()),
+                capital_race: self
+                    .wizard(*id)
+                    .and_then(|w| w.capital_race())
+                    .map(|r| rules.races.get(r).id.clone()),
                 fame: p.fame,
                 magic: p.magic.to_save(rules),
                 armory: p.armory.clone(),
@@ -575,8 +579,8 @@ impl Game {
                 banished_by: p.banished_by.map(|d| d.0),
                 defeated: p.defeated,
                 defeated_by: p.defeated_by.map(|d| d.0),
-                banner: Some(p.banner),
-                portrait: Some(p.portrait),
+                banner: Some(self.banner(*id)),
+                portrait: Some(self.portrait(*id)),
             })
             .collect();
         let units = self
@@ -809,18 +813,30 @@ impl Snapshot {
                 })
                 .transpose()?;
             let id = PlayerId(p.id);
+            let (name, banner, portrait) = (
+                p.name,
+                p.banner
+                    .unwrap_or(if p.id == u8::MAX {
+                        crate::player::NEUTRAL_BANNER
+                    } else {
+                        p.id % crate::player::BANNER_CHOICES
+                    })
+                    .min(crate::player::NEUTRAL_BANNER),
+                p.portrait
+                    .unwrap_or(p.id % crate::player::PORTRAITS)
+                    .min(crate::player::PORTRAITS - 1),
+            );
             game.add_player(
                 id,
+                name,
                 Player {
                     bonus: crate::player::Bonus::default(),
                     history: p.history,
-                    name: p.name,
                     gold: p.gold,
                     mana: p.mana,
                     tax_rate: p.tax_rate,
                     grand_vizier: p.grand_vizier,
                     neutral: p.neutral,
-                    capital_race,
                     fame: p.fame,
                     magic: Magic::from_save(p.magic, &game.content.rules)?,
                     armory: p.armory,
@@ -832,20 +848,11 @@ impl Snapshot {
                     banished_by: p.banished_by.map(PlayerId),
                     defeated: p.defeated,
                     defeated_by: p.defeated_by.map(PlayerId),
-                    banner: p
-                        .banner
-                        .unwrap_or(if p.id == u8::MAX {
-                            crate::player::NEUTRAL_BANNER
-                        } else {
-                            p.id % crate::player::BANNER_CHOICES
-                        })
-                        .min(crate::player::NEUTRAL_BANNER),
-                    portrait: p
-                        .portrait
-                        .unwrap_or(p.id % crate::player::PORTRAITS)
-                        .min(crate::player::PORTRAITS - 1),
                 },
             );
+            game.wizard_set(id, Banner(banner));
+            game.wizard_set(id, Portrait(portrait));
+            game.wizard_set(id, CapitalRace(capital_race));
         }
 
         let mut serials = std::collections::BTreeSet::new();

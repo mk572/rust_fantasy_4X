@@ -395,7 +395,7 @@ impl App {
             .players()
             .into_iter()
             .filter(|(id, p)| *id != HUMAN && !p.neutral && id.0 != u8::MAX)
-            .map(|(id, p)| (id, p.portrait, p.banner, p.defeated))
+            .map(|(id, p)| (id, self.game.portrait(id), self.game.banner(id), p.defeated))
             .collect();
         let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
         for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {
@@ -449,12 +449,12 @@ impl App {
                 icon_y += 12.0;
             };
             let mine = self.game.treaty(HUMAN, id);
-            let my_banner = self.game.player(HUMAN).map_or(0, |p| p.banner);
+            let my_banner = self.game.wizard(HUMAN).map_or(0, |w| w.banner());
             show(self, mine, my_banner);
             for &other in gems.iter().filter(|&&o| o != id) {
                 if self.game.have_met(HUMAN, other) {
                     let t = self.game.treaty(id, other);
-                    let colour = self.game.player(other).map_or(0, |p| p.banner);
+                    let colour = self.game.wizard(other).map_or(0, |w| w.banner());
                     show(self, t, colour);
                 }
             }

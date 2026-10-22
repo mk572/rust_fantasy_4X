@@ -66,9 +66,9 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);
-        let player = self.game.player(HUMAN).as_deref().cloned();
-        let name = player.as_ref().map_or_else(String::new, |p| p.name.clone());
-        let race = player.as_ref().and_then(|p| p.capital_race);
+        let wizard = self.game.wizard(HUMAN);
+        let name = wizard.map_or_else(String::new, |w| w.name());
+        let race = wizard.and_then(|w| w.capital_race());
         let race_icon = race.map_or(0, |r| 15 + r.index());
         self.bm_text_outlined(view, 3, &name, 160.0, 3.0, Align::Center);
         let score = self.game.score(HUMAN);
@@ -132,7 +132,10 @@ impl App {
             Align::Left,
         );
         for (i, id) in banished.iter().take(4).enumerate() {
-            let portrait = self.game.player(*id).map_or(0, |p| usize::from(p.portrait));
+            let portrait = self
+                .game
+                .wizard(*id)
+                .map_or(0, |w| usize::from(w.portrait()));
             self.draw_pic(&lay, "halofam", 1 + portrait, 0, X + 35.0 * i as f32, 87.0);
         }
         // Fame, time and the Spell of Mastery.
@@ -221,8 +224,8 @@ impl App {
             // Until the win and lose animations exist, the log says who won and how.
             let winner = self
                 .game
-                .player(over.winner)
-                .map_or("A rival".to_string(), |p| p.name.clone());
+                .wizard(over.winner)
+                .map_or("A rival".to_string(), |w| w.name());
             let (title, reason) = headline(over.winner == HUMAN, over.kind, &winner);
             self.log.push(format!("{title} {reason}"));
             self.game_over_seen = true;

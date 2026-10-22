@@ -73,7 +73,7 @@ impl App {
         // Wizards we have met are known by name; their shortages are news.
         let rival_name = |player: &f4x_core::player::PlayerId| {
             (*player != HUMAN && self.game.have_met(HUMAN, *player))
-                .then(|| self.game.player(*player).map(|p| p.name.clone()))
+                .then(|| self.game.wizard(*player).map(|w| w.name()))
                 .flatten()
         };
         let (mut unit_spells, mut city_spells, mut global_spells) =

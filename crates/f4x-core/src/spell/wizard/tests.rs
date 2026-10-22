@@ -181,9 +181,9 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
-        let mut p = Player::new(id, name);
+        let mut p = Player::new();
         p.mana = 5000;
-        g.add_player(id, p);
+        g.add_player(id, name, p);
         g.init_wizard(id, &[("death", 3)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }

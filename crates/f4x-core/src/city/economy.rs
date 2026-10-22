@@ -590,7 +590,7 @@ impl<'a> Economy<'a> {
 
         // Rebels.
         let tax_rate = player.map_or(1, |p| p.tax_rate) as usize;
-        let capital = player.and_then(|p| p.capital_race);
+        let capital = crate::wizard::entity::find(self.world, owner).and_then(|w| w.capital_race());
         let racial = match (capital, race_id) {
             (Some(c), Some(r)) => {
                 rules
@@ -960,10 +960,7 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        world.spawn((
-            PlayerId(0),
-            crate::player::Player::new(PlayerId(0), "Merlin"),
-        ));
+        world.spawn((PlayerId(0), crate::player::Player::new()));
         let eco = Economy::new(&world, Some(&map), &content);
 
         let now = eco.city_economy(city).unwrap();
@@ -1008,10 +1005,7 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        let player = world.spawn((
-            PlayerId(0),
-            crate::player::Player::new(PlayerId(0), "Merlin"),
-        ));
+        let player = world.spawn((PlayerId(0), crate::player::Player::new()));
         let before = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .unwrap();

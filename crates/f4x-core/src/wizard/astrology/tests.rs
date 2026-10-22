@@ -10,8 +10,8 @@ fn world() -> Game {
     let mut game = Game::new(3);
     game.content = c;
     game.map = Some(map);
-    game.add_player(PlayerId(0), Player::new(PlayerId(0), "Merlin"));
-    game.add_player(PlayerId(1), Player::new(PlayerId(1), "Raven"));
+    game.add_player(PlayerId(0), "Merlin", Player::new());
+    game.add_player(PlayerId(1), "Raven", Player::new());
     game
 }
 

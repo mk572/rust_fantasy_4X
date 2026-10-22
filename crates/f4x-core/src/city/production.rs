@@ -580,7 +580,7 @@ mod tests {
             let grass = content.terrains.id_of("grassland").unwrap();
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
-            world.spawn((PlayerId(0), Player::new(PlayerId(0), "Merlin")));
+            world.spawn((PlayerId(0), Player::new()));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,

@@ -19,7 +19,7 @@ pub fn pos(p: Position) -> String {
 
 pub fn player(game: &Game, id: PlayerId) -> String {
     match game.player(id) {
-        Some(p) => format!("{} ({})", p.name, id.0),
+        Some(_) => format!("{} ({})", game.player_name(id), id.0),
         None => format!("player {}", id.0),
     }
 }

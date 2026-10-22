@@ -43,9 +43,9 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
-        let mut p = Player::new(id, name);
+        let mut p = Player::new();
         p.mana = 20_000;
-        g.add_player(id, p);
+        g.add_player(id, name, p);
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }

@@ -110,10 +110,7 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say("you have met no other wizard");
     }
     for &w in &others {
-        let name = ctx
-            .game
-            .player(w)
-            .map_or("?".to_string(), |p| p.name.clone());
+        let name = ctx.game.wizard(w).map_or("?".to_string(), |w| w.name());
         if !ctx.game.have_met(me, w) {
             ctx.say(format!("{} {name}: not met", w.0));
             continue;

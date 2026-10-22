@@ -31,12 +31,13 @@ behaviour that depends on slot order.
 
 ```
 Game                                   (lib.rs; the owner and the orchestrator)
-├── world: hecs::World                 entities: units, cities and players (a player is an entity with
-│                                      `PlayerId` and `Player`; wizards, heroes and battle units are not, yet)
+├── world: hecs::World                 entities: units, cities, players and wizards (a player is an entity with
+│                                      `PlayerId` and `Player`; a wizard one with `Name`, `Portrait`, `Banner`,
+│                                      `CapitalRace`; heroes and battle units are not, yet)
 ├── player_index: HashMap              `PlayerId` to the player's `Entity` (`Game::player_entity`)
 ├── map: Option<Map>                   two dense grids (terrain, feature, road); not entities
 ├── fog: Fog                           what each player has explored
-│   └── Player (component)             gold, mana, tax rate, capital race, fame, fortress, banner...
+│   └── Player (component)             gold, mana, tax rate, fame, fortress...
 │       └── magic: Magic               the wizard: books, retorts, skill, research, casting (wizard/magic.rs)
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,

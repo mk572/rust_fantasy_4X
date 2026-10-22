@@ -95,8 +95,8 @@ impl App {
         // Title and upkeep.
         let owner = self
             .game
-            .player(HUMAN)
-            .map_or_else(String::new, |p| p.name.clone());
+            .wizard(HUMAN)
+            .map_or_else(String::new, |w| w.name());
         self.bm_text_outlined(
             view,
             4,

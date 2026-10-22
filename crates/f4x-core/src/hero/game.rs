@@ -330,9 +330,9 @@ pub(crate) mod tests {
         let mut g = Game::new(5);
         g.content = c;
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));
-        g.add_player(P0, Player::new(P0, "A"));
-        g.add_player(P1, Player::new(P1, "B"));
-        g.add_player(PlayerId(9), Player::new_neutral(PlayerId(9), "Town"));
+        g.add_player(P0, "A", Player::new());
+        g.add_player(P1, "B", Player::new());
+        g.add_player(PlayerId(9), "", Player::new_neutral());
         g.init_heroes();
         g
     }
@@ -664,7 +664,7 @@ pub(crate) mod tests {
         let loser = armed_hero(&mut g, P0);
         g.remove_unit_to(loser, Fate::Slain, Some(P1));
         assert_eq!((in_armory(&g, P0), in_armory(&g, P1)), (0, 1));
-        let neutral = g.new_city_player("Free");
+        let neutral = g.new_city_player();
         let other = armed_hero(&mut g, P0);
         g.remove_unit_to(other, Fate::Slain, Some(neutral));
         assert_eq!(

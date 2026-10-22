@@ -26,7 +26,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
     for id in [P0, P1, P2] {
-        g.add_player(id, Player::new(id, "W"));
+        g.add_player(id, "W", Player::new());
     }
     g.human = Some(P0);
     for id in [P0, P1, P2] {
@@ -1368,9 +1368,9 @@ fn taking_a_city_is_a_war() {
 #[test]
 fn taking_an_independent_city_is_no_diplomacy() {
     let mut g = world();
-    let mut rebels = Player::new_neutral(PlayerId(9), "Free");
+    let mut rebels = Player::new_neutral();
     rebels.gold = 0;
-    g.add_player(PlayerId(9), rebels);
+    g.add_player(PlayerId(9), "", rebels);
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());

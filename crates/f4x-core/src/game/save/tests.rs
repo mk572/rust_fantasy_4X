@@ -53,12 +53,12 @@ fn game() -> Game {
     g.settings.basic.magic_strength = 2;
     g.settings.basic.difficulty = 4;
     g.map = Some(map);
-    let mut p = Player::new(P0, "Merlin");
+    let mut p = Player::new();
     p.gold = 300;
     p.tax_rate = 2;
     p.grand_vizier = true;
-    g.add_player(P0, p);
-    g.add_player(PlayerId(1), Player::new(PlayerId(1), "Rival"));
+    g.add_player(P0, "Merlin", p);
+    g.add_player(PlayerId(1), "Rival", Player::new());
     let elf = g.content.rules.races.id_of("elf");
     let dwarf = g.content.rules.races.id_of("dwarf");
     g.apply(Command::FoundCity {

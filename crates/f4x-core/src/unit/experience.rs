@@ -223,9 +223,9 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.fog = crate::map::fog::Fog::new(24, 14);
-        let mut p = Player::new(P0, "W");
+        let mut p = Player::new();
         p.mana = 5000;
-        g.add_player(P0, p);
+        g.add_player(P0, "W", p);
         g.init_wizard(P0, &[("life", 4)], &[], None).unwrap();
         g
     }

@@ -149,16 +149,62 @@ impl Game {
         id == player::NEUTRAL || self.player(id).is_some_and(|p| p.neutral)
     }
 
-    /// Make the player entity for `id`.
-    pub fn add_player(&mut self, id: player::PlayerId, player: player::Player) -> hecs::Entity {
+    /// Make the player entity for `id`, and with it a wizard called `name` unless the player is
+    /// an independent city's (those are called by their city).
+    pub fn add_player(
+        &mut self,
+        id: player::PlayerId,
+        name: impl Into<String>,
+        player: player::Player,
+    ) -> hecs::Entity {
+        let neutral = player.neutral;
         let e = self.world.spawn((id, player));
+        if !neutral {
+            let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
+            let _ = self.world.insert_one(e, player::WizardLink(w));
+        }
         self.player_index.insert(id, e);
         e
+    }
+
+    /// The wizard of a player, if it has one.
+    pub fn wizard(&self, id: player::PlayerId) -> Option<wizard::entity::Wizard<'_>> {
+        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
+        Some(wizard::entity::Wizard::new(&self.world, w))
+    }
+
+    /// How a player is called: its wizard's name, or its city's.
+    pub fn player_name(&self, id: player::PlayerId) -> String {
+        wizard::entity::player_name(&self.world, id)
+    }
+
+    /// The banner colour of a player; the neutral banner if it has no wizard.
+    pub fn banner(&self, id: player::PlayerId) -> u8 {
+        self.wizard(id)
+            .map_or(player::NEUTRAL_BANNER, |w| w.banner())
+    }
+
+    /// The wizard picture of a player.
+    pub fn portrait(&self, id: player::PlayerId) -> u8 {
+        self.wizard(id).map_or(0, |w| w.portrait())
+    }
+
+    /// Change the wizard's components.
+    pub(crate) fn wizard_set<C: hecs::Component>(&mut self, id: player::PlayerId, value: C) {
+        if let Some(w) = self
+            .player_entity(id)
+            .and_then(|p| wizard::entity::of_player(&self.world, p))
+        {
+            let _ = self.world.insert_one(w, value);
+        }
     }
 
     /// An independent city's player goes with its city; wizards' players are never removed.
     pub(crate) fn remove_player(&mut self, id: player::PlayerId) {
         if let Some(e) = self.player_index.remove(&id) {
+            if let Some(w) = wizard::entity::of_player(&self.world, e) {
+                let _ = self.world.despawn(w);
+            }
             let _ = self.world.despawn(e);
         }
     }

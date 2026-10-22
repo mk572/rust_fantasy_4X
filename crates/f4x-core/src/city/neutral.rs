@@ -63,12 +63,12 @@ fn range(x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
 
 impl Game {
     /// A new player for one neutral city, with the lowest number not yet taken.
-    pub(crate) fn new_city_player(&mut self, name: &str) -> PlayerId {
+    pub(crate) fn new_city_player(&mut self) -> PlayerId {
         let id = (FIRST_CITY_PLAYER..u8::MAX)
             .map(PlayerId)
             .find(|id| self.player(*id).is_none())
             .unwrap_or(PlayerId(u8::MAX - 1));
-        self.add_player(id, Player::new_neutral(id, name));
+        self.add_player(id, "", Player::new_neutral());
         id
     }
 
@@ -265,7 +265,7 @@ impl Game {
             population = bonus + self.roll(10);
         }
         let name = self.unused_city_name(race);
-        let owner = self.new_city_player(&name);
+        let owner = self.new_city_player();
         let city = self.spawn_city(owner, pos, name, Some(race), population);
 
         let rules = &self.content.rules;

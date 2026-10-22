@@ -409,16 +409,16 @@ impl App {
     pub(crate) fn banner_color(&self, owner: u8) -> Color {
         let banner = self
             .game
-            .player(PlayerId(owner))
-            .map_or(f4x_core::player::NEUTRAL_BANNER, |p| p.banner);
+            .wizard(PlayerId(owner))
+            .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
         self.art.banner_color(banner)
     }
 
     /// The banner number of a player (by number; 255 is the neutral player).
     pub(crate) fn banner_index(&self, owner: u8) -> u8 {
         self.game
-            .player(PlayerId(owner))
-            .map_or(f4x_core::player::NEUTRAL_BANNER, |p| p.banner)
+            .wizard(PlayerId(owner))
+            .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
     }
 
     pub(crate) fn race_name(&self, race: usize) -> &str {
@@ -647,20 +647,20 @@ impl App {
                     Some(format!(
                     "{} is stopped by {}'s Suppress Magic",
                     self.game.content().rules.spells.get(spell).name,
-                    self.game.player(by).map_or("a rival".to_string(), |p| p.name.clone())
+                    self.game.wizard(by).map_or("a rival".to_string(), |w| w.name())
                     ))
                 }
                 Event::PowerDrained { victim, amount, .. } => Some(format!(
                     "Drain Power takes {amount} mana from {}",
                     self.game
-                        .player(victim)
-                        .map_or("a rival".to_string(), |p| p.name.clone())
+                        .wizard(victim)
+                        .map_or("a rival".to_string(), |w| w.name())
                 )),
                 Event::SkillDestroyed { victim, amount, .. } => Some(format!(
                     "{} loses {amount} points of casting skill for good",
                     self.game
-                        .player(victim)
-                        .map_or("A rival".to_string(), |p| p.name.clone())
+                        .wizard(victim)
+                        .map_or("A rival".to_string(), |w| w.name())
                 )),
                 Event::UnitsSlain { spell, count, .. } => Some(format!(
                     "{} slays {count} units",
@@ -682,7 +682,7 @@ impl App {
                     self.mastery_notice.push_back(caster);
                     Some(format!(
                         "{} has started casting the Spell of Mastery",
-                        self.game.player(caster).map_or("A rival".to_string(), |p| p.name.clone())
+                        self.game.wizard(caster).map_or("A rival".to_string(), |w| w.name())
                     ))
                 }
                 Event::StasisEnded { .. } => Some("A unit breaks free of stasis".to_string()),
@@ -707,8 +707,8 @@ impl App {
                     Some(format!(
                     "Spell Blast ends {}'s {} ({mana} mana)",
                     self.game
-                        .player(victim)
-                        .map_or("a rival".to_string(), |p| p.name.clone()),
+                        .wizard(victim)
+                        .map_or("a rival".to_string(), |w| w.name()),
                     self.game.content().rules.spells.get(spell).name
                     ))
                 }
@@ -721,16 +721,16 @@ impl App {
                     Some(format!(
                     "{}'s {} is ended",
                     self.game
-                        .player(victim)
-                        .map_or("a rival".to_string(), |p| p.name.clone()),
+                        .wizard(victim)
+                        .map_or("a rival".to_string(), |w| w.name()),
                     self.game.content().rules.spells.get(spell).name
                     ))
                 }
                 Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
                     "Took {}'s {}",
                     self.game
-                        .player(victim)
-                        .map_or("a rival".to_string(), |p| p.name.clone()),
+                        .wizard(victim)
+                        .map_or("a rival".to_string(), |w| w.name()),
                     self.game.content().rules.spells.get(spell).name
                 )),
                 Event::DispelFailed { spell, .. } => Some(format!(
@@ -832,7 +832,7 @@ impl App {
         let game = f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
         self.seed = game.seed();
         // Keep playing the same race: the human player's capital race.
-        if let Some(r) = game.player(HUMAN).and_then(|p| p.capital_race) {
+        if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.index();
         }
         self.game = game;

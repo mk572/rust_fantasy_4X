@@ -455,8 +455,8 @@ impl App {
         clear_background(Color::new(0.02, 0.0, 0.06, 1.0));
         let name = self
             .game
-            .player(caster)
-            .map_or("A rival wizard".to_string(), |p| p.name.clone());
+            .wizard(caster)
+            .map_or("A rival wizard".to_string(), |w| w.name());
         let ink = Color::new(0.95, 0.85, 0.6, 1.0);
         self.bm_text(
             view,

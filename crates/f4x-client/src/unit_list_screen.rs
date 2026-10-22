@@ -108,8 +108,8 @@ impl App {
             }
         } else {
             let name = owner
-                .and_then(|o| self.game.player(o))
-                .map_or_else(String::new, |p| p.name.clone());
+                .and_then(|o| self.game.wizard(o))
+                .map_or_else(String::new, |w| w.name());
             format!("{name} Units")
         };
         let banner = self.banner_color(owner.map_or(f4x_core::player::NEUTRAL.0, |o| o.0));

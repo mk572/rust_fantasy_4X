@@ -1,9 +1,8 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
-use crate::player::PlayerId;
 
 fn player() -> Player {
-    let mut p = Player::new(PlayerId(0), "Merlin");
+    let mut p = Player::new();
     p.gold = 100;
     p.mana = 20;
     p

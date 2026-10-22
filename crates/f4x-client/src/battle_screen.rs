@@ -1945,8 +1945,8 @@ impl App {
             return "Monsters".to_string();
         }
         self.game
-            .player(player)
-            .map_or_else(|| "?".to_string(), |p| p.name.clone())
+            .wizard(player)
+            .map_or_else(|| "?".to_string(), |w| w.name())
     }
 }
 

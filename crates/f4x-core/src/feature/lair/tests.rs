@@ -54,10 +54,10 @@ fn world(seed: u64) -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
-        let mut p = Player::new(id, "W");
+        let mut p = Player::new();
         p.gold = 100;
         p.mana = 100;
-        g.add_player(id, p);
+        g.add_player(id, "W", p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g

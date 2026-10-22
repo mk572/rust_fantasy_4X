@@ -106,7 +106,7 @@ mod tests {
         let mut g = Game::new(21);
         g.set_map(generate(21, &GenParams::default(), &content).unwrap());
         g.set_content(content);
-        g.add_player(PlayerId(0), Player::new(PlayerId(0), "Merlin"));
+        g.add_player(PlayerId(0), "Merlin", Player::new());
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],

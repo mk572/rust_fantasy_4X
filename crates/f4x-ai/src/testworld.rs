@@ -56,8 +56,8 @@ pub fn game(city0: (u32, u32), race: &str) -> Game {
     let mut game = Game::new(7);
     game.set_content(content);
     game.set_map(Map::new(build(), build()));
-    game.add_player(P0, Player::new(P0, "West"));
-    game.add_player(P1, Player::new(P1, "East"));
+    game.add_player(P0, "West", Player::new());
+    game.add_player(P1, "East", Player::new());
     for (owner, (x, y), name) in [(P0, city0, "Westport"), (P1, ENEMY_CITY, "Eastport")] {
         let events = game.apply(Command::FoundCity {
             owner,

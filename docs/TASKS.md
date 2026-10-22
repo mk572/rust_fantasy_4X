@@ -68,7 +68,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 312 | Wizard | Wizard entity and the player-wizard links |
 | 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players |
 | 314 | Player | Treasury, tax, offers, defeat and the other player data as components |
 | 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame) |
@@ -102,10 +101,6 @@ neighbours.
 ## Descriptions
 
 ### B. Player and wizard
-
-**312. Wizard entity.** `Wizard` entity with `Name`, `Portrait`, `Banner` and `CapitalRace`;
-`WizardLink` on the player and `PlayerLink` on the wizard; both are created together at setup (`game/setup.rs`,
-`wizard/mod.rs` creation rules) and by `wizard/ai.rs`. `Game::wizard(id)` returns a handle. *Needs:* 311.
 
 **313. Owner links become `Entity`.** `Owner(Entity)` on units, cities and heroes; the owner part of
 `Conquered`, `Lasting.victim`, `item_awards` and `battle_brains`. Typed owners (`PlayerId`) in

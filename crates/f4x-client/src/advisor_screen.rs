@@ -109,8 +109,9 @@ impl App {
         for (row, &id) in wizards.iter().enumerate() {
             let Some((banner, history, name)) = self
                 .game
-                .player(id)
-                .map(|p| (p.banner, p.history.clone(), p.name.clone()))
+                .wizard(id)
+                .zip(self.game.player(id))
+                .map(|(w, p)| (w.banner(), p.history.clone(), w.name()))
             else {
                 continue;
             };
@@ -178,8 +179,7 @@ impl App {
             let Some(&(_, a, _)) = table.iter().find(|(p, ..)| *p == id) else {
                 continue;
             };
-            let Some((name, banner)) = self.game.player(id).map(|p| (p.name.clone(), p.banner))
-            else {
+            let Some((name, banner)) = self.game.wizard(id).map(|w| (w.name(), w.banner())) else {
                 continue;
             };
             let colour = self.art.banner_color(banner);
@@ -283,7 +283,7 @@ impl App {
             {
                 continue;
             }
-            let banner = self.game.player(owner).map_or(5, |p| p.banner);
+            let banner = self.game.wizard(owner).map_or(5, |w| w.banner());
             let (sx, sy) = px(at.x, at.y);
             square(sx + 2.0, sy + 1.0, 1.0, self.art.banner_color(banner));
         }
@@ -299,7 +299,7 @@ impl App {
                 Color::new(0.5, 0.3, 0.1, 1.0)
             } else {
                 self.art
-                    .banner_color(self.game.player(city.owner).map_or(5, |p| p.banner))
+                    .banner_color(self.game.wizard(city.owner).map_or(5, |w| w.banner()))
             };
             square(sx + 1.0, sy + 1.0, 3.0, BLACK);
             square(sx, sy, 3.0, colour);
@@ -331,8 +331,7 @@ impl App {
         // The legend: a flag and name for each wizard met, then the independents.
         let mut row = 0.0;
         for id in self.known_wizards() {
-            let Some((banner, name)) = self.game.player(id).map(|p| (p.banner, p.name.clone()))
-            else {
+            let Some((banner, name)) = self.game.wizard(id).map(|w| (w.banner(), w.name())) else {
                 continue;
             };
             self.draw_pic(

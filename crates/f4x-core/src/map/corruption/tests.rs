@@ -35,9 +35,9 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {
-        let mut p = Player::new(id, "W");
+        let mut p = Player::new();
         p.mana = 1000;
-        g.add_player(id, p);
+        g.add_player(id, "W", p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g

@@ -234,7 +234,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             } else {
                 ""
             };
-            format!("{} {}{me}: {state}", id.0, p.name)
+            format!("{} {}{me}: {state}", id.0, ctx.game.player_name(id))
         })
         .collect();
     for r in rows {

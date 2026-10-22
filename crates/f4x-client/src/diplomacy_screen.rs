@@ -197,8 +197,8 @@ impl App {
 
     fn diplo_name(&self, p: PlayerId) -> String {
         self.game
-            .player(p)
-            .map_or_else(|| "?".to_string(), |p| p.name.clone())
+            .wizard(p)
+            .map_or_else(|| "?".to_string(), |w| w.name())
     }
 
     /// The wizards another proposal can be about: met by both of us.
@@ -667,8 +667,8 @@ impl App {
         let level = relation_level(self.game.relation(HUMAN, with));
         let portrait = self
             .game
-            .player(with)
-            .map_or(0, |p| usize::from(p.portrait));
+            .wizard(with)
+            .map_or(0, |w| usize::from(w.portrait()));
 
         // The room, the wizard, the mirror's frame over him, and the gargoyles' eyes.
         self.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);

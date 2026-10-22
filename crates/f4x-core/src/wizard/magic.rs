@@ -1006,9 +1006,8 @@ mod tests {
 
     #[test]
     fn power_reaches_the_reserve_the_research_and_the_skill() {
-        use crate::player::PlayerId;
         let c = content_with_magic();
-        let mut p = Player::new(PlayerId(0), "Merlin");
+        let mut p = Player::new();
         p.magic = Magic::new(&[("life", 2)], &[Retort::Archmage]);
         let target = *p.magic.candidates.first().unwrap_or(&spell(&c, "healing"));
         p.magic.researching = Some(target);
@@ -1035,9 +1034,8 @@ mod tests {
 
     #[test]
     fn paying_for_a_cast_takes_mana_from_the_reserve() {
-        use crate::player::PlayerId;
         let c = content_with_magic();
-        let mut p = Player::new(PlayerId(0), "Merlin");
+        let mut p = Player::new();
         p.magic = Magic::new(&[("life", 2)], &[]);
         p.magic.begin_casting(spell(&c, "healing"), 30);
         p.mana = 50;

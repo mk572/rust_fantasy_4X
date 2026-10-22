@@ -12,6 +12,7 @@ use crate::city::economy::{CityRace, Economy, Population};
 use crate::city::{City, FoundCityError};
 use crate::map::Position;
 use crate::player::{Player, PlayerId};
+use crate::wizard::entity::CapitalRace;
 
 use crate::game::{Event, Game};
 use crate::rules::{RaceId, SpellId};
@@ -54,10 +55,9 @@ pub(crate) fn can_place(player: &Player) -> Result<(), FortressError> {
 }
 
 /// The fortress and the summoning circle stand in the wizard's first city at `pos`.
-pub(crate) fn place_at(player: &mut Player, pos: Position, race: Option<RaceId>) {
+pub(crate) fn place_at(player: &mut Player, pos: Position) {
     player.fortress = Some(pos);
     player.summon_at = Some(pos);
-    player.capital_race = race;
 }
 
 /// Move the fortress (and the summoning circle with it) to the city at `pos`.
@@ -72,20 +72,13 @@ pub(crate) fn move_fortress_to(player: &mut Player, pos: Position) -> Result<(),
 
 /// The Spell of Return: a banished wizard puts the fortress at `pos` and takes the city's race
 /// (if it has one) as their capital race.
-pub(crate) fn return_to(
-    player: &mut Player,
-    pos: Position,
-    race: Option<RaceId>,
-) -> Result<(), FortressError> {
+pub(crate) fn return_to(player: &mut Player, pos: Position) -> Result<(), FortressError> {
     if !player.banished {
         return Err(FortressError::WrongState);
     }
     player.banished = false;
     player.fortress = Some(pos);
     player.summon_at = Some(pos);
-    if race.is_some() {
-        player.capital_race = race;
-    }
     Ok(())
 }
 
@@ -195,8 +188,9 @@ impl Game {
         self.can_found_city(pos).map_err(FortressError::Found)?;
         let city = self.spawn_city(player, pos, name, race, population);
         if let Some(p) = self.player_mut(player) {
-            place_at(p, pos, race);
+            place_at(p, pos);
         }
+        self.wizard_set(player, CapitalRace(race));
         Ok(vec![
             Event::CityFounded { city, pos },
             Event::FortressPlaced { player, pos },
@@ -240,8 +234,11 @@ impl Game {
         let pos = self.economy().own_city_pos(player, city)?;
         let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
         match self.player_mut(player) {
-            Some(p) => return_to(p, pos, race)?,
+            Some(p) => return_to(p, pos)?,
             None => return Err(FortressError::WrongState),
+        }
+        if race.is_some() {
+            self.wizard_set(player, CapitalRace(race));
         }
         Ok(vec![Event::WizardReturned { player, pos }])
     }
@@ -356,16 +353,10 @@ impl Game {
     /// normal units garrisoned there stay with it, the heroes and conjured creatures are
     /// dismissed.
     pub(crate) fn make_city_neutral(&mut self, city: hecs::Entity, owner: PlayerId) {
-        let Some((name, pos)) = self
-            .world
-            .get::<&City>(city)
-            .ok()
-            .map(|c| c.name.clone())
-            .zip(self.world.get::<&Position>(city).ok().map(|p| *p))
-        else {
+        let Some(pos) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
             return;
         };
-        let neutral = self.new_city_player(&name);
+        let neutral = self.new_city_player();
         let garrison: Vec<_> = self
             .units()
             .units_at(pos)

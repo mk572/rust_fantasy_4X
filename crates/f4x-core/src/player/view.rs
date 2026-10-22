@@ -441,7 +441,7 @@ mod tests {
         g.set_content(c);
         g.set_map(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
         for id in [ME, THEM] {
-            g.add_player(id, crate::player::Player::new(id, "W"));
+            g.add_player(id, "W", crate::player::Player::new());
         }
         let race = g.content().rules.races.id_of("elf");
         for (owner, pos) in [(ME, at(5, 5)), (THEM, at(20, 10)), (THEM, at(8, 5))] {

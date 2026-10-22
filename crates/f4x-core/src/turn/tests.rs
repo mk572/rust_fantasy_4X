@@ -37,10 +37,10 @@ fn world() -> Game {
     // No unrest from taxes up to rate 2, so income sums stay simple.
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(map);
-    let mut p = Player::new(P0, "Merlin");
+    let mut p = Player::new();
     p.gold = 500;
     p.tax_rate = 2;
-    game.add_player(P0, p);
+    game.add_player(P0, "Merlin", p);
     game
 }
 

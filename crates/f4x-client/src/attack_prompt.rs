@@ -107,8 +107,8 @@ impl App {
                 .attackers
                 .first()
                 .and_then(|&u| self.game.units().unit_owner(u))
-                .and_then(|p| self.game.player(p))
-                .map_or("A rival wizard".to_string(), |p| p.name.clone());
+                .and_then(|p| self.game.wizard(p))
+                .map_or("A rival wizard".to_string(), |w| w.name());
             return format!(
                 "{by} attacks your {} unit(s) with {} units.",
                 attack.defenders.len(),

@@ -454,9 +454,7 @@ impl Game {
         let human = self.human;
         if !world {
             notice.player = Some(victim);
-            notice.player_name = self
-                .player(victim)
-                .map_or_else(String::new, |p| p.name.clone());
+            notice.player_name = self.player_name(victim);
             let heard = match human {
                 Some(h) if h == victim => {
                     if notice.voice != Voice::Ended {
