@@ -96,7 +96,7 @@ mod tests {
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
-            g.add_player(id, "", crate::player::Player::new());
+            g.add_player(id, "");
         }
         g.content = c;
         g.map = Some(map);
@@ -130,7 +130,7 @@ mod tests {
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
-            g.add_player(id, "", crate::player::Player::new());
+            g.add_player(id, "");
         }
         g.content = c;
         g.map = Some(map);
@@ -208,7 +208,7 @@ mod tests {
         let grass = c.terrains.id_of("grassland").unwrap();
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
-            g.add_player(id, "", crate::player::Player::new());
+            g.add_player(id, "");
         }
         g.content = c;
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
@@ -244,10 +244,7 @@ mod tests {
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let walker = c.rules.units.id_of("walker").unwrap();
         let mut world = hecs::World::new();
-        let owner = world.spawn(crate::player::bundle(
-            PlayerId(0),
-            crate::player::Player::new(),
-        ));
+        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         crate::unit::spawn(
             &mut world,
             &c,

@@ -10,7 +10,7 @@
 //! choice (`Game::item_overflow`). A ship let go with passengers aboard turns neutral and sails
 //! for the nearest free shore (`transport::Marooned`).
 
-use crate::item::armory::{ItemError, ItemSpot, MAX_AWARDS, VAULT_SLOTS};
+use crate::item::armory::{Armory, ItemError, ItemSpot, MAX_AWARDS, VAULT_SLOTS};
 use crate::item::{HeroItems, Item};
 use crate::player::finance::{gold_after_income, settle};
 use crate::player::{PlayerId, MONSTERS};
@@ -147,7 +147,7 @@ impl Game {
         player: PlayerId,
         released: &[hecs::Entity],
     ) -> Option<ItemOverflow> {
-        let p = self.player(player)?;
+        let armory = self.player_component::<Armory>(player)?;
         let mut lines = Vec::new();
         fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item) {
             lines.push(ItemLine {
@@ -156,12 +156,12 @@ impl Game {
                 mana: item.anvil_mana(),
             })
         }
-        for (i, item) in p.armory.vault.iter().enumerate() {
+        for (i, item) in armory.vault.iter().enumerate() {
             if let Some(item) = item {
                 line(&mut lines, ItemSpot::Vault(i), item);
             }
         }
-        for (i, item) in p.armory.awards.iter().enumerate() {
+        for (i, item) in armory.awards.iter().enumerate() {
             line(&mut lines, ItemSpot::Award(i), item);
         }
         for &hero in released {
@@ -204,11 +204,11 @@ impl Game {
         for &spot in scrap {
             let present = match spot {
                 ItemSpot::Vault(i) => self
-                    .player(player)
-                    .is_some_and(|p| p.armory.vault.get(i).is_some_and(Option::is_some)),
+                    .player_component::<Armory>(player)
+                    .is_some_and(|a| a.vault.get(i).is_some_and(Option::is_some)),
                 ItemSpot::Award(i) => self
-                    .player(player)
-                    .is_some_and(|p| i < p.armory.awards.len()),
+                    .player_component::<Armory>(player)
+                    .is_some_and(|a| i < a.awards.len()),
                 ItemSpot::Hero(h, slot) => {
                     self.units().unit_owner(h) == Some(player)
                         && self.hero_slot_items(h).iter().any(|(s, _)| *s == slot)
@@ -249,10 +249,12 @@ impl Game {
                     .into_iter()
                     .find(|(s, _)| *s == slot)
                     .map(|(_, it)| it),
-                ItemSpot::Vault(i) => self.player(player).and_then(|p| p.armory.vault[i].clone()),
+                ItemSpot::Vault(i) => self
+                    .player_component::<Armory>(player)
+                    .and_then(|a| a.vault[i].clone()),
                 ItemSpot::Award(i) => self
-                    .player(player)
-                    .and_then(|p| p.armory.awards.get(i).cloned()),
+                    .player_component::<Armory>(player)
+                    .and_then(|a| a.awards.get(i).cloned()),
             };
             if let Some(item) = item {
                 self.set_item_at(player, spot, None);

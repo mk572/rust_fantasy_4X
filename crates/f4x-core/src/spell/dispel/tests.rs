@@ -4,7 +4,6 @@ use crate::map::{Grid, Map, Plane, Position};
 
 use crate::feature::node::Node;
 use crate::game::Command;
-use crate::player::Player;
 use crate::rules::Registry;
 use crate::wizard::magic::{Casting, Retort};
 use rand::SeedableRng;
@@ -43,7 +42,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
-        g.add_player(id, name, Player::new());
+        g.add_player(id, name);
         g.treasury_mut(id).unwrap().mana = 20_000;
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         g.wizard_mut(id)

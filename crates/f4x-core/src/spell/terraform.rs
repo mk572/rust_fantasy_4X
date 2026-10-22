@@ -320,7 +320,6 @@ mod tests {
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::rules::exec::Target;
 
     const P0: PlayerId = PlayerId(0);
@@ -339,7 +338,7 @@ mod tests {
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        g.add_player(P0, "W", Player::new());
+        g.add_player(P0, "W");
         g.treasury_mut(P0).unwrap().mana = 1000;
         g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         g

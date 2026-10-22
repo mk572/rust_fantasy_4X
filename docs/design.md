@@ -66,8 +66,8 @@ short, the entities of the game are:
 
 | Entity | Components | Status |
 |---|---|---|
-| **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters | tasks 311, 313, 314. Today a `Player` record in `Game::players` |
-| **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment | tasks 312, 315, 316. Today the `Magic` record inside `Player` |
+| **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters | tasks 311, 313, 314, 317 (the `Player` struct is gone; `Armory` and `Roster` are components until tasks 327 and 328) |
+| **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment | tasks 312, 315, 316. The casting, crafting, raising and global-spell lists stay in a transitional `Magic` component until tasks 319 to 322 |
 | **Unit** | definition id, owner, position, damage, experience, moves, orders, temporary state | exists |
 | **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328. Today a unit with a `Hero` component and a roster record |
 | **City** | name, owner, position, population, buildings, race, production | exists |

@@ -461,7 +461,7 @@ pub struct FakeView {
     pub human: Option<crate::player::PlayerId>,
     pub difficulty: u8,
     pub content: Content,
-    pub players: Vec<(crate::player::PlayerId, crate::player::Player)>,
+    pub players: Vec<crate::player::PlayerId>,
     pub sightings: Vec<(crate::player::PlayerId, crate::game::view::Sighting)>,
     pub units: Vec<(crate::player::PlayerId, crate::game::view::UnitInfo)>,
     /// The owner of each city.
@@ -492,10 +492,7 @@ impl FakeView {
             human: None,
             difficulty: 2,
             content: Content::default(),
-            players: ids
-                .iter()
-                .map(|&id| (id, crate::player::Player::new()))
-                .collect(),
+            players: ids.to_vec(),
             sightings: Vec::new(),
             units: Vec::new(),
             cities: Vec::new(),
@@ -532,7 +529,7 @@ impl FakeView {
         &mut self,
         id: crate::player::PlayerId,
     ) -> Option<&mut crate::player::Treasury> {
-        self.players.iter().find(|(p, _)| *p == id)?;
+        self.players.iter().find(|p| **p == id)?;
         let at = match self.treasuries.iter().position(|(p, _)| *p == id) {
             Some(at) => at,
             None => {
@@ -567,7 +564,7 @@ impl crate::game::view::WorldView for FakeView {
     }
 
     fn player_ids(&self) -> Vec<crate::player::PlayerId> {
-        self.players.iter().map(|(id, _)| *id).collect()
+        self.players.clone()
     }
 
     fn is_neutral(&self, id: crate::player::PlayerId) -> bool {
@@ -575,7 +572,7 @@ impl crate::game::view::WorldView for FakeView {
     }
 
     fn treasury(&self, id: crate::player::PlayerId) -> Option<crate::player::Treasury> {
-        self.players.iter().find(|(p, _)| *p == id)?;
+        self.players.iter().find(|p| **p == id)?;
         Some(
             self.treasuries
                 .iter()
@@ -588,11 +585,8 @@ impl crate::game::view::WorldView for FakeView {
         self.defeated.contains(&id)
     }
 
-    fn player(&self, id: crate::player::PlayerId) -> Option<crate::player::PlayerHandle<'_>> {
-        self.players
-            .iter()
-            .find(|(p, _)| *p == id)
-            .map(|(_, p)| crate::player::PlayerHandle::Plain(p))
+    fn has_player(&self, id: crate::player::PlayerId) -> bool {
+        self.players.contains(&id)
     }
 
     fn wizard(&self, id: crate::player::PlayerId) -> Option<crate::wizard::entity::Wizard<'_>> {

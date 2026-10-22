@@ -466,6 +466,18 @@ impl<'a> WizardMut<'a> {
             .expect("a wizard has all the components of its sheet")
     }
 
+    /// Give the wizard a component, or take it away (`None`) when it is an optional one.
+    pub fn put<T: hecs::Component>(&mut self, value: Option<T>) {
+        match value {
+            Some(v) => {
+                let _ = self.world.insert_one(self.entity, v);
+            }
+            None => {
+                let _ = self.world.remove_one::<T>(self.entity);
+            }
+        }
+    }
+
     /// The wizard's read handle (for a moment: it ends before the next change).
     pub fn view(&self) -> Wizard<'_> {
         Wizard::new(self.world, self.entity)

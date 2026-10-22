@@ -22,8 +22,9 @@ use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
-use crate::player::{Defeat, History, Offers, Owner, Player, PlayerId, Tax, Treasury};
+use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
+use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
 
 use crate::rules::SpellId;
 use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit, UnitEnchantments};
@@ -573,9 +574,9 @@ impl Game {
                 .collect(),
         };
         let players = self
-            .players()
+            .player_ids()
             .iter()
-            .map(|(id, p)| PlayerSave {
+            .map(|id| PlayerSave {
                 id: id.0,
                 name: self.player_name(*id),
                 gold: self.treasury(*id).map_or(0, |t| t.gold),
@@ -592,13 +593,19 @@ impl Game {
                     .map(|r| rules.races.get(r).id.clone()),
                 fame: self.wizard(*id).map_or(0, |w| w.fame()),
                 magic: MagicSave::of(self.wizard(*id), rules),
-                armory: p.armory.clone(),
-                roster: p.roster.clone(),
+                armory: self
+                    .player_component::<crate::item::armory::Armory>(*id)
+                    .map(|a| crate::item::armory::Armory::clone(&a))
+                    .unwrap_or_default(),
+                roster: self
+                    .player_component::<crate::hero::roster::Roster>(*id)
+                    .map(|r| crate::hero::roster::Roster::clone(&r))
+                    .unwrap_or_default(),
                 offers: self.offers(*id),
-                fortress: p.fortress,
-                summon_at: p.summon_at,
-                banished: p.banished,
-                banished_by: p.banished_by.map(|d| d.0),
+                fortress: self.wizard(*id).and_then(|w| w.fortress()),
+                summon_at: self.wizard(*id).and_then(|w| w.summon_at()),
+                banished: self.wizard(*id).is_some_and(|w| w.is_banished()),
+                banished_by: self.wizard(*id).and_then(|w| w.banished_by()).map(|d| d.0),
                 defeated: self.is_defeated(*id),
                 defeated_by: self.defeat_by(*id).map(|d| d.0),
                 banner: Some(self.banner(*id)),
@@ -855,18 +862,15 @@ impl Snapshot {
             let (history, offers) = (p.history, p.offers);
             let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
             let (fame, magic) = (p.fame, p.magic);
-            let player = Player {
-                armory: p.armory,
-                roster: p.roster,
-                fortress: p.fortress,
-                summon_at: p.summon_at,
-                banished: p.banished,
-                banished_by: p.banished_by.map(PlayerId),
-            };
+            let (armory, roster) = (p.armory, p.roster);
+            let (fortress, summon_at) = (p.fortress, p.summon_at);
+            let banishment = p.banished.then(|| Banishment {
+                by: p.banished_by.map(PlayerId),
+            });
             let entity = if neutral {
-                game.add_neutral_player(id, player)
+                game.add_neutral_player(id)
             } else {
-                game.add_player(id, name, player)
+                game.add_player(id, name)
             };
             let _ = game.world.insert(
                 entity,
@@ -875,6 +879,8 @@ impl Snapshot {
                     Tax(tax_rate),
                     History(history),
                     Offers(offers),
+                    armory,
+                    roster,
                 ),
             );
             if !neutral {
@@ -882,7 +888,11 @@ impl Snapshot {
                 let rules = &game.content.rules;
                 let entity = crate::wizard::entity::of_player(&game.world, entity)
                     .ok_or_else(|| LoadError::Inconsistent("a wizard without its entity".into()))?;
-                magic.put(WizardMut::new(&mut game.world, entity), rules)?;
+                let mut wizard = WizardMut::new(&mut game.world, entity);
+                wizard.put(fortress.map(Fortress));
+                wizard.put(summon_at.map(SummonAt));
+                wizard.put(banishment);
+                magic.put(wizard, rules)?;
             }
             game.set_grand_vizier(id, grand_vizier);
             if defeated {
@@ -1103,8 +1113,11 @@ impl Snapshot {
                     .insert_one(entity, crate::city::conquest::Conquered(by));
             }
         }
-        for (id, p) in game.players() {
-            for pos in [p.fortress, p.summon_at].into_iter().flatten() {
+        for id in game.player_ids() {
+            let Some(w) = game.wizard(id) else {
+                continue;
+            };
+            for pos in [w.fortress(), w.summon_at()].into_iter().flatten() {
                 let ok = game
                     .economy()
                     .city_at(pos)
@@ -1116,7 +1129,7 @@ impl Snapshot {
                     )));
                 }
             }
-            if p.banished && p.fortress.is_some() {
+            if w.is_banished() && w.fortress().is_some() {
                 return Err(LoadError::Inconsistent(
                     "a banished wizard has a fortress".into(),
                 ));

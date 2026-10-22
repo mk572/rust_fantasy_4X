@@ -114,9 +114,9 @@ impl Game {
     }
 
     pub fn score(&self, player: PlayerId) -> Score {
-        let Some(p) = self.player(player) else {
+        if !self.has_player(player) {
             return Score::default();
-        };
+        }
         let mastery_by = self
             .game_over
             .filter(|g| g.kind == EndKind::SpellOfMastery)
@@ -133,7 +133,9 @@ impl Game {
             })
             .sum();
         let conquests = self.banished_wizards(player).len();
-        let time = if p.fortress.is_some() && mastery_by.is_none_or(|w| w == player) {
+        let time = if self.wizard(player).is_some_and(|w| w.fortress().is_some())
+            && mastery_by.is_none_or(|w| w == player)
+        {
             2000 - self.turn as i32 * 2
         } else {
             0
@@ -204,7 +206,7 @@ impl Game {
     pub(crate) fn check_conquest(&mut self, conqueror: PlayerId) -> Vec<Event> {
         let human_down = self
             .human()
-            .is_some_and(|h| self.player(h).is_some() && self.is_defeated(h));
+            .is_some_and(|h| self.has_player(h) && self.is_defeated(h));
         let living = self.living_wizards();
         if human_down {
             return self.finish(conqueror, EndKind::Conquest);

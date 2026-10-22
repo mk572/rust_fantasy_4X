@@ -1,7 +1,6 @@
 use super::*;
 use crate::game::testutil::content_with_economy;
 use crate::map::{Grid, Map, Plane};
-use crate::player::Player;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -19,7 +18,7 @@ fn world() -> Game {
     let mut game = Game::new(5);
     game.content = c;
     game.map = Some(Map::new(build(), build()));
-    game.add_player(P0, "Merlin", Player::new());
+    game.add_player(P0, "Merlin");
     game
 }
 

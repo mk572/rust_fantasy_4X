@@ -1,7 +1,7 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Command;
 use crate::rules::Registry;
@@ -36,7 +36,7 @@ fn world() -> Game {
     let mut g = Game::new(4);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-    g.add_player(P0, "W", Player::new());
+    g.add_player(P0, "W");
     g
 }
 

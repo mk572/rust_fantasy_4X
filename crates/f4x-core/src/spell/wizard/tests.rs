@@ -3,7 +3,6 @@ use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
 
 use crate::game::Command;
-use crate::player::Player;
 use crate::rules::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget, UnitKind};
@@ -181,7 +180,7 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
-        g.add_player(id, name, Player::new());
+        g.add_player(id, name);
         g.treasury_mut(id).unwrap().mana = 5000;
         g.init_wizard(id, &[("death", 3)], &[], None).unwrap();
         g.wizard_mut(id)

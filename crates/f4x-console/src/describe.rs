@@ -18,9 +18,10 @@ pub fn pos(p: Position) -> String {
 }
 
 pub fn player(game: &Game, id: PlayerId) -> String {
-    match game.player(id) {
-        Some(_) => format!("{} ({})", game.player_name(id), id.0),
-        None => format!("player {}", id.0),
+    if game.has_player(id) {
+        format!("{} ({})", game.player_name(id), id.0)
+    } else {
+        format!("player {}", id.0)
     }
 }
 

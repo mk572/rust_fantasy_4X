@@ -90,7 +90,7 @@ impl App {
     pub fn open_wizard(&mut self, who: PlayerId) {
         let known = who == HUMAN
             || (self.game.have_met(HUMAN, who)
-                && self.game.player(who).is_some()
+                && self.game.has_player(who)
                 && !self.game.is_neutral_player(who));
         if !known {
             return;
@@ -155,8 +155,16 @@ impl App {
         if ui.who != HUMAN {
             let relation = relation_word(self.game.relation(HUMAN, ui.who));
             let treaty = self.game.treaty(HUMAN, ui.who).name();
-            let personality = self.game.personality(ui.who).name();
-            let objective = self.game.objective(ui.who).map_or("", |o| o.name());
+            let personality = self
+                .game
+                .wizard(ui.who)
+                .map_or_else(Default::default, |w| w.personality())
+                .name();
+            let objective = self
+                .game
+                .wizard(ui.who)
+                .and_then(|w| w.objective())
+                .map_or("", |o| o.name());
             for (i, (label, value)) in [
                 ("Relations:", relation),
                 ("Treaties:", treaty),

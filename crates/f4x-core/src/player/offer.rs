@@ -1,7 +1,7 @@
 //! Offers each turn (task 220): a wandering merchant's magic item, a company of mercenaries and
 //! a hero for hire, as `Determine_Offer` (`NEXTTURN.c`) and `Generate_Mercenaries`
 //! (`CITYCALC.c`) make them. At the turn change every wizard with a fortress rolls the three
-//! offers; what is offered waits in [`Player::offers`] until the wizard accepts or rejects it
+//! offers; what is offered waits in [`Offers`] until the wizard accepts or rejects it
 //! (the pop-ups of task 143 show it, the computer wizards answer through `f4x-ai`). An offer
 //! not answered by the next turn change lapses.
 //!
@@ -14,7 +14,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::game::{Event, Game};
-use crate::hero::roster::Class;
+use crate::hero::roster::{Class, Roster};
 use crate::hero::HeroError;
 use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
@@ -22,7 +22,6 @@ use crate::item::Item;
 use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, UnitDef, UnitKind};
 use crate::unit::{Experience, MAX_STACK};
-use crate::wizard::fortress::summon_point;
 use crate::wizard::magic::Retort;
 
 /// No mercenaries are offered before this turn (`Generate_Mercenaries`).
@@ -279,8 +278,8 @@ impl Game {
         !self.is_neutral_player(player)
             && !self.is_defeated(player)
             && self
-                .player(player)
-                .is_some_and(|p| !p.banished && summon_point(&p).is_some())
+                .wizard(player)
+                .is_some_and(|w| !w.is_banished() && w.summon_point().is_some())
     }
 
     fn charismatic(&self, player: PlayerId) -> bool {
@@ -382,7 +381,10 @@ impl Game {
         let events = match offer {
             Offer::Hero { kind, price } => {
                 if let Some(name) = name.filter(|n| !n.trim().is_empty()) {
-                    if let Some(r) = self.player_mut(player).and_then(|p| p.roster.get_mut(kind)) {
+                    if let Some(r) = self
+                        .player_component_mut::<Roster>(player)
+                        .and_then(|r| r.get_mut(kind))
+                    {
                         r.name = name;
                     }
                 }

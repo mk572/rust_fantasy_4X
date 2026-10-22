@@ -564,7 +564,6 @@ mod tests {
     use crate::city::economy::{Enchantments, Farmers, Population};
     use crate::game::testutil::content_with_economy;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
 
     /// A one-city world with the elves' content, and no `Game`.
     struct Rig {
@@ -580,7 +579,7 @@ mod tests {
             let grass = content.terrains.id_of("grassland").unwrap();
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
-            let owner = world.spawn(crate::player::bundle(PlayerId(0), Player::new()));
+            let owner = world.spawn(crate::player::bundle(PlayerId(0)));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,

@@ -8,7 +8,7 @@
 
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game, Rejection};
-use crate::hero::roster::{self, Availability, Class, Standing, HEROES};
+use crate::hero::roster::{self, Availability, Class, Roster, Standing, HEROES};
 use crate::hero::HeroError;
 use crate::player::PlayerId;
 use crate::unit::UnitView;
@@ -30,7 +30,7 @@ impl UnitView<'_> {
     /// Could a summoning of this class find a hero for the wizard? (`Pick_Random_Hero` with a
     /// zero cost: fame does not matter, the books do; a champion summoning falls back on any.)
     pub fn hero_summonable(&self, player: PlayerId, class: Class) -> bool {
-        let Some(p) = crate::player::find(self.world, player) else {
+        let Some(roster) = crate::player::component::<Roster>(self.world, player) else {
             return false;
         };
         let standing = Standing {
@@ -42,15 +42,15 @@ impl UnitView<'_> {
             Class::Hero => 0..HEROES,
             Class::Champion | Class::Any => 0..torin(rules),
         };
-        range.any(|k| roster::can_offer(rules, &p.roster, k, &standing))
+        range.any(|k| roster::can_offer(rules, &roster, k, &standing))
     }
 
     /// The dead heroes Resurrection can raise: every dead one but Torin, whom only Incarnation
     /// brings back (`Cast_Resurrection` lists types 0 to 33).
     pub fn raisable_heroes(&self, player: PlayerId) -> Vec<usize> {
         let last = torin(&self.content.rules);
-        crate::player::find(self.world, player)
-            .map(|p| p.roster.dead())
+        crate::player::component::<Roster>(self.world, player)
+            .map(|r| r.dead())
             .unwrap_or_default()
             .into_iter()
             .filter(|&k| k != last)
@@ -69,13 +69,15 @@ impl UnitView<'_> {
         if self.open_hero_slots(player) == 0 {
             return Some(HeroError::NoRoom);
         }
-        let Some(p) = crate::player::find(self.world, player) else {
+        let Some(roster) = crate::player::component::<Roster>(self.world, player) else {
             return Some(HeroError::Unknown);
         };
-        if crate::wizard::fortress::summon_point(&p).is_none() {
+        if crate::wizard::entity::find(self.world, player)
+            .is_none_or(|w| w.summon_point().is_none())
+        {
             return Some(HeroError::NoCircle);
         }
-        let record = |k: usize| p.roster.get(k).map(|r| r.state);
+        let record = |k: usize| roster.get(k).map(|r| r.state);
         let possible = match hook {
             SUMMON_HERO => self.hero_summonable(player, Class::Hero),
             SUMMON_CHAMPION => self.hero_summonable(player, Class::Champion),
@@ -93,8 +95,8 @@ impl Game {
     /// Hire the free hero `kind` for gold: it joins at the summoning circle.
     pub fn hire_hero(&mut self, player: PlayerId, kind: usize) -> Result<hecs::Entity, HeroError> {
         let record = self
-            .player(player)
-            .and_then(|p| p.roster.get(kind).cloned())
+            .player_component::<Roster>(player)
+            .and_then(|r| r.get(kind).cloned())
             .ok_or(HeroError::Unknown)?;
         if record.state != Availability::Free {
             return Err(HeroError::NotAvailable);
@@ -137,8 +139,8 @@ impl Game {
         let spell = self.content.rules.spells.id_of(hook)?;
         let standing = self.units().hero_standing(player);
         let mut pick = |class| {
-            let roster = &self.player(player)?.roster;
-            roster::pick(rng, &self.content.rules, roster, &standing, true, class)
+            let roster = self.player_component::<Roster>(player)?;
+            roster::pick(rng, &self.content.rules, &roster, &standing, true, class)
         };
         let kind = match hook {
             SUMMON_HERO => pick(Class::Hero),
@@ -171,8 +173,8 @@ impl Game {
             .id_of(RESURRECTION)
             .ok_or(Rejection::Magic(MagicError::NotAvailable))?;
         let state = self
-            .player(player)
-            .and_then(|p| p.roster.get(kind).map(|r| r.state))
+            .player_component::<Roster>(player)
+            .and_then(|r| r.get(kind).map(|r| r.state))
             .ok_or(Rejection::Hero(HeroError::Unknown))?;
         if state != Availability::Dead || kind == torin(&self.content.rules) {
             return Err(Rejection::Hero(HeroError::NotAvailable));
@@ -251,9 +253,9 @@ mod tests {
         let t = g.treasury_mut(P0).unwrap();
         t.mana = 1000;
         t.gold = 100;
-        let p = g.player_mut(P0).unwrap();
-        p.fortress = Some(at(3, 3));
-        p.summon_at = Some(at(3, 3));
+        let mut w = g.wizard_mut(P0).unwrap();
+        w.put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
+        w.put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
         g
     }
 
@@ -285,11 +287,18 @@ mod tests {
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoGold));
         assert_eq!(g.hire_hero(P0, 99), Err(HeroError::Unknown));
         g.treasury_mut(P0).unwrap().gold = 500;
-        g.player_mut(P0).unwrap().summon_at = None;
-        g.player_mut(P0).unwrap().fortress = None;
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::SummonAt>(None);
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::Fortress>(None);
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoCircle));
         assert_eq!(g.treasury(P0).unwrap().gold, 500);
-        assert_eq!(g.pl(1).roster.get(0).unwrap().state, Availability::Free);
+        assert_eq!(
+            g.pl::<crate::hero::roster::Roster>(1).get(0).unwrap().state,
+            Availability::Free
+        );
     }
 
     #[test]
@@ -303,7 +312,12 @@ mod tests {
             g.hire_hero(P0, k).unwrap();
         }
         assert_eq!(g.units().open_hero_slots(P0), 0);
-        assert_eq!(g.player(P0).unwrap().roster.dead(), vec![0]);
+        assert_eq!(
+            g.player_component::<crate::hero::roster::Roster>(P0)
+                .unwrap()
+                .dead(),
+            vec![0]
+        );
     }
 
     #[test]
@@ -316,7 +330,11 @@ mod tests {
         assert_eq!(g.treasury(P0).unwrap().gold, 100);
         assert!(g.treasury(P0).unwrap().mana < 1000);
         assert_eq!(
-            g.player(P0).unwrap().roster.get(kind).unwrap().state,
+            g.player_component::<crate::hero::roster::Roster>(P0)
+                .unwrap()
+                .get(kind)
+                .unwrap()
+                .state,
             Availability::Serving
         );
         // The necromancer (a death book) is not among those a life wizard can summon.
@@ -345,8 +363,12 @@ mod tests {
         assert_eq!(g.treasury(P0).unwrap().mana, mana);
         let h = g.units().hero_units(P0)[0];
         g.remove_unit(h, Fate::Released);
-        g.player_mut(P0).unwrap().summon_at = None;
-        g.player_mut(P0).unwrap().fortress = None;
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::SummonAt>(None);
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::Fortress>(None);
         assert!(matches!(
             cast(&mut g, SUMMON_HERO).as_slice(),
             [Event::Rejected(_)]
@@ -359,7 +381,11 @@ mod tests {
         let mut g = caster();
         // The test roster has no champion; "any" finds the free ones until none remain.
         for k in 0..6 {
-            g.player_mut(P0).unwrap().roster.get_mut(k).unwrap().state = Availability::Gone;
+            g.player_component_mut::<crate::hero::roster::Roster>(P0)
+                .unwrap()
+                .get_mut(k)
+                .unwrap()
+                .state = Availability::Gone;
         }
         let events = cast(&mut g, SUMMON_CHAMPION);
         assert!(
@@ -417,7 +443,12 @@ mod tests {
         assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
         assert!(g.treasury(P0).unwrap().mana < mana);
         assert_eq!(g.wizard(P0).unwrap().raising(), None);
-        assert_eq!(g.player(P0).unwrap().roster.dead(), vec![0]);
+        assert_eq!(
+            g.player_component::<crate::hero::roster::Roster>(P0)
+                .unwrap()
+                .dead(),
+            vec![0]
+        );
         // A hero who is not dead, or never was, cannot be raised.
         for kind in [1, 5, 99] {
             let events = g.apply(Command::ResurrectHero { player: P0, kind });
@@ -449,14 +480,20 @@ mod tests {
         assert!(events.is_empty(), "{events:?}");
         assert_eq!(g.wizard(P0).unwrap().raising(), Some(3));
         // (The test world has no city for the fortress to stand in, which a save refuses.)
-        g.player_mut(P0).unwrap().fortress = None;
-        g.player_mut(P0).unwrap().summon_at = None;
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::Fortress>(None);
+        g.wizard_mut(P0)
+            .unwrap()
+            .put::<crate::wizard::fortress::SummonAt>(None);
         let text = ron::to_string(&g.snapshot()).unwrap();
         let mut back = crate::game::save::Snapshot::from_text(&text)
             .unwrap()
             .restore(g.content.clone())
             .unwrap();
-        back.player_mut(P0).unwrap().summon_at = Some(at(3, 3));
+        back.wizard_mut(P0)
+            .unwrap()
+            .put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
         assert_eq!(back.wizard(P0).unwrap().raising(), Some(3));
         // The cost is paid; the spell takes effect.
         let spell = back.content.rules.spells.id_of(RESURRECTION).unwrap();

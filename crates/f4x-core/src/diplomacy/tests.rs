@@ -4,7 +4,6 @@ use crate::game::testutil::{content_with_magic, FakeView};
 use crate::map::{Grid, Map, Plane, Position};
 
 use crate::game::{Command, Rejection};
-use crate::player::Player;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -26,7 +25,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
     for id in [P0, P1, P2] {
-        g.add_player(id, "W", Player::new());
+        g.add_player(id, "W");
     }
     g.set_human(Some(P0));
     for id in [P0, P1, P2] {
@@ -111,14 +110,6 @@ impl Rig {
         wizards(&self.view)
     }
 
-    fn player_mut(&mut self, id: PlayerId) -> Option<&mut crate::player::Player> {
-        self.view
-            .players
-            .iter_mut()
-            .find(|(p, _)| *p == id)
-            .map(|(_, p)| p)
-    }
-
     /// The turn: what diplomacy does at its end, and the events it raised.
     fn end_turn(&mut self) -> Vec<Event> {
         self.lend(|d, ctx| d.process_diplomacy(ctx));
@@ -142,7 +133,7 @@ impl Rig {
 
     /// The temper of a wizard.
     pub fn personality(&self, wizard: PlayerId) -> Personality {
-        self.diplomacy.personality(wizard)
+        crate::game::view::WorldView::personality(&self.view, wizard)
     }
 
     /// What the hooks raised since the last command, as events.
@@ -500,18 +491,18 @@ fn temper_and_charm_change_what_a_deed_is_worth() {
     let mut g = Rig::new();
     met(&mut g, P2, P1);
     set_rel(&mut g, P1, P2, 0);
-    g.diplomacy.set_personality(P1, Personality::Lawful);
+    g.wizard_mut_for_tests(P1).put(Some(Personality::Lawful));
     g.change_relations(-5, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), -10);
     set_rel(&mut g, P1, P2, 0);
-    g.diplomacy.set_personality(P1, Personality::Maniacal);
+    g.wizard_mut_for_tests(P1).put(Some(Personality::Maniacal));
     g.change_relations(-4, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), -6);
     g.change_relations(4, P2, P1, Action::Friendship, None);
     // -6 is negative, so the gain doubles to 8, then Maniacal takes three quarters: 6.
     assert_eq!(g.relation(P1, P2), 0);
     // A charismatic attacker halves its penalties and doubles its gains.
-    g.diplomacy.set_personality(P1, Personality::Chaotic);
+    g.wizard_mut_for_tests(P1).put(Some(Personality::Chaotic));
     g.wizard_mut_for_tests(P2)
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
@@ -657,7 +648,7 @@ fn breaking_a_treaty_costs_trust_with_everyone() {
     assert_eq!(g.diplomacy.stance(P1, P2).unwrap().treaty_patience, -200);
     assert_eq!(g.diplomacy.stance(P1, P2).unwrap().peace_patience, -200);
     // A pact costs half as much, a Lawful breaker twice.
-    g.diplomacy.set_personality(P1, Personality::Lawful);
+    g.wizard_mut_for_tests(P1).put(Some(Personality::Lawful));
     g.start_treaty(P1, P2, Treaty::Pact);
     g.break_treaties(P1, P2);
     assert_eq!(g.diplomacy.stance(P1, P2).unwrap().hidden, -40);
@@ -1113,7 +1104,7 @@ fn the_rating_of_a_proposal_is_the_originals() {
     set_rel(&mut g, P0, P1, 90);
     g.diplomacy.stance_mut(P0, P1).hidden = 30;
     g.diplomacy.stance_mut(P0, P1).treaty_patience = 100;
-    g.diplomacy.set_personality(P1, Personality::Peaceful);
+    g.wizard_mut_for_tests(P1).put(Some(Personality::Peaceful));
     assert_eq!(
         g.rate_proposal(P0, P1, ProposalKind::Pact),
         Verdict::Accepted
@@ -1377,7 +1368,7 @@ fn taking_a_city_is_a_war() {
 #[test]
 fn taking_an_independent_city_is_no_diplomacy() {
     let mut g = world();
-    g.add_neutral_player(PlayerId(9), Player::new());
+    g.add_neutral_player(PlayerId(9));
     g.treasury_mut(PlayerId(9)).unwrap().gold = 0;
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
@@ -1425,7 +1416,7 @@ fn diplomacy_survives_a_save() {
     }
     g.start_treaty(P1, P2, Treaty::Alliance);
     g.declare_war(P0, P1);
-    g.diplomacy.set_personality(P2, Personality::Lawful);
+    g.wizard_mut(P2).unwrap().put(Some(Personality::Lawful));
     g.diplomacy.stance_mut(P2, P0).last_action = Some(LastAction {
         action: Action::AttackedCity,
         strength: -20,

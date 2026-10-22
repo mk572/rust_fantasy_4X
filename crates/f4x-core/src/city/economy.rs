@@ -18,7 +18,7 @@ use hecs::World;
 use crate::city::{City, CityInfo};
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane, Position};
-use crate::player::{Owner, PlayerId, PlayerRef};
+use crate::player::{Owner, PlayerId};
 
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, Stat};
@@ -118,10 +118,6 @@ impl<'a> Economy<'a> {
     /// The unit rules over the same pieces.
     pub(crate) fn units(&self) -> UnitView<'a> {
         UnitView::new(self.world, self.content)
-    }
-
-    pub(crate) fn player(&self, id: PlayerId) -> Option<PlayerRef<'a>> {
-        crate::player::find(self.world, id)
     }
 
     pub(crate) fn wizard(&self, id: PlayerId) -> Option<crate::wizard::entity::Wizard<'a>> {
@@ -964,10 +960,7 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(
-            PlayerId(0),
-            crate::player::Player::new(),
-        ));
+        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let city = world.spawn((
             City {
                 name: "Town".into(),
@@ -982,10 +975,7 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        world.spawn(crate::player::bundle(
-            PlayerId(0),
-            crate::player::Player::new(),
-        ));
+        world.spawn(crate::player::bundle(PlayerId(0)));
         let eco = Economy::new(&world, Some(&map), &content);
 
         let now = eco.city_economy(city).unwrap();
@@ -1016,10 +1006,7 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(
-            PlayerId(0),
-            crate::player::Player::new(),
-        ));
+        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let city = world.spawn((
             City {
                 name: "Town".into(),

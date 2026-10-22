@@ -259,7 +259,6 @@ pub(crate) mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::game::Command;
     use crate::map::Grid;
-    use crate::player::Player;
     use crate::rules::{Registry, UnitKind};
 
     const P0: PlayerId = PlayerId(0);
@@ -302,7 +301,7 @@ pub(crate) mod tests {
         g.content = c;
         g.map = Some(map);
         for id in [P0, P1] {
-            g.add_player(id, "W", Player::new());
+            g.add_player(id, "W");
             g.treasury_mut(id).unwrap().mana = 100;
             g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         }

@@ -192,7 +192,6 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::rules::{Registry, UnitKind};
 
     const P0: PlayerId = PlayerId(0);
@@ -223,7 +222,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.fog = crate::map::fog::Fog::new(24, 14);
         for id in [P0, P1] {
-            g.add_player(id, "W", Player::new());
+            g.add_player(id, "W");
             g.treasury_mut(id).unwrap().mana = 5000;
             g.init_wizard(id, &[("life", 4)], &[], None).unwrap();
         }

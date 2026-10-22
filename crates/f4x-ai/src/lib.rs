@@ -191,7 +191,7 @@ impl Ai {
         let mut events = Vec::new();
         {
             let view = PlayerView::new(game, self.player);
-            if view.game_over() || view.player().is_none_or(|_| view.is_defeated()) {
+            if view.game_over() || view.wizard().is_none() || view.is_defeated() {
                 return events;
             }
         }

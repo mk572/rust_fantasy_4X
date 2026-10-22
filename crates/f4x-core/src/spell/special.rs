@@ -78,7 +78,7 @@ impl Game {
         player: crate::player::PlayerId,
         unit: hecs::Entity,
     ) -> Option<Position> {
-        let to = self.player(player)?.summon_at?;
+        let to = self.wizard(player)?.summon_at()?;
         let there = self.units().units_at(to);
         (there.contains(&unit) || there.len() < MAX_STACK).then_some(to)
     }
@@ -159,7 +159,6 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::game::Command;
     use crate::map::{Grid, Map};
-    use crate::player::Player;
     use crate::player::PlayerId;
 
     const P0: PlayerId = PlayerId(0);
@@ -185,7 +184,7 @@ mod tests {
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        g.add_player(P0, "W", Player::new());
+        g.add_player(P0, "W");
         g.treasury_mut(P0).unwrap().mana = 1000;
         g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         g
@@ -304,7 +303,9 @@ mod tests {
             "no circle yet"
         );
         let home = at(Plane::Myrror, 9, 9);
-        g.player_mut(P0).unwrap().summon_at = Some(home);
+        g.wizard_mut(P0)
+            .unwrap()
+            .put(Some(crate::wizard::fortress::SummonAt(home)));
         cast(&mut g, "word_of_recall", Target::Unit(u));
         assert_eq!(g.units().unit_position(u), Some(home));
         for _ in 0..MAX_STACK - 1 {
@@ -327,7 +328,7 @@ mod tests {
         assert_eq!(g.units().unit_position(b), Some(over));
         // Back again is refused while the Planar Seal is up.
         let other = PlayerId(1);
-        g.add_player(other, "X", Player::new());
+        g.add_player(other, "X");
         g.init_wizard(other, &[("life", 2)], &[], None).unwrap();
         let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
         g.attach_enchantment(Target::Player(other), seal, other);

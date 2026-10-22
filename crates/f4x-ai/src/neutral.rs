@@ -1,4 +1,4 @@
-//! The independent cities. Each is its own player (`Player::neutral`) and this plays them:
+//! The independent cities. Each is its own player (the `Neutral` marker) and this plays them:
 //! farmers, taxes and what the city builds, after the original's `Player_Colony_Autobuild_NP`
 //! (`AIBUILD.c`): a Barracks first, then soldiers while the garrison is short and buildings
 //! once it is not, never settlers. They never move, attack or cast. The game does none of this
@@ -18,10 +18,9 @@ const GARRISON_PER_FOUR: usize = 2;
 /// Play every independent city's turn. Returns the events its commands caused.
 pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
     let cities: Vec<_> = game
-        .players()
+        .player_ids()
         .into_iter()
-        .filter(|(id, _)| game.is_neutral_player(*id))
-        .map(|(id, _)| id)
+        .filter(|id| game.is_neutral_player(*id))
         .collect();
     let mut events = Vec::new();
     for id in cities {

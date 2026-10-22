@@ -43,7 +43,7 @@ pub struct Game {
     pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: content::Content,
-    /// The one neutral player that owns the monsters (`player::MONSTERS`); it has no [`player::Player`]
+    /// The one neutral player that owns the monsters (`player::MONSTERS`); it has no
     /// data, so it is in no list of players.
     pub(crate) monsters: hecs::Entity,
     /// The player entity of each [`player::PlayerId`].
@@ -154,17 +154,12 @@ impl Game {
     }
 
     /// Make the player entity for `id`, and with it a wizard called `name`.
-    pub fn add_player(
-        &mut self,
-        id: player::PlayerId,
-        name: impl Into<String>,
-        player: player::Player,
-    ) -> hecs::Entity {
+    pub fn add_player(&mut self, id: player::PlayerId, name: impl Into<String>) -> hecs::Entity {
         debug_assert!(
             self.player_entity(id).is_none(),
             "player {id:?} is made twice"
         );
-        let e = self.world.spawn(player::bundle(id, player));
+        let e = self.world.spawn(player::bundle(id));
         let _ = self.world.insert_one(e, player::Control::Ai);
         let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
         let _ = self.world.insert_one(e, player::WizardLink(w));
@@ -174,12 +169,8 @@ impl Game {
 
     /// Make the player of one independent city: it has a treasury and pays its way like a wizard,
     /// but is no wizard (no magic, no victory, no AI).
-    pub fn add_neutral_player(
-        &mut self,
-        id: player::PlayerId,
-        player: player::Player,
-    ) -> hecs::Entity {
-        let e = self.world.spawn(player::bundle(id, player));
+    pub fn add_neutral_player(&mut self, id: player::PlayerId) -> hecs::Entity {
+        let e = self.world.spawn(player::bundle(id));
         let _ = self.world.insert_one(e, player::Neutral);
         self.player_index.insert(id, e);
         e
@@ -255,24 +246,18 @@ impl Game {
         }
     }
 
+    /// Whether `id` is a player of the game: a wizard's or an independent city's (not the
+    /// monsters' owner).
+    pub fn has_player(&self, id: player::PlayerId) -> bool {
+        self.player_index.contains_key(&id)
+    }
+
     /// The entity of a player.
     pub fn player_entity(&self, id: player::PlayerId) -> Option<hecs::Entity> {
         if id == player::MONSTERS {
             return Some(self.monsters);
         }
         self.player_index.get(&id).copied()
-    }
-
-    /// Read a player's data.
-    pub fn player(&self, id: player::PlayerId) -> Option<player::PlayerRef<'_>> {
-        self.world
-            .get::<&player::Player>(self.player_entity(id)?)
-            .ok()
-    }
-
-    pub fn player_mut(&mut self, id: player::PlayerId) -> Option<&mut player::Player> {
-        let e = self.player_entity(id)?;
-        self.world.query_one_mut::<&mut player::Player>(e).ok()
     }
 
     /// A component of a player (`Tax`, `Bonus`, `History`, `Offers`, `Defeat`, ...).
@@ -295,17 +280,6 @@ impl Game {
     /// A player's gold and mana.
     pub fn treasury(&self, id: player::PlayerId) -> Option<player::Treasury> {
         self.player_component::<player::Treasury>(id).map(|t| *t)
-    }
-
-    /// A player's data and its gold and mana, to change both at once.
-    pub fn player_treasury_mut(
-        &mut self,
-        id: player::PlayerId,
-    ) -> Option<(&mut player::Player, &mut player::Treasury)> {
-        let e = self.player_entity(id)?;
-        self.world
-            .query_one_mut::<(&mut player::Player, &mut player::Treasury)>(e)
-            .ok()
     }
 
     /// A player's gold and mana, to change.
@@ -376,15 +350,10 @@ impl Game {
         self.player_component::<player::Defeat>(id).is_some()
     }
 
-    /// Every player with its id: wizards and independent cities' players, ascending.
-    pub fn players(&self) -> Vec<(player::PlayerId, player::PlayerRef<'_>)> {
-        player::all(&self.world)
-    }
-
-    /// The player that was added `i`th (tests index players the way `Vec<Player>` did).
+    /// A component of the player that was added `i`th (tests index players by their order).
     #[cfg(test)]
-    pub(crate) fn pl(&self, i: usize) -> player::PlayerRef<'_> {
-        self.player(self.player_ids()[i]).unwrap()
+    pub(crate) fn pl<C: hecs::Component>(&self, i: usize) -> hecs::Ref<'_, C> {
+        self.player_component(self.player_ids()[i]).unwrap()
     }
 
     #[cfg(test)]
@@ -399,9 +368,15 @@ impl Game {
     }
 
     #[cfg(test)]
-    pub(crate) fn pl_mut(&mut self, i: usize) -> &mut player::Player {
+    pub(crate) fn pl_mut<C: hecs::Component>(&mut self, i: usize) -> &mut C {
         let id = self.player_ids()[i];
-        self.player_mut(id).unwrap()
+        self.player_component_mut(id).unwrap()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn wiz_mut(&mut self, i: usize) -> wizard::sheet::WizardMut<'_> {
+        let id = self.player_ids()[i];
+        self.wizard_mut(id).unwrap()
     }
 
     /// Every player's id: wizards and independent cities' players, ascending.

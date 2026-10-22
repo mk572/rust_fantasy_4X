@@ -7,18 +7,17 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 
 ## 1. The wizard
 
-> **Rework (task 310, built in tasks 311 to 317; the sheet below is done, task 315).** The wizard becomes an entity of its own, linked to a
-> **player** entity that holds what the wizard has and does (gold, mana, tax rate, offers, defeat).
-> The `Magic` record below is split into components of the wizard: `Books`, `Retorts`, `Skill`
-> (invested points and `skill_left`), `Research` (`researching`, `research_remaining`), `KnownSpells`,
-> `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), plus `Name`, `Portrait`,
-> `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt` and
-> `Banishment`. `casting` and `global` become spell instances
+> **Rework (task 310, built in tasks 311 to 317; the wizard side is done, tasks 312, 315 and 316).**
+> The wizard is an entity of its own, linked to a **player** entity that holds what the wizard has
+> and does (gold, mana, tax rate, offers, defeat). Its components are `Books`, `Retorts`, `Skill`
+> (invested points and `skill_left`), `Research` (`researching`, `research_remaining`),
+> `KnownSpells`, `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), `Name`,
+> `Portrait`, `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`
+> and `Banishment`. `casting`, `crafting`, `raising` and `global` stay in a transitional `Magic`
+> component and become spell instances in tasks 319 to 322
 > ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
-> no wizard. The table below is the layout today.
-
-A wizard is not an entity. It is a `Magic` record inside `Player`, plus the mana reserve
-(`Player::mana`):
+> no wizard. The table below lists the wizard's data; the mana reserve is the player's
+> `Treasury`.
 
 | Field | Meaning |
 |---|---|
@@ -181,13 +180,14 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 
 ## 12. Fortress, summoning circle, banishment
 
-> **Rework.** `fortress`, `summon_at` and `banished` are components of the wizard (`Fortress`,
-> `SummonAt`, `Banishment`, task 316); `defeated` is the player's `Defeat`. The fortress city
-> stays a city entity; the wizard names it. Defeating a wizard despawns all the spell instances it
-> cast (`aftermath` does the same to the lists today); player and wizard entities stay.
+> **Rework.** The fortress, the summoning circle and the banishment are components of the wizard
+> (`Fortress`, `SummonAt`, `Banishment {by}`, task 316); `defeated` is the player's `Defeat`. The
+> fortress city stays a city entity; the wizard names it. Defeating a wizard despawns all the
+> spell instances it cast (`aftermath` does the same to the lists today); player and wizard
+> entities stay.
 
-Code: `crates/f4x-core/src/wizard/fortress.rs`. Each `Player` has `fortress` and `summon_at` (positions of
-cities), `banished` and `defeated`.
+Code: `crates/f4x-core/src/wizard/fortress.rs`. A wizard has `Fortress` and `SummonAt` (positions of
+cities) and, while banished, `Banishment`; a defeated one has no fortress and the player has `Defeat`.
 
 - **Placing:** `Command::PlaceFortress` founds the wizard's first city and puts both the fortress
   and the summoning circle in it; the city's race becomes the capital race. Only once per wizard.

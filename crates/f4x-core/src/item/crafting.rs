@@ -467,7 +467,6 @@ mod tests {
     use crate::game::{Command, Event, Game};
     use crate::item::armory::Placed;
     use crate::map::{Grid, Map};
-    use crate::player::Player;
     use crate::player::PlayerId;
     use crate::rules::{ItemPowerDef, PowerBonus, Registry};
 
@@ -544,7 +543,7 @@ mod tests {
         let mut g = Game::new(7);
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
-        g.add_player(P0, "Merlin", Player::new());
+        g.add_player(P0, "Merlin");
         g.treasury_mut(P0).unwrap().mana = 2000;
         g.init_wizard(P0, &[("chaos", 2)], &[], None).unwrap();
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
@@ -794,7 +793,14 @@ mod tests {
             )),
             "{events:?}"
         );
-        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
+        assert_eq!(
+            g.pl::<crate::item::armory::Armory>(0).vault[0]
+                .as_ref()
+                .unwrap()
+                .bonus
+                .attack,
+            2
+        );
         assert_eq!(g.tr(0).mana, 2000 - 200);
         assert_eq!(g.wizard(P0).unwrap().skill_left(), 800);
         assert!(g.wizard(P0).unwrap().crafting().is_none());
@@ -814,7 +820,13 @@ mod tests {
             design: design(ItemKind::Sword, &["attack_2"]),
         });
         assert_eq!(g.tr(0).mana, 2000 - 100);
-        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().cost, 200);
+        assert_eq!(
+            g.pl::<crate::item::armory::Armory>(0).vault[0]
+                .as_ref()
+                .unwrap()
+                .cost,
+            200
+        );
     }
 
     #[test]
@@ -849,7 +861,14 @@ mod tests {
             }
         }
         assert!(made, "the item should come when the cost is paid");
-        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
+        assert_eq!(
+            g.pl::<crate::item::armory::Armory>(0).vault[0]
+                .as_ref()
+                .unwrap()
+                .bonus
+                .attack,
+            2
+        );
         assert!(g.wizard(P0).unwrap().crafting().is_none());
         assert!(g.wizard(P0).unwrap().casting().is_none());
     }

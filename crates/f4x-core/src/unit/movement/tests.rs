@@ -41,7 +41,7 @@ fn world() -> Game {
     game.content = c;
     game.map = Some(map);
     for id in (0..4).map(PlayerId) {
-        game.add_player(id, "", crate::player::Player::new());
+        game.add_player(id, "");
     }
     game
 }
@@ -498,7 +498,7 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
     let map = Map::new(build(), build());
     let walker = c.rules.units.id_of("walker").unwrap();
     let mut world = hecs::World::new();
-    let owner = world.spawn(crate::player::bundle(P0, crate::player::Player::new()));
+    let owner = world.spawn(crate::player::bundle(P0));
     let unit = crate::unit::spawn(
         &mut world,
         &c,

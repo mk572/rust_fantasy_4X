@@ -19,7 +19,7 @@ use crate::content::{Content, TerrainClass};
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
 use crate::map::{Plane, Position};
-use crate::player::{PlayerId, PlayerRef, Treasury};
+use crate::player::{PlayerId, Treasury};
 
 use crate::player::finance::Budget;
 
@@ -60,12 +60,6 @@ impl<'a> PlayerView<'a> {
     /// Has the game ended?
     pub fn game_over(&self) -> bool {
         self.game.game_over.is_some()
-    }
-
-    /// The player's own record: fortress, fame and the other data that is not a component of its
-    /// own yet.
-    pub fn player(&self) -> Option<PlayerRef<'a>> {
-        self.game.player(self.me)
     }
 
     /// The player's gold and mana.
@@ -209,7 +203,7 @@ impl<'a> PlayerView<'a> {
 
     /// The player's own fortress.
     pub fn fortress(&self) -> Option<Position> {
-        self.player().and_then(|p| p.fortress)
+        self.game.wizard(self.me).and_then(|w| w.fortress())
     }
 
     pub fn my_units(&self) -> Vec<hecs::Entity> {
@@ -454,7 +448,7 @@ mod tests {
         g.set_content(c);
         g.set_map(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
         for id in [ME, THEM] {
-            g.add_player(id, "W", crate::player::Player::new());
+            g.add_player(id, "W");
         }
         let race = g.content().rules.races.id_of("elf");
         for (owner, pos) in [(ME, at(5, 5)), (THEM, at(20, 10)), (THEM, at(8, 5))] {

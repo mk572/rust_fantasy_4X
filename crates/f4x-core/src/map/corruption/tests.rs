@@ -2,7 +2,6 @@ use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
-use crate::player::Player;
 use crate::rules::exec::Target;
 use crate::rules::Registry;
 use crate::unit::MovesLeft;
@@ -35,7 +34,7 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {
-        g.add_player(id, "W", Player::new());
+        g.add_player(id, "W");
         g.treasury_mut(id).unwrap().mana = 1000;
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();

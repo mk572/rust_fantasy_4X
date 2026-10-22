@@ -3,7 +3,7 @@
 
 use f4x_core::content::Content;
 use f4x_core::map::{Grid, Map, Plane, Position};
-use f4x_core::player::{Player, PlayerId};
+use f4x_core::player::PlayerId;
 
 use f4x_core::game::{Command, Game};
 
@@ -56,8 +56,8 @@ pub fn game(city0: (u32, u32), race: &str) -> Game {
     let mut game = Game::new(7);
     game.set_content(content);
     game.set_map(Map::new(build(), build()));
-    game.add_player(P0, "West", Player::new());
-    game.add_player(P1, "East", Player::new());
+    game.add_player(P0, "West");
+    game.add_player(P1, "East");
     for (owner, (x, y), name) in [(P0, city0, "Westport"), (P1, ENEMY_CITY, "Eastport")] {
         let events = game.apply(Command::FoundCity {
             owner,

@@ -151,7 +151,11 @@ impl App {
             .stance(HUMAN, with)
             .is_some_and(|s| s.stage == Stage::Greeted);
         let salt = (self.game.turn as usize).wrapping_add(usize::from(with.0));
-        let personality = self.game.personality(with);
+        let personality = self
+            .game
+            .wizard(with)
+            .map(|w| w.personality())
+            .unwrap_or_default();
         let mut ui = DiploUi {
             with,
             ..Default::default()

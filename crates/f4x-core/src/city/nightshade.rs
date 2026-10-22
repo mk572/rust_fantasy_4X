@@ -97,7 +97,6 @@ mod tests {
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::rules::{Registry, SpellTarget};
 
     const P0: PlayerId = PlayerId(0);
@@ -142,8 +141,8 @@ mod tests {
             map.plane_mut(Plane::Arcanus).set_feature(x, y, Some(plant));
         }
         game.map = Some(map);
-        game.add_player(P0, "Owner", Player::new());
-        game.add_player(P1, "Caster", Player::new());
+        game.add_player(P0, "Owner");
+        game.add_player(P1, "Caster");
         let race = game.content.rules.races.id_of("elf");
         game.apply(Command::FoundCity {
             owner: P0,

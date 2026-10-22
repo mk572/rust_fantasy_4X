@@ -12,7 +12,7 @@
 
 use crate::content::Content;
 use crate::map::Position;
-use crate::player::{PlayerHandle, PlayerId, Treasury};
+use crate::player::{PlayerId, Treasury};
 use crate::wizard::entity::Wizard;
 
 use crate::game::Game;
@@ -44,8 +44,8 @@ pub trait WorldView {
     fn content(&self) -> &Content;
     /// Every player's id: wizards, independent cities' players, ascending.
     fn player_ids(&self) -> Vec<PlayerId>;
-    /// A player's data.
-    fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>>;
+    /// Whether `id` is a player of the game (the monsters' owner is none).
+    fn has_player(&self, id: PlayerId) -> bool;
     /// A player's gold and mana.
     fn treasury(&self, id: PlayerId) -> Option<Treasury>;
     /// Has the player lost everything?
@@ -67,9 +67,14 @@ pub trait WorldView {
     /// A player's wizard, if it has one.
     fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>>;
 
+    /// A wizard's temper (`Chaotic` for a player without one).
+    fn personality(&self, id: PlayerId) -> crate::wizard::objective::Personality {
+        self.wizard(id).map(|w| w.personality()).unwrap_or_default()
+    }
+
     /// A player that is a wizard: neither the monsters nor an independent city.
     fn is_wizard(&self, id: PlayerId) -> bool {
-        self.player(id).is_some() && !self.is_neutral(id)
+        self.has_player(id) && !self.is_neutral(id)
     }
 
     /// Wizards that have not been defeated, in the order of the players.
@@ -111,8 +116,8 @@ impl WorldView for Game {
         Game::player_ids(self)
     }
 
-    fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>> {
-        Game::player(self, id).map(PlayerHandle::Held)
+    fn has_player(&self, id: PlayerId) -> bool {
+        Game::has_player(self, id)
     }
 
     fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>> {
@@ -316,7 +321,7 @@ mod tests {
             crate::map::Grid::new(30, 20, grass),
         ));
         for id in [P0, P1, P2] {
-            g.add_player(id, "W", crate::player::Player::new());
+            g.add_player(id, "W");
         }
         let walker = g.content.rules.units.id_of("walker").unwrap();
         g.spawn_unit(P1, at(11, 10), walker);

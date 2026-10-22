@@ -536,8 +536,8 @@ impl App {
         }
         let owner = self.game.economy().city_owner(city);
         if owner
-            .and_then(|o| self.game.player(o))
-            .and_then(|p| p.summon_at)
+            .and_then(|o| self.game.wizard(o))
+            .and_then(|w| w.summon_at())
             == Some(at)
         {
             magic.push(cs::SUMMONING_CIRCLE);

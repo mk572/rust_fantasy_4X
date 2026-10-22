@@ -2,7 +2,8 @@
 //! are not part of this project; these are the game's own, by situation and mood. A wizard's
 //! mood is the relation level (0 hate to 10 harmony).
 
-use f4x_core::diplomacy::{Personality, ProposalKind};
+use f4x_core::diplomacy::ProposalKind;
+use f4x_core::wizard::objective::Personality;
 
 /// How warm a wizard is: cold (levels 0 to 3), wary (4 to 6) or warm (7 to 10).
 fn warmth(level: usize) -> usize {

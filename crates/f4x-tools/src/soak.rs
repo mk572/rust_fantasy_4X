@@ -216,18 +216,18 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
 /// Cities and units of each wizard, e.g. `p0 5c/14u, p1 2c/6u`.
 fn status(game: &Game) -> String {
-    game.players()
-        .iter()
-        .filter(|(id, _)| !game.is_neutral_player(*id))
-        .map(|(id, _)| {
+    game.player_ids()
+        .into_iter()
+        .filter(|id| !game.is_neutral_player(*id))
+        .map(|id| {
             let cities = game
                 .economy()
                 .cities()
                 .iter()
-                .filter(|(_, c, _)| c.owner == *id)
+                .filter(|(_, c, _)| c.owner == id)
                 .count();
-            let units = game.units().player_units(*id).len();
-            let tag = if game.is_defeated(*id) {
+            let units = game.units().player_units(id).len();
+            let tag = if game.is_defeated(id) {
                 " (defeated)"
             } else {
                 ""
@@ -235,7 +235,7 @@ fn status(game: &Game) -> String {
             format!(
                 "p{} {cities}c/{units}u/{}g{tag}",
                 id.0,
-                game.treasury(*id).map_or(0, |t| t.gold)
+                game.treasury(id).map_or(0, |t| t.gold)
             )
         })
         .collect::<Vec<_>>()
@@ -246,12 +246,11 @@ fn status(game: &Game) -> String {
 /// cast and how much of the map is explored.
 fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
     let mut out = Vec::new();
-    for (id, _) in game
-        .players()
-        .iter()
-        .filter(|(id, _)| !game.is_neutral_player(*id))
+    for id in game
+        .player_ids()
+        .into_iter()
+        .filter(|id| !game.is_neutral_player(*id))
     {
-        let id = *id;
         let Some(m) = game.wizard(id) else {
             continue;
         };
@@ -310,10 +309,9 @@ fn grant_mastery_to_all(game: &mut Game) {
         return;
     };
     let ids: Vec<PlayerId> = game
-        .players()
+        .player_ids()
         .into_iter()
-        .filter(|(id, _)| !game.is_neutral_player(*id))
-        .map(|(id, _)| id)
+        .filter(|id| !game.is_neutral_player(*id))
         .collect();
     for id in ids {
         if let Some(t) = game.treasury_mut(id) {

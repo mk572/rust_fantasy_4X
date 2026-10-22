@@ -216,6 +216,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players (done) |
 | 314 | Player (done) | Treasury, tax, offers, defeat and the other player data as components |
 | 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame); the starting spells as in the original (done) |
+| 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components (done) |
+| 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates(done) |
 
 ## Descriptions
 
@@ -479,3 +481,12 @@ wizard's data is the components `Books`, `Retorts`, `Skill`, `PowerSplit`, `Rese
 `KnownSpells`, `Candidates` and `Fame` (`wizard/sheet.rs`), read through `Game::wizard(id)` and
 changed through `Game::wizard_mut(id)`; `Magic` keeps the casting, the item and the hero being made
 and the lasting spells until 319 to 322. The computed split of power is `PowerShares`.
+
+**316. Fortress, banishment, personality and objective (done).** `Fortress`, `SummonAt` and `Banishment`
+(with `banished_by`) on the wizard; `Personality` and `Objective` move from `Diplomacy`'s own tables
+(`objective.rs`) to the wizard. Saves keep their layout until 335 (see the rules above). *Needs:* 315.
+
+**317. Remove the `Player` struct (done).** Delete `Player`, `Vec<Player>`, `Game::players()` and the linear
+`player()` lookup. `PlayerView`, `testutil::FakeView`, `DiplomacyCtx` and the `WorldView` trait adapt.
+The other crates are fixed in the same task where they stop compiling; the full pass over them is
+task 336. *Needs:* 316.

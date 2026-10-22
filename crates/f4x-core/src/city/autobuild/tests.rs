@@ -454,14 +454,13 @@ fn at_the_end_of_the_list_gold_is_the_last_fallback() {
 fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::player::PlayerId;
     let c = content();
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-    g.add_player(PlayerId(0), "W", Player::new());
+    g.add_player(PlayerId(0), "W");
     g.treasury_mut(PlayerId(0)).unwrap().gold = 500;
     g.player_component_mut::<crate::player::Tax>(PlayerId(0))
         .unwrap()

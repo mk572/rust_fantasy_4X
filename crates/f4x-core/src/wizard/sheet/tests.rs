@@ -1,7 +1,7 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::game::Game;
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 use crate::wizard::magic::{base_casting_skill, MagicError, PowerShares};
 
 const P0: PlayerId = PlayerId(0);
@@ -9,7 +9,7 @@ const P0: PlayerId = PlayerId(0);
 fn game_with(books: &[(&str, u8)], retorts: &[Retort]) -> Game {
     let mut g = Game::new(5);
     g.content = content_with_magic();
-    g.add_player(P0, "W", Player::new());
+    g.add_player(P0, "W");
     g.init_wizard(P0, books, retorts, None).unwrap();
     g
 }

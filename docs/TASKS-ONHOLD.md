@@ -114,8 +114,9 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
 [271, 782-794]. See `docs/diplomacy.md`. **Done:** both are drawn at game start for every wizard
 but the human, as the original's `Init_Magic_Personalities_Objectives` does (`objective.rs`: the
-primary realm's weight row plus the retort bonuses, personality first, then objective; both stored in
-`Diplomacy` and in saves; `Game::objective`, `Game::personality`). Personality already acted in
+primary realm's weight row plus the retort bonuses, personality first, then objective; both stored as
+components of the wizard (`Personality`, `Objective`; task 316) and in saves; `Wizard::objective`,
+`Wizard::personality`). Personality already acted in
 diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Open:** what
 the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
 (`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it

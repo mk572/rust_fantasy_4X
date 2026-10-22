@@ -148,7 +148,6 @@ mod tests {
     use super::*;
     use crate::game::testutil::content_with_magic;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
     use crate::rules::{BonusLevelDef, LevelDef, LevelPathDef, ModOp, Registry, Stat, UnitKind};
     use crate::wizard::magic::Retort;
@@ -223,7 +222,7 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.fog = crate::map::fog::Fog::new(24, 14);
-        g.add_player(P0, "W", Player::new());
+        g.add_player(P0, "W");
         g.treasury_mut(P0).unwrap().mana = 5000;
         g.init_wizard(P0, &[("life", 4)], &[], None).unwrap();
         g

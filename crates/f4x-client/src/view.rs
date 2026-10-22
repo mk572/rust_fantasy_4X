@@ -388,10 +388,10 @@ impl App {
     /// person.
     fn rival_wizards(&self) -> Vec<f4x_ai::Ai> {
         self.game
-            .players()
+            .player_ids()
             .into_iter()
-            .filter(|(id, _)| *id != HUMAN && !self.game.is_neutral_player(*id))
-            .map(|(id, _)| {
+            .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
+            .map(|id| {
                 let mut ai = f4x_ai::Ai::new(id);
                 ai.leave_defence_to(&[HUMAN]);
                 ai
@@ -1823,7 +1823,7 @@ impl App {
             let at = screen_of(pos.x, pos.y);
             crate::map_draw::draw_city(&self.game, &mut self.art, *entity, at.x, at.y, t);
             let owner = city.owner;
-            if self.game.player(owner).and_then(|p| p.fortress) == Some(*pos) {
+            if self.game.wizard(owner).and_then(|w| w.fortress()) == Some(*pos) {
                 // A gold star: the wizard's fortress.
                 crate::map_draw::draw_star(
                     vec2(at.x + t.x * 0.15, at.y + t.y * 0.25),
@@ -1831,7 +1831,7 @@ impl App {
                     GOLD,
                 );
             }
-            if self.game.player(owner).and_then(|p| p.summon_at) == Some(*pos) {
+            if self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(*pos) {
                 draw_circle_lines(at.x + t.x * 0.85, at.y + t.y * 0.85, t.x * 0.12, 2.0, GOLD);
             }
             // The name under the city, in the original's small font.

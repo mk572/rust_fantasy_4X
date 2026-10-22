@@ -32,13 +32,11 @@ behaviour that depends on slot order.
 ```
 Game                                   (lib.rs; the owner and the orchestrator)
 ├── world: hecs::World                 entities: units, cities, players and wizards (a player is an entity with
-│                                      `PlayerId` and `Player`; a wizard one with `Name`, `Portrait`, `Banner`,
+│                                      `PlayerId` and its components; a wizard one with `Name`, `Portrait`, `Banner`,
 │                                      `CapitalRace`; heroes and battle units are not, yet)
 ├── player_index: HashMap              `PlayerId` to the player's `Entity` (`Game::player_entity`)
 ├── map: Option<Map>                   two dense grids (terrain, feature, road); not entities
 ├── fog: Fog                           what each player has explored
-│   └── Player (component)             gold, mana, tax rate, fame, fortress...
-│       └── magic: Magic               legacy view; the wizard is now its own entity with the components of wizard/sheet.rs
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
 │                                      items, level paths
@@ -101,9 +99,8 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
    function over the pieces it needs, not as another `impl Game` method. `Game` only gets
    orchestration: routing a `Command`, building the arguments, applying what comes back.
 2. **A domain's fields are private to its module.** Other modules call its methods; they do
-   not reach into its fields. (`Diplomacy` is private in this sense; `Magic` lives in a
-   public `Player::magic` field because the game borrows the wizard, the content and the
-   generator apart, and the tests build it; its rules are methods of the wizard handles in `wizard/sheet.rs`.)
+   not reach into its fields. (`Diplomacy` is private in this sense; the wizard's rules are
+   methods of the wizard handles in `wizard/sheet.rs`, over components of the wizard entity.)
 3. **A domain takes what it needs, not `&mut Game`.** Its methods take `&Content`, `&mut GameRng`
    or numbers the game worked out (`Magic`), or a context value (`DiplomacyCtx`).
 4. **The rest of the world is asked through `WorldView`** (`game/view.rs`): a small read-only trait
@@ -126,7 +123,7 @@ Three ways to give a domain what it needs, all in use:
   runs the rules over `&Game` as the `WorldView`, puts them back and applies the outcomes).
   The spell executor lends the generator to its host the same way (`GameHost`, task 184).
 - **A read handle over a few fields** where the domain's state lives in the ECS world (units:
-  `UnitView<'a>` holds `&World`, `&Content` and `&[Player]`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map, the content and the players, made by `Game::economy()`; what changes
+  `UnitView<'a>` holds `&World` and `&Content`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map and the content, made by `Game::economy()`; what changes
   units is a function over `&mut World`, such as `unit::spawn`, `experience::gain_xp` and
   the `spell/temp_effects.rs` functions). A test builds a world and the content and no `Game`.
 
@@ -154,7 +151,7 @@ and not worked around, and names are singular.
 
 | Entity | Module | Components | Built in |
 |---|---|---|---|
-| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` | 311, 313, 314 |
+| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Armory` and `Roster` (until tasks 328 and 327 replace them), `Serial` | 311, 313, 314, 317 |
 | **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` | 312, 315, 316 |
 | **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
 | **Hero** | `hero/` | `Hero` (name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroSlots` of items, `Serial`; the unit components while serving | 326 to 328 |
@@ -204,7 +201,7 @@ item entities held by the player); **defeat** is the player's, **banishment** th
 - Independent cities' players get ids after the real players, in order of creation. The one player
   that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
   255 until the save format changes in task 335). It is an entity with `PlayerId` and `Neutral` like
-  the cities' players but has no `Player` data, so it is in no list of players. Whether a player is
+  the cities' players but is in no list of players (`Game::has_player` is false for it). Whether a player is
   neutral is the `Neutral` component (`Game::is_neutral_player`), never an id test.
 - `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
   `economy().city_owner` give the `PlayerId` back, `unit_owner_entity` and `city_owner_entity` the

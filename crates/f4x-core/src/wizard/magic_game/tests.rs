@@ -4,7 +4,6 @@ use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
 
 use crate::game::Command;
-use crate::player::Player;
 use crate::rules::exec::Target;
 use crate::rules::Stat;
 use crate::wizard::magic::*;
@@ -43,7 +42,7 @@ fn world() -> Game {
     game.content = c;
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-    game.add_player(P0, "Merlin", Player::new());
+    game.add_player(P0, "Merlin");
     game.treasury_mut(P0).unwrap().gold = 500;
     game.player_component_mut::<crate::player::Tax>(P0)
         .unwrap()
@@ -57,7 +56,7 @@ fn world() -> Game {
 fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
     let race = g.content.rules.races.id_of("elf");
     let name = "Town".into();
-    if g.player(P0).unwrap().fortress.is_none() {
+    if g.wizard(P0).unwrap().fortress().is_none() {
         g.apply(Command::PlaceFortress {
             player: P0,
             pos,
@@ -303,7 +302,7 @@ fn spells_need_a_known_spell_and_a_valid_target() {
     on_the_map(&mut g, &["healing", "fire_bolt"]);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let mine = g.spawn_unit(P0, at(3, 3), spear);
-    g.add_player(PlayerId(1), "", Player::new());
+    g.add_player(PlayerId(1), "");
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
     let (mend, zap) = (spell(&g, "healing"), spell(&g, "fire_bolt"));
     g.wizard_mut(P0)

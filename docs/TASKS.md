@@ -69,8 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components |
-| 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates |
 | 318 | Spell | Spell instance model: components, lifecycle, queries |
 | 319 | Spell | Global enchantments as spell entities |
 | 320 | Spell | City enchantments as spell entities |
@@ -98,17 +96,6 @@ neighbours.
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 
 ## Descriptions
-
-### B. Player and wizard
-
-**316. Fortress, banishment, personality and objective.** `Fortress`, `SummonAt` and `Banishment`
-(with `banished_by`) on the wizard; `Personality` and `Objective` move from `Diplomacy`'s own tables
-(`objective.rs`) to the wizard. Saves keep their layout until 335 (see the rules above). *Needs:* 315.
-
-**317. Remove the `Player` struct.** Delete `Player`, `Vec<Player>`, `Game::players()` and the linear
-`player()` lookup. `PlayerView`, `testutil::FakeView`, `DiplomacyCtx` and the `WorldView` trait adapt.
-The other crates are fixed in the same task where they stop compiling; the full pass over them is
-task 336. *Needs:* 316.
 
 ### C. Spell
 

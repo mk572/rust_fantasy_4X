@@ -3,7 +3,6 @@ use crate::game::save::{LoadError, Snapshot};
 use crate::game::testutil::content_with_magic;
 use crate::game::{Command, Rejection};
 use crate::map::{Grid, Map, Plane};
-use crate::player::Player;
 use crate::rules::exec::Target;
 
 const P0: PlayerId = PlayerId(0);
@@ -24,7 +23,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
-        g.add_player(id, "W", Player::new());
+        g.add_player(id, "W");
         g.treasury_mut(id).unwrap().mana = 100;
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
@@ -94,9 +93,9 @@ fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
 fn placing_the_fortress_founds_the_capital_once() {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
-    let p = (*g.player(P0).unwrap()).clone();
-    assert_eq!(p.fortress, Some(at(5, 5)));
-    assert_eq!(p.summon_at, Some(at(5, 5)));
+    let p = g.wizard(P0).unwrap();
+    assert_eq!(p.fortress(), Some(at(5, 5)));
+    assert_eq!(p.summon_at(), Some(at(5, 5)));
     assert_eq!(
         g.wizard(P0).unwrap().capital_race(),
         g.content.rules.races.id_of("elf")
@@ -152,7 +151,7 @@ fn summoned_creatures_appear_at_the_circle() {
         pos: at(15, 5)
     }));
     assert_eq!(
-        g.player(P0).unwrap().fortress,
+        g.wizard(P0).unwrap().fortress(),
         Some(at(5, 5)),
         "fortress stays"
     );
@@ -195,7 +194,7 @@ fn the_fortress_spells_check_their_target_before_charging() {
         pos: at(10, 9)
     }));
     assert_eq!(g.economy().fortress_city(P0), Some(town));
-    assert_eq!(g.player(P0).unwrap().summon_at, Some(at(10, 9)));
+    assert_eq!(g.wizard(P0).unwrap().summon_at(), Some(at(10, 9)));
     let myrror = Position {
         plane: Plane::Myrror,
         x: 3,
@@ -222,7 +221,7 @@ fn taking_an_ordinary_city_changes_its_owner_only() {
         }]
     );
     assert_eq!(g.economy().city_owner(town), Some(P1));
-    assert!(!g.player(P0).unwrap().banished);
+    assert!(!g.wizard(P0).unwrap().is_banished());
 }
 
 #[test]
@@ -238,9 +237,9 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
         events.contains(&Event::WizardBanished { player: P0, by: P1 }),
         "{events:?}"
     );
-    let p = (*g.player(P0).unwrap()).clone();
-    assert!(p.banished);
-    assert_eq!((p.fortress, p.summon_at), (None, None));
+    let p = g.wizard(P0).unwrap();
+    assert!(p.is_banished());
+    assert_eq!((p.fortress(), p.summon_at()), (None, None));
     assert_eq!(
         g.treasury(P0).unwrap().mana,
         50,
@@ -291,10 +290,10 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
         }),
         "{events:?}"
     );
-    let p = g.player(P0).unwrap();
-    assert!(!p.banished);
-    assert_eq!(p.fortress, Some(at(15, 5)));
-    assert_eq!(p.summon_at, Some(at(15, 5)));
+    let p = g.wizard(P0).unwrap();
+    assert!(!p.is_banished());
+    assert_eq!(p.fortress(), Some(at(15, 5)));
+    assert_eq!(p.summon_at(), Some(at(15, 5)));
     assert_eq!(g.wizard(P0).unwrap().casting(), None);
 }
 
@@ -304,8 +303,8 @@ fn losing_the_last_city_defeats_the_wizard() {
     let capital = place(&mut g, P0, at(5, 5));
     let events = g.capture_city(capital, P1);
     assert!(events.contains(&Event::WizardDefeated { player: P0 }));
-    let p = (*g.player(P0).unwrap()).clone();
-    assert!(g.is_defeated(P0) && !p.banished);
+    let p = g.wizard(P0).unwrap();
+    assert!(g.is_defeated(P0) && !p.is_banished());
     assert_eq!(g.wizard(P0).unwrap().casting(), None);
     // A defeated wizard cannot place a new fortress.
     let r = g.place_fortress(P0, at(9, 9), "x".into(), None, 1);
@@ -328,7 +327,7 @@ fn a_fortress_city_cannot_be_destroyed() {
     let events = g.destroy_city(town).unwrap();
     assert_eq!(events, vec![Event::CityDestroyed { pos: at(15, 5) }]);
     assert!(g.economy().city_at(at(15, 5)).is_none());
-    assert_eq!(g.player(P0).unwrap().summon_at, Some(at(5, 5)));
+    assert_eq!(g.wizard(P0).unwrap().summon_at(), Some(at(5, 5)));
 }
 
 #[test]
@@ -344,7 +343,7 @@ fn saves_keep_the_fortress_and_reject_a_misplaced_one() {
         .restore(content_with_magic())
         .unwrap();
     assert_eq!(loaded.snapshot(), g.snapshot());
-    assert!(loaded.player(P0).unwrap().banished);
+    assert!(loaded.wizard(P0).unwrap().is_banished());
     // A fortress where the wizard has no city is refused.
     let mut bad = g.snapshot();
     bad.players[1].fortress = Some(at(9, 9));
@@ -379,14 +378,14 @@ fn taking_the_last_rivals_last_city_wins_by_conquest() {
 #[test]
 fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
     let mut g = world();
-    g.add_player(PlayerId(2), "Third", Player::new());
+    g.add_player(PlayerId(2), "Third");
     let capital = place(&mut g, P1, at(5, 5));
     let events = g.capture_city(capital, P0);
     assert!(events.contains(&Event::WizardDefeated { player: P1 }));
     assert!(g.game_over.is_none(), "wizards 0 and 2 still stand");
 
     let mut g = world();
-    g.add_player(PlayerId(2), "Third", Player::new());
+    g.add_player(PlayerId(2), "Third");
     g.set_human(Some(P0));
     let capital = place(&mut g, P0, at(5, 5));
     let events = g.capture_city(capital, P1);
@@ -525,10 +524,12 @@ fn the_end_of_the_game_is_saved() {
     assert_eq!(loaded.defeat_by(P0), Some(P1));
 }
 
-// ---- the rules over a player, with no game ------------------------------------------------
+// ---- the rules over a wizard, with no map ---------------------------------------------------
 
-fn wizard() -> Player {
-    Player::new()
+fn wizard_game() -> Game {
+    let mut g = Game::new(3);
+    g.add_player(P0, "W");
+    g
 }
 
 fn square(x: u32) -> Position {
@@ -539,83 +540,89 @@ fn square(x: u32) -> Position {
     }
 }
 
+/// Where the fortress and the circle of the wizard stand.
+fn sites(w: &WizardMut) -> (Option<Position>, Option<Position>) {
+    let v = w.view();
+    (v.fortress(), v.summon_at())
+}
+
 #[test]
 fn a_wizard_may_found_a_fortress_once_and_never_banished_or_defeated() {
-    let mut p = wizard();
-    assert_eq!(can_place(&p, false), Ok(()));
-    place_at(&mut p, square(1));
-    assert_eq!(
-        (p.fortress, p.summon_at),
-        (Some(square(1)), Some(square(1)))
-    );
-    assert_eq!(can_place(&p, false), Err(FortressError::NotAllowed));
-    let mut q = wizard();
-    q.banished = true;
-    assert_eq!(can_place(&q, false), Err(FortressError::NotAllowed));
-    assert_eq!(can_place(&wizard(), true), Err(FortressError::NotAllowed));
+    let mut g = wizard_game();
+    let mut w = g.wizard_mut(P0).unwrap();
+    assert_eq!(can_place(&w.view(), false), Ok(()));
+    place_at(&mut w, square(1));
+    assert_eq!(sites(&w), (Some(square(1)), Some(square(1))));
+    assert_eq!(can_place(&w.view(), false), Err(FortressError::NotAllowed));
+    let mut g = wizard_game();
+    let mut q = g.wizard_mut(P0).unwrap();
+    banish_player(&mut q, P1);
+    assert_eq!(can_place(&q.view(), false), Err(FortressError::NotAllowed));
+    let mut g = wizard_game();
+    let r = g.wizard_mut(P0).unwrap();
+    assert_eq!(can_place(&r.view(), true), Err(FortressError::NotAllowed));
 }
 
 #[test]
 fn moving_the_fortress_needs_one_and_takes_the_circle_with_it() {
-    let mut p = wizard();
+    let mut g = wizard_game();
+    let mut w = g.wizard_mut(P0).unwrap();
     assert_eq!(
-        move_fortress_to(&mut p, square(2)),
+        move_fortress_to(&mut w, square(2)),
         Err(FortressError::WrongState)
     );
-    place_at(&mut p, square(1));
-    p.summon_at = Some(square(5));
-    move_fortress_to(&mut p, square(2)).unwrap();
-    assert_eq!(
-        (p.fortress, p.summon_at),
-        (Some(square(2)), Some(square(2)))
-    );
+    place_at(&mut w, square(1));
+    w.put(Some(SummonAt(square(5))));
+    move_fortress_to(&mut w, square(2)).unwrap();
+    assert_eq!(sites(&w), (Some(square(2)), Some(square(2))));
 }
 
 #[test]
 fn a_banished_wizard_returns_and_takes_the_cities_race() {
-    let mut p = wizard();
-    place_at(&mut p, square(1));
-    assert_eq!(return_to(&mut p, square(4)), Err(FortressError::WrongState));
-    fortress_falls(&mut p);
-    assert_eq!((p.fortress, p.summon_at), (None, None));
+    let mut g = wizard_game();
+    let mut w = g.wizard_mut(P0).unwrap();
+    place_at(&mut w, square(1));
+    assert_eq!(return_to(&mut w, square(4)), Err(FortressError::WrongState));
+    fortress_falls(&mut w);
+    assert_eq!(sites(&w), (None, None));
     let mut t = crate::player::Treasury { gold: 0, mana: 11 };
     assert_eq!(t.take_half_mana(), 5);
     assert_eq!(t.mana, 6, "the odd point stays");
-    banish_player(&mut p);
-    assert!(p.banished);
-    return_to(&mut p, square(4)).unwrap();
-    assert!(!p.banished);
-    assert_eq!(
-        (p.fortress, p.summon_at),
-        (Some(square(4)), Some(square(4)))
-    );
+    banish_player(&mut w, P1);
+    assert!(w.view().is_banished());
+    assert_eq!(w.view().banished_by(), Some(P1));
+    return_to(&mut w, square(4)).unwrap();
+    assert!(!w.view().is_banished());
+    assert_eq!(sites(&w), (Some(square(4)), Some(square(4))));
 }
 
 #[test]
 fn the_circle_falls_back_to_the_fortress_when_its_city_is_lost() {
-    let mut p = wizard();
-    place_at(&mut p, square(1));
-    p.summon_at = Some(square(7));
-    circle_lost_to_capture(&mut p, square(7));
-    assert_eq!(p.summon_at, Some(square(1)));
+    let mut g = wizard_game();
+    let mut w = g.wizard_mut(P0).unwrap();
+    place_at(&mut w, square(1));
+    w.put(Some(SummonAt(square(7))));
+    circle_lost_to_capture(&mut w, square(7));
+    assert_eq!(w.view().summon_at(), Some(square(1)));
     // Losing the fortress city itself leaves the circle nowhere when it stood there.
-    circle_lost_to_capture(&mut p, square(1));
-    assert_eq!(p.summon_at, None);
-    p.summon_at = Some(square(7));
-    circle_lost_to_destruction(&mut p, square(7));
-    assert_eq!(p.summon_at, Some(square(1)));
+    circle_lost_to_capture(&mut w, square(1));
+    assert_eq!(w.view().summon_at(), None);
+    w.put(Some(SummonAt(square(7))));
+    circle_lost_to_destruction(&mut w, square(7));
+    assert_eq!(w.view().summon_at(), Some(square(1)));
 }
 
 #[test]
 fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() {
-    let mut p = wizard();
-    place_at(&mut p, square(1));
-    p.banished = true;
-    defeat_player(&mut p);
-    assert!(!p.banished);
-    assert_eq!((p.fortress, p.summon_at), (None, None));
+    let mut g = wizard_game();
+    let mut w = g.wizard_mut(P0).unwrap();
+    place_at(&mut w, square(1));
+    banish_player(&mut w, P1);
+    defeat_player(&mut w);
+    assert!(!w.view().is_banished());
+    assert_eq!(sites(&w), (None, None));
     assert_eq!(FORTRESS_PRIZE_FAME, 5);
-    assert_eq!(summon_point(&wizard()), None);
+    assert_eq!(w.view().summon_point(), None);
 }
 
 /// A world where P0 holds a fortress city and a town, with a spearman in each and one in the
@@ -648,8 +655,8 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
         "{events:?}"
     );
     assert!(!events.contains(&Event::WizardBanished { player: P0, by: P1 }));
-    let p = g.player(P0).unwrap();
-    assert!(g.is_defeated(P0) && !p.banished);
+    let p = g.wizard(P0).unwrap();
+    assert!(g.is_defeated(P0) && !p.is_banished());
     assert_eq!(g.defeat_by(P0), Some(P1));
     // The town is still there, owned by a neutral city player; its garrison of normal units
     // went with it, the fantastic creature and the unit in the field are gone.
@@ -698,7 +705,7 @@ fn a_banished_human_may_resign() {
         ))]
     );
     g.capture_city(capital, P1);
-    assert!(g.player(P0).unwrap().banished);
+    assert!(g.wizard(P0).unwrap().is_banished());
     let events = g.apply(Command::Resign { player: P0 });
     assert!(
         events.contains(&Event::WizardDefeated { player: P0 }),
@@ -720,5 +727,5 @@ fn the_banisher_is_remembered_across_a_save() {
         .unwrap()
         .restore(content_with_magic())
         .unwrap();
-    assert_eq!(loaded.player(P0).unwrap().banished_by, Some(P1));
+    assert_eq!(loaded.wizard(P0).unwrap().banished_by(), Some(P1));
 }

@@ -78,8 +78,8 @@ impl App {
         if self.item_ui.held.is_none()
             && self
                 .game
-                .player(HUMAN)
-                .is_some_and(|p| !p.armory.awards.is_empty())
+                .player_component::<f4x_core::item::armory::Armory>(HUMAN)
+                .is_some_and(|a| !a.awards.is_empty())
         {
             self.item_ui.held = Some(ItemSpot::Award(0));
         }
@@ -89,8 +89,18 @@ impl App {
     fn item_at(&self, spot: ItemSpot) -> Option<Item> {
         use f4x_core::item::armory::ItemWorld;
         match spot {
-            ItemSpot::Vault(i) => self.game.player(HUMAN)?.armory.vault.get(i)?.clone(),
-            ItemSpot::Award(i) => self.game.player(HUMAN)?.armory.awards.get(i).cloned(),
+            ItemSpot::Vault(i) => self
+                .game
+                .player_component::<f4x_core::item::armory::Armory>(HUMAN)?
+                .vault
+                .get(i)?
+                .clone(),
+            ItemSpot::Award(i) => self
+                .game
+                .player_component::<f4x_core::item::armory::Armory>(HUMAN)?
+                .awards
+                .get(i)
+                .cloned(),
             ItemSpot::Hero(unit, slot) => self.game.items().hero_item(unit, slot),
         }
     }
@@ -99,7 +109,7 @@ impl App {
     fn same_location(&self, hero: hecs::Entity) -> bool {
         let source = match self.item_ui.held {
             Some(ItemSpot::Hero(unit, _)) => self.game.units().unit_position(unit),
-            _ => self.game.player(HUMAN).and_then(|p| p.fortress),
+            _ => self.game.wizard(HUMAN).and_then(|w| w.fortress()),
         };
         source.is_some() && source == self.game.units().unit_position(hero)
     }

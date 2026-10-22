@@ -1,13 +1,12 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
-use crate::player::Player;
 
 const P0: PlayerId = PlayerId(0);
 
 fn game() -> Game {
     let mut g = Game::new(5);
     g.content = content_with_magic();
-    g.add_player(P0, "W", Player::new());
+    g.add_player(P0, "W");
     g
 }
 
@@ -26,7 +25,7 @@ fn a_player_and_its_wizard_are_made_together_and_point_at_each_other() {
 fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
     let mut g = game();
     let town = PlayerId(9);
-    g.add_neutral_player(town, Player::new());
+    g.add_neutral_player(town);
     assert!(g.wizard(town).is_none());
     assert_eq!(g.player_name(town), "");
     let serial = g.take_serial();

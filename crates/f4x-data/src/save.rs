@@ -84,7 +84,6 @@ mod tests {
     use f4x_core::map::mapgen::{generate, GenParams};
     use f4x_core::map::Plane;
     use f4x_core::map::Position;
-    use f4x_core::player::Player;
     use f4x_core::player::PlayerId;
     use std::path::PathBuf;
 
@@ -106,7 +105,7 @@ mod tests {
         let mut g = Game::new(21);
         g.set_map(generate(21, &GenParams::default(), &content).unwrap());
         g.set_content(content);
-        g.add_player(PlayerId(0), "Merlin", Player::new());
+        g.add_player(PlayerId(0), "Merlin");
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],

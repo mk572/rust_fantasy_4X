@@ -136,7 +136,7 @@ mod tests {
         game.map = Some(map);
         game.content = c;
         for id in (0..3).map(PlayerId) {
-            game.add_player(id, "", crate::player::Player::new());
+            game.add_player(id, "");
         }
         game
     }

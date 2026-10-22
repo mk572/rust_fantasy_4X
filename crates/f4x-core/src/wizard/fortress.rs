@@ -1,18 +1,17 @@
 //! The wizard's fortress and summoning circle, banishment and return.
 //!
 //! In the original the fortress is a special building in the wizard's capital; here it is a
-//! location on the [`Player`] (the city standing there is the fortress city). The summoning
+//! location on the wizard (the city standing there is the fortress city). The summoning
 //! circle is where summoned creatures appear; it starts in the fortress city and can be moved
 //! by a spell. When the fortress city is taken the wizard is banished and starts casting the
 //! Spell of Return, which puts the fortress in a city of their choice.
-//!
-//! [`Player`]: crate::player::Player
 
 use crate::city::economy::{CityRace, Economy, Population};
 use crate::city::FoundCityError;
 use crate::map::Position;
-use crate::player::{Player, PlayerId};
-use crate::wizard::entity::CapitalRace;
+use crate::player::PlayerId;
+use crate::wizard::entity::{CapitalRace, Wizard};
+use crate::wizard::sheet::WizardMut;
 
 use crate::game::{Event, Game};
 use crate::rules::RaceId;
@@ -41,89 +40,129 @@ pub const MOVE_FORTRESS: &str = "move_fortress";
 pub const MOVE_CIRCLE: &str = "move_summoning_circle";
 pub const RETURN: &str = "return_to_fortress";
 
-/// Where summoned creatures appear: the summoning circle, else the fortress.
-pub fn summon_point(player: &Player) -> Option<Position> {
-    player.summon_at.or(player.fortress)
+/// On a wizard: where its fortress stands (a city). Absent before it is placed and while the
+/// wizard is banished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fortress(pub Position);
+
+/// On a wizard: where summoned creatures appear. Absent: the fortress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SummonAt(pub Position);
+
+/// On a wizard whose fortress fell: it is casting the Spell of Return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Banishment {
+    /// Who took the fortress (the one a resignation is to).
+    pub by: Option<PlayerId>,
+}
+
+impl Wizard<'_> {
+    /// Where the wizard's fortress stands.
+    pub fn fortress(&self) -> Option<Position> {
+        self.component::<Fortress>().map(|f| f.0)
+    }
+
+    /// Where the wizard's summoning circle stands.
+    pub fn summon_at(&self) -> Option<Position> {
+        self.component::<SummonAt>().map(|s| s.0)
+    }
+
+    /// Where summoned creatures appear: the summoning circle, else the fortress.
+    pub fn summon_point(&self) -> Option<Position> {
+        self.summon_at().or(self.fortress())
+    }
+
+    /// Has the wizard's fortress fallen?
+    pub fn is_banished(&self) -> bool {
+        self.component::<Banishment>().is_some()
+    }
+
+    /// Who took the fortress of a banished wizard.
+    pub fn banished_by(&self) -> Option<PlayerId> {
+        self.component::<Banishment>().and_then(|b| b.by)
+    }
 }
 
 /// Whether the wizard may found a fortress: they have none, are not banished and not defeated.
-pub(crate) fn can_place(player: &Player, defeated: bool) -> Result<(), FortressError> {
-    if player.fortress.is_some() || player.banished || defeated {
+pub(crate) fn can_place(wizard: &Wizard, defeated: bool) -> Result<(), FortressError> {
+    if wizard.fortress().is_some() || wizard.is_banished() || defeated {
         return Err(FortressError::NotAllowed);
     }
     Ok(())
 }
 
 /// The fortress and the summoning circle stand in the wizard's first city at `pos`.
-pub(crate) fn place_at(player: &mut Player, pos: Position) {
-    player.fortress = Some(pos);
-    player.summon_at = Some(pos);
+pub(crate) fn place_at(wizard: &mut WizardMut, pos: Position) {
+    wizard.put(Some(Fortress(pos)));
+    wizard.put(Some(SummonAt(pos)));
 }
 
 /// Move the fortress (and the summoning circle with it) to the city at `pos`.
-pub(crate) fn move_fortress_to(player: &mut Player, pos: Position) -> Result<(), FortressError> {
-    if player.fortress.is_none() {
+pub(crate) fn move_fortress_to(wizard: &mut WizardMut, pos: Position) -> Result<(), FortressError> {
+    if wizard.view().fortress().is_none() {
         return Err(FortressError::WrongState);
     }
-    player.fortress = Some(pos);
-    player.summon_at = Some(pos);
+    place_at(wizard, pos);
     Ok(())
 }
 
 /// The Spell of Return: a banished wizard puts the fortress at `pos` and takes the city's race
 /// (if it has one) as their capital race.
-pub(crate) fn return_to(player: &mut Player, pos: Position) -> Result<(), FortressError> {
-    if !player.banished {
+pub(crate) fn return_to(wizard: &mut WizardMut, pos: Position) -> Result<(), FortressError> {
+    if !wizard.view().is_banished() {
         return Err(FortressError::WrongState);
     }
-    player.banished = false;
-    player.fortress = Some(pos);
-    player.summon_at = Some(pos);
+    wizard.put::<Banishment>(None);
+    place_at(wizard, pos);
     Ok(())
 }
 
 /// A city of the wizard's was taken: a summoning circle in it falls back to the fortress,
 /// unless that is the city.
-pub(crate) fn circle_lost_to_capture(player: &mut Player, pos: Position) {
-    if player.summon_at == Some(pos) {
-        player.summon_at = player.fortress.filter(|&f| f != pos);
+pub(crate) fn circle_lost_to_capture(wizard: &mut WizardMut, pos: Position) {
+    let view = wizard.view();
+    if view.summon_at() == Some(pos) {
+        let back = view.fortress().filter(|&f| f != pos);
+        wizard.put(back.map(SummonAt));
     }
 }
 
 /// A city of the wizard's was destroyed: a circle in it falls back to the fortress.
-pub(crate) fn circle_lost_to_destruction(player: &mut Player, pos: Position) {
-    if player.summon_at == Some(pos) {
-        player.summon_at = player.fortress;
+pub(crate) fn circle_lost_to_destruction(wizard: &mut WizardMut, pos: Position) {
+    let view = wizard.view();
+    if view.summon_at() == Some(pos) {
+        let back = view.fortress();
+        wizard.put(back.map(SummonAt));
     }
 }
 
 /// The fortress falls: the wizard loses it and the summoning circle. (Half their mana goes to the
 /// conqueror: [`Treasury::take_half_mana`].)
-pub(crate) fn fortress_falls(loser: &mut Player) {
-    loser.fortress = None;
-    loser.summon_at = None;
+///
+/// [`Treasury::take_half_mana`]: crate::player::Treasury::take_half_mana
+pub(crate) fn fortress_falls(wizard: &mut WizardMut) {
+    wizard.put::<Fortress>(None);
+    wizard.put::<SummonAt>(None);
 }
 
 /// The fame the conqueror of a fortress city gains (and the loser's half of the mana).
 pub(crate) const FORTRESS_PRIZE_FAME: i32 = 5;
 
-/// The wizard is banished; the game starts the Spell of Return.
-pub(crate) fn banish_player(player: &mut Player) {
-    player.banished = true;
+/// The wizard is banished by `by`; the game starts the Spell of Return.
+pub(crate) fn banish_player(wizard: &mut WizardMut, by: PlayerId) {
+    wizard.put(Some(Banishment { by: Some(by) }));
 }
 
 /// The wizard is out of the game.
-pub(crate) fn defeat_player(player: &mut Player) {
-    player.banished = false;
-    player.banished_by = None;
-    player.fortress = None;
-    player.summon_at = None;
+pub(crate) fn defeat_player(wizard: &mut WizardMut) {
+    wizard.put::<Banishment>(None);
+    fortress_falls(wizard);
 }
 
 impl Economy<'_> {
     /// The city standing on the wizard's fortress, if any.
     pub fn fortress_city(&self, player: PlayerId) -> Option<hecs::Entity> {
-        let pos = self.player(player)?.fortress?;
+        let pos = self.wizard(player)?.fortress()?;
         self.city_at(pos)
             .filter(|&c| self.city_owner(c) == Some(player))
     }
@@ -159,7 +198,7 @@ impl Economy<'_> {
 impl Game {
     /// Where summoned creatures appear.
     pub fn summon_point(&self, player: PlayerId) -> Option<Position> {
-        self.player(player).and_then(|p| summon_point(&p))
+        self.wizard(player).and_then(|w| w.summon_point())
     }
 
     /// Found the wizard's first city and put the fortress and summoning circle in it.
@@ -172,13 +211,13 @@ impl Game {
         population: u32,
     ) -> Result<Vec<Event>, FortressError> {
         can_place(
-            &*self.player(player).ok_or(FortressError::UnknownPlayer)?,
+            &self.wizard(player).ok_or(FortressError::UnknownPlayer)?,
             self.is_defeated(player),
         )?;
         self.can_found_city(pos).map_err(FortressError::Found)?;
         let city = self.spawn_city(player, pos, name, race, population);
-        if let Some(p) = self.player_mut(player) {
-            place_at(p, pos);
+        if let Some(mut w) = self.wizard_mut(player) {
+            place_at(&mut w, pos);
         }
         self.wizard_set(player, CapitalRace(race));
         Ok(vec![
@@ -194,8 +233,8 @@ impl Game {
         city: hecs::Entity,
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
-        match self.player_mut(player) {
-            Some(p) => move_fortress_to(p, pos)?,
+        match self.wizard_mut(player) {
+            Some(mut w) => move_fortress_to(&mut w, pos)?,
             None => return Err(FortressError::WrongState),
         }
         Ok(vec![Event::FortressMoved { player, pos }])
@@ -208,8 +247,8 @@ impl Game {
         city: hecs::Entity,
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
-        if let Some(p) = self.player_mut(player) {
-            p.summon_at = Some(pos);
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.put(Some(SummonAt(pos)));
         }
         Ok(vec![Event::SummoningCircleMoved { player, pos }])
     }
@@ -223,8 +262,8 @@ impl Game {
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
         let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
-        match self.player_mut(player) {
-            Some(p) => return_to(p, pos)?,
+        match self.wizard_mut(player) {
+            Some(mut w) => return_to(&mut w, pos)?,
             None => return Err(FortressError::WrongState),
         }
         if race.is_some() {
@@ -256,8 +295,8 @@ impl Game {
             from: loser,
             to: winner,
         }];
-        if let (Some(pos), Some(p)) = (pos, self.player_mut(loser)) {
-            circle_lost_to_capture(p, pos);
+        if let (Some(pos), Some(mut w)) = (pos, self.wizard_mut(loser)) {
+            circle_lost_to_capture(&mut w, pos);
         }
         if was_fortress {
             events.extend(self.banish(loser, winner));
@@ -283,8 +322,8 @@ impl Game {
             self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
         let mana = self.treasury(loser).map_or(0, |p| p.mana);
         let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
-        if let Some(p) = self.player_mut(loser) {
-            fortress_falls(p);
+        if let Some(mut w) = self.wizard_mut(loser) {
+            fortress_falls(&mut w);
         }
         self.add_fame(winner, FORTRESS_PRIZE_FAME);
         if let Some(t) = self.treasury_mut(winner) {
@@ -299,12 +338,11 @@ impl Game {
         self.conquest_relations(winner, loser, false);
         let spell = self.content.rules.spells.id_of("spell_of_return");
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
-        if let Some(p) = self.player_mut(loser) {
-            banish_player(p);
-            p.banished_by = Some(winner);
-        }
-        if let (Some((spell, cost)), Some(mut w)) = (spell.zip(cost), self.wizard_mut(loser)) {
-            w.begin_casting(spell, cost);
+        if let Some(mut w) = self.wizard_mut(loser) {
+            banish_player(&mut w, winner);
+            if let Some((spell, cost)) = spell.zip(cost) {
+                w.begin_casting(spell, cost);
+            }
         }
         vec![Event::WizardBanished {
             player: loser,
@@ -316,14 +354,13 @@ impl Game {
     /// "Do you wish to resign?"): they are defeated by whoever took their fortress, their
     /// cities turn neutral and everything else of theirs goes (`Resolve_Wizard_Conquest`).
     pub fn resign(&mut self, player: PlayerId) -> Result<Vec<Event>, FortressError> {
-        let p = self.player(player).ok_or(FortressError::UnknownPlayer)?;
-        if !p.banished || self.is_defeated(player) {
+        let w = self.wizard(player).ok_or(FortressError::UnknownPlayer)?;
+        if !w.is_banished() || self.is_defeated(player) {
             return Err(FortressError::WrongState);
         }
-        let banished_by = p.banished_by;
-        drop(p);
+        let banished_by = w.banished_by();
         let winner = banished_by
-            .filter(|w| self.player(*w).is_some())
+            .filter(|w| self.has_player(*w))
             .or_else(|| self.living_wizards().into_iter().find(|w| *w != player))
             .unwrap_or(player);
         Ok(self.defeat(player, winner))
@@ -373,10 +410,8 @@ impl Game {
     }
 
     pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
-        if let Some(p) = self.player_mut(loser) {
-            defeat_player(p);
-        }
         if let Some(mut w) = self.wizard_mut(loser) {
+            defeat_player(&mut w);
             w.clear_casting();
         }
         if let Some(e) = self.player_entity(loser) {
@@ -407,8 +442,8 @@ impl Game {
         }
         let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
         let _ = self.world.despawn(city);
-        if let (Some(pos), Some(p)) = (pos, self.player_mut(owner)) {
-            circle_lost_to_destruction(p, pos);
+        if let (Some(pos), Some(mut w)) = (pos, self.wizard_mut(owner)) {
+            circle_lost_to_destruction(&mut w, pos);
         }
         let mut events = vec![Event::CityDestroyed {
             pos: pos.unwrap_or(Position {

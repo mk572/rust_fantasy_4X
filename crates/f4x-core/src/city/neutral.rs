@@ -19,7 +19,7 @@ use crate::city::economy::{Buildings, Farmers};
 use crate::city::production::{Production, ProductionItem};
 use crate::content::{FeatureKind, TerrainClass};
 use crate::map::{Plane, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::{RaceId, UnitKind};
@@ -66,9 +66,9 @@ impl Game {
     pub(crate) fn new_city_player(&mut self) -> PlayerId {
         let id = (FIRST_CITY_PLAYER..u8::MAX)
             .map(PlayerId)
-            .find(|id| self.player(*id).is_none())
+            .find(|id| !self.has_player(*id))
             .unwrap_or(PlayerId(u8::MAX - 1));
-        self.add_neutral_player(id, Player::new());
+        self.add_neutral_player(id);
         id
     }
 
@@ -79,10 +79,9 @@ impl Game {
             return false;
         }
         let near = |x: u32, y: u32, d: u32| range(x, y, pos.x, pos.y) < d;
-        if self
-            .players()
+        if crate::wizard::entity::all(&self.world)
             .iter()
-            .filter_map(|(_, p)| p.fortress)
+            .filter_map(|w| w.fortress())
             .any(|f| near(f.x, f.y, FORTRESS_CLEARANCE))
         {
             return false;

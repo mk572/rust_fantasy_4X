@@ -221,13 +221,13 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let rows: Vec<String> = ctx
         .game
-        .players()
+        .player_ids()
         .into_iter()
-        .filter(|(id, _)| !ctx.game.is_neutral_player(*id))
-        .map(|(id, p)| {
+        .filter(|id| !ctx.game.is_neutral_player(*id))
+        .map(|id| {
             let state = if ctx.game.is_defeated(id) {
                 "defeated"
-            } else if p.banished {
+            } else if ctx.game.wizard(id).is_some_and(|w| w.is_banished()) {
                 "banished"
             } else {
                 "active"

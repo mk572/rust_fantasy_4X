@@ -1,15 +1,11 @@
 //! Wizards: spell books, retorts, the power split, research, casting and mana upkeep.
 //!
 //! Formulas follow the original game's code (see `docs/magic.md` for the list and for where
-//! this differs). The wizard is not an entity: it is a [`Magic`] record on the [`Player`].
-//!
-//! This file is the wizard's own side (task 180, `architecture-plan.md`): [`Magic`] holds the
-//! state and the rules that need nothing but the content and the random numbers, as methods
-//! that take what they use (`&Content`, `&mut GameRng`, numbers the game worked out). What
-//! needs the world (power from the cities, the upkeep items, resolving a spell, the turn
-//! change) is in `wizard/magic_game.rs`, which calls these.
-//!
-//! [`Player`]: crate::player::Player
+//! this differs). The wizard is an entity (`wizard/entity.rs`); its sheet is components
+//! (`wizard/sheet.rs`). This file keeps what is not moved yet: the casting, crafting, raising and
+//! global-spell lists in [`Magic`] (until tasks 319 to 322), the retorts, and the rules that need
+//! nothing but the content and the random numbers. What needs the world (power from the cities,
+//! the upkeep items, resolving a spell, the turn change) is in `wizard/magic_game.rs`.
 
 use std::collections::BTreeSet;
 

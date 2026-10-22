@@ -305,7 +305,7 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
                 .map(|(_, u)| Target::Unit(u))
         }
         Kind::CityBuff => {
-            let fortress = view.player().and_then(|p| p.fortress);
+            let fortress = view.fortress();
             let mut cities = view.my_cities();
             cities.sort_by_key(|&(c, p)| (Some(p) != fortress, view.serial_of(c)));
             cities

@@ -158,7 +158,7 @@ impl App {
             .game
             .wizard(HUMAN)
             .is_some_and(|m| m.researching().is_none() && !m.candidates().is_empty());
-        let alive = self.game.player(HUMAN).is_some() && !self.game.is_defeated(HUMAN);
+        let alive = self.game.has_player(HUMAN) && !self.game.is_defeated(HUMAN);
         if idle && alive && self.game.game_over.is_none() {
             self.open_research_choice();
         }

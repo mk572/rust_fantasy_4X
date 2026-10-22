@@ -31,7 +31,6 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 mod tests {
     use super::*;
     use f4x_core::diplomacy::{DiplomacyEvent, ProposalKind};
-    use f4x_core::player::Player;
     use f4x_core::player::PlayerId;
 
     const HUMAN: PlayerId = PlayerId(0);
@@ -40,7 +39,7 @@ mod tests {
     fn game() -> Game {
         let mut g = Game::new(5);
         for id in [HUMAN, AI] {
-            g.add_player(id, "W", Player::new());
+            g.add_player(id, "W");
         }
         g.set_human(Some(HUMAN));
         g.make_contact(HUMAN, AI);
@@ -67,7 +66,7 @@ mod tests {
     #[test]
     fn proposals_to_others_are_left_alone() {
         let mut g = game();
-        g.add_player(PlayerId(2), "W", Player::new());
+        g.add_player(PlayerId(2), "W");
         g.make_contact(HUMAN, PlayerId(2));
         g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
             from: HUMAN,
@@ -87,7 +86,7 @@ mod tests {
         for seed in 0..40 {
             let mut g = Game::new(seed);
             for id in [HUMAN, AI] {
-                g.add_player(id, "W", Player::new());
+                g.add_player(id, "W");
             }
             g.set_human(Some(HUMAN));
             g.make_contact(HUMAN, AI);
@@ -95,14 +94,15 @@ mod tests {
             for _ in 0..8 {
                 g.change_relations(8, HUMAN, AI, f4x_core::diplomacy::Action::Friendship, None);
             }
-            g.diplomacy
-                .set_personality(AI, f4x_core::diplomacy::Personality::Peaceful);
+            g.wizard_mut(AI)
+                .unwrap()
+                .put(Some(f4x_core::wizard::objective::Personality::Peaceful));
             if g.rate_proposal(HUMAN, AI, ProposalKind::Pact) == Verdict::Accepted {
                 yes += 1;
             }
             let mut h = Game::new(seed);
             for id in [HUMAN, AI] {
-                h.add_player(id, "W", Player::new());
+                h.add_player(id, "W");
             }
             h.set_human(Some(HUMAN));
             h.make_contact(HUMAN, AI);

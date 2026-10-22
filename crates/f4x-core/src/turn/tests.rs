@@ -3,7 +3,7 @@ use crate::city::economy::{Buildings, Enchantments, Population};
 use crate::city::production::{Production, ProductionError, ProductionItem};
 use crate::game::testutil::content_with_economy;
 use crate::map::{Grid, Map, Plane, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Command;
 use crate::rules::{ModOp, Stat};
@@ -37,7 +37,7 @@ fn world() -> Game {
     // No unrest from taxes up to rate 2, so income sums stay simple.
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(map);
-    game.add_player(P0, "Merlin", Player::new());
+    game.add_player(P0, "Merlin");
     game.treasury_mut(P0).unwrap().gold = 500;
     game.player_component_mut::<crate::player::Tax>(P0)
         .unwrap()

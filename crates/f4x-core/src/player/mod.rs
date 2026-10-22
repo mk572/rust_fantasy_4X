@@ -1,5 +1,4 @@
-//! Players: each one is an entity with a [`PlayerId`] and, until task 317 spreads its data over
-//! components, a [`Player`] holding what is not moved yet.
+//! Players: each one is an entity with a [`PlayerId`] and the components below.
 
 pub mod finance;
 pub mod offer;
@@ -8,6 +7,9 @@ pub mod upkeep;
 pub mod view;
 
 use serde::{Deserialize, Serialize};
+
+use crate::hero::roster::Roster;
+use crate::item::armory::Armory;
 
 /// Who a player is outside the world (fog, diplomacy, map owners, saves, commands). A component of
 /// the player entity; never reused.
@@ -37,24 +39,6 @@ pub struct Neutral;
 /// until someone kills them (the lair guards are made for a fight and removed after it; undead
 /// raised for the monsters stay).
 pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Player {
-    /// The wizard's items that are not on a hero: the vault and the award list.
-    pub armory: crate::item::armory::Armory,
-    /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
-    /// hired, is serving, dead or gone, and the experience it keeps.
-    pub roster: crate::hero::roster::Roster,
-    /// Where the wizard's fortress stands (a city); `None` before it is placed or while
-    /// banished.
-    pub fortress: Option<crate::map::Position>,
-    /// Where summoned creatures appear; defaults to the fortress.
-    pub summon_at: Option<crate::map::Position>,
-    /// The fortress fell: the wizard is casting the Spell of Return.
-    pub banished: bool,
-    /// Who took the fortress while the wizard is banished (the one a resignation is to).
-    pub banished_by: Option<PlayerId>,
-}
 
 /// On a player: its gold and mana.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,59 +156,30 @@ pub const PORTRAITS: u8 = 14;
 /// How many banners wizards can choose from.
 pub const BANNER_CHOICES: u8 = 5;
 
-impl Default for Player {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Player {
-    pub fn new() -> Self {
-        Self {
-            armory: crate::item::armory::Armory::default(),
-            roster: crate::hero::roster::Roster::default(),
-            fortress: None,
-            summon_at: None,
-            banished: false,
-            banished_by: None,
-        }
-    }
-}
-
-/// A new player: its data and the components every player starts with. A wizard's player gets its
-/// `Control` and `WizardLink` when the game adds it.
+/// A new player: the components every player starts with. A wizard's player gets its `Control`
+/// and `WizardLink` when the game adds it.
 pub fn bundle(
     id: PlayerId,
-    player: Player,
-) -> (PlayerId, Player, Treasury, Tax, Bonus, History, Offers) {
+) -> (
+    PlayerId,
+    Armory,
+    Roster,
+    Treasury,
+    Tax,
+    Bonus,
+    History,
+    Offers,
+) {
     (
         id,
-        player,
+        Armory::default(),
+        Roster::default(),
         Treasury::default(),
         Tax::default(),
         Bonus::default(),
         History::default(),
         Offers::default(),
     )
-}
-
-/// A read handle on one player's data.
-pub type PlayerRef<'a> = hecs::Ref<'a, Player>;
-
-/// A player's data from a game or from a test double of one (`WorldView`).
-pub enum PlayerHandle<'a> {
-    Plain(&'a Player),
-    Held(PlayerRef<'a>),
-}
-
-impl std::ops::Deref for PlayerHandle<'_> {
-    type Target = Player;
-    fn deref(&self) -> &Player {
-        match self {
-            Self::Plain(p) => p,
-            Self::Held(p) => p,
-        }
-    }
 }
 
 /// The player entity with this id (a scan; `Game` keeps an index for the same question).
@@ -244,32 +199,15 @@ pub fn component<C: hecs::Component>(
     world.get::<&C>(find_entity(world, id)?).ok()
 }
 
-/// The data of the player with this id.
-pub fn find(world: &hecs::World, id: PlayerId) -> Option<PlayerRef<'_>> {
-    world.get::<&Player>(find_entity(world, id)?).ok()
-}
-
-/// Every player with its id, ascending by id.
-pub fn all(world: &hecs::World) -> Vec<(PlayerId, PlayerRef<'_>)> {
-    ids(world)
-        .into_iter()
-        .filter_map(|id| Some((id, find(world, id)?)))
-        .collect()
-}
-
-/// Every player id, ascending (ids are handed out in the order players are made).
+/// Every player id but the monsters' owner, ascending (ids are handed out in the order players
+/// are made).
 pub fn ids(world: &hecs::World) -> Vec<PlayerId> {
     let mut ids: Vec<PlayerId> = world
-        .query::<(&PlayerId, &Player)>()
+        .query::<&PlayerId>()
         .iter()
-        .map(|(_, (&p, _))| p)
+        .map(|(_, &p)| p)
+        .filter(|&p| p != MONSTERS)
         .collect();
     ids.sort();
     ids
-}
-
-/// The data of the player with this id, to change.
-pub fn find_mut(world: &mut hecs::World, id: PlayerId) -> Option<&mut Player> {
-    let e = find_entity(world, id)?;
-    world.query_one_mut::<&mut Player>(e).ok()
 }

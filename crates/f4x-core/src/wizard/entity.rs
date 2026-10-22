@@ -151,3 +151,11 @@ pub fn player_name(world: &hecs::World, id: PlayerId) -> String {
         .map(|(_, (c, _, _))| c.name.clone())
         .unwrap_or_default()
 }
+
+/// Every wizard, in the order of the players.
+pub fn all(world: &hecs::World) -> Vec<Wizard<'_>> {
+    crate::player::ids(world)
+        .into_iter()
+        .filter_map(|id| find(world, id))
+        .collect()
+}

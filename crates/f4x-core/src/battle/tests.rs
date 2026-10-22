@@ -487,7 +487,7 @@ fn game() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     for id in [A, D] {
-        g.add_player(id, "", crate::player::Player::new());
+        g.add_player(id, "");
     }
     g
 }
@@ -2908,7 +2908,8 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
     let mut g = hook_game("word_of_recall");
     let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
     assert_eq!(no_circle, Err(BattleError::Spell(SpellError::BadTarget)));
-    g.pl_mut(0).summon_at = Some(at(1, 1));
+    g.wiz_mut(0)
+        .put(Some(crate::wizard::fortress::SummonAt(at(1, 1))));
     let enemy = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(1), 0);
     assert_eq!(enemy, Err(BattleError::Spell(SpellError::BadTarget)));
     let events = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0).unwrap();

@@ -291,7 +291,6 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
-    use crate::player::Player;
     use crate::player::PlayerId;
     use crate::rules::UnitKind;
 
@@ -308,7 +307,7 @@ mod tests {
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        g.add_player(P0, "W", Player::new());
+        g.add_player(P0, "W");
         g
     }
 

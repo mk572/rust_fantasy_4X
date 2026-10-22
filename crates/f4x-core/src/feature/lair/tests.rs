@@ -2,7 +2,7 @@ use super::*;
 use crate::battle::{BattleCommand, Side};
 use crate::game::testutil::{content_with_magic, unit};
 use crate::map::{Grid, Plane};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Command;
 use crate::rules::{MovementType, Registry, UnitDef};
@@ -54,7 +54,7 @@ fn world(seed: u64) -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
-        g.add_player(id, "W", Player::new());
+        g.add_player(id, "W");
         g.treasury_mut(id).unwrap().gold = 100;
         g.treasury_mut(id).unwrap().mana = 100;
     }
@@ -307,7 +307,13 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     assert_eq!(*player, P0);
     assert_eq!((loot.gold, loot.mana), (120, 30));
     assert_eq!(loot.items.len(), 1, "the 400 hoard is made into an item");
-    assert_eq!(g.player(P0).unwrap().armory.items().count(), 1);
+    assert_eq!(
+        g.player_component::<crate::item::armory::Armory>(P0)
+            .unwrap()
+            .items()
+            .count(),
+        1
+    );
     // The test rules have no heroes to free.
     assert!(!loot.prisoner);
     assert_eq!(

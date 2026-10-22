@@ -154,7 +154,7 @@ impl Game {
     /// Defeat a wizard on the spot: their cities turn neutral and the usual aftermath
     /// follows, ending the game if that leaves one wizard (or the human is the one).
     pub fn cheat_eliminate(&mut self, player: PlayerId, by: PlayerId) -> Vec<Event> {
-        if self.player(player).is_none() || self.is_defeated(player) {
+        if !self.has_player(player) || self.is_defeated(player) {
             return Vec::new();
         }
         for (city, c, _) in self.economy().cities() {

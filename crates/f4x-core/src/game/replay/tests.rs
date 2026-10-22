@@ -1,7 +1,7 @@
 use super::*;
 use crate::game::testutil::content_with_units;
 use crate::map::{Grid, Map, Plane, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -21,7 +21,7 @@ fn world() -> (Game, Serial) {
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     g.fog = crate::map::fog::Fog::new(20, 10);
-    g.add_player(P0, "W", Player::new());
+    g.add_player(P0, "W");
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let u = g.spawn_unit(P0, at(5, 5), walker);
     g.fog.explore(P0, at(10, 5), 12);

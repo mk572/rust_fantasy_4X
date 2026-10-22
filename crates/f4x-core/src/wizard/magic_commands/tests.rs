@@ -39,11 +39,7 @@ fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
 fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() {
     let mut g = crate::game::Game::new(3);
     g.content = content_with_magic();
-    g.add_player(
-        crate::player::PlayerId(0),
-        "W",
-        crate::player::Player::new(),
-    );
+    g.add_player(crate::player::PlayerId(0), "W");
     let mut w = g.wizard_mut(crate::player::PlayerId(0)).unwrap();
     assert_eq!(cancel_cast(&mut w, true), Err(MagicError::NotAvailable));
     assert_eq!(cancel_cast(&mut w, false), Ok(()));
@@ -54,7 +50,7 @@ fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() {
     let mut g = crate::game::Game::new(3);
     g.content = content_with_magic();
     let id = crate::player::PlayerId(0);
-    g.add_player(id, "W", crate::player::Player::new());
+    g.add_player(id, "W");
     g.init_wizard(id, &[("life", 2)], &[Retort::Famous], None)
         .unwrap();
     let w = g.wizard(id).unwrap();

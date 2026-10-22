@@ -378,7 +378,7 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(build(), build()));
         for id in [P0, P1] {
-            g.add_player(id, "", crate::player::Player::new());
+            g.add_player(id, "");
         }
         g
     }

@@ -2,7 +2,6 @@ use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
-use crate::player::Player;
 use crate::world_event::EventKind as K;
 
 const P0: PlayerId = PlayerId(0);
@@ -24,7 +23,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
-        g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" }, Player::new());
+        g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" });
         g.treasury_mut(id).unwrap().gold = 1000;
         g.treasury_mut(id).unwrap().mana = 100;
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
@@ -205,7 +204,9 @@ fn the_gift_is_an_artifact_in_the_armory() {
     let mut g = world();
     let told = play(&mut g, armed(K::Gift, P0, None));
     assert!(!told[0].item.is_empty());
-    let armory = &g.player(P0).unwrap().armory;
+    let armory = &g
+        .player_component::<crate::item::armory::Armory>(P0)
+        .unwrap();
     assert!(armory
         .vault
         .iter()

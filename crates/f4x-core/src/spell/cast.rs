@@ -514,7 +514,7 @@ impl Game {
         .into_iter()
         .find(|h| self.spell_has_hook(spell, h));
         if let Some(hook) = fortress_hook {
-            let p = self.player(player).ok_or(MagicError::UnknownPlayer)?;
+            let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
             let Some(Target::City(c)) = target else {
                 return Err(MagicError::NeedsTarget);
             };
@@ -523,11 +523,11 @@ impl Game {
             }
             let here = self.world.get::<&Position>(c).ok().map(|x| *x);
             let ok = match hook {
-                crate::wizard::fortress::RETURN => p.banished,
+                crate::wizard::fortress::RETURN => w.is_banished(),
                 crate::wizard::fortress::MOVE_FORTRESS => {
-                    p.fortress.is_some() && here != p.fortress
+                    w.fortress().is_some() && here != w.fortress()
                 }
-                _ => here != p.summon_at,
+                _ => here != w.summon_at(),
             };
             return ok.then_some(()).ok_or(MagicError::NoSuchTarget);
         }

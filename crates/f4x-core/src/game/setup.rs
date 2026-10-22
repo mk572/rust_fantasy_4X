@@ -8,7 +8,7 @@ use crate::content::Content;
 use crate::game::setting::GameSettings;
 use crate::map::mapgen::{generate, GenParams};
 use crate::map::{Plane, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::{Command, Game};
 use crate::wizard::magic::Retort;
@@ -135,7 +135,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             (0, false) => "You".to_string(),
             _ => format!("Wizard {}", k + 1),
         };
-        game.add_player(PlayerId(k), name, Player::new());
+        game.add_player(PlayerId(k), name);
     }
     let fixed = |books: &[(&str, u8)], retort| WizardBuild {
         name: String::new(),
@@ -374,7 +374,7 @@ const CAPITAL_FARMERS: u32 = 3;
 /// A wizard's first view of the world: only the land within `radius` of their fortress (what
 /// founding the capital and creating its army revealed is replaced).
 fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
-    let Some(fortress) = game.player(player).and_then(|p| p.fortress) else {
+    let Some(fortress) = game.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
     game.fog.forget(player);
@@ -433,10 +433,9 @@ fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Res
         .flat_map(|y| (0..width).map(move |x| (x, y)))
         .collect();
     spots.sort_by_key(|&(x, y)| (wrap(x, cx).pow(2) + y.abs_diff(cy).pow(2), y, x));
-    let fortresses: Vec<Position> = game
-        .players()
+    let fortresses: Vec<Position> = crate::wizard::entity::all(&game.world)
         .iter()
-        .filter_map(|(_, p)| p.fortress)
+        .filter_map(|w| w.fortress())
         .filter(|f| f.plane == plane)
         .collect();
     let need = 8 - u32::from(player.0) / 3;

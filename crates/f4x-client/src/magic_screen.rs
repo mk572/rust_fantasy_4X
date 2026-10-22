@@ -349,8 +349,8 @@ impl App {
         let researching = researching_spell.map_or("None".to_string(), |s| name(&self.game, s));
         let summon = self
             .game
-            .player(HUMAN)
-            .and_then(|p| p.summon_at)
+            .wizard(HUMAN)
+            .and_then(|w| w.summon_at())
             .and_then(|at| self.game.economy().city_at(at))
             .map_or("None".to_string(), |c| self.city_name(c));
         let rows = [
@@ -388,10 +388,10 @@ impl App {
         }
         let others: Vec<(PlayerId, u8, u8, bool)> = self
             .game
-            .players()
+            .player_ids()
             .into_iter()
-            .filter(|(id, _)| *id != HUMAN && !self.game.is_neutral_player(*id))
-            .map(|(id, _)| {
+            .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
+            .map(|id| {
                 (
                     id,
                     self.game.portrait(id),

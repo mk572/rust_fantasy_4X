@@ -50,7 +50,10 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() {
         what: Shortage::Gold
     }));
     use crate::hero::roster::Availability;
-    assert_eq!(g.pl(0).roster.get(0).unwrap().state, Availability::Free);
+    assert_eq!(
+        g.pl::<crate::hero::roster::Roster>(0).get(0).unwrap().state,
+        Availability::Free
+    );
 }
 
 #[test]
@@ -62,7 +65,11 @@ fn a_released_heros_items_return_to_the_armory() {
     let _ = g.world.insert_one(h, slots);
     g.tr_mut(0).gold = 0;
     g.release_troops(P0, &[h], &[]).unwrap();
-    let names: Vec<_> = g.pl(0).armory.items().map(|i| i.name.clone()).collect();
+    let names: Vec<_> = g
+        .pl::<crate::item::armory::Armory>(0)
+        .items()
+        .map(|i| i.name.clone())
+        .collect();
     assert_eq!(names, ["Axe"]);
 }
 
@@ -89,7 +96,10 @@ fn items_that_do_not_fit_are_the_wizards_to_scrap_for_mana() {
     g.tr_mut(0).mana = 0;
     g.release_troops(P0, &[h], &[ItemSpot::Award(2)]).unwrap();
     assert_eq!(g.tr(0).mana, 35, "Junk6, worth 70 gold, gives half in mana");
-    assert!(g.pl(0).armory.items().any(|i| i.name == "Crown"));
+    assert!(g
+        .pl::<crate::item::armory::Armory>(0)
+        .items()
+        .any(|i| i.name == "Crown"));
 }
 
 /// A 30x16 map, grass but for a sea from x = 3 to 26 and y = 3 to 13.

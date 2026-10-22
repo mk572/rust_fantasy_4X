@@ -70,7 +70,7 @@ pub struct HeroRecord {
     pub xp: u32,
 }
 
-/// The records of one wizard, in the order of `Rules::hero_templates`.
+/// On a player: the records of its wizard's heroes, in the order of `Rules::hero_templates`.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Roster(pub Vec<HeroRecord>);
 

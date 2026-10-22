@@ -51,8 +51,12 @@ fn world() -> Game {
     g.turn = 40;
     for (i, id) in g.player_ids().into_iter().take(2).enumerate() {
         g.treasury_mut(id).unwrap().gold = 5000;
-        let p = g.player_mut(id).unwrap();
-        p.fortress = Some(at(1 + i as u32 * 6, 1));
+        g.wizard_mut(id)
+            .unwrap()
+            .put(Some(crate::wizard::fortress::Fortress(at(
+                1 + i as u32 * 6,
+                1,
+            ))));
         g.set_fame(id, 190);
     }
     g
@@ -156,8 +160,9 @@ fn a_company_is_drawn_from_the_races_of_the_planes_the_wizard_is_on() {
 #[test]
 fn only_wizards_with_a_standing_fortress_are_offered_anything() {
     let mut g = world();
-    g.pl_mut(0).banished = true;
-    g.pl_mut(1).fortress = None;
+    g.wiz_mut(0)
+        .put(Some(crate::wizard::fortress::Banishment { by: None }));
+    g.wiz_mut(1).put::<crate::wizard::fortress::Fortress>(None);
     for _ in 0..300 {
         g.determine_offers();
     }
@@ -236,7 +241,13 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
     let events = g.accept_offer(P0, i, Some("Rex".into())).unwrap();
     assert!(matches!(events[..], [Event::HeroJoined { kind: k, .. }] if k == kind));
     assert_eq!(g.tr(0).gold, gold - price);
-    assert_eq!(g.pl(0).roster.get(kind).unwrap().name, "Rex");
+    assert_eq!(
+        g.pl::<crate::hero::roster::Roster>(0)
+            .get(kind)
+            .unwrap()
+            .name,
+        "Rex"
+    );
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
 
@@ -382,8 +393,8 @@ fn the_turn_change_makes_the_offers_and_a_save_keeps_them() {
     let mut g = world();
     roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
     // A save wants a city wherever there is a fortress; this world has none.
-    g.pl_mut(0).fortress = None;
-    g.pl_mut(1).fortress = None;
+    g.wiz_mut(0).put::<crate::wizard::fortress::Fortress>(None);
+    g.wiz_mut(1).put::<crate::wizard::fortress::Fortress>(None);
     let text = ron::to_string(&g.snapshot()).unwrap();
     let back = crate::game::save::Snapshot::from_text(&text)
         .unwrap()

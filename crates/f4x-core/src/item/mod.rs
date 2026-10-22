@@ -330,7 +330,7 @@ impl<'a> ItemView<'a> {
 
     /// A wizard's vault and award list.
     pub fn armory(&self, player: PlayerId) -> Option<hecs::Ref<'a, Armory>> {
-        crate::player::find(self.world, player).map(|p| hecs::Ref::map(p, |p| &p.armory))
+        crate::player::component::<Armory>(self.world, player)
     }
 }
 

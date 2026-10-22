@@ -422,7 +422,7 @@ impl Game {
             if self.is_neutral_player(player) {
                 continue;
             }
-            let (Some(p), Some(magic)) = (self.player(player), self.wizard(player)) else {
+            let Some(magic) = self.wizard(player) else {
                 continue;
             };
             // A wizard on the way home from banishment has nothing to cast with.
@@ -431,10 +431,13 @@ impl Game {
             } else {
                 self.wizard(player).map_or(0, |m| m.casting_skill())
             };
-            let distance = p.fortress.filter(|f| f.plane == site.plane).and_then(|f| {
-                let map = self.map.as_ref()?;
-                Some(map.plane(f.plane).chebyshev((f.x, f.y), (site.x, site.y)))
-            });
+            let distance = magic
+                .fortress()
+                .filter(|f| f.plane == site.plane)
+                .and_then(|f| {
+                    let map = self.map.as_ref()?;
+                    Some(map.plane(f.plane).chebyshev((f.x, f.y), (site.x, site.y)))
+                });
             let mut range = super::casting::range_percent(
                 distance,
                 magic.has(crate::wizard::magic::Retort::Channeler),

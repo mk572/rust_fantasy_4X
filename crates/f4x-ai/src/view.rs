@@ -83,7 +83,7 @@ pub fn nearest_unexplored(view: &PlayerView, unit: hecs::Entity) -> Option<Posit
 
 /// Fighters a city keeps at home: the fortress city holds two, every other city one.
 pub fn garrison_wanted(view: &PlayerView, at: Position) -> usize {
-    if view.player().and_then(|p| p.fortress) == Some(at) {
+    if view.fortress() == Some(at) {
         2
     } else {
         1

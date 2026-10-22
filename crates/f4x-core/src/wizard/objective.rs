@@ -5,12 +5,43 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::diplomacy::Personality;
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::wizard::entity::Wizard;
 use crate::wizard::magic::Retort;
 
-/// What an AI wizard is after (the original's `AI_OBJ_*`, in its order).
+/// On a wizard: its temper. The human has none and counts as `Chaotic`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Personality {
+    Maniacal,
+    Ruthless,
+    Aggressive,
+    #[default]
+    Chaotic,
+    Lawful,
+    Peaceful,
+}
+
+impl Personality {
+    pub fn name(self) -> &'static str {
+        match self {
+            Personality::Maniacal => "Maniacal",
+            Personality::Ruthless => "Ruthless",
+            Personality::Aggressive => "Aggressive",
+            Personality::Chaotic => "Chaotic",
+            Personality::Lawful => "Lawful",
+            Personality::Peaceful => "Peaceful",
+        }
+    }
+
+    /// The original's `TBL_AI_PRS_IDK_Mod`: how well the wizard takes proposals.
+    pub fn modifier(self) -> i32 {
+        self as i32 * 10
+    }
+}
+
+/// What an AI wizard is after (the original's `AI_OBJ_*`, in its order). On a wizard; the human
+/// has none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Objective {
     Pragmatist,
@@ -169,6 +200,19 @@ pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
     Objective::ALL[picked]
 }
 
+impl Wizard<'_> {
+    /// The wizard's temper; the human's is `Chaotic`.
+    pub fn personality(&self) -> Personality {
+        self.component::<Personality>()
+            .map_or_else(Default::default, |p| *p)
+    }
+
+    /// What the wizard is after (none for the human).
+    pub fn objective(&self) -> Option<Objective> {
+        self.component::<Objective>().map(|o| *o)
+    }
+}
+
 impl Game {
     /// The names of a wizard's heroes (a hero's own name is not kept yet: its class stands for it).
     pub fn wizard_heroes(&self, wizard: PlayerId) -> Vec<String> {
@@ -182,11 +226,6 @@ impl Game {
             .collect()
     }
 
-    /// The objective of an AI wizard (none for the human, who has no objective).
-    pub fn objective(&self, wizard: PlayerId) -> Option<Objective> {
-        self.diplomacy.objective(wizard)
-    }
-
     /// Draw a personality, then an objective, for every wizard but the human, in turn order, as
     /// the original does. Called when a game starts.
     pub(crate) fn assign_temperaments(&mut self) {
@@ -195,21 +234,21 @@ impl Game {
             if self.human() == Some(id) {
                 continue;
             }
-            let Some(magic) = crate::wizard::entity::find(&self.world, id) else {
+            let Some(sheet) = crate::wizard::entity::find(&self.world, id) else {
                 continue;
             };
-            let personality = personality_weights(|r| magic.books_in(r), |r| magic.has(r));
-            let objective = objective_weights(|r| magic.books_in(r), |r| magic.has(r));
+            let personality = personality_weights(|r| sheet.books_in(r), |r| sheet.has(r));
+            let objective = objective_weights(|r| sheet.books_in(r), |r| sheet.has(r));
             let mut draw = |weights: &[i32]| match weights.iter().sum::<i32>() {
                 total if total > 0 => self.rng.roll(total as u32) as i32,
                 _ => 0,
             };
-            let roll = draw(&personality);
-            self.diplomacy
-                .set_personality(id, pick_personality(&personality, roll));
-            let roll = draw(&objective);
-            self.diplomacy
-                .set_objective(id, pick_objective(&objective, roll));
+            let personality = pick_personality(&personality, draw(&personality));
+            let objective = pick_objective(&objective, draw(&objective));
+            if let Some(mut w) = self.wizard_mut(id) {
+                w.put(Some(personality));
+                w.put(Some(objective));
+            }
         }
     }
 }

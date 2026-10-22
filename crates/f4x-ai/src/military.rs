@@ -226,10 +226,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .filter(|&u| view.unit_position(u).is_some()),
             );
         }
-        let capital = view
-            .player()
-            .and_then(|p| p.fortress)
-            .or_else(|| own_cities.first().copied());
+        let capital = view.fortress().or_else(|| own_cities.first().copied());
         (free, capital)
     };
     let Some(capital) = capital else {

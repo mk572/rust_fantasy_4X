@@ -25,6 +25,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::wizard::magic::Retort;
+use crate::wizard::objective::Personality;
 
 /// What a wizard is bound to with another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -34,36 +35,6 @@ pub enum Treaty {
     Pact,
     Alliance,
     War,
-}
-
-/// A wizard's temper (task 64 assigns them; until then everyone is `Chaotic`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum Personality {
-    Maniacal,
-    Ruthless,
-    Aggressive,
-    #[default]
-    Chaotic,
-    Lawful,
-    Peaceful,
-}
-
-impl Personality {
-    pub fn name(self) -> &'static str {
-        match self {
-            Personality::Maniacal => "Maniacal",
-            Personality::Ruthless => "Ruthless",
-            Personality::Aggressive => "Aggressive",
-            Personality::Chaotic => "Chaotic",
-            Personality::Lawful => "Lawful",
-            Personality::Peaceful => "Peaceful",
-        }
-    }
-
-    /// The original's `TBL_AI_PRS_IDK_Mod`: how well the wizard takes proposals.
-    pub fn modifier(self) -> i32 {
-        self as i32 * 10
-    }
 }
 
 impl Treaty {
@@ -304,8 +275,6 @@ pub enum DiplomacyCommand {
 pub struct Diplomacy {
     pairs: BTreeMap<(u8, u8), Pair>,
     stances: BTreeMap<(u8, u8), Stance>,
-    personalities: BTreeMap<u8, Personality>,
-    objectives: BTreeMap<u8, crate::wizard::objective::Objective>,
     proposals: Vec<Proposal>,
     /// Events that hooks (battles, spells, the turn) raise; the next command returns them.
     queue: Vec<DiplomacyEvent>,
@@ -338,29 +307,6 @@ pub const ALLIANCE_RELATION: i32 = 50;
 const LAND_SIZE: i32 = 1;
 
 impl Diplomacy {
-    pub fn personality(&self, wizard: PlayerId) -> Personality {
-        self.personalities
-            .get(&wizard.0)
-            .copied()
-            .unwrap_or_default()
-    }
-
-    pub fn set_personality(&mut self, wizard: PlayerId, personality: Personality) {
-        self.personalities.insert(wizard.0, personality);
-    }
-
-    pub fn objective(&self, wizard: PlayerId) -> Option<crate::wizard::objective::Objective> {
-        self.objectives.get(&wizard.0).copied()
-    }
-
-    pub fn set_objective(
-        &mut self,
-        wizard: PlayerId,
-        objective: crate::wizard::objective::Objective,
-    ) {
-        self.objectives.insert(wizard.0, objective);
-    }
-
     pub fn pair(&self, a: PlayerId, b: PlayerId) -> Option<&Pair> {
         self.pairs.get(&key(a, b))
     }
@@ -637,7 +583,7 @@ impl Diplomacy {
         } else {
             v /= -rel / 25 + 1;
         }
-        match self.personality(defender) {
+        match ctx.view.personality(defender) {
             Personality::Lawful if v < 0 => v *= 2,
             Personality::Maniacal if v < 0 => v = v * 3 / 2,
             Personality::Maniacal if v > 0 => v = v * 3 / 4,
@@ -765,7 +711,7 @@ impl Diplomacy {
             Treaty::Alliance => 20,
             _ => 0,
         };
-        if self.personality(breaker) == Personality::Lawful {
+        if ctx.view.personality(breaker) == Personality::Lawful {
             penalty *= 2;
         }
         {
@@ -900,8 +846,10 @@ impl Diplomacy {
             return v;
         }
         let stance = self.stance(asker, judge).cloned().unwrap_or_default();
-        let relations =
-            stance.treaty_patience + stance.hidden + relation + self.personality(judge).modifier();
+        let relations = stance.treaty_patience
+            + stance.hidden
+            + relation
+            + ctx.view.personality(judge).modifier();
         let mut final_value = relations + ctx.rng.roll(100) as i32 - type_modifier
             + threat_modifier(ctx.view, asker, judge);
         if self.treaty(asker, judge) == Treaty::Alliance {
@@ -1602,11 +1550,6 @@ impl Game {
         self.diplomacy.relation(self, a, b)
     }
 
-    /// The temper of a wizard.
-    pub fn personality(&self, wizard: PlayerId) -> Personality {
-        self.diplomacy.personality(wizard)
-    }
-
     /// What the hooks raised since the last command, as events.
     pub fn drain_diplomacy_events(&mut self) -> Vec<Event> {
         self.diplomacy.drain_events()
@@ -1757,7 +1700,7 @@ impl Game {
 pub struct DiplomacySave {
     pub pairs: Vec<(u8, u8, Pair)>,
     pub stances: Vec<(u8, u8, Stance)>,
-    pub personalities: Vec<(u8, Personality)>,
+    pub personalities: Vec<(u8, crate::wizard::objective::Personality)>,
     #[serde(default)]
     pub objectives: Vec<(u8, crate::wizard::objective::Objective)>,
     pub proposals: Vec<ProposalSave>,
@@ -1793,8 +1736,8 @@ impl Diplomacy {
                 .iter()
                 .map(|(k, v)| (k.0, k.1, v.clone()))
                 .collect(),
-            personalities: self.personalities.iter().map(|(&k, &v)| (k, v)).collect(),
-            objectives: self.objectives.iter().map(|(&k, &v)| (k, v)).collect(),
+            personalities: Vec::new(),
+            objectives: Vec::new(),
             proposals: self
                 .proposals
                 .iter()
@@ -1832,8 +1775,6 @@ impl Diplomacy {
             .into_iter()
             .map(|(a, b, s)| ((a, b), s))
             .collect();
-        self.personalities = save.personalities.into_iter().collect();
-        self.objectives = save.objectives.into_iter().collect();
         self.proposals = save
             .proposals
             .into_iter()
@@ -1862,10 +1803,29 @@ impl Diplomacy {
 impl Game {
     pub(crate) fn diplomacy_to_save(&self) -> DiplomacySave {
         let spells = &self.content.rules.spells;
-        self.diplomacy.to_save(&|s| spells.get(s).id.clone())
+        let mut save = self.diplomacy.to_save(&|s| spells.get(s).id.clone());
+        for id in self.player_ids() {
+            if let Some(w) = self.wizard(id) {
+                if let Some(p) = w.component::<Personality>() {
+                    save.personalities.push((id.0, *p));
+                }
+                save.objectives.extend(w.objective().map(|o| (id.0, o)));
+            }
+        }
+        save
     }
 
     pub(crate) fn diplomacy_from_save(&mut self, save: DiplomacySave) {
+        for &(id, personality) in &save.personalities {
+            if let Some(mut w) = self.wizard_mut(PlayerId(id)) {
+                w.put(Some(personality));
+            }
+        }
+        for &(id, objective) in &save.objectives {
+            if let Some(mut w) = self.wizard_mut(PlayerId(id)) {
+                w.put(Some(objective));
+            }
+        }
         let spells = &self.content.rules.spells;
         self.diplomacy.restore(save, &|name| spells.id_of(name));
     }
