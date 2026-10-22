@@ -405,7 +405,8 @@ fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
     let mut spec = NewGame::with_wizards(wizards);
     spec.seed = seed;
     let basic = spec.settings.basic;
-    spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(level);
+    spec.settings =
+        f4x_core::game::setting::GameSettings::for_difficulty(&content().settings, level);
     spec.settings.basic = f4x_core::game::setting::BasicSettings {
         difficulty: level,
         ..basic
@@ -2797,4 +2798,26 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
         !g.units().player_units(owner).is_empty(),
         "the city built soldiers again"
     );
+}
+
+#[test]
+fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
+    use f4x_core::game::setting::{Radius, Split};
+    let known = |radius: f32, mana: i32| {
+        let mut spec = NewGame::with_wizards(2);
+        spec.seed = 5;
+        spec.settings.world.start_reveal_radius = Radius(radius);
+        spec.settings.wizards.starting_mana = Split { human: mana, ai: 7 };
+        let g = new_game(&content(), &spec).unwrap();
+        let human = g.human().unwrap();
+        let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
+        assert_eq!(g.treasury(human).unwrap().mana, mana);
+        assert_eq!(g.treasury(ai).unwrap().mana, 7);
+        g.explored_squares(human)
+    };
+    // A plus of 5, the 3 by 3 block, and the 5 by 5 block without its corners (the fortress is
+    // not at the map's edge, which would cut them).
+    assert_eq!(known(1.0, 0), 5);
+    assert_eq!(known(1.5, 30), 9);
+    assert_eq!(known(2.5, 0), 21);
 }

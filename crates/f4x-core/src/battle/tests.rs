@@ -645,7 +645,8 @@ fn wounded_units_enter_a_battle_wounded() {
 /// on the first attackers before the attacker flees. Returns the attackers (alive or not).
 fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity>) {
     let mut g = game();
-    g.settings = crate::game::setting::GameSettings::for_difficulty(difficulty);
+    g.settings =
+        crate::game::setting::GameSettings::for_difficulty(&g.content.settings, difficulty);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let d = g.spawn_unit(D, at(5, 4), walker);

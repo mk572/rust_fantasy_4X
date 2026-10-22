@@ -72,25 +72,25 @@ fn the_first_five_turns_have_no_events_then_the_pressure_is_the_turns_waited_by_
     let mut events = Events::default();
     for turn in 1..=5 {
         assert_eq!(
-            events.pressure(turn, 2, EventFrequency::Normal),
+            events.pressure(turn, 75, EventFrequency::Normal),
             0,
             "turn {turn}"
         );
     }
     let at =
-        |events: &mut Events, turn, level| events.pressure(turn, level, EventFrequency::Normal);
-    assert_eq!(at(&mut events, 40, 4), 40);
-    assert_eq!(at(&mut events, 40, 2), 30);
-    assert_eq!(at(&mut events, 40, 0), 20);
+        |events: &mut Events, turn, percent| events.pressure(turn, percent, EventFrequency::Normal);
+    assert_eq!(at(&mut events, 40, 100), 40);
+    assert_eq!(at(&mut events, 40, 75), 30);
+    assert_eq!(at(&mut events, 40, 50), 20);
     events.drawn(40);
     for turn in 41..=45 {
         assert_eq!(
-            at(&mut events, turn, 4),
+            at(&mut events, turn, 100),
             0,
             "five quiet turns after an event"
         );
     }
-    assert_eq!(at(&mut events, 46, 4), 6, "counted from the last event");
+    assert_eq!(at(&mut events, 46, 100), 6, "counted from the last event");
 }
 
 #[test]
@@ -217,9 +217,9 @@ fn the_message_is_the_one_of_the_events_voice() {
 
 #[test]
 fn the_frequency_halves_or_doubles_the_pressure() {
-    assert_eq!(scaled_pressure(40, 2, EventFrequency::Normal), 30);
-    assert_eq!(scaled_pressure(40, 2, EventFrequency::Half), 15);
-    assert_eq!(scaled_pressure(40, 2, EventFrequency::Double), 60);
+    assert_eq!(scaled_pressure(40, 75, EventFrequency::Normal), 30);
+    assert_eq!(scaled_pressure(40, 75, EventFrequency::Half), 15);
+    assert_eq!(scaled_pressure(40, 75, EventFrequency::Double), 60);
     // About 1.5 percent a turn after ten quiet turns on Average, as the design says.
-    assert_eq!(scaled_pressure(10, 2, EventFrequency::Normal), 7);
+    assert_eq!(scaled_pressure(10, 75, EventFrequency::Normal), 7);
 }

@@ -225,13 +225,13 @@ impl Events {
     }
 
     /// The pressure for this turn's draw, and the count of quiet turns goes up.
-    pub(crate) fn pressure(&mut self, turn: u32, level: u8, frequency: EventFrequency) -> u32 {
+    pub(crate) fn pressure(&mut self, turn: u32, percent: u16, frequency: EventFrequency) -> u32 {
         let waited = turn.saturating_sub(self.last_event);
         if self.quiet < 5 {
             self.quiet += 1;
             return 0;
         }
-        scaled_pressure(waited, level, frequency)
+        scaled_pressure(waited, percent, frequency)
     }
 
     /// The saved form: for each event the number, the turns, the victim and the city.
@@ -337,19 +337,16 @@ pub struct LastingSave {
     pub city: Option<u64>,
 }
 
-/// The pressure's weight by difficulty (intro to impossible), as a fraction: a game on a harder
-/// level keeps more of the turns it has waited, so events come more often.
-const LEVEL_WEIGHT: [(u32, u32); 5] = [(1, 2), (2, 3), (3, 4), (4, 5), (1, 1)];
-
-/// The pressure after `waited` quiet turns on a difficulty level, with the game's event
-/// frequency: the turns waited, by the level's fraction, halved or doubled by the frequency. An
-/// event is drawn with the chance of this out of 512.
-pub fn scaled_pressure(waited: u32, level: u8, frequency: EventFrequency) -> u32 {
-    let (num, den) = LEVEL_WEIGHT[usize::from(level.min(4))];
+/// The pressure after `waited` quiet turns, for a game whose level counts `percent` of the turns
+/// waited (`events.pressure_percent`: 50 on Intro up to 100 on Impossible, so a harder level has
+/// events more often), with the game's event frequency: halved or doubled. An event is drawn with
+/// the chance of this out of 512.
+pub fn scaled_pressure(waited: u32, percent: u16, frequency: EventFrequency) -> u32 {
+    let percent = u32::from(percent);
     let (num, den) = match frequency {
-        EventFrequency::Half => (num, den * 2),
-        EventFrequency::Normal => (num, den),
-        EventFrequency::Double => (num * 2, den),
+        EventFrequency::Half => (percent, 200),
+        EventFrequency::Normal => (percent, 100),
+        EventFrequency::Double => (percent * 2, 100),
     };
     waited * num / den
 }

@@ -1,7 +1,7 @@
 //! The new-game options step: difficulty, opponents, land size and node strength, shown
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
-use f4x_core::game::setup::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
+use f4x_core::game::setting::SettingsDef;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -9,43 +9,44 @@ use crate::ui::{button, GOLD, PANEL};
 use crate::view::{App, Screen};
 
 pub(crate) const DIFFICULTIES: [&str; 5] = ["Intro", "Easy", "Average", "Hard", "Impossible"];
-pub(crate) const LAND_SIZES: [(&str, u8); 3] = [
-    ("Small", LAND_SMALL),
-    ("Medium", LAND_MEDIUM),
-    ("Large", LAND_LARGE),
-];
 /// The names on the original's options buttons.
 const OPTION_DIFFICULTIES: [&str; 5] = ["Intro", "Easy", "Normal", "Hard", "Impossible"];
 const OPPONENT_NAMES: [&str; 4] = ["One", "Two", "Three", "Four"];
 pub(crate) const MAGIC_LEVELS: [&str; 3] = ["Weak", "Normal", "Powerful"];
 
-/// The choices made on the options step; the defaults are the game's usual settings.
+/// The choices made on the options step; they start as `settings.ron` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OptionsState {
     /// Index into [`DIFFICULTIES`].
     pub difficulty: u8,
     /// Computer wizards, 1 to 4.
     pub opponents: u8,
-    /// Index into [`LAND_SIZES`].
+    /// Index into `settings.land_sizes`.
     pub land: u8,
     /// Index into [`MAGIC_LEVELS`].
     pub magic: u8,
 }
 
-impl Default for OptionsState {
-    fn default() -> Self {
+impl OptionsState {
+    /// The choices of `settings.new_game`; a land share that is none of the three sizes takes
+    /// the nearest size.
+    pub fn from_settings(settings: &SettingsDef) -> Self {
+        let b = settings.new_game;
+        let land = (0..settings.land_sizes.len())
+            .min_by_key(|&i| settings.land_sizes[i].land_percent.abs_diff(b.land_percent))
+            .unwrap_or(0);
         Self {
-            difficulty: 2,
-            opponents: 1,
-            land: 2,
-            magic: 1,
+            difficulty: b.difficulty.min(4),
+            opponents: b.opponents.clamp(1, settings.max_opponents),
+            land: land as u8,
+            magic: b.magic_strength.min(2),
         }
     }
-}
 
-impl OptionsState {
-    pub fn land_percent(&self) -> u8 {
-        LAND_SIZES[usize::from(self.land).min(2)].1
+    /// The land share of the chosen size.
+    pub fn land_percent(&self, settings: &SettingsDef) -> u8 {
+        let sizes = &settings.land_sizes;
+        sizes[usize::from(self.land).min(sizes.len() - 1)].land_percent
     }
 }
 
@@ -68,10 +69,15 @@ impl App {
         }
         self.draw_pic(&lay, "newgame", 1, 0, 165.0, 0.0);
         let o = self.options.clone();
+        let settings = &self.game.content().settings;
+        let (most, sizes) = (settings.max_opponents, settings.land_sizes.len() as u8);
+        let land = settings.land_sizes[usize::from(o.land).min(sizes as usize - 1)]
+            .name
+            .clone();
         let labels = [
             OPTION_DIFFICULTIES[usize::from(o.difficulty).min(4)],
-            OPPONENT_NAMES[usize::from(o.opponents.clamp(1, 4)) - 1],
-            LAND_SIZES[usize::from(o.land).min(2)].0,
+            OPPONENT_NAMES[usize::from(o.opponents.clamp(1, most)) - 1],
+            land.as_str(),
             MAGIC_LEVELS[usize::from(o.magic).min(2)],
         ];
         let mouse: Vec2 = mouse_position().into();
@@ -108,8 +114,8 @@ impl App {
         let o = &mut self.options;
         match changed {
             Some(0) => o.difficulty = (o.difficulty + 1) % 5,
-            Some(1) => o.opponents = o.opponents.clamp(1, 4) % 4 + 1,
-            Some(2) => o.land = (o.land + 1) % 3,
+            Some(1) => o.opponents = o.opponents.clamp(1, most) % most + 1,
+            Some(2) => o.land = (o.land + 1) % sizes,
             Some(3) => o.magic = (o.magic + 1) % 3,
             _ => {}
         }
@@ -150,23 +156,31 @@ impl App {
             draw_text("For the next game", x, y - 6.0, 20.0, GRAY);
             y += 16.0;
             let o = &mut self.options;
+            let settings = &self.game.content().settings;
             o.difficulty = choose(x, &mut y, "Difficulty", &DIFFICULTIES, o.difficulty);
-            let opponents = ["1", "2", "3", "4"];
+            let opponents: Vec<String> = (1..=settings.max_opponents)
+                .map(|n| n.to_string())
+                .collect();
+            let opponents: Vec<&str> = opponents.iter().map(String::as_str).collect();
             o.opponents = 1 + choose(
                 x,
                 &mut y,
                 "Opponents",
                 &opponents,
-                o.opponents.clamp(1, 4) - 1,
+                o.opponents.clamp(1, settings.max_opponents) - 1,
             );
-            let lands = LAND_SIZES.map(|(name, _)| name);
+            let lands: Vec<&str> = settings
+                .land_sizes
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect();
             o.land = choose(x, &mut y, "Land size", &lands, o.land);
             o.magic = choose(x, &mut y, "Magic power", &MAGIC_LEVELS, o.magic);
             button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
         } else {
             draw_text("This game (cannot be changed)", x, y - 6.0, 20.0, GRAY);
             y += 16.0;
-            for line in settings_lines(self.game.settings()) {
+            for line in settings_lines(self.game.settings(), &self.game.content().settings) {
                 draw_text(&line, x, y + 20.0, 22.0, WHITE);
                 y += 30.0;
             }
@@ -180,7 +194,10 @@ impl App {
 }
 
 /// What a game was made with, one line each (the Settings screen of a running game).
-pub(crate) fn settings_lines(s: &f4x_core::game::setting::GameSettings) -> Vec<String> {
+pub(crate) fn settings_lines(
+    s: &f4x_core::game::setting::GameSettings,
+    def: &f4x_core::game::setting::SettingsDef,
+) -> Vec<String> {
     let b = &s.basic;
     fn name<'a>(names: &[&'a str], i: u8) -> &'a str {
         names.get(usize::from(i)).copied().unwrap_or("?")
@@ -189,7 +206,7 @@ pub(crate) fn settings_lines(s: &f4x_core::game::setting::GameSettings) -> Vec<S
         format!(
             "Difficulty: {}{}",
             name(&DIFFICULTIES, b.difficulty),
-            if s.is_level() { "" } else { " (custom)" }
+            if s.is_level(def) { "" } else { " (custom)" }
         ),
         format!("Opponents: {}", b.opponents),
         format!("Land: {}% of each plane", b.land_percent),
@@ -232,22 +249,32 @@ fn choose(x: f32, y: &mut f32, label: &str, names: &[&str], current: u8) -> u8 {
 mod tests {
     use super::*;
 
+    fn shipped_settings() -> f4x_core::game::setting::SettingsDef {
+        f4x_data::load_settings(&[std::path::Path::new("../../content")]).unwrap()
+    }
+
     #[test]
     fn defaults_are_a_normal_two_wizard_game() {
-        let o = OptionsState::default();
+        let settings = shipped_settings();
+        let o = OptionsState::from_settings(&settings);
         assert_eq!(o.opponents, 1);
-        assert_eq!(o.land_percent(), LAND_LARGE);
+        assert_eq!(o.land_percent(&settings), f4x_core::game::setup::LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "Average");
     }
 
     #[test]
     fn a_running_games_settings_read_as_words() {
-        let lines = settings_lines(&f4x_core::game::setting::GameSettings::for_difficulty(4));
+        let settings = shipped_settings();
+        let level = |d| f4x_core::game::setting::GameSettings::for_difficulty(&settings, d);
+        let lines = settings_lines(&level(4), &settings);
         assert_eq!(lines[0], "Difficulty: Impossible");
         assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
         assert!(lines.iter().any(|l| l.contains("production 400%")));
-        let mut custom = f4x_core::game::setting::GameSettings::default();
+        let mut custom = level(2);
         custom.wizards.starting_gold.human = 300;
-        assert_eq!(settings_lines(&custom)[0], "Difficulty: Average (custom)");
+        assert_eq!(
+            settings_lines(&custom, &settings)[0],
+            "Difficulty: Average (custom)"
+        );
     }
 }

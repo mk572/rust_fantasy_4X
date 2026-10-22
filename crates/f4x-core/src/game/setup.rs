@@ -109,6 +109,12 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     if !problems.is_empty() {
         return Err(problems.join("; "));
     }
+    if spec.settings.basic.opponents > content.settings.max_opponents {
+        return Err(format!(
+            "{} opponents is over the most this content allows, {}",
+            spec.settings.basic.opponents, content.settings.max_opponents
+        ));
+    }
     let settings = spec.settings;
     let wizards = settings.basic.opponents + 1;
     let params = GenParams {
@@ -243,9 +249,14 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.apply_wizard_settings();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let gold = settings.wizards.starting_gold.of(game.human() == Some(id));
+        let human = game.human() == Some(id);
+        let (gold, mana) = (
+            settings.wizards.starting_gold.of(human),
+            settings.wizards.starting_mana.of(human),
+        );
         if let Some(t) = game.treasury_mut(id) {
             t.gold = gold;
+            t.mana = mana;
         }
     }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A
@@ -280,6 +291,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     for k in 0..wizards {
         start_player(&mut game, PlayerId(k), wizards, &races[k as usize])?;
+        reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius.0);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
@@ -356,6 +368,16 @@ const CAPITAL_BUILDINGS: [&str; 3] = ["smithy", "barracks", "builders_hall"];
 /// Citizens in the capital at the start, and how many of them farm.
 const CAPITAL_FIGURES: u32 = 4;
 const CAPITAL_FARMERS: u32 = 3;
+
+/// A wizard's first view of the world: only the land within `radius` of their fortress (what
+/// founding the capital and creating its army revealed is replaced).
+fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
+    let Some(fortress) = game.player(player).and_then(|p| p.fortress) else {
+        return;
+    };
+    game.fog.forget(player);
+    game.fog.explore_within(player, fortress, radius);
+}
 
 /// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`
 /// does: a capital of four with the race's spearmen and swordsmen (two swordsmen for a race

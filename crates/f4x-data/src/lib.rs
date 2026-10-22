@@ -11,6 +11,7 @@ use f4x_core::content::{
     Content, FeatureDef, FeatureKind, Features, TerrainClass, TerrainDef, Terrains,
     REQUIRED_CLASSES,
 };
+use f4x_core::game::setting::SettingsDef;
 use f4x_core::map::Plane;
 
 #[derive(Debug)]
@@ -241,11 +242,35 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let terrains = parse_terrains(&read("terrain.ron")?)?;
     let features = parse_features(&read("features.ron")?)?;
     let rules = rules::load_rules(dirs, &features)?;
+    let settings = load_settings(dirs)?;
     Ok(Content {
         terrains,
         features,
         rules,
+        settings,
     })
+}
+
+/// Read `settings.ron` from the first of `dirs` that has it. The file is optional (content
+/// without it plays the symmetric game); one that is there must parse and be in range.
+pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
+    let Some(path) = dirs
+        .iter()
+        .map(|d| d.join("settings.ron"))
+        .find(|p| p.exists())
+    else {
+        return Ok(SettingsDef::default());
+    };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    let settings: SettingsDef =
+        ron::from_str(&text).map_err(|e| ContentError::Parse(format!("settings.ron: {e}")))?;
+    let problems = settings.validate();
+    if problems.is_empty() {
+        Ok(settings)
+    } else {
+        Err(ContentError::Invalid(problems))
+    }
 }
 
 #[cfg(test)]
@@ -861,5 +886,66 @@ mod tests {
                 .any(|(_, _, id)| id == "adamantium_ore")
         });
         assert!(found, "adamantium never generated on Myrror");
+    }
+
+    #[test]
+    fn shipped_settings_have_five_levels_with_the_originals_figures() {
+        let c = real_content();
+        let s = &c.settings;
+        assert_eq!(s.levels.len(), 5);
+        let gold: Vec<_> = s
+            .levels
+            .iter()
+            .map(|l| l.wizards.starting_gold.human)
+            .collect();
+        assert_eq!(gold, [125, 100, 75, 50, 25]);
+        assert_eq!(s.levels[4].ai.production_percent, 400);
+        assert!(s.levels[1].rules.safe_flee.human && !s.levels[2].rules.safe_flee.human);
+        assert!(!s.levels[0].events.random_events && s.levels[1].events.random_events);
+        assert_eq!(s.new_game.difficulty, 2);
+        assert_eq!(s.max_opponents, 4);
+        let sizes: Vec<_> = s
+            .land_sizes
+            .iter()
+            .map(|l| (l.name.as_str(), l.land_percent))
+            .collect();
+        assert_eq!(sizes, [("Small", 15), ("Medium", 20), ("Large", 30)]);
+        let pressure: Vec<_> = s.levels.iter().map(|l| l.events.pressure_percent).collect();
+        assert_eq!(pressure, [50, 66, 75, 80, 100]);
+        assert!(s
+            .levels
+            .iter()
+            .all(|l| l.world.start_reveal_radius.0 == 2.5));
+        assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
+        assert_eq!(s.preferences.len(), 19);
+        assert!(!s.preferences["strategic_combat_only"] && s.preferences["sound_effects"]);
+    }
+
+    #[test]
+    fn content_without_settings_leaves_them_empty_and_a_local_file_wins() {
+        assert_eq!(shipped_content().settings, SettingsDef::default());
+        let over = std::env::temp_dir().join("f4x-settings-layer");
+        std::fs::create_dir_all(&over).unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))").unwrap();
+        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let c = load_content_layers(&[&over, &committed]).unwrap();
+        assert_eq!(c.settings.new_game.opponents, 3);
+        assert!(c.settings.levels.is_empty());
+    }
+
+    #[test]
+    fn a_settings_file_out_of_range_is_refused() {
+        let over = std::env::temp_dir().join("f4x-settings-bad");
+        std::fs::create_dir_all(&over).unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 9))").unwrap();
+        let err = load_settings(&[&over]).unwrap_err();
+        assert!(err.to_string().contains("9 opponents"), "{err}");
+        std::fs::write(over.join("settings.ron"), "(levels: [])").unwrap();
+        assert!(load_settings(&[&over]).is_ok());
+        std::fs::write(over.join("settings.ron"), "(new_game: (difficulty: 2)").unwrap();
+        assert!(matches!(
+            load_settings(&[&over]),
+            Err(ContentError::Parse(_))
+        ));
     }
 }

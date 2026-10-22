@@ -1,0 +1,234 @@
+// Settings: the defaults of the settings screens and the difficulty levels (read by
+// `f4x_data::load_content_layers`, optional; `game::setting::SettingsDef` is the schema).
+//
+// Only settings that exist in the game today are listed. The rest of the design
+// (`docs/game-settings.md`: stack limit, starting units and mana, map size, victory conditions and
+// so on) is added here when each setting is implemented.
+
+(
+    // The choices on the new-game options step and the Game settings screen, as they stand
+    // before the player changes anything.
+    new_game: (
+        difficulty: 2,       // 0 Intro, 1 Easy, 2 Average, 3 Hard, 4 Impossible
+        opponents: 1,        // computer wizards, 1 to 4
+        land_percent: 30,    // share of each plane's tiles: 15 small, 20 medium, 30 large
+        magic_strength: 1,   // nodes: 0 weak, 1 normal, 2 powerful
+    ),
+
+    // The most computer wizards a new game can have (1 to 4; more wizards need more start
+    // positions, so 4 is the limit for now).
+    max_opponents: 4,
+
+    // The land sizes of the options step, smallest first: a name and the share of each plane's
+    // tiles that is land.
+    land_sizes: [
+        (name: "Small", land_percent: 15),
+        (name: "Medium", land_percent: 20),
+        (name: "Large", land_percent: 30),
+    ],
+
+    // What each difficulty level fills in, from Intro to Impossible (exactly five). Choosing a
+    // level at the start of a game copies these into the game's settings. Most figures are the
+    // original's (`difficulty_modifiers_table` and the map generator). Notes:
+    // - `starting_mana`: mana in the treasury at the start.
+    // - `start_reveal_radius`: how far a wizard sees around their capital at the start, in
+    //   squares; a diagonal step counts 1.5, so 2.5 is a 5 by 5 block without its corners.
+    // - `pressure_percent`: the share of the turns since the last event that count as pressure;
+    //   the chance of an event in a turn is the pressure over 512.
+    levels: [
+        // 0: Intro
+        (
+            wizards: (
+                starting_gold: (human: 125, ai: 150),
+                starting_mana: (human: 0, ai: 0),
+                picks: (human: 11, ai: 11),
+            ),
+            ai: (
+                growth_percent: 100,
+                outpost_growth_percent: 100,
+                production_percent: 100,
+                gold_percent: 100,
+                mana_percent: 100,
+                food_percent: 100,
+                research_percent: 100,
+                maintenance_percent: 100,
+                unit_upkeep_percent: 100,
+                wizards: (
+                    randomise: true,
+                    consolidate_percent: 0,
+                    erasure_dice: (0, 0),
+                    myrran_rule: false,
+                ),
+            ),
+            world: (
+                lair_guard_percent: 25,
+                lair_treasure_percent: 400,
+                neutral_city_size_bonus: 0,
+                start_reveal_radius: 2.5,
+            ),
+            rules: (safe_flee: (human: true, ai: true)),
+            events: (random_events: false, pressure_percent: 50, frequency: Normal),
+            scoring: (score_percent: 50),
+        ),
+        // 1: Easy
+        (
+            wizards: (
+                starting_gold: (human: 100, ai: 150),
+                starting_mana: (human: 0, ai: 0),
+                picks: (human: 11, ai: 11),
+            ),
+            ai: (
+                growth_percent: 100,
+                outpost_growth_percent: 100,
+                production_percent: 125,
+                gold_percent: 125,
+                mana_percent: 125,
+                food_percent: 125,
+                research_percent: 100,
+                maintenance_percent: 90,
+                unit_upkeep_percent: 100,
+                wizards: (
+                    randomise: true,
+                    consolidate_percent: 0,
+                    erasure_dice: (0, 0),
+                    myrran_rule: false,
+                ),
+            ),
+            world: (
+                lair_guard_percent: 50,
+                lair_treasure_percent: 200,
+                neutral_city_size_bonus: 0,
+                start_reveal_radius: 2.5,
+            ),
+            rules: (safe_flee: (human: true, ai: true)),
+            events: (random_events: true, pressure_percent: 66, frequency: Normal),
+            scoring: (score_percent: 75),
+        ),
+        // 2: Average
+        (
+            wizards: (
+                starting_gold: (human: 75, ai: 150),
+                starting_mana: (human: 0, ai: 0),
+                picks: (human: 11, ai: 11),
+            ),
+            ai: (
+                growth_percent: 150,
+                outpost_growth_percent: 150,
+                production_percent: 150,
+                gold_percent: 150,
+                mana_percent: 150,
+                food_percent: 150,
+                research_percent: 100,
+                maintenance_percent: 75,
+                unit_upkeep_percent: 100,
+                wizards: (
+                    randomise: true,
+                    consolidate_percent: 0,
+                    erasure_dice: (1, 3),
+                    myrran_rule: false,
+                ),
+            ),
+            world: (
+                lair_guard_percent: 75,
+                lair_treasure_percent: 133,
+                neutral_city_size_bonus: 1,
+                start_reveal_radius: 2.5,
+            ),
+            rules: (safe_flee: (human: false, ai: false)),
+            events: (random_events: true, pressure_percent: 75, frequency: Normal),
+            scoring: (score_percent: 100),
+        ),
+        // 3: Hard
+        (
+            wizards: (
+                starting_gold: (human: 50, ai: 150),
+                starting_mana: (human: 0, ai: 0),
+                picks: (human: 11, ai: 13),
+            ),
+            ai: (
+                growth_percent: 200,
+                outpost_growth_percent: 200,
+                production_percent: 200,
+                gold_percent: 200,
+                mana_percent: 200,
+                food_percent: 200,
+                research_percent: 110,
+                maintenance_percent: 60,
+                unit_upkeep_percent: 75,
+                wizards: (
+                    randomise: true,
+                    consolidate_percent: 20,
+                    erasure_dice: (2, 3),
+                    myrran_rule: true,
+                ),
+            ),
+            world: (
+                lair_guard_percent: 100,
+                lair_treasure_percent: 100,
+                neutral_city_size_bonus: 1,
+                start_reveal_radius: 2.5,
+            ),
+            rules: (safe_flee: (human: false, ai: false)),
+            events: (random_events: true, pressure_percent: 80, frequency: Normal),
+            scoring: (score_percent: 200),
+        ),
+        // 4: Impossible
+        (
+            wizards: (
+                starting_gold: (human: 25, ai: 150),
+                starting_mana: (human: 0, ai: 0),
+                picks: (human: 11, ai: 15),
+            ),
+            ai: (
+                growth_percent: 400,
+                outpost_growth_percent: 400,
+                production_percent: 400,
+                gold_percent: 400,
+                mana_percent: 400,
+                food_percent: 400,
+                research_percent: 150,
+                maintenance_percent: 30,
+                unit_upkeep_percent: 50,
+                wizards: (
+                    randomise: true,
+                    consolidate_percent: 20,
+                    erasure_dice: (2, 5),
+                    myrran_rule: true,
+                ),
+            ),
+            world: (
+                lair_guard_percent: 125,
+                lair_treasure_percent: 100,
+                neutral_city_size_bonus: 1,
+                start_reveal_radius: 2.5,
+            ),
+            rules: (safe_flee: (human: false, ai: false)),
+            events: (random_events: true, pressure_percent: 100, frequency: Normal),
+            scoring: (score_percent: 300),
+        ),
+    ],
+
+    // The switches of the Settings screen (client preferences, kept in `saves/preferences.txt`
+    // once the player changes them): the state of each before that.
+    preferences: {
+        "sound_effects": true,
+        "background_music": true,
+        "event_music": true,
+        "city_spell_events": true,
+        "overland_spell_events": true,
+        "summoning_events": true,
+        "end_of_turn_summary": true,
+        "raze_city": true,
+        "random_events": true,
+        "end_of_turn_wait": true,
+        "strategic_combat_only": false,
+        "auto_unit_information": true,
+        "enemy_moves": true,
+        "enemy_spells": true,
+        "spell_book_ordering": true,
+        "spell_animations": true,
+        "show_node_owners": true,
+        "expanding_help": true,
+        "movement_animations": true,
+    },
+)

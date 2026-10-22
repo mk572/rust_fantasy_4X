@@ -158,7 +158,11 @@ ruleset data on purpose: changing them changes what every unit and spell means, 
 
 ### 3.2 Presets
 
-`Difficulty` is a preset that fills in the record. `GameSettings::for_difficulty(d)` returns the
+`Difficulty` is a preset that fills in the record. The figures of the five levels, the defaults of
+the new-game choices and the defaults of the Settings screen's switches are data, in
+`content/settings.ron` (`SettingsDef`, loaded into `Content.settings`, optional, layered like the
+other content files; it lists only the settings that exist, and each later one is added when it is
+implemented). The file also holds `max_opponents`, the `land_sizes` of the options step and, per level, `starting_mana`, `start_reveal_radius` (the first view around the capital: a step along a row or column counts 1, a diagonal 1.5, so 2.5 is a 5 by 5 block without its corners) and `events.pressure_percent` (the original's 50, 66, 75, 80 and 100 percent of the turns since the last event, `Determine_Event`). `GameSettings::for_difficulty(&content.settings, d)` returns the
 full record; the screens apply it when the player moves the difficulty control. The record also
 stores `difficulty` itself, because the AI (task 148) and the hall of fame read it.
 

@@ -97,8 +97,14 @@ pub fn content() -> Content {
     Content {
         terrains,
         features,
+        settings: settings(),
         ..Default::default()
     }
+}
+
+/// The shipped `content/settings.ron`, for tests that play a difficulty level.
+pub fn settings() -> crate::game::setting::SettingsDef {
+    ron::from_str(include_str!("../../../../content/settings.ron")).expect("settings.ron parses")
 }
 
 /// A unit definition with the stats movement and combat tests need.

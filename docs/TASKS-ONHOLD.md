@@ -1,16 +1,12 @@
-# Open tasks
+# Tasks on hold
 
-Everything not yet implemented, collected from the whole project history and the docs
-(`mechanics-gaps.md`, `help-vs-implementation-conflicts.md`, `magic.md`, `map-layers.md`,
-`design.md`). Keep the table in ascending order by number; new tasks go at their numeric place
+Everything not yet implemented, to be addressed after TASKS.md is emptied. 
+Keep the table in ascending order by number; new tasks go at their numeric place
 (or take the next free number). Bracketed numbers like [430] point at topics in the original help
 (`content-local/help.ron`); B/C numbers point at `help-vs-implementation-conflicts.md`.
 
-Combat is under way: 33, 34 and 40 are done (see [`combat.md`](combat.md)).
-Gaps found while working on the base game are added here as new tasks, not left in notes.
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
-Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md) (replacement art, formerly task 79, is item 12 there).
 
 ## Table
 
@@ -109,6 +105,7 @@ Improvements for after the basic game is online are in [`PLANNED.md`](PLANNED.md
 | 304 | AI | Neutral city AI: goals and objectives, and units that move |
 | 305 | Core | Lair spell treasure: research the original's intent, consider a change |
 | 306 | Client | Overland spell animations (summons, city and global spells, map squares) |
+| 343 | Map | Map size in `settings.ron` (the map generator and the feature counts follow the size) |
 
 ## Descriptions
 
@@ -356,3 +353,5 @@ Parity task, low priority.
 **299. Minimap: drag to scroll, and the other plane.** The minimap centres the map on a click; the original also scrolls while the button is held and shows the other plane through the Plane button's behaviour on it. Check the original's `Main_Screen` input for the minimap field before building it. Split from task 120.
 
 **306. Overland spell animations (summons, city and global spells, map squares).** Only the battle spell animations exist (`spell_fx.rs`, `battle_screen/spell_anim.rs`); the spells cast on the main map show a plain notice box or nothing. The original plays several kinds, listed spell by spell in [`overland_spell_animations.md`](overland_spell_animations.md) (152 spells, with the picture, the function and the conditions): (1) the **summon scene** for creature summons, Summon Hero and Champion, Enchant Item and Create Artifact (`Summon_Animation`, SPELLSCR backgrounds by race, `cmbtfx` 22); (2) the **city spell scroll** (SPELLSCR 73 with the cityscape, the building appearing, Earthquake's shake) for city enchantments, curses, Move Fortress, Wall of Stone, Spell Ward and Spell of Return; (3) the **global spell mirror** (**done, 18 October 2026**: `global_spell.rs`, for every wizard's cast; the swirl clearing the glass, the face dissolving into the spell's picture and the off-path still, with `--global SPELL [--global-by N] [--global-at SECONDS]` for screenshots; `Clipped_Copy_Mask` is read as clearing the picture where the mask is transparent, which ReMoM's own port does not do and notes as "IDGI"; the stage pace is the original's 110 ms; the music is task 76); (4) **square animations** (`Spell_Animation_Screen`: the map scrolls to the square and a `specfx` or `cmbtfx` picture plays) for unit enchantments, Change Terrain, Transmute, Raise Volcano, Corruption, Black Wind, Call the Void, Warp Node, Stasis, Nature's Cures, Chaos Channels, Lycanthropy, Word of Recall, Floating Island, Resurrection, Disenchant Area and True, Ice Storm and Fire Storm; (5) **Earth Lore and Enchant Road** (`specfx` 45 and 46, 22 steps), **Plane Shift**'s transition, and the **target-wizard** pictures (Spell Blast, Cruel Unminding, Drain Power, Subversion); (6) the **learn-spell animation** (**done, 18 October 2026**: `learn_spell.rs`, the wizard's lab then the library page decoded under the `specfx` 49 sparkle, and the "You have mastered the spell of X" box with the setting off; `--learn SPELL [--learn-at SECONDS]` for screenshots; the 110 ms lab loop is the original's, the 80 ms decode stage our own pace, the lab's fade to black and the fade into the book are not drawn). Wire each to the human's own casts first, then rivals' under the original's conditions (Enemy Spells setting, Detect Magic, contact, explored square; the table's rules section), and make all of them honour `Pref::SpellAnimations` with the original's off paths (task 280 only covers battle; `divergences.md` 30). The music of the summon, city and global scenes belongs to task 76. Doom Bolt, Star Fires and Warp Lightning have no overland cast in our content; decide whether they should (the original lets them hit an enemy stack). Task 287 (Spell of Mastery) stays separate. Asked for by the user, 18 October 2026.
+
+**343. Map size in `settings.ron`.** The map is 60 by 40 squares per plane, fixed in `GenParams` (`width`, `height`), and `content/settings.ron` only has the land share of the three land sizes (`land_sizes`). Let the file choose the map size too: give each entry of `land_sizes` (or a separate `map_sizes` list, if the land share and the size should be picked apart on the options step) a `width` and `height`, carry the choice in `GameSettings` so it is saved with the game, and have `setup::new_game` pass it to the generator. This is more than a number: `map::mapgen` assumes the 60 by 40 map in places, and the counts that scale with the area (towers, nodes per plane, minerals, strong and weak sites, neutral cities, lairs, the Myrror/Arcanus balance and the starting positions of up to five wizards in `setup::anchor`) are fixed numbers today. Decide which counts follow the area (per 2400 squares, as the original's) and which stay; check the noise scale of the land generator on other shapes (`freq` per width), the horizontal wrap on narrow maps, the minimap and scrolling in the client, the fog, and the AI's use of distances. The generator's own limits (8 to 1024) are far wider than anything the rest of the game has been tried on, so set a tested range in the file's validation. Tests: each size generates a valid map with every wizard placed and the feature counts in proportion; saves keep their size. Asked for by the user, 23 October 2026.

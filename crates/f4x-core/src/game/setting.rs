@@ -3,8 +3,10 @@
 //! `docs/game-settings.md`).
 //!
 //! Stage 1 holds the original's four new-game choices. The groups the design lists for later
-//! stages (wizards, AI, world, rules, victory, events, scoring) are added as fields with
-//! `#[serde(default)]` when they get a rule to read them, so no save needs a migration for them.
+//! stages (wizards, AI, world, rules, victory, events, scoring) are added when they get a rule to
+//! read them. The figures of the difficulty levels and the defaults of the settings screens are
+//! data, `content/settings.ron` ([`SettingsDef`]); only [`GameSettings::flat`] and the
+//! fallback [`BasicSettings::default`] for content without that file are in the code.
 
 use serde::{Deserialize, Serialize};
 
@@ -95,6 +97,8 @@ pub struct WizardSettings {
     /// Gold at the start: the original gives the human `(5 - difficulty) * 25` and every
     /// computer wizard 150.
     pub starting_gold: Split<i32>,
+    /// Mana in the treasury at the start (the original: none).
+    pub starting_mana: Split<i32>,
     /// Picks for books and retorts. The human's creation screen still spends 11 (it reads this
     /// in stage 3); the computer wizards' is read when they are made.
     pub picks: Split<u8>,
@@ -145,7 +149,18 @@ pub struct WorldSettings {
     pub lair_treasure_percent: u16,
     /// Added to the starting size of a neutral city.
     pub neutral_city_size_bonus: u8,
+    /// How far each wizard sees around their capital when the game starts.
+    pub start_reveal_radius: Radius,
 }
+
+/// A distance in squares on the map: a step along a row or column counts 1, a diagonal step 1.5
+/// (`map::fog::in_radius`), so 2.5 is a 5 by 5 block without its corners. Always a plain number
+/// (`validate` refuses the rest), which makes `Eq` sound.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Radius(pub f32);
+
+impl Eq for Radius {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleSettings {
@@ -166,6 +181,10 @@ pub enum EventFrequency {
 pub struct EventSettings {
     /// The original switches events off on Intro.
     pub random_events: bool,
+    /// The percent of the turns waited since the last event that count as pressure: the chance
+    /// of an event in a turn is the pressure over 512 (`world_event::scaled_pressure`). The
+    /// original's figure by level: 50, 66, 75, 80, 100.
+    pub pressure_percent: u16,
     #[serde(default)]
     pub frequency: EventFrequency,
 }
@@ -179,141 +198,165 @@ pub struct ScoreSettings {
 /// Everything a game is played with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameSettings {
-    #[serde(default)]
     pub basic: BasicSettings,
-    #[serde(default)]
     pub wizards: WizardSettings,
-    #[serde(default)]
     pub ai: AiSettings,
-    #[serde(default)]
     pub world: WorldSettings,
-    #[serde(default)]
     pub rules: RuleSettings,
-    #[serde(default)]
     pub events: EventSettings,
-    #[serde(default)]
     pub scoring: ScoreSettings,
 }
 
-/// The original's figure for each level (Intro to Impossible).
-fn by_level<T: Copy>(table: [T; 5], difficulty: u8) -> T {
-    table[usize::from(difficulty.min(4))]
+/// One difficulty level of `content/settings.ron`: what choosing it fills in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LevelDef {
+    pub wizards: WizardSettings,
+    pub ai: AiSettings,
+    pub world: WorldSettings,
+    pub rules: RuleSettings,
+    pub events: EventSettings,
+    pub scoring: ScoreSettings,
 }
 
-impl WizardSettings {
-    fn for_difficulty(d: u8) -> Self {
+/// How many difficulty levels the file has (Intro to Impossible).
+pub const LEVELS: usize = 5;
+
+/// One land size on the new-game options step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LandSize {
+    pub name: String,
+    /// Land as a share of each plane's tiles.
+    pub land_percent: u8,
+}
+
+/// How many opponents the game offers at most (the original: four).
+pub const MAX_OPPONENTS: u8 = 4;
+
+/// `content/settings.ron`: the difficulty levels, the defaults of the new-game choices and of the
+/// client's preference switches. A file without it (the test content) leaves `levels` empty, and
+/// a game then plays the symmetric [`GameSettings::flat`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SettingsDef {
+    /// The new-game choices before the player changes them.
+    pub new_game: BasicSettings,
+    /// The most computer wizards a new game can have, 1 to [`MAX_OPPONENTS`].
+    pub max_opponents: u8,
+    /// The land sizes the options step offers, smallest first.
+    pub land_sizes: Vec<LandSize>,
+    /// Intro, Easy, Average, Hard, Impossible; empty or exactly [`LEVELS`].
+    pub levels: Vec<LevelDef>,
+    /// The Settings screen's switches by name (the client knows the names), on or off.
+    pub preferences: std::collections::BTreeMap<String, bool>,
+}
+
+impl Default for SettingsDef {
+    /// Content without a `settings.ron`: the original's three land sizes and four opponents.
+    fn default() -> Self {
+        let size = |name: &str, land_percent| LandSize {
+            name: name.into(),
+            land_percent,
+        };
         Self {
-            starting_gold: Split {
-                human: (5 - i32::from(d.min(4))) * 25,
-                ai: 150,
-            },
-            picks: Split {
-                human: 11,
-                ai: by_level([11, 11, 11, 13, 15], d),
-            },
+            new_game: BasicSettings::default(),
+            max_opponents: MAX_OPPONENTS,
+            land_sizes: vec![
+                size("Small", LAND_SMALL),
+                size("Medium", LAND_MEDIUM),
+                size("Large", LAND_LARGE),
+            ],
+            levels: Vec::new(),
+            preferences: Default::default(),
         }
     }
 }
 
-impl AiSettings {
-    fn for_difficulty(d: u8) -> Self {
-        Self {
-            growth_percent: by_level([100, 100, 150, 200, 400], d),
-            outpost_growth_percent: by_level([100, 100, 150, 200, 400], d),
-            production_percent: by_level([100, 125, 150, 200, 400], d),
-            gold_percent: by_level([100, 125, 150, 200, 400], d),
-            mana_percent: by_level([100, 125, 150, 200, 400], d),
-            food_percent: by_level([100, 125, 150, 200, 400], d),
-            research_percent: by_level([100, 100, 100, 110, 150], d),
-            maintenance_percent: by_level([100, 90, 75, 60, 30], d),
-            unit_upkeep_percent: by_level([100, 100, 100, 75, 50], d),
-            wizards: AiWizardSettings {
-                randomise: true,
-                consolidate_percent: by_level([0, 0, 0, 20, 20], d),
-                erasure_dice: by_level([(0, 0), (0, 0), (1, 3), (2, 3), (2, 5)], d),
-                myrran_rule: d > 2,
-            },
-        }
+impl SettingsDef {
+    /// The level `difficulty` (above Impossible counts as Impossible), if the file has levels.
+    pub fn level(&self, difficulty: u8) -> Option<&LevelDef> {
+        self.levels.get(usize::from(difficulty.min(4)))
     }
-}
 
-impl WorldSettings {
-    fn for_difficulty(d: u8) -> Self {
-        Self {
-            // `(d + 1) / 4` of the guards' budget and `4 / (d + 1)` of the treasure, none at
-            // Impossible (`MAPGEN.c`).
-            lair_guard_percent: by_level([25, 50, 75, 100, 125], d),
-            lair_treasure_percent: by_level([400, 200, 133, 100, 100], d),
-            neutral_city_size_bonus: by_level([0, 0, 1, 1, 1], d),
+    /// Every problem with the file, in words (empty when it is fine): the number of levels, and
+    /// each level and the new-game choices within range.
+    pub fn validate(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        if !self.levels.is_empty() && self.levels.len() != LEVELS {
+            problems.push(format!(
+                "settings.ron has {} levels, not {LEVELS}",
+                self.levels.len()
+            ));
         }
-    }
-}
-
-impl RuleSettings {
-    fn for_difficulty(d: u8) -> Self {
-        Self {
-            safe_flee: Split::both(d <= 1),
+        for d in 0..self.levels.len() as u8 {
+            let level = GameSettings::for_difficulty(self, d);
+            problems.extend(
+                level
+                    .validate()
+                    .into_iter()
+                    .map(|p| format!("level {d}: {p}")),
+            );
         }
-    }
-}
-
-impl EventSettings {
-    fn for_difficulty(d: u8) -> Self {
-        Self {
-            random_events: d != 0,
-            frequency: EventFrequency::Normal,
+        if !(1..=MAX_OPPONENTS).contains(&self.max_opponents) {
+            problems.push(format!(
+                "max_opponents {} is not 1 to {MAX_OPPONENTS}",
+                self.max_opponents
+            ));
+        } else if self.new_game.opponents > self.max_opponents {
+            problems.push(format!(
+                "new_game: {} opponents is over max_opponents {}",
+                self.new_game.opponents, self.max_opponents
+            ));
         }
-    }
-}
-
-impl ScoreSettings {
-    fn for_difficulty(d: u8) -> Self {
-        Self {
-            score_percent: by_level([50, 75, 100, 200, 300], d),
+        if self.land_sizes.is_empty() {
+            problems.push("land_sizes is empty".into());
         }
-    }
-}
-
-macro_rules! group_default {
-    ($($group:ident),*) => {$(
-        impl Default for $group {
-            fn default() -> Self {
-                Self::for_difficulty(DEFAULT_DIFFICULTY)
+        for size in &self.land_sizes {
+            if size.name.trim().is_empty() || !(1..=99).contains(&size.land_percent) {
+                problems.push(format!(
+                    "land size {:?}: {}% is not 1 to 99 or the name is empty",
+                    size.name, size.land_percent
+                ));
             }
         }
-    )*};
-}
-group_default!(
-    WizardSettings,
-    AiSettings,
-    WorldSettings,
-    RuleSettings,
-    EventSettings,
-    ScoreSettings
-);
-
-impl Default for GameSettings {
-    fn default() -> Self {
-        Self::for_difficulty(DEFAULT_DIFFICULTY)
+        let choices = GameSettings {
+            basic: self.new_game,
+            ..GameSettings::flat()
+        };
+        problems.extend(
+            choices
+                .validate()
+                .into_iter()
+                .map(|p| format!("new_game: {p}")),
+        );
+        problems
     }
 }
 
 impl GameSettings {
-    /// The settings of a difficulty level: the original's figures for it, with the other basic
-    /// choices at their defaults.
-    pub fn for_difficulty(difficulty: u8) -> Self {
+    /// The settings of a difficulty level: the file's figures for it, with the other basic
+    /// choices at their defaults. Without levels in the file it is [`GameSettings::flat`].
+    pub fn for_difficulty(def: &SettingsDef, difficulty: u8) -> Self {
         let d = difficulty.min(4);
+        let Some(level) = def.level(d) else {
+            return Self {
+                basic: BasicSettings {
+                    difficulty: d,
+                    ..def.new_game
+                },
+                ..Self::flat()
+            };
+        };
         Self {
             basic: BasicSettings {
                 difficulty: d,
-                ..BasicSettings::default()
+                ..def.new_game
             },
-            wizards: WizardSettings::for_difficulty(d),
-            ai: AiSettings::for_difficulty(d),
-            world: WorldSettings::for_difficulty(d),
-            rules: RuleSettings::for_difficulty(d),
-            events: EventSettings::for_difficulty(d),
-            scoring: ScoreSettings::for_difficulty(d),
+            wizards: level.wizards,
+            ai: level.ai,
+            world: level.world,
+            rules: level.rules,
+            events: level.events,
+            scoring: level.scoring,
         }
     }
 
@@ -322,30 +365,46 @@ impl GameSettings {
     /// for each, no safe flee, no score scale. **Internal**: for the soak, the learning AI and
     /// the tests, never offered on a screen.
     pub fn flat() -> Self {
-        let mut s = Self::for_difficulty(DEFAULT_DIFFICULTY);
-        s.wizards = WizardSettings {
-            starting_gold: Split::both(100),
-            picks: Split::both(11),
-        };
-        s.ai = AiSettings {
-            growth_percent: 100,
-            outpost_growth_percent: 100,
-            production_percent: 100,
-            gold_percent: 100,
-            mana_percent: 100,
-            food_percent: 100,
-            research_percent: 100,
-            maintenance_percent: 100,
-            unit_upkeep_percent: 100,
-            wizards: AiWizardSettings {
-                randomise: false,
-                consolidate_percent: 0,
-                erasure_dice: (0, 0),
-                myrran_rule: false,
+        Self {
+            basic: BasicSettings::default(),
+            wizards: WizardSettings {
+                starting_gold: Split::both(100),
+                starting_mana: Split::both(0),
+                picks: Split::both(11),
             },
-        };
-        s.rules.safe_flee = Split::both(false);
-        s
+            ai: AiSettings {
+                growth_percent: 100,
+                outpost_growth_percent: 100,
+                production_percent: 100,
+                gold_percent: 100,
+                mana_percent: 100,
+                food_percent: 100,
+                research_percent: 100,
+                maintenance_percent: 100,
+                unit_upkeep_percent: 100,
+                wizards: AiWizardSettings {
+                    randomise: false,
+                    consolidate_percent: 0,
+                    erasure_dice: (0, 0),
+                    myrran_rule: false,
+                },
+            },
+            world: WorldSettings {
+                lair_guard_percent: 75,
+                lair_treasure_percent: 133,
+                neutral_city_size_bonus: 1,
+                start_reveal_radius: Radius(2.5),
+            },
+            rules: RuleSettings {
+                safe_flee: Split::both(false),
+            },
+            events: EventSettings {
+                random_events: true,
+                pressure_percent: 75,
+                frequency: EventFrequency::Normal,
+            },
+            scoring: ScoreSettings { score_percent: 100 },
+        }
     }
 
     /// The same game with `n` opponents.
@@ -356,8 +415,8 @@ impl GameSettings {
 
     /// Whether every value the original's difficulty fills in is the level's own (the advanced
     /// screen shows "Custom" when it is not).
-    pub fn is_level(&self) -> bool {
-        let level = Self::for_difficulty(self.basic.difficulty);
+    pub fn is_level(&self, def: &SettingsDef) -> bool {
+        let level = Self::for_difficulty(def, self.basic.difficulty);
         self.wizards == level.wizards
             && self.ai == level.ai
             && self.world == level.world
@@ -399,6 +458,15 @@ impl GameSettings {
             check(
                 (0..=2000).contains(&gold),
                 format!("{who} starting gold {gold} is not 0 to 2000"),
+            );
+        }
+        for (who, mana) in [
+            ("your", w.starting_mana.human),
+            ("the AI's", w.starting_mana.ai),
+        ] {
+            check(
+                (0..=2000).contains(&mana),
+                format!("{who} starting mana {mana} is not 0 to 2000"),
             );
         }
         for (who, picks) in [("your", w.picks.human), ("the AI's", w.picks.ai)] {
@@ -451,6 +519,18 @@ impl GameSettings {
                 self.world.neutral_city_size_bonus
             ),
         );
+        let radius = self.world.start_reveal_radius.0;
+        check(
+            radius.is_finite() && (0.0..=10.0).contains(&radius),
+            format!("start reveal radius {radius} is not 0 to 10"),
+        );
+        check(
+            (10..=200).contains(&self.events.pressure_percent),
+            format!(
+                "event pressure {}% is not 10 to 200",
+                self.events.pressure_percent
+            ),
+        );
         check(
             (10..=500).contains(&self.scoring.score_percent),
             format!("score {}% is not 10 to 500", self.scoring.score_percent),
@@ -468,6 +548,8 @@ impl GameSettings {
         let w = &mut self.wizards;
         w.starting_gold.human = w.starting_gold.human.clamp(0, 2000);
         w.starting_gold.ai = w.starting_gold.ai.clamp(0, 2000);
+        w.starting_mana.human = w.starting_mana.human.clamp(0, 2000);
+        w.starting_mana.ai = w.starting_mana.ai.clamp(0, 2000);
         w.picks.human = w.picks.human.clamp(5, 20);
         w.picks.ai = w.picks.ai.clamp(5, 20);
         let a = &mut self.ai;
@@ -492,6 +574,13 @@ impl GameSettings {
         self.world.lair_guard_percent = self.world.lair_guard_percent.min(300);
         self.world.lair_treasure_percent = self.world.lair_treasure_percent.min(500);
         self.world.neutral_city_size_bonus = self.world.neutral_city_size_bonus.min(6);
+        let radius = self.world.start_reveal_radius.0;
+        self.world.start_reveal_radius = Radius(if radius.is_finite() {
+            radius.clamp(0.0, 10.0)
+        } else {
+            2.5
+        });
+        self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self
     }
@@ -532,10 +621,17 @@ impl crate::game::Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::testutil::settings;
+
+    /// The shipped level `d`.
+    fn at(d: u8) -> GameSettings {
+        GameSettings::for_difficulty(&settings(), d)
+    }
 
     #[test]
-    fn the_default_is_an_average_game() {
-        let s = GameSettings::default();
+    fn the_new_game_choices_default_to_an_average_game() {
+        let s = at(2);
+        assert_eq!(s.basic, settings().new_game);
         assert_eq!(s.basic.difficulty, 2);
         assert_eq!(s.basic.magic_strength, 1);
         assert_eq!(s.basic.land_percent, LAND_LARGE);
@@ -544,7 +640,6 @@ mod tests {
 
     #[test]
     fn the_levels_carry_the_originals_figures() {
-        let at = GameSettings::for_difficulty;
         let gold: Vec<(i32, i32)> = (0..5)
             .map(|d| {
                 (
@@ -576,7 +671,10 @@ mod tests {
         assert_eq!(at(0).world.lair_treasure_percent, 400);
         assert_eq!(at(3).world.lair_treasure_percent, 100);
         for d in 0..=4 {
-            assert!(at(d).is_level() && at(d).validate().is_empty(), "level {d}");
+            assert!(
+                at(d).is_level(&settings()) && at(d).validate().is_empty(),
+                "level {d}"
+            );
         }
     }
 
@@ -586,27 +684,74 @@ mod tests {
         assert_eq!(flat.wizards.starting_gold, Split::both(100));
         assert_eq!(flat.ai.production_percent, 100);
         assert!(!flat.ai.wizards.randomise);
-        assert!(!flat.is_level(), "it is not Average");
+        assert!(!flat.is_level(&settings()), "it is not Average");
         assert!(flat.validate().is_empty());
-        let mut s = GameSettings::default();
+        let mut s = at(2);
         s.wizards.starting_gold.human = 200;
-        assert!(!s.is_level());
+        assert!(!s.is_level(&settings()));
         s.wizards.starting_gold.human = 75;
-        assert!(s.is_level());
+        assert!(s.is_level(&settings()));
         // Extras do not make a game Custom.
         s.basic.opponents = 3;
-        assert!(s.is_level());
+        assert!(s.is_level(&settings()));
+    }
+
+    #[test]
+    fn without_levels_a_difficulty_is_the_flat_game_at_that_level() {
+        let none = SettingsDef::default();
+        let s = GameSettings::for_difficulty(&none, 3);
+        assert_eq!(s.basic.difficulty, 3);
+        assert_eq!(
+            GameSettings {
+                basic: BasicSettings::default(),
+                ..s
+            },
+            GameSettings::flat()
+        );
+    }
+
+    #[test]
+    fn the_shipped_flat_game_is_the_averages_world() {
+        // `flat` keeps the Average level's world, events and score, as it always did.
+        let (flat, average) = (GameSettings::flat(), at(2));
+        assert_eq!(flat.world, average.world);
+        assert_eq!(flat.events, average.events);
+        assert_eq!(flat.scoring, average.scoring);
+    }
+
+    #[test]
+    fn a_settings_file_is_checked_for_its_level_count_and_ranges() {
+        assert!(settings().validate().is_empty());
+        let mut def = settings();
+        def.levels.pop();
+        assert_eq!(def.validate().len(), 1, "{:?}", def.validate());
+        let mut def = settings();
+        def.max_opponents = 5;
+        def.land_sizes.clear();
+        assert_eq!(def.validate().len(), 2, "{:?}", def.validate());
+        let mut def = settings();
+        def.new_game.opponents = 3;
+        def.max_opponents = 2;
+        def.levels[0].world.start_reveal_radius = Radius(f32::NAN);
+        def.levels[1].events.pressure_percent = 0;
+        assert_eq!(def.validate().len(), 3, "{:?}", def.validate());
+        let mut def = settings();
+        def.levels[3].ai.gold_percent = 5;
+        def.new_game.opponents = 9;
+        let problems = def.validate();
+        assert!(problems.iter().any(|p| p.starts_with("level 3:")));
+        assert!(problems.iter().any(|p| p.starts_with("new_game:")));
     }
 
     #[test]
     fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
         for level in 0..=4 {
-            let s = GameSettings::for_difficulty(level);
+            let s = at(level);
             assert_eq!(s.basic.difficulty, level);
             assert!(s.validate().is_empty());
         }
-        assert_eq!(GameSettings::for_difficulty(9).basic.difficulty, 4);
-        let mut s = GameSettings::default();
+        assert_eq!(at(9).basic.difficulty, 4);
+        let mut s = at(2);
         s.basic.difficulty = 7;
         s.basic.opponents = 0;
         s.basic.land_percent = 100;
@@ -626,14 +771,5 @@ mod tests {
             ),
             (4, 1, 99, 2)
         );
-    }
-
-    #[test]
-    fn a_record_with_missing_fields_reads_with_the_defaults() {
-        let s: GameSettings = ron::from_str("(basic: (difficulty: 3))").unwrap();
-        assert_eq!(s.basic.difficulty, 3);
-        assert_eq!(s.basic.land_percent, LAND_LARGE);
-        let s: GameSettings = ron::from_str("()").unwrap();
-        assert_eq!(s, GameSettings::default());
     }
 }

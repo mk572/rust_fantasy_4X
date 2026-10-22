@@ -86,7 +86,7 @@ impl Game {
     fn determine_event(&mut self, rng: &mut GameRng) -> Option<Armed> {
         let pressure = self.events.pressure(
             self.turn,
-            self.settings.basic.difficulty,
+            self.settings.events.pressure_percent,
             self.settings.events.frequency,
         );
         if !fires(pressure, rng.roll(512)) {

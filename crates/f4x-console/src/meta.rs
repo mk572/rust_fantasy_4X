@@ -196,7 +196,8 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let e = ctx.game.settings().events;
     if e.random_events {
         let chance = |turns| {
-            f4x_core::world_event::scaled_pressure(turns, b.difficulty, e.frequency) as f32 * 100.0
+            f4x_core::world_event::scaled_pressure(turns, e.pressure_percent, e.frequency) as f32
+                * 100.0
                 / 512.0
         };
         ctx.say(format!(
@@ -374,17 +375,33 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 let n: u8 = v.parse().map_err(|_| {
                     ConsoleError::Parse(format!("{v:?} is not a number of wizards"))
                 })?;
-                if !(2..=5).contains(&n) {
-                    return Err(ConsoleError::Parse("a game has 2 to 5 wizards".into()));
+                let most = ctx.game.content().settings.max_opponents + 1;
+                if !(2..=most).contains(&n) {
+                    return Err(ConsoleError::Parse(format!(
+                        "a game has 2 to {most} wizards"
+                    )));
                 }
                 spec.settings.basic.opponents = n - 1;
             }
-            "land" => spec.settings.basic.land_percent = parse_choice(v, "land", &LAND, 1, 99)?,
+            "land" => {
+                // The sizes of `settings.ron`, by lower-case name.
+                let sizes = &ctx.game.content().settings.land_sizes;
+                let names: Vec<String> = sizes.iter().map(|s| s.name.to_lowercase()).collect();
+                let table: Vec<(&str, u8)> = names
+                    .iter()
+                    .map(String::as_str)
+                    .zip(sizes.iter().map(|s| s.land_percent))
+                    .collect();
+                spec.settings.basic.land_percent = parse_choice(v, "land", &table, 1, 99)?;
+            }
             "difficulty" => {
                 // A level brings the original's figures for it; the other basic choices stay.
                 let level = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?;
                 let basic = spec.settings.basic;
-                spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(level);
+                spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(
+                    &ctx.game.content().settings,
+                    level,
+                );
                 spec.settings.basic = f4x_core::game::setting::BasicSettings {
                     difficulty: level,
                     ..basic
@@ -427,11 +444,6 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 const ON_OFF: [(&str, u8); 2] = [("off", 0), ("on", 1)];
-const LAND: [(&str, u8); 3] = [
-    ("small", f4x_core::game::setup::LAND_SMALL),
-    ("medium", f4x_core::game::setup::LAND_MEDIUM),
-    ("large", f4x_core::game::setup::LAND_LARGE),
-];
 const DIFFICULTY: [(&str, u8); 5] = [
     ("intro", 0),
     ("easy", 1),

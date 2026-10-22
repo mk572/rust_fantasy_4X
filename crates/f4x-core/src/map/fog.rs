@@ -25,8 +25,14 @@ const AT_CORNER: [(u8, [(i32, i32); 3]); 4] = [
 /// a square is in sight up to `range + 0.5`, which makes the original's shapes (range 1 is
 /// the tile and the eight round it, range 2 a 5 by 5 block without its corners).
 pub fn in_sight(dx: i32, dy: i32, range: i32) -> bool {
+    in_radius(dx, dy, range as f32 + 0.5)
+}
+
+/// Whether a square `dx, dy` away is within `radius`, where a step along a row or column counts 1
+/// and a diagonal step 1.5 (so radius 2.5 is a 5 by 5 block without its corners).
+pub fn in_radius(dx: i32, dy: i32, radius: f32) -> bool {
     let (long, short) = (dx.abs().max(dy.abs()), dx.abs().min(dy.abs()));
-    2 * long + short <= 2 * range + 1
+    (2 * long + short) as f32 <= 2.0 * radius
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -103,6 +109,31 @@ impl Fog {
                 layer[(y * w + x) as usize] = true;
             }
         }
+    }
+
+    /// Mark every tile within `radius` (see [`in_radius`]) as explored.
+    pub fn explore_within(&mut self, player: PlayerId, at: Position, radius: f32) {
+        if self.width == 0 {
+            return;
+        }
+        let (w, h) = (self.width as i32, self.height as i32);
+        let layer = self.layer(player, at.plane);
+        let r = radius.ceil() as i32;
+        for dy in -r..=r {
+            let y = at.y as i32 + dy;
+            if !(0..h).contains(&y) {
+                continue;
+            }
+            for dx in (-r..=r).filter(|&dx| in_radius(dx, dy, radius)) {
+                let x = (at.x as i32 + dx).rem_euclid(w);
+                layer[(y * w + x) as usize] = true;
+            }
+        }
+    }
+
+    /// Forget everything `player` has explored.
+    pub fn forget(&mut self, player: PlayerId) {
+        self.explored.remove(&player);
     }
 
     /// Mark a `width` by `height` block of tiles, centred as nearly as it can on `at`

@@ -2,6 +2,7 @@
 //! switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// The switches in the order of the original's file.
@@ -101,7 +102,7 @@ impl Pref {
         }
     }
 
-    /// Everything is on except strategic combat.
+    /// The state without a `settings.ron`: everything is on except strategic combat.
     fn default_on(self) -> bool {
         self != Pref::StrategicCombatOnly
     }
@@ -136,10 +137,23 @@ impl Preferences {
         self.on[p as usize] = !self.on[p as usize];
     }
 
-    /// Read the file; a missing or damaged one gives the defaults, and a name it does not
-    /// know is skipped.
-    pub fn load(path: &Path) -> Self {
+    /// The switches as `content/settings.ron` sets them; one it does not name stays at the
+    /// built-in default. A name that is no switch is an error (a typo would go unnoticed).
+    pub fn from_defaults(named: &BTreeMap<String, bool>) -> Result<Self, String> {
         let mut prefs = Self::default();
+        for (key, &on) in named {
+            let Some(&p) = PREFS.iter().find(|p| p.key() == key) else {
+                return Err(format!("settings.ron: {key:?} is not a preference"));
+            };
+            prefs.set(p, on);
+        }
+        Ok(prefs)
+    }
+
+    /// Read the file over `base`; a missing or damaged one gives `base`, and a name it does not
+    /// know is skipped.
+    pub fn load(path: &Path, base: Self) -> Self {
+        let mut prefs = base;
         let Ok(text) = std::fs::read_to_string(path) else {
             return prefs;
         };
@@ -187,10 +201,31 @@ mod tests {
         let mut text = std::fs::read_to_string(&path).unwrap();
         text.push_str("nonsense=1\njunk\n");
         std::fs::write(&path, text).unwrap();
-        assert_eq!(Preferences::load(&path), p);
+        assert_eq!(Preferences::load(&path, Preferences::default()), p);
         assert_eq!(
-            Preferences::load(&dir.join("gone.txt")),
+            Preferences::load(&dir.join("gone.txt"), Preferences::default()),
             Preferences::default()
         );
+    }
+
+    #[test]
+    fn the_defaults_come_from_the_settings_file_and_a_saved_file_wins() {
+        let named: BTreeMap<_, _> = [("sound_effects".to_string(), false)].into();
+        let base = Preferences::from_defaults(&named).unwrap();
+        assert!(!base.get(Pref::SoundEffects) && base.get(Pref::RazeCity));
+        let gone = Path::new("no/such/preferences.txt");
+        assert_eq!(Preferences::load(gone, base.clone()), base);
+        let typo: BTreeMap<_, _> = [("sound_effect".to_string(), false)].into();
+        assert!(Preferences::from_defaults(&typo).is_err());
+    }
+
+    #[test]
+    fn the_shipped_settings_name_every_preference() {
+        let def = f4x_data::load_settings(&[Path::new("../../content")]).unwrap();
+        for p in PREFS {
+            assert!(def.preferences.contains_key(p.key()), "{}", p.key());
+        }
+        let base = Preferences::from_defaults(&def.preferences).unwrap();
+        assert!(!base.get(Pref::StrategicCombatOnly) && base.get(Pref::SoundEffects));
     }
 }

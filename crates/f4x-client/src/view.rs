@@ -239,14 +239,15 @@ impl App {
             .iter()
             .position(|r| !r.city_names.is_empty())
             .unwrap_or(0);
-        let options = OptionsState::default();
+        let options = OptionsState::from_settings(&content.settings);
+        let prefs = crate::preferences::Preferences::from_defaults(&content.settings.preferences)?;
         let game = Self::new_game(seed, &options, &content, None, race, true)?;
         let mut app = Self {
             game,
             art,
             params,
             options,
-            prefs: Default::default(),
+            prefs,
             chancellor: None,
             list_box: None,
             vizier_ask: false,
@@ -349,10 +350,12 @@ impl App {
             build: human.cloned(),
             race: content.rules.races.defs().get(race).map(|r| r.id.clone()),
             settings: {
-                let mut s =
-                    f4x_core::game::setting::GameSettings::for_difficulty(options.difficulty);
-                s.basic.opponents = options.opponents.clamp(1, 4);
-                s.basic.land_percent = options.land_percent();
+                let mut s = f4x_core::game::setting::GameSettings::for_difficulty(
+                    &content.settings,
+                    options.difficulty,
+                );
+                s.basic.opponents = options.opponents.clamp(1, content.settings.max_opponents);
+                s.basic.land_percent = options.land_percent(&content.settings);
                 s.basic.magic_strength = options.magic;
                 // The Random Events preference is the default for a new game; a level that
                 // plays without events (Intro) keeps them off.

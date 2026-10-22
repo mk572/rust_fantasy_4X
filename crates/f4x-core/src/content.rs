@@ -201,4 +201,6 @@ pub struct Content {
     pub terrains: Terrains,
     pub features: Features,
     pub rules: crate::rules::Rules,
+    /// Difficulty levels and the defaults of the settings screens (`settings.ron`).
+    pub settings: crate::game::setting::SettingsDef,
 }

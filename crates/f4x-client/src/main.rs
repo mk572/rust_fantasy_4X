@@ -414,7 +414,7 @@ async fn main() {
     app.help = help;
     app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
     app.messages = f4x_data::load_messages(&options.content).unwrap_or_default();
-    app.prefs = preferences::Preferences::load(Path::new(preferences::FILE));
+    app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
             eprintln!("could not load {}: {e}", path.display());
