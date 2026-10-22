@@ -236,7 +236,7 @@ impl Game {
     /// Warp Node: a node somebody owns turns against them, draining five power.
     pub fn can_warp_node(&self, at: Position, caster: PlayerId) -> bool {
         self.node_at(at)
-            .is_some_and(|n| n.owner.is_some_and(|o| o != caster.0) && !n.warped)
+            .is_some_and(|n| n.owner.is_some_and(|o| o != caster) && !n.warped)
     }
 
     pub(crate) fn warp_node(&mut self, at: Position) -> Vec<Event> {

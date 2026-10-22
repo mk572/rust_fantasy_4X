@@ -245,7 +245,7 @@ impl Game {
         if let Some(map) = self.map.as_mut() {
             for i in 0..map.nodes().len() {
                 if let Some(n) = map.node_mut(i) {
-                    if n.owner == Some(loser.0) {
+                    if n.owner == Some(loser) {
                         n.owner = None;
                         n.guardian = false;
                     }

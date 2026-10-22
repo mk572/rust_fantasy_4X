@@ -104,10 +104,14 @@ pub fn player_name(world: &hecs::World, id: PlayerId) -> String {
         return w.name();
     }
     world
-        .query::<(&crate::city::City, &crate::game::serial::Serial)>()
+        .query::<(
+            &crate::city::City,
+            &crate::player::Owner,
+            &crate::game::serial::Serial,
+        )>()
         .iter()
-        .filter(|(_, (c, _))| c.owner == id)
-        .min_by_key(|(_, (_, s))| s.0)
-        .map(|(_, (c, _))| c.name.clone())
+        .filter(|(_, (_, o, _))| crate::player::id_of(world, o.0) == Some(id))
+        .min_by_key(|(_, (_, _, s))| s.0)
+        .map(|(_, (c, _, _))| c.name.clone())
         .unwrap_or_default()
 }

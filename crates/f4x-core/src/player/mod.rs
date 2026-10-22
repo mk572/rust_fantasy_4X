@@ -19,12 +19,24 @@ pub struct PlayerId(pub u8);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WizardLink(pub hecs::Entity);
 
+/// On a unit, hero or city: the player entity it belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Owner(pub PlayerId);
+pub struct Owner(pub hecs::Entity);
 
-/// Owner of monsters and unclaimed sites. Its units last until someone kills them (the lair
-/// guards are made for a fight and removed after it; undead raised for the monsters stay).
-pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);
+/// The [`PlayerId`] of a player entity.
+pub fn id_of(world: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
+    world.get::<&PlayerId>(player).ok().map(|id| *id)
+}
+
+/// On a player that is no wizard: the monsters' owner and each independent city's own player (task
+/// 31). It has no wizard, no magic, no victory, no fog and no AI of a wizard's kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Neutral;
+
+/// The id of the one neutral player that owns the monsters of lairs and nodes. Its units last
+/// until someone kills them (the lair guards are made for a fight and removed after it; undead
+/// raised for the monsters stay).
+pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
@@ -57,9 +69,6 @@ pub struct Player {
     pub defeated_by: Option<PlayerId>,
     /// The Grand Vizier chooses what this player's cities build next.
     pub grand_vizier: bool,
-    /// An independent city's own player (task 31): it has a treasury and pays its way like a
-    /// wizard, but is no wizard (no magic, no victory, no AI).
-    pub neutral: bool,
     /// The computer wizards' difficulty bonuses (percents of what a human would get). Set from
     /// the game's settings (`Game::apply_wizard_settings`), not saved.
     pub bonus: Bonus,
@@ -147,17 +156,8 @@ impl Player {
             defeated: false,
             defeated_by: None,
             grand_vizier: false,
-            neutral: false,
             bonus: Bonus::default(),
             history: Vec::new(),
-        }
-    }
-
-    /// The player of one neutral city: builds by the Grand Vizier's order, brown banner.
-    pub fn new_neutral() -> Self {
-        Self {
-            neutral: true,
-            ..Self::new()
         }
     }
 }
@@ -239,7 +239,11 @@ pub fn all(world: &hecs::World) -> Vec<(PlayerId, PlayerRef<'_>)> {
 
 /// Every player id, ascending (ids are handed out in the order players are made).
 pub fn ids(world: &hecs::World) -> Vec<PlayerId> {
-    let mut ids: Vec<PlayerId> = world.query::<&PlayerId>().iter().map(|(_, &p)| p).collect();
+    let mut ids: Vec<PlayerId> = world
+        .query::<(&PlayerId, &Player)>()
+        .iter()
+        .map(|(_, (&p, _))| p)
+        .collect();
     ids.sort();
     ids
 }

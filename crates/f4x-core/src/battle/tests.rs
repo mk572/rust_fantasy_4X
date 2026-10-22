@@ -486,6 +486,9 @@ fn game() -> Game {
     let mut g = Game::new(5);
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
+    for id in [A, D] {
+        g.add_player(id, "", crate::player::Player::new());
+    }
     g
 }
 
@@ -591,10 +594,15 @@ fn battles_need_two_sides_of_opposing_players_standing_together() {
     let mine = g.spawn_unit(A, at(5, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     let reject = |g: &mut Game, att: Vec<hecs::Entity>, def: Vec<hecs::Entity>| {
-        g.apply(Command::BeginBattle {
+        let events = g.apply(Command::BeginBattle {
             attackers: att,
             defenders: def,
-        })
+        });
+        // Meeting is no part of this question.
+        events
+            .into_iter()
+            .filter(|e| !matches!(e, Event::Diplomacy(_)))
+            .collect::<Vec<_>>()
     };
     let bad = vec![Event::Rejected(Rejection::BattleStart(
         BattleStartError::BadSides,
@@ -2469,11 +2477,8 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 
 #[test]
 fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() {
-    use crate::player::Player;
     let mut g = casting_game();
-    let mut wizard = Player::new();
-    wizard.mana = 2000;
-    g.add_player(A, "Merlin", wizard);
+    g.player_mut(A).unwrap().mana = 2000;
     g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
     let call = g.content.rules.spells.id_of("call_chaos").unwrap();
     {
@@ -2605,7 +2610,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
     assert!(b.unit(1).unwrap().hit_points() <= hp);
     assert_eq!(b.unit(0).unwrap().moves_left, 0);
     assert!(
-        b.caster(Side::Attacker).is_none(),
+        b.caster(Side::Attacker).is_none_or(|c| !c.cast_this_turn),
         "the wizard did not cast"
     );
     let again = g.battle_command(BattleCommand::UnitCast {
@@ -2894,7 +2899,6 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
 #[test]
 fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() {
     let mut g = hook_game("word_of_recall");
-    g.add_player(A, "A", crate::player::Player::new());
     let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
     assert_eq!(no_circle, Err(BattleError::Spell(SpellError::BadTarget)));
     g.pl_mut(0).summon_at = Some(at(1, 1));
@@ -2924,7 +2928,6 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
     g.content.rules.units = crate::rules::Registry::new(defs);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let lord = g.spawn_unit(A, at(4, 4), walker);
-    g.add_player(A, "A", crate::player::Player::new());
     begin(&mut g, lord);
     assert!(g.can_summon_demon(0));
     // Not the other side's unit, not a unit without the ability.
@@ -3372,9 +3375,6 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
         u.abilities.extend(abilities.iter().map(|a| a.to_string()));
     }
     g.content.rules.units = crate::rules::Registry::new(units);
-    for (id, name) in [(A, "A"), (D, "D")] {
-        g.add_player(id, name, crate::player::Player::new());
-    }
     g
 }
 

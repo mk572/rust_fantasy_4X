@@ -220,7 +220,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .players()
         .into_iter()
-        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .filter(|(id, _)| !ctx.game.is_neutral_player(*id))
         .map(|(id, p)| {
             let state = if p.defeated {
                 "defeated"

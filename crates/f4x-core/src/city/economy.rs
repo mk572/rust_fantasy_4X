@@ -15,7 +15,7 @@ use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
 
-use crate::city::City;
+use crate::city::{City, CityInfo};
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane, Position};
 use crate::player::{Owner, PlayerId, PlayerRef};
@@ -129,12 +129,22 @@ impl<'a> Economy<'a> {
     }
 
     /// All cities with their positions, oldest first.
-    pub fn cities(&self) -> Vec<(hecs::Entity, City, Position)> {
+    pub fn cities(&self) -> Vec<(hecs::Entity, CityInfo, Position)> {
         let mut out: Vec<_> = self
             .world
-            .query::<(&City, &Position)>()
+            .query::<(&City, &Position, &Owner)>()
             .iter()
-            .map(|(e, (c, p))| (e, c.clone(), *p))
+            .filter_map(|(e, (c, p, o))| {
+                let owner = crate::player::id_of(self.world, o.0)?;
+                Some((
+                    e,
+                    CityInfo {
+                        name: c.name.clone(),
+                        owner,
+                    },
+                    *p,
+                ))
+            })
             .collect();
         let units = self.units();
         out.sort_by_cached_key(|(e, ..)| (units.serial_of(*e), e.id()));
@@ -190,7 +200,7 @@ impl<'a> Economy<'a> {
             let evil = self.evil_presence_active(city);
             // Divine and Infernal Power add half again to the power and the pacifying of the
             // religious buildings: the original adds the buildings up, then takes 150 percent.
-            let owner = self.world.get::<&City>(city).ok().map(|c| c.owner);
+            let owner = self.city_owner(city);
             let devout = owner
                 .and_then(|o| self.magic(o))
                 .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
@@ -492,7 +502,7 @@ impl<'a> Economy<'a> {
     /// Compute the city's yields as if `farmers` citizens farmed.
     pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
         let at = *self.world.get::<&Position>(city).ok()?;
-        let owner = self.world.get::<&City>(city).ok()?.owner;
+        let owner = self.city_owner(city)?;
         let pop = self
             .world
             .get::<&Population>(city)
@@ -824,7 +834,12 @@ impl<'a> Economy<'a> {
 
     /// The player owning a city.
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
-        self.world.get::<&City>(city).ok().map(|c| c.owner)
+        crate::player::id_of(self.world, self.city_owner_entity(city)?)
+    }
+
+    /// The player entity owning a city.
+    pub fn city_owner_entity(&self, city: hecs::Entity) -> Option<hecs::Entity> {
+        self.world.get::<&Owner>(city).ok().map(|o| o.0)
     }
 
     /// Whether any unit of `owner` could be a garrison here (used by display code).
@@ -946,11 +961,12 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
         let city = world.spawn((
             City {
                 name: "Town".into(),
-                owner: PlayerId(0),
             },
+            crate::player::Owner(owner),
             at,
             Population {
                 figures: 4,
@@ -991,11 +1007,12 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
         let city = world.spawn((
             City {
                 name: "Town".into(),
-                owner: PlayerId(0),
             },
+            crate::player::Owner(owner),
             at,
             Population {
                 figures: 10,
@@ -1005,7 +1022,7 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        let player = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let player = owner;
         let before = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .unwrap();

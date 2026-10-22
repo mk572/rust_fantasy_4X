@@ -9,7 +9,7 @@ use crate::player::PlayerId;
 use crate::game::{Event, Game};
 use crate::rules::{BuildingId, SpellId};
 
-const NEUTRAL: PlayerId = PlayerId(u8::MAX);
+const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
 impl Game {
     /// Note that an override command changed the game.
@@ -158,9 +158,7 @@ impl Game {
         }
         for (city, c, _) in self.economy().cities() {
             if c.owner == player {
-                if let Ok(mut c) = self.world.get::<&mut crate::city::City>(city) {
-                    c.owner = NEUTRAL;
-                }
+                self.set_owner(city, MONSTERS);
             }
         }
         self.defeat(player, by)

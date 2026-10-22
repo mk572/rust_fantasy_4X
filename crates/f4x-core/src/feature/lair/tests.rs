@@ -453,7 +453,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
         units: vec![w],
         to: at(5, 5),
     });
-    assert!(matches!(events[0], Event::BattleStarted { defender, .. } if defender == NEUTRAL));
+    assert!(matches!(events[0], Event::BattleStarted { defender, .. } if defender == MONSTERS));
     assert!(g.in_battle());
     assert_eq!(
         g.units().units_at(at(5, 5)).len(),
@@ -656,11 +656,11 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     let events = g.apply(Command::Battle(BattleCommand::EndTurn));
     assert!(events
         .iter()
-        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == NEUTRAL)));
+        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == MONSTERS)));
     // The drained unit stays on the site for the monsters; the guard made for the fight and
     // the other attacker are gone.
     assert!(g.world.contains(w) && !g.world.contains(bystander));
-    assert_eq!(g.units().unit_owner(w), Some(NEUTRAL));
+    assert_eq!(g.units().unit_owner(w), Some(MONSTERS));
     assert!(g.units().unit_is_undead(w));
     assert_eq!(g.units().units_at(at(5, 5)), vec![w]);
     assert!(
@@ -669,7 +669,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     );
     // It lasts, and it is an enemy to anyone who walks in.
     g.apply(Command::EndTurn);
-    assert_eq!(g.units().unit_owner(w), Some(NEUTRAL));
+    assert_eq!(g.units().unit_owner(w), Some(MONSTERS));
     assert!(g.economy().hostile_at(at(5, 5), P0).is_some());
 }
 

@@ -9,6 +9,7 @@ pub mod vision;
 
 use crate::feature::lair::Lair;
 use crate::feature::node::Node;
+use crate::player::PlayerId;
 use serde::{Deserialize, Serialize};
 
 /// Where an entity stands. Components on map objects such as cities and units.
@@ -308,24 +309,24 @@ impl Grid {
         v
     }
 
-    /// Player number of the wizard whose volcano stands on `(x, y)`, if there is one.
-    pub fn volcano(&self, x: i32, y: i32) -> Option<u8> {
+    /// The wizard whose volcano stands on `(x, y)`, if there is one.
+    pub fn volcano(&self, x: i32, y: i32) -> Option<PlayerId> {
         if y < 0 || y >= self.height as i32 {
             return None;
         }
         let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
         match self.volcanoes.get(i).copied().unwrap_or(0) {
             0 => None,
-            n => Some(n - 1),
+            n => Some(PlayerId(n - 1)),
         }
     }
 
-    pub fn set_volcano(&mut self, x: u32, y: u32, owner: Option<u8>) {
+    pub fn set_volcano(&mut self, x: u32, y: u32, owner: Option<PlayerId>) {
         let i = self.index(x, y);
         if self.volcanoes.len() != self.tiles.len() {
             self.volcanoes = vec![0; self.tiles.len()];
         }
-        self.volcanoes[i] = owner.map_or(0, |o| o + 1);
+        self.volcanoes[i] = owner.map_or(0, |o| o.0 + 1);
     }
 
     /// River flag per tile, row by row (all false if rivers were never set).
@@ -379,7 +380,7 @@ pub struct Map {
     nodes: Vec<Node>,
     /// Who last stood in each tower: `(x, y, player number)`. Towers are on both planes.
     #[serde(default)]
-    tower_owners: Vec<(u32, u32, u8)>,
+    tower_owners: Vec<(u32, u32, PlayerId)>,
     #[serde(default)]
     lairs: Vec<Lair>,
 }
@@ -418,25 +419,25 @@ impl Map {
     }
 
     /// The wizard whose stack last stood in the tower at `(x, y)`.
-    pub fn tower_owner(&self, x: u32, y: u32) -> Option<u8> {
+    pub fn tower_owner(&self, x: u32, y: u32) -> Option<PlayerId> {
         self.tower_owners
             .iter()
             .find(|&&(tx, ty, _)| tx == x && ty == y)
             .map(|&(_, _, o)| o)
     }
 
-    pub fn set_tower_owner(&mut self, x: u32, y: u32, owner: u8) {
+    pub fn set_tower_owner(&mut self, x: u32, y: u32, owner: PlayerId) {
         match self.tower_owners.iter_mut().find(|t| t.0 == x && t.1 == y) {
             Some(t) => t.2 = owner,
             None => self.tower_owners.push((x, y, owner)),
         }
     }
 
-    pub fn tower_owners(&self) -> &[(u32, u32, u8)] {
+    pub fn tower_owners(&self) -> &[(u32, u32, PlayerId)] {
         &self.tower_owners
     }
 
-    pub fn set_tower_owners(&mut self, owners: Vec<(u32, u32, u8)>) {
+    pub fn set_tower_owners(&mut self, owners: Vec<(u32, u32, PlayerId)>) {
         self.tower_owners = owners;
     }
 

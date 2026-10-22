@@ -40,6 +40,9 @@ fn world() -> Game {
     let mut game = Game::new(1);
     game.content = c;
     game.map = Some(map);
+    for id in (0..4).map(PlayerId) {
+        game.add_player(id, "", crate::player::Player::new());
+    }
     game
 }
 
@@ -192,10 +195,14 @@ fn enemies_block_and_ask_for_a_fight() {
     let mut g = world();
     let mine = unit(&mut g, P0, "walker", at(1, 1));
     let theirs = unit(&mut g, P1, "walker", at(2, 1));
-    let events = g.apply(Command::MoveStack {
-        units: vec![mine],
-        to: at(2, 1),
-    });
+    let events: Vec<_> = g
+        .apply(Command::MoveStack {
+            units: vec![mine],
+            to: at(2, 1),
+        })
+        .into_iter()
+        .filter(|e| !matches!(e, Event::Diplomacy(_)))
+        .collect();
     assert_eq!(
         events,
         vec![Event::AttackRequested {
@@ -491,11 +498,12 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
     let map = Map::new(build(), build());
     let walker = c.rules.units.id_of("walker").unwrap();
     let mut world = hecs::World::new();
+    let owner = world.spawn((P0, crate::player::Player::new()));
     let unit = crate::unit::spawn(
         &mut world,
         &c,
         crate::game::serial::Serial(1),
-        P0,
+        owner,
         at(2, 2),
         walker,
     );

@@ -112,7 +112,8 @@ impl Game {
         let serial = self.take_serial();
         let city = self.world.spawn((
             serial,
-            City { name, owner },
+            City { name },
+            crate::player::Owner(self.player_entity(owner).expect("a city has an owner")),
             pos,
             Population { figures, tens: 0 },
             Farmers(0),
@@ -177,11 +178,7 @@ impl Economy<'_> {
             grow += 10;
         }
         // A computer wizard's difficulty bonus (the original applied it here, too).
-        let owner = self
-            .world
-            .get::<&crate::city::City>(city)
-            .ok()
-            .map(|c| c.owner);
+        let owner = self.city_owner(city);
         let bonus = owner
             .and_then(|o| self.player(o))
             .map_or(100, |p| p.bonus.outpost_growth);

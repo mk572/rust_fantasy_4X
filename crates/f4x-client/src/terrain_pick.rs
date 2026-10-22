@@ -559,7 +559,7 @@ mod tests {
     #[test]
     fn volcanoes_have_their_own_piece() {
         let (mut g, c) = world(&["ggg", "gmg", "ggg"]);
-        g.set_volcano(1, 1, Some(0));
+        g.set_volcano(1, 1, Some(f4x_core::player::PlayerId(0)));
         assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(VOLCANO));
     }
 

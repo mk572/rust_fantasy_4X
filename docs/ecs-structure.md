@@ -197,8 +197,17 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   owner fields, saves, console commands and display ("wizard 3"). It is defined in `player/`, is a
   component of the player entity and is never reused. One index `PlayerId` to `Entity` on `Game`
   turns one into the other. No owner is ever a raw `u8`.
-- Neutral players get ids after the real players, in order of creation, and there is no `NEUTRAL`
-  sentinel: the monsters' owner is a player like any other.
+- **A unit, hero or city is always owned by a real player**: a human wizard, an AI wizard, an
+  independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
+  placeholder owner.
+- Independent cities' players get ids after the real players, in order of creation. The one player
+  that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
+  255 until the save format changes in task 335). It is an entity with `PlayerId` and `Neutral` like
+  the cities' players but has no `Player` data, so it is in no list of players. Whether a player is
+  neutral is the `Neutral` component (`Game::is_neutral_player`), never an id test.
+- `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
+  `economy().city_owner` give the `PlayerId` back, `unit_owner_entity` and `city_owner_entity` the
+  entity. `economy().cities()` returns `CityInfo` (name and owner id) for display code.
 - A **position index** (square to entity, for terrain features) is the one other index. It is rebuilt
   on load and is never saved.
 

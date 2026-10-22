@@ -302,7 +302,10 @@ impl Game {
             let city = l.city.and_then(|s| self.units().entity_of_serial(s));
             plays.push(Armed {
                 kind: l.kind,
-                victim: l.victim.unwrap_or(PlayerId(0)),
+                victim: l
+                    .victim
+                    .and_then(|e| crate::player::id_of(&self.world, e))
+                    .unwrap_or(PlayerId(0)),
                 city,
                 other: None,
                 deposit: None,
@@ -518,12 +521,10 @@ impl Game {
         let from = self.economy().city_owner(city);
         for u in self.units().units_at(pos) {
             if self.units().unit_owner(u) == from {
-                let _ = self.world.insert_one(u, crate::player::Owner(to));
+                self.set_owner(u, to);
             }
         }
-        if let Ok(mut c) = self.world.get::<&mut crate::city::City>(city) {
-            c.owner = to;
-        }
+        self.set_owner(city, to);
         let _ = self.world.insert_one(
             city,
             Production {
@@ -551,7 +552,8 @@ impl Game {
         }
         if fresh {
             let serial = self.serial_of(city);
-            self.events.start(kind, Some(victim), Some(serial));
+            self.events
+                .start(kind, self.player_entity(victim), Some(serial));
             return true;
         }
         let turns = self.events.get(kind).map_or(0, |l| l.turns);
@@ -581,7 +583,7 @@ impl Game {
         let kind = EventKind::PopulationBoom;
         if fresh {
             let serial = city.map(|c| self.serial_of(c));
-            self.events.start(kind, Some(victim), serial);
+            self.events.start(kind, self.player_entity(victim), serial);
             return true;
         }
         let turns = self.events.get(kind).map_or(0, |l| l.turns);

@@ -57,13 +57,14 @@ fn a_conjunction_doubles_the_nodes_of_its_colour_and_halves_the_others() {
 #[test]
 fn events_survive_a_save_and_unknown_ones_are_refused() {
     let mut events = moon(EventKind::ConjunctionNature);
-    events.start(EventKind::Plague, Some(PlayerId(1)), Some(Serial(7)));
+    let victim = hecs::World::new().reserve_entity();
+    events.start(EventKind::Plague, Some(victim), Some(Serial(7)));
     events.drawn(12);
-    let saved = events.to_save();
-    assert_eq!(Events::from_save(&saved), Some(events));
+    let saved = events.to_save(|_| Some(PlayerId(1)));
+    assert_eq!(Events::from_save(&saved, |_| Some(victim)), Some(events));
     let mut bad = saved;
     bad.ongoing[0].kind = "blue_sun".into();
-    assert_eq!(Events::from_save(&bad), None);
+    assert_eq!(Events::from_save(&bad, |_| Some(victim)), None);
 }
 
 #[test]

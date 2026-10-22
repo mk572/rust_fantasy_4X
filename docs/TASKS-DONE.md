@@ -213,6 +213,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 310 | Docs | Entity model design: player, wizard, hero, spell; ids, links, lifecycles (done) |
 | 311 | Player | (done) Player entity; `PlayerId` moves into `player/` as its component; index and identity |
 | 312 | Wizard | Wizard entity and the player-wizard links (done) |
+| 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players (done) |
 
 ## Descriptions
 
@@ -447,3 +448,11 @@ until 317. *Needs:* 310.
 **312. Wizard entity (done).** `Wizard` entity with `Name`, `Portrait`, `Banner` and `CapitalRace`;
 `WizardLink` on the player and `PlayerLink` on the wizard; both are created together at setup (`game/setup.rs`,
 `wizard/mod.rs` creation rules) and by `wizard/ai.rs`. `Game::wizard(id)` returns a handle. *Needs:* 311.
+
+**313. Owner links become `Entity` (done).** `Owner(Entity)` on units, cities and heroes; the owner part of
+`Conquered`, `Lasting.victim`, `item_awards` and `battle_brains`. Typed owners (`PlayerId`) in
+`Node.owner`, `tower_owners` and `volcanoes`, replacing raw `u8` (a stop-gap: tasks 330 to 332 make
+these `Owner(Entity)` on feature entities). The `Neutral` component replaces the
+`NEUTRAL` sentinel; one neutral player owns the monsters of lairs and nodes; each neutral city keeps
+its own neutral player and none of them has a wizard. Enchantment casters are rewired in 319 and 320.
+About 876 uses change; do it by module, tests green after each. *Needs:* 312.

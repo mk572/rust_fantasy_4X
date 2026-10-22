@@ -43,6 +43,9 @@ pub struct Game {
     pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: content::Content,
+    /// The one neutral player that owns the monsters (`player::MONSTERS`); it has no [`player::Player`]
+    /// data, so it is in no list of players.
+    pub(crate) monsters: hecs::Entity,
     /// The player entity of each [`player::PlayerId`].
     pub(crate) player_index: std::collections::HashMap<player::PlayerId, hecs::Entity>,
     pub(crate) fog: map::fog::Fog,
@@ -64,13 +67,13 @@ pub struct Game {
     pub(crate) events: world_event::Events,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
-    pub(crate) item_awards: Vec<(player::PlayerId, String, bool)>,
+    pub(crate) item_awards: Vec<(hecs::Entity, String, bool)>,
     /// Every override (cheat) command that changed the game, oldest first.
     pub(crate) override_log: Vec<String>,
     /// The prefab items given out so far, by id (`Make_Item` gives each once a game).
     pub(crate) prefab_taken: Vec<String>,
     /// Players of battles that play for some wizards (a learned one; see `battle::game`).
-    pub(crate) battle_brains: Vec<(player::PlayerId, Box<dyn battle::game::BattleBrain>)>,
+    pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::game::BattleBrain>)>,
     pub(crate) recording: Option<game::replay::Recording>,
     undo_on: bool,
     undo_stack: Vec<game::undo::UndoEntry>,
@@ -78,8 +81,11 @@ pub struct Game {
 
 impl Game {
     pub fn new(seed: u64) -> Self {
+        let mut world = hecs::World::new();
+        let monsters = world.spawn((player::MONSTERS, player::Neutral));
         Self {
-            world: hecs::World::new(),
+            world,
+            monsters,
             turn: 1,
             map: None,
             content: content::Content::default(),
@@ -146,23 +152,36 @@ impl Game {
 
     /// Whether `id` is the monsters' owner or an independent city's player: not a wizard.
     pub fn is_neutral_player(&self, id: player::PlayerId) -> bool {
-        id == player::NEUTRAL || self.player(id).is_some_and(|p| p.neutral)
+        self.player_entity(id)
+            .is_some_and(|e| self.world.satisfies::<&player::Neutral>(e).unwrap_or(false))
     }
 
-    /// Make the player entity for `id`, and with it a wizard called `name` unless the player is
-    /// an independent city's (those are called by their city).
+    /// Make the player entity for `id`, and with it a wizard called `name`.
     pub fn add_player(
         &mut self,
         id: player::PlayerId,
         name: impl Into<String>,
         player: player::Player,
     ) -> hecs::Entity {
-        let neutral = player.neutral;
+        debug_assert!(
+            self.player_entity(id).is_none(),
+            "player {id:?} is made twice"
+        );
         let e = self.world.spawn((id, player));
-        if !neutral {
-            let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
-            let _ = self.world.insert_one(e, player::WizardLink(w));
-        }
+        let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
+        let _ = self.world.insert_one(e, player::WizardLink(w));
+        self.player_index.insert(id, e);
+        e
+    }
+
+    /// Make the player of one independent city: it has a treasury and pays its way like a wizard,
+    /// but is no wizard (no magic, no victory, no AI).
+    pub fn add_neutral_player(
+        &mut self,
+        id: player::PlayerId,
+        player: player::Player,
+    ) -> hecs::Entity {
+        let e = self.world.spawn((id, player, player::Neutral));
         self.player_index.insert(id, e);
         e
     }
@@ -209,8 +228,18 @@ impl Game {
         }
     }
 
+    /// Hand a unit or city to a player: its [`player::Owner`] becomes the player's entity.
+    pub(crate) fn set_owner(&mut self, thing: hecs::Entity, player: player::PlayerId) {
+        if let Some(e) = self.player_entity(player) {
+            let _ = self.world.insert_one(thing, player::Owner(e));
+        }
+    }
+
     /// The entity of a player.
     pub fn player_entity(&self, id: player::PlayerId) -> Option<hecs::Entity> {
+        if id == player::MONSTERS {
+            return Some(self.monsters);
+        }
         self.player_index.get(&id).copied()
     }
 

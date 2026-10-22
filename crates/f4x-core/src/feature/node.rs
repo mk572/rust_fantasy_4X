@@ -29,8 +29,8 @@ pub struct Node {
     pub power: u8,
     /// The squares of the aura, the node's own tile first.
     pub aura: Vec<(u32, u32)>,
-    /// Player number of the wizard who owns it.
-    pub owner: Option<u8>,
+    /// The wizard who owns it.
+    pub owner: Option<PlayerId>,
     /// A Guardian Spirit holds the node: rivals who meld there only succeed one time in four.
     #[serde(default)]
     pub guardian: bool,
@@ -145,7 +145,7 @@ impl Game {
         let Some(owner) = node.owner else {
             return 0;
         };
-        if let Some(m) = self.magic(PlayerId(owner)) {
+        if let Some(m) = self.magic(owner) {
             let mastery = match node.realm.as_str() {
                 "sorcery" => m.has(Retort::SorceryMastery),
                 "nature" => m.has(Retort::NatureMastery),
@@ -167,7 +167,7 @@ impl Game {
         self.map.as_ref().map_or(0, |m| {
             m.nodes()
                 .iter()
-                .filter(|n| n.owner == Some(player.0))
+                .filter(|n| n.owner == Some(player))
                 .map(|n| self.node_power(n))
                 .sum()
         })
@@ -209,7 +209,7 @@ impl Game {
         if node.warped {
             return Err(MeldError::Warped);
         }
-        if node.owner == Some(owner.0) && node.guardian {
+        if node.owner == Some(owner) && node.guardian {
             return Err(MeldError::AlreadyGuarded);
         }
         let melders: Vec<hecs::Entity> = units
@@ -227,7 +227,7 @@ impl Game {
             .ok_or(MeldError::NoMelder)?;
         let taken = match node.owner {
             None => true,
-            Some(o) if o == owner.0 => true,
+            Some(o) if o == owner => true,
             Some(_) if !node.guardian => true,
             Some(_) => self.roll(100) <= 25,
         };
@@ -235,7 +235,7 @@ impl Game {
         let mut events = Vec::new();
         if taken {
             if let Some(n) = self.map.as_mut().and_then(|m| m.node_mut(index)) {
-                n.owner = Some(owner.0);
+                n.owner = Some(owner);
                 // A rival's guardian is gone with the successful meld; ours stands again.
                 n.guardian = guardian.is_some();
             }
@@ -375,7 +375,7 @@ pub(crate) mod tests {
             g.world.get::<&crate::unit::Unit>(s).is_err(),
             "the spirit is gone"
         );
-        assert_eq!(g.map.as_ref().unwrap().nodes()[0].owner, Some(0));
+        assert_eq!(g.map.as_ref().unwrap().nodes()[0].owner, Some(PlayerId(0)));
         assert!(!g.map.as_ref().unwrap().nodes()[0].guardian);
     }
 
@@ -435,13 +435,13 @@ pub(crate) mod tests {
             let events = g2.meld(&[rival]).unwrap();
             if events.iter().any(|e| matches!(e, Event::NodeMelded { .. })) {
                 wins += 1;
-                assert_eq!(g2.map.as_ref().unwrap().nodes()[0].owner, Some(1));
+                assert_eq!(g2.map.as_ref().unwrap().nodes()[0].owner, Some(PlayerId(1)));
                 assert!(
                     !g2.map.as_ref().unwrap().nodes()[0].guardian,
                     "their guardian is gone"
                 );
             } else {
-                assert_eq!(g2.map.as_ref().unwrap().nodes()[0].owner, Some(0));
+                assert_eq!(g2.map.as_ref().unwrap().nodes()[0].owner, Some(PlayerId(0)));
             }
         }
         assert!((25..=75).contains(&wins), "about a quarter of 200: {wins}");
@@ -451,7 +451,7 @@ pub(crate) mod tests {
         g3.meld(&[mine]).unwrap();
         let rival = spirit(&mut g3, P1, at(6, 6), "spirit");
         g3.meld(&[rival]).unwrap();
-        assert_eq!(g3.map.as_ref().unwrap().nodes()[0].owner, Some(1));
+        assert_eq!(g3.map.as_ref().unwrap().nodes()[0].owner, Some(PlayerId(1)));
     }
 
     #[test]

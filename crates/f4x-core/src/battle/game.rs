@@ -79,6 +79,9 @@ impl Game {
     /// Let `brain` play the battles of `player` (an AI wizard) from now on; `None` goes back to
     /// the plain battle AI.
     pub fn set_battle_brain(&mut self, player: PlayerId, brain: Option<Box<dyn BattleBrain>>) {
+        let Some(player) = self.player_entity(player) else {
+            return;
+        };
         self.battle_brains.retain(|(p, _)| *p != player);
         if let Some(b) = brain {
             self.battle_brains.push((player, b));
@@ -92,7 +95,12 @@ impl Game {
             let b = self.battle()?;
             b.player_of(b.active)
         };
-        if let Some(k) = self.battle_brains.iter().position(|(p, _)| *p == player) {
+        let owner = self.player_entity(player);
+        if let Some(k) = self
+            .battle_brains
+            .iter()
+            .position(|(p, _)| Some(*p) == owner)
+        {
             // Take the brain out while it looks at the game.
             let (p, mut brain) = self.battle_brains.swap_remove(k);
             let c = brain.command(self);
@@ -796,10 +804,8 @@ impl Game {
             self.make_undead(unit);
             let _ = self.world.remove_one::<Hurt>(unit);
             let _ = self.world.remove_one::<crate::unit::Order>(unit);
-            let _ = self.world.insert(
-                unit,
-                (crate::player::Owner(player), pos, crate::unit::MovesLeft(0)),
-            );
+            self.set_owner(unit, player);
+            let _ = self.world.insert(unit, (pos, crate::unit::MovesLeft(0)));
             raised += 1;
         }
         if raised > 0 {

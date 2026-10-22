@@ -17,7 +17,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 
 The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
-## The rework: concept entities (tasks 307 to 341)
+## The rework: concept entities (tasks 307 to 342)
 
 Goal: the code is organised by the game's concepts, and the concepts are entities. Today only unit
 and city are `hecs` entities. After the rework **player**, **wizard**, **hero**, **spell instance**,
@@ -58,6 +58,7 @@ E feature  329 (needs 313) > 330, 331, 332 (each needs 329)   (330 also needs 32
 F item     333 (needs 313, 315, 326) > 334 (needs 322, 327, 328, 331)
 G close    335 (needs B to F and 338) > 336 > 337 > 339 (the AI, last)
 H gaps     341 (needs 315, 317 and 325; its AI part is done with 339's AI work, after 339 if 339 comes first)
+           342 (needs 337; clean-up of `content.rs` once the structure is final)
 ```
 
 Phases B and C meet only at 315 (the wizard's spell lists) and 322 (the cast in progress). Phase E
@@ -68,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players |
 | 314 | Player | Treasury, tax, offers, defeat and the other player data as components |
 | 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame) |
 | 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components |
@@ -97,18 +97,11 @@ neighbours.
 | 339 | AI | Scripted and trained AI on the new framework |
 | 340 | Spell | One art folder per spell in `assets-local/art/spells` |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
+| 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 
 ## Descriptions
 
 ### B. Player and wizard
-
-**313. Owner links become `Entity`.** `Owner(Entity)` on units, cities and heroes; the owner part of
-`Conquered`, `Lasting.victim`, `item_awards` and `battle_brains`. Typed owners (`PlayerId`) in
-`Node.owner`, `tower_owners` and `volcanoes`, replacing raw `u8` (a stop-gap: tasks 330 to 332 make
-these `Owner(Entity)` on feature entities). The `Neutral` component replaces the
-`NEUTRAL` sentinel; one neutral player owns the monsters of lairs and nodes; each neutral city keeps
-its own neutral player and none of them has a wizard. Enchantment casters are rewired in 319 and 320.
-About 876 uses change; do it by module, tests green after each. *Needs:* 312.
 
 **314. Player data as components.** `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`,
 `Offers`, `Defeat` (with `defeated_by`), `Control`. About 230 gold and 280 mana use sites in core,
@@ -382,3 +375,13 @@ What differs or is missing:
   of Return" scene for a banished AI, the defeat and victory scenes, the banished wizard's portrait.
 Each rule gets a test; `magic.md` section 12 and `divergences.md` section 25 are brought up to date.
 *Needs:* 315, 317 and 325.
+
+**342. Clean up `f4x-core/src/content.rs`.** The file is a grab-bag: terrain definitions and classes,
+feature definitions and spawn rules, city bonuses and the `Content` bundle sit side by side, and parts of
+it belong with the concept they describe (`feature`, `terrain`, `city`, `map`). Review it once the new
+structure is in place, so the review sees where each concept ended up. For each item decide where it
+belongs (its concept's module, or `f4x-data` if it is loading or validation), move it with no re-export
+shim, keep `Content` only if something still needs a bundle, and update the imports in every crate and the
+docs that name the file (`ecs-structure.md`, `scripts.md` if any).
+
+*Needs:* 337 (the structure is final). Best after 330 to 332, which reshape the feature types.

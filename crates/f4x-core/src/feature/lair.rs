@@ -17,7 +17,7 @@ use crate::content::{Content, FeatureKind};
 use crate::item::make::{make_item, Grade};
 use crate::map::mapgen::GenParams;
 use crate::map::{Map, Plane, Position};
-use crate::player::{PlayerId, NEUTRAL};
+use crate::player::{PlayerId, MONSTERS};
 
 use crate::rules::{Rarity, SpellId, Stat, UnitKind};
 use crate::unit::movement::MoveError;
@@ -609,7 +609,7 @@ impl Game {
             };
             for _ in 0..count {
                 if defenders.len() < crate::unit::MAX_STACK {
-                    defenders.push(self.spawn_unit(NEUTRAL, to, unit));
+                    defenders.push(self.spawn_unit(MONSTERS, to, unit));
                 }
             }
         }
@@ -635,7 +635,7 @@ impl Game {
             return Vec::new();
         };
         match self.economy().lair_at(to) {
-            Some((i, l)) if l.guards.is_empty() && owner != NEUTRAL => self.claim_lair(i, owner),
+            Some((i, l)) if l.guards.is_empty() && owner != MONSTERS => self.claim_lair(i, owner),
             _ => Vec::new(),
         }
     }
@@ -763,11 +763,11 @@ impl Game {
         // The guards were made for the fight and go with it. Other neutral units on the site
         // (the undead raised for the monsters) stay, as do guards the victors took as undead.
         for &u in guards {
-            if self.units().unit_owner(u) == Some(NEUTRAL) {
+            if self.units().unit_owner(u) == Some(MONSTERS) {
                 let _ = self.world.despawn(u);
             }
         }
-        let Some(winner) = winner.filter(|&w| w != NEUTRAL) else {
+        let Some(winner) = winner.filter(|&w| w != MONSTERS) else {
             return Vec::new();
         };
         let survivors: Vec<hecs::Entity> = attackers

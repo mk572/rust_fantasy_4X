@@ -394,7 +394,7 @@ impl App {
             .game
             .players()
             .into_iter()
-            .filter(|(id, p)| *id != HUMAN && !p.neutral && id.0 != u8::MAX)
+            .filter(|(id, _)| *id != HUMAN && !self.game.is_neutral_player(*id))
             .map(|(id, p)| (id, self.game.portrait(id), self.game.banner(id), p.defeated))
             .collect();
         let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();

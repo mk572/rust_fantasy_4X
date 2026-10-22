@@ -11,8 +11,8 @@ use crate::art::{terrain_type as tt, Art, TILE_W};
 use crate::terrain_pick as pick;
 
 /// Which banner a player's things are drawn in.
-pub fn banner_of(game: &Game, owner: u8) -> u8 {
-    game.wizard(PlayerId(owner))
+pub fn banner_of(game: &Game, owner: PlayerId) -> u8 {
+    game.wizard(owner)
         .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
 }
 
@@ -225,7 +225,10 @@ pub fn city_frame(figures: u32) -> usize {
 /// 32 by 30 and reaches six pixels past the square on the top and left.
 pub fn draw_city(game: &Game, art: &mut Art, city: hecs::Entity, sx: f32, sy: f32, t: Vec2) {
     let k = t.x / TILE_W;
-    let owner = game.economy().city_owner(city).map_or(u8::MAX, |o| o.0);
+    let owner = game
+        .economy()
+        .city_owner(city)
+        .unwrap_or(f4x_core::player::MONSTERS);
     let banner = banner_of(game, owner);
     let figures = game.city_population(city).figures;
     let walled = game

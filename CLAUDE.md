@@ -6,7 +6,7 @@ the README and `docs/ecs-structure.md` equal to it). Saves and replays of anothe
 A Master of Magic-style 4X game in Rust (see `README.md`; design in `docs/design.md`, tasks in
 `docs/TASKS.md`).
 
-## Current work: the entity rework (tasks 307 to 341)
+## Current work: the entity rework (tasks 307 to 342)
 
 Tasks 307 to 310 are done (version 0.0.2, singular names, the layout by game concept, the design).
 Before touching anything else read the section "The rework" at the top of `docs/TASKS.md` (rules,
@@ -17,8 +17,10 @@ the order of their dependencies. Old code and docs describe the code as it was u
 
 Follow `~/projects/CODING_GUIDELINES.md`. Project-specific rules:
 
-- **The game's rules treat the AI like a human.** A rule never decides for an AI wizard; the AI's
-  script (`f4x-ai`) does it with the commands a human has.
+- **Game rules live in `docs/design.md`** and the topic docs it lists, not here. In particular, read
+  design.md section 8 before touching anything the AI decides: the rules treat the AI like a human.
+- **Tests only build situations the game can reach** (for example, a unit always has a real player as
+  owner; see `docs/ecs-structure.md` section 3.3).
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
   files (`Rules.units`, `units.ron`).

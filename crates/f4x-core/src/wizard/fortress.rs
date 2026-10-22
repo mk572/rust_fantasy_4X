@@ -9,7 +9,7 @@
 //! [`Player`]: crate::player::Player
 
 use crate::city::economy::{CityRace, Economy, Population};
-use crate::city::{City, FoundCityError};
+use crate::city::FoundCityError;
 use crate::map::Position;
 use crate::player::{Player, PlayerId};
 use crate::wizard::entity::CapitalRace;
@@ -254,9 +254,7 @@ impl Game {
         }
         let was_fortress = self.economy().is_fortress_city(city);
         let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
-        if let Ok(mut c) = self.world.get::<&mut City>(city) {
-            c.owner = winner;
-        }
+        self.set_owner(city, winner);
         if self.is_neutral_player(loser) {
             // The plan the independent city's AI set was its own; the new owner plans anew.
             let _ = self
@@ -369,14 +367,12 @@ impl Game {
                 .unit_def(u)
                 .is_some_and(|d| d.kind == crate::rules::UnitKind::Normal);
             if normal {
-                let _ = self.world.insert_one(u, crate::player::Owner(neutral));
+                self.set_owner(u, neutral);
             } else {
                 self.remove_unit(u, crate::hero::roster::Fate::Gone);
             }
         }
-        if let Ok(mut c) = self.world.get::<&mut City>(city) {
-            c.owner = neutral;
-        }
+        self.set_owner(city, neutral);
     }
 
     pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {

@@ -237,7 +237,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
     let u = g.spawn_unit(P0, at(7, 8), walker);
     assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), None);
     g.move_stack(&[u], at(8, 8)).unwrap();
-    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(0));
+    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(0)));
     let other_plane = Position {
         plane: Plane::Myrror,
         ..at(8, 8)
@@ -247,14 +247,14 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
     let rival = g.spawn_unit(P1, at(9, 8), walker);
     let _ = g.world.insert_one(u, at(7, 9));
     g.move_stack(&[rival], at(8, 8)).unwrap();
-    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(1));
+    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(1)));
     let seal = g.content.rules.spells.id_of("planar_seal");
     if let Some(s) = seal {
         g.attach_enchantment(Target::Player(P0), s, P0);
         let third = g.spawn_unit(P0, at(7, 8), walker);
         g.move_stack(&[third], at(8, 8))
             .unwrap_or(crate::unit::movement::Entry::Free);
-        assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(1));
+        assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(1)));
     }
 }
 
@@ -273,7 +273,10 @@ fn warp_node_turns_a_rivals_node_against_them() {
         guardian: false,
         warped: false,
     };
-    g.map.as_mut().unwrap().set_nodes(vec![node(Some(1))]);
+    g.map
+        .as_mut()
+        .unwrap()
+        .set_nodes(vec![node(Some(PlayerId(1)))]);
     assert!(g.can_warp_node(at(6, 6), P0));
     assert!(!g.can_warp_node(at(6, 6), P1), "not your own node");
     assert!(!g.can_warp_node(at(7, 7), P0), "no node there");

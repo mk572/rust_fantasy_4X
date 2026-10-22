@@ -292,6 +292,7 @@ fn spells_need_a_known_spell_and_a_valid_target() {
     on_the_map(&mut g, &["healing", "fire_bolt"]);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let mine = g.spawn_unit(P0, at(3, 3), spear);
+    g.add_player(PlayerId(1), "", Player::new());
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
     let (mend, zap) = (spell(&g, "healing"), spell(&g, "fire_bolt"));
     g.magic_mut(P0).unwrap().skill_left = 50;

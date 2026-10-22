@@ -95,6 +95,9 @@ mod tests {
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let mut g = Game::new(1);
+        for id in (0..3).map(PlayerId) {
+            g.add_player(id, "", crate::player::Player::new());
+        }
         g.content = c;
         g.map = Some(map);
         let walker = g.content.rules.units.id_of("walker").unwrap();
@@ -126,6 +129,9 @@ mod tests {
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut g = Game::new(1);
+        for id in (0..3).map(PlayerId) {
+            g.add_player(id, "", crate::player::Player::new());
+        }
         g.content = c;
         g.map = Some(map);
         let at = Position {
@@ -201,6 +207,9 @@ mod tests {
         c.rules.units = crate::rules::Registry::new(units);
         let grass = c.terrains.id_of("grassland").unwrap();
         let mut g = Game::new(1);
+        for id in (0..3).map(PlayerId) {
+            g.add_player(id, "", crate::player::Player::new());
+        }
         g.content = c;
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
         let at = |x| Position {
@@ -235,11 +244,12 @@ mod tests {
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let walker = c.rules.units.id_of("walker").unwrap();
         let mut world = hecs::World::new();
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
         crate::unit::spawn(
             &mut world,
             &c,
             crate::game::serial::Serial(1),
-            PlayerId(0),
+            owner,
             Position {
                 plane: Plane::Arcanus,
                 x: 5,

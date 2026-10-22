@@ -26,15 +26,16 @@ fn a_player_and_its_wizard_are_made_together_and_point_at_each_other() {
 fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
     let mut g = game();
     let town = PlayerId(9);
-    g.add_player(town, "", Player::new_neutral());
+    g.add_neutral_player(town, Player::new());
     assert!(g.wizard(town).is_none());
     assert_eq!(g.player_name(town), "");
     let serial = g.take_serial();
+    let owner = g.player_entity(town).unwrap();
     g.world.spawn((
         crate::city::City {
             name: "Free Town".into(),
-            owner: town,
         },
+        crate::player::Owner(owner),
         serial,
     ));
     assert_eq!(g.player_name(town), "Free Town");

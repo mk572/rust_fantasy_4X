@@ -10,7 +10,7 @@ use crate::city::economy::Economy;
 use crate::content::TerrainClass;
 use crate::game::serial::Serial;
 use crate::map::Position;
-use crate::player::{PlayerId, NEUTRAL};
+use crate::player::{PlayerId, MONSTERS};
 use crate::rules::{MovementType, Stat};
 
 use crate::game::{Event, Game};
@@ -205,7 +205,7 @@ impl Game {
                 self.remove_unit(ship, crate::hero::roster::Fate::Released);
                 continue;
             };
-            let owner = self.units().unit_owner(first).unwrap_or(NEUTRAL);
+            let owner = self.units().unit_owner(first).unwrap_or(MONSTERS);
             let Some((path, landing)) = self.nearest_landing(ship, at, owner, &passengers) else {
                 let lost = passengers.len() as u32;
                 for p in passengers {
@@ -377,6 +377,9 @@ mod tests {
         let mut g = Game::new(2);
         g.content = c;
         g.map = Some(Map::new(build(), build()));
+        for id in [P0, P1] {
+            g.add_player(id, "", crate::player::Player::new());
+        }
         g
     }
 
@@ -397,7 +400,6 @@ mod tests {
         g.content.rules.spells = Registry::new(vec![wm]);
         let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
         for id in [P0, P1] {
-            g.add_player(id, "W", crate::player::Player::new());
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
         }
         let boat = unit(&mut g, "boat", at(5, 4));

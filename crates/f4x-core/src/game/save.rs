@@ -79,7 +79,7 @@ pub struct MapSave {
     /// Magic nodes with their power, aura and owner.
     pub nodes: Vec<crate::feature::node::Node>,
     /// Tower owners `(x, y, player)`.
-    pub tower_owners: Vec<(u32, u32, u8)>,
+    pub tower_owners: Vec<(u32, u32, PlayerId)>,
     /// Guards and treasure of towers, nodes and encounter sites.
     pub lairs: Vec<crate::feature::lair::Lair>,
 }
@@ -562,7 +562,7 @@ impl Game {
                 mana: p.mana,
                 tax_rate: p.tax_rate,
                 grand_vizier: p.grand_vizier,
-                neutral: p.neutral,
+                neutral: self.is_neutral_player(*id),
                 history: p.history.clone(),
                 capital_race: self
                     .wizard(*id)
@@ -678,7 +678,7 @@ impl Game {
                 Some(CitySave {
                     serial: self.serial_of(e).0,
                     name: city.name.clone(),
-                    owner: city.owner.0,
+                    owner: self.economy().city_owner(e)?.0,
                     pos,
                     figures: pop.figures,
                     tens: pop.tens,
@@ -714,7 +714,8 @@ impl Game {
                         .world
                         .get::<&crate::city::conquest::Conquered>(e)
                         .ok()
-                        .map(|c| c.0 .0),
+                        .and_then(|c| crate::player::id_of(&self.world, c.0))
+                        .map(|p| p.0),
                     sold_building: self.economy().sold_this_turn(e),
                     autobuild: self
                         .world
@@ -735,7 +736,9 @@ impl Game {
             game_over: self.game_over,
             human: self.human.map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
-            events: self.events.to_save(),
+            events: self
+                .events
+                .to_save(|e| crate::player::id_of(&self.world, e)),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
             map,
@@ -826,30 +829,31 @@ impl Snapshot {
                     .unwrap_or(p.id % crate::player::PORTRAITS)
                     .min(crate::player::PORTRAITS - 1),
             );
-            game.add_player(
-                id,
-                name,
-                Player {
-                    bonus: crate::player::Bonus::default(),
-                    history: p.history,
-                    gold: p.gold,
-                    mana: p.mana,
-                    tax_rate: p.tax_rate,
-                    grand_vizier: p.grand_vizier,
-                    neutral: p.neutral,
-                    fame: p.fame,
-                    magic: Magic::from_save(p.magic, &game.content.rules)?,
-                    armory: p.armory,
-                    roster: p.roster,
-                    offers: p.offers,
-                    fortress: p.fortress,
-                    summon_at: p.summon_at,
-                    banished: p.banished,
-                    banished_by: p.banished_by.map(PlayerId),
-                    defeated: p.defeated,
-                    defeated_by: p.defeated_by.map(PlayerId),
-                },
-            );
+            let neutral = p.neutral;
+            let player = Player {
+                bonus: crate::player::Bonus::default(),
+                history: p.history,
+                gold: p.gold,
+                mana: p.mana,
+                tax_rate: p.tax_rate,
+                grand_vizier: p.grand_vizier,
+                fame: p.fame,
+                magic: Magic::from_save(p.magic, &game.content.rules)?,
+                armory: p.armory,
+                roster: p.roster,
+                offers: p.offers,
+                fortress: p.fortress,
+                summon_at: p.summon_at,
+                banished: p.banished,
+                banished_by: p.banished_by.map(PlayerId),
+                defeated: p.defeated,
+                defeated_by: p.defeated_by.map(PlayerId),
+            };
+            if neutral {
+                game.add_neutral_player(id, player);
+            } else {
+                game.add_player(id, name, player);
+            }
             game.wizard_set(id, Banner(banner));
             game.wizard_set(id, Portrait(portrait));
             game.wizard_set(id, CapitalRace(capital_race));
@@ -885,9 +889,12 @@ impl Snapshot {
                     u.unit
                 )));
             }
+            let owner = game.player_entity(PlayerId(u.owner)).ok_or_else(|| {
+                LoadError::Inconsistent(format!("a unit belongs to the missing player {}", u.owner))
+            })?;
             let entity = game.world.spawn((
                 Unit(id),
-                Owner(PlayerId(u.owner)),
+                Owner(owner),
                 u.pos,
                 Hurt(u.hurt),
                 Experience(u.xp),
@@ -1018,12 +1025,13 @@ impl Snapshot {
                 .race
                 .map(|r| rules.races.id_of(&r).ok_or(LoadError::UnknownId("race", r)))
                 .transpose()?;
+            let owner = game.player_entity(PlayerId(c.owner)).ok_or_else(|| {
+                LoadError::Inconsistent(format!("a city belongs to the missing player {}", c.owner))
+            })?;
             let entity = game.world.spawn((
                 serial,
-                City {
-                    name: c.name,
-                    owner: PlayerId(c.owner),
-                },
+                City { name: c.name },
+                Owner(owner),
                 c.pos,
                 Population {
                     figures: c.figures,
@@ -1054,10 +1062,10 @@ impl Snapshot {
             if let Some(a) = c.autobuild {
                 let _ = game.world.insert_one(entity, a);
             }
-            if let Some(p) = c.conquered {
+            if let Some(by) = c.conquered.and_then(|p| game.player_entity(PlayerId(p))) {
                 let _ = game
                     .world
-                    .insert_one(entity, crate::city::conquest::Conquered(PlayerId(p)));
+                    .insert_one(entity, crate::city::conquest::Conquered(by));
             }
         }
         for (id, p) in game.players() {
@@ -1079,8 +1087,9 @@ impl Snapshot {
                 ));
             }
         }
-        game.events = crate::world_event::Events::from_save(&self.events)
-            .ok_or_else(|| LoadError::Inconsistent("an unknown event".into()))?;
+        game.events =
+            crate::world_event::Events::from_save(&self.events, |p| game.player_entity(p))
+                .ok_or_else(|| LoadError::Inconsistent("an unknown event".into()))?;
         game.diplomacy_from_save(self.diplomacy);
         game.apply_wizard_settings();
         Ok(game)
@@ -1190,7 +1199,7 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
         if !on_map || n.aura.iter().any(|&(x, y)| x >= m.width || y >= m.height) {
             return Err(LoadError::Inconsistent("a node is off the map".into()));
         }
-        if n.owner.is_some_and(|o| o > 250) {
+        if n.owner.is_some_and(|o| o.0 > 250) {
             return Err(LoadError::Inconsistent("a node has a bad owner".into()));
         }
     }

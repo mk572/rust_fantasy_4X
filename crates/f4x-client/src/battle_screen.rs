@@ -678,7 +678,7 @@ impl App {
         }
         let defenders: Vec<_> = ids
             .into_iter()
-            .map(|id| self.game.spawn_unit(f4x_core::player::NEUTRAL, pos, id))
+            .map(|id| self.game.spawn_unit(f4x_core::player::MONSTERS, pos, id))
             .collect();
         self.begin_battle(Command::BeginBattle {
             attackers: mine
@@ -1941,7 +1941,7 @@ impl App {
     }
 
     fn player_label(&self, player: f4x_core::player::PlayerId) -> String {
-        if player == f4x_core::player::NEUTRAL {
+        if player == f4x_core::player::MONSTERS {
             return "Monsters".to_string();
         }
         self.game

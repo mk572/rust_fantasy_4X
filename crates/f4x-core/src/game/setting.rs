@@ -504,8 +504,11 @@ impl crate::game::Game {
     pub(crate) fn apply_wizard_settings(&mut self) {
         let ai = self.settings.ai;
         let human = self.human;
-        for (_, (&id, p)) in self.world.query_mut::<(&PlayerId, &mut Player)>() {
-            let computer = !p.neutral && id.0 != u8::MAX && Some(id) != human;
+        for (_, (&id, p, neutral)) in
+            self.world
+                .query_mut::<(&PlayerId, &mut Player, Option<&crate::player::Neutral>)>()
+        {
+            let computer = neutral.is_none() && Some(id) != human;
             p.bonus = if computer {
                 crate::player::Bonus {
                     growth: i32::from(ai.growth_percent),

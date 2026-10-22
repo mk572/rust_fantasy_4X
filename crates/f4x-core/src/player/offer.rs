@@ -276,8 +276,10 @@ impl Game {
     /// Wizards with a standing fortress are offered things; independent cities, banished and
     /// defeated wizards are not.
     fn can_be_offered(&self, player: PlayerId) -> bool {
-        self.player(player)
-            .is_some_and(|p| !p.neutral && !p.banished && !p.defeated && summon_point(&p).is_some())
+        !self.is_neutral_player(player)
+            && self
+                .player(player)
+                .is_some_and(|p| !p.banished && !p.defeated && summon_point(&p).is_some())
     }
 
     fn charismatic(&self, player: PlayerId) -> bool {

@@ -460,6 +460,8 @@ pub struct FakeView {
     pub units: Vec<(crate::player::PlayerId, crate::game::view::UnitInfo)>,
     /// The owner of each city.
     pub cities: Vec<crate::player::PlayerId>,
+    /// The players that are neutral.
+    pub neutral: Vec<crate::player::PlayerId>,
 }
 
 impl FakeView {
@@ -477,6 +479,7 @@ impl FakeView {
             sightings: Vec::new(),
             units: Vec::new(),
             cities: Vec::new(),
+            neutral: Vec::new(),
         }
     }
 
@@ -505,6 +508,10 @@ impl crate::game::view::WorldView for FakeView {
 
     fn player_ids(&self) -> Vec<crate::player::PlayerId> {
         self.players.iter().map(|(id, _)| *id).collect()
+    }
+
+    fn is_neutral(&self, id: crate::player::PlayerId) -> bool {
+        self.neutral.contains(&id)
     }
 
     fn player(&self, id: crate::player::PlayerId) -> Option<crate::player::PlayerHandle<'_>> {

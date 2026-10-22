@@ -204,7 +204,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
         realm: "chaos".into(),
         power: 8,
         aura: vec![(6, 6)],
-        owner: Some(0),
+        owner: Some(PlayerId(0)),
         guardian: false,
         warped: true,
     }]);

@@ -30,7 +30,7 @@ use crate::rules::BuildingId;
 
 /// Marks a city taken this turn by the player it holds, who may still raze it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Conquered(pub PlayerId);
+pub struct Conquered(pub hecs::Entity);
 
 /// A city's size class: 1 (hamlet) for up to four citizens, one more for each four, at most 5;
 /// 0 for an outpost.
@@ -231,7 +231,9 @@ impl Game {
         let _ = self
             .world
             .insert_one(city, crate::city::economy::Farmers(farmers));
-        let _ = self.world.insert_one(city, Conquered(winner));
+        if let Some(by) = self.player_entity(winner) {
+            let _ = self.world.insert_one(city, Conquered(by));
+        }
         events
     }
 
@@ -254,7 +256,8 @@ impl Game {
                 RazeError::NotJustTaken,
             ))];
         };
-        if by != player || self.economy().city_owner(city) != Some(player) {
+        if self.player_entity(player) != Some(by) || self.economy().city_owner(city) != Some(player)
+        {
             return vec![Event::Rejected(crate::game::Rejection::Raze(
                 RazeError::NotJustTaken,
             ))];

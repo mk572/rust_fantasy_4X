@@ -73,10 +73,22 @@ impl Rig {
         }
     }
 
+    /// The entity of a player, made when it is first asked for.
+    fn player(&mut self, id: PlayerId) -> hecs::Entity {
+        let found = self
+            .world
+            .query::<&PlayerId>()
+            .iter()
+            .find(|(_, p)| **p == id)
+            .map(|(e, _)| e);
+        found.unwrap_or_else(|| self.world.spawn((id, crate::player::Player::new())))
+    }
+
     fn unit(&mut self, kind: &str, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {
         let id = self.content.rules.units.id_of(kind).unwrap();
         let serial = Serial(self.next);
         self.next += 1;
+        let owner = self.player(owner);
         let e = crate::unit::spawn(&mut self.world, &self.content, serial, owner, pos, id);
         self.world.insert_one(e, Hurt(hurt)).unwrap();
         e
@@ -85,12 +97,13 @@ impl Rig {
     fn city(&mut self, owner: PlayerId, pos: Position) -> hecs::Entity {
         let serial = Serial(self.next);
         self.next += 1;
+        let owner = self.player(owner);
         self.world.spawn((
             serial,
             City {
                 name: "Town".into(),
-                owner,
             },
+            crate::player::Owner(owner),
             pos,
             Buildings::default(),
             Enchantments::default(),

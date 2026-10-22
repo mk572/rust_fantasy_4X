@@ -387,7 +387,7 @@ impl App {
         self.game
             .players()
             .into_iter()
-            .filter(|(id, p)| *id != HUMAN && !p.neutral)
+            .filter(|(id, _)| *id != HUMAN && !self.game.is_neutral_player(*id))
             .map(|(id, _)| {
                 let mut ai = f4x_ai::Ai::new(id);
                 ai.leave_defence_to(&[HUMAN]);

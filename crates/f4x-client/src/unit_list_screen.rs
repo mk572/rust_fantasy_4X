@@ -94,7 +94,7 @@ impl App {
         self.draw_pic(&lay, "unitview", 29, 0, LEFT, bottom);
 
         let owner = self.game.units().unit_owner(units[0]);
-        let neutral = owner == Some(f4x_core::player::NEUTRAL);
+        let neutral = owner == Some(f4x_core::player::MONSTERS);
         let title = if neutral {
             let fantastic = self
                 .game
@@ -112,7 +112,7 @@ impl App {
                 .map_or_else(String::new, |w| w.name());
             format!("{name} Units")
         };
-        let banner = self.banner_color(owner.map_or(f4x_core::player::NEUTRAL.0, |o| o.0));
+        let banner = self.banner_color(owner.map_or(f4x_core::player::MONSTERS.0, |o| o.0));
         self.bm_text(
             view,
             4,

@@ -197,6 +197,11 @@ impl<'a> UnitView<'a> {
     }
 
     pub fn unit_owner(&self, unit: hecs::Entity) -> Option<PlayerId> {
+        crate::player::id_of(self.world, self.unit_owner_entity(unit)?)
+    }
+
+    /// The player entity a unit belongs to.
+    pub fn unit_owner_entity(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
         self.world.get::<&Owner>(unit).ok().map(|o| o.0)
     }
 
@@ -474,7 +479,7 @@ pub(crate) fn spawn(
     world: &mut World,
     content: &Content,
     serial: Serial,
-    owner: PlayerId,
+    owner: hecs::Entity,
     pos: Position,
     unit: UnitId,
 ) -> hecs::Entity {
@@ -501,7 +506,10 @@ impl Game {
     /// Create a unit with full moves and health, and let its owner see around it.
     pub fn spawn_unit(&mut self, owner: PlayerId, pos: Position, unit: UnitId) -> hecs::Entity {
         let serial = self.take_serial();
-        let e = spawn(&mut self.world, &self.content, serial, owner, pos, unit);
+        let player = self
+            .player_entity(owner)
+            .expect("a unit is spawned for a player that exists");
+        let e = spawn(&mut self.world, &self.content, serial, player, pos, unit);
         let sight = self.units().unit_sight(e) as u32;
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
@@ -553,9 +561,10 @@ mod tests {
         rooted.stats.insert(Stat::HalfMoves, 1);
         content.rules.units = Registry::new(vec![boots, rooted]);
         let mut world = World::new();
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
         let mut max = |id: &str, n: u64| {
             let def = content.rules.units.id_of(id).unwrap();
-            let e = spawn(&mut world, &content, Serial(n), PlayerId(0), AT, def);
+            let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
         assert_eq!(max("boots", 1), 5, "two moves and a half-move");
@@ -567,7 +576,8 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let e = spawn(&mut world, &content, Serial(1), PlayerId(0), AT, spear);
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let e = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
         assert_eq!(units.unit_position(e), Some(AT));
@@ -585,8 +595,9 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let second = spawn(&mut world, &content, Serial(2), PlayerId(0), AT, spear);
-        let first = spawn(&mut world, &content, Serial(1), PlayerId(0), AT, spear);
+        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let second = spawn(&mut world, &content, Serial(2), owner, AT, spear);
+        let first = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);
         assert_eq!(units.all_units(), vec![first, second]);
         assert_eq!(units.units_at(AT), vec![first, second]);

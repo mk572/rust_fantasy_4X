@@ -217,12 +217,7 @@ impl EffectHost for GameHost<'_> {
     fn owner_of(&self, who: Target) -> Option<PlayerId> {
         match who {
             Target::Unit(u) => self.game.units().unit_owner(u),
-            Target::City(c) | Target::CityRealm(c, _) => self
-                .game
-                .world
-                .get::<&crate::city::City>(c)
-                .ok()
-                .map(|c| c.owner),
+            Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
             Target::Player(p) | Target::Global(p, _) => Some(p),
             Target::Tile(_) => None,
         }

@@ -218,7 +218,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 fn status(game: &Game) -> String {
     game.players()
         .iter()
-        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .filter(|(id, _)| !game.is_neutral_player(*id))
         .map(|(id, p)| {
             let cities = game
                 .economy()
@@ -241,7 +241,7 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
     for (id, p) in game
         .players()
         .iter()
-        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .filter(|(id, _)| !game.is_neutral_player(*id))
     {
         let id = *id;
         let Some(m) = game.magic(id) else {
@@ -304,7 +304,7 @@ fn grant_mastery_to_all(game: &mut Game) {
     let ids: Vec<PlayerId> = game
         .players()
         .into_iter()
-        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .filter(|(id, _)| !game.is_neutral_player(*id))
         .map(|(id, _)| id)
         .collect();
     for id in ids {

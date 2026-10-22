@@ -13,7 +13,7 @@
 use crate::item::armory::{ItemError, ItemSpot, MAX_AWARDS, VAULT_SLOTS};
 use crate::item::{HeroItems, Item};
 use crate::player::finance::{gold_after_income, settle};
-use crate::player::{Owner, PlayerId, NEUTRAL};
+use crate::player::{PlayerId, MONSTERS};
 use crate::unit::movement::MoveError;
 use crate::unit::transport::{Aboard, Marooned};
 
@@ -318,7 +318,7 @@ impl Game {
                 .unit_position(unit)
                 .is_some_and(|at| self.economy().is_sea(at));
             if !aboard.is_empty() && at_sea {
-                let _ = self.world.insert_one(unit, Owner(NEUTRAL));
+                self.set_owner(unit, MONSTERS);
                 let _ = self.world.insert_one(unit, Marooned);
                 return events;
             }

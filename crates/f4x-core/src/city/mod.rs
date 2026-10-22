@@ -19,6 +19,13 @@ pub const NAME_LEN: usize = 12;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct City {
     pub name: String,
+}
+
+/// A city as the callers outside the world see it: its name and the id of its owner (the owner
+/// itself is the city's [`crate::player::Owner`] component).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CityInfo {
+    pub name: String,
     pub owner: PlayerId,
 }
 
@@ -128,6 +135,9 @@ mod tests {
         }]);
         game.map = Some(map);
         game.content = c;
+        for id in (0..3).map(PlayerId) {
+            game.add_player(id, "", crate::player::Player::new());
+        }
         game
     }
 

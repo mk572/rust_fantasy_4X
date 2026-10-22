@@ -606,11 +606,12 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
 #[test]
 fn a_storm_reaches_the_units_in_a_city() {
     let mut g = world();
+    let owner = g.player_entity(P1).unwrap();
     let city = g.world.spawn((
         crate::city::City {
             name: "Test".into(),
-            owner: P1,
         },
+        crate::player::Owner(owner),
         at(7, 7),
     ));
     let _ = city;
@@ -884,7 +885,7 @@ fn armageddon_pays_for_every_volcano_in_the_world_but_only_its_own_wizard() {
             .as_mut()
             .unwrap()
             .plane_mut(Plane::Myrror)
-            .set_volcano(x, 2, Some(o.0));
+            .set_volcano(x, 2, Some(o));
     }
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
     keep(&mut g, P0, "armageddon");

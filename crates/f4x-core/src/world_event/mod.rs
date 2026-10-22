@@ -141,7 +141,7 @@ pub struct Lasting {
     /// Turns it has gone on; it cannot end before the fourth.
     pub turns: u32,
     /// The wizard it fell on (a plague, a population boom); none for a world event.
-    pub victim: Option<PlayerId>,
+    pub victim: Option<hecs::Entity>,
     /// The city it fell on, by creation number so that a save finds it again.
     pub city: Option<Serial>,
 }
@@ -193,7 +193,7 @@ impl Events {
     pub(crate) fn start(
         &mut self,
         kind: EventKind,
-        victim: Option<PlayerId>,
+        victim: Option<hecs::Entity>,
         city: Option<Serial>,
     ) {
         if !self.is_ongoing(kind) {
@@ -235,7 +235,7 @@ impl Events {
     }
 
     /// The saved form: for each event the number, the turns, the victim and the city.
-    pub fn to_save(&self) -> EventsSave {
+    pub fn to_save(&self, id_of: impl Fn(hecs::Entity) -> Option<PlayerId>) -> EventsSave {
         EventsSave {
             last_event: self.last_event,
             quiet: self.quiet,
@@ -245,7 +245,7 @@ impl Events {
                 .map(|e| LastingSave {
                     kind: e.kind.id().to_string(),
                     turns: e.turns,
-                    victim: e.victim.map(|p| p.0),
+                    victim: e.victim.and_then(&id_of).map(|p| p.0),
                     city: e.city.map(|s| s.0),
                 })
                 .collect(),
@@ -253,7 +253,10 @@ impl Events {
     }
 
     /// Rebuild from the saved form; `None` for an event this version does not know.
-    pub fn from_save(saved: &EventsSave) -> Option<Events> {
+    pub fn from_save(
+        saved: &EventsSave,
+        entity_of: impl Fn(PlayerId) -> Option<hecs::Entity>,
+    ) -> Option<Events> {
         let ongoing = saved
             .ongoing
             .iter()
@@ -261,7 +264,7 @@ impl Events {
                 Some(Lasting {
                     kind: EventKind::from_id(&e.kind)?,
                     turns: e.turns,
-                    victim: e.victim.map(PlayerId),
+                    victim: e.victim.and_then(|p| entity_of(PlayerId(p))),
                     city: e.city.map(Serial),
                 })
             })

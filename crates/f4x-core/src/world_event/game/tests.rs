@@ -244,7 +244,8 @@ fn a_plague_lets_a_city_of_one_off_by_raising_it_to_two() {
     let mut g = world();
     let town = city(&g, 10, 5);
     g.scenario_set_citizens(town, 1);
-    g.events.start(K::Plague, Some(P0), Some(g.serial_of(town)));
+    g.events
+        .start(K::Plague, g.player_entity(P0), Some(g.serial_of(town)));
     let mut rng = GameRng::new(1);
     let mut out = Vec::new();
     g.twiddle_events(None, &mut rng, &mut out);

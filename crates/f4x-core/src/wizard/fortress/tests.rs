@@ -617,7 +617,7 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
     // The town is still there, owned by a neutral city player; its garrison of normal units
     // went with it, the fantastic creature and the unit in the field are gone.
     let owner = g.economy().city_owner(town).unwrap();
-    assert!(g.is_neutral_player(owner) && owner != crate::player::NEUTRAL);
+    assert!(g.is_neutral_player(owner) && owner != crate::player::MONSTERS);
     let held = g.units().units_at(at(15, 5));
     assert_eq!(held.len(), 1);
     assert_eq!(g.units().unit_owner(held[0]), Some(owner));

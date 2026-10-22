@@ -45,6 +45,8 @@ pub trait WorldView {
     fn player_ids(&self) -> Vec<PlayerId>;
     /// A player's data.
     fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>>;
+    /// Whether the player is neutral: the monsters' owner or an independent city's player.
+    fn is_neutral(&self, id: PlayerId) -> bool;
 
     /// Another player's cities and units that `viewer` sees now: on squares it has in sight,
     /// the units only when it can make them out (an invisible one is hidden).
@@ -64,7 +66,7 @@ pub trait WorldView {
 
     /// A player that is a wizard: neither the monsters nor an independent city.
     fn is_wizard(&self, id: PlayerId) -> bool {
-        id != crate::player::NEUTRAL && self.player(id).is_some_and(|p| !p.neutral)
+        self.player(id).is_some() && !self.is_neutral(id)
     }
 
     /// Wizards that have not been defeated, in the order of the players.
@@ -108,6 +110,10 @@ impl WorldView for Game {
 
     fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>> {
         Game::player(self, id).map(PlayerHandle::Held)
+    }
+
+    fn is_neutral(&self, id: PlayerId) -> bool {
+        self.is_neutral_player(id)
     }
 
     fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting> {
@@ -263,10 +269,10 @@ mod tests {
     #[test]
     fn the_provided_questions_follow_from_the_players() {
         let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
-        view.players[1].1.neutral = true;
+        view.neutral.push(P1);
         view.players[2].1.defeated = true;
         assert!(view.is_wizard(P0) && !view.is_wizard(P1));
-        assert!(!view.is_wizard(crate::player::NEUTRAL) && !view.is_wizard(PlayerId(9)));
+        assert!(!view.is_wizard(crate::player::MONSTERS) && !view.is_wizard(PlayerId(9)));
         assert_eq!(view.living_wizards(), vec![P0]);
         let spell = view
             .content

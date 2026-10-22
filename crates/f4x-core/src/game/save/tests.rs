@@ -31,7 +31,7 @@ fn game() -> Game {
         g.set_road(12, 6, true);
         g.set_road(13, 6, true);
         g.set_river(14, 6, true);
-        g.set_volcano(15, 6, Some(0));
+        g.set_volcano(15, 6, Some(PlayerId(0)));
         g.set_lake(16, 6, true);
         g.set_corrupted(17, 6, true);
         g
@@ -44,7 +44,7 @@ fn game() -> Game {
         realm: "chaos".into(),
         power: 12,
         aura: vec![(3, 3), (4, 3), (3, 4)],
-        owner: Some(0),
+        owner: Some(PlayerId(0)),
         guardian: true,
         warped: false,
     }]);
@@ -139,7 +139,7 @@ fn restoring_gives_the_same_game() {
     let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
     assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));
     assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
-    assert_eq!(grid.volcano(15, 6), Some(0));
+    assert_eq!(grid.volcano(15, 6), Some(PlayerId(0)));
     assert_eq!(grid.volcano(14, 6), None);
     assert!(grid.is_lake(16, 6) && !grid.is_lake(15, 6));
     assert!(grid.is_corrupted(17, 6) && !grid.is_corrupted(16, 6));

@@ -550,7 +550,7 @@ fn strangers_do_not_react_and_neither_does_a_monster() {
     g.change_relations(-40, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), before);
     met(&mut g, P2, P1);
-    g.change_relations(-40, crate::player::NEUTRAL, P1, Action::AttackedCity, None);
+    g.change_relations(-40, crate::player::MONSTERS, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), before);
 }
 
@@ -1368,9 +1368,9 @@ fn taking_a_city_is_a_war() {
 #[test]
 fn taking_an_independent_city_is_no_diplomacy() {
     let mut g = world();
-    let mut rebels = Player::new_neutral();
+    let mut rebels = Player::new();
     rebels.gold = 0;
-    g.add_player(PlayerId(9), "", rebels);
+    g.add_neutral_player(PlayerId(9), rebels);
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());

@@ -96,7 +96,7 @@ impl Game {
                 }
                 // A guarded site stops the stack: go round unless it is the destination.
                 if next != to
-                    && owner != crate::player::NEUTRAL
+                    && owner != crate::player::MONSTERS
                     && self
                         .economy()
                         .lair_at(next)
@@ -163,7 +163,7 @@ impl Game {
                 if self.economy().hostile_at(next, owner).is_some() {
                     continue;
                 }
-                if owner != crate::player::NEUTRAL
+                if owner != crate::player::MONSTERS
                     && self
                         .economy()
                         .lair_at(next)

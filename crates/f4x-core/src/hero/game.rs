@@ -18,6 +18,9 @@ use crate::wizard::magic::Retort;
 impl UnitView<'_> {
     /// The wizard's hero units.
     pub fn hero_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        let Some(player) = crate::player::find_entity(self.world, player) else {
+            return Vec::new();
+        };
         let mut out: Vec<hecs::Entity> = self
             .world
             .query::<(&Hero, &Owner)>()
@@ -117,7 +120,7 @@ impl Game {
         let ids: Vec<PlayerId> = self
             .players()
             .into_iter()
-            .filter(|(_, p)| !p.neutral)
+            .filter(|(id, _)| !self.is_neutral_player(*id))
             .map(|(id, _)| id)
             .collect();
         for (k, id) in ids.into_iter().enumerate() {
@@ -215,14 +218,13 @@ impl Game {
                     .unwrap_or_default();
                 let takes = heir.unwrap_or(owner);
                 if !self.is_neutral_player(takes) {
+                    let winner = self.player_entity(takes);
                     for item in items {
                         let name = item.name.clone();
                         let placed = self.give_item(takes, item);
-                        self.item_awards.push((
-                            takes,
-                            name,
-                            placed != crate::item::armory::Placed::Lost,
-                        ));
+                        let kept = placed != crate::item::armory::Placed::Lost;
+                        self.item_awards
+                            .extend(winner.map(|winner| (winner, name, kept)));
                     }
                 }
             }
@@ -235,6 +237,9 @@ impl Game {
     pub(crate) fn drain_item_awards(&mut self) -> Vec<Event> {
         let mut events: Vec<Event> = Vec::new();
         for (player, name, kept) in std::mem::take(&mut self.item_awards) {
+            let Some(player) = crate::player::id_of(&self.world, player) else {
+                continue;
+            };
             let found = events.iter_mut().find_map(|e| match e {
                 Event::ItemsAwarded {
                     player: p,
@@ -332,7 +337,7 @@ pub(crate) mod tests {
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));
         g.add_player(P0, "A", Player::new());
         g.add_player(P1, "B", Player::new());
-        g.add_player(PlayerId(9), "", Player::new_neutral());
+        g.add_neutral_player(PlayerId(9), Player::new());
         g.init_heroes();
         g
     }

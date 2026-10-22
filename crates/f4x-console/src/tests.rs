@@ -22,7 +22,10 @@ fn game() -> Game {
 
 /// The wizards of a game (the independent cities have players of their own).
 fn wizards(g: &Game) -> usize {
-    g.players().iter().filter(|(_, p)| !p.neutral).count()
+    g.players()
+        .iter()
+        .filter(|(id, _)| !g.is_neutral_player(*id))
+        .count()
 }
 
 fn console() -> Console {
@@ -791,7 +794,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
         let p = g.player(o).unwrap();
-        assert!(p.neutral && p.gold > 0);
+        assert!(g.is_neutral_player(o) && p.gold > 0);
         assert!(!g.living_wizards().contains(&o), "not a wizard");
     }
     assert_eq!(wizards(&g), 2);
@@ -799,7 +802,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     let wizard_gold: Vec<_> = g
         .players()
         .iter()
-        .filter(|(_, p)| !p.neutral)
+        .filter(|(id, _)| !g.is_neutral_player(*id))
         .map(|(_, p)| p.gold)
         .collect();
     let before: Vec<_> = owners.iter().map(|&o| g.player(o).unwrap().gold).collect();
@@ -808,7 +811,10 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
     assert_ne!(before, after, "the treasuries moved");
     assert_eq!(
         wizard_gold.len(),
-        g.players().iter().filter(|(_, p)| !p.neutral).count()
+        g.players()
+            .iter()
+            .filter(|(id, _)| !g.is_neutral_player(*id))
+            .count()
     );
 }
 
@@ -2250,7 +2256,11 @@ fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
 fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
     let g = game();
     let mut seen = std::collections::BTreeSet::new();
-    for (id, _) in g.players().iter().filter(|(_, p)| !p.neutral) {
+    for (id, _) in g
+        .players()
+        .iter()
+        .filter(|(id, _)| !g.is_neutral_player(*id))
+    {
         let portrait = g.portrait(*id);
         assert!(portrait < f4x_core::player::PORTRAITS);
         assert!(seen.insert(portrait), "picture {portrait} twice");
@@ -2572,7 +2582,7 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
     for (id, _) in g
         .players()
         .iter()
-        .filter(|(id, p)| !p.neutral && *id != human)
+        .filter(|(id, _)| !g.is_neutral_player(*id) && *id != human)
     {
         assert!(
             g.objective(*id).is_some(),
@@ -2581,7 +2591,11 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
         );
     }
     let back = g.snapshot().restore(content).unwrap();
-    for (id, _) in g.players().iter().filter(|(_, p)| !p.neutral) {
+    for (id, _) in g
+        .players()
+        .iter()
+        .filter(|(id, _)| !g.is_neutral_player(*id))
+    {
         assert_eq!(back.objective(*id), g.objective(*id));
         assert_eq!(back.personality(*id), g.personality(*id));
     }
@@ -2604,7 +2618,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
         let names = g
             .players()
             .iter()
-            .filter(|(id, p)| !p.neutral && *id != g.human.unwrap())
+            .filter(|(id, _)| !g.is_neutral_player(*id) && *id != g.human.unwrap())
             .map(|(id, _)| g.player_name(*id))
             .collect();
         names

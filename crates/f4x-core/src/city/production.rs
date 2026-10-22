@@ -385,7 +385,7 @@ impl Economy<'_> {
             return Some(Advance::Waiting(p));
         }
         let at = *self.world.get::<&Position>(city).ok()?;
-        let owner = self.world.get::<&City>(city).ok()?.owner;
+        let owner = self.city_owner(city)?;
         Some(Advance::Done {
             item,
             production: p,
@@ -580,7 +580,7 @@ mod tests {
             let grass = content.terrains.id_of("grassland").unwrap();
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
-            world.spawn((PlayerId(0), Player::new()));
+            let owner = world.spawn((PlayerId(0), Player::new()));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,
@@ -589,8 +589,8 @@ mod tests {
             let city = world.spawn((
                 City {
                     name: "Town".into(),
-                    owner: PlayerId(0),
                 },
+                crate::player::Owner(owner),
                 at,
                 Population {
                     figures: 4,

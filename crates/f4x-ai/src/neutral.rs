@@ -20,7 +20,7 @@ pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
     let cities: Vec<_> = game
         .players()
         .into_iter()
-        .filter(|(id, p)| p.neutral && id.0 != u8::MAX)
+        .filter(|(id, _)| game.is_neutral_player(*id))
         .map(|(id, _)| id)
         .collect();
     let mut events = Vec::new();

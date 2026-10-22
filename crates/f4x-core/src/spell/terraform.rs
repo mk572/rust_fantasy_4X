@@ -82,7 +82,7 @@ impl Game {
         }
     }
 
-    fn volcano_at(&self, at: Position) -> Option<u8> {
+    fn volcano_at(&self, at: Position) -> Option<PlayerId> {
         self.map
             .as_ref()?
             .plane(at.plane)
@@ -187,7 +187,7 @@ impl Game {
             let grid = map.plane_mut(at.plane);
             grid.set(at.x, at.y, mountains);
             grid.set_feature(at.x, at.y, mineral);
-            grid.set_volcano(at.x, at.y, Some(owner.0));
+            grid.set_volcano(at.x, at.y, Some(owner));
         }
         for ship in ships {
             self.remove_unit(ship, crate::hero::roster::Fate::Slain);
@@ -373,7 +373,7 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Event::VolcanoRaised { .. })));
         let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
-        assert_eq!(grid.volcano(4, 4), Some(0));
+        assert_eq!(grid.volcano(4, 4), Some(PlayerId(0)));
         assert_eq!(grid.feature(4, 4), None);
         assert_eq!(
             g.economy().terrain_class_at(at(4, 4)),

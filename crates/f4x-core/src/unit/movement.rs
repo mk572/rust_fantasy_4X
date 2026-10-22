@@ -121,11 +121,9 @@ impl Economy<'_> {
         }
         match def.movement {
             MovementType::Sailing => {
-                let own_city_here = self.city_at(to).is_some_and(|c| {
-                    self.world
-                        .get::<&crate::city::City>(c)
-                        .is_ok_and(|c| Some(c.owner) == self.units().unit_owner(unit))
-                });
+                let own_city_here = self
+                    .city_at(to)
+                    .is_some_and(|c| self.city_owner(c) == self.units().unit_owner(unit));
                 return if is_water || own_city_here {
                     Ok(FULL_MOVE)
                 } else {
@@ -199,11 +197,9 @@ impl Economy<'_> {
             .into_iter()
             .filter(|&u| self.units().unit_owner(u).is_some_and(|o| o != mover))
             .collect();
-        let hostile_city = self.city_at(pos).is_some_and(|c| {
-            self.world
-                .get::<&crate::city::City>(c)
-                .is_ok_and(|c| c.owner != mover)
-        });
+        let hostile_city = self
+            .city_at(pos)
+            .is_some_and(|c| self.city_owner(c).is_some_and(|o| o != mover));
         (!defenders.is_empty() || hostile_city).then_some(defenders)
     }
 
@@ -302,7 +298,7 @@ impl Economy<'_> {
         if let Some(defenders) = self.hostile_at(to, owner) {
             return Ok((costs, Entry::Hostile(defenders)));
         }
-        if owner != crate::player::NEUTRAL {
+        if owner != crate::player::MONSTERS {
             if let Some((index, lair)) = self.lair_at(to) {
                 if !lair.guards.is_empty() {
                     return Ok((costs, Entry::Site(index)));
@@ -383,7 +379,7 @@ impl Game {
             return;
         }
         if let Some(m) = self.map.as_mut() {
-            m.set_tower_owner(at.x, at.y, owner.0);
+            m.set_tower_owner(at.x, at.y, owner);
         }
         for plane in Plane::ALL {
             self.fog.explore(owner, Position { plane, ..at }, 1);

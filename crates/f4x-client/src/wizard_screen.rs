@@ -90,7 +90,8 @@ impl App {
     pub fn open_wizard(&mut self, who: PlayerId) {
         let known = who == HUMAN
             || (self.game.have_met(HUMAN, who)
-                && self.game.player(who).is_some_and(|p| !p.neutral));
+                && self.game.player(who).is_some()
+                && !self.game.is_neutral_player(who));
         if !known {
             return;
         }

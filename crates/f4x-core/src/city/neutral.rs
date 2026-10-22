@@ -1,5 +1,5 @@
 //! Neutral cities: the independent cities a new world starts with, owned by the neutral player
-//! (`unit::NEUTRAL`), as the original's `Generate_Neutral_Cities` makes them.
+//! (`player::MONSTERS`), as the original's `Generate_Neutral_Cities` makes them.
 //!
 //! Each plane gets up to 15, on land away from fortresses, cities, nodes, towers and lairs.
 //! A city's race is picked from the races of its plane (a high elf city only on forest), with a
@@ -8,10 +8,10 @@
 //! population brings and a garrison of the best soldiers its race can recruit. After that a
 //! neutral city plays by the ordinary rules: it grows and can be taken in battle. Its decisions
 //! (farmers, taxes, what it builds) are an AI's, not the turn's: `f4x_ai::play_neutrals`, which a
-//! host calls before ending a turn. Every neutral city is its own player (`Player::neutral`),
+//! host calls before ending a turn. Every neutral city is its own player (the `Neutral` component),
 //! with its own treasury: its taxes pay for its buildings and its garrison, and a garrison it
 //! cannot pay for is disbanded. The player goes when the city is taken. Monsters, lair guards and
-//! the undead raised for them stay with the shared `unit::NEUTRAL`.
+//! the undead raised for them stay with the shared `player::MONSTERS`.
 
 use std::collections::VecDeque;
 
@@ -68,7 +68,7 @@ impl Game {
             .map(PlayerId)
             .find(|id| self.player(*id).is_none())
             .unwrap_or(PlayerId(u8::MAX - 1));
-        self.add_player(id, "", Player::new_neutral());
+        self.add_neutral_player(id, Player::new());
         id
     }
 

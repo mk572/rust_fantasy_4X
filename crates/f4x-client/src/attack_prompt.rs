@@ -99,7 +99,7 @@ impl App {
             .first()
             .and_then(|&u| self.game.units().unit_owner(u));
         let who = match owner {
-            Some(p) if p != f4x_core::player::NEUTRAL => format!("wizard {}'s", p.0 + 1),
+            Some(p) if p != f4x_core::player::MONSTERS => format!("wizard {}'s", p.0 + 1),
             _ => "monster".to_string(),
         };
         if attack.defending {

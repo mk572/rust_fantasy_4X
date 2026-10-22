@@ -147,7 +147,7 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
             ..
         }
     )));
-    assert_eq!(g.units().unit_owner(boat), Some(NEUTRAL));
+    assert_eq!(g.units().unit_owner(boat), Some(MONSTERS));
     assert!(g.world.get::<&Marooned>(boat).is_ok());
     // It keeps sailing, a turn's worth at a time, with the riders aboard.
     let mut turns = 0;
@@ -285,5 +285,5 @@ fn a_marooned_ship_survives_saving() {
         .map(|(e, _)| e)
         .collect();
     assert_eq!(ships.len(), 1);
-    assert_eq!(back.units().unit_owner(ships[0]), Some(NEUTRAL));
+    assert_eq!(back.units().unit_owner(ships[0]), Some(MONSTERS));
 }
