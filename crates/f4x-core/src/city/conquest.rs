@@ -19,7 +19,7 @@
 //!
 //! [`Command::RazeCity`]: crate::game::Command::RazeCity
 
-use crate::city::economy::{Buildings, Economy, Enchantments, Population};
+use crate::city::economy::{Buildings, Economy, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
 use crate::game::rng::GameRng;
@@ -168,7 +168,7 @@ impl Game {
             if let Ok(e) = self.destroy_city(city) {
                 events.extend(e);
             } else {
-                let _ = self.world.despawn(city);
+                self.despawn_with_spells(city);
             }
             return events;
         }
@@ -216,8 +216,10 @@ impl Game {
         }];
         events.extend(self.capture_city(city, winner));
         // The old owner's spells on the city end, and the new owner starts afresh.
-        if let Ok(mut en) = self.world.get::<&mut Enchantments>(city) {
-            en.0.retain(|&(_, caster)| caster != loser);
+        for (spell, caster) in self.spells().city_enchantments(city) {
+            if caster == loser {
+                self.remove_city_enchantment(city, spell, caster);
+            }
         }
         let _ = self.world.insert_one(
             city,
@@ -278,7 +280,7 @@ impl Game {
         match self.destroy_city(city) {
             Ok(e) => events.extend(e),
             Err(_) => {
-                let _ = self.world.despawn(city);
+                self.despawn_with_spells(city);
                 if let Some(pos) = pos {
                     events.push(Event::CityDestroyed { pos });
                 }

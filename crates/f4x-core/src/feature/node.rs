@@ -231,7 +231,7 @@ impl Game {
             Some(_) if !node.guardian => true,
             Some(_) => self.roll(100) <= 25,
         };
-        let _ = self.world.despawn(melder);
+        self.despawn_with_spells(melder);
         let mut events = Vec::new();
         if taken {
             if let Some(n) = self.map.as_mut().and_then(|m| m.node_mut(index)) {

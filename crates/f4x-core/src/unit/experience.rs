@@ -20,7 +20,7 @@ use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::UnitKind;
-use crate::unit::{Experience, UnitEnchantments, UnitView, HEROISM, HEROISM_LEVEL};
+use crate::unit::{Experience, UnitView, HEROISM, HEROISM_LEVEL};
 use hecs::World;
 
 /// A hero's ability ids (task 47 adds the rest).
@@ -86,9 +86,11 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
                 view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
             };
             if done {
-                if let Ok(mut list) = world.get::<&mut UnitEnchantments>(unit) {
-                    list.0.retain(|&(s, _)| s != heroism);
-                }
+                crate::spell::instance::remove_on(
+                    world,
+                    crate::spell::instance::SpellTarget::Unit(unit),
+                    |s, _| s == heroism,
+                );
             }
         }
     }

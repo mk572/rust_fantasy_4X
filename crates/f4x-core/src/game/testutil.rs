@@ -519,6 +519,48 @@ impl FakeView {
         crate::wizard::sheet::WizardMut::new(&mut self.world, e)
     }
 
+    /// A wizard keeps a lasting spell going on the world.
+    pub fn give_global(&mut self, id: crate::player::PlayerId, spell: crate::rules::SpellId) {
+        use crate::spell::instance::{Caster, SpellCast, SpellTarget};
+        let caster = self
+            .wizards
+            .iter()
+            .find(|(p, _)| *p == id)
+            .expect("a wizard of the view")
+            .1;
+        let serial = crate::game::serial::Serial(self.world.len() as u64 + 1);
+        self.world.spawn((
+            SpellCast { def: spell },
+            Caster(caster),
+            SpellTarget::Global,
+            serial,
+        ));
+    }
+
+    /// A wizard is paying `owed` mana for `spell` over turns.
+    pub fn give_casting(
+        &mut self,
+        id: crate::player::PlayerId,
+        spell: crate::rules::SpellId,
+        owed: i32,
+    ) {
+        use crate::spell::instance::{Caster, Owed, SpellCast, SpellTarget};
+        let caster = self
+            .wizards
+            .iter()
+            .find(|(p, _)| *p == id)
+            .expect("a wizard of the view")
+            .1;
+        let serial = crate::game::serial::Serial(self.world.len() as u64 + 1);
+        self.world.spawn((
+            SpellCast { def: spell },
+            Caster(caster),
+            SpellTarget::Wizard(caster),
+            Owed(owed),
+            serial,
+        ));
+    }
+
     pub fn with_content(mut self, content: Content) -> Self {
         self.content = content;
         self

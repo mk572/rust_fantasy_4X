@@ -15,13 +15,12 @@
 
 use rand::RngCore;
 
-use crate::city::economy::Enchantments;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::exec::Target;
 use crate::rules::SpellId;
-use crate::unit::UnitEnchantments;
+use crate::spell::instance::SpellTarget;
 use crate::wizard::magic::Retort;
 
 /// Enchantments with the wizard who cast each.
@@ -60,16 +59,9 @@ impl Game {
         spell: SpellId,
     ) -> Result<Vec<Event>, crate::wizard::magic::MagicError> {
         use crate::wizard::magic::MagicError::NoSuchTarget;
-        let list = self
-            .world
-            .get::<&Enchantments>(city)
-            .map(|e| e.0.clone())
-            .map_err(|_| NoSuchTarget)?;
-        if !list.contains(&(spell, player)) {
+        if !self.turn_off_enchantment(SpellTarget::City(city), player, spell) {
             return Err(NoSuchTarget);
         }
-        let kept = list.into_iter().filter(|&e| e != (spell, player)).collect();
-        let _ = self.world.insert_one(city, Enchantments(kept));
         if self.content.rules.spells.get(spell).id == "spell_ward" {
             let _ = self
                 .world
@@ -81,17 +73,20 @@ impl Game {
     /// How many land units would drown if `spell` were turned off on `unit`: the question the
     /// sheet asks before it warns the wizard. Nothing is changed.
     pub fn drowned_if_off(&mut self, unit: hecs::Entity, spell: SpellId) -> usize {
-        let Ok(list) = self
-            .world
-            .get::<&UnitEnchantments>(unit)
-            .map(|e| e.0.clone())
-        else {
-            return 0;
-        };
-        let kept = list.iter().copied().filter(|&(s, _)| s != spell).collect();
-        let _ = self.world.insert_one(unit, UnitEnchantments(kept));
+        // The spell is taken off for a moment: its instances point at no unit (the battlefield).
+        let held: Vec<hecs::Entity> = self
+            .spells()
+            .on(SpellTarget::Unit(unit))
+            .into_iter()
+            .filter(|&i| self.spells().def(i) == Some(spell))
+            .collect();
+        for &i in &held {
+            let _ = self.world.insert_one(i, SpellTarget::Battlefield);
+        }
         let lost = self.economy().stranded().len();
-        let _ = self.world.insert_one(unit, UnitEnchantments(list));
+        for &i in &held {
+            let _ = self.world.insert_one(i, SpellTarget::Unit(unit));
+        }
         lost
     }
 
@@ -105,16 +100,9 @@ impl Game {
         spell: SpellId,
     ) -> Result<Vec<Event>, crate::wizard::magic::MagicError> {
         use crate::wizard::magic::MagicError::NoSuchTarget;
-        let list = self
-            .world
-            .get::<&UnitEnchantments>(unit)
-            .map(|e| e.0.clone())
-            .map_err(|_| NoSuchTarget)?;
-        if !list.contains(&(spell, player)) {
+        if !self.turn_off_enchantment(SpellTarget::Unit(unit), player, spell) {
             return Err(NoSuchTarget);
         }
-        let kept = list.into_iter().filter(|&e| e != (spell, player)).collect();
-        let _ = self.world.insert_one(unit, UnitEnchantments(kept));
         let mut events = vec![Event::EnchantmentLapsed { player, spell }];
         events.extend(self.drown_stranded());
         Ok(events)
@@ -194,43 +182,12 @@ impl Game {
         gone: &mut Vec<Event>,
     ) -> u32 {
         match who {
+            // Spell Lock guards a unit's spells, not a city's.
             Target::Unit(u) => {
-                let list = self
-                    .world
-                    .get::<&UnitEnchantments>(u)
-                    .map(|e| e.0.clone())
-                    .unwrap_or_default();
-                let (kept, removed) = self.dispel_list(list, strength, by, true, rng);
-                let _ = self.world.insert_one(u, UnitEnchantments(kept));
-                gone.extend(
-                    removed
-                        .iter()
-                        .map(|&(spell, victim)| Event::EnchantmentDispelled {
-                            victim,
-                            spell,
-                            on_unit: true,
-                        }),
-                );
-                removed.len() as u32
+                self.dispel_enchantments(SpellTarget::Unit(u), strength, by, rng, gone)
             }
             Target::City(c) => {
-                let list = self
-                    .world
-                    .get::<&Enchantments>(c)
-                    .map(|e| e.0.clone())
-                    .unwrap_or_default();
-                let (kept, removed) = self.dispel_list(list, strength, by, false, rng);
-                let _ = self.world.insert_one(c, Enchantments(kept));
-                gone.extend(
-                    removed
-                        .iter()
-                        .map(|&(spell, victim)| Event::EnchantmentDispelled {
-                            victim,
-                            spell,
-                            on_unit: false,
-                        }),
-                );
-                removed.len() as u32
+                self.dispel_enchantments(SpellTarget::City(c), strength, by, rng, gone)
             }
             Target::Tile(at) => {
                 let mut removed = self.dispel_node(at, strength, rng);
@@ -245,6 +202,33 @@ impl Game {
             }
             _ => 0,
         }
+    }
+
+    /// A dispel attacks the enchantments on a unit or a city, cast by other wizards.
+    fn dispel_enchantments(
+        &mut self,
+        target: SpellTarget,
+        strength: u32,
+        by: PlayerId,
+        rng: &mut dyn RngCore,
+        gone: &mut Vec<Event>,
+    ) -> u32 {
+        let on_unit = matches!(target, SpellTarget::Unit(_));
+        let list = self.spells().enchantments_on(target);
+        let (_, removed) = self.dispel_list(list, strength, by, on_unit, rng);
+        for &(spell, victim) in &removed {
+            self.remove_enchantment(target, spell, victim);
+        }
+        gone.extend(
+            removed
+                .iter()
+                .map(|&(spell, victim)| Event::EnchantmentDispelled {
+                    victim,
+                    spell,
+                    on_unit,
+                }),
+        );
+        removed.len() as u32
     }
 
     /// Dispel an enchanted road on the square, against the difficulty of Enchant Road. The
@@ -315,9 +299,9 @@ impl Game {
         if !dispel_roll(strength, difficulty, rng) {
             return Some(false);
         }
-        self.wizard_mut(victim)?.remove_global(spell);
+        self.remove_global(victim, spell);
         if steal {
-            self.wizard_mut(by)?.add_global(spell);
+            self.add_global(by, spell);
             self.reveal_for_globals(by);
         }
         Some(true)

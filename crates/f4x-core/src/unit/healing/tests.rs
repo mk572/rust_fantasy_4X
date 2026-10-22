@@ -1,5 +1,5 @@
 use super::*;
-use crate::city::economy::{Buildings, Enchantments};
+use crate::city::economy::Buildings;
 use crate::city::City;
 use crate::content::Content;
 use crate::game::serial::Serial;
@@ -106,7 +106,6 @@ impl Rig {
             crate::player::Owner(owner),
             pos,
             Buildings::default(),
-            Enchantments::default(),
         ))
     }
 
@@ -117,11 +116,18 @@ impl Rig {
 
     fn enchant(&mut self, city: hecs::Entity, id: &str, caster: PlayerId) {
         let s = self.content.rules.spells.id_of(id).unwrap();
-        self.world
-            .get::<&mut Enchantments>(city)
-            .unwrap()
-            .0
-            .push((s, caster));
+        let player = self.player(caster);
+        let wizard = self
+            .world
+            .spawn((crate::wizard::entity::PlayerLink(player),));
+        let serial = Serial(self.next);
+        self.next += 1;
+        self.world.spawn((
+            crate::spell::instance::SpellCast { def: s },
+            crate::spell::instance::Caster(wizard),
+            crate::spell::instance::SpellTarget::City(city),
+            serial,
+        ));
     }
 
     /// What the plan says, and how many numbers it drew.

@@ -13,9 +13,8 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 > (invested points and `skill_left`), `Research` (`researching`, `research_remaining`),
 > `KnownSpells`, `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), `Name`,
 > `Portrait`, `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`
-> and `Banishment`. `casting`, `crafting`, `raising` and `global` stay in a transitional `Magic`
-> component and become spell instances in tasks 319 to 322
-> ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
+> and `Banishment`. The cast in progress (with the item or hero it carries) and the lasting spells are
+> spell instances, built in tasks 318 to 322 ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
 > no wizard. The table below lists the wizard's data; the mana reserve is the player's
 > `Treasury`.
 
@@ -113,8 +112,7 @@ left (task 61).
 `resolve_cast` runs the spell's `OnCast` effects through the effect executor against a real
 effect host over the ECS (`GameHost` in `spell/cast.rs`): damage and healing of units, summoning,
 terrain and feature changes, resources, dispelling. A spell that lasts (the original has no timed spells) is
-attached to its target: a city (`Enchantments`), a unit (`UnitEnchantments`) or the wizard
-(`Magic::global`); its passive effects then apply as stat modifiers. Spells whose effects are
+a spell instance (`spell/instance.rs`) on its target: a city, a unit or the world; its passive effects then apply as stat modifiers. Spells whose effects are
 still the `unimplemented` hook are cast, cost mana, and report `SpellHasNoEffectYet`.
 
 Known gaps: instant `Modify`/ability grants have no
@@ -263,9 +261,7 @@ spent twelve; ours has four sorcery books and spends eleven, as the others). The
 ## 14. Global enchantments
 
 > **Rework.** A global enchantment is a spell instance with target `Global` and the casting wizard as
-> `Caster` (task 319); `has_global` becomes a query. `wizard/magic.rs`'s `global` list goes.
-
-A global spell sits in `Magic::global` and costs upkeep like any lasting spell. Its effect is
+A global spell is a spell instance with the target `Global` and costs upkeep like any lasting spell. Its effect is
 read where it matters (`spell/global_enchantment.rs`), by spell id for engine rules, and through the spell's own
 passive rules for unit stats (a rule may carry a condition such as `KindIs(Normal)` or
 `RealmIs("chaos")`, checked against each of the owner's units). Spells with an engine rule carry

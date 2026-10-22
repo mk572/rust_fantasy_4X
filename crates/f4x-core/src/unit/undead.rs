@@ -22,7 +22,7 @@
 //! upkeep (it keeps its gold and food cost, as in the original) or Holy Arms and Crusade.
 
 use crate::game::Game;
-use crate::unit::{Unit, UnitEnchantments, UnitView};
+use crate::unit::{Unit, UnitView};
 use hecs::World;
 
 /// Marks a unit that was made undead.
@@ -54,9 +54,7 @@ impl UnitView<'_> {
         let Some(spell) = self.content.rules.spells.id_of(BLACK_CHANNELS) else {
             return false;
         };
-        self.world
-            .get::<&UnitEnchantments>(unit)
-            .is_ok_and(|l| l.0.iter().any(|&(s, _)| s == spell))
+        crate::spell::instance::Spells::new(self.world).unit_has(unit, spell)
     }
 
     /// Undead in the sense of the help: made undead or black channeled. Such a unit fights as
@@ -90,7 +88,11 @@ pub(crate) fn make_undead(world: &mut World, unit: hecs::Entity) -> bool {
         return false;
     }
     let _ = world.insert_one(unit, Undead);
-    let _ = world.remove_one::<UnitEnchantments>(unit);
+    crate::spell::instance::remove_on(
+        world,
+        crate::spell::instance::SpellTarget::Unit(unit),
+        |_, _| true,
+    );
     true
 }
 

@@ -5,6 +5,7 @@ pub mod city;
 pub mod dispel;
 pub mod global_enchantment;
 pub mod hero;
+pub mod instance;
 pub mod special;
 pub mod temp_effects;
 pub mod terraform;

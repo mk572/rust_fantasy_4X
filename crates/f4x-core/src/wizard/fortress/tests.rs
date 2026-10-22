@@ -491,21 +491,10 @@ fn a_defeat_clears_the_losers_enchantments_and_nodes() {
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P1, at(15, 5));
     let ward = spell(&g, "move_fortress");
-    g.world
-        .insert_one(town, crate::city::economy::Enchantments(vec![(ward, P0)]))
-        .unwrap();
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(ward);
+    g.add_city_enchantment(town, ward, P0);
+    g.add_global(P0, ward);
     g.capture_city(capital, P1);
-    assert!(g
-        .world
-        .get::<&crate::city::economy::Enchantments>(town)
-        .unwrap()
-        .0
-        .is_empty());
+    assert!(g.city_enchantments(town).is_empty());
     assert!(g.wizard(P0).unwrap().global().is_empty());
 }
 

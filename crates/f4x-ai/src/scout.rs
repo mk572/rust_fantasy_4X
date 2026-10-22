@@ -210,7 +210,9 @@ fn unexplored_near(view: &PlayerView, at: Position, look: i32) -> u32 {
     let mut n = 0;
     let reach = f4x_core::map::fog::squares_seen(look as u32) as i32;
     for dy in -reach..=reach {
-        for dx in (-reach..=reach).filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look)) {
+        for dx in (-reach..=reach)
+            .filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look, view.diagonal_extra_cost()))
+        {
             if let Some(p) = view.shift(at, dx, dy) {
                 if !view.explored(p) {
                     n += 1;
@@ -246,8 +248,8 @@ mod tests {
         let view = PlayerView::new(&g, P0);
         assert_eq!(
             unexplored_near(&view, far, 5),
-            21,
-            "all 21 squares of a look of 5 half-squares unseen"
+            25,
+            "all 25 squares of a look of 5 half-squares unseen"
         );
         // The city's own surroundings are known.
         assert_eq!(unexplored_near(&view, city(), 1), 0);

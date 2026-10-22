@@ -2,7 +2,7 @@
 //! functions over the people and the random numbers ([`grow_population`], [`outpost_step`],
 //! [`outpost_shrink_chance`]); the `Game` side reads the city and applies the result.
 
-use crate::city::economy::{Buildings, CityRace, Economy, Enchantments, Farmers, Population};
+use crate::city::economy::{Buildings, CityRace, Economy, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
 use crate::game::rng::GameRng;
@@ -118,7 +118,6 @@ impl Game {
             Population { figures, tens: 0 },
             Farmers(0),
             Buildings::default(),
-            Enchantments::default(),
             Production {
                 item: Some(ProductionItem::Housing),
                 progress: 0,

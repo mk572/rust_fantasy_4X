@@ -180,12 +180,10 @@ impl Game {
         self.sort_by_serial(&mut cities);
         for city in cities {
             let blessed = self
-                .world
-                .get::<&crate::city::economy::Enchantments>(city)
-                .is_ok_and(|e| {
-                    e.0.iter()
-                        .any(|&(s, _)| self.content.rules.spells.get(s).id == "gaias_blessing")
-                });
+                .spells()
+                .city_enchantments(city)
+                .iter()
+                .any(|&(s, _)| self.content.rules.spells.get(s).id == "gaias_blessing");
             if !blessed {
                 continue;
             }

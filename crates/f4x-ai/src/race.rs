@@ -152,13 +152,7 @@ mod tests {
     }
 
     fn casts(g: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
-        g.wizard_mut(who)
-            .unwrap()
-            .get_mut::<f4x_core::wizard::magic::Magic>()
-            .casting = Some(f4x_core::wizard::magic::Casting {
-            spell,
-            remaining: left,
-        });
+        g.scenario_casting(who, spell, left);
     }
 
     #[test]

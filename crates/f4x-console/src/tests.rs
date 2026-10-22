@@ -1735,9 +1735,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     for _ in 0..6 {
         let r = cast(&mut g, &format!("bcast dispel magic unit:{enemy} mana:30"));
         assert!(r.ok, "{}", r.text());
-        if g.component::<f4x_core::unit::UnitEnchantments>(defender)
-            .is_none_or(|l| l.0.is_empty())
-        {
+        if g.units().unit_enchantments(defender).is_empty() {
             gone = true;
             break;
         }
@@ -2723,9 +2721,10 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
 #[test]
 fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
     use f4x_core::game::setting::{Radius, Split};
-    let known = |radius: f32, mana: i32| {
+    let known = |radius: f32, mana: i32, diagonal_extra: bool| {
         let mut spec = NewGame::with_wizards(2);
         spec.seed = 5;
+        spec.settings.basic.diagonal_extra_cost = diagonal_extra;
         spec.settings.world.start_reveal_radius = Radius(radius);
         spec.settings.wizards.starting_mana = Split { human: mana, ai: 7 };
         let g = new_game(&content(), &spec).unwrap();
@@ -2735,9 +2734,12 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
         assert_eq!(g.treasury(ai).unwrap().mana, 7);
         g.explored_squares(human)
     };
-    // A plus of 5, the 3 by 3 block, and the 5 by 5 block without its corners (the fortress is
-    // not at the map's edge, which would cut them).
-    assert_eq!(known(1.0, 0), 5);
-    assert_eq!(known(1.5, 30), 9);
-    assert_eq!(known(2.5, 0), 21);
+    // With a diagonal step costing extra: a plus of 5, the 3 by 3 block, and the 5 by 5 block
+    // without its corners (the fortress is not at the map's edge, which would cut them).
+    assert_eq!(known(1.0, 0, true), 5);
+    assert_eq!(known(1.5, 30, true), 9);
+    assert_eq!(known(2.5, 0, true), 21);
+    // Without it, a diagonal square is as near as a straight one: whole blocks.
+    assert_eq!(known(1.0, 0, false), 9);
+    assert_eq!(known(2.5, 0, false), 25);
 }

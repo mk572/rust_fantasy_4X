@@ -1,6 +1,6 @@
 //! What a wizard's global enchantments do to the rest of the game.
 //!
-//! The spells sit in `Magic::global`; the code that cares asks here. Plain stat changes come
+//! The spells are spell instances with the target `Global` (`spell/instance.rs`); the code that cares asks here. Plain stat changes come
 //! from the spell's own passive rules (with a condition such as "normal units"); the rest is
 //! recognised by spell id.
 //!
@@ -13,7 +13,9 @@ use crate::player::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
 use crate::rules::{Modifier, Source, SpellId, Stat};
+use crate::spell::instance::SpellTarget;
 use crate::unit::{Hurt, UnitView};
+use crate::wizard::magic::MagicError;
 
 /// Does this wizard keep the global spell with this id going?
 pub(crate) fn magic_has_global(
@@ -27,7 +29,7 @@ pub(crate) fn magic_has_global(
         .any(|&s| content.rules.spells.get(s).id == id)
 }
 
-/// The hook global spells carry when the engine reads them from the wizard's list instead of
+/// The hook global spells carry when the engine reads them from the wizard's spells instead of
 /// running anything when they are cast.
 pub const GLOBAL_EFFECT: &str = "global_effect";
 
@@ -35,6 +37,46 @@ pub const GLOBAL_EFFECT: &str = "global_effect";
 pub(crate) const JUST_CAUSE_FAME: i32 = 10;
 
 impl Game {
+    /// A lasting spell starts on the whole world, cast by `player`'s wizard; it is there once.
+    pub(crate) fn add_global(&mut self, player: PlayerId, spell: SpellId) {
+        self.add_enchantment(SpellTarget::Global, spell, player);
+    }
+
+    /// One of the wizard's lasting spells on the world ends (it is dispelled, cannot be paid for,
+    /// or is turned off).
+    pub(crate) fn remove_global(&mut self, player: PlayerId, spell: SpellId) {
+        self.remove_enchantment(SpellTarget::Global, spell, player);
+    }
+
+    /// Turn off one of the wizard's own global enchantments.
+    pub(crate) fn turn_off(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
+        if self.wizard(player).is_none() {
+            return Err(MagicError::UnknownPlayer);
+        }
+        if self.turn_off_enchantment(SpellTarget::Global, player, spell) {
+            Ok(())
+        } else {
+            Err(MagicError::NotAvailable)
+        }
+    }
+
+    /// Every wizard's lasting spells on the world end (Disjunction).
+    pub(crate) fn end_all_globals(&mut self) {
+        for instance in self.spells().on(SpellTarget::Global) {
+            self.despawn_spell(instance);
+        }
+    }
+
+    /// A wizard's lasting spells on the world all end, for a test that starts again.
+    #[cfg(test)]
+    pub(crate) fn clear_globals(&mut self, player: PlayerId) {
+        if let Some(caster) = self.wizard(player).map(|w| w.entity()) {
+            for instance in self.spells().globals_of(caster) {
+                self.despawn_spell(instance);
+            }
+        }
+    }
+
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
         self.wizard(player)
@@ -96,8 +138,12 @@ impl Game {
                     x: w / 2,
                     y: h / 2,
                 };
-                self.fog
-                    .explore(player, at, crate::map::fog::sight_for(w.max(h)));
+                self.fog.explore(
+                    player,
+                    at,
+                    crate::map::fog::sight_for(w.max(h)),
+                    self.settings.basic.diagonal_extra_cost,
+                );
             }
         } else if self.has_global(player, "awareness") {
             let cities: Vec<_> = self
@@ -107,7 +153,12 @@ impl Game {
                 .map(|(_, _, p)| p)
                 .collect();
             for at in cities {
-                self.fog.explore(player, at, crate::map::fog::sight_for(1));
+                self.fog.explore(
+                    player,
+                    at,
+                    crate::map::fog::sight_for(1),
+                    self.settings.basic.diagonal_extra_cost,
+                );
             }
         }
     }
@@ -129,7 +180,12 @@ impl Game {
         let cities: Vec<_> = self.economy().cities().into_iter().collect();
         for (entity, city, at) in cities {
             let sight = self.economy().city_sight(entity).max(0) as u32;
-            self.fog.explore(city.owner, at, sight);
+            self.fog.explore(
+                city.owner,
+                at,
+                sight,
+                self.settings.basic.diagonal_extra_cost,
+            );
         }
     }
 }
@@ -429,13 +485,7 @@ mod tests {
     fn detect_magic_shows_what_others_are_casting() {
         let mut g = world();
         let s = spell(&g, "healing");
-        g.wizard_mut(P1)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .casting = Some(crate::wizard::magic::Casting {
-            spell: s,
-            remaining: 10,
-        });
+        g.scenario_casting(P1, s, 10);
         assert!(g.detect_magic_view(P0).is_empty());
         grant(&mut g, P0, "detect_magic");
         assert_eq!(g.detect_magic_view(P0), vec![(P1, s)]);

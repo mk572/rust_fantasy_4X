@@ -303,10 +303,7 @@ mod tests {
             .next()
             .unwrap();
         assert!(!view.has_global(P0, &spell.1));
-        view.wizard_mut(P0)
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .push(spell.0);
+        view.give_global(P0, spell.0);
         assert!(view.has_global(P0, &spell.1));
         assert!(!view.has_global(P1, &spell.1));
     }

@@ -125,7 +125,7 @@ impl Game {
         self.refill_research(player);
     }
 
-    /// Top the offer for research up (`Magic::refill_research`), at the income the wizard's
+    /// Top the offer for research up (`refill_research`), at the income the wizard's
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
         let income = self.income(player).research;
@@ -311,9 +311,7 @@ impl Game {
                 Ok(events)
             }
             CastStart::Paid => {
-                if let Some(mut w) = self.wizard_mut(player) {
-                    w.begin_casting(spell, cost);
-                }
+                self.begin_casting(player, spell, cost);
                 self.begin_cast_relations(player, spell);
                 Ok(self.mastery_announcement(player, spell))
             }

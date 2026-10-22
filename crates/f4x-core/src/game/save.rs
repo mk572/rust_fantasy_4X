@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::city::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
+use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
 use crate::content::Content;
@@ -27,11 +27,11 @@ use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
 
 use crate::rules::SpellId;
-use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit, UnitEnchantments};
+use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit};
 
 use crate::game::Game;
 use crate::wizard::entity::Wizard;
-use crate::wizard::magic::{Casting, Magic, Retort};
+use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{
     Books, Candidates, KnownSpells, PowerSplit, Research, Retorts, Skill, WizardMut,
 };
@@ -166,13 +166,14 @@ pub struct MagicSave {
     pub candidates: Vec<String>,
     pub researching: Option<String>,
     pub research_remaining: i32,
-    /// `(spell, mana still to pay)`.
-    pub casting: Option<(String, i32)>,
+    /// `(spell, mana still to pay, creation number)`.
+    pub casting: Option<(String, i32, u64)>,
     /// The item being made by Enchant Item or Create Artifact.
     pub crafting: Option<crate::item::Item>,
     /// The dead hero Resurrection is bringing back.
     pub raising: Option<usize>,
-    pub global: Vec<String>,
+    /// `(spell, creation number)` of the lasting spells on the world.
+    pub global: Vec<(String, u64)>,
     pub skill_left: i32,
 }
 
@@ -200,6 +201,14 @@ impl Default for MagicSave {
     }
 }
 
+/// A spell of a wizard read from a save, made once the creation numbers are checked: a lasting
+/// spell on the world, or the cast in progress with `(mana owed, item, hero)`.
+struct PendingSpell {
+    spell: SpellId,
+    serial: u64,
+    cast: Option<(i32, Option<crate::item::Item>, Option<usize>)>,
+}
+
 impl MagicSave {
     /// What the wizard's components hold (the default for a player without a wizard).
     fn of(wizard: Option<Wizard<'_>>, rules: &crate::rules::Rules) -> Self {
@@ -220,16 +229,30 @@ impl MagicSave {
             candidates: w.candidates().iter().map(name).collect(),
             researching: w.researching().as_ref().map(name),
             research_remaining: w.research_remaining(),
-            casting: w.casting().map(|c| (name(&c.spell), c.remaining)),
+            casting: w.casting().and_then(|c| {
+                let cast = w.cast_instance()?;
+                let serial = *w.world().get::<&Serial>(cast).ok()?;
+                Some((name(&c.spell), c.remaining, serial.0))
+            }),
             crafting: w.crafting(),
             raising: w.raising(),
-            global: w.global().iter().map(name).collect(),
+            global: w
+                .global_instances()
+                .iter()
+                .map(|(s, serial)| (name(s), serial.0))
+                .collect(),
             skill_left: w.skill_left(),
         }
     }
 
     /// Put the saved magic on the wizard's components.
-    fn put(self, mut wizard: WizardMut<'_>, rules: &crate::rules::Rules) -> Result<(), LoadError> {
+    /// Returns the lasting spells on the world, which the caller makes once the creation
+    /// numbers are checked.
+    fn put(
+        self,
+        mut wizard: WizardMut<'_>,
+        rules: &crate::rules::Rules,
+    ) -> Result<Vec<PendingSpell>, LoadError> {
         let m = self;
         let id = |s: &String| {
             rules
@@ -238,6 +261,30 @@ impl MagicSave {
                 .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))
         };
         let ids = |v: &[String]| v.iter().map(id).collect::<Result<Vec<_>, _>>();
+        let mut pending = m
+            .global
+            .iter()
+            .map(|(s, serial)| {
+                id(s).map(|spell| PendingSpell {
+                    spell,
+                    serial: *serial,
+                    cast: None,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        match m.casting {
+            Some((s, owed, serial)) => pending.push(PendingSpell {
+                spell: id(&s)?,
+                serial,
+                cast: Some((owed, m.crafting, m.raising)),
+            }),
+            None if m.crafting.is_some() || m.raising.is_some() => {
+                return Err(LoadError::Inconsistent(
+                    "an item or hero is waiting for a spell that is not being cast".into(),
+                ));
+            }
+            None => {}
+        }
         if u32::from(m.mana_pct) + u32::from(m.research_pct) + u32::from(m.skill_pct) != 100 {
             return Err(LoadError::Inconsistent(
                 "power split does not add up to 100".into(),
@@ -271,16 +318,7 @@ impl MagicSave {
             spell: m.researching.as_ref().map(id).transpose()?,
             remaining: m.research_remaining,
         };
-        *wizard.get_mut::<Magic>() = Magic {
-            casting: m
-                .casting
-                .map(|(s, remaining)| id(&s).map(|spell| Casting { spell, remaining }))
-                .transpose()?,
-            crafting: m.crafting,
-            raising: m.raising,
-            global: ids(&m.global)?,
-        };
-        Ok(())
+        Ok(pending)
     }
 }
 
@@ -296,8 +334,8 @@ pub struct UnitSave {
     pub weapon: u8,
     pub moves: u32,
     pub order: Option<Vec<Position>>,
-    /// `(spell, caster)`.
-    pub enchantments: Vec<(String, u8)>,
+    /// `(spell, caster, creation number)`.
+    pub enchantments: Vec<(String, u8, u64)>,
     /// Road work in progress: `(square, turns left, squares still to do)`.
     pub road_work: Option<(Position, u8, Vec<Position>)>,
     /// Creation number of the ship the unit is aboard.
@@ -394,8 +432,8 @@ pub struct CitySave {
     pub farmers: u32,
     pub race: Option<String>,
     pub buildings: Vec<String>,
-    /// `(spell, caster)`.
-    pub enchantments: Vec<(String, u8)>,
+    /// `(spell, caster, creation number)`.
+    pub enchantments: Vec<(String, u8, u64)>,
     /// The realms a Spell Ward guards the city against.
     pub wards: Vec<String>,
     pub item: Option<ItemSave>,
@@ -631,14 +669,11 @@ impl Game {
                         path.clone()
                     }),
                     enchantments: self
-                        .world
-                        .get::<&UnitEnchantments>(u)
-                        .map(|en| {
-                            en.0.iter()
-                                .map(|(s, p)| (rules.spells.get(*s).id.clone(), p.0))
-                                .collect()
-                        })
-                        .unwrap_or_default(),
+                        .spells()
+                        .unit_instances(u)
+                        .into_iter()
+                        .map(|(s, p, serial)| (rules.spells.get(s).id.clone(), p.0, serial.0))
+                        .collect(),
                     aboard: self
                         .world
                         .get::<&crate::unit::transport::Aboard>(u)
@@ -727,14 +762,11 @@ impl Game {
                         })
                         .unwrap_or_default(),
                     enchantments: self
-                        .world
-                        .get::<&Enchantments>(e)
-                        .map(|en| {
-                            en.0.iter()
-                                .map(|(s, p)| (rules.spells.get(*s).id.clone(), p.0))
-                                .collect()
-                        })
-                        .unwrap_or_default(),
+                        .spells()
+                        .city_instances(e)
+                        .into_iter()
+                        .map(|(s, p, serial)| (rules.spells.get(s).id.clone(), p.0, serial.0))
+                        .collect(),
                     wards: self.economy().city_wards(e),
                     item: production.item.map(item_save),
                     progress: production.progress,
@@ -820,6 +852,7 @@ impl Snapshot {
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);
+        let mut pending = Vec::new();
 
         game.map = self
             .map
@@ -892,7 +925,9 @@ impl Snapshot {
                 wizard.put(fortress.map(Fortress));
                 wizard.put(summon_at.map(SummonAt));
                 wizard.put(banishment);
-                magic.put(wizard, rules)?;
+                for spell in magic.put(wizard, rules)? {
+                    pending.push((entity, spell));
+                }
             }
             game.set_grand_vizier(id, grand_vizier);
             if defeated {
@@ -913,6 +948,34 @@ impl Snapshot {
             }
             Ok(Serial(serial))
         };
+        for (caster, p) in pending {
+            let serial = take(p.serial, "a spell of a wizard")?;
+            let target = match p.cast {
+                None => crate::spell::instance::SpellTarget::Global,
+                Some(_) => crate::spell::instance::SpellTarget::Wizard(caster),
+            };
+            let instance = game.world.spawn((
+                crate::spell::instance::SpellCast { def: p.spell },
+                crate::spell::instance::Caster(caster),
+                target,
+                serial,
+            ));
+            if let Some((owed, crafting, raising)) = p.cast {
+                let _ = game
+                    .world
+                    .insert_one(instance, crate::spell::instance::Owed(owed));
+                if let Some(item) = crafting {
+                    let _ = game
+                        .world
+                        .insert_one(instance, crate::spell::instance::Crafting(item));
+                }
+                if let Some(kind) = raising {
+                    let _ = game
+                        .world
+                        .insert_one(instance, crate::spell::instance::Raising(kind));
+                }
+            }
+        }
         let in_map = |game: &Game, pos: Position| -> bool {
             game.map
                 .as_ref()
@@ -995,20 +1058,28 @@ impl Snapshot {
             if let Some(path) = u.order {
                 let _ = game.world.insert_one(entity, Order::GoTo(path));
             }
-            if !u.enchantments.is_empty() {
-                let list = u
-                    .enchantments
-                    .iter()
-                    .map(|(s, p)| {
-                        game.content
-                            .rules
-                            .spells
-                            .id_of(s)
-                            .map(|id| (id, PlayerId(*p)))
-                            .ok_or(LoadError::UnknownId("spell", s.clone()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let _ = game.world.insert_one(entity, UnitEnchantments(list));
+            for (s, p, serial) in &u.enchantments {
+                let def = game
+                    .content
+                    .rules
+                    .spells
+                    .id_of(s)
+                    .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))?;
+                let serial = take(*serial, "a unit spell")?;
+                let wizard = game
+                    .wizard(PlayerId(*p))
+                    .map(|w| w.entity())
+                    .ok_or_else(|| {
+                        LoadError::Inconsistent(format!(
+                            "a spell on a unit cast by the missing player {p}"
+                        ))
+                    })?;
+                game.world.spawn((
+                    crate::spell::instance::SpellCast { def },
+                    crate::spell::instance::Caster(wizard),
+                    crate::spell::instance::SpellTarget::Unit(entity),
+                    serial,
+                ));
             }
         }
         let mut cities = self.cities;
@@ -1041,11 +1112,11 @@ impl Snapshot {
             let enchantments = c
                 .enchantments
                 .iter()
-                .map(|(s, p)| {
+                .map(|(s, p, serial)| {
                     rules
                         .spells
                         .id_of(s)
-                        .map(|id| (id, PlayerId(*p)))
+                        .map(|id| (id, PlayerId(*p), *serial))
                         .ok_or(LoadError::UnknownId("spell", s.clone()))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1084,7 +1155,6 @@ impl Snapshot {
                 },
                 Farmers(c.farmers),
                 Buildings(buildings),
-                Enchantments(enchantments),
                 Production {
                     item,
                     progress: c.progress,
@@ -1092,6 +1162,21 @@ impl Snapshot {
             ));
             if let Some(r) = race {
                 let _ = game.world.insert_one(entity, CityRace(r));
+            }
+            for (spell, caster, serial) in enchantments {
+                let serial = take(serial, "a city spell")?;
+                let wizard = game.wizard(caster).map(|w| w.entity()).ok_or_else(|| {
+                    LoadError::Inconsistent(format!(
+                        "a spell on a city cast by the missing player {}",
+                        caster.0
+                    ))
+                })?;
+                game.world.spawn((
+                    crate::spell::instance::SpellCast { def: spell },
+                    crate::spell::instance::Caster(wizard),
+                    crate::spell::instance::SpellTarget::City(entity),
+                    serial,
+                ));
             }
             effects_load(&mut game.world, entity, c.effects);
             if !c.wards.is_empty() {

@@ -41,6 +41,7 @@ impl Game {
                     y: h / 2,
                 },
                 crate::map::fog::sight_for(w.max(h)),
+                self.settings.basic.diagonal_extra_cost,
             );
         }
     }

@@ -352,9 +352,7 @@ impl Game {
                 self.give_item(victim, item);
             }
             EventKind::Disjunction => {
-                for (_, magic) in self.world.query_mut::<&mut crate::wizard::magic::Magic>() {
-                    magic.global.clear();
-                }
+                self.end_all_globals();
                 notice.voice = Voice::Happened;
             }
             EventKind::Marriage => {

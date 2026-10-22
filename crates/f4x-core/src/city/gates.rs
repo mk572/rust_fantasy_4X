@@ -12,7 +12,7 @@
 //! Both belong to the wizard who cast them: a gate that outlived its caster's ownership of the
 //! city does nothing for the city's new owner.
 
-use crate::city::economy::{Economy, Enchantments};
+use crate::city::economy::Economy;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -90,9 +90,9 @@ impl Economy<'_> {
         let Some(spell) = self.content.rules.spells.id_of(gate) else {
             return false;
         };
-        self.world
-            .get::<&Enchantments>(city)
-            .is_ok_and(|e| e.0.contains(&(spell, owner)))
+        crate::spell::instance::Spells::new(self.world)
+            .city_enchantments(city)
+            .contains(&(spell, owner))
             && self.city_owner(city) == Some(owner)
     }
 }
@@ -238,7 +238,7 @@ mod tests {
         let w = walker(&mut g, P0, a);
         let guard = walker(&mut g, P1, at(Plane::Myrror, 1, 1));
         assert_eq!(g.shift_plane(&[w]), Err(MoveError::CannotShiftPlane));
-        let _ = g.world.despawn(guard);
+        g.despawn_with_spells(guard);
         assert!(g.economy().can_shift_plane(&[w]).is_ok());
         let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
         g.attach_enchantment(Target::Player(P1), seal, P1);

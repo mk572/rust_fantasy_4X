@@ -340,9 +340,9 @@ impl Game {
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(mut w) = self.wizard_mut(loser) {
             banish_player(&mut w, winner);
-            if let Some((spell, cost)) = spell.zip(cost) {
-                w.begin_casting(spell, cost);
-            }
+        }
+        if let Some((spell, cost)) = spell.zip(cost) {
+            self.begin_casting(loser, spell, cost);
         }
         vec![Event::WizardBanished {
             player: loser,
@@ -441,7 +441,7 @@ impl Game {
             return Err(FortressError::CannotDestroyFortress);
         }
         let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
-        let _ = self.world.despawn(city);
+        self.despawn_with_spells(city);
         if let (Some(pos), Some(mut w)) = (pos, self.wizard_mut(owner)) {
             circle_lost_to_destruction(&mut w, pos);
         }

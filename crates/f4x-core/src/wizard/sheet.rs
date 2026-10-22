@@ -1,9 +1,8 @@
 //! What a wizard is as components of its entity (task 315): spell books, retorts, casting skill,
 //! the split of power, research, the spells known and researchable, the offer for research and
 //! fame. [`Wizard`] reads them (the cost of a spell, the research income, may the wizard cast it)
-//! and [`WizardMut`] changes them (research, casting, power). The casting in progress, the item
-//! being made, the hero being raised and the lasting spells on the wizard stay in the transitional
-//! [`Magic`] component until the spell instances (tasks 319 to 322).
+//! and [`WizardMut`] changes them (research, casting, power). The cast in progress, with the item
+//! being made and the hero being raised, is a spell instance (`spell/instance.rs`).
 //!
 //! Formulas follow the original game's code (see `docs/magic.md` for the list and for where this
 //! differs).
@@ -14,10 +13,11 @@ use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
 use crate::rules::{Rarity, SpellDef, SpellId};
+use crate::spell::instance::{Crafting, Owed, Raising, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
     base_casting_skill, default_spells, is_crafting, is_summoning, pick_spells, skill_points_for,
-    spells_of, CastStart, Casting, Magic, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
+    spells_of, CastStart, Casting, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
 };
 
 /// Spell books per realm id.
@@ -88,7 +88,6 @@ pub(crate) fn bundle() -> (
     KnownSpells,
     Candidates,
     Fame,
-    Magic,
 ) {
     Default::default()
 }
@@ -190,29 +189,36 @@ impl<'a> Wizard<'a> {
 
     /// The spell being cast overland, with the mana still to pay.
     pub fn casting(&self) -> Option<Casting> {
-        self.component::<Magic>().and_then(|m| m.casting)
+        let spells = Spells::new(self.world());
+        let cast = spells.cast_of(self.entity())?;
+        Some(Casting {
+            spell: spells.def(cast)?,
+            remaining: self.world().get::<&Owed>(cast).ok()?.0,
+        })
     }
 
     /// The item Enchant Item or Create Artifact is making while its cost is paid.
     pub fn crafting(&self) -> Option<crate::item::Item> {
-        self.component::<Magic>().and_then(|m| m.crafting.clone())
+        let cast = Spells::new(self.world()).cast_of(self.entity())?;
+        Some(self.world().get::<&Crafting>(cast).ok()?.0.clone())
     }
 
     /// The dead hero (a roster index) Resurrection is bringing back while its cost is paid.
     pub fn raising(&self) -> Option<usize> {
-        self.component::<Magic>().and_then(|m| m.raising)
+        let cast = Spells::new(self.world()).cast_of(self.entity())?;
+        Some(self.world().get::<&Raising>(cast).ok()?.0)
     }
 
     /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
     pub fn global(&self) -> Vec<SpellId> {
-        self.component::<Magic>()
-            .map(|m| m.global.clone())
-            .unwrap_or_default()
+        self.global_instances()
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect()
     }
 
     pub fn has_global(&self, spell: SpellId) -> bool {
-        self.component::<Magic>()
-            .is_some_and(|m| m.global.contains(&spell))
+        self.global_instances().iter().any(|&(s, _)| s == spell)
     }
 
     /// Mana needed to cast `def`. Overland casting of a spell that can also be cast in battle
@@ -729,17 +735,16 @@ impl<'a> WizardMut<'a> {
         let nominal = self.view().casting_skill();
         let mut reserve = reserve;
         let mut skill = *self.get_mut::<Skill>();
-        {
-            let mut magic = self.get_mut::<Magic>();
-            if let Some(c) = magic.casting.as_mut() {
-                let units = skill.left.min(reserve).min(c.remaining).max(0);
-                c.remaining -= units;
+        if let Some(cast) = self.cast() {
+            if let Ok(mut c) = self.world.get::<&mut Owed>(cast) {
+                let units = skill.left.min(reserve).min(c.0).max(0);
+                c.0 -= units;
                 reserve -= units;
                 skill.left = 0;
-                if c.remaining > 0 {
-                    let units = nominal.min(reserve).min(c.remaining).max(0);
-                    if c.remaining - units == 0 {
-                        c.remaining = 0;
+                if c.0 > 0 {
+                    let units = nominal.min(reserve).min(c.0).max(0);
+                    if c.0 - units == 0 {
+                        c.0 = 0;
                         reserve -= units;
                         skill.left = -units;
                     }
@@ -763,22 +768,42 @@ impl<'a> WizardMut<'a> {
         }
     }
 
-    /// A lasting spell starts on the wizard (or the whole world); it is there once.
-    pub fn add_global(&mut self, spell: SpellId) {
-        let mut magic = self.get_mut::<Magic>();
-        if !magic.global.contains(&spell) {
-            magic.global.push(spell);
+    /// The spell being cast is cast or given up (the item and the hero stay).
+    pub fn clear_casting(&mut self) {
+        if let Some(cast) = self.cast() {
+            let _ = self.world.despawn(cast);
         }
     }
 
-    /// A lasting spell on the wizard ends.
-    pub fn remove_global(&mut self, spell: SpellId) {
-        self.get_mut::<Magic>().global.retain(|&s| s != spell);
+    /// The cast being paid for.
+    fn cast(&self) -> Option<hecs::Entity> {
+        Spells::new(self.world).cast_of(self.entity)
     }
 
-    /// The spell being cast is cast or given up (the item and the hero stay).
-    pub fn clear_casting(&mut self) {
-        self.get_mut::<Magic>().casting = None;
+    /// The item being made is kept with the cast until it is paid.
+    pub fn set_crafting(&mut self, item: crate::item::Item) {
+        if let Some(cast) = self.cast() {
+            let _ = self.world.insert_one(cast, Crafting(item));
+        }
+    }
+
+    /// The dead hero being brought back is kept with the cast until it is paid.
+    pub fn set_raising(&mut self, kind: usize) {
+        if let Some(cast) = self.cast() {
+            let _ = self.world.insert_one(cast, Raising(kind));
+        }
+    }
+
+    /// The item the cast was making.
+    pub fn take_crafting(&mut self) -> Option<crate::item::Item> {
+        let cast = self.cast()?;
+        self.world.remove_one::<Crafting>(cast).ok().map(|c| c.0)
+    }
+
+    /// The dead hero the cast was bringing back.
+    pub fn take_raising(&mut self) -> Option<usize> {
+        let cast = self.cast()?;
+        self.world.remove_one::<Raising>(cast).ok().map(|r| r.0)
     }
 
     /// Pay for a spell cast at once out of this turn's skill.
@@ -791,30 +816,9 @@ impl<'a> WizardMut<'a> {
         self.get_mut::<Skill>().left += skill;
     }
 
-    /// Begin paying for `spell` over turns.
-    pub fn begin_casting(&mut self, spell: SpellId, cost: i32) {
-        self.get_mut::<Magic>().casting = Some(Casting {
-            spell,
-            remaining: cost,
-        });
-    }
-
     /// Give up the spell being cast; the mana already paid is lost.
     pub fn cancel_casting(&mut self) {
-        let mut magic = self.get_mut::<Magic>();
-        magic.casting = None;
-        magic.crafting = None;
-        magic.raising = None;
-    }
-
-    /// Turn off one of the wizard's own global enchantments.
-    pub fn turn_off(&mut self, spell: SpellId) -> Result<(), MagicError> {
-        let mut magic = self.get_mut::<Magic>();
-        if !magic.global.contains(&spell) {
-            return Err(MagicError::NotAvailable);
-        }
-        magic.global.retain(|&s| s != spell);
-        Ok(())
+        self.clear_casting();
     }
 }
 

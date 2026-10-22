@@ -318,7 +318,7 @@ impl Game {
             self.balance_taxes(owner);
             let t = self.budget(owner);
             if t.food_upkeep > t.food_surplus || t.net_gold() < 0 {
-                let _ = self.world.despawn(soldier);
+                self.despawn_with_spells(soldier);
                 break;
             }
         }

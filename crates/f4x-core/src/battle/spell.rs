@@ -32,7 +32,6 @@ use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget
 use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::SpellId;
-use crate::unit::UnitEnchantments;
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
@@ -832,7 +831,11 @@ impl Game {
             return Vec::new();
         };
         self.world.remove_one::<crate::unit::Hurt>(entity).ok();
-        self.world.remove_one::<UnitEnchantments>(entity).ok();
+        crate::spell::instance::remove_on(
+            &mut self.world,
+            crate::spell::instance::SpellTarget::Unit(entity),
+            |_, _| true,
+        );
         let Some(mut unit) = self.battle_unit_from(entity, side, source) else {
             return Vec::new();
         };
@@ -1367,14 +1370,12 @@ impl Game {
         let mut removed = gone.len() as u32;
         let mut overland_changed = false;
         if let Some(e) = entity {
-            let list = self
-                .world
-                .get::<&UnitEnchantments>(e)
-                .map(|l| l.0.clone())
-                .unwrap_or_default();
-            let (left, gone) = self.dispel_list(list, strength, by, true, &mut rng);
+            let list = self.spells().unit_enchantments(e);
+            let (_, gone) = self.dispel_list(list, strength, by, true, &mut rng);
             if !gone.is_empty() {
-                let _ = self.world.insert_one(e, UnitEnchantments(left));
+                for &(spell, victim) in &gone {
+                    self.remove_unit_enchantment(e, spell, victim);
+                }
                 overland_changed = true;
                 removed += gone.len() as u32;
             }

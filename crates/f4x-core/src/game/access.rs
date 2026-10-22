@@ -7,7 +7,7 @@
 //! them, *played* through [`Game::apply`], and *set up by hand* (a test, a scenario, a tool)
 //! through the setters at the end, which the rules never use.
 
-use crate::city::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
+use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::content::Content;
 use crate::map::{Map, Position};
 use crate::player::PlayerId;
@@ -101,10 +101,7 @@ impl Game {
 
     /// The enchantments on a city, with the wizard who cast each.
     pub fn city_enchantments(&self, city: hecs::Entity) -> Vec<(SpellId, PlayerId)> {
-        self.world
-            .get::<&Enchantments>(city)
-            .map(|e| e.0.clone())
-            .unwrap_or_default()
+        self.spells().city_enchantments(city)
     }
 
     /// Has the unit a standing order (a path it is walking)?
@@ -179,15 +176,16 @@ impl Game {
 
     /// Put a lasting spell on a unit, as a scenario sets it up (no cost, no upkeep paid).
     pub fn scenario_enchant_unit(&mut self, unit: hecs::Entity, spell: SpellId, caster: PlayerId) {
-        let mut list = self
-            .world
-            .get::<&crate::unit::UnitEnchantments>(unit)
-            .map(|l| l.0.clone())
-            .unwrap_or_default();
-        list.push((spell, caster));
-        let _ = self
-            .world
-            .insert_one(unit, crate::unit::UnitEnchantments(list));
+        self.add_unit_enchantment(unit, spell, caster);
+    }
+
+    /// Set the spell a wizard is casting and the mana still owed, as a scenario sets it up (no
+    /// checks; a cast already in progress is replaced).
+    pub fn scenario_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.clear_casting();
+        }
+        self.begin_casting(player, spell, owed);
     }
 
     /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).

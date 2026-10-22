@@ -196,7 +196,8 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() {
     assert_eq!(v.check_can_cast(strength), Ok(()));
     assert_eq!(v.instant_budget(100), v.skill_left());
     assert_eq!(v.instant_budget(2), 2, "the reserve limits it");
-    w.begin_casting(strength, 40);
+    g.begin_casting(P0, strength, 40);
+    let mut w = g.wizard_mut(P0).unwrap();
     assert_eq!(
         w.view().check_can_cast(strength),
         Err(MagicError::AlreadyCasting)
@@ -214,7 +215,8 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() {
     );
     assert_eq!(w.view().casting_paid(), None);
     // With one turn's skill to go the second part finishes it, borrowed from the next turn.
-    w.get_mut::<Magic>().casting.as_mut().unwrap().remaining = skill;
+    g.scenario_casting(P0, strength, skill);
+    let mut w = g.wizard_mut(P0).unwrap();
     w.get_mut::<Skill>().left = 0;
     let reserve = w.pay_casting(1000);
     assert_eq!(w.view().casting_paid(), Some(strength));
@@ -228,11 +230,10 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() {
 fn global_spells_can_be_turned_off_only_if_they_are_on() {
     let mut g = game_with(&[], &[]);
     let s = spell(&g, "giant_strength");
-    let mut w = g.wizard_mut(P0).unwrap();
-    assert_eq!(w.turn_off(s), Err(MagicError::NotAvailable));
-    w.add_global(s);
-    assert_eq!(w.turn_off(s), Ok(()));
-    assert!(w.view().global().is_empty());
+    assert_eq!(g.turn_off(P0, s), Err(MagicError::NotAvailable));
+    g.add_global(P0, s);
+    assert_eq!(g.turn_off(P0, s), Ok(()));
+    assert!(g.wizard(P0).unwrap().global().is_empty());
 }
 
 #[test]

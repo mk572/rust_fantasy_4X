@@ -9,7 +9,6 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::rules::Stat;
 use crate::unit::movement::MoveError;
-use crate::unit::UnitEnchantments;
 
 /// Hook of the Enchant Road spell.
 pub const ENCHANT_ROAD: &str = "enchant_road";
@@ -76,10 +75,11 @@ impl Game {
                 if base == 0 {
                     return 0;
                 }
-                let endurance = self.world.get::<&UnitEnchantments>(u).is_ok_and(|l| {
-                    l.0.iter()
-                        .any(|&(s, _)| self.content.rules.spells.get(s).id == "endurance")
-                });
+                let endurance = self
+                    .units()
+                    .unit_enchantments(u)
+                    .iter()
+                    .any(|&(s, _)| self.content.rules.spells.get(s).id == "endurance");
                 base + u32::from(endurance)
             })
             .sum()

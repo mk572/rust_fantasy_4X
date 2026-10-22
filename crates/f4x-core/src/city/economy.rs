@@ -51,10 +51,6 @@ pub struct Buildings(pub Vec<crate::rules::BuildingId>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CityRace(pub crate::rules::RaceId);
 
-/// City enchantments with the player who cast each.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Enchantments(pub Vec<(crate::rules::SpellId, PlayerId)>);
-
 /// Everything a city yields this turn.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CityEconomy {
@@ -282,13 +278,11 @@ impl<'a> Economy<'a> {
                 ));
             }
         }
-        if let Ok(enchantments) = self.world.get::<&Enchantments>(city) {
-            for &(spell, _) in &enchantments.0 {
-                mods.extend(passive_modifiers(
-                    &rules.spells.get(spell).effects,
-                    Source::Spell(spell),
-                ));
-            }
+        for (spell, _) in crate::spell::instance::Spells::new(self.world).city_enchantments(city) {
+            mods.extend(passive_modifiers(
+                &rules.spells.get(spell).effects,
+                Source::Spell(spell),
+            ));
         }
         // A population boom doubles the growth, as Stream of Life does.
         if self.events.on_city(
@@ -984,7 +978,6 @@ mod handle_tests {
             },
             Farmers(0),
             Buildings::default(),
-            Enchantments::default(),
         ));
         world.spawn(crate::player::bundle(PlayerId(0)));
         let eco = Economy::new(&world, Some(&map), &content);
@@ -1030,7 +1023,6 @@ mod handle_tests {
             },
             Farmers(8),
             Buildings::default(),
-            Enchantments::default(),
         ));
         let player = owner;
         let before = Economy::new(&world, Some(&map), &content)

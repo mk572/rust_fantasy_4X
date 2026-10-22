@@ -183,11 +183,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() {
     });
     let city = g.economy().city_at(at(10, 6)).unwrap();
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
-    g.world
-        .get::<&mut crate::city::economy::Enchantments>(city)
-        .unwrap()
-        .0
-        .push((gaia, P0));
+    g.add_city_enchantment(city, gaia, P0);
     let desert = g
         .content
         .terrains
@@ -207,11 +203,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() {
         Some(TerrainClass::Grassland)
     );
     // Without the spell nothing changes.
-    g.world
-        .get::<&mut crate::city::economy::Enchantments>(city)
-        .unwrap()
-        .0
-        .clear();
+    g.clear_city_enchantments(city);
     g.map
         .as_mut()
         .unwrap()

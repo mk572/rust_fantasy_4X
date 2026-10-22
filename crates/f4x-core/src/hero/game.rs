@@ -227,7 +227,7 @@ impl Game {
                 }
             }
         }
-        let _ = self.world.despawn(unit);
+        self.despawn_with_spells(unit);
     }
 
     /// The items awarded to wizards since the last call, one event for each wizard: the names
@@ -435,7 +435,6 @@ pub(crate) mod tests {
 
     #[test]
     fn sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns() {
-        use crate::wizard::magic::Casting;
         let mut g = world();
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
@@ -455,13 +454,7 @@ pub(crate) mod tests {
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
         let nominal = g.wizard(P0).unwrap().casting_skill();
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .casting = Some(Casting {
-            spell,
-            remaining: 1000,
-        });
+        g.scenario_casting(P0, spell, 1000);
         g.tr_mut(0).mana = 5000;
         let _ = g.process_magic();
         let left = g.wizard(P0).unwrap().casting().unwrap().remaining;

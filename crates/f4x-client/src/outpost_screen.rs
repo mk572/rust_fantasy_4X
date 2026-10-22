@@ -79,7 +79,8 @@ impl App {
         }
     }
 
-    /// The square of garrison slot `slot`.
+    /// The square of garrison slot `slot`: 5 to a row. The original's `Outpost_Garrison_Picture_Coords`
+    /// divides x by 5 as well as y (a typo: slots 0 to 4 would share one spot).
     fn outpost_slot(slot: usize) -> (f32, f32, f32, f32) {
         (
             WINDOW.0 + 6.0 + (slot % 5) as f32 * 20.0,

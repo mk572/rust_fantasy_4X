@@ -5,7 +5,7 @@ use crate::map::{Grid, Map, Plane, Position};
 use crate::feature::node::Node;
 use crate::game::Command;
 use crate::rules::Registry;
-use crate::wizard::magic::{Casting, Retort};
+use crate::wizard::magic::Retort;
 use rand::SeedableRng;
 
 const P0: PlayerId = PlayerId(0);
@@ -248,7 +248,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
         "{events:?}"
     );
     assert!(!g.node_at(at(6, 6)).unwrap().warped);
-    let left = g.world.get::<&UnitEnchantments>(elsewhere).unwrap().0.len();
+    let left = g.units().unit_enchantments(elsewhere).len();
     assert_eq!(left, 1, "another square is left alone");
 }
 
@@ -322,13 +322,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .casting = Some(Casting {
-        spell: aura,
-        remaining: cost - 60,
-    });
+    g.scenario_casting(P1, aura, cost - 60);
     assert_eq!(g.mana_spent_casting(P1), Some(60));
     let mana = g.treasury(P0).unwrap().mana;
     let blast = sp(&g, "spell_blast");
@@ -358,13 +352,7 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .casting = Some(Casting {
-        spell: aura,
-        remaining: cost - 90,
-    });
+    g.scenario_casting(P1, aura, cost - 90);
     g.treasury_mut(P0).unwrap().mana = g.casting_cost(P0, sp(&g, "spell_blast"), false) + 50;
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
     assert!(
@@ -443,11 +431,7 @@ fn a_stopped_spell_is_lost_and_reported() {
                 .contains(&sp(&g, "aura_of_majesty")));
             break;
         }
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .clear();
+        g.clear_globals(P0);
     }
     assert_eq!(
         stopped, 1,

@@ -350,11 +350,7 @@ fn a_channeler_pays_half_the_spell_maintenance() {
             .unwrap(),
         6,
     );
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(dear.0);
+    g.add_global(P0, dear.0);
     assert_eq!(g.income(P0).mana_upkeep, dear.1);
     g.wizard_mut(P0)
         .unwrap()
@@ -389,11 +385,9 @@ fn short_of_mana() -> (Game, [SpellId; 2]) {
             .id_of(&g.content.rules.spells.defs()[1].id)
             .unwrap(),
     ];
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .extend(ids);
+    for s in ids {
+        g.add_global(P0, s);
+    }
     g.wizard_mut(P0).unwrap().set_split(0, 100, 0).ok();
     g.treasury_mut(P0).unwrap().mana = 8;
     (g, ids)
@@ -428,11 +422,11 @@ fn only_real_upkeep_can_be_released() {
     let last = &g.content.rules.spells.defs().last().unwrap().id;
     let stranger = g.content.rules.spells.id_of(last).unwrap();
     assert_ne!(stranger, first);
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .retain(|&s| s == first);
+    for s in g.wizard(P0).unwrap().global() {
+        if s != first {
+            g.remove_global(P0, s);
+        }
+    }
     let before = g.wizard(P0).unwrap().global().clone();
     assert_eq!(
         g.release_upkeep(

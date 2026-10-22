@@ -4,7 +4,7 @@
 //!
 //! Resurrection needs the wizard to choose which dead hero returns, so it is cast through
 //! `Command::ResurrectHero` (as Enchant Item is through `Command::CraftItem`) and the chosen hero
-//! waits in `Magic::raising` while the cost is paid.
+//! waits with the cast in progress while the cost is paid.
 
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game, Rejection};
@@ -146,9 +146,7 @@ impl Game {
             SUMMON_HERO => pick(Class::Hero),
             SUMMON_CHAMPION => pick(Class::Champion),
             INCARNATION => Some(torin(&self.content.rules)),
-            RESURRECTION => self
-                .wizard_mut(player)
-                .and_then(|mut w| w.get_mut::<crate::wizard::magic::Magic>().raising.take()),
+            RESURRECTION => self.wizard_mut(player).and_then(|mut w| w.take_raising()),
             _ => return None,
         };
         let joined = kind.and_then(|k| self.arrive(player, k).ok().map(|u| (u, k)));
@@ -191,12 +189,12 @@ impl Game {
             m.check_can_cast(spell).map_err(Rejection::Magic)?;
             cost <= m.instant_budget(reserve)
         };
+        // The dead hero is kept with a cast in progress, which is paid already when it is now.
+        self.begin_casting(player, spell, if now { 0 } else { cost });
         if let Some(mut w) = self.wizard_mut(player) {
-            w.get_mut::<crate::wizard::magic::Magic>().raising = Some(kind);
+            w.set_raising(kind);
             if now {
                 w.spend_skill(cost);
-            } else {
-                w.begin_casting(spell, cost);
             }
         }
         if now {
@@ -208,11 +206,7 @@ impl Game {
         if !now {
             return Ok(Vec::new());
         }
-        let events = self.resolve_cast(player, spell, None);
-        if let Some(mut w) = self.wizard_mut(player) {
-            w.get_mut::<crate::wizard::magic::Magic>().raising = None;
-        }
-        Ok(events)
+        Ok(self.resolve_cast(player, spell, None))
     }
 }
 
@@ -515,10 +509,9 @@ mod tests {
         assert!(matches!(events.as_slice(), [Event::Rejected(_)]));
         // Giving the spell up forgets the hero.
         let mut g = caster();
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .raising = Some(2);
+        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        g.begin_casting(P0, spell, 100);
+        g.wizard_mut(P0).unwrap().set_raising(2);
         g.wizard_mut(P0).unwrap().cancel_casting();
         assert_eq!(g.wizard(P0).unwrap().raising(), None);
         let _ = (P1, Plane::Arcanus);

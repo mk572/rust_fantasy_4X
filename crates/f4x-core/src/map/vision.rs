@@ -63,7 +63,8 @@ impl Economy<'_> {
                 if !(0..h).contains(&y) {
                     continue;
                 }
-                for dx in (-radius..=radius).filter(|&dx| crate::map::fog::in_sight(dx, dy, sight))
+                for dx in (-radius..=radius)
+                    .filter(|&dx| crate::map::fog::in_sight(dx, dy, sight, self.diagonal_extra))
                 {
                     let x = (at.x as i32 + dx).rem_euclid(w);
                     seen[(y * w + x) as usize] = true;
@@ -158,8 +159,12 @@ mod tests {
                 .filter(|&&v| v)
                 .count()
         };
-        // A 5 by 5 block without its four corners.
+        // A 5 by 5 block without its four corners when a diagonal step costs extra, else whole.
+        g.settings.basic.diagonal_extra_cost = true;
         assert_eq!(seen(&g), 21);
+        g.settings.basic.diagonal_extra_cost = false;
+        assert_eq!(seen(&g), 25);
+        g.settings.basic.diagonal_extra_cost = true;
         // The sources are Min modifiers, so the best one counts and they do not add up.
         let mods = [
             Modifier::new(Stat::CitySight, ModOp::Min, 7, Source::Other),

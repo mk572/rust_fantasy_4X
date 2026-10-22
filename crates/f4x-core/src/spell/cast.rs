@@ -3,7 +3,6 @@
 use rand::RngCore;
 
 use crate::battle::immunity::Realm;
-use crate::city::economy::Enchantments;
 use crate::content::TerrainClass;
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
@@ -12,7 +11,8 @@ use crate::player::PlayerId;
 use crate::rules::effects::{DamageKind, Trigger};
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
 use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat};
-use crate::unit::{Hurt, UnitEnchantments};
+use crate::spell::instance::SpellTarget as Placed;
+use crate::unit::Hurt;
 use crate::wizard::magic::MagicError;
 
 /// Something a wizard pays mana for every turn.
@@ -693,31 +693,11 @@ impl Game {
     pub fn attach_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
         match who {
             Target::City(c) | Target::CityRealm(c, _) => {
-                let mut list = self
-                    .world
-                    .get::<&Enchantments>(c)
-                    .map(|e| e.0.clone())
-                    .unwrap_or_default();
-                if !list.contains(&(spell, caster)) {
-                    list.push((spell, caster));
-                }
-                let _ = self.world.insert_one(c, Enchantments(list));
+                self.add_city_enchantment(c, spell, caster)
             }
-            Target::Unit(u) => {
-                let mut list = self
-                    .world
-                    .get::<&UnitEnchantments>(u)
-                    .map(|e| e.0.clone())
-                    .unwrap_or_default();
-                if !list.contains(&(spell, caster)) {
-                    list.push((spell, caster));
-                }
-                let _ = self.world.insert_one(u, UnitEnchantments(list));
-            }
+            Target::Unit(u) => self.add_unit_enchantment(u, spell, caster),
             Target::Player(p) => {
-                if let Some(mut w) = self.wizard_mut(p) {
-                    w.add_global(spell);
-                }
+                self.add_global(p, spell);
                 self.reveal_for_globals(p);
             }
             Target::Tile(_) | Target::Global(..) => {}
@@ -725,16 +705,22 @@ impl Game {
     }
 
     /// Run a spell whose cost has been paid. Instant effects run now; a lasting spell is
-    /// attached to its target (or to the wizard when it has none).
+    /// attached to its target (or to the wizard when it has none). The cast in progress, with
+    /// the item or hero it carries, ends with it.
     pub(crate) fn resolve_cast(
         &mut self,
         player: PlayerId,
         spell: SpellId,
         target: Option<Target>,
     ) -> Vec<Event> {
+        let events = self.run_cast(player, spell, target);
         if let Some(mut w) = self.wizard_mut(player) {
             w.clear_casting();
         }
+        events
+    }
+
+    fn run_cast(&mut self, player: PlayerId, spell: SpellId, target: Option<Target>) -> Vec<Event> {
         if let Some(by) = self.suppressed_by(player, spell) {
             return vec![Event::SpellSuppressed { player, spell, by }];
         }
@@ -837,44 +823,34 @@ impl Game {
         let mut items = Vec::new();
         // Time Stop's wizard pays for that spell alone.
         let only_time_stop = self.time_stopper() == Some(player);
-        if let Some(m) = self.wizard(player) {
-            for s in m.global() {
-                if only_time_stop && spells.get(s).id != "time_stop" {
+        // What the wizard cast and keeps up, oldest first: on the world, on any city (their own
+        // and somebody else's) and on any unit.
+        if let Some(wizard) = self.wizard(player).map(|w| w.entity()) {
+            let lasting = self.spells();
+            for instance in lasting.of_caster(wizard) {
+                let (Some(s), Some(target)) = (lasting.def(instance), lasting.target(instance))
+                else {
+                    continue;
+                };
+                if only_time_stop && !(target == Placed::Global && spells.get(s).id == "time_stop")
+                {
                     continue;
                 }
-                items.push(UpkeepItem {
-                    kind: UpkeepKind::Global(s),
-                    mana: spells.get(s).upkeep as i32,
-                });
+                let upkeep = spells.get(s).upkeep as i32;
+                let (kind, mana) = match target {
+                    Placed::Global => (UpkeepKind::Global(s), upkeep),
+                    Placed::City(c) => (UpkeepKind::City(c, s), upkeep * self.upkeep_count(c, s)),
+                    Placed::Unit(u) => (UpkeepKind::UnitSpell(u, s), upkeep),
+                    // The cast in progress is paid when it is cast.
+                    Placed::Wizard(_) | Placed::Feature(_) | Placed::Battlefield => {
+                        continue;
+                    }
+                };
+                items.push(UpkeepItem { kind, mana });
             }
         }
         if only_time_stop {
             return items;
-        }
-        // Every city: the caster pays for what they put on somebody else's city too.
-        for (city, _, _) in self.economy().cities() {
-            if let Ok(list) = self.world.get::<&Enchantments>(city) {
-                for &(s, caster) in &list.0 {
-                    if caster == player {
-                        items.push(UpkeepItem {
-                            kind: UpkeepKind::City(city, s),
-                            mana: spells.get(s).upkeep as i32 * self.upkeep_count(city, s),
-                        });
-                    }
-                }
-            }
-        }
-        for unit in self.units().all_units() {
-            if let Ok(list) = self.world.get::<&UnitEnchantments>(unit) {
-                for &(s, caster) in &list.0 {
-                    if caster == player {
-                        items.push(UpkeepItem {
-                            kind: UpkeepKind::UnitSpell(unit, s),
-                            mana: spells.get(s).upkeep as i32,
-                        });
-                    }
-                }
-            }
         }
         for unit in self.units().player_units(player) {
             let mut mana = self
@@ -903,27 +879,18 @@ impl Game {
         items
     }
 
+    /// A spell of the wizard's ends because it cannot be paid for.
+    fn lapse(&mut self, target: Placed, player: PlayerId, spell: SpellId) -> Vec<Event> {
+        self.remove_enchantment(target, spell, player);
+        vec![Event::EnchantmentLapsed { player, spell }]
+    }
+
     /// Give up something the wizard can no longer pay for.
     pub(crate) fn drop_upkeep_item(&mut self, player: PlayerId, item: UpkeepItem) -> Vec<Event> {
         match item.kind {
-            UpkeepKind::Global(s) => {
-                if let Some(mut w) = self.wizard_mut(player) {
-                    w.remove_global(s);
-                }
-                vec![Event::EnchantmentLapsed { player, spell: s }]
-            }
-            UpkeepKind::City(c, s) => {
-                if let Ok(mut list) = self.world.get::<&mut Enchantments>(c) {
-                    list.0.retain(|&(x, p)| !(x == s && p == player));
-                }
-                vec![Event::EnchantmentLapsed { player, spell: s }]
-            }
-            UpkeepKind::UnitSpell(u, s) => {
-                if let Ok(mut list) = self.world.get::<&mut UnitEnchantments>(u) {
-                    list.0.retain(|&(x, p)| !(x == s && p == player));
-                }
-                vec![Event::EnchantmentLapsed { player, spell: s }]
-            }
+            UpkeepKind::Global(s) => self.lapse(Placed::Global, player, s),
+            UpkeepKind::City(c, s) => self.lapse(Placed::City(c), player, s),
+            UpkeepKind::UnitSpell(u, s) => self.lapse(Placed::Unit(u), player, s),
             UpkeepKind::Unit(u) => {
                 let lost = self.units().unit_kind_id(u).map(|unit| Event::UnitLost {
                     player,

@@ -631,7 +631,7 @@ impl Game {
             }
             Err(_) => {
                 for d in defenders {
-                    let _ = self.world.despawn(d);
+                    self.despawn_with_spells(d);
                 }
                 Err(SiteError::Busy)
             }
@@ -779,7 +779,7 @@ impl Game {
         // (the undead raised for the monsters) stay, as do guards the victors took as undead.
         for &u in guards {
             if self.units().unit_owner(u) == Some(MONSTERS) {
-                let _ = self.world.despawn(u);
+                self.despawn_with_spells(u);
             }
         }
         let Some(winner) = winner.filter(|&w| w != MONSTERS) else {

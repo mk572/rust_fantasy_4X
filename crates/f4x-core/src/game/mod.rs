@@ -138,7 +138,8 @@ impl Game {
         if let (Some(map), true) = (self.map.as_ref(), self.fog.is_empty()) {
             self.fog = map::fog::Fog::new(map.width(), map.height());
         }
-        self.fog.explore(player, at, sight);
+        self.fog
+            .explore(player, at, sight, self.settings.basic.diagonal_extra_cost);
         self.contact_near(player, at, map::fog::squares_seen(sight));
     }
 
@@ -622,14 +623,10 @@ impl Game {
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
                 })
             }
-            Command::TurnOffSpell { player, spell } => {
-                events_or_reject(match self.wizard_mut(player) {
-                    Some(mut w) => w
-                        .turn_off(spell)
-                        .map(|_| vec![Event::EnchantmentLapsed { player, spell }]),
-                    None => Err(wizard::magic::MagicError::UnknownPlayer),
-                })
-            }
+            Command::TurnOffSpell { player, spell } => events_or_reject(
+                self.turn_off(player, spell)
+                    .map(|_| vec![Event::EnchantmentLapsed { player, spell }]),
+            ),
             Command::TurnOffCitySpell {
                 player,
                 city,
@@ -687,7 +684,7 @@ impl Game {
             .unit_def(unit)
             .and_then(|d| d.race.as_deref())
             .and_then(|r| self.content.rules.races.id_of(r));
-        let _ = self.world.despawn(unit);
+        self.despawn_with_spells(unit);
         let city = self.spawn_city(owner, pos, name, race, 0);
         vec![Event::CityFounded { city, pos }]
     }

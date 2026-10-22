@@ -5,7 +5,6 @@
 
 use crate::player::{PlayerId, BANNER_CHOICES, PORTRAITS};
 use crate::rules::RaceId;
-use crate::wizard::magic::Magic;
 use crate::wizard::sheet::{
     self, Books, Candidates, Fame, KnownSpells, PowerSplit, Research, Retorts, Skill,
 };
@@ -47,7 +46,6 @@ pub(crate) type WizardBundle = (
     KnownSpells,
     Candidates,
     Fame,
-    Magic,
 );
 
 /// The components a new wizard starts with; banner and picture default to the player's place.
@@ -55,7 +53,7 @@ pub(crate) type WizardBundle = (
 ///
 /// [`Game::init_wizard`]: crate::game::Game::init_wizard
 pub(crate) fn bundle(id: PlayerId, name: String, player: hecs::Entity) -> WizardBundle {
-    let (books, retorts, skill, split, research, spells, candidates, fame, magic) = sheet::bundle();
+    let (books, retorts, skill, split, research, spells, candidates, fame) = sheet::bundle();
     (
         Name(name),
         Portrait(id.0 % PORTRAITS),
@@ -70,7 +68,6 @@ pub(crate) fn bundle(id: PlayerId, name: String, player: hecs::Entity) -> Wizard
         spells,
         candidates,
         fame,
-        magic,
     )
 }
 
@@ -88,6 +85,10 @@ impl<'a> Wizard<'a> {
 
     pub fn entity(&self) -> hecs::Entity {
         self.entity
+    }
+
+    pub(crate) fn world(&self) -> &'a hecs::World {
+        self.world
     }
 
     /// A component of the wizard.
@@ -114,6 +115,25 @@ impl<'a> Wizard<'a> {
 
     pub fn capital_race(&self) -> Option<RaceId> {
         self.world.get::<&CapitalRace>(self.entity).ok()?.0
+    }
+
+    /// The cast the wizard is paying for over turns.
+    pub fn cast_instance(&self) -> Option<hecs::Entity> {
+        crate::spell::instance::Spells::new(self.world).cast_of(self.entity)
+    }
+
+    /// The lasting spells the wizard keeps going on the whole world, oldest first, with the
+    /// creation number of each.
+    pub fn global_instances(&self) -> Vec<(crate::rules::SpellId, crate::game::serial::Serial)> {
+        let spells = crate::spell::instance::Spells::new(self.world);
+        spells
+            .globals_of(self.entity)
+            .into_iter()
+            .filter_map(|i| {
+                let serial = *self.world.get::<&crate::game::serial::Serial>(i).ok()?;
+                Some((spells.def(i)?, serial))
+            })
+            .collect()
     }
 
     /// The player this wizard plays as.

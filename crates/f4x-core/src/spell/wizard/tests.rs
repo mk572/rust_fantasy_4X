@@ -683,11 +683,7 @@ fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
 
 fn keep(g: &mut Game, player: PlayerId, spell: &str) {
     let s = sp(g, spell);
-    g.wizard_mut(player)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(s);
+    g.add_global(player, s);
 }
 
 #[test]
@@ -892,11 +888,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
     assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
     keep(&mut g, P0, "great_wasting");
     assert_eq!(range(&mut g), 10, "while the spell lasts");
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .clear();
+    g.clear_globals(P0);
     assert_eq!(range(&mut g), far, "and not after");
 }
 

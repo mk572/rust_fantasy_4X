@@ -1,5 +1,5 @@
 use super::*;
-use crate::city::economy::{Buildings, Enchantments, Population};
+use crate::city::economy::{Buildings, Population};
 use crate::city::production::{Production, ProductionError, ProductionItem};
 use crate::game::testutil::content_with_economy;
 use crate::map::{Grid, Map, Plane, Position};
@@ -38,6 +38,7 @@ fn world() -> Game {
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(map);
     game.add_player(P0, "Merlin");
+    game.add_player(PlayerId(1), "Rival");
     game.treasury_mut(P0).unwrap().gold = 500;
     game.player_component_mut::<crate::player::Tax>(P0)
         .unwrap()
@@ -354,11 +355,7 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() {
     }
     assert!(g.economy().city_economy(city).unwrap().rebels > 0);
     let stream = g.content.rules.spells.id_of("stream_of_life").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((stream, P0));
+    g.add_city_enchantment(city, stream, P0);
     assert_eq!(
         g.economy().city_economy(city).unwrap().rebels,
         0,
@@ -836,13 +833,11 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
 
 #[test]
 fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() {
-    use crate::city::economy::Enchantments;
     let mut g = world();
     let city = found(&mut g, at(10, 6), "elf", 4);
     let spell = crate::rules::SpellId::new(0);
-    g.world
-        .insert_one(city, Enchantments(vec![(spell, P0), (spell, PlayerId(1))]))
-        .unwrap();
+    g.add_city_enchantment(city, spell, P0);
+    g.add_city_enchantment(city, spell, PlayerId(1));
     let off = |g: &mut Game, player| {
         g.apply(Command::TurnOffCitySpell {
             player,
@@ -1227,20 +1222,12 @@ fn famine_and_gaias_blessing_change_the_land() {
     let city = found(&mut g, at(10, 6), "elf", 4);
     let base = g.economy().city_economy_with(city, 2).unwrap();
     let famine = g.content.rules.spells.id_of("famine").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((famine, PlayerId(1)));
+    g.add_city_enchantment(city, famine, PlayerId(1));
     let hungry = g.economy().city_economy_with(city, 2).unwrap();
     assert!(hungry.food < base.food);
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
-    g.world.get::<&mut Enchantments>(city).unwrap().0.clear();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((gaia, P0));
+    g.clear_city_enchantments(city);
+    g.add_city_enchantment(city, gaia, P0);
     // Gaia's blessing raises the food the land can carry by half.
     let blessed = g.economy().city_economy_with(city, 2).unwrap();
     assert!(blessed.max_size >= base.max_size);
@@ -1253,27 +1240,19 @@ fn gaias_blessing_pacifies_two_rebels() {
     let city = found(&mut g, at(10, 6), "elf", 10);
     assert_eq!(g.economy().city_economy(city).unwrap().rebels, 4);
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((gaia, P0));
+    g.add_city_enchantment(city, gaia, P0);
     assert_eq!(g.economy().city_economy(city).unwrap().rebels, 2);
 }
 
 #[test]
 fn pestilence_adds_unrest_and_kills_a_citizen_when_the_roll_is_under_the_population() {
     let mut g = world();
-    g.treasury_mut(P0).unwrap().mana = 100_000;
+    g.treasury_mut(PlayerId(1)).unwrap().mana = 100_000;
     let city = found(&mut g, at(10, 6), "elf", 10);
     let unrest = |g: &Game| g.economy().city_economy(city).unwrap().rebels;
     let calm = unrest(&g);
     let pestilence = g.content.rules.spells.id_of("pestilence").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((pestilence, PlayerId(1)));
+    g.add_city_enchantment(city, pestilence, PlayerId(1));
     assert_eq!(unrest(&g), calm + 2, "two more rebels");
     // Ten citizens lose one with nine chances in ten; a few turns show the plague.
     let mut deaths = 0;
@@ -1292,11 +1271,7 @@ fn a_city_of_one_is_safe_from_pestilence() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), "elf", 1);
     let pestilence = g.content.rules.spells.id_of("pestilence").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((pestilence, PlayerId(1)));
+    g.add_city_enchantment(city, pestilence, PlayerId(1));
     for _ in 0..20 {
         let events = g.apply(Command::EndTurn);
         assert!(!events.iter().any(|e| matches!(e, Event::CityShrank { .. })));
@@ -1336,11 +1311,7 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
     let mana = |g: &Game| g.economy().city_economy(city).unwrap().mana;
     let plain = mana(&g);
     let rituals = g.content.rules.spells.id_of("dark_rituals").unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((rituals, P0));
+    g.add_city_enchantment(city, rituals, P0);
     assert_eq!(mana(&g), plain + 2, "a temple's 2 mana doubled");
     g.wizard_mut(P0)
         .unwrap()

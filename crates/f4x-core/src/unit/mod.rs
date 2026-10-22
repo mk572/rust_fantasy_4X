@@ -34,10 +34,6 @@ use crate::wizard::magic::Retort;
 pub struct Unit(pub UnitId);
 
 /// Hit points lost, summed over all figures of the unit.
-/// Lasting spells on a unit, with who cast each.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UnitEnchantments(pub Vec<(crate::rules::SpellId, PlayerId)>);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Hurt(pub u32);
 
@@ -231,10 +227,7 @@ impl<'a> UnitView<'a> {
 
     /// The lasting spells on a unit, with the wizard who cast each.
     pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<(crate::rules::SpellId, PlayerId)> {
-        self.world
-            .get::<&UnitEnchantments>(unit)
-            .map(|e| e.0.clone())
-            .unwrap_or_default()
+        crate::spell::instance::Spells::new(self.world).unit_enchantments(unit)
     }
 
     /// Whether the Heroism spell is on the unit.
@@ -242,9 +235,7 @@ impl<'a> UnitView<'a> {
         let Some(spell) = self.content.rules.spells.id_of(HEROISM) else {
             return false;
         };
-        self.world
-            .get::<&UnitEnchantments>(unit)
-            .is_ok_and(|list| list.0.iter().any(|&(s, _)| s == spell))
+        crate::spell::instance::Spells::new(self.world).unit_has(unit, spell)
     }
 
     /// Experience level, 0-based, from the unit's level path (0 without one): the level its
@@ -311,13 +302,11 @@ impl<'a> UnitView<'a> {
                 }
             }
         }
-        if let Ok(list) = self.world.get::<&UnitEnchantments>(unit) {
-            for &(spell, _) in &list.0 {
-                mods.extend(passive_modifiers(
-                    &rules.spells.get(spell).effects,
-                    Source::Spell(spell),
-                ));
-            }
+        for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
+            mods.extend(passive_modifiers(
+                &rules.spells.get(spell).effects,
+                Source::Spell(spell),
+            ));
         }
         for spell in self.items().spells(unit) {
             mods.extend(passive_modifiers(

@@ -597,11 +597,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     spells.push(zm);
     g.content.rules.spells = Registry::new(spells);
     let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(zm);
+    g.add_global(P0, zm);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {

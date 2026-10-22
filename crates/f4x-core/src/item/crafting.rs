@@ -4,13 +4,12 @@
 //! a spell with charges. [`check`] says whether the wizard may have it, [`cost`] what it is worth,
 //! and [`build`] makes the [`Item`]. The rules are those of `ItemMake.c` (design in
 //! `docs/heroes-items-design.md` section 3.3). `Game::craft_item` (below) starts the casting; the
-//! item waits in `Magic::crafting` until the spell has been paid for, then goes to the armory.
+//! item waits with the cast in progress until the spell has been paid for, then goes to the armory.
 
 use serde::{Deserialize, Serialize};
 
 use crate::item::{Item, ItemBonus};
 use crate::rules::{ItemKind, ItemPowerDef, PowerBonus, Rules};
-use crate::wizard::magic::Magic;
 
 /// Most powers on one item.
 pub const MAX_POWERS: usize = 4;
@@ -127,7 +126,7 @@ fn is_plain(power: &ItemPowerDef) -> bool {
 /// The value of the item: its base cost, the cost of each power (a plain bonus on a
 /// miscellaneous item costs twice) and `spell cost * charges * 20` for an embedded spell. It is
 /// what the anvil and the merchants go by; casting it costs this less the wizard's reduction
-/// (`Magic::cost_reduction`, where Artificer takes half off).
+/// (`Wizard::cost_reduction`, where Artificer takes half off).
 pub fn cost(design: &ItemDesign, rules: &Rules) -> u32 {
     let mut total = base_cost(design.kind);
     for id in &design.powers {
@@ -368,7 +367,7 @@ impl crate::game::Game {
     /// Start casting Enchant Item or Create Artifact for the item `design` describes. The cost
     /// is the item's value less the wizard's reduction for the spell; if skill and mana pay for
     /// it now the item is made now (the vault, else the award list), otherwise it waits in
-    /// `Magic::crafting` while the cost is paid over turns. Returns the events.
+    /// the cast in progress while the cost is paid over turns. Returns the events.
     pub fn craft_item(
         &mut self,
         player: crate::player::PlayerId,
@@ -398,12 +397,14 @@ impl crate::game::Game {
             let now = price <= magic.instant_budget(reserve);
             (item, price, now)
         };
-        if let Some(mut w) = self.wizard_mut(player) {
-            if now {
+        if now {
+            if let Some(mut w) = self.wizard_mut(player) {
                 w.spend_skill(price);
-            } else {
-                w.begin_casting(spell, price);
-                w.get_mut::<Magic>().crafting = Some(item.clone());
+            }
+        } else {
+            self.begin_casting(player, spell, price);
+            if let Some(mut w) = self.wizard_mut(player) {
+                w.set_crafting(item.clone());
             }
         }
         if now {
@@ -444,10 +445,7 @@ impl crate::game::Game {
         &mut self,
         player: crate::player::PlayerId,
     ) -> Vec<crate::game::Event> {
-        let Some(item) = self
-            .wizard_mut(player)
-            .and_then(|mut w| w.get_mut::<Magic>().crafting.take())
-        else {
+        let Some(item) = self.wizard_mut(player).and_then(|mut w| w.take_crafting()) else {
             return Vec::new();
         };
         let name = item.name.clone();

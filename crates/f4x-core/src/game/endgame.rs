@@ -227,20 +227,6 @@ impl Game {
         for u in self.units().player_units(loser) {
             self.remove_unit(u, crate::hero::roster::Fate::Gone);
         }
-        // Their enchantments on other wizards' cities and units.
-        for (city, ..) in self.economy().cities() {
-            if let Ok(mut list) = self
-                .world
-                .get::<&mut crate::city::economy::Enchantments>(city)
-            {
-                list.0.retain(|&(_, caster)| caster != loser);
-            }
-        }
-        for u in self.units().all_units() {
-            if let Ok(mut list) = self.world.get::<&mut crate::unit::UnitEnchantments>(u) {
-                list.0.retain(|&(_, caster)| caster != loser);
-            }
-        }
         if let Some(map) = self.map.as_mut() {
             for i in 0..map.nodes().len() {
                 if let Some(n) = map.node_mut(i) {
@@ -255,10 +241,8 @@ impl Game {
         if let Some(t) = self.treasury_mut(loser) {
             t.gold -= loot;
         }
-        if let Some(mut w) = self.wizard_mut(loser) {
-            let mut magic = w.get_mut::<crate::wizard::magic::Magic>();
-            magic.global.clear();
-            magic.casting = None;
+        if let Some(wizard) = self.wizard(loser).map(|w| w.entity()) {
+            self.despawn_spells_of(wizard);
         }
         if let Some(t) = self.treasury_mut(winner) {
             t.gold += loot;

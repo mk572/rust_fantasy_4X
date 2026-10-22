@@ -86,7 +86,7 @@ impl Economy<'_> {
     }
 
     /// Cost in half-moves for `unit` to step from `from` to the adjacent `to`, with the
-    /// abilities its stack shares. With the setting `diagonal_extra_cost` a diagonal step costs
+    /// abilities its stack shares. With the setting `diagonal_extra_cost` (which also sets how far units see) a diagonal step costs
     /// one and a half times a straight one (3 half-moves on open ground), rounded up.
     pub fn step_cost(
         &self,
@@ -402,6 +402,7 @@ impl Game {
                 owner,
                 Position { plane, ..at },
                 crate::map::fog::sight_for(1),
+                self.settings.basic.diagonal_extra_cost,
             );
         }
     }

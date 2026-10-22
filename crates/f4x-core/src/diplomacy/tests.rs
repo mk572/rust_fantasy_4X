@@ -438,11 +438,7 @@ fn nature_awareness_meets_everyone() {
     let spell = g.content.rules.spells.id_of("nature_awareness").unwrap();
     // The spell's upkeep is paid from the reserve.
     g.treasury_mut(P0).unwrap().mana = 1000;
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(spell);
+    g.add_global(P0, spell);
     g.apply(Command::EndTurn);
     assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
 }
@@ -1270,12 +1266,7 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
         assert_eq!(g.relation(P0, P1), -50);
     }
     // Begun, the Spell of Mastery keeps bothering them a little each turn (half of fifty).
-    g.wizard_mut_for_tests(P1)
-        .get_mut::<crate::wizard::magic::Magic>()
-        .casting = Some(crate::wizard::magic::Casting {
-        spell: mastery,
-        remaining: 100,
-    });
+    g.view.give_casting(P1, mastery, 100);
     set_rel(&mut g, P1, P2, 0);
     g.enchantments_in_force();
     // Half of fifty is twenty-five.

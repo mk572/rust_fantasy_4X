@@ -561,7 +561,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::city::economy::{Enchantments, Farmers, Population};
+    use crate::city::economy::{Farmers, Population};
     use crate::game::testutil::content_with_economy;
     use crate::map::{Grid, Map, Plane};
 
@@ -597,7 +597,6 @@ mod tests {
                 },
                 Farmers(0),
                 Buildings::default(),
-                Enchantments::default(),
                 Production::default(),
                 CityRace(content.rules.races.id_of("elf").unwrap()),
             ));

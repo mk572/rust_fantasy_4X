@@ -253,10 +253,12 @@ impl App {
             t.gold = 0;
             t.mana = 0;
         }
-        if let Some(mut w) = self.game.wizard_mut(HUMAN) {
-            w.get_mut::<f4x_core::wizard::magic::Magic>()
-                .global
-                .extend(spells);
+        for spell in spells {
+            self.game.attach_enchantment(
+                f4x_core::rules::exec::Target::Player(HUMAN),
+                spell,
+                HUMAN,
+            );
         }
         self.game.apply(Command::SetTaxRate {
             player: HUMAN,

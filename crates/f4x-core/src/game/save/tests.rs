@@ -448,3 +448,77 @@ fn a_unit_in_stasis_stays_there_through_a_save() {
     assert!(back.unit_in_stasis(again));
     assert_eq!(back.snapshot(), snap);
 }
+
+#[test]
+fn a_lasting_spell_on_the_world_stays_through_a_save() {
+    let mut g = game();
+    g.content = crate::game::testutil::content_with_magic();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .iter()
+        .next()
+        .map(|(id, _)| id)
+        .unwrap();
+    g.add_global(P0, spell);
+    let serial = g.wizard(P0).unwrap().global_instances()[0].1;
+    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    assert_eq!(
+        back.wizard(P0).unwrap().global_instances(),
+        vec![(spell, serial)]
+    );
+    assert_eq!(back.snapshot(), g.snapshot());
+}
+
+#[test]
+fn a_spell_on_a_city_stays_through_a_save() {
+    let mut g = game();
+    g.content = crate::game::testutil::content_with_magic();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .iter()
+        .next()
+        .map(|(id, _)| id)
+        .unwrap();
+    let city = g
+        .economy()
+        .cities()
+        .into_iter()
+        .find(|(_, c, _)| c.owner == P0)
+        .unwrap()
+        .0;
+    g.add_city_enchantment(city, spell, P0);
+    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let again = back
+        .economy()
+        .cities()
+        .into_iter()
+        .find(|(_, c, _)| c.owner == P0)
+        .unwrap()
+        .0;
+    assert_eq!(back.city_enchantments(again), vec![(spell, P0)]);
+    assert_eq!(back.snapshot(), g.snapshot());
+}
+
+#[test]
+fn a_spell_on_a_unit_stays_through_a_save() {
+    let mut g = game();
+    g.content = crate::game::testutil::content_with_magic();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .iter()
+        .next()
+        .map(|(id, _)| id)
+        .unwrap();
+    let unit = g.units().player_units(P0)[0];
+    g.add_unit_enchantment(unit, spell, P0);
+    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let again = back.units().player_units(P0)[0];
+    assert_eq!(back.units().unit_enchantments(again), vec![(spell, P0)]);
+    assert_eq!(back.snapshot(), g.snapshot());
+}

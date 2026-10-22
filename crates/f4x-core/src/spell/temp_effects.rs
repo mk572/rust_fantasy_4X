@@ -135,15 +135,13 @@ impl<'a> UnitView<'a> {
                 }
             }
         }
-        if let Ok(list) = self.world.get::<&crate::unit::UnitEnchantments>(unit) {
-            for &(spell, _) in &list.0 {
-                for rule in &self.content.rules.spells.get(spell).effects {
-                    if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
-                        (rule.when, &rule.condition, &rule.effect)
-                    {
-                        if !out.contains(a) {
-                            out.push(a.clone());
-                        }
+        for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
+            for rule in &self.content.rules.spells.get(spell).effects {
+                if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
+                    (rule.when, &rule.condition, &rule.effect)
+                {
+                    if !out.contains(a) {
+                        out.push(a.clone());
                     }
                 }
             }
@@ -204,15 +202,10 @@ impl<'a> UnitView<'a> {
     /// The ids of the lasting spells on a unit.
     pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
         let mut ids: Vec<String> = self
-            .world
-            .get::<&crate::unit::UnitEnchantments>(unit)
-            .map(|list| {
-                list.0
-                    .iter()
-                    .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+            .unit_enchantments(unit)
+            .iter()
+            .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
+            .collect();
         // What its items put on the hero counts as well.
         for spell in self.items().spells(unit) {
             let id = &self.content.rules.spells.get(spell).id;

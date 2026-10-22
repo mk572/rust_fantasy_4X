@@ -11,7 +11,7 @@
 //!   a battle starts at the city (`battle/game.rs`).
 //! - **Chaos Rift**: see [`Game::process_chaos_rifts`].
 
-use crate::city::economy::{Buildings, Economy, Enchantments};
+use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
@@ -215,9 +215,10 @@ impl Economy<'_> {
     /// Whether the city carries the named lasting spell, whoever cast it.
     pub fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
         self.content.rules.spells.id_of(name).is_some_and(|id| {
-            self.world
-                .get::<&Enchantments>(city)
-                .is_ok_and(|e| e.0.iter().any(|(s, _)| *s == id))
+            crate::spell::instance::Spells::new(self.world)
+                .city_enchantments(city)
+                .iter()
+                .any(|&(s, _)| s == id)
         })
     }
 

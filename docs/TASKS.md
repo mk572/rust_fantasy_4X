@@ -69,14 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 318 | Spell | Spell instance model: components, lifecycle, queries |
-| 319 | Spell | Global enchantments as spell entities |
-| 320 | Spell | City enchantments as spell entities |
-| 321 | Spell | Unit enchantments and temporary effects as spell entities |
-| 322 | Spell | Casts in progress, crafting and raising as spell entities |
-| 323 | Spell | Map-square spells and lasting world events |
-| 324 | Spell | Battlefield enchantments in the battle's own world |
-| 325 | Spell | Dispel, upkeep and removal in one place |
 | 326 | Hero | Hero entity that outlives its unit body |
 | 327 | Hero | Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
 | 328 | Hero | Hero spells as spell instances; the armory moves to the player |
@@ -98,39 +90,6 @@ neighbours.
 ## Descriptions
 
 ### C. Spell
-
-**318. Spell instance model.** Components `SpellCast`, `Caster`, `SpellTarget`, `Duration`; helpers to
-spawn, despawn and query instances by target, caster or definition, in `Serial` order wherever the
-order is observable. Lifecycle: an instance is despawned when it expires, is dispelled, its caster is
-banished or defeated, or its target is gone (unit, city or square). New module `spell/`. *Needs:* 315.
-
-**319. Global enchantments.** `Magic.global`, `globals.rs` (Evil Omens and the rest) and
-`world_spells.rs` read and write spell instances with target `Global`. *Needs:* 318.
-
-**320. City enchantments.** `city::economy::Enchantments`, `spell::city`, wards and the Nightshade dispel
-strength use spell instances with target `City`. The caster is the wizard entity. *Needs:* 318.
-
-**321. Unit enchantments and temporary effects.** `UnitEnchantments` and `TempEffects` become spell
-instances with target `Unit`; the stat modifier engine reads the instances of a unit. Temporary
-effects that no spell causes (the three kinds `Modifier`, `Grant`, `Remove` with a duration) are
-checked first and kept as a component if some source is not a spell. *Needs:* 318.
-
-**322. Casts in progress.** `Magic.casting`, `crafting` and `raising` become spell instances in a
-casting state, owned by the wizard; `raising` stops indexing the roster (finished in 327). The
-transitional component from 315 is removed. *Needs:* 318.
-
-**323. Map-square spells and lasting world events.** Enchanted roads and `events::Lasting` use spell
-instances with target `Square` or `Global`. Corruption is map data, not a spell, and stays in `Map`.
-Warped nodes use target `Feature` and are finished in 330, when the node entity exists (until then
-the `warped` flag stays on `Node`). *Needs:* 318.
-
-**324. Battlefield enchantments.** `Battle.fields`, `counter_magic`, `wall_of_fire`, `warded_realms`
-and `vortex` become spell instances in a battle-local `hecs::World`. Battles are not saved today;
-saving a battle (on hold, task 99) will need to include this world. *Needs:* 318.
-
-**325. Dispel, upkeep and removal in one place.** `dispel.rs`, the mana upkeep and "caster banished or
-defeated" become queries over spell instances. Remove the old containers and the transitional
-component. *Needs:* 319 to 324.
 
 **340. One art folder per spell.** The extracted art is one folder per source `.lbx` in
 `assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,

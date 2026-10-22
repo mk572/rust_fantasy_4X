@@ -155,7 +155,7 @@ and not worked around, and names are singular.
 | **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
 | **Hero** | `hero/` | `Hero` (name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroSlots` of items, `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
-| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Duration`, `Serial` | 318 to 325 |
+| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
 | **Terrain feature** | `feature/` | `TerrainFeature(FeatureId)`, `Position`, `Serial`; `Node`, `Site`, `Volcano` by kind; `Owner` where owned | 329 to 332, 338 |
 | **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` | 333, 334 |
 
@@ -214,18 +214,21 @@ A spell cast is an entity only while it lasts or while it is being paid for. An 
 work and leaves no entity.
 
 - `SpellCast { def: SpellId }`: which definition. `Caster(Entity)`: the wizard. `SpellTarget`:
-  `Global`, `Wizard(Entity)`, `City(Entity)`, `Unit(Entity)`, `Feature(Entity)`, `Square(plane, x, y)`
-  or `Battlefield`. `Duration`: turns left, or none (lasts until dispelled or the caster loses it).
+  `Global`, `Wizard(Entity)`, `City(Entity)`, `Unit(Entity)`, `Feature(Entity)` or `Battlefield`.
+  There is no timer: every spell of the game is instant or lasts until it is dispelled or its caster
+  loses it (`SpellDef::duration`).
 - A **cast in progress** is a spell instance in a casting state, with the mana still owed, owned by
   the wizard; finishing it either does the instant effect and despawns, or turns the instance into
   the lasting one. Crafting an item and raising a hero are casts of the same kind.
 - One query covers what is now eight containers: "the enchantments on this city", "this wizard's global
   spells", "the upkeep this wizard pays", "what dispel can reach". Dispel, upkeep and the removal when
   a caster loses them are queries over spell instances (task 325).
-- **Battlefield enchantments** live in a small `hecs::World` of the battle, because a battle is not in
-  `Game::world` and is not saved. When battles are saved (task 99) that world is saved with them.
-- Not spell instances: corruption (a map layer), volcanoes (terrain features), temporary effects that no
-  spell causes (kept as a component if there is such a source; task 321 settles it).
+- **Battlefield enchantments** stay in `Battle` (`fields`, the counter magic reserve, the wall of fire, the
+  wards): a `Battle` is cloned and a `hecs::World` cannot be, and a side is no wizard entity (task 324).
+- Not spell instances: corruption and enchanted roads (map layers: the original keeps them as flags of
+  the square, they have no caster, no upkeep and are read for every step of a path), the random events
+  (a table, 3.10), volcanoes (terrain features), and the temporary effects the rules engine puts on a
+  unit or city (`TempEffects`, a component: the rules, not only spells, cause them; task 321).
 
 ### 3.5 Hero
 
@@ -284,7 +287,7 @@ despawned. The prefabs already made stay a registry on `Game`.
 | Raise Volcano / cooled | a volcano feature / | / the volcano feature | |
 | Item made, bought, crafted, won | the item | | |
 | Item scrapped or lost | | the item | |
-| Battle starts / ends | the battle's own world with its battlefield spell instances | the battle world at the end | |
+| Battle starts / ends | | | the battle's own state (task 324) |
 
 A player that has a wizard, and that wizard, are never despawned during a game: the score, the
 history and the diplomacy log refer to them. The players without a wizard (the monsters' owner and

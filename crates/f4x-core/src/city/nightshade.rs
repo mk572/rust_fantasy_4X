@@ -232,9 +232,6 @@ mod tests {
             events.as_slice(),
             [crate::game::Event::SpellFizzled { .. }]
         ));
-        assert!(g
-            .world
-            .get::<&crate::city::economy::Enchantments>(city)
-            .map_or(true, |e| e.0.is_empty()));
+        assert!(g.city_enchantments(city).is_empty());
     }
 }

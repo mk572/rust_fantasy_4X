@@ -2,9 +2,8 @@
 //!
 //! Formulas follow the original game's code (see `docs/magic.md` for the list and for where
 //! this differs). The wizard is an entity (`wizard/entity.rs`); its sheet is components
-//! (`wizard/sheet.rs`). This file keeps what is not moved yet: the casting, crafting, raising and
-//! global-spell lists in [`Magic`] (until tasks 319 to 322), the retorts, and the rules that need
-//! nothing but the content and the random numbers. What needs the world (power from the cities,
+//! (`wizard/sheet.rs`). This file keeps the retorts, and the rules that need nothing but the
+//! content and the random numbers. What needs the world (power from the cities,
 //! the upkeep items, resolving a spell, the turn change) is in `wizard/magic_game.rs`.
 
 use std::collections::BTreeSet;
@@ -68,26 +67,12 @@ impl Retort {
 /// How many spells are offered for research at once.
 pub const RESEARCH_SLOTS: usize = 8;
 
-/// A spell the wizard is casting overland: the mana still to be paid.
+/// A spell the wizard is casting overland: the mana still to be paid (read from the cast in
+/// progress, a spell instance).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Casting {
     pub spell: SpellId,
     pub remaining: i32,
-}
-
-/// What is left of the wizard's magic until the spell instances exist (tasks 319 to 322): the
-/// spell being cast, the item and the hero it is making, and the lasting spells. A component of
-/// the wizard; the rest of the sheet is in `wizard/sheet.rs`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Magic {
-    pub casting: Option<Casting>,
-    /// The item Enchant Item or Create Artifact is making while its cost is paid (the
-    /// original's reserved item record); it goes to the armory when the spell is done.
-    pub crafting: Option<crate::item::Item>,
-    /// The dead hero (a roster index) Resurrection is bringing back while its cost is paid.
-    pub raising: Option<usize>,
-    /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
-    pub global: Vec<SpellId>,
 }
 
 /// Casting skill for an invested total: the number of triangular steps (2, 6, 12, 20...)

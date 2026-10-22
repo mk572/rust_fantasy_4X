@@ -169,7 +169,7 @@ mod tests {
         let walker = g.content.rules.units.id_of("walker").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), walker);
         // Everything is known already, so moving shows nothing new.
-        g.fog.explore(P0, at(10, 5), 25);
+        g.fog.explore(P0, at(10, 5), 25, false);
         g.set_undo(true);
         let serial = g.serial_of(u);
         (g, serial)
@@ -292,7 +292,7 @@ mod tests {
         use crate::feature::node::tests::{spirit, world_seeded};
         let mut g = world_seeded(4);
         g.fog = crate::map::fog::Fog::new(24, 14);
-        g.fog.explore(P0, at(6, 6), 61);
+        g.fog.explore(P0, at(6, 6), 61, false);
         g.set_undo(true);
         // Our guardian takes the node: no dice, so it can be taken back.
         let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");

@@ -291,6 +291,12 @@ impl<'a> PlayerView<'a> {
 
     // ---- what it knows of the world ------------------------------------------------
 
+    /// Does a diagonal step cost more than a straight one, in movement and in sight (the setting
+    /// `diagonal_extra_cost`)?
+    pub fn diagonal_extra_cost(&self) -> bool {
+        self.game.settings.basic.diagonal_extra_cost
+    }
+
     /// Has the player explored the square?
     pub fn explored(&self, at: Position) -> bool {
         self.game.is_explored(self.me, at)

@@ -118,6 +118,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 135 | Client | Run the AI wizards in the client (done) |
 | 138 | Client | Army list screen (done) |
 | 139 | Client | City list screen (done) |
+| 141 | Client | ~~Outpost screen, enemy city screen and the naming boxes~~ (done) |
 | 142 | Client | Item screen and the item pop-up (done) |
 | 145 | Client | Save and load screen with slots (done) |
 | 146 | Client | Palette cycling: the pulsing colour of index 198 (done) |
@@ -218,6 +219,14 @@ original task numbers. Newest work is merged in ascending order by number.
 | 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame); the starting spells as in the original (done) |
 | 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components (done) |
 | 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates(done) |
+| 318 | Spell | ~~Spell instance model: components, lifecycle, queries~~ (done) |
+| 319 | Spell | ~~Global enchantments as spell entities~~ (done) |
+| 320 | Spell | ~~City enchantments as spell entities~~ (done) |
+| 321 | Spell | ~~Unit enchantments and temporary effects as spell entities~~ (done) |
+| 322 | Spell | ~~Casts in progress, crafting and raising as spell entities~~ (done) |
+| 323 | Spell | ~~Map-square spells and lasting world events~~ (done) |
+| 324 | Spell | ~~Battlefield enchantments in the battle's own world~~ (done: decided to stay as they are) |
+| 325 | Spell | ~~Dispel, upkeep and removal in one place~~ (done) |
 
 ## Descriptions
 
@@ -345,6 +354,8 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 (task 112) are also missing.
 
 **135. Run the AI wizards in the client (done).** The client starts every wizard with the shared `f4x_core::setup::new_game` and holds one `f4x_ai::Ai` per rival (`App::rival_wizards`, recreated on a new map and on load). Ending the turn lets each rival play (`end_turn`), then ends it for everyone (`resume_turn`). The AI keeps an attack on a human instead of auto-resolving it (`Ai::leave_defence_to`, `take_attacks`): the human gets the "You are attacked!" box (Fight or Auto, no cancelling; `attack_prompt.rs`) for each, one after another, and the turn ends once all are fought (stale ones, with a unit already dead, are dropped). The rivals' doings reach the human only through the Chancellor's report and the log (`concerns_human` drops their refusals and out-of-sight foundings); `--turns N` auto-resolves the attacks. The turn is autosaved when it completes. **Not done here:** the attack box still has the plain look (task 264); an AI wizard never opens talks with the human (`f4x-ai` only answers proposals); it is added to task 167 below.
+
+**141. (done) Outpost screen, enemy city screen and the naming boxes.** `Outpost_Screen` (a small city sheet for an outpost; also names a newly founded one), `Enemy_City_Screen` (what is known about another wizard's city) and the rename boxes for the capital (first turn) and new outposts. **Built:** the outpost screen (`outpost_screen.rs`: reduced cityscape, houses, garrison, enchantments; `--outpost`) with the naming box that a newly founded outpost opens (`Command::RenameCity`; `--outpost-new`), and the enemy city screen (`enemy_city_screen.rs`, opened by a click on an explored city of another wizard; `--enemy-city`). **Also built:** the capital's rename box on turn 1 (`--capital-name`). **Also built:** the outpost's enchantment list pages and turns off your own spell as the city screen's does (`city_enchantment_list`, shared; `--outpost` now puts eight city spells on the outpost to see it). **Garrison slots:** the original's `Outpost_Garrison_Picture_Coords` divides both the x and the y step by 5, which would put slots 0 to 4 on one spot, so it is a typo in the original (or its reconstruction); the slots keep the city screen's grid, 5 to a row, 20 by 24 apart. Nothing is left; the new-outpost music (`MUSIC_New_Outpost`) is part of task 76.
 
 **146. Palette cycling: the pulsing colour of index 198 (done).** The original animates by cycling palette index 198 (`Cycle_Palette_Color` in ReMoM `Fonts.c`): between dark and bright red (40..63 in the red channel) on the main screen, load screen and start menu, black to red (0..55) in combat, and pale greys or blues in the spell book (`Spellbook.c`). `extract-art` bakes one fixed colour for that index into the PNGs, so the effect is missing. Find which pictures use index 198 (scan every picture's frames), write those pixels as a mask beside the picture (as the banner masks are written), and have the client tint the mask with a colour that moves between the original's two colours at the original's rate (the step values are 1 to 11 a call). Document the result in `docs/extract-art.md` section 4. Other palette effects (fades, the ghost remap) are separate.
 
@@ -490,3 +501,54 @@ and the lasting spells until 319 to 322. The computed split of power is `PowerSh
 `player()` lookup. `PlayerView`, `testutil::FakeView`, `DiplomacyCtx` and the `WorldView` trait adapt.
 The other crates are fixed in the same task where they stop compiling; the full pass over them is
 task 336. *Needs:* 316.
+
+**318. (done) Spell instance model.** Components `SpellCast`, `Caster`, `SpellTarget`, `Duration`; helpers to
+spawn, despawn and query instances by target, caster or definition, in `Serial` order wherever the
+order is observable. Lifecycle: an instance is despawned when it expires, is dispelled, its caster is
+defeated (banishment keeps them, as `ecs-structure.md` 3.8 says), or its target is gone (unit, city,
+feature). New module `spell/instance.rs`: `Game::spells()` for queries, `spawn_spell`, `age_spells`,
+`despawn_spell`, `despawn_spells_of`, and `despawn_with_spells`, which every removal of a unit or city goes
+through. Nothing uses `spawn_spell` and `age_spells` until 319. *Needs:* 315.
+
+**319. (done) Global enchantments.** `Magic.global`, `globals.rs` (Evil Omens and the rest) and
+`world_spells.rs` read and write spell instances with target `Global`. *Needs:* 318.
+
+**320. (done) City enchantments.** `city::economy::Enchantments`, `spell::city`, wards and the Nightshade dispel
+strength use spell instances with target `City`. The caster is the wizard entity. Done except that the
+realms of a Spell Ward stay in the `SpellWards` component on the city (one ward spell, upkeep for each
+realm, dispelled at once); the Nightshade strength was never stored. *Needs:* 318.
+
+**321. (done) Unit enchantments and temporary effects.** `UnitEnchantments` and `TempEffects` become spell
+instances with target `Unit`; the stat modifier engine reads the instances of a unit. Temporary
+effects that no spell causes (the three kinds `Modifier`, `Grant`, `Remove` with a duration) are
+checked first and kept as a component if some source is not a spell. Checked: the only source is the
+rules engine's `add_modifier`, `grant_ability` and `remove_ability` (any rule source, not only a spell, and
+no spell in the data uses them), so `TempEffects` stays a component. *Needs:* 318.
+
+**322. (done) Casts in progress.** `Magic.casting`, `crafting` and `raising` become spell instances in a
+casting state, owned by the wizard; `raising` stops indexing the roster (finished in 327). The
+transitional component from 315 (`Magic`) is removed. A cast in progress is an instance with `Owed`
+(plus `Crafting` or `Raising`), targeted at its caster; `resolve_cast` ends it after the spell has run.
+*Needs:* 318.
+
+**323. (done) Map-square spells and lasting world events.** Enchanted roads and `events::Lasting` use spell
+instances with target `Square` or `Global`. Corruption is map data, not a spell, and stays in `Map`.
+Warped nodes use target `Feature` and are finished in 330, when the node entity exists (until then
+the `warped` flag stays on `Node`). *Needs:* 318.
+Decided, not built as written: enchanted roads stay a map layer (the original keeps a flag on the
+square; no caster, no upkeep, read at every step of a path) and the lasting events stay the events table
+(`ecs-structure.md` 3.10; an event is no `SpellDef`, so no `SpellCast` fits). The `Square` target and
+the instance `Duration` were removed instead: no spell of the game has a timer.
+
+**324. (done) Battlefield enchantments.** `Battle.fields`, `counter_magic`, `wall_of_fire`, `warded_realms`
+and `vortex` become spell instances in a battle-local `hecs::World`. Battles are not saved today;
+saving a battle (on hold, task 99) will need to include this world. *Needs:* 318.
+Decided, not built as written: `Battle` is `Clone` (the client keeps copies for the replay, tests apply
+commands to a clone) and `hecs::World` is not; a battlefield spell's caster is a side, not a wizard entity
+of `Game::world`; and of the five containers only `fields` is a list of spells (the counter magic reserve
+is a number, the wall of fire and the wards copy a city's state, a vortex is an object). `Battle` keeps
+them. Revisit when battles are saved (task 99).
+
+**325. (done) Dispel, upkeep and removal in one place.** `dispel.rs`, the mana upkeep and "caster banished or
+defeated" become queries over spell instances. Remove the old containers and the transitional
+component. *Needs:* 319 to 324.

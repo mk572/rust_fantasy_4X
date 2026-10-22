@@ -408,32 +408,16 @@ mod tests {
         let max = |g: &Game, u| g.units().unit_max_moves(u);
         assert_eq!((max(&g, boat), max(&g, scout)), (8, 6));
         // The owner's Wind Mastery: half as far again, for ships and fliers only.
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .push(wm);
+        g.add_global(P0, wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
         assert_eq!(max(&g, walker), 4);
         // A rival's: halved for the wizard without it.
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .clear();
-        g.wizard_mut(P1)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .push(wm);
+        g.clear_globals(P0);
+        g.add_global(P1, wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (4, 3));
         assert_eq!(max(&g, walker), 4);
         // Both have it: both get the bonus, nothing stacks.
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::magic::Magic>()
-            .global
-            .push(wm);
+        g.add_global(P0, wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
     }
 
@@ -623,7 +607,7 @@ mod tests {
         let boat = unit(&mut g, "boat", at(5, 4));
         let w = unit(&mut g, "walker", at(4, 4));
         g.move_stack(&[w], at(5, 4)).unwrap();
-        let _ = g.world.despawn(boat);
+        g.despawn_with_spells(boat);
         let events = g.drown_stranded();
         assert_eq!(
             events,

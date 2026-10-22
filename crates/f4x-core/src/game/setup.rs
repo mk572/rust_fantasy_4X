@@ -378,7 +378,12 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
         return;
     };
     game.fog.forget(player);
-    game.fog.explore_within(player, fortress, radius);
+    game.fog.explore_within(
+        player,
+        fortress,
+        radius,
+        game.settings.basic.diagonal_extra_cost,
+    );
 }
 
 /// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`

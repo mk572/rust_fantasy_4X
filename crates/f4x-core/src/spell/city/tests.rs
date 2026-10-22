@@ -73,11 +73,7 @@ fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
 
 fn enchant(g: &mut Game, city: hecs::Entity, spell: &str, caster: PlayerId) {
     let s = g.content.rules.spells.id_of(spell).unwrap();
-    g.world
-        .get::<&mut Enchantments>(city)
-        .unwrap()
-        .0
-        .push((s, caster));
+    g.add_city_enchantment(city, s, caster);
 }
 
 #[test]
@@ -283,11 +279,7 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() {
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
     let night = g.content.rules.spells.id_of("eternal_night").unwrap();
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(night);
+    g.add_global(P1, night);
     let dark = |g: &Game| {
         g.battle().unwrap().fields[Side::Defender.index()]
             .iter()
@@ -367,7 +359,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() {
     );
     assert_eq!(upkeep(&g), 10, "five for each ward");
     // Lose the spell and the wards go with it; a new one starts afresh.
-    g.world.get::<&mut Enchantments>(city).unwrap().0.clear();
+    g.clear_city_enchantments(city);
     assert!(g.economy().city_wards(city).is_empty());
     cast_ward(&mut g, city, "life");
     assert_eq!(g.economy().city_wards(city), vec!["life".to_string()]);
@@ -482,22 +474,10 @@ fn while_armageddon_lasts_no_building_calms_a_city() {
     assert!(pacify(&g) >= 3);
     // Anyone's Armageddon, the city owner's own included.
     let a = g.content.rules.spells.id_of("armageddon").unwrap();
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(a);
+    g.add_global(P1, a);
     assert_eq!(pacify(&g), 0, "an enemy's Armageddon");
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .clear();
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(a);
+    g.clear_globals(P1);
+    g.add_global(P0, a);
     assert_eq!(pacify(&g), 0, "and one's own");
 }
 
@@ -525,11 +505,7 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
     );
     // Its owner's Great Wasting: the same yields as before, and a mana a square.
     let gw = g.content.rules.spells.id_of("great_wasting").unwrap();
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(gw);
+    g.add_global(P0, gw);
     let proof = eco(&g);
     assert_eq!(proof.food, clean.food);
     assert_eq!(proof.rebels, clean.rebels);
@@ -540,24 +516,12 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
         "four squares, a power each"
     );
     // Someone else's Great Wasting does not protect it.
-    g.wizard_mut(P0)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .clear();
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .push(gw);
+    g.clear_globals(P0);
+    g.add_global(P1, gw);
     assert_eq!(eco(&g).food, blighted.food);
     assert_eq!(g.economy().blight_power(P0), 0);
     // And the protection ends with the spell.
-    g.wizard_mut(P1)
-        .unwrap()
-        .get_mut::<crate::wizard::magic::Magic>()
-        .global
-        .clear();
+    g.clear_globals(P1);
     assert_eq!(eco(&g).food, blighted.food);
 }
 

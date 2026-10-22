@@ -38,7 +38,8 @@ pub struct BasicSettings {
     #[serde(default = "default_magic")]
     pub magic_strength: u8,
     /// A diagonal step on the overland map costs half as much again as a straight one (3
-    /// half-moves on open ground); off, it costs the same (the original's rule).
+    /// half-moves on open ground); off, it costs the same (the original's rule). The same goes for
+    /// sight: a square seen along a diagonal costs half as much again to see, or no more.
     #[serde(default)]
     pub diagonal_extra_cost: bool,
 }
@@ -163,7 +164,8 @@ pub struct WorldSettings {
 }
 
 /// A distance in squares on the map: a step along a row or column counts 1, a diagonal step 1.5
-/// (`map::fog::in_radius`), so 2.5 is a 5 by 5 block without its corners. Always a plain number
+/// (1 without `diagonal_extra_cost`; `map::fog::in_radius`), so 2.5 is a 5 by 5 block, without its
+/// corners when a diagonal step costs extra. Always a plain number
 /// (`validate` refuses the rest), which makes `Eq` sound.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
