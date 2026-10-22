@@ -135,7 +135,11 @@ impl Game {
             EventKind::NewMinerals => Some(self.find_deposit(victim, true, rng)?),
             _ => None,
         };
-        if kind == EventKind::Disjunction && self.players.iter().all(|p| p.magic.global.is_empty())
+        if kind == EventKind::Disjunction
+            && self
+                .players()
+                .iter()
+                .all(|(_, p)| p.magic.global.is_empty())
         {
             return None;
         }
@@ -345,7 +349,7 @@ impl Game {
                 self.give_item(victim, item);
             }
             EventKind::Disjunction => {
-                for p in &mut self.players {
+                for (_, p) in self.world.query_mut::<&mut crate::player::Player>() {
                     p.magic.global.clear();
                 }
                 notice.voice = Voice::Happened;

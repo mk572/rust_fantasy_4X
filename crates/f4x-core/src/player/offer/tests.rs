@@ -49,7 +49,8 @@ fn world() -> Game {
     g.spawn_unit(P1, at(8, 3), scout);
     g.human = Some(P0);
     g.turn = 40;
-    for (i, p) in g.players.iter_mut().take(2).enumerate() {
+    for (i, id) in g.player_ids().into_iter().take(2).enumerate() {
+        let p = g.player_mut(id).unwrap();
         p.fortress = Some(at(1 + i as u32 * 6, 1));
         p.gold = 5000;
         p.fame = 190;
@@ -155,8 +156,8 @@ fn a_company_is_drawn_from_the_races_of_the_planes_the_wizard_is_on() {
 #[test]
 fn only_wizards_with_a_standing_fortress_are_offered_anything() {
     let mut g = world();
-    g.players[0].banished = true;
-    g.players[1].fortress = None;
+    g.pl_mut(0).banished = true;
+    g.pl_mut(1).fortress = None;
     for _ in 0..300 {
         g.determine_offers();
     }
@@ -191,10 +192,10 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
     assert!((1..=3).contains(&count) && (1..=3).contains(&level));
     let (arcanus, myrror) = g.planes_of(P0);
     assert_eq!((arcanus, myrror), (true, false));
-    let gold = g.players[0].gold;
+    let gold = g.pl(0).gold;
     let before = g.units().units_at(at(1, 1)).len();
     let events = g.accept_offer(P0, i, None).unwrap();
-    assert_eq!(g.players[0].gold, gold - price);
+    assert_eq!(g.pl(0).gold, gold - price);
     let Some(Event::MercenariesHired { units, .. }) = events.first() else {
         panic!("{events:?}");
     };
@@ -217,7 +218,7 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
 #[test]
 fn mercenaries_are_not_offered_to_a_wizard_who_cannot_pay_even_at_the_discount() {
     let mut g = world();
-    g.players[0].gold = 0;
+    g.pl_mut(0).gold = 0;
     for _ in 0..500 {
         g.determine_offers();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
@@ -231,18 +232,18 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
     let Offer::Hero { kind, price } = g.offers(P0)[i] else {
         unreachable!()
     };
-    let gold = g.players[0].gold;
+    let gold = g.pl(0).gold;
     let events = g.accept_offer(P0, i, Some("Rex".into())).unwrap();
     assert!(matches!(events[..], [Event::HeroJoined { kind: k, .. }] if k == kind));
-    assert_eq!(g.players[0].gold, gold - price);
-    assert_eq!(g.players[0].roster.get(kind).unwrap().name, "Rex");
+    assert_eq!(g.pl(0).gold, gold - price);
+    assert_eq!(g.pl(0).roster.get(kind).unwrap().name, "Rex");
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
 
 #[test]
 fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
     let mut g = world();
-    g.players[0].offers.clear();
+    g.pl_mut(0).offers.clear();
     g.map
         .as_mut()
         .unwrap()
@@ -265,10 +266,10 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
     };
     assert!(loot.prisoner);
     assert!(matches!(g.offers(P0)[0], Offer::Hero { price: 0, .. }));
-    let gold = g.players[0].gold;
+    let gold = g.pl(0).gold;
     let joined = g.accept_offer(P0, 0, None).unwrap();
     assert!(matches!(joined[..], [Event::HeroJoined { .. }]));
-    assert_eq!(g.players[0].gold, gold, "a freed prisoner costs nothing");
+    assert_eq!(g.pl(0).gold, gold, "a freed prisoner costs nothing");
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
 
@@ -276,7 +277,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
 fn a_hero_the_wizard_cannot_pay_for_stays_on_offer() {
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
-    g.players[0].gold = 0;
+    g.pl_mut(0).gold = 0;
     assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoGold));
     assert!(!g.offers(P0).is_empty());
     assert!(g.units().hero_units(P0).is_empty());
@@ -297,9 +298,9 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
         unreachable!()
     };
     assert_eq!(price, item_price(item.cost, false));
-    let gold = g.players[0].gold;
+    let gold = g.pl(0).gold;
     let events = g.accept_offer(P0, i, None).unwrap();
-    assert_eq!(g.players[0].gold, gold - price);
+    assert_eq!(g.pl(0).gold, gold - price);
     assert!(matches!(
         events[..],
         [Event::ItemMade {
@@ -312,15 +313,15 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
 #[test]
 fn the_price_is_tested_after_the_charismatic_discount() {
     let mut g = world();
-    g.players[0].magic.retorts.insert(Retort::Charismatic);
+    g.pl_mut(0).magic.retorts.insert(Retort::Charismatic);
     // Hardly any gold: the full price could never be paid, the half price can be.
     for _ in 0..3000 {
-        g.players[0].gold = 100;
+        g.pl_mut(0).gold = 100;
         g.determine_offers();
         for offer in g.offers(P0) {
             if let Offer::Item { item, price } = offer {
-                assert_eq!(*price, item.cost as i32 * 3 / 2);
-                assert!(*price <= 100);
+                assert_eq!(price, item.cost as i32 * 3 / 2);
+                assert!(price <= 100);
                 return;
             }
         }
@@ -362,7 +363,7 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() {
         |o| matches!(o, Offer::Item { item, .. } if item.prefab.is_some()),
     );
     assert!(i < g.offers(P0).len());
-    g.players[0].offers.clear();
+    g.pl_mut(0).offers.clear();
     assert_eq!(g.reject_offer(P0, 0), Err(OfferError::NoOffer));
 }
 
@@ -371,14 +372,14 @@ fn the_turn_change_makes_the_offers_and_a_save_keeps_them() {
     let mut g = world();
     roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
     // A save wants a city wherever there is a fortress; this world has none.
-    g.players[0].fortress = None;
-    g.players[1].fortress = None;
+    g.pl_mut(0).fortress = None;
+    g.pl_mut(1).fortress = None;
     let text = ron::to_string(&g.snapshot()).unwrap();
     let back = crate::game::save::Snapshot::from_text(&text)
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
-    assert_eq!(back.players[0].offers, g.players[0].offers);
+    assert_eq!(back.pl(0).offers, g.pl(0).offers);
     assert_eq!(back.prefab_taken, g.prefab_taken);
 }
 

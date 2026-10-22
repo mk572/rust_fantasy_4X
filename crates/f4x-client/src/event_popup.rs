@@ -163,7 +163,7 @@ impl App {
             let name = self
                 .game
                 .player(player)
-                .map_or("A rival", |p| p.name.as_str());
+                .map_or("A rival".to_string(), |p| p.name.clone());
             if name.ends_with('s') {
                 format!("{name}' ")
             } else {
@@ -292,9 +292,8 @@ impl App {
     pub fn open_test_fizzle(&mut self) {
         let rival = self
             .game
-            .players()
-            .iter()
-            .map(|p| p.id)
+            .player_ids()
+            .into_iter()
             .find(|&id| id != HUMAN && !self.game.is_neutral_player(id));
         if let Some(rival) = rival {
             let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "Suppress Magic");

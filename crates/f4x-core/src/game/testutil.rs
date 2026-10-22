@@ -455,7 +455,7 @@ pub struct FakeView {
     pub human: Option<crate::player::PlayerId>,
     pub difficulty: u8,
     pub content: Content,
-    pub players: Vec<crate::player::Player>,
+    pub players: Vec<(crate::player::PlayerId, crate::player::Player)>,
     pub sightings: Vec<(crate::player::PlayerId, crate::game::view::Sighting)>,
     pub units: Vec<(crate::player::PlayerId, crate::game::view::UnitInfo)>,
     /// The owner of each city.
@@ -472,7 +472,7 @@ impl FakeView {
             content: Content::default(),
             players: ids
                 .iter()
-                .map(|&id| crate::player::Player::new(id, "W"))
+                .map(|&id| (id, crate::player::Player::new(id, "W")))
                 .collect(),
             sightings: Vec::new(),
             units: Vec::new(),
@@ -503,8 +503,15 @@ impl crate::game::view::WorldView for FakeView {
         &self.content
     }
 
-    fn players(&self) -> &[crate::player::Player] {
-        &self.players
+    fn player_ids(&self) -> Vec<crate::player::PlayerId> {
+        self.players.iter().map(|(id, _)| *id).collect()
+    }
+
+    fn player(&self, id: crate::player::PlayerId) -> Option<crate::player::PlayerHandle<'_>> {
+        self.players
+            .iter()
+            .find(|(p, _)| *p == id)
+            .map(|(_, p)| crate::player::PlayerHandle::Plain(p))
     }
 
     fn foreign_sightings(

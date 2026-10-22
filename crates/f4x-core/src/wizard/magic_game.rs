@@ -12,8 +12,8 @@ use crate::wizard::magic::{
 use crate::wizard::magic_commands::found_wizard;
 
 impl Game {
-    pub fn magic(&self, player: PlayerId) -> Option<&Magic> {
-        self.player(player).map(|p| &p.magic)
+    pub fn magic(&self, player: PlayerId) -> Option<hecs::Ref<'_, Magic>> {
+        crate::player::magic(&self.world, player)
     }
 
     pub(crate) fn magic_mut(&mut self, player: PlayerId) -> Option<&mut Magic> {
@@ -29,11 +29,8 @@ impl Game {
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,
     ) -> Result<(), MagicError> {
-        let p = self
-            .players
-            .iter_mut()
-            .find(|p| p.id == player)
-            .ok_or(MagicError::UnknownPlayer)?;
+        let p =
+            crate::player::find_mut(&mut self.world, player).ok_or(MagicError::UnknownPlayer)?;
         found_wizard(
             p,
             &self.content,
@@ -69,11 +66,8 @@ impl Game {
 
     /// Choose what to research. The choice stands until the spell is learned.
     pub fn set_research(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
-        let p = self
-            .players
-            .iter_mut()
-            .find(|p| p.id == player)
-            .ok_or(MagicError::UnknownPlayer)?;
+        let p =
+            crate::player::find_mut(&mut self.world, player).ok_or(MagicError::UnknownPlayer)?;
         p.magic.choose_research(&self.content, spell)
     }
 
@@ -91,7 +85,7 @@ impl Game {
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
         let income = self.income(player).research;
-        if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
+        if let Some(p) = crate::player::find_mut(&mut self.world, player) {
             p.magic
                 .refill_research(&self.content, &mut self.rng, income);
         }
@@ -105,7 +99,7 @@ impl Game {
     /// start here are the turn's (`turn.rs`).
     pub(crate) fn process_magic(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped
         // for casting: no spell of theirs gets any further.
         let stopper = self.time_stopper();
@@ -216,12 +210,14 @@ impl Game {
             // Cast only through banishment, never chosen.
             return Err(MagicError::NotAvailable);
         }
-        let m = self.magic(player).ok_or(MagicError::UnknownPlayer)?;
-        m.check_can_cast(spell)?;
-        let start = if cost <= m.instant_budget(reserve) {
-            CastStart::Now
-        } else {
-            CastStart::Paid
+        let start = {
+            let m = self.magic(player).ok_or(MagicError::UnknownPlayer)?;
+            m.check_can_cast(spell)?;
+            if cost <= m.instant_budget(reserve) {
+                CastStart::Now
+            } else {
+                CastStart::Paid
+            }
         };
         match start {
             CastStart::Now => {

@@ -66,7 +66,7 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);
-        let player = self.game.player(HUMAN).cloned();
+        let player = self.game.player(HUMAN).as_deref().cloned();
         let name = player.as_ref().map_or_else(String::new, |p| p.name.clone());
         let race = player.as_ref().and_then(|p| p.capital_race);
         let race_icon = race.map_or(0, |r| 15 + r.index());

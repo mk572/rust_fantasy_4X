@@ -255,20 +255,20 @@ impl ItemWorld for ItemView<'_> {
     }
 
     fn fortress(&self, player: PlayerId) -> Option<Position> {
-        self.players.iter().find(|p| p.id == player)?.fortress
+        crate::player::find(self.world, player)?.fortress
     }
 }
 
 impl Game {
     /// Put an item (or nothing) in a spot, which has been checked to exist.
     pub(crate) fn set_item_at(&mut self, player: PlayerId, spot: ItemSpot, item: Option<Item>) {
-        let Some(pi) = self.players.iter().position(|p| p.id == player) else {
+        let Some(p) = crate::player::find_mut(&mut self.world, player) else {
             return;
         };
         match spot {
-            ItemSpot::Vault(i) => self.players[pi].armory.vault[i] = item,
+            ItemSpot::Vault(i) => p.armory.vault[i] = item,
             ItemSpot::Award(i) => {
-                let awards = &mut self.players[pi].armory.awards;
+                let awards = &mut p.armory.awards;
                 match item {
                     Some(item) if i < awards.len() => awards[i] = item,
                     Some(item) => awards.push(item),
@@ -302,12 +302,10 @@ impl Game {
         if from == to {
             return Ok(());
         }
-        let p = self
-            .players
-            .iter()
-            .find(|p| p.id == player)
-            .ok_or(ItemError::NoSuchPlace)?;
-        let plan = plan_move(&self.items(), &p.armory, p.mana, player, from, to, pay)?;
+        let plan = {
+            let p = crate::player::find(&self.world, player).ok_or(ItemError::NoSuchPlace)?;
+            plan_move(&self.items(), &p.armory, p.mana, player, from, to, pay)?
+        };
         let heroes: Vec<hecs::Entity> = [from, to]
             .iter()
             .filter_map(|s| match s {
@@ -436,12 +434,10 @@ mod tests {
         let mut g = Game::new(2);
         g.content = c;
         g.map = Some(Map::new(build(), build()));
-        g.players = vec![
-            crate::player::Player::new(P0, "A"),
-            crate::player::Player::new(P1, "B"),
-        ];
-        g.players[0].fortress = Some(at(1, 1));
-        g.players[0].mana = 100;
+        g.add_player(P0, crate::player::Player::new(P0, "A"));
+        g.add_player(P1, crate::player::Player::new(P1, "B"));
+        g.pl_mut(0).fortress = Some(at(1, 1));
+        g.pl_mut(0).mana = 100;
         g
     }
 
@@ -470,7 +466,7 @@ mod tests {
         staff.cost = 900;
         g.give_item(P0, staff);
         assert_eq!(g.scrap_item(P0, Spot::Vault(0)), Some(450));
-        assert_eq!(g.players[0].mana, 550);
+        assert_eq!(g.pl(0).mana, 550);
         assert_eq!(g.scrap_item(P0, Spot::Vault(0)), None);
     }
 
@@ -494,7 +490,7 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 1), false),
             Ok(())
         );
-        assert_eq!(g.players[0].armory.vault[1], None);
+        assert_eq!(g.pl(0).armory.vault[1], None);
         assert_eq!(g.items().carried(w).len(), 2);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 1), false),
@@ -534,7 +530,7 @@ mod tests {
             .unwrap();
         g.move_item(P0, ItemSpot::Vault(1), ItemSpot::Hero(w, 0), false)
             .unwrap();
-        assert_eq!(g.players[0].armory.vault[1].as_ref().unwrap().name, "Sword");
+        assert_eq!(g.pl(0).armory.vault[1].as_ref().unwrap().name, "Sword");
         assert_eq!(g.items().carried(w)[0].1.name, "Axe");
         // Armour does not go in the sword slot, and nothing changes.
         assert_eq!(
@@ -542,7 +538,7 @@ mod tests {
             Err(ItemError::WrongSlot)
         );
         assert_eq!(g.items().carried(w)[0].1.name, "Axe");
-        assert_eq!(g.players[0].armory.vault[2].as_ref().unwrap().name, "Plate");
+        assert_eq!(g.pl(0).armory.vault[2].as_ref().unwrap().name, "Plate");
     }
 
     #[test]
@@ -554,23 +550,23 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), false),
             Err(ItemError::Transfer)
         );
-        g.players[0].mana = 19;
+        g.pl_mut(0).mana = 19;
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Err(ItemError::NoMana)
         );
-        g.players[0].mana = 100;
+        g.pl_mut(0).mana = 100;
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Ok(())
         );
-        assert_eq!(g.players[0].mana, 80);
+        assert_eq!(g.pl(0).mana, 80);
         // Back into the vault is free, wherever the hero is.
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(far, 0), ItemSpot::Vault(0), false),
             Ok(())
         );
-        assert_eq!(g.players[0].mana, 80);
+        assert_eq!(g.pl(0).mana, 80);
     }
 
     #[test]
@@ -582,7 +578,7 @@ mod tests {
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(a, 0), true)
             .unwrap();
-        g.players[0].mana = 0;
+        g.pl_mut(0).mana = 0;
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(a, 0), ItemSpot::Hero(b, 0), false),
             Ok(())
@@ -613,7 +609,7 @@ mod tests {
         let mut boots = item("Boots", ItemKind::Misc);
         boots.powers = vec!["flight".into()];
         g.give_item(P0, boots);
-        g.players[0].fortress = Some(at(6, 4));
+        g.pl_mut(0).fortress = Some(at(6, 4));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(m, 2), false)
             .unwrap();
         assert_eq!(
@@ -621,7 +617,7 @@ mod tests {
             Err(ItemError::WouldDrown)
         );
         assert_eq!(g.items().carried(m).len(), 1);
-        assert_eq!(g.players[0].armory.vault[0], None);
+        assert_eq!(g.pl(0).armory.vault[0], None);
     }
 
     #[test]
@@ -638,14 +634,14 @@ mod tests {
         for _ in 0..VAULT_SLOTS + 1 {
             g.give_item(P0, item("Filler", ItemKind::Misc));
         }
-        g.players[0].fortress = None;
+        g.pl_mut(0).fortress = None;
         let text = g.snapshot().to_text().unwrap();
         let back = crate::game::save::Snapshot::from_text(&text)
             .unwrap()
             .restore(g.content.clone())
             .unwrap();
-        assert_eq!(back.players[0].armory, g.players[0].armory);
-        assert!(!back.players[0].armory.awards.is_empty());
+        assert_eq!(back.pl(0).armory, g.pl(0).armory);
+        assert!(!back.pl(0).armory.awards.is_empty());
         let carried = back.units().all_units();
         let hero = carried
             .iter()

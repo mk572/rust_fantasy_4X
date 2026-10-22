@@ -40,7 +40,7 @@ mod tests {
     fn game() -> Game {
         let mut g = Game::new(5);
         for id in [HUMAN, AI] {
-            g.add_player(Player::new(id, "W"));
+            g.add_player(id, Player::new(id, "W"));
         }
         g.human = Some(HUMAN);
         g.make_contact(HUMAN, AI);
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn proposals_to_others_are_left_alone() {
         let mut g = game();
-        g.add_player(Player::new(PlayerId(2), "W"));
+        g.add_player(PlayerId(2), Player::new(PlayerId(2), "W"));
         g.make_contact(HUMAN, PlayerId(2));
         g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
             from: HUMAN,
@@ -87,7 +87,7 @@ mod tests {
         for seed in 0..40 {
             let mut g = Game::new(seed);
             for id in [HUMAN, AI] {
-                g.add_player(Player::new(id, "W"));
+                g.add_player(id, Player::new(id, "W"));
             }
             g.human = Some(HUMAN);
             g.make_contact(HUMAN, AI);
@@ -102,7 +102,7 @@ mod tests {
             }
             let mut h = Game::new(seed);
             for id in [HUMAN, AI] {
-                h.add_player(Player::new(id, "W"));
+                h.add_player(id, Player::new(id, "W"));
             }
             h.human = Some(HUMAN);
             h.make_contact(HUMAN, AI);

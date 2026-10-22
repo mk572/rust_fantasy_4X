@@ -68,7 +68,7 @@ impl Game {
             .map(PlayerId)
             .find(|id| self.player(*id).is_none())
             .unwrap_or(PlayerId(u8::MAX - 1));
-        self.players.push(Player::new_neutral(id, name));
+        self.add_player(id, Player::new_neutral(id, name));
         id
     }
 
@@ -80,9 +80,9 @@ impl Game {
         }
         let near = |x: u32, y: u32, d: u32| range(x, y, pos.x, pos.y) < d;
         if self
-            .players
+            .players()
             .iter()
-            .filter_map(|p| p.fortress)
+            .filter_map(|(_, p)| p.fortress)
             .any(|f| near(f.x, f.y, FORTRESS_CLEARANCE))
         {
             return false;

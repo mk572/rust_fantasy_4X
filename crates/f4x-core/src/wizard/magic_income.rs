@@ -7,11 +7,11 @@ use crate::content::Content;
 use crate::game::Game;
 use crate::map::Plane;
 use crate::player::PlayerId;
-use crate::wizard::magic::{Magic, PowerSplit};
+use crate::wizard::magic::PowerSplit;
 
 /// What the income rules ask of the world, for one wizard at a time.
 pub(crate) trait IncomeView {
-    fn magic(&self, player: PlayerId) -> Option<&Magic>;
+    fn magic(&self, player: PlayerId) -> Option<crate::player::MagicRef<'_>>;
     fn content(&self) -> &Content;
     /// Whether the wizard is casting the Spell of Return (then there is no income of any kind).
     fn casting_return(&self, player: PlayerId) -> bool;
@@ -103,8 +103,8 @@ impl IncomeView for GameIncome<'_> {
         self.0.player(player).map_or(100, |p| p.bonus.mana)
     }
 
-    fn magic(&self, player: PlayerId) -> Option<&Magic> {
-        self.0.magic(player)
+    fn magic(&self, player: PlayerId) -> Option<crate::player::MagicRef<'_>> {
+        self.0.magic(player).map(crate::player::MagicRef::Held)
     }
 
     fn content(&self) -> &Content {

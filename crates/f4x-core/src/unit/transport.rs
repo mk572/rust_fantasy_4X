@@ -133,7 +133,6 @@ pub(crate) fn update_aboard(
     world: &mut hecs::World,
     map: Option<&crate::map::Map>,
     content: &crate::content::Content,
-    players: &[crate::player::Player],
     stack: &[hecs::Entity],
     to: Position,
     stack_flies: bool,
@@ -142,18 +141,17 @@ pub(crate) fn update_aboard(
         world: &'a hecs::World,
         map: Option<&'a crate::map::Map>,
         content: &'a crate::content::Content,
-        players: &'a [crate::player::Player],
     ) -> Economy<'a> {
-        Economy::new(world, map, content, players)
+        Economy::new(world, map, content)
     }
-    let e = economy(world, map, content, players);
+    let e = economy(world, map, content);
     let (to_sea, owner) = (e.is_sea(to), e.units().unit_owner(stack[0]));
     let Some(owner) = owner else {
         return;
     };
     for &u in stack {
         let board = {
-            let e = economy(world, map, content, players);
+            let e = economy(world, map, content);
             if !e.needs_ship(u, stack_flies) {
                 continue;
             }
@@ -399,7 +397,7 @@ mod tests {
         g.content.rules.spells = Registry::new(vec![wm]);
         let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
         for id in [P0, P1] {
-            g.players.push(crate::player::Player::new(id, "W"));
+            g.add_player(id, crate::player::Player::new(id, "W"));
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
         }
         let boat = unit(&mut g, "boat", at(5, 4));

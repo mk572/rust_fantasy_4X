@@ -464,7 +464,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
     let mut p = Player::new(PlayerId(0), "W");
     p.gold = 500;
     p.tax_rate = 2;
-    g.players.push(p);
+    g.add_player(PlayerId(0), p);
     let race = g.content.rules.races.id_of("elf");
     g.apply(Command::FoundCity {
         owner: PlayerId(0),

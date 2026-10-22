@@ -10,7 +10,7 @@
 use crate::city::economy::{Buildings, CityRace, Enchantments, Farmers, Population};
 use crate::content::Content;
 use crate::map::{Map, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::{BuildingId, RaceId, SpellId};
@@ -27,11 +27,6 @@ impl Game {
     /// The map, once there is one.
     pub fn map(&self) -> Option<&Map> {
         self.map.as_ref()
-    }
-
-    /// Every player, wizards and independent cities' players, in the order they were added.
-    pub fn players(&self) -> &[Player] {
-        &self.players
     }
 
     /// Has `player` explored the square (as opposed to seeing it now: see `visibility`)?
@@ -163,11 +158,6 @@ impl Game {
     /// Replace the map.
     pub fn set_map(&mut self, map: Map) {
         self.map = Some(map);
-    }
-
-    /// Add a player.
-    pub fn add_player(&mut self, player: Player) {
-        self.players.push(player);
     }
 
     /// Give a unit experience points, as a scenario sets it up (no level checks).

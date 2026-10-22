@@ -70,8 +70,8 @@ impl UnitView<'_> {
         let magic = self.magic(player);
         Standing {
             fame: self.fame(player),
-            life_books: magic.map_or(0, |m| m.books_in("life")),
-            death_books: magic.map_or(0, |m| m.books_in("death")),
+            life_books: magic.as_ref().map_or(0, |m| m.books_in("life")),
+            death_books: magic.as_ref().map_or(0, |m| m.books_in("death")),
         }
     }
 
@@ -79,12 +79,10 @@ impl UnitView<'_> {
     /// each level the hero kept from earlier service, half for a Charismatic wizard.
     pub fn hero_hire_price(&self, player: PlayerId, kind: usize) -> Option<i32> {
         let rules = &self.content.rules;
-        let record = self
-            .players
-            .iter()
-            .find(|p| p.id == player)?
+        let record = crate::player::find(self.world, player)?
             .roster
-            .get(kind)?;
+            .get(kind)?
+            .clone();
         let unit = roster::unit_of(rules, kind)?;
         let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
         let level = roster::level_of(rules, unit, record.xp);
@@ -116,13 +114,13 @@ impl Game {
     /// the map and the starting cities of a seed stay as they were.
     pub(crate) fn init_heroes(&mut self) {
         let mut rosters = Vec::new();
-        for (k, id) in self
-            .players
-            .iter()
-            .filter(|p| !p.neutral)
-            .map(|p| p.id)
-            .enumerate()
-        {
+        let ids: Vec<PlayerId> = self
+            .players()
+            .into_iter()
+            .filter(|(_, p)| !p.neutral)
+            .map(|(id, _)| id)
+            .collect();
+        for (k, id) in ids.into_iter().enumerate() {
             rosters.push((id, roster::roll(&mut self.rng, &self.content.rules, k)));
         }
         for (id, roster) in rosters {
@@ -135,7 +133,7 @@ impl Game {
     /// A random hero type the wizard can be offered or summon (`Pick_Random_Hero`).
     pub fn pick_hero(&mut self, player: PlayerId, zero_cost: bool, class: Class) -> Option<usize> {
         let standing = self.units().hero_standing(player);
-        let roster = &self.players.iter().find(|p| p.id == player)?.roster;
+        let roster = &crate::player::find(&self.world, player)?.roster;
         roster::pick(
             &mut self.rng,
             &self.content.rules,
@@ -157,9 +155,8 @@ impl Game {
     ) -> Result<hecs::Entity, HeroError> {
         let record = self
             .player(player)
-            .and_then(|p| p.roster.get(kind))
-            .ok_or(HeroError::Unknown)?
-            .clone();
+            .and_then(|p| p.roster.get(kind).cloned())
+            .ok_or(HeroError::Unknown)?;
         if !matches!(record.state, Availability::Free | Availability::Dead) {
             return Err(HeroError::NotAvailable);
         }
@@ -262,8 +259,9 @@ impl Game {
     }
 
     /// The wizard's roster, for the screens that list the heroes that can be hired or raised.
-    pub fn roster(&self, player: PlayerId) -> Option<&Roster> {
-        self.player(player).map(|p| &p.roster)
+    pub fn roster(&self, player: PlayerId) -> Option<hecs::Ref<'_, Roster>> {
+        self.player(player)
+            .map(|p| hecs::Ref::map(p, |p| &p.roster))
     }
 }
 
@@ -332,8 +330,9 @@ pub(crate) mod tests {
         let mut g = Game::new(5);
         g.content = c;
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));
-        g.players = vec![Player::new(P0, "A"), Player::new(P1, "B")];
-        g.players.push(Player::new_neutral(PlayerId(9), "Town"));
+        g.add_player(P0, Player::new(P0, "A"));
+        g.add_player(P1, Player::new(P1, "B"));
+        g.add_player(PlayerId(9), Player::new_neutral(PlayerId(9), "Town"));
         g.init_heroes();
         g
     }
@@ -341,13 +340,14 @@ pub(crate) mod tests {
     #[test]
     fn every_wizard_has_a_roster_and_a_neutral_city_has_none() {
         let g = world();
-        assert_eq!(g.players[0].roster.0.len(), 7);
-        assert_eq!(g.players[1].roster.0.len(), 7);
-        assert!(g.players[2].roster.0.is_empty());
+        assert_eq!(g.pl(0).roster.0.len(), 7);
+        assert_eq!(g.pl(1).roster.0.len(), 7);
+        assert!(g.pl(2).roster.0.is_empty());
         // Names go by the wizard's number.
-        assert_eq!(g.players[0].roster.get(0).unwrap().name, "Ann");
-        assert_eq!(g.players[1].roster.get(0).unwrap().name, "Bob");
-        assert!(g.players[0]
+        assert_eq!(g.pl(0).roster.get(0).unwrap().name, "Ann");
+        assert_eq!(g.pl(1).roster.get(0).unwrap().name, "Bob");
+        assert!(g
+            .pl(0)
             .roster
             .0
             .iter()
@@ -363,10 +363,7 @@ pub(crate) mod tests {
         assert_eq!(hero.abilities.might, Tier::Super);
         assert_eq!(hero.spells, vec!["healing".to_string()]);
         assert_eq!(g.units().hero_kind(h), Some(2));
-        assert_eq!(
-            g.players[0].roster.get(2).unwrap().state,
-            Availability::Serving
-        );
+        assert_eq!(g.pl(0).roster.get(2).unwrap().state, Availability::Serving);
         // Its abilities are the unit's, and a noble hero costs nothing to keep.
         assert!(g.units().unit_has_ability(h, "noble"));
         assert!(g.units().unit_has_ability(h, "super_might"));
@@ -376,10 +373,7 @@ pub(crate) mod tests {
         assert_eq!(g.units().unit_gold_upkeep(plain), 2);
         // The same hero cannot serve twice, and the other wizard's record is untouched.
         assert_eq!(g.spawn_hero(P0, at(1, 1), 2), Err(HeroError::NotAvailable));
-        assert_eq!(
-            g.players[1].roster.get(2).unwrap().state,
-            Availability::Free
-        );
+        assert_eq!(g.pl(1).roster.get(2).unwrap().state, Availability::Free);
         assert_eq!(g.spawn_hero(P0, at(1, 1), 40), Err(HeroError::Unknown));
     }
 
@@ -388,7 +382,7 @@ pub(crate) mod tests {
         use crate::item::{HeroItems, Item, ItemBonus};
         use crate::rules::ItemKind;
         let mut g = world();
-        g.players[0].fortress = Some(at(3, 3));
+        g.pl_mut(0).fortress = Some(at(3, 3));
         let h = g.spawn_hero(P0, at(3, 3), 0).unwrap();
         // Casting skill 1 at level 0: (1 + 1) * 1 * 5 / 2.
         assert_eq!(g.units().hero_mana(h), 5);
@@ -430,7 +424,7 @@ pub(crate) mod tests {
     fn sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns() {
         use crate::wizard::magic::Casting;
         let mut g = world();
-        g.players[0].fortress = Some(at(3, 3));
+        g.pl_mut(0).fortress = Some(at(3, 3));
         let sage = g.spawn_hero(P0, at(3, 3), 0).unwrap();
         g.world.get::<&mut Hero>(sage).unwrap().abilities.sage = Tier::Normal;
         let _ = g.world.insert_one(sage, Experience(120));
@@ -442,7 +436,7 @@ pub(crate) mod tests {
         );
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.
-        g.players[0].magic = crate::wizard::magic::Magic::new(&[("life", 2)], &[]);
+        g.pl_mut(0).magic = crate::wizard::magic::Magic::new(&[("life", 2)], &[]);
         let spell = g.content.rules.spells.id_of("healing").unwrap();
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
@@ -451,7 +445,7 @@ pub(crate) mod tests {
             spell,
             remaining: 1000,
         });
-        g.players[0].mana = 5000;
+        g.pl_mut(0).mana = 5000;
         let _ = g.process_magic();
         let left = g.magic(P0).unwrap().casting.unwrap().remaining;
         assert_eq!(1000 - left, nominal + hero_skill);
@@ -497,7 +491,7 @@ pub(crate) mod tests {
         g.remove_unit(a, Fate::Slain);
         g.remove_unit(b, Fate::Released);
         g.remove_unit(c, Fate::Gone);
-        let r = &g.players[0].roster;
+        let r = &g.pl(0).roster.clone();
         assert_eq!(
             (r.get(0).unwrap().state, r.get(0).unwrap().xp),
             (Availability::Dead, 40)
@@ -520,28 +514,19 @@ pub(crate) mod tests {
         let mut g = world();
         // Unpaid upkeep lets a hero go: it can be hired again.
         let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
-        g.players[0].gold = 0;
+        g.pl_mut(0).gold = 0;
         let _ = g.settle_treasury(P0);
         assert!(!g.world.contains(h));
-        assert_eq!(
-            g.players[0].roster.get(0).unwrap().state,
-            Availability::Free
-        );
+        assert_eq!(g.pl(0).roster.get(0).unwrap().state, Availability::Free);
         // The cheat that removes a unit does too.
         let h = g.spawn_hero(P0, at(1, 1), 1).unwrap();
         assert!(g.cheat_remove_unit(h));
-        assert_eq!(
-            g.players[0].roster.get(1).unwrap().state,
-            Availability::Free
-        );
+        assert_eq!(g.pl(0).roster.get(1).unwrap().state, Availability::Free);
         // A wizard who is defeated loses the heroes for good.
         let h = g.spawn_hero(P1, at(3, 3), 4).unwrap();
         g.aftermath(P1, P0);
         assert!(!g.world.contains(h));
-        assert_eq!(
-            g.players[1].roster.get(4).unwrap().state,
-            Availability::Gone
-        );
+        assert_eq!(g.pl(1).roster.get(4).unwrap().state, Availability::Gone);
     }
 
     #[test]
@@ -549,7 +534,7 @@ pub(crate) mod tests {
         let mut g = world();
         let cost = g.units().hero_hire_price(P0, 0).unwrap();
         assert_eq!(cost, 100);
-        g.players[0].roster.get_mut(0).unwrap().xp = 10_000;
+        g.pl_mut(0).roster.get_mut(0).unwrap().xp = 10_000;
         let level = crate::hero::roster::level_of(
             &g.content.rules,
             crate::hero::roster::unit_of(&g.content.rules, 0).unwrap(),
@@ -559,7 +544,7 @@ pub(crate) mod tests {
             g.units().hero_hire_price(P0, 0),
             Some(100 + level as i32 * 100 / 4)
         );
-        g.players[0]
+        g.pl_mut(0)
             .magic
             .retorts
             .insert(crate::wizard::magic::Retort::Charismatic);
@@ -578,7 +563,7 @@ pub(crate) mod tests {
             let k = g.pick_hero(P0, false, Class::Any);
             assert!(matches!(k, None | Some(0)), "{k:?}");
         }
-        g.players[0].fame = 50;
+        g.pl_mut(0).fame = 50;
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..400 {
             if let Some(k) = g.pick_hero(P0, false, Class::Any) {
@@ -587,7 +572,7 @@ pub(crate) mod tests {
         }
         assert!(seen.len() >= 4 && !seen.contains(&6), "{seen:?}");
         // A summoning ignores the fame; the death book unlocks the necromancer.
-        g.players[0].magic.books.insert("death".into(), 1);
+        g.pl_mut(0).magic.books.insert("death".into(), 1);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..800 {
             if let Some(k) = g.pick_hero(P0, true, Class::Any) {
@@ -597,7 +582,7 @@ pub(crate) mod tests {
         assert!(seen.contains(&6), "{seen:?}");
         // Those who serve, are dead or are gone are not offered.
         for k in 0..6 {
-            g.players[0].roster.get_mut(k).unwrap().state = Availability::Dead;
+            g.pl_mut(0).roster.get_mut(k).unwrap().state = Availability::Dead;
         }
         for _ in 0..100 {
             let k = g.pick_hero(P0, true, Class::Any);
@@ -617,8 +602,8 @@ pub(crate) mod tests {
             .unwrap()
             .restore(g.content.clone())
             .unwrap();
-        assert_eq!(back.players[0].roster, g.players[0].roster);
-        assert_eq!(back.players[1].roster, g.players[1].roster);
+        assert_eq!(back.pl(0).roster, g.pl(0).roster);
+        assert_eq!(back.pl(1).roster, g.pl(1).roster);
         let heroes = back.units().hero_units(P0);
         assert_eq!(heroes.len(), 1);
         assert_eq!(
@@ -627,7 +612,7 @@ pub(crate) mod tests {
         );
         assert_eq!(back.units().hero_kind(heroes[0]), Some(2));
         assert!(back.units().unit_has_ability(heroes[0], "noble"));
-        assert_eq!(back.players[0].roster.dead(), vec![1]);
+        assert_eq!(back.pl(0).roster.dead(), vec![1]);
     }
 
     fn sword() -> crate::item::Item {

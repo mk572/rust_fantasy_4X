@@ -552,10 +552,10 @@ impl Game {
                 .collect(),
         };
         let players = self
-            .players
+            .players()
             .iter()
-            .map(|p| PlayerSave {
-                id: p.id.0,
+            .map(|(id, p)| PlayerSave {
+                id: id.0,
                 name: p.name.clone(),
                 gold: p.gold,
                 mana: p.mana,
@@ -792,7 +792,7 @@ impl Snapshot {
             .transpose()?;
         game.fog = restore_fog(self.fog, game.map.as_ref())?;
         for p in self.players {
-            if game.players.iter().any(|q| q.id.0 == p.id) {
+            if game.player_entity(PlayerId(p.id)).is_some() {
                 return Err(LoadError::Inconsistent(format!(
                     "player {} appears twice",
                     p.id
@@ -808,41 +808,44 @@ impl Snapshot {
                         .ok_or(LoadError::UnknownId("race", r))
                 })
                 .transpose()?;
-            game.players.push(Player {
-                bonus: crate::player::Bonus::default(),
-                history: p.history,
-                id: PlayerId(p.id),
-                name: p.name,
-                gold: p.gold,
-                mana: p.mana,
-                tax_rate: p.tax_rate,
-                grand_vizier: p.grand_vizier,
-                neutral: p.neutral,
-                capital_race,
-                fame: p.fame,
-                magic: Magic::from_save(p.magic, &game.content.rules)?,
-                armory: p.armory,
-                roster: p.roster,
-                offers: p.offers,
-                fortress: p.fortress,
-                summon_at: p.summon_at,
-                banished: p.banished,
-                banished_by: p.banished_by.map(PlayerId),
-                defeated: p.defeated,
-                defeated_by: p.defeated_by.map(PlayerId),
-                banner: p
-                    .banner
-                    .unwrap_or(if p.id == u8::MAX {
-                        crate::player::NEUTRAL_BANNER
-                    } else {
-                        p.id % crate::player::BANNER_CHOICES
-                    })
-                    .min(crate::player::NEUTRAL_BANNER),
-                portrait: p
-                    .portrait
-                    .unwrap_or(p.id % crate::player::PORTRAITS)
-                    .min(crate::player::PORTRAITS - 1),
-            });
+            let id = PlayerId(p.id);
+            game.add_player(
+                id,
+                Player {
+                    bonus: crate::player::Bonus::default(),
+                    history: p.history,
+                    name: p.name,
+                    gold: p.gold,
+                    mana: p.mana,
+                    tax_rate: p.tax_rate,
+                    grand_vizier: p.grand_vizier,
+                    neutral: p.neutral,
+                    capital_race,
+                    fame: p.fame,
+                    magic: Magic::from_save(p.magic, &game.content.rules)?,
+                    armory: p.armory,
+                    roster: p.roster,
+                    offers: p.offers,
+                    fortress: p.fortress,
+                    summon_at: p.summon_at,
+                    banished: p.banished,
+                    banished_by: p.banished_by.map(PlayerId),
+                    defeated: p.defeated,
+                    defeated_by: p.defeated_by.map(PlayerId),
+                    banner: p
+                        .banner
+                        .unwrap_or(if p.id == u8::MAX {
+                            crate::player::NEUTRAL_BANNER
+                        } else {
+                            p.id % crate::player::BANNER_CHOICES
+                        })
+                        .min(crate::player::NEUTRAL_BANNER),
+                    portrait: p
+                        .portrait
+                        .unwrap_or(p.id % crate::player::PORTRAITS)
+                        .min(crate::player::PORTRAITS - 1),
+                },
+            );
         }
 
         let mut serials = std::collections::BTreeSet::new();
@@ -1050,16 +1053,16 @@ impl Snapshot {
                     .insert_one(entity, crate::city::conquest::Conquered(PlayerId(p)));
             }
         }
-        for p in &game.players {
+        for (id, p) in game.players() {
             for pos in [p.fortress, p.summon_at].into_iter().flatten() {
                 let ok = game
                     .economy()
                     .city_at(pos)
-                    .is_some_and(|c| game.economy().city_owner(c) == Some(p.id));
+                    .is_some_and(|c| game.economy().city_owner(c) == Some(id));
                 if !ok {
                     return Err(LoadError::Inconsistent(format!(
                         "player {} has a fortress or summoning circle where they have no city",
-                        p.id.0
+                        id.0
                     )));
                 }
             }

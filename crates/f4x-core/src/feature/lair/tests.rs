@@ -57,7 +57,7 @@ fn world(seed: u64) -> Game {
         let mut p = Player::new(id, "W");
         p.gold = 100;
         p.mana = 100;
-        g.players.push(p);
+        g.add_player(id, p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g
@@ -359,7 +359,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     l.site = "dungeon".into();
     l.special = 5;
     let mut loot = Loot::default();
-    let p = g.players.iter_mut().find(|p| p.id == P0).unwrap();
+    let p = crate::player::find_mut(&mut g.world, P0).unwrap();
     award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
     assert!(
         !loot.books.contains(&"death".to_string()),
@@ -371,7 +371,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
-        let p = g.players.iter_mut().find(|p| p.id == P0).unwrap();
+        let p = crate::player::find_mut(&mut g.world, P0).unwrap();
         award_special(&mut p.magic, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
         assert!(loot.books.iter().all(|b| b == "life"));

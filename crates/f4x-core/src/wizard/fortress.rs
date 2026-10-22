@@ -179,7 +179,7 @@ impl Economy<'_> {
 impl Game {
     /// Where summoned creatures appear.
     pub fn summon_point(&self, player: PlayerId) -> Option<Position> {
-        self.player(player).and_then(summon_point)
+        self.player(player).and_then(|p| summon_point(&p))
     }
 
     /// Found the wizard's first city and put the fortress and summoning circle in it.
@@ -191,8 +191,7 @@ impl Game {
         race: Option<RaceId>,
         population: u32,
     ) -> Result<Vec<Event>, FortressError> {
-        let p = self.player(player).ok_or(FortressError::UnknownPlayer)?;
-        can_place(p)?;
+        can_place(&*self.player(player).ok_or(FortressError::UnknownPlayer)?)?;
         self.can_found_city(pos).map_err(FortressError::Found)?;
         let city = self.spawn_city(player, pos, name, race, population);
         if let Some(p) = self.player_mut(player) {
@@ -283,7 +282,7 @@ impl Game {
             for u in self.units().player_units(loser) {
                 self.remove_unit(u, crate::hero::roster::Fate::Released);
             }
-            self.players.retain(|p| p.id != loser);
+            self.remove_player(loser);
         } else if self.economy().city_count(loser) == 0 {
             events.extend(self.defeat(loser, winner));
         }
@@ -329,8 +328,9 @@ impl Game {
         if !p.banished || p.defeated {
             return Err(FortressError::WrongState);
         }
-        let winner = p
-            .banished_by
+        let banished_by = p.banished_by;
+        drop(p);
+        let winner = banished_by
             .filter(|w| self.player(*w).is_some())
             .or_else(|| self.living_wizards().into_iter().find(|w| *w != player))
             .unwrap_or(player);

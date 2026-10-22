@@ -175,10 +175,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     continue;
                 }
                 let seen_by: Vec<String> = game
-                    .players()
-                    .iter()
-                    .filter(|p| p.id != city.owner && game.is_explored(p.id, pos))
-                    .map(|p| format!("p{}", p.id.0))
+                    .player_ids()
+                    .into_iter()
+                    .filter(|&p| p != city.owner && game.is_explored(p, pos))
+                    .map(|p| format!("p{}", p.0))
                     .collect();
                 println!(
                     "    city {} of p{} at {:?} {},{} size {}: explored by [{}]",
@@ -218,17 +218,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
 fn status(game: &Game) -> String {
     game.players()
         .iter()
-        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
-        .map(|p| {
+        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .map(|(id, p)| {
             let cities = game
                 .economy()
                 .cities()
                 .iter()
-                .filter(|(_, c, _)| c.owner == p.id)
+                .filter(|(_, c, _)| c.owner == *id)
                 .count();
-            let units = game.units().player_units(p.id).len();
+            let units = game.units().player_units(*id).len();
             let tag = if p.defeated { " (defeated)" } else { "" };
-            format!("p{} {cities}c/{units}u/{}g{tag}", p.id.0, p.gold)
+            format!("p{} {cities}c/{units}u/{}g{tag}", id.0, p.gold)
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -238,31 +238,32 @@ fn status(game: &Game) -> String {
 /// cast and how much of the map is explored.
 fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
     let mut out = Vec::new();
-    for p in game
+    for (id, p) in game
         .players()
         .iter()
-        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
+        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
     {
-        let Some(m) = game.magic(p.id) else {
+        let id = *id;
+        let Some(m) = game.magic(id) else {
             continue;
         };
         let name = |s: f4x_core::rules::SpellId| game.content().rules.spells.get(s).id.clone();
-        let explored = game.explored_squares(p.id);
-        let income = game.income(p.id);
+        let explored = game.explored_squares(id);
+        let income = game.income(id);
         let mut known: Vec<String> = m.known.iter().map(|&s| name(s)).collect();
         known.sort();
         out.push(format!("  known: {}", known.join(" ")));
         out.push(format!(
             "p{}: skill {}/{}, gold {} (cities {}, buildings -{}, units -{}, food {}), food {}, mana {} (+{} upkeep {}), spells {}, researching {} ({} left), casting {}, split {}/{}/{}, explored {}{}, scouts {:?}, campaign {:?}, landing {:?}",
-            p.id.0,
+            id.0,
             m.skill_left,
             m.casting_skill(),
-            game.treasury(p.id).net_gold(),
-            game.treasury(p.id).city_gold,
-            game.treasury(p.id).building_upkeep,
-            game.treasury(p.id).unit_upkeep,
-            game.treasury(p.id).food_gold,
-            game.treasury(p.id).food_surplus,
+            game.treasury(id).net_gold(),
+            game.treasury(id).city_gold,
+            game.treasury(id).building_upkeep,
+            game.treasury(id).unit_upkeep,
+            game.treasury(id).food_gold,
+            game.treasury(id).food_surplus,
             p.mana,
             income.split.mana,
             income.mana_upkeep,
@@ -276,17 +277,17 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
             m.research_pct,
             m.skill_pct,
             explored,
-            if ais.iter().any(|a| a.player == p.id && a.frontier_closed()) {
+            if ais.iter().any(|a| a.player == id && a.frontier_closed()) {
                 " (frontier closed)"
             } else {
                 ""
             },
             ais.iter()
-                .find(|a| a.player == p.id)
+                .find(|a| a.player == id)
                 .map(|a| a.scout_targets().into_iter().map(|(_, p)| (p.x, p.y)).collect::<Vec<_>>()),
-            ais.iter().find(|a| a.player == p.id).and_then(|a| a.campaign()).map(|c| (c.x, c.y)),
+            ais.iter().find(|a| a.player == id).and_then(|a| a.campaign()).map(|c| (c.x, c.y)),
             ais.iter()
-                .find(|a| a.player == p.id)
+                .find(|a| a.player == id)
                 .and_then(|a| a.landing())
                 .map(|(t, port, f)| ((t.x, t.y), (port.x, port.y), f))
         ));
@@ -302,9 +303,9 @@ fn grant_mastery_to_all(game: &mut Game) {
     };
     let ids: Vec<PlayerId> = game
         .players()
-        .iter()
-        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
-        .map(|p| p.id)
+        .into_iter()
+        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .map(|(id, _)| id)
         .collect();
     for id in ids {
         if let Some(p) = game.player_mut(id) {

@@ -187,7 +187,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         let mut p = Player::new(P0, "W");
         p.mana = 1000;
-        g.players.push(p);
+        g.add_player(P0, p);
         g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         g
     }
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(g.units().unit_position(b), Some(over));
         // Back again is refused while the Planar Seal is up.
         let other = PlayerId(1);
-        g.players.push(Player::new(other, "X"));
+        g.add_player(other, Player::new(other, "X"));
         g.init_wizard(other, &[("life", 2)], &[], None).unwrap();
         let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
         g.attach_enchantment(Target::Player(other), seal, other);

@@ -57,8 +57,8 @@ fn game() -> Game {
     p.gold = 300;
     p.tax_rate = 2;
     p.grand_vizier = true;
-    g.players.push(p);
-    g.players.push(Player::new(PlayerId(1), "Rival"));
+    g.add_player(P0, p);
+    g.add_player(PlayerId(1), Player::new(PlayerId(1), "Rival"));
     let elf = g.content.rules.races.id_of("elf");
     let dwarf = g.content.rules.races.id_of("dwarf");
     g.apply(Command::FoundCity {

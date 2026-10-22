@@ -1,4 +1,5 @@
-//! Players (wizards): what each one owns that is not an entity on the map.
+//! Players: each one is an entity with a [`PlayerId`] and, until task 317 spreads its data over
+//! components, a [`Player`] holding what is not moved yet.
 
 pub mod finance;
 pub mod offer;
@@ -10,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::rules::RaceId;
 
+/// Who a player is outside the world (fog, diplomacy, map owners, saves, commands). A component of
+/// the player entity; never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct PlayerId(pub u8);
 
@@ -22,7 +25,6 @@ pub const NEUTRAL: PlayerId = PlayerId(u8::MAX);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
-    pub id: PlayerId,
     pub name: String,
     pub gold: i32,
     pub mana: i32,
@@ -130,7 +132,6 @@ pub const BANNER_CHOICES: u8 = 5;
 impl Player {
     pub fn new(id: PlayerId, name: impl Into<String>) -> Self {
         Self {
-            id,
             name: name.into(),
             gold: 100,
             mana: 0,
@@ -168,4 +169,92 @@ impl Player {
             ..Self::new(id, name)
         }
     }
+}
+
+/// A read handle on one player's data.
+pub type PlayerRef<'a> = hecs::Ref<'a, Player>;
+
+impl<'a> PlayerHandle<'a> {
+    /// The wizard's magic.
+    pub fn into_magic(self) -> MagicRef<'a> {
+        match self {
+            Self::Plain(p) => MagicRef::Plain(&p.magic),
+            Self::Held(p) => MagicRef::Held(hecs::Ref::map(p, |p| &p.magic)),
+        }
+    }
+}
+
+/// A wizard's magic from a game or from a test double of one (`WorldView`, `IncomeView`).
+pub enum MagicRef<'a> {
+    Plain(&'a crate::wizard::magic::Magic),
+    Held(hecs::Ref<'a, crate::wizard::magic::Magic>),
+}
+
+impl std::ops::Deref for MagicRef<'_> {
+    type Target = crate::wizard::magic::Magic;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Plain(m) => m,
+            Self::Held(m) => m,
+        }
+    }
+}
+
+/// A player's data from a game or from a test double of one (`WorldView`).
+pub enum PlayerHandle<'a> {
+    Plain(&'a Player),
+    Held(PlayerRef<'a>),
+}
+
+impl std::ops::Deref for PlayerHandle<'_> {
+    type Target = Player;
+    fn deref(&self) -> &Player {
+        match self {
+            Self::Plain(p) => p,
+            Self::Held(p) => p,
+        }
+    }
+}
+
+/// The player entity with this id (a scan; `Game` keeps an index for the same question).
+pub fn find_entity(world: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
+    world
+        .query::<&PlayerId>()
+        .iter()
+        .find(|(_, &p)| p == id)
+        .map(|(e, _)| e)
+}
+
+/// A player's magic.
+pub fn magic(
+    world: &hecs::World,
+    id: PlayerId,
+) -> Option<hecs::Ref<'_, crate::wizard::magic::Magic>> {
+    find(world, id).map(|p| hecs::Ref::map(p, |p| &p.magic))
+}
+
+/// The data of the player with this id.
+pub fn find(world: &hecs::World, id: PlayerId) -> Option<PlayerRef<'_>> {
+    world.get::<&Player>(find_entity(world, id)?).ok()
+}
+
+/// Every player with its id, ascending by id.
+pub fn all(world: &hecs::World) -> Vec<(PlayerId, PlayerRef<'_>)> {
+    ids(world)
+        .into_iter()
+        .filter_map(|id| Some((id, find(world, id)?)))
+        .collect()
+}
+
+/// Every player id, ascending (ids are handed out in the order players are made).
+pub fn ids(world: &hecs::World) -> Vec<PlayerId> {
+    let mut ids: Vec<PlayerId> = world.query::<&PlayerId>().iter().map(|(_, &p)| p).collect();
+    ids.sort();
+    ids
+}
+
+/// The data of the player with this id, to change.
+pub fn find_mut(world: &mut hecs::World, id: PlayerId) -> Option<&mut Player> {
+    let e = find_entity(world, id)?;
+    world.query_one_mut::<&mut Player>(e).ok()
 }

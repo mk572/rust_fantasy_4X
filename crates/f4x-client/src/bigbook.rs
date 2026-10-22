@@ -101,7 +101,7 @@ impl App {
     /// Lay out the library (every spell known or researchable, then the research pages) in
     /// `big_ui`, open at the research pages. False without a wizard.
     pub(crate) fn build_library_pages(&mut self) -> bool {
-        let Some(m) = self.game.magic(HUMAN).cloned() else {
+        let Some(m) = self.game.magic(HUMAN).as_deref().cloned() else {
             return false;
         };
         let all: Vec<SpellId> = m
@@ -366,7 +366,12 @@ impl App {
         ink_override: Option<Color>,
     ) {
         let def = self.game.content().rules.spells.get(spell).clone();
-        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
+        let magic = self
+            .game
+            .magic(HUMAN)
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
         let known = magic.known.contains(&spell);
         let current = magic.researching == Some(spell);
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);

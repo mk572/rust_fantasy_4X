@@ -346,7 +346,12 @@ impl App {
             self.draw_combat_entry(lay, view, &def.name, &def.realm, entry, x, y);
             return;
         }
-        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
+        let magic = self
+            .game
+            .magic(HUMAN)
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
         let casting = magic.casting.filter(|c| c.spell == spell);
         let cost = casting.map_or_else(
             || self.game.casting_cost(HUMAN, spell, false),

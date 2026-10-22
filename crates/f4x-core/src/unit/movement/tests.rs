@@ -494,13 +494,12 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
     let unit = crate::unit::spawn(
         &mut world,
         &c,
-        &[],
         crate::game::serial::Serial(1),
         P0,
         at(2, 2),
         walker,
     );
-    let economy = Economy::new(&world, Some(&map), &c, &[]);
+    let economy = Economy::new(&world, Some(&map), &c);
     let (costs, entry) = economy.plan_step(&[unit], at(3, 2)).unwrap();
     assert_eq!(
         (costs, entry),

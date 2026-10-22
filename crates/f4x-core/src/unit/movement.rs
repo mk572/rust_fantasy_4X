@@ -431,7 +431,6 @@ impl Game {
             &mut self.world,
             self.map.as_ref(),
             &self.content,
-            &self.players,
             units,
             to,
             flies.flies,

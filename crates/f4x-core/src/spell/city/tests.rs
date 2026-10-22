@@ -49,7 +49,7 @@ fn world() -> Game {
         let mut p = Player::new(id, "W");
         p.mana = 1000;
         p.tax_rate = 4;
-        g.players.push(p);
+        g.add_player(id, p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g.init_wizard(P1, &[("chaos", 2)], &[], None).unwrap();

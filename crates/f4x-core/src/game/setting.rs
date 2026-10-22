@@ -8,6 +8,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::player::{Player, PlayerId};
+
 /// Land as a share of each plane's tiles for the original's three sizes.
 pub const LAND_SMALL: u8 = 15;
 pub const LAND_MEDIUM: u8 = 20;
@@ -502,8 +504,8 @@ impl crate::game::Game {
     pub(crate) fn apply_wizard_settings(&mut self) {
         let ai = self.settings.ai;
         let human = self.human;
-        for p in &mut self.players {
-            let computer = !p.neutral && p.id.0 != u8::MAX && Some(p.id) != human;
+        for (_, (&id, p)) in self.world.query_mut::<(&PlayerId, &mut Player)>() {
+            let computer = !p.neutral && id.0 != u8::MAX && Some(id) != human;
             p.bonus = if computer {
                 crate::player::Bonus {
                     growth: i32::from(ai.growth_percent),

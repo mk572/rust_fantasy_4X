@@ -190,12 +190,12 @@ impl Game {
     /// Draw a personality, then an objective, for every wizard but the human, in turn order, as
     /// the original does. Called when a game starts.
     pub(crate) fn assign_temperaments(&mut self) {
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for id in ids {
             if self.human == Some(id) {
                 continue;
             }
-            let Some(magic) = self.player(id).map(|p| &p.magic) else {
+            let Some(magic) = crate::player::magic(&self.world, id) else {
                 continue;
             };
             let personality = personality_weights(|r| magic.books_in(r), |r| magic.has(r));

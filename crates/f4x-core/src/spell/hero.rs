@@ -30,7 +30,7 @@ impl UnitView<'_> {
     /// Could a summoning of this class find a hero for the wizard? (`Pick_Random_Hero` with a
     /// zero cost: fame does not matter, the books do; a champion summoning falls back on any.)
     pub fn hero_summonable(&self, player: PlayerId, class: Class) -> bool {
-        let Some(p) = self.players.iter().find(|p| p.id == player) else {
+        let Some(p) = crate::player::find(self.world, player) else {
             return false;
         };
         let standing = Standing {
@@ -49,9 +49,7 @@ impl UnitView<'_> {
     /// brings back (`Cast_Resurrection` lists types 0 to 33).
     pub fn raisable_heroes(&self, player: PlayerId) -> Vec<usize> {
         let last = torin(&self.content.rules);
-        self.players
-            .iter()
-            .find(|p| p.id == player)
+        crate::player::find(self.world, player)
             .map(|p| p.roster.dead())
             .unwrap_or_default()
             .into_iter()
@@ -71,10 +69,10 @@ impl UnitView<'_> {
         if self.open_hero_slots(player) == 0 {
             return Some(HeroError::NoRoom);
         }
-        let Some(p) = self.players.iter().find(|p| p.id == player) else {
+        let Some(p) = crate::player::find(self.world, player) else {
             return Some(HeroError::Unknown);
         };
-        if crate::wizard::fortress::summon_point(p).is_none() {
+        if crate::wizard::fortress::summon_point(&p).is_none() {
             return Some(HeroError::NoCircle);
         }
         let record = |k: usize| p.roster.get(k).map(|r| r.state);
@@ -96,7 +94,7 @@ impl Game {
     pub fn hire_hero(&mut self, player: PlayerId, kind: usize) -> Result<hecs::Entity, HeroError> {
         let record = self
             .player(player)
-            .and_then(|p| p.roster.get(kind))
+            .and_then(|p| p.roster.get(kind).cloned())
             .ok_or(HeroError::Unknown)?;
         if record.state != Availability::Free {
             return Err(HeroError::NotAvailable);
@@ -172,9 +170,8 @@ impl Game {
             .ok_or(Rejection::Magic(MagicError::NotAvailable))?;
         let state = self
             .player(player)
-            .and_then(|p| p.roster.get(kind))
-            .ok_or(Rejection::Hero(HeroError::Unknown))?
-            .state;
+            .and_then(|p| p.roster.get(kind).map(|r| r.state))
+            .ok_or(Rejection::Hero(HeroError::Unknown))?;
         if state != Availability::Dead || kind == torin(&self.content.rules) {
             return Err(Rejection::Hero(HeroError::NotAvailable));
         }
@@ -183,11 +180,13 @@ impl Game {
         }
         let cost = self.casting_cost(player, spell, false);
         let reserve = self.player(player).map_or(0, |p| p.mana);
-        let m = self
-            .magic(player)
-            .ok_or(Rejection::Magic(MagicError::UnknownPlayer))?;
-        m.check_can_cast(spell).map_err(Rejection::Magic)?;
-        let now = cost <= m.instant_budget(reserve);
+        let now = {
+            let m = self
+                .magic(player)
+                .ok_or(Rejection::Magic(MagicError::UnknownPlayer))?;
+            m.check_can_cast(spell).map_err(Rejection::Magic)?;
+            cost <= m.instant_budget(reserve)
+        };
         if let Some(p) = self.player_mut(player) {
             p.magic.raising = Some(kind);
             if now {
@@ -274,10 +273,7 @@ mod tests {
         g.player_mut(P0).unwrap().fortress = None;
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoCircle));
         assert_eq!(g.player(P0).unwrap().gold, 500);
-        assert_eq!(
-            g.players[1].roster.get(0).unwrap().state,
-            Availability::Free
-        );
+        assert_eq!(g.pl(1).roster.get(0).unwrap().state, Availability::Free);
     }
 
     #[test]

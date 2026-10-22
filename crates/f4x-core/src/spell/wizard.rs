@@ -69,9 +69,9 @@ impl Game {
     /// The units on the map that the spell may touch, with the realm each is judged by.
     fn all_units_with_owner(&self) -> Vec<(hecs::Entity, PlayerId)> {
         let units = self.units();
-        self.players
-            .iter()
-            .flat_map(|p| units.player_units(p.id).into_iter().map(|u| (u, p.id)))
+        self.player_ids()
+            .into_iter()
+            .flat_map(|p| units.player_units(p).into_iter().map(move |u| (u, p)))
             .collect()
     }
 

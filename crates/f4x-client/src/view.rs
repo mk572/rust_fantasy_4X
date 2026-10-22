@@ -386,10 +386,10 @@ impl App {
     fn rival_wizards(&self) -> Vec<f4x_ai::Ai> {
         self.game
             .players()
-            .iter()
-            .filter(|p| p.id != HUMAN && !p.neutral)
-            .map(|p| {
-                let mut ai = f4x_ai::Ai::new(p.id);
+            .into_iter()
+            .filter(|(id, p)| *id != HUMAN && !p.neutral)
+            .map(|(id, _)| {
+                let mut ai = f4x_ai::Ai::new(id);
                 ai.leave_defence_to(&[HUMAN]);
                 ai
             })
@@ -647,20 +647,20 @@ impl App {
                     Some(format!(
                     "{} is stopped by {}'s Suppress Magic",
                     self.game.content().rules.spells.get(spell).name,
-                    self.game.player(by).map_or("a rival", |p| p.name.as_str())
+                    self.game.player(by).map_or("a rival".to_string(), |p| p.name.clone())
                     ))
                 }
                 Event::PowerDrained { victim, amount, .. } => Some(format!(
                     "Drain Power takes {amount} mana from {}",
                     self.game
                         .player(victim)
-                        .map_or("a rival", |p| p.name.as_str())
+                        .map_or("a rival".to_string(), |p| p.name.clone())
                 )),
                 Event::SkillDestroyed { victim, amount, .. } => Some(format!(
                     "{} loses {amount} points of casting skill for good",
                     self.game
                         .player(victim)
-                        .map_or("A rival", |p| p.name.as_str())
+                        .map_or("A rival".to_string(), |p| p.name.clone())
                 )),
                 Event::UnitsSlain { spell, count, .. } => Some(format!(
                     "{} slays {count} units",
@@ -682,7 +682,7 @@ impl App {
                     self.mastery_notice.push_back(caster);
                     Some(format!(
                         "{} has started casting the Spell of Mastery",
-                        self.game.player(caster).map_or("A rival", |p| p.name.as_str())
+                        self.game.player(caster).map_or("A rival".to_string(), |p| p.name.clone())
                     ))
                 }
                 Event::StasisEnded { .. } => Some("A unit breaks free of stasis".to_string()),
@@ -708,7 +708,7 @@ impl App {
                     "Spell Blast ends {}'s {} ({mana} mana)",
                     self.game
                         .player(victim)
-                        .map_or("a rival", |p| p.name.as_str()),
+                        .map_or("a rival".to_string(), |p| p.name.clone()),
                     self.game.content().rules.spells.get(spell).name
                     ))
                 }
@@ -722,7 +722,7 @@ impl App {
                     "{}'s {} is ended",
                     self.game
                         .player(victim)
-                        .map_or("a rival", |p| p.name.as_str()),
+                        .map_or("a rival".to_string(), |p| p.name.clone()),
                     self.game.content().rules.spells.get(spell).name
                     ))
                 }
@@ -730,7 +730,7 @@ impl App {
                     "Took {}'s {}",
                     self.game
                         .player(victim)
-                        .map_or("a rival", |p| p.name.as_str()),
+                        .map_or("a rival".to_string(), |p| p.name.clone()),
                     self.game.content().rules.spells.get(spell).name
                 )),
                 Event::DispelFailed { spell, .. } => Some(format!(
@@ -749,8 +749,8 @@ impl App {
                     let name = self
                         .game
                         .roster(player)
-                        .and_then(|r| r.get(kind))
-                        .map_or("A hero", |r| r.name.as_str());
+                        .and_then(|r| r.get(kind).map(|r| r.name.clone()))
+                        .unwrap_or_else(|| "A hero".to_string());
                     Some(format!("{name} joins your army"))
                 }
                 Event::HeroSpellFailed { spell, .. } => Some(format!(

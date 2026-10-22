@@ -19,7 +19,7 @@ fn world() -> Game {
     let mut game = Game::new(5);
     game.content = c;
     game.map = Some(Map::new(build(), build()));
-    game.players.push(Player::new(P0, "Merlin"));
+    game.add_player(P0, Player::new(P0, "Merlin"));
     game
 }
 

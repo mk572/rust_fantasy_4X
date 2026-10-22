@@ -34,7 +34,7 @@ impl Game {
         // Upkeep is paid on the cities as they stand, before they grow, as in the original: a
         // city that grows this turn makes its new mouths felt next turn, when the player can
         // still put them on the farms.
-        let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let players: Vec<PlayerId> = crate::player::ids(&self.world);
         // The wizard whose Time Stop lasts pays no gold and eats no food, only the spell's mana.
         let stopper = self.time_stopper();
         for player in players {

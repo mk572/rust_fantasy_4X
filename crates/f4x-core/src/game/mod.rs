@@ -43,7 +43,8 @@ pub struct Game {
     pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: content::Content,
-    pub(crate) players: Vec<player::Player>,
+    /// The player entity of each [`player::PlayerId`].
+    pub(crate) player_index: std::collections::HashMap<player::PlayerId, hecs::Entity>,
     pub(crate) fog: map::fog::Fog,
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `game/rng.rs`).
@@ -82,7 +83,7 @@ impl Game {
             turn: 1,
             map: None,
             content: content::Content::default(),
-            players: Vec::new(),
+            player_index: std::collections::HashMap::new(),
             fog: map::fog::Fog::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
@@ -148,12 +149,59 @@ impl Game {
         id == player::NEUTRAL || self.player(id).is_some_and(|p| p.neutral)
     }
 
-    pub fn player(&self, id: player::PlayerId) -> Option<&player::Player> {
-        self.players.iter().find(|p| p.id == id)
+    /// Make the player entity for `id`.
+    pub fn add_player(&mut self, id: player::PlayerId, player: player::Player) -> hecs::Entity {
+        let e = self.world.spawn((id, player));
+        self.player_index.insert(id, e);
+        e
+    }
+
+    /// An independent city's player goes with its city; wizards' players are never removed.
+    pub(crate) fn remove_player(&mut self, id: player::PlayerId) {
+        if let Some(e) = self.player_index.remove(&id) {
+            let _ = self.world.despawn(e);
+        }
+    }
+
+    /// The entity of a player.
+    pub fn player_entity(&self, id: player::PlayerId) -> Option<hecs::Entity> {
+        self.player_index.get(&id).copied()
+    }
+
+    /// Read a player's data.
+    pub fn player(&self, id: player::PlayerId) -> Option<player::PlayerRef<'_>> {
+        self.world
+            .get::<&player::Player>(self.player_entity(id)?)
+            .ok()
     }
 
     pub fn player_mut(&mut self, id: player::PlayerId) -> Option<&mut player::Player> {
-        self.players.iter_mut().find(|p| p.id == id)
+        let e = self.player_entity(id)?;
+        self.world.query_one_mut::<&mut player::Player>(e).ok()
+    }
+
+    /// Every player with its id: wizards and independent cities' players, ascending.
+    pub fn players(&self) -> Vec<(player::PlayerId, player::PlayerRef<'_>)> {
+        player::all(&self.world)
+    }
+
+    /// The player that was added `i`th (tests index players the way `Vec<Player>` did).
+    #[cfg(test)]
+    pub(crate) fn pl(&self, i: usize) -> player::PlayerRef<'_> {
+        self.player(self.player_ids()[i]).unwrap()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pl_mut(&mut self, i: usize) -> &mut player::Player {
+        let id = self.player_ids()[i];
+        self.player_mut(id).unwrap()
+    }
+
+    /// Every player's id: wizards and independent cities' players, ascending.
+    pub fn player_ids(&self) -> Vec<player::PlayerId> {
+        let mut ids: Vec<_> = self.player_index.keys().copied().collect();
+        ids.sort();
+        ids
     }
 
     fn execute(&mut self, cmd: Command) -> Vec<Event> {

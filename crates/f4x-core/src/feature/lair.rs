@@ -668,7 +668,7 @@ impl Game {
                 &mut self.prefab_taken,
             ));
         }
-        if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
+        if let Some(p) = crate::player::find_mut(&mut self.world, player) {
             p.gold += lair.gold as i32;
             p.mana += lair.mana as i32;
             match lair.special {
@@ -705,7 +705,7 @@ impl Game {
                 ));
             } else {
                 loot.mana = 1000;
-                if let Some(p) = self.players.iter_mut().find(|p| p.id == player) {
+                if let Some(p) = self.player_mut(player) {
                     p.mana += 1000;
                 }
             }

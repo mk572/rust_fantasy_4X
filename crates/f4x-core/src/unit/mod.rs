@@ -22,7 +22,7 @@ use hecs::World;
 use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::map::Position;
-use crate::player::{Owner, Player, PlayerId};
+use crate::player::{Owner, PlayerId};
 
 use crate::game::{Event, Game};
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
@@ -94,41 +94,29 @@ pub const MAX_STACK: usize = 9;
 pub struct UnitView<'a> {
     pub(crate) world: &'a World,
     pub(crate) content: &'a Content,
-    pub(crate) players: &'a [Player],
 }
 
 impl<'a> UnitView<'a> {
-    pub fn new(world: &'a World, content: &'a Content, players: &'a [Player]) -> Self {
-        UnitView {
-            world,
-            content,
-            players,
-        }
+    pub fn new(world: &'a World, content: &'a Content) -> Self {
+        UnitView { world, content }
     }
 
     /// A player's magic (retorts and global spells), for what the owner adds to its units.
-    pub(crate) fn magic(&self, player: PlayerId) -> Option<&'a Magic> {
-        self.players
-            .iter()
-            .find(|p| p.id == player)
-            .map(|p| &p.magic)
+    pub(crate) fn magic(&self, player: PlayerId) -> Option<hecs::Ref<'a, Magic>> {
+        crate::player::magic(self.world, player)
     }
 
     /// Does `player` keep the global spell with this id going?
     pub(crate) fn has_global(&self, player: PlayerId, id: &str) -> bool {
         self.magic(player).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(m, self.content, id)
+            crate::spell::global_enchantment::magic_has_global(&m, self.content, id)
         })
     }
 
     /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
     /// add, and ten more while Just Cause is kept going.
     pub fn fame(&self, player: PlayerId) -> i32 {
-        let earned = self
-            .players
-            .iter()
-            .find(|p| p.id == player)
-            .map_or(0, |p| p.fame);
+        let earned = crate::player::find(self.world, player).map_or(0, |p| p.fame);
         let legendary: i32 = self
             .hero_units(player)
             .into_iter()
@@ -173,7 +161,9 @@ impl<'a> UnitView<'a> {
 
     /// Does any wizard keep the global spell with this id going?
     pub(crate) fn any_global(&self, id: &str) -> bool {
-        self.players.iter().any(|p| self.has_global(p.id, id))
+        crate::player::ids(self.world)
+            .into_iter()
+            .any(|p| self.has_global(p, id))
     }
 
     /// Planar Seal closes every junction between the planes while anyone keeps it up.
@@ -359,10 +349,9 @@ impl<'a> UnitView<'a> {
                 if self.has_global(owner, "wind_mastery") {
                     return moves * 3 / 2;
                 }
-                if self
-                    .players
-                    .iter()
-                    .any(|p| self.has_global(p.id, "wind_mastery"))
+                if crate::player::ids(self.world)
+                    .into_iter()
+                    .any(|p| self.has_global(p, "wind_mastery"))
                 {
                     return moves / 2;
                 }
@@ -460,7 +449,7 @@ impl<'a> UnitView<'a> {
         // A computer wizard's difficulty cuts its units' upkeep (task 247).
         let cut = self
             .unit_owner(unit)
-            .and_then(|o| self.players.iter().find(|p| p.id == o))
+            .and_then(|o| crate::player::find(self.world, o))
             .map_or(100, |p| p.bonus.unit_upkeep);
         crate::player::Bonus::of(cut, gold)
     }
@@ -484,7 +473,6 @@ impl<'a> UnitView<'a> {
 pub(crate) fn spawn(
     world: &mut World,
     content: &Content,
-    players: &[Player],
     serial: Serial,
     owner: PlayerId,
     pos: Position,
@@ -498,7 +486,7 @@ pub(crate) fn spawn(
         Hurt(0),
         Experience(0),
     ));
-    let moves = UnitView::new(world, content, players).unit_max_moves(e);
+    let moves = UnitView::new(world, content).unit_max_moves(e);
     let _ = world.insert_one(e, MovesLeft(moves));
     e
 }
@@ -507,21 +495,13 @@ impl Game {
     /// The unit rules' view of the game: the world, the content and the players. The methods
     /// below with the old names ask it.
     pub fn units(&self) -> UnitView<'_> {
-        UnitView::new(&self.world, &self.content, &self.players)
+        UnitView::new(&self.world, &self.content)
     }
 
     /// Create a unit with full moves and health, and let its owner see around it.
     pub fn spawn_unit(&mut self, owner: PlayerId, pos: Position, unit: UnitId) -> hecs::Entity {
         let serial = self.take_serial();
-        let e = spawn(
-            &mut self.world,
-            &self.content,
-            &self.players,
-            serial,
-            owner,
-            pos,
-            unit,
-        );
+        let e = spawn(&mut self.world, &self.content, serial, owner, pos, unit);
         let sight = self.units().unit_sight(e) as u32;
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
@@ -575,8 +555,8 @@ mod tests {
         let mut world = World::new();
         let mut max = |id: &str, n: u64| {
             let def = content.rules.units.id_of(id).unwrap();
-            let e = spawn(&mut world, &content, &[], Serial(n), PlayerId(0), AT, def);
-            UnitView::new(&world, &content, &[]).unit_max_moves(e)
+            let e = spawn(&mut world, &content, Serial(n), PlayerId(0), AT, def);
+            UnitView::new(&world, &content).unit_max_moves(e)
         };
         assert_eq!(max("boots", 1), 5, "two moves and a half-move");
         assert_eq!(max("rooted", 2), 0);
@@ -587,8 +567,8 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let e = spawn(&mut world, &content, &[], Serial(1), PlayerId(0), AT, spear);
-        let units = UnitView::new(&world, &content, &[]);
+        let e = spawn(&mut world, &content, Serial(1), PlayerId(0), AT, spear);
+        let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
         assert_eq!(units.unit_position(e), Some(AT));
         assert_eq!(units.unit_max_moves(e), 2, "one move is two half-moves");
@@ -605,9 +585,9 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let second = spawn(&mut world, &content, &[], Serial(2), PlayerId(0), AT, spear);
-        let first = spawn(&mut world, &content, &[], Serial(1), PlayerId(0), AT, spear);
-        let units = UnitView::new(&world, &content, &[]);
+        let second = spawn(&mut world, &content, Serial(2), PlayerId(0), AT, spear);
+        let first = spawn(&mut world, &content, Serial(1), PlayerId(0), AT, spear);
+        let units = UnitView::new(&world, &content);
         assert_eq!(units.all_units(), vec![first, second]);
         assert_eq!(units.units_at(AT), vec![first, second]);
     }

@@ -188,8 +188,9 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
 
 impl Game {
     /// What a wizard has been offered this turn and not answered.
-    pub fn offers(&self, player: PlayerId) -> &[Offer] {
-        self.player(player).map_or(&[], |p| p.offers.as_slice())
+    pub fn offers(&self, player: PlayerId) -> Vec<Offer> {
+        self.player(player)
+            .map_or_else(Vec::new, |p| p.offers.clone())
     }
 
     /// The planes on which the wizard has a city or a unit: `(Arcanus, Myrror)`.
@@ -219,7 +220,7 @@ impl Game {
     /// answered last turn lapse first.
     pub(crate) fn determine_offers(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for &id in &ids {
             let old = self
                 .player_mut(id)
@@ -276,7 +277,7 @@ impl Game {
     /// defeated wizards are not.
     fn can_be_offered(&self, player: PlayerId) -> bool {
         self.player(player)
-            .is_some_and(|p| !p.neutral && !p.banished && !p.defeated && summon_point(p).is_some())
+            .is_some_and(|p| !p.neutral && !p.banished && !p.defeated && summon_point(&p).is_some())
     }
 
     fn charismatic(&self, player: PlayerId) -> bool {
@@ -368,8 +369,7 @@ impl Game {
     ) -> Result<Vec<Event>, OfferError> {
         let offer = self
             .player(player)
-            .and_then(|p| p.offers.get(index))
-            .cloned()
+            .and_then(|p| p.offers.get(index).cloned())
             .ok_or(OfferError::NoOffer)?;
         if self.player(player).map_or(0, |p| p.gold) < offer.price() {
             return Err(OfferError::NoGold);

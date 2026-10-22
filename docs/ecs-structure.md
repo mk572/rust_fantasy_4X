@@ -31,12 +31,13 @@ behaviour that depends on slot order.
 
 ```
 Game                                   (lib.rs; the owner and the orchestrator)
-├── world: hecs::World                 entities: units and cities (a unit or city is an entity;
-│                                      wizards, heroes and battle units are not, yet)
+├── world: hecs::World                 entities: units, cities and players (a player is an entity with
+│                                      `PlayerId` and `Player`; wizards, heroes and battle units are not, yet)
+├── player_index: HashMap              `PlayerId` to the player's `Entity` (`Game::player_entity`)
 ├── map: Option<Map>                   two dense grids (terrain, feature, road); not entities
 ├── fog: Fog                           what each player has explored
-├── players: Vec<Player>               gold, mana, tax rate, capital race, fame, fortress, banner...
-│   └── magic: Magic                   the wizard: books, retorts, skill, research, casting (wizard/magic.rs)
+│   └── Player (component)             gold, mana, tax rate, capital race, fame, fortress, banner...
+│       └── magic: Magic               the wizard: books, retorts, skill, research, casting (wizard/magic.rs)
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
 │                                      items, level paths
@@ -278,8 +279,10 @@ despawned. The prefabs already made stay a registry on `Game`.
 | Item scrapped or lost | | the item | |
 | Battle starts / ends | the battle's own world with its battlefield spell instances | the battle world at the end | |
 
-A player and a wizard are never despawned during a game: the score, the history and the diplomacy
-log refer to them.
+A player that has a wizard, and that wizard, are never despawned during a game: the score, the
+history and the diplomacy log refer to them. The players without a wizard (the monsters' owner and
+the independent cities' players) are the exception: a neutral city's player is despawned once
+nothing refers to it, as the table says, and its `PlayerId` is not reused.
 
 ### 3.9 Saving and replaying
 

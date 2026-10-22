@@ -238,7 +238,6 @@ mod tests {
         crate::unit::spawn(
             &mut world,
             &c,
-            &[],
             crate::game::serial::Serial(1),
             PlayerId(0),
             Position {
@@ -248,7 +247,7 @@ mod tests {
             },
             walker,
         );
-        let economy = Economy::new(&world, Some(&map), &c, &[]);
+        let economy = Economy::new(&world, Some(&map), &c);
         let seen = economy.visibility(PlayerId(0), Plane::Arcanus);
         assert_eq!(seen.iter().filter(|&&s| s).count(), 9);
         assert!(economy

@@ -156,19 +156,20 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         describe::player(ctx.game, me),
         ctx.session.mode.name()
     ));
-    if let Some(p) = ctx.game.player(me) {
-        let t = ctx.game.treasury(me);
-        ctx.say(format!(
+    let game = &*ctx.game;
+    let mut lines = Vec::new();
+    if let Some(p) = game.player(me) {
+        let t = game.treasury(me);
+        lines.push(format!(
             "gold {} (net {:+}), mana {}, fame {}, tax rate {}",
             p.gold,
             t.net_gold(),
             p.mana,
-            ctx.game.fame(me),
+            game.fame(me),
             p.tax_rate
         ));
-        let mut lines = Vec::new();
-        if let Some(m) = ctx.game.magic(me) {
-            let split = ctx.game.income(me).split;
+        if let Some(m) = game.magic(me) {
+            let split = game.income(me).split;
             lines.push(format!(
                 "power split mana {}% research {}% skill {}% (yielding {} mana, {} research, {} skill)",
                 m.mana_pct, m.research_pct, m.skill_pct, split.mana, split.research, split.skill
@@ -178,7 +179,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
                 .map(|s| {
                     format!(
                         "{} ({} to go)",
-                        describe::spell(ctx.game, s),
+                        describe::spell(game, s),
                         m.research_remaining
                     )
                 })
@@ -187,14 +188,14 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             if let Some(c) = m.casting {
                 lines.push(format!(
                     "casting {} ({} mana to go)",
-                    describe::spell(ctx.game, c.spell),
+                    describe::spell(game, c.spell),
                     c.remaining
                 ));
             }
         }
-        for l in lines {
-            ctx.say(l);
-        }
+    }
+    for l in lines {
+        ctx.say(l);
     }
     if ctx.game.in_battle() {
         ctx.say("a battle is being fought (see `battle`)");
@@ -218,9 +219,9 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let rows: Vec<String> = ctx
         .game
         .players()
-        .iter()
-        .filter(|p| p.id.0 != u8::MAX && !p.neutral)
-        .map(|p| {
+        .into_iter()
+        .filter(|(id, p)| id.0 != u8::MAX && !p.neutral)
+        .map(|(id, p)| {
             let state = if p.defeated {
                 "defeated"
             } else if p.banished {
@@ -228,12 +229,12 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             } else {
                 "active"
             };
-            let me = if p.id == ctx.session.player {
+            let me = if id == ctx.session.player {
                 " (you)"
             } else {
                 ""
             };
-            format!("{} {}{me}: {state}", p.id.0, p.name)
+            format!("{} {}{me}: {state}", id.0, p.name)
         })
         .collect();
     for r in rows {
@@ -598,25 +599,29 @@ fn map_char(ctx: &Ctx, p: Position) -> char {
 
 fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
-    let m = ctx
-        .game
-        .magic(me)
-        .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
-    let rules = &ctx.game.content().rules;
-    let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>, cost_research: bool| {
-        ids.map(|&s| {
-            let d = rules.spells.get(s);
-            let c = if cost_research {
-                d.research_cost
-            } else {
-                d.cost
-            };
-            format!("{} ({}, {c})", d.id, d.name)
-        })
-        .collect::<Vec<_>>()
+    let game = &*ctx.game;
+    let (known, researchable) = {
+        let m = game
+            .magic(me)
+            .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
+        let rules = &game.content().rules;
+        let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>,
+                    cost_research: bool| {
+            ids.map(|&s| {
+                let d = rules.spells.get(s);
+                let c = if cost_research {
+                    d.research_cost
+                } else {
+                    d.cost
+                };
+                format!("{} ({}, {c})", d.id, d.name)
+            })
+            .collect::<Vec<_>>()
+        };
+        let known = line(&mut m.known.iter(), false);
+        let researchable = line(&mut m.researchable.iter(), true);
+        (known, researchable)
     };
-    let known = line(&mut m.known.iter(), false);
-    let researchable = line(&mut m.researchable.iter(), true);
     ctx.say(format!("known (id, name, mana): {}", join(&known)));
     ctx.say(format!(
         "researchable (id, name, research): {}",

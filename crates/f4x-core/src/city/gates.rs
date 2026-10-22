@@ -119,7 +119,7 @@ mod tests {
         g.content = c;
         g.map = Some(map);
         for id in [P0, P1] {
-            g.players.push(crate::player::Player::new(id, "W"));
+            g.add_player(id, crate::player::Player::new(id, "W"));
         }
         g
     }

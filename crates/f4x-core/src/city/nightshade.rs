@@ -142,8 +142,8 @@ mod tests {
             map.plane_mut(Plane::Arcanus).set_feature(x, y, Some(plant));
         }
         game.map = Some(map);
-        game.players.push(Player::new(P0, "Owner"));
-        game.players.push(Player::new(P1, "Caster"));
+        game.add_player(P0, Player::new(P0, "Owner"));
+        game.add_player(P1, Player::new(P1, "Caster"));
         let race = game.content.rules.races.id_of("elf");
         game.apply(Command::FoundCity {
             owner: P0,

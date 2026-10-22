@@ -26,7 +26,7 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
     for id in [P0, P1, P2] {
-        g.players.push(Player::new(id, "W"));
+        g.add_player(id, Player::new(id, "W"));
     }
     g.human = Some(P0);
     for id in [P0, P1, P2] {
@@ -63,7 +63,7 @@ impl Rig {
     fn new() -> Rig {
         let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
         view.human = Some(P0);
-        for p in &mut view.players {
+        for (_, p) in &mut view.players {
             p.magic.books.insert("sorcery".into(), 2);
         }
         Rig {
@@ -89,13 +89,15 @@ impl Rig {
                     self.view
                         .players
                         .iter_mut()
-                        .find(|p| p.id == from)
+                        .find(|(p, _)| *p == from)
+                        .map(|(_, p)| p)
                         .unwrap()
                         .gold -= amount;
                     self.view
                         .players
                         .iter_mut()
-                        .find(|p| p.id == to)
+                        .find(|(p, _)| *p == to)
+                        .map(|(_, p)| p)
                         .unwrap()
                         .gold += amount;
                 }
@@ -112,7 +114,8 @@ impl Rig {
             .view
             .players
             .iter_mut()
-            .find(|p| p.id == player)
+            .find(|(p, _)| *p == player)
+            .map(|(_, p)| p)
             .unwrap()
             .magic
     }
@@ -122,7 +125,11 @@ impl Rig {
     }
 
     fn player_mut(&mut self, id: PlayerId) -> Option<&mut crate::player::Player> {
-        self.view.players.iter_mut().find(|p| p.id == id)
+        self.view
+            .players
+            .iter_mut()
+            .find(|(p, _)| *p == id)
+            .map(|(_, p)| p)
     }
 
     /// The turn: what diplomacy does at its end, and the events it raised.
@@ -1363,7 +1370,7 @@ fn taking_an_independent_city_is_no_diplomacy() {
     let mut g = world();
     let mut rebels = Player::new_neutral(PlayerId(9), "Free");
     rebels.gold = 0;
-    g.players.push(rebels);
+    g.add_player(PlayerId(9), rebels);
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());

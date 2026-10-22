@@ -27,7 +27,7 @@ fn world() -> Game {
         let mut p = Player::new(id, if id == P0 { "Merlin" } else { "Rjak" });
         p.gold = 1000;
         p.mana = 100;
-        g.players.push(p);
+        g.add_player(id, p);
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
     }
     g.human = Some(P0);

@@ -26,7 +26,7 @@ fn world() -> Game {
     for id in [P0, P1] {
         let mut p = Player::new(id, "W");
         p.mana = 100;
-        g.players.push(p);
+        g.add_player(id, p);
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     // The test content has no bears: War Bears brings a copy of the spear.
@@ -88,7 +88,7 @@ fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
 fn placing_the_fortress_founds_the_capital_once() {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
-    let p = g.player(P0).unwrap();
+    let p = (*g.player(P0).unwrap()).clone();
     assert_eq!(p.fortress, Some(at(5, 5)));
     assert_eq!(p.summon_at, Some(at(5, 5)));
     assert_eq!(p.capital_race, g.content.rules.races.id_of("elf"));
@@ -212,13 +212,13 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     g.human = Some(P0);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let w = g.player(P1).unwrap().clone();
+    let w = (*g.player(P1).unwrap()).clone();
     let events = g.capture_city(capital, P1);
     assert!(
         events.contains(&Event::WizardBanished { player: P0, by: P1 }),
         "{events:?}"
     );
-    let p = g.player(P0).unwrap();
+    let p = (*g.player(P0).unwrap()).clone();
     assert!(p.banished);
     assert_eq!((p.fortress, p.summon_at), (None, None));
     assert_eq!(p.mana, 50, "half the mana goes to the captor");
@@ -280,7 +280,7 @@ fn losing_the_last_city_defeats_the_wizard() {
     let capital = place(&mut g, P0, at(5, 5));
     let events = g.capture_city(capital, P1);
     assert!(events.contains(&Event::WizardDefeated { player: P0 }));
-    let p = g.player(P0).unwrap();
+    let p = (*g.player(P0).unwrap()).clone();
     assert!(p.defeated && !p.banished);
     assert_eq!(p.magic.casting, None);
     // A defeated wizard cannot place a new fortress.
@@ -355,14 +355,14 @@ fn taking_the_last_rivals_last_city_wins_by_conquest() {
 #[test]
 fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
     let mut g = world();
-    g.players.push(Player::new(PlayerId(2), "Third"));
+    g.add_player(PlayerId(2), Player::new(PlayerId(2), "Third"));
     let capital = place(&mut g, P1, at(5, 5));
     let events = g.capture_city(capital, P0);
     assert!(events.contains(&Event::WizardDefeated { player: P1 }));
     assert!(g.game_over.is_none(), "wizards 0 and 2 still stand");
 
     let mut g = world();
-    g.players.push(Player::new(PlayerId(2), "Third"));
+    g.add_player(PlayerId(2), Player::new(PlayerId(2), "Third"));
     g.human = Some(P0);
     let capital = place(&mut g, P0, at(5, 5));
     let events = g.capture_city(capital, P1);

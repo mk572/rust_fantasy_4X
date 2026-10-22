@@ -71,8 +71,8 @@ pub(crate) fn healing(
 impl Game {
     /// Wounded units mend (see [`healing`]).
     pub(crate) fn heal_units(&mut self) {
-        let units = UnitView::new(&self.world, &self.content, &self.players);
-        let economy = Economy::new(&self.world, self.map.as_ref(), &self.content, &self.players);
+        let units = UnitView::new(&self.world, &self.content);
+        let economy = Economy::new(&self.world, self.map.as_ref(), &self.content);
         let mut plan = healing(&units, &economy, &mut self.rng);
         // While Time Stop lasts, only its wizard's units heal.
         if let Some(keeper) = self.time_stopper() {

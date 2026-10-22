@@ -440,8 +440,8 @@ pub fn wizards(view: &dyn WorldView) -> Vec<PlayerId> {
 fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
     let books = |p: PlayerId, realm: &str| -> i32 {
         view.magic(p)
-            .and_then(|m| m.books.get(realm))
-            .map_or(0, |&n| i32::from(n))
+            .and_then(|m| m.books.get(realm).copied())
+            .map_or(0, i32::from)
     };
     let max_death = books(a, "death").max(books(b, "death"));
     let sum_life = books(a, "life") + books(b, "life");
@@ -489,8 +489,7 @@ fn enchantment_reaction(
 ) -> Option<(i32, Action)> {
     let books = |realm: &str| {
         view.magic(other)
-            .and_then(|m| m.books.get(realm))
-            .copied()
+            .and_then(|m| m.books.get(realm).copied())
             .unwrap_or(0)
     };
     let reaction = match spell {
@@ -1233,9 +1232,8 @@ impl Diplomacy {
     pub(crate) fn subvert(&mut self, ctx: &mut DiplomacyCtx<'_>, target: PlayerId) {
         let others: Vec<PlayerId> = ctx
             .view
-            .players()
-            .iter()
-            .map(|p| p.id)
+            .player_ids()
+            .into_iter()
             .filter(|&w| w != target && ctx.view.is_wizard(w) && ctx.view.human() != Some(w))
             .filter(|&w| self.have_met(w, target))
             .collect();

@@ -128,7 +128,7 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.18, 0.2, 0.3, 1.0));
             let _ = (pw, ph);
         }
-        let Some(player) = self.game.player(ui.who).cloned() else {
+        let Some(player) = self.game.player(ui.who).as_deref().cloned() else {
             return;
         };
         let light = Color::new(0.95, 0.93, 0.85, 1.0);

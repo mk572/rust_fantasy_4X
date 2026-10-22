@@ -47,7 +47,7 @@ fn world() -> Game {
     p.gold = 500;
     p.tax_rate = 2;
     p.mana = 100;
-    game.players.push(p);
+    game.add_player(P0, p);
     game.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     game
 }
@@ -128,7 +128,7 @@ fn a_new_wizard_starts_with_books_spells_and_skill() {
 #[test]
 fn the_same_seed_gives_the_same_spell_library() {
     let (a, b) = (world(), world());
-    assert_eq!(a.magic(P0), b.magic(P0));
+    assert_eq!(a.magic(P0).as_deref(), b.magic(P0).as_deref());
 }
 
 #[test]
@@ -234,7 +234,7 @@ fn research_takes_turns_and_ends_with_a_new_spell() {
         (3..=8).contains(&turns),
         "20 points at about 6 a turn: {turns}"
     );
-    let m = g.magic(P0).unwrap();
+    let m = (*g.magic(P0).unwrap()).clone();
     assert!(m.known.contains(&target));
     assert!(!m.researchable.contains(&target));
     assert_eq!(m.researching, None);
@@ -576,7 +576,7 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() {
     let text = g.snapshot().to_text().unwrap();
     let back = Snapshot::from_text(&text).unwrap();
     let loaded = back.restore(content_with_magic()).unwrap();
-    assert_eq!(loaded.magic(P0), g.magic(P0));
+    assert_eq!(loaded.magic(P0).as_deref(), g.magic(P0).as_deref());
     assert_eq!(loaded.snapshot(), g.snapshot());
     let unit = loaded.units().all_units()[0];
     assert_eq!(

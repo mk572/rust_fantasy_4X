@@ -62,12 +62,12 @@ impl Game {
 
     /// Everything the player has explored, summed: it only ever grows.
     fn explored_total(&self) -> usize {
-        self.players
-            .iter()
-            .map(|p| {
+        self.player_ids()
+            .into_iter()
+            .map(|id| {
                 crate::map::Plane::ALL
                     .iter()
-                    .map(|&pl| self.fog.explored_count(p.id, pl))
+                    .map(|&pl| self.fog.explored_count(id, pl))
                     .sum::<usize>()
             })
             .sum()
@@ -166,7 +166,7 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
         g.fog = crate::map::fog::Fog::new(20, 10);
-        g.players.push(Player::new(P0, "W"));
+        g.add_player(P0, Player::new(P0, "W"));
         let walker = g.content.rules.units.id_of("walker").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), walker);
         // Everything is known already, so moving shows nothing new.

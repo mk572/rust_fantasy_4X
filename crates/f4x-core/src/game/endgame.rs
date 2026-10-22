@@ -91,10 +91,10 @@ pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
 impl Game {
     /// Wizards that have not been defeated.
     pub fn living_wizards(&self) -> Vec<PlayerId> {
-        self.players
-            .iter()
-            .filter(|p| self.is_wizard(p.id) && !p.defeated)
-            .map(|p| p.id)
+        self.players()
+            .into_iter()
+            .filter(|(id, p)| self.is_wizard(*id) && !p.defeated)
+            .map(|(id, _)| id)
             .collect()
     }
 
@@ -105,13 +105,13 @@ impl Game {
         let mastery = self
             .game_over
             .is_some_and(|g| g.kind == EndKind::SpellOfMastery && g.winner == player);
-        self.players
-            .iter()
-            .filter(|q| {
+        self.players()
+            .into_iter()
+            .filter(|(id, q)| {
                 q.defeated_by == Some(player)
-                    || (mastery && self.is_wizard(q.id) && q.id != player && !q.defeated)
+                    || (mastery && self.is_wizard(*id) && *id != player && !q.defeated)
             })
-            .map(|q| q.id)
+            .map(|(id, _)| id)
             .collect()
     }
 
@@ -186,12 +186,12 @@ impl Game {
     /// The wizards now casting the Spell of Mastery and the mana each still has to pay. Every
     /// wizard is told when one starts, so this is public knowledge.
     pub fn mastery_casters(&self) -> Vec<(PlayerId, i32)> {
-        self.players
-            .iter()
-            .filter_map(|p| {
-                let c = self.magic(p.id)?.casting?;
+        self.player_ids()
+            .into_iter()
+            .filter_map(|id| {
+                let c = self.magic(id)?.casting?;
                 self.spell_has_hook(c.spell, SPELL_OF_MASTERY)
-                    .then_some((p.id, c.remaining))
+                    .then_some((id, c.remaining))
             })
             .collect()
     }

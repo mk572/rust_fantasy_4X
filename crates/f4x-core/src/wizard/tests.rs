@@ -7,7 +7,7 @@ const P0: PlayerId = PlayerId(0);
 fn game() -> Game {
     let mut g = Game::new(5);
     g.content = content_with_magic();
-    g.players.push(Player::new(P0, "W"));
+    g.add_player(P0, Player::new(P0, "W"));
     g
 }
 
@@ -262,7 +262,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     let mut chosen = b.clone();
     chosen.spells = vec![u1, u2, rare];
     g.create_wizard(P0, &chosen).unwrap();
-    let magic = g.magic(P0).unwrap();
+    let magic = (*g.magic(P0).unwrap()).clone();
     assert_eq!(magic.books_in("life"), 11);
     let known = |spell| magic.known.contains(&spell);
     assert!(
@@ -276,7 +276,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     // Without a choice the realm's defaults fill in: still two uncommon and one rare.
     let mut g = game();
     g.create_wizard(P0, &b).unwrap();
-    let magic = g.magic(P0).unwrap();
+    let magic = (*g.magic(P0).unwrap()).clone();
     let count = |r: Rarity| {
         magic
             .known
@@ -302,7 +302,7 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
     let mut g = game();
     g.create_wizard(P0, &build(&[("life", 6), ("chaos", 5)], &[]))
         .unwrap();
-    let magic = g.magic(P0).unwrap().clone();
+    let magic = (*g.magic(P0).unwrap()).clone();
     assert_eq!(magic.candidates.len(), RESEARCH_SLOTS);
     assert!(magic
         .candidates

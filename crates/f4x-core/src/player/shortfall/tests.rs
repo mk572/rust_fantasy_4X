@@ -27,7 +27,7 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() {
         g.spawn_hero(P0, at(1, 1), 0).unwrap(),
         g.spawn_hero(P0, at(1, 2), 1).unwrap(),
     );
-    g.players[0].gold = 2;
+    g.pl_mut(0).gold = 2;
     let short = g
         .treasury_shortfall(P0)
         .expect("4 gold of heroes against 2");
@@ -50,10 +50,7 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() {
         what: Shortage::Gold
     }));
     use crate::hero::roster::Availability;
-    assert_eq!(
-        g.players[0].roster.get(0).unwrap().state,
-        Availability::Free
-    );
+    assert_eq!(g.pl(0).roster.get(0).unwrap().state, Availability::Free);
 }
 
 #[test]
@@ -63,13 +60,9 @@ fn a_released_heros_items_return_to_the_armory() {
     let mut slots = HeroItems::default();
     slots.0[0] = Some(item("Axe", 200));
     let _ = g.world.insert_one(h, slots);
-    g.players[0].gold = 0;
+    g.pl_mut(0).gold = 0;
     g.release_troops(P0, &[h], &[]).unwrap();
-    let names: Vec<_> = g.players[0]
-        .armory
-        .items()
-        .map(|i| i.name.clone())
-        .collect();
+    let names: Vec<_> = g.pl(0).armory.items().map(|i| i.name.clone()).collect();
     assert_eq!(names, ["Axe"]);
 }
 
@@ -93,13 +86,10 @@ fn items_that_do_not_fit_are_the_wizards_to_scrap_for_mana() {
         "the cheapest goes"
     );
     // The wizard prefers to lose an award-list item.
-    g.players[0].mana = 0;
+    g.pl_mut(0).mana = 0;
     g.release_troops(P0, &[h], &[ItemSpot::Award(2)]).unwrap();
-    assert_eq!(
-        g.players[0].mana, 35,
-        "Junk6, worth 70 gold, gives half in mana"
-    );
-    assert!(g.players[0].armory.items().any(|i| i.name == "Crown"));
+    assert_eq!(g.pl(0).mana, 35, "Junk6, worth 70 gold, gives half in mana");
+    assert!(g.pl(0).armory.items().any(|i| i.name == "Crown"));
 }
 
 /// A 30x16 map, grass but for a sea from x = 3 to 26 and y = 3 to 13.
@@ -147,7 +137,7 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
             .world
             .insert_one(r, crate::unit::transport::Aboard(serial));
     }
-    g.players[0].gold = 0;
+    g.pl_mut(0).gold = 0;
     // 3 gold of upkeep, nothing to pay it: the boat goes, the riders are the next to be paid for.
     let events = g.release_troops(P0, &[boat], &[]).unwrap();
     assert!(events.iter().any(|e| matches!(

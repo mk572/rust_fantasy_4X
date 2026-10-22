@@ -56,9 +56,8 @@ impl Game {
     /// population over seven, the highest cut to 160.
     pub fn astrology_table(&self) -> Vec<(PlayerId, Astrology, u8)> {
         let wizards: Vec<PlayerId> = self
-            .players
-            .iter()
-            .map(|p| p.id)
+            .player_ids()
+            .into_iter()
             .filter(|&id| self.is_wizard(id))
             .collect();
         let rows: Vec<(PlayerId, Astrology, i32)> = wizards
@@ -107,7 +106,7 @@ impl Game {
     /// Add this turn's power to every wizard's history.
     pub(crate) fn record_history(&mut self) {
         for (id, _, power) in self.astrology_table() {
-            if let Some(p) = self.players.iter_mut().find(|p| p.id == id) {
+            if let Some(p) = self.player_mut(id) {
                 if p.history.len() >= HISTORY_TURNS {
                     p.history.remove(0);
                 }

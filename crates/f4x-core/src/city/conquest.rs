@@ -108,11 +108,10 @@ pub(crate) fn destroy_building(
     world: &mut hecs::World,
     map: Option<&crate::map::Map>,
     content: &crate::content::Content,
-    players: &[crate::player::Player],
     city: hecs::Entity,
     building: BuildingId,
 ) -> bool {
-    if Economy::new(world, map, content, players).has_dependants(city, building) {
+    if Economy::new(world, map, content).has_dependants(city, building) {
         return false;
     }
     match world.get::<&mut Buildings>(city) {
@@ -198,14 +197,7 @@ impl Game {
             .unwrap_or_default();
         let mut lost = Vec::new();
         let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
-            let gone = destroy_building(
-                &mut self.world,
-                self.map.as_ref(),
-                &self.content,
-                &self.players,
-                city,
-                b,
-            );
+            let gone = destroy_building(&mut self.world, self.map.as_ref(), &self.content, city, b);
             if gone {
                 lost.push(b);
             }
@@ -249,7 +241,6 @@ impl Game {
             &mut self.world,
             self.map.as_ref(),
             &self.content,
-            &self.players,
             city,
             building,
         )

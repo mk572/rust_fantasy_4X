@@ -30,9 +30,8 @@ impl App {
     /// The wizards the player knows of, and the player: the ones the two screens list.
     fn known_wizards(&self) -> Vec<f4x_core::player::PlayerId> {
         self.game
-            .players()
-            .iter()
-            .map(|p| p.id)
+            .player_ids()
+            .into_iter()
             .filter(|&id| self.game.is_wizard(id) && (id == HUMAN || self.game.have_met(HUMAN, id)))
             .collect()
     }
@@ -108,20 +107,23 @@ impl App {
         // Each wizard's power, a point a turn, from the left edge.
         let wizards = self.known_wizards();
         for (row, &id) in wizards.iter().enumerate() {
-            let Some(p) = self.game.player(id) else {
+            let Some((banner, history, name)) = self
+                .game
+                .player(id)
+                .map(|p| (p.banner, p.history.clone(), p.name.clone()))
+            else {
                 continue;
             };
-            let colour = self.art.banner_color(p.banner);
+            let colour = self.art.banner_color(banner);
             let height = |v: u8| (181.0 - f32::from(v)).max(22.0);
             let mut last: Option<(f32, f32)> = None;
-            for (i, &v) in p.history.iter().enumerate() {
+            for (i, &v) in history.iter().enumerate() {
                 let at = (16.0 + i as f32, height(v));
                 if let Some(prev) = last {
                     line(prev, at, colour);
                 }
                 last = Some(at);
             }
-            let name = p.name.clone();
             self.bm_text(
                 view,
                 3,
@@ -176,10 +178,11 @@ impl App {
             let Some(&(_, a, _)) = table.iter().find(|(p, ..)| *p == id) else {
                 continue;
             };
-            let Some(p) = self.game.player(id) else {
+            let Some((name, banner)) = self.game.player(id).map(|p| (p.name.clone(), p.banner))
+            else {
                 continue;
             };
-            let (name, colour) = (p.name.clone(), self.art.banner_color(p.banner));
+            let colour = self.art.banner_color(banner);
             for (section, score) in [a.strength, a.power, a.research].into_iter().enumerate() {
                 let y = sy + 35.0 + 49.0 * section as f32 + row as f32 * 7.0;
                 self.bm_text(view, 0, WHITE, &name, sx + 14.0, y, Align::Left);
@@ -328,10 +331,10 @@ impl App {
         // The legend: a flag and name for each wizard met, then the independents.
         let mut row = 0.0;
         for id in self.known_wizards() {
-            let Some(p) = self.game.player(id) else {
+            let Some((banner, name)) = self.game.player(id).map(|p| (p.banner, p.name.clone()))
+            else {
                 continue;
             };
-            let (banner, name) = (p.banner, p.name.clone());
             self.draw_pic(
                 &lay,
                 "reload",

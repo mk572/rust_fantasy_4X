@@ -18,7 +18,7 @@ use hecs::World;
 use crate::city::City;
 use crate::content::{Content, TerrainClass};
 use crate::map::{Map, Plane, Position};
-use crate::player::{Owner, Player, PlayerId};
+use crate::player::{Owner, PlayerId, PlayerRef};
 
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, Stat};
@@ -95,23 +95,16 @@ pub struct Economy<'a> {
     pub(crate) world: &'a World,
     pub(crate) map: Option<&'a Map>,
     pub(crate) content: &'a Content,
-    pub(crate) players: &'a [Player],
     /// The world events going on; none unless [`Economy::with_events`] says otherwise.
     pub(crate) events: &'a crate::world_event::Events,
 }
 
 impl<'a> Economy<'a> {
-    pub fn new(
-        world: &'a World,
-        map: Option<&'a Map>,
-        content: &'a Content,
-        players: &'a [Player],
-    ) -> Self {
+    pub fn new(world: &'a World, map: Option<&'a Map>, content: &'a Content) -> Self {
         Economy {
             world,
             map,
             content,
-            players,
             events: &crate::world_event::NONE,
         }
     }
@@ -124,15 +117,15 @@ impl<'a> Economy<'a> {
 
     /// The unit rules over the same pieces.
     pub(crate) fn units(&self) -> UnitView<'a> {
-        UnitView::new(self.world, self.content, self.players)
+        UnitView::new(self.world, self.content)
     }
 
-    pub(crate) fn player(&self, id: PlayerId) -> Option<&'a Player> {
-        self.players.iter().find(|p| p.id == id)
+    pub(crate) fn player(&self, id: PlayerId) -> Option<PlayerRef<'a>> {
+        crate::player::find(self.world, id)
     }
 
-    pub(crate) fn magic(&self, id: PlayerId) -> Option<&'a crate::wizard::magic::Magic> {
-        self.player(id).map(|p| &p.magic)
+    pub(crate) fn magic(&self, id: PlayerId) -> Option<hecs::Ref<'a, crate::wizard::magic::Magic>> {
+        crate::player::magic(self.world, id)
     }
 
     /// All cities with their positions, oldest first.
@@ -203,7 +196,7 @@ impl<'a> Economy<'a> {
                 .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
             let (mut power, mut pacify) = (0, 0);
             // While any wizard keeps Armageddon going, no building calms a city.
-            let armageddon = self.players.iter().any(|p| {
+            let armageddon = crate::player::all(self.world).iter().any(|(_, p)| {
                 crate::spell::global_enchantment::magic_has_global(
                     &p.magic,
                     self.content,
@@ -476,7 +469,7 @@ impl<'a> Economy<'a> {
     /// volcano's, outside the cities' own mana.
     pub fn blight_power(&self, owner: PlayerId) -> i32 {
         let kept = self.magic(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(m, self.content, "great_wasting")
+            crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
         });
         let Some(map) = self.map.filter(|_| kept) else {
             return 0;
@@ -511,7 +504,8 @@ impl<'a> Economy<'a> {
         let map = self.map?;
         let grid = map.plane(at.plane);
         let mods = self.city_modifiers(city);
-        let player = self.player(owner);
+        let player_ref = self.player(owner);
+        let player = player_ref.as_deref();
         let figures = pop.figures;
         let farmers = farmers.min(figures);
 
@@ -524,7 +518,7 @@ impl<'a> Economy<'a> {
         // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
         // squares still yield and add no unrest (and add power, see `blight_power`).
         let blight_proof = self.magic(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(m, self.content, "great_wasting")
+            crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
         });
         let gaia = self.city_has_enchantment(city, "gaias_blessing");
         let mut blighted = 0i32;
@@ -851,8 +845,7 @@ impl<'a> Economy<'a> {
 impl Game {
     /// The economy rules over the world, the map, the content and the players.
     pub fn economy(&self) -> Economy<'_> {
-        Economy::new(&self.world, self.map.as_ref(), &self.content, &self.players)
-            .with_events(&self.events)
+        Economy::new(&self.world, self.map.as_ref(), &self.content).with_events(&self.events)
     }
 }
 
@@ -967,8 +960,11 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        let players = [Player::new(PlayerId(0), "Merlin")];
-        let eco = Economy::new(&world, Some(&map), &content, &players);
+        world.spawn((
+            PlayerId(0),
+            crate::player::Player::new(PlayerId(0), "Merlin"),
+        ));
+        let eco = Economy::new(&world, Some(&map), &content);
 
         let now = eco.city_economy(city).unwrap();
         assert_eq!(now.figures, 4);
@@ -1012,12 +1008,17 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        let plain = [Player::new(PlayerId(0), "Merlin")];
-        let before = Economy::new(&world, Some(&map), &content, &plain)
+        let player = world.spawn((
+            PlayerId(0),
+            crate::player::Player::new(PlayerId(0), "Merlin"),
+        ));
+        let before = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .unwrap();
-        let mut boosted = plain.clone();
-        boosted[0].bonus = crate::player::Bonus {
+        world
+            .get::<&mut crate::player::Player>(player)
+            .unwrap()
+            .bonus = crate::player::Bonus {
             food: 200,
             production: 150,
             gold: 200,
@@ -1027,7 +1028,7 @@ mod handle_tests {
             growth: 200,
             ..crate::player::Bonus::default()
         };
-        let after = Economy::new(&world, Some(&map), &content, &boosted)
+        let after = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .unwrap();
         assert!(before.food > 0 && before.production > 0 && before.gold > 0);
@@ -1076,7 +1077,7 @@ mod handle_tests {
         grid.set_feature(9, 9, Some(node));
         let map = Map::new(grid.clone(), grid.clone());
         let world = World::new();
-        let eco = Economy::new(&world, Some(&map), &content, &[]);
+        let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
         assert_eq!(eco.square_food(g, 12, 12), 3, "grassland: one and a half");
         assert_eq!(eco.square_food(g, 5, 5), 1, "swamp: half a food");
@@ -1140,7 +1141,7 @@ mod handle_tests {
         grid.set(18, 7, forest);
         let map = Map::new(grid.clone(), grid.clone());
         let world = World::new();
-        let eco = Economy::new(&world, Some(&map), &content, &[]);
+        let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
         assert_eq!(eco.square_food(g, 5, 5), 4, "a lake fed by a river");
         assert_eq!(eco.square_food(g, 9, 5), 1, "a lake alone is a shore");

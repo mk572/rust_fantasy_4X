@@ -62,8 +62,7 @@ impl App {
                 Offer::Hero { kind, .. } => self
                     .game
                     .roster(HUMAN)
-                    .and_then(|r| r.get(*kind))
-                    .map(|r| r.name.clone())
+                    .and_then(|r| r.get(*kind).map(|r| r.name.clone()))
                     .unwrap_or_default(),
                 _ => String::new(),
             };

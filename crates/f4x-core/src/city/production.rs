@@ -571,7 +571,6 @@ mod tests {
         world: World,
         map: Map,
         content: crate::content::Content,
-        players: Vec<Player>,
         city: hecs::Entity,
     }
 
@@ -581,6 +580,7 @@ mod tests {
             let grass = content.terrains.id_of("grassland").unwrap();
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
+            world.spawn((PlayerId(0), Player::new(PlayerId(0), "Merlin")));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,
@@ -606,13 +606,12 @@ mod tests {
                 world,
                 map,
                 content,
-                players: vec![Player::new(PlayerId(0), "Merlin")],
                 city,
             }
         }
 
         fn eco(&self) -> Economy<'_> {
-            Economy::new(&self.world, Some(&self.map), &self.content, &self.players)
+            Economy::new(&self.world, Some(&self.map), &self.content)
         }
 
         fn building(&self, id: &str) -> BuildingId {

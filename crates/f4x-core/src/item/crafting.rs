@@ -388,14 +388,17 @@ impl crate::game::Game {
             .player(player)
             .ok_or(CraftingError::UnknownPlayer)?
             .mana;
-        let magic = self.magic(player).ok_or(CraftingError::UnknownPlayer)?;
-        magic.check_can_cast(spell).map_err(CraftingError::Magic)?;
-        check(design, craft, magic, &self.content.rules).map_err(CraftingError::Design)?;
-        let item = build(design, &self.content.rules);
-        let value = item.cost as i32;
-        let def = self.content.rules.spells.get(spell);
-        let price = value - value * magic.cost_reduction(def) / 100;
-        let now = price <= magic.instant_budget(reserve);
+        let (item, price, now) = {
+            let magic = self.magic(player).ok_or(CraftingError::UnknownPlayer)?;
+            magic.check_can_cast(spell).map_err(CraftingError::Magic)?;
+            check(design, craft, &magic, &self.content.rules).map_err(CraftingError::Design)?;
+            let item = build(design, &self.content.rules);
+            let value = item.cost as i32;
+            let def = self.content.rules.spells.get(spell);
+            let price = value - value * magic.cost_reduction(def) / 100;
+            let now = price <= magic.instant_budget(reserve);
+            (item, price, now)
+        };
         if let Some(p) = self.player_mut(player) {
             if now {
                 p.magic.spend_skill(price);
@@ -540,7 +543,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
         let mut p = Player::new(P0, "Merlin");
         p.mana = 2000;
-        g.players.push(p);
+        g.add_player(P0, p);
         g.init_wizard(P0, &[("chaos", 2)], &[], None).unwrap();
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
             .iter()
@@ -568,7 +571,7 @@ mod tests {
     }
 
     fn check_in(g: &Game, craft: Craft, d: &ItemDesign) -> Result<(), CraftError> {
-        check(d, craft, g.magic(P0).unwrap(), &g.content.rules)
+        check(d, craft, &g.magic(P0).unwrap(), &g.content.rules)
     }
 
     #[test]
@@ -685,7 +688,7 @@ mod tests {
     fn the_powers_on_offer_follow_the_kind_the_cost_and_the_books() {
         let g = world(0);
         let ids = |kind, craft| -> Vec<String> {
-            available_powers(kind, craft, g.magic(P0).unwrap(), &g.content.rules)
+            available_powers(kind, craft, &g.magic(P0).unwrap(), &g.content.rules)
                 .iter()
                 .map(|p| p.id.clone())
                 .collect()
@@ -776,11 +779,8 @@ mod tests {
             )),
             "{events:?}"
         );
-        assert_eq!(
-            g.players[0].armory.vault[0].as_ref().unwrap().bonus.attack,
-            2
-        );
-        assert_eq!(g.players[0].mana, 2000 - 200);
+        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
+        assert_eq!(g.pl(0).mana, 2000 - 200);
         assert_eq!(g.magic(P0).unwrap().skill_left, 800);
         assert!(g.magic(P0).unwrap().crafting.is_none());
     }
@@ -797,8 +797,8 @@ mod tests {
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &["attack_2"]),
         });
-        assert_eq!(g.players[0].mana, 2000 - 100);
-        assert_eq!(g.players[0].armory.vault[0].as_ref().unwrap().cost, 200);
+        assert_eq!(g.pl(0).mana, 2000 - 100);
+        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().cost, 200);
     }
 
     #[test]
@@ -811,7 +811,7 @@ mod tests {
             design: d,
         });
         assert!(events.is_empty(), "{events:?}");
-        let m = g.magic(P0).unwrap();
+        let m = (*g.magic(P0).unwrap()).clone();
         assert_eq!(m.casting.unwrap().remaining, 200);
         assert!(m.crafting.is_some());
         // A second item cannot be started meanwhile.
@@ -833,10 +833,7 @@ mod tests {
             }
         }
         assert!(made, "the item should come when the cost is paid");
-        assert_eq!(
-            g.players[0].armory.vault[0].as_ref().unwrap().bonus.attack,
-            2
-        );
+        assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
         assert!(g.magic(P0).unwrap().crafting.is_none());
         assert!(g.magic(P0).unwrap().casting.is_none());
     }
@@ -867,7 +864,7 @@ mod tests {
                 CraftError::TooCostly
             )))
         ));
-        assert_eq!(g.players[0].mana, 2000);
+        assert_eq!(g.pl(0).mana, 2000);
         g.magic_mut(P0).unwrap().known.clear();
         let events = g.apply(Command::CraftItem {
             player: P0,

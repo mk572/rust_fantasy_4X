@@ -12,10 +12,9 @@
 
 use crate::content::Content;
 use crate::map::Position;
-use crate::player::{Player, PlayerId};
+use crate::player::{MagicRef, PlayerHandle, PlayerId};
 
 use crate::game::Game;
-use crate::wizard::magic::Magic;
 
 /// Something of another player that a wizard can see: one of its cities, or a unit the wizard
 /// can make out.
@@ -42,8 +41,10 @@ pub trait WorldView {
     fn difficulty(&self) -> u8;
     /// The definitions of the game.
     fn content(&self) -> &Content;
-    /// Every player: wizards, independent cities' players, in the order they were added.
-    fn players(&self) -> &[Player];
+    /// Every player's id: wizards, independent cities' players, ascending.
+    fn player_ids(&self) -> Vec<PlayerId>;
+    /// A player's data.
+    fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>>;
 
     /// Another player's cities and units that `viewer` sees now: on squares it has in sight,
     /// the units only when it can make them out (an invisible one is hidden).
@@ -56,13 +57,9 @@ pub trait WorldView {
     /// How many cities (outposts too) a player has.
     fn city_count(&self, player: PlayerId) -> usize;
 
-    fn player(&self, id: PlayerId) -> Option<&Player> {
-        self.players().iter().find(|p| p.id == id)
-    }
-
     /// A wizard's magic.
-    fn magic(&self, id: PlayerId) -> Option<&Magic> {
-        self.player(id).map(|p| &p.magic)
+    fn magic(&self, id: PlayerId) -> Option<MagicRef<'_>> {
+        self.player(id).map(PlayerHandle::into_magic)
     }
 
     /// A player that is a wizard: neither the monsters nor an independent city.
@@ -72,10 +69,9 @@ pub trait WorldView {
 
     /// Wizards that have not been defeated, in the order of the players.
     fn living_wizards(&self) -> Vec<PlayerId> {
-        self.players()
-            .iter()
-            .filter(|p| self.is_wizard(p.id) && !p.defeated)
-            .map(|p| p.id)
+        self.player_ids()
+            .into_iter()
+            .filter(|&id| self.is_wizard(id) && self.player(id).is_some_and(|p| !p.defeated))
             .collect()
     }
 
@@ -106,8 +102,12 @@ impl WorldView for Game {
         &self.content
     }
 
-    fn players(&self) -> &[Player] {
-        &self.players
+    fn player_ids(&self) -> Vec<PlayerId> {
+        Game::player_ids(self)
+    }
+
+    fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>> {
+        Game::player(self, id).map(PlayerHandle::Held)
     }
 
     fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting> {
@@ -263,8 +263,8 @@ mod tests {
     #[test]
     fn the_provided_questions_follow_from_the_players() {
         let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
-        view.players[1].neutral = true;
-        view.players[2].defeated = true;
+        view.players[1].1.neutral = true;
+        view.players[2].1.defeated = true;
         assert!(view.is_wizard(P0) && !view.is_wizard(P1));
         assert!(!view.is_wizard(crate::player::NEUTRAL) && !view.is_wizard(PlayerId(9)));
         assert_eq!(view.living_wizards(), vec![P0]);
@@ -277,7 +277,7 @@ mod tests {
             .next()
             .unwrap();
         assert!(!view.has_global(P0, &spell.1));
-        view.players[0].magic.global.push(spell.0);
+        view.players[0].1.magic.global.push(spell.0);
         assert!(view.has_global(P0, &spell.1));
         assert!(!view.has_global(P1, &spell.1));
     }
@@ -292,7 +292,7 @@ mod tests {
             crate::map::Grid::new(30, 20, grass),
         ));
         for id in [P0, P1, P2] {
-            g.players.push(Player::new(id, "W"));
+            g.add_player(id, crate::player::Player::new(id, "W"));
         }
         let walker = g.content.rules.units.id_of("walker").unwrap();
         g.spawn_unit(P1, at(11, 10), walker);

@@ -10,8 +10,8 @@ fn world() -> Game {
     let mut game = Game::new(3);
     game.content = c;
     game.map = Some(map);
-    game.players.push(Player::new(PlayerId(0), "Merlin"));
-    game.players.push(Player::new(PlayerId(1), "Raven"));
+    game.add_player(PlayerId(0), Player::new(PlayerId(0), "Merlin"));
+    game.add_player(PlayerId(1), Player::new(PlayerId(1), "Raven"));
     game
 }
 
@@ -20,7 +20,7 @@ fn each_turn_adds_a_point_to_every_wizards_history() {
     let mut g = world();
     g.record_history();
     g.record_history();
-    assert!(g.players.iter().all(|p| p.history.len() == 2));
+    assert!(g.players().iter().all(|(_, p)| p.history.len() == 2));
 }
 
 #[test]
@@ -29,7 +29,10 @@ fn the_history_keeps_the_last_288_turns() {
     for _ in 0..HISTORY_TURNS + 5 {
         g.record_history();
     }
-    assert!(g.players.iter().all(|p| p.history.len() == HISTORY_TURNS));
+    assert!(g
+        .players()
+        .iter()
+        .all(|(_, p)| p.history.len() == HISTORY_TURNS));
 }
 
 #[test]

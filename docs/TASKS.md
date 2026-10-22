@@ -68,7 +68,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 311 | Player | Player entity; `PlayerId` moves into `player/` as its component; index and identity |
 | 312 | Wizard | Wizard entity and the player-wizard links |
 | 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players |
 | 314 | Player | Treasury, tax, offers, defeat and the other player data as components |
@@ -103,11 +102,6 @@ neighbours.
 ## Descriptions
 
 ### B. Player and wizard
-
-**311. Player entity.** `Player` entity with the `PlayerId` component; `PlayerId` moves out of `city.rs`
-into `player/`. One index `PlayerId` to `Entity` on `Game`; `Game::player(id)` returns a read handle.
-The old `Player` struct stays for the fields not moved yet, as a component of the same entity,
-until 317. *Needs:* 310.
 
 **312. Wizard entity.** `Wizard` entity with `Name`, `Portrait`, `Banner` and `CapitalRace`;
 `WizardLink` on the player and `PlayerLink` on the wizard; both are created together at setup (`game/setup.rs`,

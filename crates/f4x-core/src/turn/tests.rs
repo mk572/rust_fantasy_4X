@@ -40,7 +40,7 @@ fn world() -> Game {
     let mut p = Player::new(P0, "Merlin");
     p.gold = 500;
     p.tax_rate = 2;
-    game.players.push(p);
+    game.add_player(P0, p);
     game
 }
 

@@ -65,10 +65,11 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     for index in (0..count).rev() {
         let (offer, gold, turn) = {
             let view = PlayerView::new(game, ai.player);
-            let (Some(offer), Some(player)) = (view.offers().get(index), view.player()) else {
+            let (Some(offer), Some(player)) = (view.offers().get(index).cloned(), view.player())
+            else {
                 continue;
             };
-            (offer.clone(), player.gold, view.turn())
+            (offer, player.gold, view.turn())
         };
         let accept = match &offer {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),

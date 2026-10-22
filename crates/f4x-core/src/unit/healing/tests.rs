@@ -77,7 +77,7 @@ impl Rig {
         let id = self.content.rules.units.id_of(kind).unwrap();
         let serial = Serial(self.next);
         self.next += 1;
-        let e = crate::unit::spawn(&mut self.world, &self.content, &[], serial, owner, pos, id);
+        let e = crate::unit::spawn(&mut self.world, &self.content, serial, owner, pos, id);
         self.world.insert_one(e, Hurt(hurt)).unwrap();
         e
     }
@@ -113,8 +113,8 @@ impl Rig {
 
     /// What the plan says, and how many numbers it drew.
     fn plan(&self, seed: u64) -> (Vec<(hecs::Entity, u32)>, u64) {
-        let units = UnitView::new(&self.world, &self.content, &[]);
-        let economy = Economy::new(&self.world, Some(&self.map), &self.content, &[]);
+        let units = UnitView::new(&self.world, &self.content);
+        let economy = Economy::new(&self.world, Some(&self.map), &self.content);
         let mut rng = GameRng::new(seed);
         let plan = healing(&units, &economy, &mut rng);
         (plan, rng.draws())

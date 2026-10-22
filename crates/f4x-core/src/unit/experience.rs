@@ -16,7 +16,7 @@
 
 use crate::content::Content;
 use crate::map::Position;
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::UnitKind;
@@ -61,39 +61,28 @@ impl UnitView<'_> {
 
 /// `amount` xp for a living normal unit or hero, up to what experience can give: the turn's
 /// one point, or a won battle's share (`battle/spoils.rs`).
-pub(crate) fn gain_xp(
-    world: &mut World,
-    content: &Content,
-    players: &[Player],
-    unit: hecs::Entity,
-    amount: u32,
-) {
-    if let Some(xp) = UnitView::new(world, content, players).xp_after(unit, amount) {
+pub(crate) fn gain_xp(world: &mut World, content: &Content, unit: hecs::Entity, amount: u32) {
+    if let Some(xp) = UnitView::new(world, content).xp_after(unit, amount) {
         let _ = world.insert_one(unit, Experience(xp));
     }
 }
 
 /// The turn change for experience: a point for everyone, Heroism ending where it has done its
 /// work, and the Armsmasters training their squares.
-pub(crate) fn process(
-    world: &mut World,
-    content: &Content,
-    players: &[Player],
-    only: Option<PlayerId>,
-) {
-    let mut units = UnitView::new(world, content, players).all_units();
+pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerId>) {
+    let mut units = UnitView::new(world, content).all_units();
     // While a wizard's Time Stop lasts, only their units gain experience.
     if let Some(keeper) = only {
-        let view = UnitView::new(world, content, players);
+        let view = UnitView::new(world, content);
         units.retain(|&u| view.unit_owner(u) == Some(keeper));
     }
     for &unit in &units {
-        gain_xp(world, content, players, unit, 1);
+        gain_xp(world, content, unit, 1);
     }
     if let Some(heroism) = content.rules.spells.id_of(HEROISM) {
         for &unit in &units {
             let done = {
-                let view = UnitView::new(world, content, players);
+                let view = UnitView::new(world, content);
                 view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
             };
             if done {
@@ -103,7 +92,7 @@ pub(crate) fn process(
             }
         }
     }
-    let view = UnitView::new(world, content, players);
+    let view = UnitView::new(world, content);
     let mut best: Vec<(Position, PlayerId, u32)> = Vec::new();
     for &unit in &units {
         let gain = view.armsmaster_xp(unit);
@@ -145,12 +134,12 @@ pub(crate) fn process(
 impl Game {
     /// `amount` xp for a living normal unit or hero (see [`gain_xp`]).
     pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
-        gain_xp(&mut self.world, &self.content, &self.players, unit, amount);
+        gain_xp(&mut self.world, &self.content, unit, amount);
     }
 
     pub(crate) fn process_experience(&mut self) {
         let stopper = self.time_stopper();
-        process(&mut self.world, &self.content, &self.players, stopper);
+        process(&mut self.world, &self.content, stopper);
     }
 }
 
@@ -236,7 +225,7 @@ mod tests {
         g.fog = crate::map::fog::Fog::new(24, 14);
         let mut p = Player::new(P0, "W");
         p.mana = 5000;
-        g.players.push(p);
+        g.add_player(P0, p);
         g.init_wizard(P0, &[("life", 4)], &[], None).unwrap();
         g
     }

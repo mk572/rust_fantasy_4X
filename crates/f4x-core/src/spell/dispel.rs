@@ -363,14 +363,15 @@ impl Game {
             })
             .collect();
         let holders: Vec<PlayerId> = self
-            .players
-            .iter()
-            .filter(|p| p.id != caster)
+            .player_ids()
+            .into_iter()
+            .filter(|&p| p != caster)
             .flat_map(|p| {
-                guards
-                    .iter()
-                    .filter(|&&g| self.has_global(p.id, g))
-                    .map(move |_| p.id)
+                let has = &guards;
+                has.iter()
+                    .filter(|&&g| self.has_global(p, g))
+                    .map(move |_| p)
+                    .collect::<Vec<_>>()
             })
             .collect();
         let difficulty = self.dispel_difficulty(spell, Some(caster));

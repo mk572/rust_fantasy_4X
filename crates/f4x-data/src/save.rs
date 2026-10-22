@@ -106,7 +106,7 @@ mod tests {
         let mut g = Game::new(21);
         g.set_map(generate(21, &GenParams::default(), &content).unwrap());
         g.set_content(content);
-        g.add_player(Player::new(PlayerId(0), "Merlin"));
+        g.add_player(PlayerId(0), Player::new(PlayerId(0), "Merlin"));
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],
@@ -158,7 +158,10 @@ mod tests {
         let back = load_game(&path, content()).unwrap();
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
-        assert_eq!(back.magic(PlayerId(0)), g.magic(PlayerId(0)));
+        assert_eq!(
+            back.magic(PlayerId(0)).as_deref(),
+            g.magic(PlayerId(0)).as_deref()
+        );
         assert!(back.magic(PlayerId(0)).unwrap().researching.is_some());
     }
 

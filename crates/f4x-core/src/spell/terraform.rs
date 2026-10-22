@@ -341,7 +341,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         let mut p = Player::new(P0, "W");
         p.mana = 1000;
-        g.players.push(p);
+        g.add_player(P0, p);
         g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         g
     }

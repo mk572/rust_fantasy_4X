@@ -113,8 +113,7 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let name = ctx
             .game
             .player(w)
-            .map_or("?", |p| p.name.as_str())
-            .to_string();
+            .map_or("?".to_string(), |p| p.name.clone());
         if !ctx.game.have_met(me, w) {
             ctx.say(format!("{} {name}: not met", w.0));
             continue;

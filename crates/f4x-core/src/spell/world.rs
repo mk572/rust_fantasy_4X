@@ -40,7 +40,7 @@ impl Game {
     /// One turn of the world-scale enchantments every wizard keeps going.
     pub(crate) fn process_world_enchantments(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let players: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let players: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in players {
             if self.has_global(player, "great_wasting") {
                 events.extend(self.great_wasting(player));
@@ -267,9 +267,9 @@ impl Game {
             return Vec::new();
         }
         if !self
-            .players
-            .iter()
-            .any(|p| p.id != caster && self.has_global(p.id, "natures_wrath"))
+            .player_ids()
+            .into_iter()
+            .any(|p| p != caster && self.has_global(p, "natures_wrath"))
         {
             return Vec::new();
         }

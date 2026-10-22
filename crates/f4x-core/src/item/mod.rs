@@ -24,7 +24,7 @@ use self::armory::Armory;
 use crate::battle::game::ranged_kind_of;
 use crate::battle::RangedKind;
 use crate::content::Content;
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::effects::Effect;
@@ -258,20 +258,15 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[String], has_ranged: bool) 
 pub struct ItemView<'a> {
     world: &'a World,
     content: &'a Content,
-    players: &'a [Player],
 }
 
 impl<'a> ItemView<'a> {
-    pub fn new(world: &'a World, content: &'a Content, players: &'a [Player]) -> Self {
-        ItemView {
-            world,
-            content,
-            players,
-        }
+    pub fn new(world: &'a World, content: &'a Content) -> Self {
+        ItemView { world, content }
     }
 
     fn units(&self) -> UnitView<'a> {
-        UnitView::new(self.world, self.content, self.players)
+        UnitView::new(self.world, self.content)
     }
 
     /// The items a unit carries with the slot each is in (only heroes carry any).
@@ -334,25 +329,22 @@ impl<'a> ItemView<'a> {
     }
 
     /// A wizard's vault and award list.
-    pub fn armory(&self, player: PlayerId) -> Option<&'a Armory> {
-        self.players
-            .iter()
-            .find(|p| p.id == player)
-            .map(|p| &p.armory)
+    pub fn armory(&self, player: PlayerId) -> Option<hecs::Ref<'a, Armory>> {
+        crate::player::find(self.world, player).map(|p| hecs::Ref::map(p, |p| &p.armory))
     }
 }
 
 impl Game {
     /// The item rules' view of the game.
     pub fn items(&self) -> ItemView<'_> {
-        ItemView::new(&self.world, &self.content, &self.players)
+        ItemView::new(&self.world, &self.content)
     }
 }
 
 impl UnitView<'_> {
     /// The item rules' view, built from this one.
     pub(crate) fn items(&self) -> ItemView<'_> {
-        ItemView::new(self.world, self.content, self.players)
+        ItemView::new(self.world, self.content)
     }
 }
 

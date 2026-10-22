@@ -140,8 +140,14 @@ impl App {
     fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::player::PlayerId)> {
         self.game
             .players()
-            .iter()
-            .flat_map(|p| p.magic.global.iter().map(move |&s| (s, p.id)))
+            .into_iter()
+            .flat_map(|(id, p)| {
+                p.magic
+                    .global
+                    .iter()
+                    .map(move |&s| (s, id))
+                    .collect::<Vec<_>>()
+            })
             .collect()
     }
 
@@ -296,7 +302,12 @@ impl App {
         } else {
             income.split
         };
-        let magic = self.game.magic(HUMAN).cloned().unwrap_or_default();
+        let magic = self
+            .game
+            .magic(HUMAN)
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
         self.bm_text(
             view,
             2,
@@ -382,9 +393,9 @@ impl App {
         let others: Vec<(PlayerId, u8, u8, bool)> = self
             .game
             .players()
-            .iter()
-            .filter(|p| p.id != HUMAN && !p.neutral && p.id.0 != u8::MAX)
-            .map(|p| (p.id, p.portrait, p.banner, p.defeated))
+            .into_iter()
+            .filter(|(id, p)| *id != HUMAN && !p.neutral && id.0 != u8::MAX)
+            .map(|(id, p)| (id, p.portrait, p.banner, p.defeated))
             .collect();
         let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
         for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {

@@ -19,7 +19,7 @@ use crate::content::{Content, TerrainClass};
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
 use crate::map::{Plane, Position};
-use crate::player::{Player, PlayerId};
+use crate::player::{PlayerId, PlayerRef};
 
 use crate::player::finance::Treasury;
 
@@ -64,16 +64,16 @@ impl<'a> PlayerView<'a> {
     }
 
     /// The player's own record: gold, mana, fortress, whether it is defeated.
-    pub fn player(&self) -> Option<&'a Player> {
+    pub fn player(&self) -> Option<PlayerRef<'a>> {
         self.game.player(self.me)
     }
 
     /// The offers made to the player at the turn change that wait for an answer.
-    pub fn offers(&self) -> &'a [crate::player::offer::Offer] {
+    pub fn offers(&self) -> Vec<crate::player::offer::Offer> {
         self.game.offers(self.me)
     }
 
-    pub fn magic(&self) -> Option<&'a Magic> {
+    pub fn magic(&self) -> Option<hecs::Ref<'a, Magic>> {
         self.game.magic(self.me)
     }
 
@@ -175,7 +175,7 @@ impl<'a> PlayerView<'a> {
     }
 
     /// The player's vault and the items waiting after a reward.
-    pub fn armory(&self) -> Option<&'a crate::item::armory::Armory> {
+    pub fn armory(&self) -> Option<hecs::Ref<'a, crate::item::armory::Armory>> {
         self.game.items().armory(self.me)
     }
 
@@ -441,7 +441,7 @@ mod tests {
         g.set_content(c);
         g.set_map(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
         for id in [ME, THEM] {
-            g.add_player(Player::new(id, "W"));
+            g.add_player(id, crate::player::Player::new(id, "W"));
         }
         let race = g.content().rules.races.id_of("elf");
         for (owner, pos) in [(ME, at(5, 5)), (THEM, at(20, 10)), (THEM, at(8, 5))] {

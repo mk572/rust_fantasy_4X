@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
-use crate::wizard::magic::Retort;
+use crate::wizard::magic::{Magic, Retort};
 
 const P0: PlayerId = PlayerId(0);
 
@@ -32,8 +32,8 @@ fn fake() -> Fake {
 }
 
 impl IncomeView for Fake {
-    fn magic(&self, _: PlayerId) -> Option<&Magic> {
-        Some(&self.magic)
+    fn magic(&self, _: PlayerId) -> Option<crate::player::MagicRef<'_>> {
+        Some(crate::player::MagicRef::Plain(&self.magic))
     }
     fn content(&self) -> &Content {
         &self.content

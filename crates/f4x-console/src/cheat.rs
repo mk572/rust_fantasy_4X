@@ -48,8 +48,8 @@ fn player_arg(ctx: &Ctx, a: &Args, i: usize) -> Result<PlayerId, ConsoleError> {
         None => ctx.session.player,
     };
     ctx.game
-        .player(id)
-        .map(|p| p.id)
+        .player_entity(id)
+        .map(|_| id)
         .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))
 }
 

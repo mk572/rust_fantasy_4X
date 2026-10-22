@@ -38,20 +38,21 @@ impl Game {
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
         self.magic(player)
-            .is_some_and(|m| magic_has_global(m, &self.content, id))
+            .is_some_and(|m| magic_has_global(&m, &self.content, id))
     }
 
     /// The wizard whose Time Stop is stopping everyone else's time, if any.
     pub fn time_stopper(&self) -> Option<PlayerId> {
-        self.players
-            .iter()
-            .map(|p| p.id)
+        self.player_ids()
+            .into_iter()
             .find(|&p| self.has_global(p, "time_stop"))
     }
 
     /// Does any wizard keep the global spell with this id going?
     pub fn any_global(&self, id: &str) -> bool {
-        self.players.iter().any(|p| self.has_global(p.id, id))
+        self.player_ids()
+            .into_iter()
+            .any(|p| self.has_global(p, id))
     }
 
     /// A wizard's fame as the rules count it: what they have earned, and ten more while Just
@@ -63,9 +64,9 @@ impl Game {
     /// Is anyone's Evil Omens, the caster's own included, making life and nature spells
     /// dearer?
     pub(crate) fn evil_omens_active(&self) -> bool {
-        self.players
-            .iter()
-            .any(|p| self.has_global(p.id, "evil_omens"))
+        self.player_ids()
+            .into_iter()
+            .any(|p| self.has_global(p, "evil_omens"))
     }
 
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.
@@ -74,10 +75,10 @@ impl Game {
         if !self.has_global(viewer, "detect_magic") {
             return Vec::new();
         }
-        self.players
-            .iter()
-            .filter(|p| p.id != viewer)
-            .filter_map(|p| Some((p.id, self.magic(p.id)?.casting?.spell)))
+        self.player_ids()
+            .into_iter()
+            .filter(|&p| p != viewer)
+            .filter_map(|p| Some((p, self.magic(p)?.casting?.spell)))
             .collect()
     }
 
@@ -112,7 +113,7 @@ impl Game {
 
     /// Once a turn: Herb Mastery heals every unit, and the revealing spells look again.
     pub(crate) fn process_globals(&mut self) {
-        let ids: Vec<PlayerId> = self.players.iter().map(|p| p.id).collect();
+        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in ids {
             if self.has_global(player, "herb_mastery") {
                 for unit in self.units().player_units(player) {
@@ -223,7 +224,7 @@ mod tests {
         for id in [P0, P1] {
             let mut p = Player::new(id, "W");
             p.mana = 5000;
-            g.players.push(p);
+            g.add_player(id, p);
             g.init_wizard(id, &[("life", 4)], &[], None).unwrap();
         }
         g

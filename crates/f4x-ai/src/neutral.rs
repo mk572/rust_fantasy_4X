@@ -19,9 +19,9 @@ const GARRISON_PER_FOUR: usize = 2;
 pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
     let cities: Vec<_> = game
         .players()
-        .iter()
-        .filter(|p| p.neutral && p.id.0 != u8::MAX)
-        .map(|p| p.id)
+        .into_iter()
+        .filter(|(id, p)| p.neutral && id.0 != u8::MAX)
+        .map(|(id, _)| id)
         .collect();
     let mut events = Vec::new();
     for id in cities {

@@ -45,7 +45,7 @@ fn world() -> Game {
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
         let mut p = Player::new(id, name);
         p.mana = 20_000;
-        g.players.push(p);
+        g.add_player(id, p);
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }
