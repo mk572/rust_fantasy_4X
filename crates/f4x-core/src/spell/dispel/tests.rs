@@ -43,9 +43,8 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
-        let mut p = Player::new();
-        p.mana = 20_000;
-        g.add_player(id, name, p);
+        g.add_player(id, name, Player::new());
+        g.treasury_mut(id).unwrap().mana = 20_000;
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }
@@ -308,7 +307,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
         remaining: cost - 60,
     });
     assert_eq!(g.mana_spent_casting(P1), Some(60));
-    let mana = g.player(P0).unwrap().mana;
+    let mana = g.treasury(P0).unwrap().mana;
     let blast = sp(&g, "spell_blast");
     let paid = g.casting_cost(P0, blast, false);
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
@@ -321,7 +320,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
         }),
         "{events:?}"
     );
-    assert_eq!(g.player(P0).unwrap().mana, mana - paid - 60);
+    assert_eq!(g.treasury(P0).unwrap().mana, mana - paid - 60);
     assert_eq!(g.magic(P1).unwrap().casting, None);
     // Nothing being cast: not a target.
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
@@ -340,7 +339,7 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() {
         spell: aura,
         remaining: cost - 90,
     });
-    g.player_mut(P0).unwrap().mana = g.casting_cost(P0, sp(&g, "spell_blast"), false) + 50;
+    g.treasury_mut(P0).unwrap().mana = g.casting_cost(P0, sp(&g, "spell_blast"), false) + 50;
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
     assert!(
         !events

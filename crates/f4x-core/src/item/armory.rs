@@ -304,7 +304,8 @@ impl Game {
         }
         let plan = {
             let p = crate::player::find(&self.world, player).ok_or(ItemError::NoSuchPlace)?;
-            plan_move(&self.items(), &p.armory, p.mana, player, from, to, pay)?
+            let mana = self.treasury(player).map_or(0, |t| t.mana);
+            plan_move(&self.items(), &p.armory, mana, player, from, to, pay)?
         };
         let heroes: Vec<hecs::Entity> = [from, to]
             .iter()
@@ -329,8 +330,8 @@ impl Game {
             self.set_item_at(player, from, Some(plan.moving));
             return Err(ItemError::WouldDrown);
         }
-        if let Some(p) = self.player_mut(player) {
-            p.mana -= plan.cost;
+        if let Some(t) = self.treasury_mut(player) {
+            t.mana -= plan.cost;
         }
         Ok(())
     }
@@ -346,9 +347,8 @@ impl Game {
     /// The anvil: destroy the item in a vault slot or on the award list for half its value in
     /// mana. Returns the mana gained.
     pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Option<i32> {
-        let p = self.player_mut(player)?;
-        let mana = p.armory.scrap(from)?;
-        p.mana += mana;
+        let mana = self.player_mut(player)?.armory.scrap(from)?;
+        self.treasury_mut(player)?.mana += mana;
         Some(mana)
     }
 }
@@ -437,7 +437,7 @@ mod tests {
         g.add_player(P0, "A", crate::player::Player::new());
         g.add_player(P1, "B", crate::player::Player::new());
         g.pl_mut(0).fortress = Some(at(1, 1));
-        g.pl_mut(0).mana = 100;
+        g.tr_mut(0).mana = 100;
         g
     }
 
@@ -466,7 +466,7 @@ mod tests {
         staff.cost = 900;
         g.give_item(P0, staff);
         assert_eq!(g.scrap_item(P0, Spot::Vault(0)), Some(450));
-        assert_eq!(g.pl(0).mana, 550);
+        assert_eq!(g.tr(0).mana, 550);
         assert_eq!(g.scrap_item(P0, Spot::Vault(0)), None);
     }
 
@@ -550,23 +550,23 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), false),
             Err(ItemError::Transfer)
         );
-        g.pl_mut(0).mana = 19;
+        g.tr_mut(0).mana = 19;
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Err(ItemError::NoMana)
         );
-        g.pl_mut(0).mana = 100;
+        g.tr_mut(0).mana = 100;
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Ok(())
         );
-        assert_eq!(g.pl(0).mana, 80);
+        assert_eq!(g.tr(0).mana, 80);
         // Back into the vault is free, wherever the hero is.
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(far, 0), ItemSpot::Vault(0), false),
             Ok(())
         );
-        assert_eq!(g.pl(0).mana, 80);
+        assert_eq!(g.tr(0).mana, 80);
     }
 
     #[test]
@@ -578,7 +578,7 @@ mod tests {
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(a, 0), true)
             .unwrap();
-        g.pl_mut(0).mana = 0;
+        g.tr_mut(0).mana = 0;
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(a, 0), ItemSpot::Hero(b, 0), false),
             Ok(())

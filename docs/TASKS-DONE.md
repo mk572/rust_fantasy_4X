@@ -214,6 +214,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 311 | Player | (done) Player entity; `PlayerId` moves into `player/` as its component; index and identity |
 | 312 | Wizard | Wizard entity and the player-wizard links (done) |
 | 313 | Player | Owner links become `Entity` (units, cities, heroes); typed map owners; neutral players (done) |
+| 314 | Player (done) | Treasury, tax, offers, defeat and the other player data as components |
 
 ## Descriptions
 
@@ -456,3 +457,7 @@ these `Owner(Entity)` on feature entities). The `Neutral` component replaces the
 `NEUTRAL` sentinel; one neutral player owns the monsters of lairs and nodes; each neutral city keeps
 its own neutral player and none of them has a wizard. Enchantment casters are rewired in 319 and 320.
 About 876 uses change; do it by module, tests green after each. *Needs:* 312.
+
+**314. Player data as components (done).** `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`,
+`Offers`, `Defeat` (with `defeated_by`), `Control`. About 230 gold and 280 mana use sites in core,
+plus the AI, client and console. *Needs:* 313.

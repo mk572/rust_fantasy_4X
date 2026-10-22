@@ -12,7 +12,7 @@
 
 use crate::content::Content;
 use crate::map::Position;
-use crate::player::{MagicRef, PlayerHandle, PlayerId};
+use crate::player::{MagicRef, PlayerHandle, PlayerId, Treasury};
 
 use crate::game::Game;
 
@@ -45,6 +45,10 @@ pub trait WorldView {
     fn player_ids(&self) -> Vec<PlayerId>;
     /// A player's data.
     fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>>;
+    /// A player's gold and mana.
+    fn treasury(&self, id: PlayerId) -> Option<Treasury>;
+    /// Has the player lost everything?
+    fn is_defeated(&self, id: PlayerId) -> bool;
     /// Whether the player is neutral: the monsters' owner or an independent city's player.
     fn is_neutral(&self, id: PlayerId) -> bool;
 
@@ -73,7 +77,7 @@ pub trait WorldView {
     fn living_wizards(&self) -> Vec<PlayerId> {
         self.player_ids()
             .into_iter()
-            .filter(|&id| self.is_wizard(id) && self.player(id).is_some_and(|p| !p.defeated))
+            .filter(|&id| self.is_wizard(id) && !self.is_defeated(id))
             .collect()
     }
 
@@ -93,7 +97,7 @@ impl WorldView for Game {
     }
 
     fn human(&self) -> Option<PlayerId> {
-        self.human
+        Game::human(self)
     }
 
     fn difficulty(&self) -> u8 {
@@ -110,6 +114,14 @@ impl WorldView for Game {
 
     fn player(&self, id: PlayerId) -> Option<PlayerHandle<'_>> {
         Game::player(self, id).map(PlayerHandle::Held)
+    }
+
+    fn treasury(&self, id: PlayerId) -> Option<Treasury> {
+        Game::treasury(self, id)
+    }
+
+    fn is_defeated(&self, id: PlayerId) -> bool {
+        Game::is_defeated(self, id)
     }
 
     fn is_neutral(&self, id: PlayerId) -> bool {
@@ -270,7 +282,7 @@ mod tests {
     fn the_provided_questions_follow_from_the_players() {
         let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
         view.neutral.push(P1);
-        view.players[2].1.defeated = true;
+        view.defeated.push(P2);
         assert!(view.is_wizard(P0) && !view.is_wizard(P1));
         assert!(!view.is_wizard(crate::player::MONSTERS) && !view.is_wizard(PlayerId(9)));
         assert_eq!(view.living_wizards(), vec![P0]);

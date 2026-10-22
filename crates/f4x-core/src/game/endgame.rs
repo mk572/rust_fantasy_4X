@@ -91,10 +91,9 @@ pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
 impl Game {
     /// Wizards that have not been defeated.
     pub fn living_wizards(&self) -> Vec<PlayerId> {
-        self.players()
+        self.player_ids()
             .into_iter()
-            .filter(|(id, p)| self.is_wizard(*id) && !p.defeated)
-            .map(|(id, _)| id)
+            .filter(|&id| self.is_wizard(id) && !self.is_defeated(id))
             .collect()
     }
 
@@ -105,13 +104,12 @@ impl Game {
         let mastery = self
             .game_over
             .is_some_and(|g| g.kind == EndKind::SpellOfMastery && g.winner == player);
-        self.players()
+        self.player_ids()
             .into_iter()
-            .filter(|(id, q)| {
-                q.defeated_by == Some(player)
-                    || (mastery && self.is_wizard(*id) && *id != player && !q.defeated)
+            .filter(|&id| {
+                self.defeat_by(id) == Some(player)
+                    || (mastery && self.is_wizard(id) && id != player && !self.is_defeated(id))
             })
-            .map(|(id, _)| id)
             .collect()
     }
 
@@ -205,9 +203,8 @@ impl Game {
     /// only one wizard is left.
     pub(crate) fn check_conquest(&mut self, conqueror: PlayerId) -> Vec<Event> {
         let human_down = self
-            .human
-            .and_then(|h| self.player(h))
-            .is_some_and(|p| p.defeated);
+            .human()
+            .is_some_and(|h| self.player(h).is_some() && self.is_defeated(h));
         let living = self.living_wizards();
         if human_down {
             return self.finish(conqueror, EndKind::Conquest);
@@ -252,15 +249,16 @@ impl Game {
                 }
             }
         }
-        let loot = self.player(loser).map_or(0, |p| p.gold / 2);
+        let loot = self.treasury(loser).map_or(0, |t| t.gold / 2);
+        if let Some(t) = self.treasury_mut(loser) {
+            t.gold -= loot;
+        }
         if let Some(p) = self.player_mut(loser) {
-            p.gold -= loot;
             p.magic.global.clear();
             p.magic.casting = None;
-            p.defeated_by = Some(winner);
         }
-        if let Some(p) = self.player_mut(winner) {
-            p.gold += loot;
+        if let Some(t) = self.treasury_mut(winner) {
+            t.gold += loot;
         }
     }
 }

@@ -454,8 +454,8 @@ impl<'a> UnitView<'a> {
         // A computer wizard's difficulty cuts its units' upkeep (task 247).
         let cut = self
             .unit_owner(unit)
-            .and_then(|o| crate::player::find(self.world, o))
-            .map_or(100, |p| p.bonus.unit_upkeep);
+            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
+            .map_or(100, |b| b.unit_upkeep);
         crate::player::Bonus::of(cut, gold)
     }
 
@@ -561,7 +561,10 @@ mod tests {
         rooted.stats.insert(Stat::HalfMoves, 1);
         content.rules.units = Registry::new(vec![boots, rooted]);
         let mut world = World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let mut max = |id: &str, n: u64| {
             let def = content.rules.units.id_of(id).unwrap();
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
@@ -576,7 +579,10 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let e = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
@@ -595,7 +601,10 @@ mod tests {
         let content = content_with_magic();
         let spear = content.rules.units.id_of("spear").unwrap();
         let mut world = World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let second = spawn(&mut world, &content, Serial(2), owner, AT, spear);
         let first = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);

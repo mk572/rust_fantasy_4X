@@ -24,7 +24,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut chosen = None;
     for rate in 0..=MAX_RATE {
         game.apply(Command::SetTaxRate { player: me, rate });
-        let net = PlayerView::new(game, me).treasury().net_gold();
+        let net = PlayerView::new(game, me).budget().net_gold();
         if best.is_none_or(|(n, _)| net > n) {
             best = Some((net, rate));
         }
@@ -124,8 +124,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// The treasury cannot bear a deficit: net gold (with the gold on hand, spread over a hundred
 /// turns, counted as income) is negative and the gold on hand is low.
 fn broke(view: &PlayerView) -> bool {
-    let gold = view.player().map_or(0, |p| p.gold);
-    let net = view.treasury().net_gold() + (gold / 100).max(0);
+    let gold = view.treasury().gold;
+    let net = view.budget().net_gold() + (gold / 100).max(0);
     net < 0 && gold < 60
 }
 
@@ -145,8 +145,8 @@ fn plan_for(
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    let gold = view.player().map_or(0, |p| p.gold);
-    let net = view.treasury().net_gold() + (gold / 100).max(0);
+    let gold = view.treasury().gold;
+    let net = view.budget().net_gold() + (gold / 100).max(0);
     let treasury_ok = net >= 1 && spare_food(view) >= 1;
     let fighters = view
         .my_units()
@@ -207,7 +207,7 @@ fn spare_food(view: &PlayerView) -> i32 {
         .iter()
         .map(|&u| view.unit_food_upkeep(u))
         .sum();
-    view.treasury().food_surplus - upkeep
+    view.budget().food_surplus - upkeep
 }
 
 /// Buy what is being built when the treasury has gold to spare, settlers and the first
@@ -237,7 +237,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         wanted
     };
     for (_, cost, city) in wanted {
-        let gold = PlayerView::new(game, me).player().map_or(0, |p| p.gold);
+        let gold = PlayerView::new(game, me).treasury().gold;
         if gold - cost as i32 >= RESERVE {
             ai.send(game, Command::BuyProduction { city }, events);
         }

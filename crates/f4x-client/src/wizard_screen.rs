@@ -129,6 +129,9 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.18, 0.2, 0.3, 1.0));
             let _ = (pw, ph);
         }
+        let Some(wallet) = self.game.treasury(ui.who) else {
+            return;
+        };
         let Some(player) = self.game.player(ui.who).as_deref().cloned() else {
             return;
         };
@@ -179,7 +182,7 @@ impl App {
             view,
             1,
             light,
-            &player.gold.to_string(),
+            &wallet.gold.to_string(),
             px + 31.0,
             py + 75.0,
             Align::Right,
@@ -188,7 +191,7 @@ impl App {
             view,
             1,
             light,
-            &player.mana.to_string(),
+            &wallet.mana.to_string(),
             px + 159.0,
             py + 75.0,
             Align::Right,

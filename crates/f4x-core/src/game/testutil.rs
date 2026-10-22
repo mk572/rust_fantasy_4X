@@ -462,6 +462,10 @@ pub struct FakeView {
     pub cities: Vec<crate::player::PlayerId>,
     /// The players that are neutral.
     pub neutral: Vec<crate::player::PlayerId>,
+    /// Each player's gold and mana; a player not listed has the starting ones.
+    pub treasuries: Vec<(crate::player::PlayerId, crate::player::Treasury)>,
+    /// The players that are defeated.
+    pub defeated: Vec<crate::player::PlayerId>,
 }
 
 impl FakeView {
@@ -480,12 +484,35 @@ impl FakeView {
             units: Vec::new(),
             cities: Vec::new(),
             neutral: Vec::new(),
+            treasuries: Vec::new(),
+            defeated: Vec::new(),
         }
     }
 
     pub fn with_content(mut self, content: Content) -> Self {
         self.content = content;
         self
+    }
+
+    /// A player's gold and mana, to change (the starting ones until then).
+    pub fn treasury_mut(
+        &mut self,
+        id: crate::player::PlayerId,
+    ) -> Option<&mut crate::player::Treasury> {
+        self.players.iter().find(|(p, _)| *p == id)?;
+        let at = match self.treasuries.iter().position(|(p, _)| *p == id) {
+            Some(at) => at,
+            None => {
+                self.treasuries
+                    .push((id, crate::player::Treasury::default()));
+                self.treasuries.len() - 1
+            }
+        };
+        Some(&mut self.treasuries[at].1)
+    }
+
+    pub fn set_human(&mut self, human: Option<crate::player::PlayerId>) {
+        self.human = human;
     }
 }
 
@@ -512,6 +539,20 @@ impl crate::game::view::WorldView for FakeView {
 
     fn is_neutral(&self, id: crate::player::PlayerId) -> bool {
         self.neutral.contains(&id)
+    }
+
+    fn treasury(&self, id: crate::player::PlayerId) -> Option<crate::player::Treasury> {
+        self.players.iter().find(|(p, _)| *p == id)?;
+        Some(
+            self.treasuries
+                .iter()
+                .find(|(p, _)| *p == id)
+                .map_or_else(crate::player::Treasury::default, |(_, t)| *t),
+        )
+    }
+
+    fn is_defeated(&self, id: crate::player::PlayerId) -> bool {
+        self.defeated.contains(&id)
     }
 
     fn player(&self, id: crate::player::PlayerId) -> Option<crate::player::PlayerHandle<'_>> {

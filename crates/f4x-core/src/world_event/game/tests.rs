@@ -24,13 +24,12 @@ fn world() -> Game {
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
-        let mut p = Player::new();
-        p.gold = 1000;
-        p.mana = 100;
-        g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" }, p);
+        g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" }, Player::new());
+        g.treasury_mut(id).unwrap().gold = 1000;
+        g.treasury_mut(id).unwrap().mana = 100;
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
     }
-    g.human = Some(P0);
+    g.set_human(Some(P0));
     let race = g.content.rules.races.id_of("elf");
     for (p, pos) in [(P0, at(5, 5)), (P1, at(18, 9))] {
         g.place_fortress(p, pos, "Capital".into(), race, 4).unwrap();
@@ -82,7 +81,7 @@ fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
 fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() {
     let mut g = world();
     let told = play(&mut g, armed(K::Donation, P0, None));
-    let gold = g.player(P0).unwrap().gold;
+    let gold = g.treasury(P0).unwrap().gold;
     assert!((1105..=1600).contains(&gold), "{gold}");
     assert_eq!(told.len(), 1);
     assert_eq!(told[0].voice, Voice::Started);
@@ -94,10 +93,10 @@ fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() {
 fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() {
     let mut g = world();
     let told = play(&mut g, armed(K::Piracy, P0, None));
-    let gold = g.player(P0).unwrap().gold;
+    let gold = g.treasury(P0).unwrap().gold;
     assert!((500..=700).contains(&gold), "{gold}");
     assert_eq!(told[0].number, 1000 - gold);
-    g.player_mut(P0).unwrap().gold = 99;
+    g.treasury_mut(P0).unwrap().gold = 99;
     let mut rng = GameRng::new(1);
     assert!(g.try_event(K::Piracy, P0, &mut rng).is_none());
 }
@@ -106,7 +105,7 @@ fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() {
 fn an_event_that_falls_on_a_wizard_you_have_not_met_is_not_told() {
     let mut g = world();
     assert!(play(&mut g, armed(K::Donation, P1, None)).is_empty());
-    assert!(g.player(P1).unwrap().gold > 1000, "but it happened");
+    assert!(g.treasury(P1).unwrap().gold > 1000, "but it happened");
     g.make_contact(P0, P1);
     let told = play(&mut g, armed(K::Donation, P1, None));
     assert_eq!(told[0].voice, Voice::Elsewhere);

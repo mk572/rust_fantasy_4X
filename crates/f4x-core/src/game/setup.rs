@@ -239,13 +239,13 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         shown.insert(portrait);
         game.wizard_set(id, crate::wizard::entity::Portrait(portrait));
     }
-    game.human = (!spec.all_ai).then_some(HUMAN);
+    game.set_human((!spec.all_ai).then_some(HUMAN));
     game.apply_wizard_settings();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let gold = settings.wizards.starting_gold.of(game.human == Some(id));
-        if let Some(p) = game.player_mut(id) {
-            p.gold = gold;
+        let gold = settings.wizards.starting_gold.of(game.human() == Some(id));
+        if let Some(t) = game.treasury_mut(id) {
+            t.gold = gold;
         }
     }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A

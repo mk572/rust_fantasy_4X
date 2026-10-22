@@ -170,7 +170,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let income = view.income();
         // Mana for the upkeep and a little to spare; with a big reserve less is needed.
-        let reserve = view.player().map_or(0, |p| p.mana);
+        let reserve = view.treasury().mana;
         let margin = if reserve > 400 { 0 } else { 2 };
         if income.split.mana - income.mana_upkeep >= margin {
             chosen = candidate;
@@ -394,7 +394,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if magic.casting.is_some() {
             return;
         }
-        let mana = view.player().map_or(0, |p| p.mana);
+        let mana = view.treasury().mana;
         let income = view.income();
         let fighters = view
             .my_units()

@@ -40,7 +40,9 @@ impl App {
         };
         if let Some(p) = self.game.player_mut(HUMAN) {
             p.fame = 100;
-            p.gold = 5000;
+        }
+        if let Some(t) = self.game.treasury_mut(HUMAN) {
+            t.gold = 5000;
         }
         self.game.turn = self.game.turn.max(40);
         // A hero is drawn at random from those fame allows: try until one comes.
@@ -76,8 +78,8 @@ impl App {
         let lay = Layout::new();
         let affordable = self
             .game
-            .player(HUMAN)
-            .is_some_and(|p| p.gold >= offer.price());
+            .treasury(HUMAN)
+            .is_some_and(|t| t.gold >= offer.price());
         let (accept, reject) = match &offer {
             Offer::Item { item, price } => self.merchant_box(&lay, item, *price, affordable),
             _ => self.hire_box(&lay, &offer, affordable),

@@ -199,7 +199,8 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   turns one into the other. No owner is ever a raw `u8`.
 - **A unit, hero or city is always owned by a real player**: a human wizard, an AI wizard, an
   independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
-  placeholder owner.
+  placeholder owner. Tests build only such situations; a test of a situation the game cannot
+  create in normal play exists only to test error handling (a rejected command, a refused save).
 - Independent cities' players get ids after the real players, in order of creation. The one player
   that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
   255 until the save format changes in task 335). It is an entity with `PlayerId` and `Neutral` like

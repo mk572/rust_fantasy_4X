@@ -317,7 +317,7 @@ impl Game {
             let soldier = self.spawn_unit(owner, pos, u);
             self.balance_farmers(owner);
             self.balance_taxes(owner);
-            let t = self.treasury(owner);
+            let t = self.budget(owner);
             if t.food_upkeep > t.food_surplus || t.net_gold() < 0 {
                 let _ = self.world.despawn(soldier);
                 break;

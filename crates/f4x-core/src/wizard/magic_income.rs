@@ -100,7 +100,8 @@ pub(crate) struct GameIncome<'a>(pub &'a Game);
 
 impl IncomeView for GameIncome<'_> {
     fn node_percent(&self, player: PlayerId) -> i32 {
-        self.0.player(player).map_or(100, |p| p.bonus.mana)
+        crate::player::component::<crate::player::Bonus>(&self.0.world, player)
+            .map_or(100, |b| b.mana)
     }
 
     fn magic(&self, player: PlayerId) -> Option<crate::player::MagicRef<'_>> {

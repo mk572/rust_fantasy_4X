@@ -324,9 +324,9 @@ impl EffectHost for GameHost<'_> {
         let Some(owner) = self.owner_of(who) else {
             return;
         };
-        if let Some(p) = self.game.player_mut(owner) {
-            p.gold += gold;
-            p.mana += mana;
+        if let Some((p, t)) = self.game.player_treasury_mut(owner) {
+            t.gold += gold;
+            t.mana += mana;
             if p.magic.researching.is_some() {
                 p.magic.research_remaining = (p.magic.research_remaining - research).max(0);
             }
@@ -672,7 +672,7 @@ impl Game {
             }
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
                 p != player
-                    && self.player(p).is_some_and(|x| !x.defeated)
+                    && !self.is_defeated(p)
                     && (!self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
                         || self.mana_spent_casting(p).is_some())
             }

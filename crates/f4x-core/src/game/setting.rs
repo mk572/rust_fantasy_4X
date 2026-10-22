@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::player::{Player, PlayerId};
+use crate::player::PlayerId;
 
 /// Land as a share of each plane's tiles for the original's three sizes.
 pub const LAND_SMALL: u8 = 15;
@@ -503,13 +503,14 @@ impl crate::game::Game {
     /// the human is known.
     pub(crate) fn apply_wizard_settings(&mut self) {
         let ai = self.settings.ai;
-        let human = self.human;
-        for (_, (&id, p, neutral)) in
-            self.world
-                .query_mut::<(&PlayerId, &mut Player, Option<&crate::player::Neutral>)>()
-        {
+        let human = self.human();
+        for (_, (&id, bonus, neutral)) in self.world.query_mut::<(
+            &PlayerId,
+            &mut crate::player::Bonus,
+            Option<&crate::player::Neutral>,
+        )>() {
             let computer = neutral.is_none() && Some(id) != human;
-            p.bonus = if computer {
+            *bonus = if computer {
                 crate::player::Bonus {
                     growth: i32::from(ai.growth_percent),
                     outpost_growth: i32::from(ai.outpost_growth_percent),

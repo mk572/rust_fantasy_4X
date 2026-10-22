@@ -95,10 +95,10 @@ impl Game {
         if self.time_stopper() == Some(player) {
             return None;
         }
-        let t = self.treasury(player);
+        let t = self.budget(player);
         let troops = self.troops(player);
         let fame = self.fame(player);
-        let gold = self.player(player)?.gold;
+        let gold = self.treasury(player)?.gold;
         let lines = troops
             .iter()
             .map(|tr| {
@@ -256,8 +256,8 @@ impl Game {
             };
             if let Some(item) = item {
                 self.set_item_at(player, spot, None);
-                if let Some(p) = self.player_mut(player) {
-                    p.mana += item.anvil_mana();
+                if let Some(t) = self.treasury_mut(player) {
+                    t.mana += item.anvil_mana();
                 }
             }
         }
@@ -303,9 +303,9 @@ impl Game {
             self.remove_unit(unit, crate::hero::roster::Fate::Released);
             for (_, item) in items {
                 let mana = item.anvil_mana();
-                if let Some(p) = self.player_mut(player) {
-                    if p.armory.place(item) == crate::item::armory::Placed::Lost {
-                        p.mana += mana;
+                if self.give_item(player, item) == crate::item::armory::Placed::Lost {
+                    if let Some(t) = self.treasury_mut(player) {
+                        t.mana += mana;
                     }
                 }
             }

@@ -47,8 +47,8 @@ pub fn summon_point(player: &Player) -> Option<Position> {
 }
 
 /// Whether the wizard may found a fortress: they have none, are not banished and not defeated.
-pub(crate) fn can_place(player: &Player) -> Result<(), FortressError> {
-    if player.fortress.is_some() || player.banished || player.defeated {
+pub(crate) fn can_place(player: &Player, defeated: bool) -> Result<(), FortressError> {
+    if player.fortress.is_some() || player.banished || defeated {
         return Err(FortressError::NotAllowed);
     }
     Ok(())
@@ -97,19 +97,16 @@ pub(crate) fn circle_lost_to_destruction(player: &mut Player, pos: Position) {
     }
 }
 
-/// The fortress falls: the wizard loses it and half their mana, which is returned.
-pub(crate) fn fortress_falls(loser: &mut Player) -> i32 {
-    let half = loser.mana / 2;
-    loser.mana -= half;
+/// The fortress falls: the wizard loses it and the summoning circle. (Half their mana goes to the
+/// conqueror: [`Treasury::take_half_mana`].)
+pub(crate) fn fortress_falls(loser: &mut Player) {
     loser.fortress = None;
     loser.summon_at = None;
-    half
 }
 
-/// The conqueror of a fortress city gains 5 fame and the loser's half of the mana.
-pub(crate) fn fortress_prize(winner: &mut Player, half_mana: i32) {
+/// The conqueror of a fortress city gains 5 fame (and the loser's half of the mana).
+pub(crate) fn fortress_prize(winner: &mut Player) {
     winner.fame += 5;
-    winner.mana += half_mana;
 }
 
 /// The wizard is banished and starts casting the Spell of Return, at the cost given.
@@ -125,7 +122,6 @@ pub(crate) fn banish_player(player: &mut Player, spell_of_return: Option<(SpellI
 
 /// The wizard is out of the game.
 pub(crate) fn defeat_player(player: &mut Player) {
-    player.defeated = true;
     player.banished = false;
     player.banished_by = None;
     player.fortress = None;
@@ -184,7 +180,10 @@ impl Game {
         race: Option<RaceId>,
         population: u32,
     ) -> Result<Vec<Event>, FortressError> {
-        can_place(&*self.player(player).ok_or(FortressError::UnknownPlayer)?)?;
+        can_place(
+            &*self.player(player).ok_or(FortressError::UnknownPlayer)?,
+            self.is_defeated(player),
+        )?;
         self.can_found_city(pos).map_err(FortressError::Found)?;
         let city = self.spawn_city(player, pos, name, race, population);
         if let Some(p) = self.player_mut(player) {
@@ -291,15 +290,21 @@ impl Game {
     fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         let skill =
             self.magic(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
-        let mana = self.player(loser).map_or(0, |p| p.mana);
-        let half = self.player_mut(loser).map_or(0, fortress_falls);
+        let mana = self.treasury(loser).map_or(0, |p| p.mana);
+        let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
+        if let Some(p) = self.player_mut(loser) {
+            fortress_falls(p);
+        }
         if let Some(w) = self.player_mut(winner) {
-            fortress_prize(w, half);
+            fortress_prize(w);
+        }
+        if let Some(t) = self.treasury_mut(winner) {
+            t.mana += half;
         }
         if self.economy().city_count(loser) == 0 {
             return self.defeat(loser, winner);
         }
-        if self.human != Some(loser) && (skill < RESIGN_BELOW_SKILL || mana < 1) {
+        if self.human() != Some(loser) && (skill < RESIGN_BELOW_SKILL || mana < 1) {
             return self.defeat(loser, winner);
         }
         self.conquest_relations(winner, loser, false);
@@ -320,7 +325,7 @@ impl Game {
     /// cities turn neutral and everything else of theirs goes (`Resolve_Wizard_Conquest`).
     pub fn resign(&mut self, player: PlayerId) -> Result<Vec<Event>, FortressError> {
         let p = self.player(player).ok_or(FortressError::UnknownPlayer)?;
-        if !p.banished || p.defeated {
+        if !p.banished || self.is_defeated(player) {
             return Err(FortressError::WrongState);
         }
         let banished_by = p.banished_by;
@@ -378,6 +383,11 @@ impl Game {
     pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         if let Some(p) = self.player_mut(loser) {
             defeat_player(p);
+        }
+        if let Some(e) = self.player_entity(loser) {
+            let _ = self
+                .world
+                .insert_one(e, crate::player::Defeat { by: Some(winner) });
         }
         self.cities_go_neutral(loser);
         self.aftermath(loser, winner);

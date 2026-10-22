@@ -67,7 +67,7 @@ const ADVISORS: [&str; 9] = [
 impl App {
     /// The Info button: the list of advisors.
     pub(crate) fn open_advisor_menu(&mut self) {
-        let vizier = self.game.player(HUMAN).is_some_and(|p| p.grand_vizier);
+        let vizier = self.game.has_grand_vizier(HUMAN);
         let rows = ADVISORS
             .iter()
             .enumerate()
@@ -114,8 +114,8 @@ impl App {
         let unrest = self.game.content().rules.config.tax_unrest_percent.clone();
         let current = self
             .game
-            .player(HUMAN)
-            .map_or(0, |p| usize::from(p.tax_rate));
+            .player_component::<f4x_core::player::Tax>(HUMAN)
+            .map_or(0, |t| usize::from(t.0));
         let rows = unrest
             .iter()
             .enumerate()
@@ -150,7 +150,7 @@ impl App {
 
     /// The Grand Vizier: switched off at once; switching on asks first.
     fn toggle_grand_vizier(&mut self) {
-        let on = self.game.player(HUMAN).is_some_and(|p| p.grand_vizier);
+        let on = self.game.has_grand_vizier(HUMAN);
         if on {
             self.game.apply(Command::SetGrandVizier {
                 player: HUMAN,

@@ -29,7 +29,7 @@ pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
         game.balance_farmers(id);
         // Taxes are looked at only when the city is not paying its way: finding the lowest
         // rate that does costs a forecast per rate.
-        if PlayerView::new(game, id).treasury().net_gold() < 1 {
+        if PlayerView::new(game, id).budget().net_gold() < 1 {
             crate::economy::taxes(&mut ai, game, &mut events);
         }
         production(&ai, game, &mut events);
@@ -67,7 +67,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .filter(|&u| is_fighter(&view, u))
                 .count();
             let wanted = GARRISON_PER_FOUR * (economy.figures as usize / 4).max(1);
-            let treasury = view.treasury();
+            let treasury = view.budget();
             let affordable = treasury.net_gold() >= 1 && treasury.food_surplus >= 1;
             let mix = if soldiers < wanted && affordable {
                 Mix::Units

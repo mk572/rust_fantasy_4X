@@ -2478,7 +2478,7 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 #[test]
 fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() {
     let mut g = casting_game();
-    g.player_mut(A).unwrap().mana = 2000;
+    g.treasury_mut(A).unwrap().mana = 2000;
     g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
     let call = g.content.rules.spells.id_of("call_chaos").unwrap();
     {
@@ -3551,7 +3551,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
         .insert_one(foes[0], crate::unit::Experience(20))
         .unwrap();
     g.player_mut(D).unwrap().fame = 25;
-    g.human = Some(D);
+    g.set_human(Some(D));
     finish_with_dead(&mut g, &[a], &foes, &[1, 2, 3, 4]);
     // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
     assert_eq!(g.player(D).unwrap().fame, 23);

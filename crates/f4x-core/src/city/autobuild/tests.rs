@@ -461,10 +461,11 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-    let mut p = Player::new();
-    p.gold = 500;
-    p.tax_rate = 2;
-    g.add_player(PlayerId(0), "W", p);
+    g.add_player(PlayerId(0), "W", Player::new());
+    g.treasury_mut(PlayerId(0)).unwrap().gold = 500;
+    g.player_component_mut::<crate::player::Tax>(PlayerId(0))
+        .unwrap()
+        .0 = 2;
     let race = g.content.rules.races.id_of("elf");
     g.apply(Command::FoundCity {
         owner: PlayerId(0),

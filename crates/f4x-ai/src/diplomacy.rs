@@ -42,7 +42,7 @@ mod tests {
         for id in [HUMAN, AI] {
             g.add_player(id, "W", Player::new());
         }
-        g.human = Some(HUMAN);
+        g.set_human(Some(HUMAN));
         g.make_contact(HUMAN, AI);
         g
     }
@@ -89,7 +89,7 @@ mod tests {
             for id in [HUMAN, AI] {
                 g.add_player(id, "W", Player::new());
             }
-            g.human = Some(HUMAN);
+            g.set_human(Some(HUMAN));
             g.make_contact(HUMAN, AI);
             // Friends: the human has done well by the AI, and the AI is easy-going.
             for _ in 0..8 {
@@ -104,7 +104,7 @@ mod tests {
             for id in [HUMAN, AI] {
                 h.add_player(id, "W", Player::new());
             }
-            h.human = Some(HUMAN);
+            h.set_human(Some(HUMAN));
             h.make_contact(HUMAN, AI);
             for _ in 0..8 {
                 h.change_relations(

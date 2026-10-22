@@ -836,7 +836,7 @@ impl App {
             self.race = r.index();
         }
         self.game = game;
-        self.game.human.get_or_insert(HUMAN);
+        self.game.ensure_human(HUMAN);
         self.game.set_undo(true);
         self.ais = self.rival_wizards();
         self.defences.clear();
@@ -892,7 +892,7 @@ impl App {
         if self.turn_events.is_some() {
             return;
         }
-        let t = self.game.treasury(HUMAN);
+        let t = self.game.budget(HUMAN);
         if t.food_surplus < t.food_upkeep {
             self.game.balance_farmers(HUMAN);
         }

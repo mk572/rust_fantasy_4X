@@ -373,7 +373,7 @@ pub(crate) mod tests {
         assert!(g.units().unit_has_ability(h, "noble"));
         assert!(g.units().unit_has_ability(h, "super_might"));
         assert_eq!(g.units().unit_gold_upkeep(h), 0);
-        assert_eq!(g.treasury(P0).noble_gold, 10);
+        assert_eq!(g.budget(P0).noble_gold, 10);
         let plain = g.spawn_hero(P0, at(1, 1), 1).unwrap();
         assert_eq!(g.units().unit_gold_upkeep(plain), 2);
         // The same hero cannot serve twice, and the other wizard's record is untouched.
@@ -450,7 +450,7 @@ pub(crate) mod tests {
             spell,
             remaining: 1000,
         });
-        g.pl_mut(0).mana = 5000;
+        g.tr_mut(0).mana = 5000;
         let _ = g.process_magic();
         let left = g.magic(P0).unwrap().casting.unwrap().remaining;
         assert_eq!(1000 - left, nominal + hero_skill);
@@ -519,7 +519,7 @@ pub(crate) mod tests {
         let mut g = world();
         // Unpaid upkeep lets a hero go: it can be hired again.
         let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
-        g.pl_mut(0).gold = 0;
+        g.tr_mut(0).gold = 0;
         let _ = g.settle_treasury(P0);
         assert!(!g.world.contains(h));
         assert_eq!(g.pl(0).roster.get(0).unwrap().state, Availability::Free);

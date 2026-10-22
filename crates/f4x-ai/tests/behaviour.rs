@@ -74,7 +74,7 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() {
     let p = g.player_mut(P0).unwrap();
     p.magic.known.insert(mastery);
     p.magic.skill_points = 5000;
-    p.mana = 20_000;
+    g.treasury_mut(P0).unwrap().mana = 20_000;
     play(&mut g, 80);
     let over = g.game_over.expect("the game ended");
     assert_eq!(over.winner, P0);
@@ -91,7 +91,7 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() {
             let p = g.player_mut(P0).unwrap();
             p.magic.known.insert(spell);
             p.magic.skill_points = 400;
-            p.mana = 2000;
+            g.treasury_mut(P0).unwrap().mana = 2000;
         }
         play(&mut g, 6);
         g.explored_squares(P0)

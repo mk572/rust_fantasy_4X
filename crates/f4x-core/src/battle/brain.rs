@@ -84,7 +84,7 @@ pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
 pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
     let player = battle.player_of(side);
-    let reserve = game.player(player).map_or(0, |p| p.mana);
+    let reserve = game.treasury(player).map_or(0, |p| p.mana);
     let upkeep = game.income(player).mana_upkeep;
     let enemies: Vec<&BattleUnit> = battle
         .active_units(side.other())

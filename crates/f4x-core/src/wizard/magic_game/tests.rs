@@ -43,11 +43,12 @@ fn world() -> Game {
     game.content = c;
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-    let mut p = Player::new();
-    p.gold = 500;
-    p.tax_rate = 2;
-    p.mana = 100;
-    game.add_player(P0, "Merlin", p);
+    game.add_player(P0, "Merlin", Player::new());
+    game.treasury_mut(P0).unwrap().gold = 500;
+    game.player_component_mut::<crate::player::Tax>(P0)
+        .unwrap()
+        .0 = 2;
+    game.treasury_mut(P0).unwrap().mana = 100;
     game.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     game
 }
@@ -247,9 +248,9 @@ fn mana_income_fills_the_reserve() {
     let city = found(&mut g, at(10, 6), 4);
     add_building(&mut g, city, "temple");
     g.magic_mut(P0).unwrap().set_split(100, 0, 0).unwrap();
-    let before = g.player(P0).unwrap().mana;
+    let before = g.treasury(P0).unwrap().mana;
     g.apply(Command::EndTurn);
-    assert_eq!(g.player(P0).unwrap().mana, before + 6);
+    assert_eq!(g.treasury(P0).unwrap().mana, before + 6);
 }
 
 #[test]
@@ -262,9 +263,9 @@ fn an_affordable_spell_takes_effect_at_once() {
     let mend = spell(&g, "healing");
     g.magic_mut(P0).unwrap().known.insert(mend);
     g.magic_mut(P0).unwrap().skill_left = 100;
-    g.player_mut(P0).unwrap().mana = 1000;
+    g.treasury_mut(P0).unwrap().mana = 1000;
     let cost = g.casting_cost(P0, mend, false);
-    let mana = g.player(P0).unwrap().mana;
+    let mana = g.treasury(P0).unwrap().mana;
     // A spell with a target needs one.
     assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
     let events = g.apply(Command::CastSpell {
@@ -281,7 +282,7 @@ fn an_affordable_spell_takes_effect_at_once() {
         g.units().unit_hits(unit).1,
         "healed"
     );
-    assert_eq!(g.player(P0).unwrap().mana, mana - cost);
+    assert_eq!(g.treasury(P0).unwrap().mana, mana - cost);
     assert_eq!(g.magic(P0).unwrap().skill_left, 100 - cost);
     assert_eq!(g.magic(P0).unwrap().casting, None);
 }
@@ -338,9 +339,9 @@ fn a_channeler_pays_half_the_spell_maintenance() {
     g.magic_mut(P0).unwrap().retorts.insert(Retort::Channeler);
     assert_eq!(g.income(P0).mana_upkeep, dear.1 / 2);
     // The reserve pays the half, and the spell stays.
-    g.player_mut(P0).unwrap().mana = dear.1 / 2;
+    g.treasury_mut(P0).unwrap().mana = dear.1 / 2;
     g.apply_mana_upkeep(P0);
-    assert_eq!(g.player(P0).unwrap().mana, 0);
+    assert_eq!(g.treasury(P0).unwrap().mana, 0);
     assert!(g.magic(P0).unwrap().global.contains(&dear.0));
 }
 
@@ -366,7 +367,7 @@ fn short_of_mana() -> (Game, [SpellId; 2]) {
     ];
     g.magic_mut(P0).unwrap().global.extend(ids);
     g.magic_mut(P0).unwrap().set_split(0, 100, 0).ok();
-    g.player_mut(P0).unwrap().mana = 8;
+    g.treasury_mut(P0).unwrap().mana = 8;
     (g, ids)
 }
 
@@ -389,7 +390,7 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() {
     assert!(g.upkeep_shortfall(P0).is_none());
     g.apply_mana_upkeep(P0);
     assert_eq!(g.magic(P0).unwrap().global, vec![second]);
-    assert_eq!(g.player(P0).unwrap().mana, 2);
+    assert_eq!(g.treasury(P0).unwrap().mana, 2);
 }
 
 #[test]
@@ -464,7 +465,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
     // Forty mana at four a turn is ten payments, but the last is borrowed from the next
     // turn's skill, as in the original.
     assert_eq!(ready_after, Some(9));
-    assert_eq!(g.player(P0).unwrap().mana, 60, "the 40 mana was paid");
+    assert_eq!(g.treasury(P0).unwrap().mana, 60, "the 40 mana was paid");
     let events = g.apply(Command::ResolveCast {
         player: P0,
         target: Target::Unit(unit),
@@ -475,12 +476,12 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
     }));
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
     assert_eq!(g.income(P0).mana_upkeep, 1);
-    let mana = g.player(P0).unwrap().mana;
+    let mana = g.treasury(P0).unwrap().mana;
     g.apply(Command::EndTurn);
-    assert_eq!(g.player(P0).unwrap().mana, mana - 1);
+    assert_eq!(g.treasury(P0).unwrap().mana, mana - 1);
 
     // With no mana left the enchantment lapses.
-    g.player_mut(P0).unwrap().mana = 0;
+    g.treasury_mut(P0).unwrap().mana = 0;
     let events = g.apply(Command::EndTurn);
     assert!(events.contains(&Event::EnchantmentLapsed {
         player: P0,
@@ -497,11 +498,11 @@ fn cancelling_loses_what_was_paid() {
     g.magic_mut(P0).unwrap().known.insert(strength);
     g.start_cast(P0, strength, None).unwrap();
     g.apply(Command::EndTurn);
-    let mana = g.player(P0).unwrap().mana;
+    let mana = g.treasury(P0).unwrap().mana;
     assert!(mana < 100);
     g.apply(Command::CancelCast { player: P0 });
     assert_eq!(g.magic(P0).unwrap().casting, None);
-    assert_eq!(g.player(P0).unwrap().mana, mana, "no refund");
+    assert_eq!(g.treasury(P0).unwrap().mana, mana, "no refund");
 }
 
 #[test]
@@ -531,7 +532,7 @@ fn a_city_enchantment_is_cast_and_paid_for() {
     let prosperity = spell(&g, "prosperity");
     g.magic_mut(P0).unwrap().known.insert(prosperity);
     g.magic_mut(P0).unwrap().skill_left = 999;
-    g.player_mut(P0).unwrap().mana = 1000;
+    g.treasury_mut(P0).unwrap().mana = 1000;
     let gold = g.economy().city_economy(city).unwrap().gold;
     g.apply(Command::CastSpell {
         player: P0,

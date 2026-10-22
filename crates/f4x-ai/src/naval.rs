@@ -614,7 +614,7 @@ mod tests {
         );
         g.reveal_map(P0);
         // No upkeep trouble: the test world has no economy to pay for the army.
-        g.player_mut(P0).unwrap().gold = 1_000_000;
+        g.treasury_mut(P0).unwrap().gold = 1_000_000;
         spawn(&mut g, P0, port(), "galley", 1);
         // One stays as the garrison; four go.
         let army = spawn(&mut g, P0, port(), "high_men_spearmen", 5);

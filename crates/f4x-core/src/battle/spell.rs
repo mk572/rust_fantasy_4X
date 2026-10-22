@@ -443,7 +443,10 @@ impl Game {
             if self.is_corrupted(site) && self.has_global(player, "great_wasting") {
                 range = range.min(10);
             }
-            battle.set_caster(side, BattleCaster::new(skill, p.mana, range));
+            battle.set_caster(
+                side,
+                BattleCaster::new(skill, self.treasury(player).map_or(0, |t| t.mana), range),
+            );
         }
     }
 
@@ -458,8 +461,8 @@ impl Game {
             .filter_map(|s| Some((active.battle.player_of(s), active.battle.caster(s)?.mana)))
             .collect();
         for (player, mana) in reserves {
-            if let Some(p) = self.player_mut(player) {
-                p.mana = mana;
+            if let Some(t) = self.treasury_mut(player) {
+                t.mana = mana;
             }
         }
     }

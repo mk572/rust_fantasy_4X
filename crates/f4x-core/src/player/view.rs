@@ -19,9 +19,9 @@ use crate::content::{Content, TerrainClass};
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
 use crate::map::{Plane, Position};
-use crate::player::{PlayerId, PlayerRef};
+use crate::player::{PlayerId, PlayerRef, Treasury};
 
-use crate::player::finance::Treasury;
+use crate::player::finance::Budget;
 
 use crate::game::Game;
 use crate::rules::{SpellDef, SpellId, Stat, UnitDef};
@@ -63,9 +63,22 @@ impl<'a> PlayerView<'a> {
         self.game.game_over.is_some()
     }
 
-    /// The player's own record: gold, mana, fortress, whether it is defeated.
+    /// The player's own record: fortress, fame and the other data that is not a component of its
+    /// own yet.
     pub fn player(&self) -> Option<PlayerRef<'a>> {
         self.game.player(self.me)
+    }
+
+    /// The player's gold and mana.
+    pub fn treasury(&self) -> Treasury {
+        self.game
+            .treasury(self.me)
+            .unwrap_or(Treasury { gold: 0, mana: 0 })
+    }
+
+    /// Has the player lost everything?
+    pub fn is_defeated(&self) -> bool {
+        self.game.is_defeated(self.me)
     }
 
     /// The offers made to the player at the turn change that wait for an answer.
@@ -78,8 +91,8 @@ impl<'a> PlayerView<'a> {
     }
 
     /// What the player's income and expenses come to this turn.
-    pub fn treasury(&self) -> Treasury {
-        self.game.treasury(self.me)
+    pub fn budget(&self) -> Budget {
+        self.game.budget(self.me)
     }
 
     /// The spells on offer for research.

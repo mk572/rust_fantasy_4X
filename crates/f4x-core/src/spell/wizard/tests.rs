@@ -181,9 +181,8 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
-        let mut p = Player::new();
-        p.mana = 5000;
-        g.add_player(id, name, p);
+        g.add_player(id, name, Player::new());
+        g.treasury_mut(id).unwrap().mana = 5000;
         g.init_wizard(id, &[("death", 3)], &[], None).unwrap();
         g.magic_mut(id).unwrap().skill_left = 99_999;
     }
@@ -212,7 +211,7 @@ fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
 #[test]
 fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
     let mut g = world();
-    g.player_mut(P1).unwrap().mana = 1000;
+    g.treasury_mut(P1).unwrap().mana = 1000;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
     let taken = events
         .iter()
@@ -222,16 +221,16 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
         })
         .unwrap_or_else(|| panic!("{events:?}"));
     assert!((10..=200).contains(&taken), "{taken}");
-    assert_eq!(g.player(P1).unwrap().mana, 1000 - taken);
+    assert_eq!(g.treasury(P1).unwrap().mana, 1000 - taken);
     // A poor victim loses only what is there.
-    g.player_mut(P1).unwrap().mana = 4;
+    g.treasury_mut(P1).unwrap().mana = 4;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
     assert!(events.contains(&Event::PowerDrained {
         player: P0,
         victim: P1,
         amount: 4
     }));
-    assert_eq!(g.player(P1).unwrap().mana, 0);
+    assert_eq!(g.treasury(P1).unwrap().mana, 0);
 }
 
 #[test]
@@ -1138,8 +1137,8 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
     keep(&mut g, P0, "time_stop");
     g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
     // Another global enchantment of the wizard's costs nothing now.
-    g.player_mut(P0).unwrap().mana = 500;
-    g.player_mut(P0).unwrap().gold = 100;
+    g.treasury_mut(P0).unwrap().mana = 500;
+    g.treasury_mut(P0).unwrap().gold = 100;
     g.magic_mut(P1).unwrap().skill_left = 5;
     g.apply(Command::EndTurn);
     assert!(g.units().unit_moves_left(mine) > 0);
@@ -1148,12 +1147,12 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
         0,
         "their troops are frozen"
     );
-    assert_eq!(g.player(P0).unwrap().mana, 300, "200 for Time Stop");
-    assert_eq!(g.player(P0).unwrap().gold, 100, "no gold either way");
+    assert_eq!(g.treasury(P0).unwrap().mana, 300, "200 for Time Stop");
+    assert_eq!(g.treasury(P0).unwrap().gold, 100, "no gold either way");
     assert!(g.time_stopper() == Some(P0));
     // Out of mana, the spell is lost and time runs again.
     g.apply(Command::EndTurn);
-    assert_eq!(g.player(P0).unwrap().mana, 100);
+    assert_eq!(g.treasury(P0).unwrap().mana, 100);
     g.apply(Command::EndTurn);
     assert_eq!(g.time_stopper(), None, "it could not be paid for");
     g.apply(Command::EndTurn);

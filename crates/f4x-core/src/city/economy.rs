@@ -514,8 +514,6 @@ impl<'a> Economy<'a> {
         let map = self.map?;
         let grid = map.plane(at.plane);
         let mods = self.city_modifiers(city);
-        let player_ref = self.player(owner);
-        let player = player_ref.as_deref();
         let figures = pop.figures;
         let farmers = farmers.min(figures);
 
@@ -599,7 +597,8 @@ impl<'a> Economy<'a> {
         let terrain_food = terrain_food_x2 / 4;
 
         // Rebels.
-        let tax_rate = player.map_or(1, |p| p.tax_rate) as usize;
+        let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
+            .map_or(1, |t| t.0) as usize;
         let capital = crate::wizard::entity::find(self.world, owner).and_then(|w| w.capital_race());
         let racial = match (capital, race_id) {
             (Some(c), Some(r)) => {
@@ -766,7 +765,8 @@ impl<'a> Economy<'a> {
 
         // A computer wizard's difficulty bonuses come last, on the finished figures, as in the
         // original's `Do_City_Calculations`.
-        let bonus = player.map_or_else(crate::player::Bonus::default, |p| p.bonus);
+        let bonus = crate::player::component::<crate::player::Bonus>(self.world, owner)
+            .map_or_else(crate::player::Bonus::default, |b| *b);
         let of = crate::player::Bonus::of;
         let growth_tens = if growth_tens > 0 {
             of(bonus.growth, growth_tens)
@@ -961,7 +961,10 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let city = world.spawn((
             City {
                 name: "Town".into(),
@@ -976,7 +979,10 @@ mod handle_tests {
             Buildings::default(),
             Enchantments::default(),
         ));
-        world.spawn((PlayerId(0), crate::player::Player::new()));
+        world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let eco = Economy::new(&world, Some(&map), &content);
 
         let now = eco.city_economy(city).unwrap();
@@ -1007,7 +1013,10 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         let city = world.spawn((
             City {
                 name: "Town".into(),
@@ -1026,10 +1035,7 @@ mod handle_tests {
         let before = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .unwrap();
-        world
-            .get::<&mut crate::player::Player>(player)
-            .unwrap()
-            .bonus = crate::player::Bonus {
+        *world.get::<&mut crate::player::Bonus>(player).unwrap() = crate::player::Bonus {
             food: 200,
             production: 150,
             gold: 200,

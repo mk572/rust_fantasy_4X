@@ -114,7 +114,7 @@ impl Game {
         if kind.is_world() && self.events.world_event().is_some() {
             return None;
         }
-        if kind == EventKind::Piracy && self.player(victim).map_or(0, |p| p.gold) < 100 {
+        if kind == EventKind::Piracy && self.treasury(victim).map_or(0, |p| p.gold) < 100 {
             return None;
         }
         let (mut city, mut other) = (None, None);
@@ -377,10 +377,10 @@ impl Game {
                 notice.lost_population = people;
             }
             EventKind::Piracy => {
-                let gold = self.player(victim).map_or(0, |p| p.gold);
+                let gold = self.treasury(victim).map_or(0, |p| p.gold);
                 let take = pirates_take(gold, rng.roll(21)).min(gold);
-                if let Some(p) = self.player_mut(victim) {
-                    p.gold = (p.gold - take).max(0);
+                if let Some(t) = self.treasury_mut(victim) {
+                    t.gold = (t.gold - take).max(0);
                 }
                 notice.number = take;
             }
@@ -401,8 +401,8 @@ impl Game {
             }
             EventKind::Donation => {
                 let gold = donation(rng.roll(100));
-                if let Some(p) = self.player_mut(victim) {
-                    p.gold += gold;
+                if let Some(t) = self.treasury_mut(victim) {
+                    t.gold += gold;
                 }
                 notice.number = gold;
             }
@@ -454,7 +454,7 @@ impl Game {
         out: &mut Vec<Event>,
     ) {
         let world = notice.kind.is_world() || notice.kind == EventKind::Disjunction;
-        let human = self.human;
+        let human = self.human();
         if !world {
             notice.player = Some(victim);
             notice.player_name = self.player_name(victim);

@@ -54,10 +54,9 @@ fn world(seed: u64) -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
-        let mut p = Player::new();
-        p.gold = 100;
-        p.mana = 100;
-        g.add_player(id, "W", p);
+        g.add_player(id, "W", Player::new());
+        g.treasury_mut(id).unwrap().gold = 100;
+        g.treasury_mut(id).unwrap().mana = 100;
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g
@@ -312,7 +311,7 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     // The test rules have no heroes to free.
     assert!(!loot.prisoner);
     assert_eq!(
-        (g.player(P0).unwrap().gold, g.player(P0).unwrap().mana),
+        (g.treasury(P0).unwrap().gold, g.treasury(P0).unwrap().mana),
         (220, 130)
     );
     let map = g.map.as_ref().unwrap();
@@ -474,7 +473,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
         g.map.as_ref().unwrap().plane(Plane::Arcanus).feature(5, 5),
         None
     );
-    assert_eq!(g.player(P0).unwrap().gold, 220);
+    assert_eq!(g.treasury(P0).unwrap().gold, 220);
     assert_eq!(
         g.units().unit_position(w),
         Some(at(5, 5)),
@@ -700,7 +699,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
         g.units().units_at(at(5, 5)).is_empty(),
         "the guards are made anew on each visit"
     );
-    assert_eq!(g.player(P0).unwrap().gold, 100, "no treasure");
+    assert_eq!(g.treasury(P0).unwrap().gold, 100, "no treasure");
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
 }
 

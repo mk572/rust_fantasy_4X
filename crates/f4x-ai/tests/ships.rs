@@ -54,7 +54,7 @@ fn can_build_building(game: &Game, at: Position, building: &str) -> Result<(), P
 
 /// A funded wizard whose city feeds its troops, so end turns do not disband the test army.
 fn fund(game: &mut Game) {
-    game.player_mut(P0).unwrap().gold = 1_000_000;
+    game.treasury_mut(P0).unwrap().gold = 1_000_000;
     game.balance_farmers(P0);
 }
 

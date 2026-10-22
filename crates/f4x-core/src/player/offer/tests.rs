@@ -47,12 +47,12 @@ fn world() -> Game {
     let scout = g.content.rules.units.id_of("elf_spear").unwrap();
     g.spawn_unit(P0, at(2, 3), scout);
     g.spawn_unit(P1, at(8, 3), scout);
-    g.human = Some(P0);
+    g.set_human(Some(P0));
     g.turn = 40;
     for (i, id) in g.player_ids().into_iter().take(2).enumerate() {
+        g.treasury_mut(id).unwrap().gold = 5000;
         let p = g.player_mut(id).unwrap();
         p.fortress = Some(at(1 + i as u32 * 6, 1));
-        p.gold = 5000;
         p.fame = 190;
     }
     g
@@ -192,10 +192,10 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
     assert!((1..=3).contains(&count) && (1..=3).contains(&level));
     let (arcanus, myrror) = g.planes_of(P0);
     assert_eq!((arcanus, myrror), (true, false));
-    let gold = g.pl(0).gold;
+    let gold = g.tr(0).gold;
     let before = g.units().units_at(at(1, 1)).len();
     let events = g.accept_offer(P0, i, None).unwrap();
-    assert_eq!(g.pl(0).gold, gold - price);
+    assert_eq!(g.tr(0).gold, gold - price);
     let Some(Event::MercenariesHired { units, .. }) = events.first() else {
         panic!("{events:?}");
     };
@@ -218,7 +218,7 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
 #[test]
 fn mercenaries_are_not_offered_to_a_wizard_who_cannot_pay_even_at_the_discount() {
     let mut g = world();
-    g.pl_mut(0).gold = 0;
+    g.tr_mut(0).gold = 0;
     for _ in 0..500 {
         g.determine_offers();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
@@ -232,10 +232,10 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
     let Offer::Hero { kind, price } = g.offers(P0)[i] else {
         unreachable!()
     };
-    let gold = g.pl(0).gold;
+    let gold = g.tr(0).gold;
     let events = g.accept_offer(P0, i, Some("Rex".into())).unwrap();
     assert!(matches!(events[..], [Event::HeroJoined { kind: k, .. }] if k == kind));
-    assert_eq!(g.pl(0).gold, gold - price);
+    assert_eq!(g.tr(0).gold, gold - price);
     assert_eq!(g.pl(0).roster.get(kind).unwrap().name, "Rex");
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
@@ -243,7 +243,10 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
 #[test]
 fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
     let mut g = world();
-    g.pl_mut(0).offers.clear();
+    g.player_component_mut::<crate::player::Offers>(P0)
+        .unwrap()
+        .0
+        .clear();
     g.map
         .as_mut()
         .unwrap()
@@ -266,10 +269,10 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
     };
     assert!(loot.prisoner);
     assert!(matches!(g.offers(P0)[0], Offer::Hero { price: 0, .. }));
-    let gold = g.pl(0).gold;
+    let gold = g.tr(0).gold;
     let joined = g.accept_offer(P0, 0, None).unwrap();
     assert!(matches!(joined[..], [Event::HeroJoined { .. }]));
-    assert_eq!(g.pl(0).gold, gold, "a freed prisoner costs nothing");
+    assert_eq!(g.tr(0).gold, gold, "a freed prisoner costs nothing");
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
 
@@ -277,7 +280,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
 fn a_hero_the_wizard_cannot_pay_for_stays_on_offer() {
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
-    g.pl_mut(0).gold = 0;
+    g.tr_mut(0).gold = 0;
     assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoGold));
     assert!(!g.offers(P0).is_empty());
     assert!(g.units().hero_units(P0).is_empty());
@@ -298,9 +301,9 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
         unreachable!()
     };
     assert_eq!(price, item_price(item.cost, false));
-    let gold = g.pl(0).gold;
+    let gold = g.tr(0).gold;
     let events = g.accept_offer(P0, i, None).unwrap();
-    assert_eq!(g.pl(0).gold, gold - price);
+    assert_eq!(g.tr(0).gold, gold - price);
     assert!(matches!(
         events[..],
         [Event::ItemMade {
@@ -316,7 +319,7 @@ fn the_price_is_tested_after_the_charismatic_discount() {
     g.pl_mut(0).magic.retorts.insert(Retort::Charismatic);
     // Hardly any gold: the full price could never be paid, the half price can be.
     for _ in 0..3000 {
-        g.pl_mut(0).gold = 100;
+        g.tr_mut(0).gold = 100;
         g.determine_offers();
         for offer in g.offers(P0) {
             if let Offer::Item { item, price } = offer {
@@ -363,7 +366,10 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() {
         |o| matches!(o, Offer::Item { item, .. } if item.prefab.is_some()),
     );
     assert!(i < g.offers(P0).len());
-    g.pl_mut(0).offers.clear();
+    g.player_component_mut::<crate::player::Offers>(P0)
+        .unwrap()
+        .0
+        .clear();
     assert_eq!(g.reject_offer(P0, 0), Err(OfferError::NoOffer));
 }
 
@@ -379,7 +385,7 @@ fn the_turn_change_makes_the_offers_and_a_save_keeps_them() {
         .unwrap()
         .restore(g.content.clone())
         .unwrap();
-    assert_eq!(back.pl(0).offers, g.pl(0).offers);
+    assert_eq!(back.offers(P0), g.offers(P0));
     assert_eq!(back.prefab_taken, g.prefab_taken);
 }
 

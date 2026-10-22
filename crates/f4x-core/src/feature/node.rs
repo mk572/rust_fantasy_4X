@@ -302,9 +302,8 @@ pub(crate) mod tests {
         g.content = c;
         g.map = Some(map);
         for id in [P0, P1] {
-            let mut p = Player::new();
-            p.mana = 100;
-            g.add_player(id, "W", p);
+            g.add_player(id, "W", Player::new());
+            g.treasury_mut(id).unwrap().mana = 100;
             g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
         }
         g

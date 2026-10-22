@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 314 | Player | Treasury, tax, offers, defeat and the other player data as components |
 | 315 | Wizard | Creation data and `Magic` as wizard components (picks, books, retorts, skill, research, known spells, fame) |
 | 316 | Wizard | Fortress, summoning circle, banishment, personality and objective as wizard components |
 | 317 | Player | Remove the `Player` struct and `Vec<Player>`; adapt all crates |
@@ -102,10 +101,6 @@ neighbours.
 ## Descriptions
 
 ### B. Player and wizard
-
-**314. Player data as components.** `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`,
-`Offers`, `Defeat` (with `defeated_by`), `Control`. About 230 gold and 280 mana use sites in core,
-plus the AI, client and console. *Needs:* 313.
 
 **315. Wizard data as components.** `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`
 and `Fame`. The methods of `Magic` become methods over a wizard read handle (the `Units<'a>` and

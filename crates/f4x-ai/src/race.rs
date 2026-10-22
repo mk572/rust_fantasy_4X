@@ -23,7 +23,7 @@ pub(crate) type Sighting = (u32, i32);
 /// neither knows it nor is offered it in research.
 fn own_turns(view: &PlayerView, mastery: SpellId) -> Option<f32> {
     let magic = view.magic()?;
-    let mana = view.player().map_or(0, |p| p.mana);
+    let mana = view.treasury().mana;
     let income = view.income();
     let skill = magic.casting_skill().max(1) as f32;
     let mana_rate = income.split.mana.max(1) as f32;
@@ -186,7 +186,7 @@ mod tests {
             p.magic.known.insert(mastery);
             p.magic.known.insert(other);
             p.magic.skill_points = 20_000;
-            p.mana = 20_000;
+            g.treasury_mut(P0).unwrap().mana = 20_000;
         }
         casts(&mut g, P0, other, 300);
         casts(&mut g, P1, mastery, 40_000);

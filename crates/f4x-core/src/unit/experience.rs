@@ -223,9 +223,8 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.fog = crate::map::fog::Fog::new(24, 14);
-        let mut p = Player::new();
-        p.mana = 5000;
-        g.add_player(P0, "W", p);
+        g.add_player(P0, "W", Player::new());
+        g.treasury_mut(P0).unwrap().mana = 5000;
         g.init_wizard(P0, &[("life", 4)], &[], None).unwrap();
         g
     }

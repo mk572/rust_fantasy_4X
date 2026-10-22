@@ -1076,12 +1076,12 @@ impl Diplomacy {
         amount: i32,
     ) -> Result<(), DiplomacyError> {
         self.check_gift(ctx.view, from, to)?;
-        if amount <= 0 || ctx.view.player(from).is_none_or(|p| p.gold < amount) {
+        if amount <= 0 || ctx.view.treasury(from).is_none_or(|p| p.gold < amount) {
             return Err(DiplomacyError::NotEnoughGold);
         }
         // The original offers a quarter, half, three quarters or all of the receiver's gold: the
         // larger the share, the warmer the thanks.
-        let reserve = ctx.view.player(to).map_or(0, |p| p.gold).max(1);
+        let reserve = ctx.view.treasury(to).map_or(0, |p| p.gold).max(1);
         let choice = ((amount * 4 + reserve - 1) / reserve).clamp(1, 4);
         let base = if army_strength(ctx.view, to) > 0 {
             choice * 4
@@ -1572,11 +1572,11 @@ impl Game {
         for outcome in out {
             match outcome {
                 Outcome::Gold { from, to, amount } => {
-                    if let Some(p) = self.player_mut(from) {
-                        p.gold -= amount;
+                    if let Some(t) = self.treasury_mut(from) {
+                        t.gold -= amount;
                     }
-                    if let Some(p) = self.player_mut(to) {
-                        p.gold += amount;
+                    if let Some(t) = self.treasury_mut(to) {
+                        t.gold += amount;
                     }
                 }
                 Outcome::Spell { player, spell } => self.learn_spell(player, spell),

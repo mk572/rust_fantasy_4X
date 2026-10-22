@@ -59,8 +59,6 @@ pub struct Game {
     pub battle: Option<battle::game::ActiveBattle>,
     /// Set once the game has ended; every later command is refused.
     pub game_over: Option<game::endgame::GameOver>,
-    /// The human wizard, whose defeat ends the game at once.
-    pub human: Option<player::PlayerId>,
     /// Contact, relations, treaties and proposals between wizards.
     pub diplomacy: diplomacy::Diplomacy,
     /// The random events that are going on.
@@ -98,7 +96,6 @@ impl Game {
             settings: game::setting::GameSettings::flat(),
             battle: None,
             game_over: None,
-            human: None,
             diplomacy: diplomacy::Diplomacy::default(),
             events: world_event::Events::default(),
             item_awards: Vec::new(),
@@ -167,7 +164,8 @@ impl Game {
             self.player_entity(id).is_none(),
             "player {id:?} is made twice"
         );
-        let e = self.world.spawn((id, player));
+        let e = self.world.spawn(player::bundle(id, player));
+        let _ = self.world.insert_one(e, player::Control::Ai);
         let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
         let _ = self.world.insert_one(e, player::WizardLink(w));
         self.player_index.insert(id, e);
@@ -181,7 +179,8 @@ impl Game {
         id: player::PlayerId,
         player: player::Player,
     ) -> hecs::Entity {
-        let e = self.world.spawn((id, player, player::Neutral));
+        let e = self.world.spawn(player::bundle(id, player));
+        let _ = self.world.insert_one(e, player::Neutral);
         self.player_index.insert(id, e);
         e
     }
@@ -255,6 +254,107 @@ impl Game {
         self.world.query_one_mut::<&mut player::Player>(e).ok()
     }
 
+    /// A component of a player (`Tax`, `Bonus`, `History`, `Offers`, `Defeat`, ...).
+    pub fn player_component<C: hecs::Component>(
+        &self,
+        id: player::PlayerId,
+    ) -> Option<hecs::Ref<'_, C>> {
+        self.world.get::<&C>(self.player_entity(id)?).ok()
+    }
+
+    /// A component of a player, to change.
+    pub fn player_component_mut<C: hecs::Component>(
+        &mut self,
+        id: player::PlayerId,
+    ) -> Option<&mut C> {
+        let e = self.player_entity(id)?;
+        self.world.query_one_mut::<&mut C>(e).ok()
+    }
+
+    /// A player's gold and mana.
+    pub fn treasury(&self, id: player::PlayerId) -> Option<player::Treasury> {
+        self.player_component::<player::Treasury>(id).map(|t| *t)
+    }
+
+    /// A player's data and its gold and mana, to change both at once.
+    pub fn player_treasury_mut(
+        &mut self,
+        id: player::PlayerId,
+    ) -> Option<(&mut player::Player, &mut player::Treasury)> {
+        let e = self.player_entity(id)?;
+        self.world
+            .query_one_mut::<(&mut player::Player, &mut player::Treasury)>(e)
+            .ok()
+    }
+
+    /// A player's gold and mana, to change.
+    pub fn treasury_mut(&mut self, id: player::PlayerId) -> Option<&mut player::Treasury> {
+        self.player_component_mut(id)
+    }
+
+    /// The human wizard, whose defeat ends the game at once.
+    pub fn human(&self) -> Option<player::PlayerId> {
+        self.world
+            .query::<(&player::PlayerId, &player::Control)>()
+            .iter()
+            .find(|(_, (_, &c))| c == player::Control::Human)
+            .map(|(_, (&id, _))| id)
+    }
+
+    /// Make this player the human wizard and every other one a computer wizard (`None`: all
+    /// computer wizards).
+    pub fn set_human(&mut self, human: Option<player::PlayerId>) {
+        for (_, (&id, control)) in self
+            .world
+            .query_mut::<(&player::PlayerId, &mut player::Control)>()
+        {
+            *control = if Some(id) == human {
+                player::Control::Human
+            } else {
+                player::Control::Ai
+            };
+        }
+    }
+
+    /// Make this player the human wizard when the game has none yet.
+    pub fn ensure_human(&mut self, id: player::PlayerId) {
+        if self.human().is_none() {
+            self.set_human(Some(id));
+        }
+    }
+
+    /// The wizard's power at each turn, for the History screen.
+    pub fn history(&self, id: player::PlayerId) -> Vec<u8> {
+        self.player_component::<player::History>(id)
+            .map_or_else(Vec::new, |h| h.0.clone())
+    }
+
+    /// Does the player's Grand Vizier choose what its cities build next?
+    pub fn has_grand_vizier(&self, id: player::PlayerId) -> bool {
+        self.player_component::<player::GrandVizier>(id).is_some()
+    }
+
+    pub(crate) fn set_grand_vizier(&mut self, id: player::PlayerId, on: bool) {
+        let Some(e) = self.player_entity(id) else {
+            return;
+        };
+        if on {
+            let _ = self.world.insert_one(e, player::GrandVizier);
+        } else {
+            let _ = self.world.remove_one::<player::GrandVizier>(e);
+        }
+    }
+
+    /// Who took the last city of a defeated player.
+    pub fn defeat_by(&self, id: player::PlayerId) -> Option<player::PlayerId> {
+        self.player_component::<player::Defeat>(id)?.by
+    }
+
+    /// Has the player lost everything?
+    pub fn is_defeated(&self, id: player::PlayerId) -> bool {
+        self.player_component::<player::Defeat>(id).is_some()
+    }
+
     /// Every player with its id: wizards and independent cities' players, ascending.
     pub fn players(&self) -> Vec<(player::PlayerId, player::PlayerRef<'_>)> {
         player::all(&self.world)
@@ -264,6 +364,17 @@ impl Game {
     #[cfg(test)]
     pub(crate) fn pl(&self, i: usize) -> player::PlayerRef<'_> {
         self.player(self.player_ids()[i]).unwrap()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tr(&self, i: usize) -> player::Treasury {
+        self.treasury(self.player_ids()[i]).unwrap()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tr_mut(&mut self, i: usize) -> &mut player::Treasury {
+        let id = self.player_ids()[i];
+        self.treasury_mut(id).unwrap()
     }
 
     #[cfg(test)]
@@ -476,15 +587,13 @@ impl Game {
                     .tax_unrest_percent
                     .len()
                     .saturating_sub(1) as u8;
-                if let Some(p) = self.player_mut(player) {
-                    p.tax_rate = rate.min(max);
+                if let Some(t) = self.player_component_mut::<player::Tax>(player) {
+                    t.0 = rate.min(max);
                 }
                 Vec::new()
             }
             Command::SetGrandVizier { player, on } => {
-                if let Some(p) = self.player_mut(player) {
-                    p.grand_vizier = on;
-                }
+                self.set_grand_vizier(player, on);
                 if on {
                     self.vizier_fills_idle_cities(player);
                 }
@@ -539,8 +648,8 @@ impl Game {
                 player,
                 amount,
                 gold_to_mana,
-            } => reject(match self.player_mut(player) {
-                Some(p) => wizard::magic_commands::alchemy(p, amount, gold_to_mana),
+            } => reject(match self.player_treasury_mut(player) {
+                Some((p, t)) => wizard::magic_commands::alchemy(p, t, amount, gold_to_mana),
                 None => Err(wizard::magic::MagicError::UnknownPlayer),
             }),
             Command::CastSpell {

@@ -122,12 +122,12 @@ mod tests {
     fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() {
         let mut g = game(COAST_CITY, "high_men");
         let army = spawn(&mut g, P0, at(9, 6), "high_men_spearmen", 8);
-        g.player_mut(P0).unwrap().gold = 3;
+        g.treasury_mut(P0).unwrap().gold = 3;
         g.apply(Command::SetTaxRate {
             player: P0,
             rate: 0,
         });
-        let t = g.treasury(P0);
+        let t = g.budget(P0);
         assert!(t.food_upkeep > t.food_surplus, "the town cannot feed eight");
         assert!(g.treasury_shortfall(P0).is_some());
         let mut events = Vec::new();

@@ -180,8 +180,8 @@ impl Economy<'_> {
         // A computer wizard's difficulty bonus (the original applied it here, too).
         let owner = self.city_owner(city);
         let bonus = owner
-            .and_then(|o| self.player(o))
-            .map_or(100, |p| p.bonus.outpost_growth);
+            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
+            .map_or(100, |b| b.outpost_growth);
         crate::player::Bonus::of(bonus, grow)
     }
 }

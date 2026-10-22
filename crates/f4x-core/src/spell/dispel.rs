@@ -340,11 +340,11 @@ impl Game {
             return None;
         }
         let spent = self.mana_spent_casting(victim)?;
-        if self.player(by)?.mana < spent {
+        if self.treasury(by)?.mana < spent {
             return None;
         }
         let spell = self.magic(victim)?.casting?.spell;
-        self.player_mut(by)?.mana -= spent;
+        self.treasury_mut(by)?.mana -= spent;
         self.magic_mut(victim)?.casting = None;
         Some((spell, spent))
     }

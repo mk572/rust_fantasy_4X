@@ -249,9 +249,9 @@ impl App {
             self.game.spawn_unit(HUMAN, at, *u);
         }
         let _ = self.game.spawn_hero(HUMAN, at, 0);
-        if let Some(p) = self.game.player_mut(HUMAN) {
-            p.gold = 0;
-            p.mana = 0;
+        if let Some((p, t)) = self.game.player_treasury_mut(HUMAN) {
+            t.gold = 0;
+            t.mana = 0;
             p.magic.global.extend(spells);
         }
         self.game.apply(Command::SetTaxRate {

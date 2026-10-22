@@ -219,7 +219,7 @@ fn status(game: &Game) -> String {
     game.players()
         .iter()
         .filter(|(id, _)| !game.is_neutral_player(*id))
-        .map(|(id, p)| {
+        .map(|(id, _)| {
             let cities = game
                 .economy()
                 .cities()
@@ -227,8 +227,16 @@ fn status(game: &Game) -> String {
                 .filter(|(_, c, _)| c.owner == *id)
                 .count();
             let units = game.units().player_units(*id).len();
-            let tag = if p.defeated { " (defeated)" } else { "" };
-            format!("p{} {cities}c/{units}u/{}g{tag}", id.0, p.gold)
+            let tag = if game.is_defeated(*id) {
+                " (defeated)"
+            } else {
+                ""
+            };
+            format!(
+                "p{} {cities}c/{units}u/{}g{tag}",
+                id.0,
+                game.treasury(*id).map_or(0, |t| t.gold)
+            )
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -238,7 +246,7 @@ fn status(game: &Game) -> String {
 /// cast and how much of the map is explored.
 fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
     let mut out = Vec::new();
-    for (id, p) in game
+    for (id, _) in game
         .players()
         .iter()
         .filter(|(id, _)| !game.is_neutral_player(*id))
@@ -258,13 +266,13 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
             id.0,
             m.skill_left,
             m.casting_skill(),
-            game.treasury(id).net_gold(),
-            game.treasury(id).city_gold,
-            game.treasury(id).building_upkeep,
-            game.treasury(id).unit_upkeep,
-            game.treasury(id).food_gold,
-            game.treasury(id).food_surplus,
-            p.mana,
+            game.budget(id).net_gold(),
+            game.budget(id).city_gold,
+            game.budget(id).building_upkeep,
+            game.budget(id).unit_upkeep,
+            game.budget(id).food_gold,
+            game.budget(id).food_surplus,
+            game.treasury(id).map_or(0, |t| t.mana),
             income.split.mana,
             income.mana_upkeep,
             m.known.len(),
@@ -308,11 +316,11 @@ fn grant_mastery_to_all(game: &mut Game) {
         .map(|(id, _)| id)
         .collect();
     for id in ids {
-        if let Some(p) = game.player_mut(id) {
+        if let Some((p, t)) = game.player_treasury_mut(id) {
             p.magic.known.insert(spell);
             p.magic.researchable.remove(&spell);
             p.magic.skill_points += 2000;
-            p.mana += 6000;
+            t.mana += 6000;
         }
     }
 }

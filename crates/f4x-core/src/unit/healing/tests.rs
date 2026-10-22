@@ -81,7 +81,10 @@ impl Rig {
             .iter()
             .find(|(_, p)| **p == id)
             .map(|(e, _)| e);
-        found.unwrap_or_else(|| self.world.spawn((id, crate::player::Player::new())))
+        found.unwrap_or_else(|| {
+            self.world
+                .spawn(crate::player::bundle(id, crate::player::Player::new()))
+        })
     }
 
     fn unit(&mut self, kind: &str, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {

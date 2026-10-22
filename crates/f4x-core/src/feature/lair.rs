@@ -668,9 +668,11 @@ impl Game {
                 &mut self.prefab_taken,
             ));
         }
+        if let Some(t) = self.treasury_mut(player) {
+            t.gold += lair.gold as i32;
+            t.mana += lair.mana as i32;
+        }
         if let Some(p) = crate::player::find_mut(&mut self.world, player) {
-            p.gold += lair.gold as i32;
-            p.mana += lair.mana as i32;
             match lair.special {
                 1..=4 => {
                     loot.spell = award_spell(
@@ -705,8 +707,8 @@ impl Game {
                 ));
             } else {
                 loot.mana = 1000;
-                if let Some(p) = self.player_mut(player) {
-                    p.mana += 1000;
+                if let Some(t) = self.treasury_mut(player) {
+                    t.mana += 1000;
                 }
             }
         }
@@ -717,9 +719,8 @@ impl Game {
         // A prisoner is a hero offered for nothing, when the wizard has a slot for one.
         if lair.prisoner && self.units().open_hero_slots(player) > 0 {
             if let Some(kind) = self.pick_hero(player, true, crate::hero::roster::Class::Any) {
-                if let Some(p) = self.player_mut(player) {
-                    p.offers
-                        .insert(0, crate::player::offer::Offer::Hero { kind, price: 0 });
+                if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
+                    o.0.insert(0, crate::player::offer::Offer::Hero { kind, price: 0 });
                     loot.prisoner = true;
                 }
             }

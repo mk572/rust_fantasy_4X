@@ -851,7 +851,7 @@ impl Game {
                 continue;
             }
             fled.sort_by_key(|&(e, _)| (self.serial_of(e), e.id()));
-            let human = battle.player_of(side) == self.human.unwrap_or(PlayerId(u8::MAX));
+            let human = battle.player_of(side) == self.human().unwrap_or(PlayerId(u8::MAX));
             let safe = side == Side::Attacker && self.settings.rules.safe_flee.of(human);
             let mut lost = 0;
             for (unit, held) in fled {

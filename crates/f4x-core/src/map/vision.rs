@@ -244,7 +244,10 @@ mod tests {
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let walker = c.rules.units.id_of("walker").unwrap();
         let mut world = hecs::World::new();
-        let owner = world.spawn((PlayerId(0), crate::player::Player::new()));
+        let owner = world.spawn(crate::player::bundle(
+            PlayerId(0),
+            crate::player::Player::new(),
+        ));
         crate::unit::spawn(
             &mut world,
             &c,

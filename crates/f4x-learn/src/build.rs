@@ -81,18 +81,18 @@ fn set_wizard(game: &mut Game, player: PlayerId, spec: &Option<WizardSpec>) {
         .flat_map(|w| w.spells.iter())
         .filter_map(|s| game.content().rules.spells.id_of(s))
         .collect();
-    let Some(p) = game.player_mut(player) else {
+    let Some((p, t)) = game.player_treasury_mut(player) else {
         return;
     };
     p.magic.known.clear();
     match spec {
         Some(w) => {
-            p.mana = w.mana;
+            t.mana = w.mana;
             p.magic.skill_points = w.skill_points as _;
             p.magic.known.extend(ids);
         }
         None => {
-            p.mana = 0;
+            t.mana = 0;
             p.magic.skill_points = 0;
         }
     }

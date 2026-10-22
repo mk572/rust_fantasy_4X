@@ -46,10 +46,9 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {
-        let mut p = Player::new();
-        p.mana = 1000;
-        p.tax_rate = 4;
-        g.add_player(id, "W", p);
+        g.add_player(id, "W", Player::new());
+        g.treasury_mut(id).unwrap().mana = 1000;
+        g.player_component_mut::<crate::player::Tax>(id).unwrap().0 = 4;
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     g.init_wizard(P1, &[("chaos", 2)], &[], None).unwrap();
@@ -292,7 +291,7 @@ fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
     let spell = g.content.rules.spells.id_of("spell_ward").unwrap();
     g.magic_mut(P0).unwrap().known.insert(spell);
     g.magic_mut(P0).unwrap().skill_left = 500;
-    g.player_mut(P0).unwrap().mana = 5000;
+    g.treasury_mut(P0).unwrap().mana = 5000;
     let realm = realm(g, id);
     g.apply(Command::CastSpell {
         player: P0,

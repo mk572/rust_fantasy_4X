@@ -1,17 +1,17 @@
-//! The treasury (task 188): what a player takes in and pays out at the turn change, and who is
+//! The budget (task 188): what a player takes in and pays out at the turn change, and who is
 //! let go when the gold or the food runs short. The sums are plain functions over figures
-//! ([`Treasury::compute`], [`settle`]), so they run in a test without a game; the `Game` side
+//! ([`Budget::compute`], [`settle`]), so they run in a test without a game; the `Game` side
 //! gathers the figures from the cities and the troops and applies the result. The taxes and
 //! farmers that balance an independent city's books are here too.
 
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};
-use crate::player::PlayerId;
+use crate::player::{PlayerId, Tax};
 use crate::rules::UnitKind;
 
 /// A player's projected gold and food for the coming turn change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Treasury {
+pub struct Budget {
     /// Taxes, trade and mines from all cities.
     pub city_gold: i32,
     pub building_upkeep: i32,
@@ -44,7 +44,7 @@ pub struct Troop {
     pub noble_hero: bool,
 }
 
-impl Treasury {
+impl Budget {
     /// Net change in gold.
     pub fn net_gold(&self) -> i32 {
         self.city_gold - self.building_upkeep + self.noble_gold + self.food_gold - self.unit_upkeep
@@ -52,8 +52,8 @@ impl Treasury {
 
     /// The treasury from the player's cities and troops (in `player_units` order) and fame,
     /// which pays part of the troops' gold.
-    pub fn compute(cities: &[CityYield], troops: &[Troop], fame: i32) -> Treasury {
-        let mut t = Treasury::default();
+    pub fn compute(cities: &[CityYield], troops: &[Troop], fame: i32) -> Budget {
+        let mut t = Budget::default();
         let mut sold_food_gold = 0;
         for city in cities {
             t.city_gold += city.gold;
@@ -83,14 +83,14 @@ pub struct Settlement {
 }
 
 /// The gold on hand once the turn's income and the buildings' upkeep are counted (not below 0).
-pub fn gold_after_income(t: &Treasury, gold: i32) -> i32 {
+pub fn gold_after_income(t: &Budget, gold: i32) -> i32 {
     (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0)
 }
 
 /// Income, food and gold upkeep: the income is added, an army that eats more than the cities
 /// grow is disbanded newest first, then more units go (newest first) until the gold covers the
 /// upkeep of those left.
-pub fn settle(t: &Treasury, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
+pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
     let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
     let mut food_upkeep = t.food_upkeep;
@@ -134,15 +134,15 @@ impl Game {
     /// best there is when none does. How an independent city is run; wizards choose their own.
     pub(crate) fn balance_taxes(&mut self, player: PlayerId) {
         let rates = self.content.rules.config.tax_unrest_percent.len() as u8;
-        let Some(start) = self.player(player).map(|p| p.tax_rate) else {
+        let Some(start) = self.player_component::<Tax>(player).map(|t| t.0) else {
             return;
         };
         let mut best = (i32::MIN, start);
         for rate in 0..rates {
-            if let Some(p) = self.player_mut(player) {
-                p.tax_rate = rate;
+            if let Some(t) = self.player_component_mut::<Tax>(player) {
+                t.0 = rate;
             }
-            let net = self.treasury(player).net_gold();
+            let net = self.budget(player).net_gold();
             if net >= 0 {
                 best = (net, rate);
                 break;
@@ -151,8 +151,8 @@ impl Game {
                 best = (net, rate);
             }
         }
-        if let Some(p) = self.player_mut(player) {
-            p.tax_rate = best.1;
+        if let Some(t) = self.player_component_mut::<Tax>(player) {
+            t.0 = best.1;
         }
     }
 
@@ -180,7 +180,7 @@ impl Game {
             .sum();
         // Each extra farmer yields food beyond what he eats; add them where it pays most.
         loop {
-            let surplus = self.treasury(player).food_surplus;
+            let surplus = self.budget(player).food_surplus;
             if surplus >= upkeep {
                 break;
             }
@@ -223,7 +223,7 @@ impl Game {
     }
 
     /// What a player will take in and pay out at the next turn change.
-    pub fn treasury(&self, player: PlayerId) -> Treasury {
+    pub fn budget(&self, player: PlayerId) -> Budget {
         let cities: Vec<CityYield> = self
             .economy()
             .cities()
@@ -238,20 +238,20 @@ impl Game {
             })
             .collect();
         let fame = self.fame(player);
-        Treasury::compute(&cities, &self.troops(player), fame)
+        Budget::compute(&cities, &self.troops(player), fame)
     }
 
     /// Income, food and gold upkeep for one player; units go when they cannot be paid for
     /// (`release_one`: heroes come home, ships with passengers sail for the shore).
     pub(crate) fn settle_treasury(&mut self, player: PlayerId) -> Vec<Event> {
-        let t = self.treasury(player);
+        let t = self.budget(player);
         let troops = self.troops(player);
         let fame = self.fame(player);
-        let Some(p) = self.player_mut(player) else {
+        let Some(treasury) = self.treasury_mut(player) else {
             return Vec::new();
         };
-        let settled = settle(&t, p.gold, fame, &troops);
-        p.gold = settled.gold;
+        let settled = settle(&t, treasury.gold, fame, &troops);
+        treasury.gold = settled.gold;
         let mut events = Vec::new();
         let short = |cause: crate::game::LossCause| Event::Shortage {
             player,

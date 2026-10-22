@@ -192,7 +192,7 @@ impl Game {
     pub(crate) fn assign_temperaments(&mut self) {
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for id in ids {
-            if self.human == Some(id) {
+            if self.human() == Some(id) {
                 continue;
             }
             let Some(magic) = crate::player::magic(&self.world, id) else {

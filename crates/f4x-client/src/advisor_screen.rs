@@ -79,7 +79,7 @@ impl App {
         let kept = self
             .known_wizards()
             .iter()
-            .map(|&id| self.game.player(id).map_or(0, |p| p.history.len()))
+            .map(|&id| self.game.history(id).len())
             .max()
             .unwrap_or(0)
             .min(HISTORY_TURNS);
@@ -110,8 +110,7 @@ impl App {
             let Some((banner, history, name)) = self
                 .game
                 .wizard(id)
-                .zip(self.game.player(id))
-                .map(|(w, p)| (w.banner(), p.history.clone(), w.name()))
+                .map(|w| (w.banner(), self.game.history(id), w.name()))
             else {
                 continue;
             };

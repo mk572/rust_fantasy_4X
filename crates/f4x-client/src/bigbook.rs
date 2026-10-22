@@ -158,7 +158,7 @@ impl App {
             .game
             .magic(HUMAN)
             .is_some_and(|m| m.researching.is_none() && !m.candidates.is_empty());
-        let alive = self.game.player(HUMAN).is_some_and(|p| !p.defeated);
+        let alive = self.game.player(HUMAN).is_some() && !self.game.is_defeated(HUMAN);
         if idle && alive && self.game.game_over.is_none() {
             self.open_research_choice();
         }
@@ -408,7 +408,8 @@ impl App {
         } else {
             let cost = self.game.casting_cost(HUMAN, spell, false);
             let limit = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill()).min(
-                self.game.player(HUMAN).map_or(0, |p| p.mana) + self.game.income(HUMAN).split.mana,
+                self.game.treasury(HUMAN).map_or(0, |p| p.mana)
+                    + self.game.income(HUMAN).split.mana,
             );
             let turns = if limit <= 0 {
                 999

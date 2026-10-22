@@ -106,11 +106,11 @@ impl Game {
     /// Add this turn's power to every wizard's history.
     pub(crate) fn record_history(&mut self) {
         for (id, _, power) in self.astrology_table() {
-            if let Some(p) = self.player_mut(id) {
-                if p.history.len() >= HISTORY_TURNS {
-                    p.history.remove(0);
+            if let Some(h) = self.player_component_mut::<crate::player::History>(id) {
+                if h.0.len() >= HISTORY_TURNS {
+                    h.0.remove(0);
                 }
-                p.history.push(power);
+                h.0.push(power);
             }
         }
     }

@@ -65,11 +65,10 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     for index in (0..count).rev() {
         let (offer, gold, turn) = {
             let view = PlayerView::new(game, ai.player);
-            let (Some(offer), Some(player)) = (view.offers().get(index).cloned(), view.player())
-            else {
+            let Some(offer) = view.offers().get(index).cloned() else {
                 continue;
             };
-            (offer, player.gold, view.turn())
+            (offer, view.treasury().gold, view.turn())
         };
         let accept = match &offer {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),
@@ -131,7 +130,7 @@ mod tests {
     fn a_computer_wizard_hires_the_hero_it_can_pay_for_and_turns_down_one_it_cannot() {
         let mut g = game();
         let ai = Ai::new(P1);
-        g.player_mut(P1).unwrap().gold = 5000;
+        g.treasury_mut(P1).unwrap().gold = 5000;
         offer_hero(&mut g);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
@@ -141,7 +140,7 @@ mod tests {
         );
         assert!(g.offers(P1).is_empty());
         // With nothing to pay with, the offer is turned down, not left lying.
-        g.player_mut(P1).unwrap().gold = 0;
+        g.treasury_mut(P1).unwrap().gold = 0;
         offer_hero(&mut g);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
@@ -153,7 +152,7 @@ mod tests {
     fn mercenaries_wait_for_turn_50() {
         let mut g = game();
         let ai = Ai::new(P1);
-        g.player_mut(P1).unwrap().gold = 100_000;
+        g.treasury_mut(P1).unwrap().gold = 100_000;
         g.turn = 40;
         let mut got = 0;
         for _ in 0..50 {
@@ -184,7 +183,7 @@ mod tests {
     fn a_computer_wizard_buys_the_merchants_item_once_it_has_a_hero_and_puts_it_on_the_hero() {
         let mut g = game();
         let ai = Ai::new(P1);
-        g.player_mut(P1).unwrap().gold = 100_000;
+        g.treasury_mut(P1).unwrap().gold = 100_000;
         // Without a hero to carry it, the item is turned down.
         g.cheat_offer(P1, OfferKind::Item).expect("an item");
         let mut events = Vec::new();

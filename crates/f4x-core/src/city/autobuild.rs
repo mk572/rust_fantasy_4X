@@ -683,8 +683,7 @@ impl Game {
             return Some(*a);
         }
         let owner = self.economy().city_owner(city)?;
-        self.player(owner)?
-            .grand_vizier
+        self.has_grand_vizier(owner)
             .then(|| AutoBuild::new(BuildPlan::vizier()))
     }
 
@@ -760,7 +759,7 @@ impl Game {
             max_size: e.max_size,
             food: e.food,
             rebels: e.rebels,
-            net_gold: self.treasury(owner).net_gold(),
+            net_gold: self.budget(owner).net_gold(),
             defenders,
             rival_near,
             built,

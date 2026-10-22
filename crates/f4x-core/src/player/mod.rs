@@ -40,10 +40,6 @@ pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
-    pub gold: i32,
-    pub mana: i32,
-    /// Index into the tax table in the rules config.
-    pub tax_rate: u8,
     pub fame: i32,
     pub magic: crate::wizard::magic::Magic,
     /// The wizard's items that are not on a hero: the vault and the award list.
@@ -51,9 +47,6 @@ pub struct Player {
     /// The wizard's record of each hero type: abilities rolled at the start, whether it can be
     /// hired, is serving, dead or gone, and the experience it keeps.
     pub roster: crate::hero::roster::Roster,
-    /// What this turn's merchant, mercenaries and hero asked of the wizard and is waiting for
-    /// an answer (task 220); they lapse at the next turn change.
-    pub offers: Vec<crate::player::offer::Offer>,
     /// Where the wizard's fortress stands (a city); `None` before it is placed or while
     /// banished.
     pub fortress: Option<crate::map::Position>,
@@ -63,21 +56,70 @@ pub struct Player {
     pub banished: bool,
     /// Who took the fortress while the wizard is banished (the one a resignation is to).
     pub banished_by: Option<PlayerId>,
-    /// The wizard has lost everything.
-    pub defeated: bool,
-    /// Who took the wizard's last city.
-    pub defeated_by: Option<PlayerId>,
-    /// The Grand Vizier chooses what this player's cities build next.
-    pub grand_vizier: bool,
-    /// The computer wizards' difficulty bonuses (percents of what a human would get). Set from
-    /// the game's settings (`Game::apply_wizard_settings`), not saved.
-    pub bonus: Bonus,
-    /// The wizard's power at each turn, for the History screen (task 71); the last 288 turns.
-    pub history: Vec<u8>,
 }
 
-/// What a wizard's cities and army are multiplied by, in percent (100 changes nothing). The
-/// original gives these to computer wizards by difficulty (`difficulty_modifiers_table`).
+/// On a player: its gold and mana.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Treasury {
+    pub gold: i32,
+    pub mana: i32,
+}
+
+impl Treasury {
+    /// Take half the mana (rounded down) out of the treasury and return it.
+    pub fn take_half_mana(&mut self) -> i32 {
+        let half = self.mana / 2;
+        self.mana -= half;
+        half
+    }
+}
+
+impl Default for Treasury {
+    fn default() -> Self {
+        Self { gold: 100, mana: 0 }
+    }
+}
+
+/// On a player: the index into the tax table in the rules config.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tax(pub u8);
+
+impl Default for Tax {
+    fn default() -> Self {
+        Self(START_TAX_RATE)
+    }
+}
+
+/// On a player: the wizard's power at each turn, for the History screen (task 71); the last 288
+/// turns.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct History(pub Vec<u8>);
+
+/// On a player whose Grand Vizier chooses what its cities build next.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GrandVizier;
+
+/// On a player: what this turn's merchant, mercenaries and hero asked of the wizard and is waiting
+/// for an answer (task 220); they lapse at the next turn change.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Offers(pub Vec<crate::player::offer::Offer>);
+
+/// On a player that has lost everything: who took its last city.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Defeat {
+    pub by: Option<PlayerId>,
+}
+
+/// Who decides for a player: the human at the screen or the AI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Control {
+    Human,
+    Ai,
+}
+
+/// On a player: what its cities and army are multiplied by, in percent (100 changes nothing). The
+/// original gives these to computer wizards by difficulty (`difficulty_modifiers_table`). Set from
+/// the game's settings (`Game::apply_wizard_settings`), not saved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bonus {
     pub growth: i32,
@@ -141,25 +183,33 @@ impl Default for Player {
 impl Player {
     pub fn new() -> Self {
         Self {
-            gold: 100,
-            mana: 0,
-            tax_rate: START_TAX_RATE,
             fame: 0,
             magic: crate::wizard::magic::Magic::default(),
             armory: crate::item::armory::Armory::default(),
             roster: crate::hero::roster::Roster::default(),
-            offers: Vec::new(),
             fortress: None,
             summon_at: None,
             banished: false,
             banished_by: None,
-            defeated: false,
-            defeated_by: None,
-            grand_vizier: false,
-            bonus: Bonus::default(),
-            history: Vec::new(),
         }
     }
+}
+
+/// A new player: its data and the components every player starts with. A wizard's player gets its
+/// `Control` and `WizardLink` when the game adds it.
+pub fn bundle(
+    id: PlayerId,
+    player: Player,
+) -> (PlayerId, Player, Treasury, Tax, Bonus, History, Offers) {
+    (
+        id,
+        player,
+        Treasury::default(),
+        Tax::default(),
+        Bonus::default(),
+        History::default(),
+        Offers::default(),
+    )
 }
 
 /// A read handle on one player's data.
@@ -222,6 +272,14 @@ pub fn magic(
     id: PlayerId,
 ) -> Option<hecs::Ref<'_, crate::wizard::magic::Magic>> {
     find(world, id).map(|p| hecs::Ref::map(p, |p| &p.magic))
+}
+
+/// A component of the player with this id.
+pub fn component<C: hecs::Component>(
+    world: &hecs::World,
+    id: PlayerId,
+) -> Option<hecs::Ref<'_, C>> {
+    world.get::<&C>(find_entity(world, id)?).ok()
 }
 
 /// The data of the player with this id.

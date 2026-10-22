@@ -385,7 +385,7 @@ impl crate::game::Game {
                 crate::wizard::magic::MagicError::NotAvailable,
             ))?;
         let reserve = self
-            .player(player)
+            .treasury(player)
             .ok_or(CraftingError::UnknownPlayer)?
             .mana;
         let (item, price, now) = {
@@ -399,10 +399,10 @@ impl crate::game::Game {
             let now = price <= magic.instant_budget(reserve);
             (item, price, now)
         };
-        if let Some(p) = self.player_mut(player) {
+        if let Some((p, t)) = self.player_treasury_mut(player) {
             if now {
                 p.magic.spend_skill(price);
-                p.mana -= price;
+                t.mana -= price;
             } else {
                 p.magic.begin_casting(spell, price);
                 p.magic.crafting = Some(item.clone());
@@ -541,9 +541,8 @@ mod tests {
         let mut g = Game::new(7);
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
-        let mut p = Player::new();
-        p.mana = 2000;
-        g.add_player(P0, "Merlin", p);
+        g.add_player(P0, "Merlin", Player::new());
+        g.treasury_mut(P0).unwrap().mana = 2000;
         g.init_wizard(P0, &[("chaos", 2)], &[], None).unwrap();
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
             .iter()
@@ -780,7 +779,7 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().bonus.attack, 2);
-        assert_eq!(g.pl(0).mana, 2000 - 200);
+        assert_eq!(g.tr(0).mana, 2000 - 200);
         assert_eq!(g.magic(P0).unwrap().skill_left, 800);
         assert!(g.magic(P0).unwrap().crafting.is_none());
     }
@@ -797,7 +796,7 @@ mod tests {
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &["attack_2"]),
         });
-        assert_eq!(g.pl(0).mana, 2000 - 100);
+        assert_eq!(g.tr(0).mana, 2000 - 100);
         assert_eq!(g.pl(0).armory.vault[0].as_ref().unwrap().cost, 200);
     }
 
@@ -864,7 +863,7 @@ mod tests {
                 CraftError::TooCostly
             )))
         ));
-        assert_eq!(g.pl(0).mana, 2000);
+        assert_eq!(g.tr(0).mana, 2000);
         g.magic_mut(P0).unwrap().known.clear();
         let events = g.apply(Command::CraftItem {
             player: P0,

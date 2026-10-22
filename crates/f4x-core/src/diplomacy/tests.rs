@@ -28,7 +28,7 @@ fn world() -> Game {
     for id in [P0, P1, P2] {
         g.add_player(id, "W", Player::new());
     }
-    g.human = Some(P0);
+    g.set_human(Some(P0));
     for id in [P0, P1, P2] {
         g.init_wizard(id, &[("sorcery", 2)], &[], None).unwrap();
     }
@@ -86,20 +86,8 @@ impl Rig {
         for outcome in out {
             match outcome {
                 Outcome::Gold { from, to, amount } => {
-                    self.view
-                        .players
-                        .iter_mut()
-                        .find(|(p, _)| *p == from)
-                        .map(|(_, p)| p)
-                        .unwrap()
-                        .gold -= amount;
-                    self.view
-                        .players
-                        .iter_mut()
-                        .find(|(p, _)| *p == to)
-                        .map(|(_, p)| p)
-                        .unwrap()
-                        .gold += amount;
+                    self.view.treasury_mut(from).unwrap().gold -= amount;
+                    self.view.treasury_mut(to).unwrap().gold += amount;
                 }
                 Outcome::Spell { player, spell } => {
                     self.magic_mut_for_tests(player).known.insert(spell);
@@ -459,7 +447,7 @@ fn nature_awareness_meets_everyone() {
     city(&mut g, P2, at(15, 8));
     let spell = g.content.rules.spells.id_of("nature_awareness").unwrap();
     // The spell's upkeep is paid from the reserve.
-    g.player_mut(P0).unwrap().mana = 1000;
+    g.treasury_mut(P0).unwrap().mana = 1000;
     g.magic_mut(P0).unwrap().global.push(spell);
     g.apply(Command::EndTurn);
     assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
@@ -470,7 +458,7 @@ fn good_deeds_count_less_the_better_the_relation() {
     let mut g = Rig::new();
     met(&mut g, P0, P1);
     met(&mut g, P2, P1);
-    g.human = Some(P0);
+    g.set_human(Some(P0));
     // P1 is the defender (the human never is): attacker P2.
     set_rel(&mut g, P1, P2, 0);
     g.change_relations(8, P2, P1, Action::Friendship, None);
@@ -981,8 +969,8 @@ fn gold_is_a_gift_that_warms() {
     let mut g = Rig::new();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
-    g.player_mut(P0).unwrap().gold = 300;
-    g.player_mut(P1).unwrap().gold = 100;
+    g.treasury_mut(P0).unwrap().gold = 300;
+    g.treasury_mut(P1).unwrap().gold = 100;
     let events = command(
         &mut g,
         DiplomacyCommand::GiveGold {
@@ -992,8 +980,8 @@ fn gold_is_a_gift_that_warms() {
         },
     );
     assert!(rejected(&events).is_none(), "{events:?}");
-    assert_eq!(g.player(P0).unwrap().gold, 200);
-    assert_eq!(g.player(P1).unwrap().gold, 200);
+    assert_eq!(g.treasury(P0).unwrap().gold, 200);
+    assert_eq!(g.treasury(P1).unwrap().gold, 200);
     assert!(g.relation(P0, P1) >= 0);
     let broke = command(
         &mut g,
@@ -1368,9 +1356,8 @@ fn taking_a_city_is_a_war() {
 #[test]
 fn taking_an_independent_city_is_no_diplomacy() {
     let mut g = world();
-    let mut rebels = Player::new();
-    rebels.gold = 0;
-    g.add_neutral_player(PlayerId(9), rebels);
+    g.add_neutral_player(PlayerId(9), Player::new());
+    g.treasury_mut(PlayerId(9)).unwrap().gold = 0;
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());

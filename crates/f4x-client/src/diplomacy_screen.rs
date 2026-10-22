@@ -257,7 +257,7 @@ impl App {
         match self.diplo_ui.menu {
             Menu::Main => {
                 let war = status == Treaty::War;
-                let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
+                let gold = self.game.treasury(HUMAN).map_or(0, |p| p.gold);
                 let rows = vec![
                     row("Propose Treaty", true, Act::Go(Menu::Propose)),
                     row("Threaten/Break Treaty", !war, Act::Go(Menu::Threaten)),
@@ -341,7 +341,7 @@ impl App {
                 (say::threaten_prompt().to_string(), rows)
             }
             Menu::Tribute => {
-                let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
+                let gold = self.game.treasury(HUMAN).map_or(0, |p| p.gold);
                 let cap = gold / 25 * 25;
                 let amounts: Vec<i32> = if cap < 100 {
                     (1..=cap / 25).map(|i| i * 25).collect()

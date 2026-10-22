@@ -141,7 +141,8 @@ impl Economy<'_> {
             .filter(|(_, c, _)| c.owner == owner)
             .map(|(e, ..)| self.citizens(e))
             .sum();
-        let gold = self.player(owner).map_or(0, |p| p.gold);
+        let gold = crate::player::component::<crate::player::Treasury>(self.world, owner)
+            .map_or(0, |t| t.gold);
         loot_share(gold, self.citizens(city), all)
     }
 }
@@ -183,10 +184,12 @@ impl Game {
         }
         if let Some(p) = self.player_mut(winner) {
             p.fame += fame_gained;
-            p.gold += loot;
         }
-        if let Some(p) = self.player_mut(loser) {
-            p.gold = (p.gold - loot).max(0);
+        if let Some(t) = self.treasury_mut(winner) {
+            t.gold += loot;
+        }
+        if let Some(t) = self.treasury_mut(loser) {
+            t.gold = (t.gold - loot).max(0);
         }
 
         // The fighting kills citizens and wrecks buildings.
@@ -273,7 +276,9 @@ impl Game {
         let fame_lost = razing_fame_loss(size);
         if let Some(p) = self.player_mut(player) {
             p.fame = (p.fame - fame_lost).max(0);
-            p.gold += loot;
+        }
+        if let Some(t) = self.treasury_mut(player) {
+            t.gold += loot;
         }
         let mut events = Vec::new();
         match self.destroy_city(city) {

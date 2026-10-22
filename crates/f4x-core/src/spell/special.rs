@@ -185,9 +185,8 @@ mod tests {
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
-        let mut p = Player::new();
-        p.mana = 1000;
-        g.add_player(P0, "W", p);
+        g.add_player(P0, "W", Player::new());
+        g.treasury_mut(P0).unwrap().mana = 1000;
         g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
         g
     }
@@ -196,7 +195,7 @@ mod tests {
         let s = g.content.rules.spells.id_of(id).unwrap();
         g.magic_mut(P0).unwrap().known.insert(s);
         g.magic_mut(P0).unwrap().skill_left = 500;
-        g.player_mut(P0).unwrap().mana = 1000;
+        g.treasury_mut(P0).unwrap().mana = 1000;
         g.apply(Command::CastSpell {
             player: P0,
             spell: s,

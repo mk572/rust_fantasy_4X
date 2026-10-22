@@ -30,7 +30,7 @@ fn the_treasury_adds_cities_and_sells_spare_food() {
     hero.noble_hero = true;
     let troops = [troop(e[0], 1, 2), troop(e[1], 1, 2), hero];
     // Cities make 9 food for 5 citizens and 7 for 3: 4 + 4 spare, 4 gold if no army ate.
-    let t = Treasury::compute(&[city(10, 2, 9, 5), city(6, 1, 7, 3)], &troops, 1);
+    let t = Budget::compute(&[city(10, 2, 9, 5), city(6, 1, 7, 3)], &troops, 1);
     assert_eq!(t.city_gold, 16);
     assert_eq!(t.building_upkeep, 3);
     assert_eq!(t.noble_gold, 10);
@@ -45,7 +45,7 @@ fn the_treasury_adds_cities_and_sells_spare_food() {
 #[test]
 fn fame_cannot_make_the_upkeep_negative() {
     let e = ids(1);
-    let t = Treasury::compute(&[], &[troop(e[0], 0, 2)], 30);
+    let t = Budget::compute(&[], &[troop(e[0], 0, 2)], 30);
     assert_eq!(t.unit_upkeep, 0);
 }
 
@@ -53,10 +53,10 @@ fn fame_cannot_make_the_upkeep_negative() {
 fn an_army_that_eats_too_much_loses_its_newest_units() {
     let e = ids(3);
     let troops = [troop(e[0], 1, 0), troop(e[1], 1, 0), troop(e[2], 1, 0)];
-    let t = Treasury {
+    let t = Budget {
         food_surplus: 1,
         food_upkeep: 3,
-        ..Treasury::default()
+        ..Budget::default()
     };
     let s = settle(&t, 0, 0, &troops);
     assert_eq!(s.disbanded, vec![e[2], e[1]]);
@@ -66,10 +66,10 @@ fn an_army_that_eats_too_much_loses_its_newest_units() {
 fn units_go_newest_first_until_the_gold_covers_the_rest() {
     let e = ids(3);
     let troops = [troop(e[0], 0, 4), troop(e[1], 0, 4), troop(e[2], 0, 4)];
-    let t = Treasury {
+    let t = Budget {
         city_gold: 5,
         unit_upkeep: 12,
-        ..Treasury::default()
+        ..Budget::default()
     };
     // 3 + 5 = 8 gold: two units (8) are affordable, the newest goes.
     let s = settle(&t, 3, 0, &troops);
@@ -87,7 +87,7 @@ fn units_go_newest_first_until_the_gold_covers_the_rest() {
 fn units_that_cost_nothing_are_never_let_go() {
     let e = ids(2);
     let troops = [troop(e[0], 0, 0), troop(e[1], 0, 5)];
-    let t = Treasury::default();
+    let t = Budget::default();
     let s = settle(&t, 0, 0, &troops);
     assert_eq!(s.disbanded, vec![e[1]]);
 }

@@ -341,7 +341,7 @@ impl App {
         );
 
         let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
-        let reserve = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let reserve = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let base = income.power_base;
         let name =
             |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
@@ -395,7 +395,14 @@ impl App {
             .players()
             .into_iter()
             .filter(|(id, _)| *id != HUMAN && !self.game.is_neutral_player(*id))
-            .map(|(id, p)| (id, self.game.portrait(id), self.game.banner(id), p.defeated))
+            .map(|(id, _)| {
+                (
+                    id,
+                    self.game.portrait(id),
+                    self.game.banner(id),
+                    self.game.is_defeated(id),
+                )
+            })
             .collect();
         let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
         for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {
@@ -527,8 +534,8 @@ impl App {
             return;
         };
         let (px, py) = (80.0, 60.0);
-        let gold = self.game.player(HUMAN).map_or(0, |p| p.gold);
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let gold = self.game.treasury(HUMAN).map_or(0, |p| p.gold);
+        let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let skilled = self
             .game
             .magic(HUMAN)

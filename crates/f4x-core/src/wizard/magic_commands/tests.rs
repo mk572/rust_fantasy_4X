@@ -1,36 +1,46 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
+use crate::player::Treasury;
 
-fn player() -> Player {
-    let mut p = Player::new();
-    p.gold = 100;
-    p.mana = 20;
-    p
+fn player() -> (Player, Treasury) {
+    (
+        Player::new(),
+        Treasury {
+            gold: 100,
+            mana: 20,
+        },
+    )
 }
 
 #[test]
 fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() {
-    let mut p = player();
-    alchemy(&mut p, 10, true).unwrap();
-    assert_eq!((p.gold, p.mana), (90, 25));
-    alchemy(&mut p, 10, false).unwrap();
-    assert_eq!((p.gold, p.mana), (95, 15));
+    let (mut p, mut t) = player();
+    alchemy(&p, &mut t, 10, true).unwrap();
+    assert_eq!((t.gold, t.mana), (90, 25));
+    alchemy(&p, &mut t, 10, false).unwrap();
+    assert_eq!((t.gold, t.mana), (95, 15));
     p.magic.retorts.insert(Retort::Alchemy);
-    alchemy(&mut p, 10, true).unwrap();
-    assert_eq!((p.gold, p.mana), (85, 25));
+    alchemy(&p, &mut t, 10, true).unwrap();
+    assert_eq!((t.gold, t.mana), (85, 25));
 }
 
 #[test]
 fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
-    let mut p = player();
-    assert_eq!(alchemy(&mut p, 101, true), Err(MagicError::NotEnoughGold));
-    assert_eq!(alchemy(&mut p, 21, false), Err(MagicError::NotEnoughMana));
-    assert_eq!((p.gold, p.mana), (100, 20));
+    let (p, mut t) = player();
+    assert_eq!(
+        alchemy(&p, &mut t, 101, true),
+        Err(MagicError::NotEnoughGold)
+    );
+    assert_eq!(
+        alchemy(&p, &mut t, 21, false),
+        Err(MagicError::NotEnoughMana)
+    );
+    assert_eq!((t.gold, t.mana), (100, 20));
 }
 
 #[test]
 fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() {
-    let mut p = player();
+    let (mut p, _) = player();
     assert_eq!(cancel_cast(&mut p, true), Err(MagicError::NotAvailable));
     assert_eq!(cancel_cast(&mut p, false), Ok(()));
 }
@@ -39,7 +49,7 @@ fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() {
 fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() {
     let content = content_with_magic();
     let mut rng = GameRng::new(3);
-    let mut p = player();
+    let (mut p, _) = player();
     found_wizard(
         &mut p,
         &content,

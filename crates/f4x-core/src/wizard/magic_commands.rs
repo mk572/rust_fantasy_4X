@@ -4,7 +4,7 @@
 
 use crate::content::Content;
 use crate::game::rng::GameRng;
-use crate::player::Player;
+use crate::player::{Player, Treasury};
 use crate::rules::SpellId;
 use crate::wizard::magic::{Magic, MagicError, Retort};
 
@@ -29,24 +29,25 @@ pub(crate) fn found_wizard(
 /// Convert gold to mana or mana to gold (alchemy): one for one with the retort, two for one
 /// without. `gold_to_mana` converts that much gold; otherwise that much mana becomes gold.
 pub(crate) fn alchemy(
-    player: &mut Player,
+    player: &Player,
+    treasury: &mut Treasury,
     amount: i32,
     gold_to_mana: bool,
 ) -> Result<(), MagicError> {
     let skilled = player.magic.has(Retort::Alchemy);
     let amount = amount.max(0);
     if gold_to_mana {
-        if player.gold < amount {
+        if treasury.gold < amount {
             return Err(MagicError::NotEnoughGold);
         }
-        player.gold -= amount;
-        player.mana += if skilled { amount } else { amount / 2 };
+        treasury.gold -= amount;
+        treasury.mana += if skilled { amount } else { amount / 2 };
     } else {
-        if player.mana < amount {
+        if treasury.mana < amount {
             return Err(MagicError::NotEnoughMana);
         }
-        player.mana -= amount;
-        player.gold += if skilled { amount } else { amount / 2 };
+        treasury.mana -= amount;
+        treasury.gold += if skilled { amount } else { amount / 2 };
     }
     Ok(())
 }

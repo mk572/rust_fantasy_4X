@@ -258,7 +258,7 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let content = ctx.game.content().clone();
     let mut game = f4x_data::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    game.human.get_or_insert(ctx.session.player);
+    game.ensure_human(ctx.session.player);
     game.set_undo(true);
     *ctx.game = game;
     ctx.say(format!(
@@ -326,7 +326,7 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (mut game, events) = replay
         .play(ctx.game.content().clone(), count)
         .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-    game.human.get_or_insert(ctx.session.player);
+    game.ensure_human(ctx.session.player);
     game.set_undo(true);
     *ctx.game = game;
     ctx.say(format!(

@@ -132,7 +132,7 @@ impl App {
         let needs = self.game.spell_needs_target(HUMAN, spell);
         let cost = self.game.casting_cost(HUMAN, spell, false);
         let instant = self.game.magic(HUMAN).map_or(0, |m| m.skill_left);
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         if needs && cost <= instant.min(mana) {
             self.targeting = Some(Targeting {
                 spell,
@@ -373,7 +373,7 @@ impl App {
         );
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
         let skill = self.game.magic(HUMAN).map_or(0, |m| m.casting_skill());
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.mana);
+        let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         let income = self.game.income(HUMAN).split.mana;
         let limit = skill.min(mana + income).max(0);
         let turns = if limit == 0 {

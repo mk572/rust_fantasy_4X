@@ -19,7 +19,7 @@ use crate::hero::HeroError;
 use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
 use crate::item::Item;
-use crate::player::PlayerId;
+use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, UnitDef, UnitKind};
 use crate::unit::{Experience, MAX_STACK};
 use crate::wizard::fortress::summon_point;
@@ -189,8 +189,8 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
 impl Game {
     /// What a wizard has been offered this turn and not answered.
     pub fn offers(&self, player: PlayerId) -> Vec<Offer> {
-        self.player(player)
-            .map_or_else(Vec::new, |p| p.offers.clone())
+        self.player_component::<Offers>(player)
+            .map_or_else(Vec::new, |o| o.0.clone())
     }
 
     /// The planes on which the wizard has a city or a unit: `(Arcanus, Myrror)`.
@@ -223,8 +223,8 @@ impl Game {
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for &id in &ids {
             let old = self
-                .player_mut(id)
-                .map(|p| std::mem::take(&mut p.offers))
+                .player_component_mut::<Offers>(id)
+                .map(|o| std::mem::take(&mut o.0))
                 .unwrap_or_default();
             for offer in &old {
                 self.release_offer(offer);
@@ -232,8 +232,8 @@ impl Game {
         }
         for id in ids {
             for offer in self.offers_for(id) {
-                if let Some(p) = self.player_mut(id) {
-                    p.offers.push(offer.clone());
+                if let Some(o) = self.player_component_mut::<Offers>(id) {
+                    o.0.push(offer.clone());
                 }
                 events.push(Event::OfferMade { player: id, offer });
             }
@@ -258,7 +258,7 @@ impl Game {
         }
         let famous = self.magic(player).is_some_and(|m| m.has(Retort::Famous));
         let fame = self.fame(player);
-        let computer = self.human != Some(player);
+        let computer = self.human() != Some(player);
 
         if self.rng.roll(100) as i32 <= item_chance(fame, famous) {
             offers.extend(self.item_offer(player));
@@ -277,9 +277,10 @@ impl Game {
     /// defeated wizards are not.
     fn can_be_offered(&self, player: PlayerId) -> bool {
         !self.is_neutral_player(player)
+            && !self.is_defeated(player)
             && self
                 .player(player)
-                .is_some_and(|p| !p.banished && !p.defeated && summon_point(&p).is_some())
+                .is_some_and(|p| !p.banished && summon_point(&p).is_some())
     }
 
     fn charismatic(&self, player: PlayerId) -> bool {
@@ -298,7 +299,7 @@ impl Game {
         );
         let price = item_price(item.cost, self.charismatic(player));
         let offer = Offer::Item { item, price };
-        if price <= self.player(player).map_or(0, |p| p.gold) {
+        if price <= self.treasury(player).map_or(0, |p| p.gold) {
             Some(offer)
         } else {
             self.release_offer(&offer);
@@ -321,7 +322,7 @@ impl Game {
     fn mercenary_offer(&mut self, player: PlayerId) -> Option<Offer> {
         let fame = self.fame(player);
         let charismatic = self.charismatic(player);
-        let gold = self.player(player).map_or(0, |p| p.gold);
+        let gold = self.treasury(player).map_or(0, |p| p.gold);
         if self.turn < FIRST_MERCENARY_TURN {
             return None;
         }
@@ -357,7 +358,9 @@ impl Game {
             OfferKind::Mercenaries => self.mercenary_offer(player),
             OfferKind::Item => self.item_offer(player),
         }?;
-        self.player_mut(player)?.offers.push(offer.clone());
+        self.player_component_mut::<Offers>(player)?
+            .0
+            .push(offer.clone());
         Some(offer)
     }
 
@@ -370,10 +373,10 @@ impl Game {
         name: Option<String>,
     ) -> Result<Vec<Event>, OfferError> {
         let offer = self
-            .player(player)
-            .and_then(|p| p.offers.get(index).cloned())
+            .player_component::<Offers>(player)
+            .and_then(|o| o.0.get(index).cloned())
             .ok_or(OfferError::NoOffer)?;
-        if self.player(player).map_or(0, |p| p.gold) < offer.price() {
+        if self.treasury(player).map_or(0, |t| t.gold) < offer.price() {
             return Err(OfferError::NoGold);
         }
         let events = match offer {
@@ -430,14 +433,14 @@ impl Game {
                         e
                     })
                     .collect();
-                if let Some(p) = self.player_mut(player) {
-                    p.gold -= price;
+                if let Some(t) = self.treasury_mut(player) {
+                    t.gold -= price;
                 }
                 vec![Event::MercenariesHired { player, units }]
             }
             Offer::Item { item, price } => {
-                if let Some(p) = self.player_mut(player) {
-                    p.gold -= price;
+                if let Some(t) = self.treasury_mut(player) {
+                    t.gold -= price;
                 }
                 let name = item.name.clone();
                 let placed: Placed = self.give_item(player, item);
@@ -448,8 +451,8 @@ impl Game {
                 }]
             }
         };
-        if let Some(p) = self.player_mut(player) {
-            p.offers.remove(index);
+        if let Some(o) = self.player_component_mut::<Offers>(player) {
+            o.0.remove(index);
         }
         Ok(events)
     }
@@ -457,9 +460,9 @@ impl Game {
     /// Turn the offer down.
     pub fn reject_offer(&mut self, player: PlayerId, index: usize) -> Result<(), OfferError> {
         let offer = self
-            .player_mut(player)
-            .filter(|p| index < p.offers.len())
-            .map(|p| p.offers.remove(index))
+            .player_component_mut::<Offers>(player)
+            .filter(|o| index < o.0.len())
+            .map(|o| o.0.remove(index))
             .ok_or(OfferError::NoOffer)?;
         self.release_offer(&offer);
         Ok(())

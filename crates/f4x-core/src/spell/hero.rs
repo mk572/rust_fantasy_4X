@@ -103,12 +103,12 @@ impl Game {
             .units()
             .hero_hire_price(player, kind)
             .ok_or(HeroError::Unknown)?;
-        if self.player(player).map_or(0, |p| p.gold) < price {
+        if self.treasury(player).map_or(0, |p| p.gold) < price {
             return Err(HeroError::NoGold);
         }
         let unit = self.arrive(player, kind)?;
-        if let Some(p) = self.player_mut(player) {
-            p.gold -= price;
+        if let Some(t) = self.treasury_mut(player) {
+            t.gold -= price;
         }
         Ok(unit)
     }
@@ -179,7 +179,7 @@ impl Game {
             return Err(Rejection::Hero(e));
         }
         let cost = self.casting_cost(player, spell, false);
-        let reserve = self.player(player).map_or(0, |p| p.mana);
+        let reserve = self.treasury(player).map_or(0, |p| p.mana);
         let now = {
             let m = self
                 .magic(player)
@@ -187,11 +187,11 @@ impl Game {
             m.check_can_cast(spell).map_err(Rejection::Magic)?;
             cost <= m.instant_budget(reserve)
         };
-        if let Some(p) = self.player_mut(player) {
+        if let Some((p, t)) = self.player_treasury_mut(player) {
             p.magic.raising = Some(kind);
             if now {
                 p.magic.spend_skill(cost);
-                p.mana -= cost;
+                t.mana -= cost;
             } else {
                 p.magic.begin_casting(spell, cost);
             }
@@ -233,9 +233,10 @@ mod tests {
             m.known.insert(s);
         }
         g.magic_mut(P0).unwrap().skill_left = 99_999;
+        let t = g.treasury_mut(P0).unwrap();
+        t.mana = 1000;
+        t.gold = 100;
         let p = g.player_mut(P0).unwrap();
-        p.mana = 1000;
-        p.gold = 100;
         p.fortress = Some(at(3, 3));
         p.summon_at = Some(at(3, 3));
         g
@@ -261,25 +262,25 @@ mod tests {
     fn hiring_charges_the_price_and_the_hero_appears_at_the_circle() {
         let mut g = caster();
         let h = g.hire_hero(P0, 0).unwrap();
-        assert_eq!(g.player(P0).unwrap().gold, 0);
+        assert_eq!(g.treasury(P0).unwrap().gold, 0);
         assert_eq!(g.units().unit_position(h), Some(at(3, 3)));
         assert_eq!(g.units().hero_kind(h), Some(0));
         // Not twice, not without the gold, not without a circle, not the other wizard's record.
         assert_eq!(g.hire_hero(P0, 0), Err(HeroError::NotAvailable));
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoGold));
         assert_eq!(g.hire_hero(P0, 99), Err(HeroError::Unknown));
-        g.player_mut(P0).unwrap().gold = 500;
+        g.treasury_mut(P0).unwrap().gold = 500;
         g.player_mut(P0).unwrap().summon_at = None;
         g.player_mut(P0).unwrap().fortress = None;
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoCircle));
-        assert_eq!(g.player(P0).unwrap().gold, 500);
+        assert_eq!(g.treasury(P0).unwrap().gold, 500);
         assert_eq!(g.pl(1).roster.get(0).unwrap().state, Availability::Free);
     }
 
     #[test]
     fn a_dead_hero_is_not_hired_and_six_is_the_most() {
         let mut g = caster();
-        g.player_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 5000;
         let first = g.hire_hero(P0, 0).unwrap();
         g.remove_unit(first, Fate::Slain);
         assert_eq!(g.hire_hero(P0, 0), Err(HeroError::NotAvailable));
@@ -297,8 +298,8 @@ mod tests {
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert!(kind < HEROES);
         assert_eq!(g.units().unit_position(unit), Some(at(3, 3)));
-        assert_eq!(g.player(P0).unwrap().gold, 100);
-        assert!(g.player(P0).unwrap().mana < 1000);
+        assert_eq!(g.treasury(P0).unwrap().gold, 100);
+        assert!(g.treasury(P0).unwrap().mana < 1000);
         assert_eq!(
             g.player(P0).unwrap().roster.get(kind).unwrap().state,
             Availability::Serving
@@ -314,11 +315,11 @@ mod tests {
     #[test]
     fn summoning_is_refused_without_room_or_a_circle_and_costs_nothing() {
         let mut g = caster();
-        g.player_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 5000;
         for k in 0..6 {
             g.hire_hero(P0, k).unwrap();
         }
-        let mana = g.player(P0).unwrap().mana;
+        let mana = g.treasury(P0).unwrap().mana;
         for hook in [SUMMON_HERO, SUMMON_CHAMPION, INCARNATION] {
             let events = cast(&mut g, hook);
             assert!(
@@ -326,7 +327,7 @@ mod tests {
                 "{hook}: {events:?}"
             );
         }
-        assert_eq!(g.player(P0).unwrap().mana, mana);
+        assert_eq!(g.treasury(P0).unwrap().mana, mana);
         let h = g.units().hero_units(P0)[0];
         g.remove_unit(h, Fate::Released);
         g.player_mut(P0).unwrap().summon_at = None;
@@ -335,7 +336,7 @@ mod tests {
             cast(&mut g, SUMMON_HERO).as_slice(),
             [Event::Rejected(_)]
         ));
-        assert_eq!(g.player(P0).unwrap().mana, mana);
+        assert_eq!(g.treasury(P0).unwrap().mana, mana);
     }
 
     #[test]
@@ -380,7 +381,7 @@ mod tests {
     #[test]
     fn resurrection_raises_the_chosen_dead_hero() {
         let mut g = caster();
-        g.player_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 5000;
         let a = g.hire_hero(P0, 0).unwrap();
         let b = g.hire_hero(P0, 1).unwrap();
         let _ = g.world.insert_one(b, Experience(75));
@@ -391,7 +392,7 @@ mod tests {
             cast(&mut g, RESURRECTION).as_slice(),
             [Event::Rejected(_)]
         ));
-        let mana = g.player(P0).unwrap().mana;
+        let mana = g.treasury(P0).unwrap().mana;
         let events = g.apply(Command::ResurrectHero {
             player: P0,
             kind: 1,
@@ -399,7 +400,7 @@ mod tests {
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert_eq!(kind, 1);
         assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
-        assert!(g.player(P0).unwrap().mana < mana);
+        assert!(g.treasury(P0).unwrap().mana < mana);
         assert_eq!(g.magic(P0).unwrap().raising, None);
         assert_eq!(g.player(P0).unwrap().roster.dead(), vec![0]);
         // A hero who is not dead, or never was, cannot be raised.
@@ -415,7 +416,7 @@ mod tests {
     #[test]
     fn resurrection_can_be_paid_over_turns_and_survives_a_save() {
         let mut g = caster();
-        g.player_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 5000;
         let a = g.hire_hero(P0, 3).unwrap();
         g.remove_unit(a, Fate::Slain);
         g.magic_mut(P0).unwrap().skill_left = 0;
@@ -442,7 +443,7 @@ mod tests {
         assert_eq!(joined(&events).map(|(_, k)| k), Some(3));
         // Torin is raised by Incarnation only; a computer wizard raises the last dead hero.
         let mut g = caster();
-        g.player_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 5000;
         for k in [1, 4, 6] {
             let h = g.hire_hero(P0, k).unwrap();
             g.remove_unit(h, Fate::Slain);

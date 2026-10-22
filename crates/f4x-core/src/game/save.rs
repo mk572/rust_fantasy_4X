@@ -22,7 +22,7 @@ use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
-use crate::player::{Owner, Player, PlayerId};
+use crate::player::{Defeat, History, Offers, Owner, Player, PlayerId, Tax, Treasury};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 
 use crate::rules::SpellId;
@@ -558,12 +558,14 @@ impl Game {
             .map(|(id, p)| PlayerSave {
                 id: id.0,
                 name: self.player_name(*id),
-                gold: p.gold,
-                mana: p.mana,
-                tax_rate: p.tax_rate,
-                grand_vizier: p.grand_vizier,
+                gold: self.treasury(*id).map_or(0, |t| t.gold),
+                mana: self.treasury(*id).map_or(0, |t| t.mana),
+                tax_rate: self.player_component::<Tax>(*id).map_or(0, |t| t.0),
+                grand_vizier: self.has_grand_vizier(*id),
                 neutral: self.is_neutral_player(*id),
-                history: p.history.clone(),
+                history: self
+                    .player_component::<History>(*id)
+                    .map_or_else(Vec::new, |h| h.0.clone()),
                 capital_race: self
                     .wizard(*id)
                     .and_then(|w| w.capital_race())
@@ -572,13 +574,13 @@ impl Game {
                 magic: p.magic.to_save(rules),
                 armory: p.armory.clone(),
                 roster: p.roster.clone(),
-                offers: p.offers.clone(),
+                offers: self.offers(*id),
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
                 banished_by: p.banished_by.map(|d| d.0),
-                defeated: p.defeated,
-                defeated_by: p.defeated_by.map(|d| d.0),
+                defeated: self.is_defeated(*id),
+                defeated_by: self.defeat_by(*id).map(|d| d.0),
                 banner: Some(self.banner(*id)),
                 portrait: Some(self.portrait(*id)),
             })
@@ -734,7 +736,7 @@ impl Game {
             next_serial: self.next_serial,
             settings: self.settings,
             game_over: self.game_over,
-            human: self.human.map(|h| h.0),
+            human: self.human().map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
             events: self
                 .events
@@ -786,7 +788,6 @@ impl Snapshot {
         game.turn = self.turn;
         game.settings = self.settings.normalised();
         game.game_over = self.game_over;
-        game.human = self.human.map(PlayerId);
         game.override_log = self.override_log;
         game.prefab_taken = self.prefab_taken;
         game.next_serial = self.next_serial;
@@ -830,34 +831,42 @@ impl Snapshot {
                     .min(crate::player::PORTRAITS - 1),
             );
             let neutral = p.neutral;
+            let (gold, mana, tax_rate, grand_vizier) = (p.gold, p.mana, p.tax_rate, p.grand_vizier);
+            let (history, offers) = (p.history, p.offers);
+            let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
             let player = Player {
-                bonus: crate::player::Bonus::default(),
-                history: p.history,
-                gold: p.gold,
-                mana: p.mana,
-                tax_rate: p.tax_rate,
-                grand_vizier: p.grand_vizier,
                 fame: p.fame,
                 magic: Magic::from_save(p.magic, &game.content.rules)?,
                 armory: p.armory,
                 roster: p.roster,
-                offers: p.offers,
                 fortress: p.fortress,
                 summon_at: p.summon_at,
                 banished: p.banished,
                 banished_by: p.banished_by.map(PlayerId),
-                defeated: p.defeated,
-                defeated_by: p.defeated_by.map(PlayerId),
             };
-            if neutral {
-                game.add_neutral_player(id, player);
+            let entity = if neutral {
+                game.add_neutral_player(id, player)
             } else {
-                game.add_player(id, name, player);
+                game.add_player(id, name, player)
+            };
+            let _ = game.world.insert(
+                entity,
+                (
+                    Treasury { gold, mana },
+                    Tax(tax_rate),
+                    History(history),
+                    Offers(offers),
+                ),
+            );
+            game.set_grand_vizier(id, grand_vizier);
+            if defeated {
+                let _ = game.world.insert_one(entity, Defeat { by: defeated_by });
             }
             game.wizard_set(id, Banner(banner));
             game.wizard_set(id, Portrait(portrait));
             game.wizard_set(id, CapitalRace(capital_race));
         }
+        game.set_human(self.human.map(PlayerId));
 
         let mut serials = std::collections::BTreeSet::new();
         let mut take = |serial: u64, what: &str| -> Result<Serial, LoadError> {

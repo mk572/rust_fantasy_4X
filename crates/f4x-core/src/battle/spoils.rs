@@ -87,7 +87,7 @@ impl Game {
         };
         let (won, lost) = (battle.player_of(winner), battle.player_of(winner.other()));
         let mut loser_fame = spoils.loser_fame;
-        if spoils.experience >= FAME_XP && self.human == Some(lost) {
+        if spoils.experience >= FAME_XP && self.human() == Some(lost) {
             let fame = self.fame(lost);
             if fame + loser_fame > HUMAN_FAME_LIMIT {
                 loser_fame -= 1;

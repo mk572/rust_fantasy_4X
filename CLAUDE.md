@@ -20,7 +20,8 @@ Follow `~/projects/CODING_GUIDELINES.md`. Project-specific rules:
 - **Game rules live in `docs/design.md`** and the topic docs it lists, not here. In particular, read
   design.md section 8 before touching anything the AI decides: the rules treat the AI like a human.
 - **Tests only build situations the game can reach** (for example, a unit always has a real player as
-  owner; see `docs/ecs-structure.md` section 3.3).
+  owner; see `docs/ecs-structure.md` section 3.3). A test of a situation the game cannot create in
+  normal play is allowed only to test error handling (a rejected command, a refused save).
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
   files (`Rules.units`, `units.ron`).

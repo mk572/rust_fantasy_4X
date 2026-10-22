@@ -57,15 +57,15 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let what = a.need(0, "gold, mana or fame")?;
     let amount = a.int(1, "amount")? as i32;
     let id = player_arg(ctx, a, 2)?;
-    let p = ctx.game.player_mut(id).expect("checked");
+    let (p, t) = ctx.game.player_treasury_mut(id).expect("checked");
     let now = match what {
         "gold" => {
-            p.gold += amount;
-            p.gold
+            t.gold += amount;
+            t.gold
         }
         "mana" => {
-            p.mana += amount;
-            p.mana
+            t.mana += amount;
+            t.mana
         }
         "fame" => {
             p.fame += amount;

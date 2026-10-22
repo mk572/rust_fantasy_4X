@@ -425,13 +425,13 @@ impl Game {
     /// Pay to complete the current item at the next turn change.
     pub fn buy_production(&mut self, city: hecs::Entity) -> Result<u32, ProductionError> {
         let plan = self.economy().buy_plan(city)?;
-        let player = self
-            .player_mut(plan.owner)
+        let treasury = self
+            .treasury_mut(plan.owner)
             .ok_or(ProductionError::NotACity)?;
-        if player.gold < plan.cost as i32 {
+        if treasury.gold < plan.cost as i32 {
             return Err(ProductionError::NotEnoughGold);
         }
-        player.gold -= plan.cost as i32;
+        treasury.gold -= plan.cost as i32;
         let mut p = self.economy().city_production(city);
         p.progress += plan.remaining;
         let _ = self.world.insert_one(city, p);
@@ -467,8 +467,8 @@ impl Game {
             p.item = Some(ProductionItem::Housing);
             let _ = self.world.insert_one(city, p);
         }
-        if let Some(p) = self.player_mut(owner) {
-            p.gold += cost as i32;
+        if let Some(t) = self.treasury_mut(owner) {
+            t.gold += cost as i32;
         }
         Ok(cost)
     }
@@ -580,7 +580,7 @@ mod tests {
             let grass = content.terrains.id_of("grassland").unwrap();
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
-            let owner = world.spawn((PlayerId(0), Player::new()));
+            let owner = world.spawn(crate::player::bundle(PlayerId(0), Player::new()));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,

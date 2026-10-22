@@ -20,7 +20,12 @@ fn each_turn_adds_a_point_to_every_wizards_history() {
     let mut g = world();
     g.record_history();
     g.record_history();
-    assert!(g.players().iter().all(|(_, p)| p.history.len() == 2));
+    assert!(g.player_ids().iter().all(|&id| g
+        .player_component::<crate::player::History>(id)
+        .unwrap()
+        .0
+        .len()
+        == 2));
 }
 
 #[test]
@@ -29,10 +34,12 @@ fn the_history_keeps_the_last_288_turns() {
     for _ in 0..HISTORY_TURNS + 5 {
         g.record_history();
     }
-    assert!(g
-        .players()
-        .iter()
-        .all(|(_, p)| p.history.len() == HISTORY_TURNS));
+    assert!(g.player_ids().iter().all(|&id| g
+        .player_component::<crate::player::History>(id)
+        .unwrap()
+        .0
+        .len()
+        == HISTORY_TURNS));
 }
 
 #[test]

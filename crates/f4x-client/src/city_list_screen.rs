@@ -143,8 +143,10 @@ impl App {
         for (head, x) in HEADS {
             self.bm_text(view, 1, gold, head, x, 17.0, Align::Left);
         }
-        let (reserve_gold, reserve_mana) =
-            self.game.player(HUMAN).map_or((0, 0), |p| (p.gold, p.mana));
+        let (reserve_gold, reserve_mana) = self
+            .game
+            .treasury(HUMAN)
+            .map_or((0, 0), |p| (p.gold, p.mana));
         self.bm_text(
             view,
             1,

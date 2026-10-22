@@ -92,16 +92,16 @@ fn override_commands_need_the_override_mode() {
         matches!(err(&refused), ConsoleError::NotAllowed(_)),
         "{refused:?}"
     );
-    let gold = g.player(HUMAN).unwrap().gold;
+    let gold = g.treasury(HUMAN).unwrap().gold;
 
     assert!(c.execute(&mut g, "mode override").ok);
     assert_eq!(c.session.mode, Mode::Override);
     assert!(c.execute(&mut g, "give gold 500").ok);
-    assert_eq!(g.player(HUMAN).unwrap().gold, gold + 500);
+    assert_eq!(g.treasury(HUMAN).unwrap().gold, gold + 500);
 
     assert!(c.execute(&mut g, "mode legal").ok);
     assert!(!c.execute(&mut g, "give gold 500").ok);
-    assert_eq!(g.player(HUMAN).unwrap().gold, gold + 500);
+    assert_eq!(g.treasury(HUMAN).unwrap().gold, gold + 500);
 
     // Switching the mode on and each cheat are in the game's saved log.
     let log = g.override_log().to_vec();
@@ -417,11 +417,15 @@ fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
 fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
     for level in 0..=4u8 {
         let g = level_game(level, 2, 5);
-        let human = g.human.unwrap();
+        let human = g.human().unwrap();
         let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
-        assert_eq!(g.player(human).unwrap().gold, (5 - i32::from(level)) * 25);
-        assert_eq!(g.player(ai).unwrap().gold, 150);
-        let percent = |p| g.player(p).unwrap().bonus.production;
+        assert_eq!(g.treasury(human).unwrap().gold, (5 - i32::from(level)) * 25);
+        assert_eq!(g.treasury(ai).unwrap().gold, 150);
+        let percent = |p| {
+            g.player_component::<f4x_core::player::Bonus>(p)
+                .unwrap()
+                .production
+        };
         assert_eq!(percent(human), 100);
         assert_eq!(
             percent(ai),
@@ -434,7 +438,11 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
     assert!(g
         .players()
         .iter()
-        .all(|(_, p)| p.gold == 100 && p.bonus.gold == 100));
+        .all(|(id, _)| g.treasury(*id).unwrap().gold == 100
+            && g.player_component::<f4x_core::player::Bonus>(*id)
+                .unwrap()
+                .gold
+                == 100));
 }
 
 #[test]
@@ -443,7 +451,7 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
     for (level, picks) in [(2u8, 11), (3, 13), (4, 15)] {
         for seed in [1u64, 2, 3, 4] {
             let g = level_game(level, 3, seed);
-            let human = g.human.unwrap();
+            let human = g.human().unwrap();
             let mut names = Vec::new();
             for (id, p) in g
                 .wizards()
@@ -478,7 +486,7 @@ fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
     for level in [3u8, 4] {
         for seed in [1u64, 2, 3, 4, 5, 6] {
             let g = level_game(level, 4, seed);
-            let human = g.human.unwrap();
+            let human = g.human().unwrap();
             let n = g
                 .wizards()
                 .into_iter()
@@ -546,11 +554,11 @@ fn the_new_command_takes_the_settings_by_name() {
 #[test]
 fn the_vizier_command_turns_the_vizier_on_and_off() {
     let (mut g, mut c) = (game(), console());
-    assert!(!g.player(HUMAN).unwrap().grand_vizier);
+    assert!(!g.has_grand_vizier(HUMAN));
     assert!(c.execute(&mut g, "vizier on").error.is_none());
-    assert!(g.player(HUMAN).unwrap().grand_vizier);
+    assert!(g.has_grand_vizier(HUMAN));
     assert!(c.execute(&mut g, "vizier off").error.is_none());
-    assert!(!g.player(HUMAN).unwrap().grand_vizier);
+    assert!(!g.has_grand_vizier(HUMAN));
     assert!(c.execute(&mut g, "vizier maybe").error.is_some());
 }
 
@@ -622,7 +630,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
         seen[(at.y * width + at.x) as usize] && g.economy().unit_visible_to(unit, HUMAN)
     };
     assert!(!sees(&g, near), "four squares is out of sight at first");
-    g.player_mut(HUMAN).unwrap().mana = 5000;
+    g.treasury_mut(HUMAN).unwrap().mana = 5000;
     g.start_cast(HUMAN, eye, Some(Target::City(city))).unwrap();
     // Paid over turns by the casting skill, then aimed.
     for _ in 0..60 {
@@ -755,7 +763,11 @@ fn neutral_cities_play_by_the_ordinary_rules() {
             )
         })
         .collect();
-    let gold: Vec<_> = g.players().iter().map(|(_, p)| p.gold).collect();
+    let gold: Vec<_> = g
+        .player_ids()
+        .iter()
+        .map(|id| g.treasury(*id).unwrap().gold)
+        .collect();
     for _ in 0..40 {
         f4x_ai::play_round(&mut g, &mut []);
     }
@@ -779,7 +791,7 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     });
     assert!(grew, "a neutral city grew");
     assert!(built, "a neutral city built something");
-    assert!(g.players().iter().all(|(_, p)| !p.defeated));
+    assert!(g.player_ids().iter().all(|id| !g.is_defeated(*id)));
     let _ = gold;
 }
 
@@ -793,8 +805,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .collect();
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
-        let p = g.player(o).unwrap();
-        assert!(g.is_neutral_player(o) && p.gold > 0);
+        assert!(g.is_neutral_player(o) && g.treasury(o).unwrap().gold > 0);
         assert!(!g.living_wizards().contains(&o), "not a wizard");
     }
     assert_eq!(wizards(&g), 2);
@@ -803,11 +814,17 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .players()
         .iter()
         .filter(|(id, _)| !g.is_neutral_player(*id))
-        .map(|(_, p)| p.gold)
+        .map(|(id, _)| g.treasury(*id).unwrap().gold)
         .collect();
-    let before: Vec<_> = owners.iter().map(|&o| g.player(o).unwrap().gold).collect();
+    let before: Vec<_> = owners
+        .iter()
+        .map(|&o| g.treasury(o).unwrap().gold)
+        .collect();
     g.apply(f4x_core::game::Command::EndTurn);
-    let after: Vec<_> = owners.iter().map(|&o| g.player(o).unwrap().gold).collect();
+    let after: Vec<_> = owners
+        .iter()
+        .map(|&o| g.treasury(o).unwrap().gold)
+        .collect();
     assert_ne!(before, after, "the treasuries moved");
     assert_eq!(
         wizard_gold.len(),
@@ -835,7 +852,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     for id in all {
         g.scenario_set_building(city, id, true);
     }
-    g.player_mut(owner).unwrap().gold = 0;
+    g.treasury_mut(owner).unwrap().gold = 0;
     g.apply(f4x_core::game::Command::EndTurn);
     assert!(
         g.units().units_at(pos).len() < units,
@@ -865,7 +882,7 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
     }
     assert!(neutral_cities(&g).is_empty());
     assert_eq!(wizards(&g), wizards_before);
-    assert!(g.players().iter().all(|(_, p)| !p.defeated));
+    assert!(g.player_ids().iter().all(|id| !g.is_defeated(*id)));
 }
 
 #[test]
@@ -969,7 +986,11 @@ fn a_wizard_starts_as_in_the_original() {
             assert_eq!(army, ["Spearmen", "Swordsmen"], "seed {seed} wizard {k}");
             let eco = g.economy().city_economy(city).unwrap();
             assert_eq!(
-                (eco.figures, eco.farmers, g.player(p).unwrap().tax_rate),
+                (
+                    eco.figures,
+                    eco.farmers,
+                    g.player_component::<f4x_core::player::Tax>(p).unwrap().0
+                ),
                 (4, 3, 2)
             );
             for b in ["smithy", "barracks", "builders_hall"] {
@@ -984,7 +1005,7 @@ fn a_wizard_starts_as_in_the_original() {
                 "seed {seed} wizard {k}: {}",
                 eco.max_size
             );
-            assert_eq!(g.player(p).unwrap().gold, 100);
+            assert_eq!(g.treasury(p).unwrap().gold, 100);
         }
     }
 }
@@ -1001,7 +1022,7 @@ fn the_starting_army_and_capital_pay_their_way() {
             },
         )
         .unwrap();
-        let t = g.treasury(HUMAN);
+        let t = g.budget(HUMAN);
         assert!(t.food_surplus >= t.food_upkeep, "seed {seed}: {t:?}");
         assert!(t.net_gold() >= 0, "seed {seed}: {t:?}");
         // Growth makes new mouths, so a careful ruler keeps putting people on the farms.
@@ -1010,7 +1031,7 @@ fn the_starting_army_and_capital_pay_their_way() {
             g.apply(f4x_core::game::Command::EndTurn);
         }
         assert_eq!(start_army(&g, HUMAN).len(), 2, "seed {seed}");
-        assert!(g.player(HUMAN).unwrap().gold >= 100, "seed {seed}");
+        assert!(g.treasury(HUMAN).unwrap().gold >= 100, "seed {seed}");
     }
 }
 
@@ -1210,8 +1231,8 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     let (mut g, city) = siege_world(12, &["marketplace", "library"]);
     let loser = PlayerId(1);
     for (p, gold, fame) in [(HUMAN, 10, 0), (loser, 200, 5)] {
+        g.treasury_mut(p).unwrap().gold = gold;
         let p = g.player_mut(p).unwrap();
-        p.gold = gold;
         p.fame = fame;
     }
     // The rival's other cities share the gold out by citizens: the capital is all of theirs.
@@ -1251,8 +1272,8 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
             ..
         }
     )));
-    assert_eq!(g.player(HUMAN).unwrap().gold, 210);
-    assert_eq!(g.player(loser).unwrap().gold, 0);
+    assert_eq!(g.treasury(HUMAN).unwrap().gold, 210);
+    assert_eq!(g.treasury(loser).unwrap().gold, 0);
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
     // wizard's fortress is worth 5 more.
     assert_eq!(g.player(loser).unwrap().fame, 2);
@@ -1336,10 +1357,10 @@ fn an_outpost_is_destroyed_when_taken() {
 fn a_taken_city_can_be_razed_until_the_turn_ends() {
     let (mut g, city) = neutral_world(12, &["marketplace", "library"]);
     g.player_mut(HUMAN).unwrap().fame = 10;
-    g.player_mut(HUMAN).unwrap().gold = 0;
+    g.treasury_mut(HUMAN).unwrap().gold = 0;
     g.conquer_city(city, HUMAN, 0);
     let fame_after_taking = g.player(HUMAN).unwrap().fame;
-    let gold_after_taking = g.player(HUMAN).unwrap().gold;
+    let gold_after_taking = g.treasury(HUMAN).unwrap().gold;
     // Only the taker may raze it.
     let events = g.apply(f4x_core::game::Command::RazeCity {
         player: PlayerId(2),
@@ -1371,7 +1392,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
         g.player(HUMAN).unwrap().fame,
         (fame_after_taking - (size + 1)).max(0)
     );
-    assert!(g.player(HUMAN).unwrap().gold > gold_after_taking);
+    assert!(g.treasury(HUMAN).unwrap().gold > gold_after_taking);
 
     // Wait a turn and the window is shut.
     let (mut g, city) = neutral_world(12, &[]);
@@ -1471,8 +1492,8 @@ fn arm_human(g: &mut Game, spells: &[&str]) {
                 .unwrap_or_else(|| panic!("{s}"))
         })
         .collect();
+    g.treasury_mut(HUMAN).unwrap().mana = 5000;
     let p = g.player_mut(HUMAN).unwrap();
-    p.mana = 5000;
     p.magic.skill_points = 20_000;
     p.magic.known.extend(ids);
 }
@@ -1544,7 +1565,7 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
     assert_eq!(before.skill_left - after.skill_left, 5);
     assert_eq!(before.mana - after.mana, 5 * before.range / 10);
     assert_eq!(
-        g.player(HUMAN).unwrap().mana,
+        g.treasury(HUMAN).unwrap().mana,
         after.mana,
         "the reserve pays"
     );
@@ -1611,12 +1632,12 @@ fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
         .battle
         .cast_counter_magic(Side::Defender, 100_000);
     let hits = g.battle().unwrap().unit(enemy).unwrap().hit_points();
-    let mana = g.player(HUMAN).unwrap().mana;
+    let mana = g.treasury(HUMAN).unwrap().mana;
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("Counter Magic stops"), "{}", r.text());
     assert_eq!(g.battle().unwrap().unit(enemy).unwrap().hit_points(), hits);
-    assert!(g.player(HUMAN).unwrap().mana < mana, "the mana is spent");
+    assert!(g.treasury(HUMAN).unwrap().mana < mana, "the mana is spent");
     assert_eq!(
         g.battle().unwrap().counter_magic[Side::Defender.index()],
         100_000 - f4x_core::spell::dispel::COUNTER_MAGIC_DRAIN,
@@ -1746,8 +1767,8 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     g.scenario_enchant_unit(defender, spell, rival);
     let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
     {
+        g.treasury_mut(HUMAN).unwrap().mana = 5000;
         let p = g.player_mut(HUMAN).unwrap();
-        p.mana = 5000;
         p.magic.skill_points = 20_000;
         p.magic.known.insert(dispel);
     }
@@ -1886,7 +1907,7 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
 fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["mana_leak"]);
-    g.player_mut(PlayerId(1)).unwrap().mana = 100;
+    g.treasury_mut(PlayerId(1)).unwrap().mana = 100;
     // The rival's wizard in the battle has its reserve from the game.
     g.battle.as_mut().unwrap().battle.casters[Side::Defender.index()]
         .as_mut()
@@ -1895,7 +1916,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
     assert!(cast(&mut g, "bcast mana leak").ok);
     pass_turn(&mut g);
     // The rival's turn began a new turn: the attacker's.
-    assert_eq!(g.player(PlayerId(1)).unwrap().mana, 95);
+    assert_eq!(g.treasury(PlayerId(1)).unwrap().mana, 95);
     assert_eq!(g.battle().unwrap().caster(Side::Defender).unwrap().mana, 95);
 }
 
@@ -2207,10 +2228,10 @@ fn gifts_move_gold_and_spells() {
     let (mut g, mut c) = (game(), console());
     let other = meet_all(&mut g)[0];
     let w = other.0;
-    let before = g.player(HUMAN).unwrap().gold;
+    let before = g.treasury(HUMAN).unwrap().gold;
     let r = c.execute(&mut g, &format!("givegold {w} 10"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.player(HUMAN).unwrap().gold, before - 10);
+    assert_eq!(g.treasury(HUMAN).unwrap().gold, before - 10);
     let broke = c.execute(&mut g, &format!("givegold {w} 99999"));
     assert!(broke.text().contains("not enough gold"), "{}", broke.text());
     let unknown = c.execute(&mut g, &format!("givespell {w} no-such-spell"));
@@ -2577,7 +2598,7 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
         },
     )
     .unwrap();
-    let human = g.human.unwrap();
+    let human = g.human().unwrap();
     assert_eq!(g.objective(human), None, "the human has no objective");
     for (id, _) in g
         .players()
@@ -2618,7 +2639,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
         let names = g
             .players()
             .iter()
-            .filter(|(id, _)| !g.is_neutral_player(*id) && *id != g.human.unwrap())
+            .filter(|(id, _)| !g.is_neutral_player(*id) && *id != g.human().unwrap())
             .map(|(id, _)| g.player_name(*id))
             .collect();
         names
@@ -2733,14 +2754,25 @@ fn a_recorded_game_is_played_again_by_text() {
     let name = "console_replay_test";
     let r = c.execute(&mut g, &format!("record stop {name}"));
     assert!(r.ok, "{}", r.text());
-    let (turn, tax) = (g.turn, g.player(HUMAN).unwrap().tax_rate);
+    let (turn, tax) = (
+        g.turn,
+        g.player_component::<f4x_core::player::Tax>(HUMAN)
+            .unwrap()
+            .0,
+    );
     let mut fresh = game();
     let r = c.execute(&mut fresh, &format!("replay {name}"));
     let _ = std::fs::remove_file(format!("saves/{name}.replay.ron"));
     let _ = std::fs::remove_dir("saves");
     assert!(r.ok, "{}", r.text());
     assert_eq!(
-        (fresh.turn, fresh.player(HUMAN).unwrap().tax_rate),
+        (
+            fresh.turn,
+            fresh
+                .player_component::<f4x_core::player::Tax>(HUMAN)
+                .unwrap()
+                .0
+        ),
         (turn, tax)
     );
     assert!(fresh.is_recording());

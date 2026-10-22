@@ -228,10 +228,10 @@ mod tests {
             player: P0,
             rate: 3,
         });
-        assert_eq!(g.player(P0).unwrap().tax_rate, 3);
+        assert_eq!(g.player_component::<crate::player::Tax>(P0).unwrap().0, 3);
         g.undo().unwrap();
         assert_eq!(
-            g.player(P0).unwrap().tax_rate,
+            g.player_component::<crate::player::Tax>(P0).unwrap().0,
             crate::player::START_TAX_RATE
         );
         g.undo().unwrap();

@@ -108,8 +108,8 @@ impl Game {
                 continue;
             }
             let income = self.income(player);
-            if let Some(p) = self.player_mut(player) {
-                collect_power(p, &income.split, income.research);
+            if let Some((p, t)) = self.player_treasury_mut(player) {
+                collect_power(p, t, &income.split, income.research);
             }
         }
         for &player in &ids {
@@ -126,9 +126,9 @@ impl Game {
         for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
             // Heroes at the fortress add to the skill that pays for a spell over turns.
             let heroes = self.hero_casting_skill(player);
-            if let Some(p) = self.player_mut(player) {
+            if let Some((p, t)) = self.player_treasury_mut(player) {
                 p.magic.skill_left += heroes;
-                pay_for_casting(p);
+                pay_for_casting(p, t);
             }
         }
         for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
@@ -141,7 +141,7 @@ impl Game {
     /// summoned creatures are given up until it can (`upkeep_plan`).
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let items = self.upkeep_items(player);
-        let reserve = self.player(player).map_or(0, |p| p.mana);
+        let reserve = self.treasury(player).map_or(0, |p| p.mana);
         let (dropped, owed) = upkeep_plan(
             &items,
             self.magic(player).map_or(1, |m| m.upkeep_divisor()),
@@ -157,8 +157,8 @@ impl Game {
         for item in dropped {
             events.extend(self.drop_upkeep_item(player, item));
         }
-        if let Some(p) = self.player_mut(player) {
-            p.mana = (p.mana - owed).max(0);
+        if let Some(t) = self.treasury_mut(player) {
+            t.mana = (t.mana - owed).max(0);
         }
         events
     }
@@ -184,7 +184,7 @@ impl Game {
         target: Option<crate::rules::exec::Target>,
     ) -> Result<Vec<Event>, MagicError> {
         let cost = self.casting_cost(player, spell, false);
-        let reserve = self.player(player).ok_or(MagicError::UnknownPlayer)?.mana;
+        let reserve = self.treasury(player).ok_or(MagicError::UnknownPlayer)?.mana;
         let def = self.content.rules.spells.get(spell);
         if !def.contexts.contains(&CastContext::Overland) {
             return Err(MagicError::NotOverland);
@@ -225,9 +225,9 @@ impl Game {
                     return Err(MagicError::NeedsTarget);
                 }
                 self.check_target(player, spell, target)?;
-                if let Some(p) = self.player_mut(player) {
+                if let Some((p, t)) = self.player_treasury_mut(player) {
                     p.magic.spend_skill(cost);
-                    p.mana -= cost;
+                    t.mana -= cost;
                 }
                 self.begin_cast_relations(player, spell);
                 let mut events = self.mastery_announcement(player, spell);

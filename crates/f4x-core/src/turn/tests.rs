@@ -37,10 +37,11 @@ fn world() -> Game {
     // No unrest from taxes up to rate 2, so income sums stay simple.
     game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(map);
-    let mut p = Player::new();
-    p.gold = 500;
-    p.tax_rate = 2;
-    game.add_player(P0, "Merlin", p);
+    game.add_player(P0, "Merlin", Player::new());
+    game.treasury_mut(P0).unwrap().gold = 500;
+    game.player_component_mut::<crate::player::Tax>(P0)
+        .unwrap()
+        .0 = 2;
     game
 }
 
@@ -111,7 +112,7 @@ fn farmers_and_workers_share_the_citizens() {
     // 2 workers x 2 production + 2 farmers x half, rounded: (2*4 + 2 + 1)/2 = 5
     assert_eq!(eco.production, 5);
     // Dwarves work harder (3 each) but farm 2 food.
-    g.player_mut(P0).unwrap().tax_rate = 0;
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 0;
     let dwarf = found(&mut g, at(18, 6), "dwarf", 4);
     assert_eq!(g.economy().city_min_farmers(dwarf), 2);
     assert_eq!(
@@ -323,7 +324,7 @@ fn a_shared_tile_feeds_each_city_half() {
 #[test]
 fn taxes_and_race_cause_unrest_and_temples_calm_it() {
     let mut g = world();
-    g.player_mut(P0).unwrap().tax_rate = 4; // 45% unrest
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 4; // 45% unrest
     let city = found(&mut g, at(10, 6), "elf", 10);
     // Capital race is elf, so no racial unrest: 10 * 45% = 4 rebels.
     assert_eq!(g.economy().city_economy(city).unwrap().rebels, 4);
@@ -341,9 +342,9 @@ fn taxes_and_race_cause_unrest_and_temples_calm_it() {
 #[test]
 fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() {
     let mut g = world();
-    g.player_mut(P0).unwrap().tax_rate = 4;
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 4;
     // The spell costs eight mana a turn to keep.
-    g.player_mut(P0).unwrap().mana = 1000;
+    g.treasury_mut(P0).unwrap().mana = 1000;
     let city = found(&mut g, at(10, 6), "elf", 10);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let home = g.spawn_unit(P0, at(10, 6), spear);
@@ -403,7 +404,7 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() {
 #[test]
 fn troops_in_a_city_keep_order() {
     let mut g = world();
-    g.player_mut(P0).unwrap().tax_rate = 4;
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 4;
     let city = found(&mut g, at(10, 6), "elf", 10);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     for _ in 0..4 {
@@ -594,8 +595,8 @@ fn the_vizier_keeps_choosing_new_buildings_until_none_is_worth_building() {
 #[test]
 fn a_poor_treasury_builds_gold_and_skips_buildings_it_cannot_keep() {
     let (mut g, city) = vizier_city(true);
-    g.player_mut(P0).unwrap().tax_rate = 0;
-    let net = g.treasury(P0).net_gold();
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 0;
+    let net = g.budget(P0).net_gold();
     add_building(&mut g, city, "barracks");
     assert!(
         net < 3,
@@ -685,9 +686,9 @@ fn buying_costs_more_the_less_is_done() {
         Some(40),
         "remaining 20, accumulated 40: 2 x 20"
     );
-    let gold = g.player(P0).unwrap().gold;
+    let gold = g.treasury(P0).unwrap().gold;
     g.apply(Command::BuyProduction { city });
-    assert_eq!(g.player(P0).unwrap().gold, gold - 40);
+    assert_eq!(g.treasury(P0).unwrap().gold, gold - 40);
     let events = g.apply(Command::EndTurn);
     assert!(
         events
@@ -700,7 +701,7 @@ fn buying_costs_more_the_less_is_done() {
 #[test]
 fn buying_needs_the_gold() {
     let mut g = world();
-    g.player_mut(P0).unwrap().gold = 10;
+    g.treasury_mut(P0).unwrap().gold = 10;
     let city = found(&mut g, at(10, 6), "elf", 4);
     let hall = building(&g, "builders_hall");
     g.set_production(city, ProductionItem::Building(hall))
@@ -725,9 +726,9 @@ fn selling_a_building_refunds_it_unless_others_need_it() {
         Err(ProductionError::MissingBuilding)
     );
     let guild = building(&g, "fighters_guild");
-    let gold = g.player(P0).unwrap().gold;
+    let gold = g.treasury(P0).unwrap().gold;
     assert_eq!(g.sell_building(city, guild), Ok(66));
-    assert_eq!(g.player(P0).unwrap().gold, gold + 66);
+    assert_eq!(g.treasury(P0).unwrap().gold, gold + 66);
     g.apply(Command::EndTurn);
     assert_eq!(g.sell_building(city, guild), Err(ProductionError::NotBuilt));
 }
@@ -799,7 +800,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
     use crate::unit::Standby;
     let mut g = world();
     found(&mut g, at(10, 6), "elf", 4);
-    g.player_mut(P0).unwrap().gold = 100;
+    g.treasury_mut(P0).unwrap().gold = 100;
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let done = g.spawn_unit(P0, at(10, 6), spear);
     let patrol = g.spawn_unit(P0, at(11, 6), spear);
@@ -954,12 +955,12 @@ fn the_treasury_collects_taxes_and_pays_for_troops() {
     g.spawn_unit(P0, at(10, 6), spear);
     g.spawn_unit(P0, at(10, 6), spear);
     let eco = g.economy().city_economy(city).unwrap();
-    let before = g.player(P0).unwrap().gold;
+    let before = g.treasury(P0).unwrap().gold;
     g.apply(Command::EndTurn);
     // Income 4 gold; food: 6 produced - 4 eaten = 2 spare, the 2 soldiers eat it all -> no food gold.
     // Upkeep: two spearmen at 1 gold each.
     assert_eq!(eco.gold, 4);
-    assert_eq!(g.player(P0).unwrap().gold, before + 4 - 2);
+    assert_eq!(g.treasury(P0).unwrap().gold, before + 4 - 2);
 }
 
 #[test]
@@ -968,10 +969,10 @@ fn spare_food_is_sold_for_gold() {
     let city = found(&mut g, at(10, 6), "elf", 4);
     let eco = g.economy().city_economy(city).unwrap();
     assert_eq!(eco.food, 6);
-    let before = g.player(P0).unwrap().gold;
+    let before = g.treasury(P0).unwrap().gold;
     g.apply(Command::EndTurn);
     // 6 food - 4 citizens = 2 spare, sold at two for one: +1, plus 4 tax.
-    assert_eq!(g.player(P0).unwrap().gold, before + 4 + 1);
+    assert_eq!(g.treasury(P0).unwrap().gold, before + 4 + 1);
 }
 
 #[test]
@@ -1016,8 +1017,8 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() {
     )));
     assert_eq!(g.units().player_units(P0).len(), 2);
     // Broke: upkeep above the treasury sends the rest home.
-    g.player_mut(P0).unwrap().gold = 0;
-    g.player_mut(P0).unwrap().tax_rate = 0;
+    g.treasury_mut(P0).unwrap().gold = 0;
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 0;
     let events = g.apply(Command::EndTurn);
     assert!(events
         .iter()
@@ -1138,7 +1139,7 @@ fn balancing_farmers_feeds_the_army() {
         g.spawn_unit(P0, at(10, 6), spear);
     }
     g.balance_farmers(P0);
-    let t = g.treasury(P0);
+    let t = g.budget(P0);
     assert!(t.food_surplus >= t.food_upkeep, "{t:?}");
     assert_eq!(t.food_upkeep, 3);
     // Elves farm 3 food each: 2 farmers feed 6 citizens' food-wise only if 6 food; plus 3 for troops.
@@ -1216,7 +1217,7 @@ fn tax_rate_is_clamped_to_the_table() {
         player: P0,
         rate: 99,
     });
-    assert_eq!(g.player(P0).unwrap().tax_rate, 6);
+    assert_eq!(g.player_component::<crate::player::Tax>(P0).unwrap().0, 6);
 }
 
 #[test]
@@ -1247,7 +1248,7 @@ fn famine_and_gaias_blessing_change_the_land() {
 #[test]
 fn gaias_blessing_pacifies_two_rebels() {
     let mut g = world();
-    g.player_mut(P0).unwrap().tax_rate = 4; // 45% unrest: 4 rebels of 10
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 4; // 45% unrest: 4 rebels of 10
     let city = found(&mut g, at(10, 6), "elf", 10);
     assert_eq!(g.economy().city_economy(city).unwrap().rebels, 4);
     let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
@@ -1262,7 +1263,7 @@ fn gaias_blessing_pacifies_two_rebels() {
 #[test]
 fn pestilence_adds_unrest_and_kills_a_citizen_when_the_roll_is_under_the_population() {
     let mut g = world();
-    g.player_mut(P0).unwrap().mana = 100_000;
+    g.treasury_mut(P0).unwrap().mana = 100_000;
     let city = found(&mut g, at(10, 6), "elf", 10);
     let unrest = |g: &Game| g.economy().city_economy(city).unwrap().rebels;
     let calm = unrest(&g);

@@ -41,11 +41,11 @@ impl Game {
     /// was taken.
     pub(crate) fn drain_power(&mut self, victim: PlayerId, rng: &mut GameRng) -> i32 {
         let wanted: i32 = (0..DRAIN_ROLLS).map(|_| rng.roll(DRAIN_DIE) as i32).sum();
-        let Some(p) = self.player_mut(victim) else {
+        let Some(t) = self.treasury_mut(victim) else {
             return 0;
         };
-        let taken = wanted.min(p.mana.max(0));
-        p.mana -= taken;
+        let taken = wanted.min(t.mana.max(0));
+        t.mana -= taken;
         taken
     }
 
