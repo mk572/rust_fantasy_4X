@@ -242,6 +242,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
 | 348 | Text | Every refusal in words: a text key for each `Rejection` error variant, the reason a target is refused, checked against the original's 89 `MESSAGE.LBX` cases (done) |
 | 349 | Magic | Spells that cannot be combined: duplicates, non-cumulative pairs, abilities a unit has by nature, Holy Weapon with Holy Arms (done) |
+| 353 | Lair | A winner takes only the loot it can use; the rest is rerolled (neutral winners, a full hero roster) (done) |
+| 354 | AI | Neutral cities raid nearby lairs and keep what they win (done) |
 
 ## Descriptions
 
@@ -808,3 +810,32 @@ be cast in battle (`Unsupported`); they can now: the unit carries the spell, and
 gives (`UnitView::heroism_modifiers`), also after a dispel rebuilds the unit.
 
 *Needs:* nothing.
+
+**353. A winner takes only the loot it can use. (done)** `claim_lair` (`feature/lair.rs`) pays every winner the same hoard.
+A neutral city's player has a treasury and an armory but no wizard, so a spell, a spell book or a retort is of no
+use to it, an item is of use only to a hero, and a prisoner needs a free hero slot and a square at home to join
+on. What the winner cannot use is rerolled from its value (spell of rarity r: r*r*50; a book or retort: 3000; an item:
+its value; a prisoner: 1000) with the hoard's own table, leaving out the kinds the winner cannot use (gold and mana
+always, items only for a winner with a hero). Rules: (1) a neutral winner gets no spell, book or retort; (2) a
+prisoner joins a neutral winner directly, as a hero in its nearest city with room (a free hire; a wizard still gets
+the zero-price offer, which needs no square); (3) a prisoner that finds no open hero slot is rerolled, for a wizard
+too; (4) an item reaches a neutral winner only when it has a hero, else it is rerolled; (5) a wizard's loot is
+unchanged. Tests: a neutral winner of a spell, a book and an item hoard gets gold or mana of about that value; a
+neutral winner with a hero keeps the items; the prisoner joins the neutral city; a wizard with a full roster gets
+gold instead of the offer.
+
+*Needs:* nothing. Not part of it: spells that do not match the wizard's books (on-hold task 305).
+
+**354. Neutral cities raid nearby lairs. (done)** The neutral players (`f4x_ai::play_neutrals`) only manage their cities.
+Let a neutral city with soldiers to spare send a party against an intact guarded site close to it (a tower, a node
+or an encounter site it has explored, within 8 squares), fight the guards, keep what it wins (task 353) and walk
+home. Without memory between turns: a city that has a lair in range builds soldiers up to its garrison plus a
+raiding party of 3; soldiers above the garrison leave together; a party out of the city goes to a free square next to
+the nearest intact lair in range, assaults it (`Command::EnterSite`, the battle fought out with the battle AI), and
+goes home when no lair is left in range. Heroes freed this way serve the neutral player like any unit.
+
+Done: `f4x_ai::neutral::raid`; a city only knows the sites it has explored, which for a city that never sends scouts
+are the ones inside its own sight (about 2 squares), so raids are rare until neutrals scout (not part of this task). A
+party does not know the guards, so a strong site can kill it; the city builds another party (no memory between turns).
+
+*Needs:* 353.

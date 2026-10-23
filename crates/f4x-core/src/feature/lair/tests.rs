@@ -805,3 +805,119 @@ fn a_spell_award_teaches_a_spell_from_a_realm_without_books() {
     assert!(magic.view().knows(spell));
     assert_ne!(c.rules.spells.get(spell).realm, "life");
 }
+
+/// A hoard with a spell, a book and an item, and a prisoner, on Arcanus.
+fn rich_lair() -> Lair {
+    Lair {
+        intact: true,
+        guards: Vec::new(),
+        gold: 100,
+        mana: 50,
+        items: vec![600],
+        prisoner: true,
+        special: 2,
+    }
+}
+
+/// The lair world with a hero roster and an independent city that has a home at (2, 2).
+fn heroic_world() -> (Game, PlayerId) {
+    let mut g = crate::hero::game::tests::world();
+    let lair_feature = world(1).content.features;
+    g.content.features = lair_feature;
+    let town = PlayerId(9);
+    g.spawn_city(town, at(2, 2), "Free Town".into(), None, 4);
+    (g, town)
+}
+
+#[test]
+fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() {
+    let (mut g, town) = heroic_world();
+    let mut l = rich_lair();
+    l.prisoner = false;
+    l.items.clear();
+    l.special = 4;
+    let site = g.put_lair(at(5, 5), "lair", l);
+    let before = g.treasury(town).unwrap();
+    let events = g.claim_lair(site, town);
+    let Some(Event::SiteCleared { loot, .. }) = events.first() else {
+        panic!("{events:?}");
+    };
+    assert!(loot.spell.is_none() && loot.books.is_empty() && loot.retorts.is_empty());
+    assert!(
+        loot.gold + loot.mana > 150,
+        "the 800-point spell comes back as gold and mana: {loot:?}"
+    );
+    assert!(loot.items.is_empty(), "no hero, no item");
+    let t = g.treasury(town).unwrap();
+    assert_eq!(
+        ((t.gold - before.gold) as u32, (t.mana - before.mana) as u32),
+        (loot.gold, loot.mana)
+    );
+}
+
+#[test]
+fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home() {
+    let (mut g, town) = heroic_world();
+    let mut l = rich_lair();
+    l.special = 0;
+    let site = g.put_lair(at(5, 5), "lair", l);
+    let events = g.claim_lair(site, town);
+    let Some(Event::SiteCleared { loot, .. }) = events.first() else {
+        panic!("{events:?}");
+    };
+    assert!(loot.prisoner, "the hero serves the city");
+    let heroes = g.units().hero_units(town);
+    assert_eq!(heroes.len(), 1);
+    assert_eq!(g.units().unit_position(heroes[0]), Some(at(2, 2)));
+    assert_eq!(g.units().unit_owner(heroes[0]), Some(town));
+    // The hero came with the same claim, so the item is kept.
+    assert_eq!(loot.items.len(), 1);
+    assert!(g
+        .player_component::<crate::player::Offers>(town)
+        .unwrap()
+        .0
+        .is_empty());
+}
+
+#[test]
+fn a_prisoner_with_no_free_hero_slot_is_rerolled_for_a_wizard_too() {
+    let mut g = crate::hero::game::tests::world();
+    g.content.features = world(1).content.features;
+    for kind in 0..crate::hero::kind::MAX_HEROES {
+        g.spawn_hero(P0, at(1, 1), kind).unwrap();
+    }
+    assert_eq!(g.units().open_hero_slots(P0), 0);
+    let mut l = rich_lair();
+    l.special = 0;
+    l.gold = 0;
+    l.mana = 0;
+    l.items.clear();
+    let site = g.put_lair(at(5, 5), "lair", l);
+    let events = g.claim_lair(site, P0);
+    let Some(Event::SiteCleared { loot, .. }) = events.first() else {
+        panic!("{events:?}");
+    };
+    assert!(!loot.prisoner);
+    assert!(g
+        .player_component::<crate::player::Offers>(P0)
+        .unwrap()
+        .0
+        .is_empty());
+    assert!(
+        loot.gold + loot.mana > 0 || !loot.items.is_empty(),
+        "{loot:?}"
+    );
+}
+
+#[test]
+fn rerolled_value_never_exceeds_the_value() {
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(9);
+    for value in [50, 300, 1000, 3000] {
+        for _ in 0..50 {
+            let (gold, mana, items) = reroll_hoard(&mut rng, value, 2);
+            assert!(items.len() <= 2);
+            assert!(gold + mana + items.iter().sum::<u32>() <= value as u32 + 200);
+            assert!(gold + mana + items.iter().sum::<u32>() > 0);
+        }
+    }
+}

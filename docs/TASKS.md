@@ -81,6 +81,9 @@ neighbours.
 | 347 | Text | Text the core builds as game data: made item names, random event texts, default names, battle info names; translated names in the rules files |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
+| 355 | Lair | Guard and treasure tables as `.ron` data (`content/lairs.ron`), checked against the original |
+| 356 | AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
+| 357 | Client | Site discovery: the music and the colour slide of the node pictures |
 
 ## Descriptions
 
@@ -243,3 +246,37 @@ files or a table of names in `content/text/<lang>/`, and how the plural of a rac
 **351. Research the untraced `MESSAGE.LBX` lines.** Task 348, which is finished, could not say what rule stands behind these lines of the original: 8 ("All units retreat exhausted"), 10 (monsters rampage through the city), 18, 19, 20, 45, 46 (notices that other city, unit, Stasis or combat enchantments were dispelled) and 61 (Guise on a hero; no spell of that name in `spells.ron`). For each: find the original code that shows the message (ReMoM) and what triggers it, check whether our game has the rule, and write the answer in this task's "Done" paragraph as in the table of task 348: refused, no refusal, different on purpose, or no such rule. A missing rule goes to task 350 or a task of its own; the text is a key in `content/text/`.
 
 *Needs:* 348 (done).
+
+**355. Guard and treasure tables as data.** The rules of `feature/lair.rs` are Rust: the realm of a site's guards
+(`guard_realm`), the budget formulas for towers, nodes and the strong and weak encounter sites, the share of the
+budget each guard kind gets (`pick_guards`), the 0 to 14 hoard roll with its prices and limits (`fill_hoard`), the
+cap of 9 guards and 3 items, and the strong/weak counts in the generator parameters. Move them to
+`content/lairs.ron` (loaded and validated by `f4x-data`, with the realm splits, budget ranges, hoard entries and
+caps as fields), so a mod can change them, and keep the unit list as it is (the guards come from `units.ron`).
+Check every value against ReMoM (`Create_Lair`, `Lair_Make_Guardians`, `Generate_Lairs`) in the same task and write
+differences into `docs/lairs.md`; the unchanged defaults must reproduce today's maps for a seed (a test compares a
+generated world before and after). This also does the data part of on-hold task 241.
+
+*Needs:* nothing.
+
+**356. The wizards' AI assaults sites.** `f4x-ai` never sends a stack at a tower, node or encounter site, and never
+answers the site prompt, so the AI loses all the treasure and the cleared nodes a human gets. Give the AI the human's
+rules (design.md section 8): it remembers the sites it has explored, estimates the guards it cannot see (as it does for
+cities), sends a stack that is strong enough (`Command::EnterSite`, the battle fought by the battle AI), collects an
+unguarded site, and spends the loot (items equipped, the free hero hired, gold and mana in its plans). Nodes it
+clears can be melded by a spirit (task for the magic AI, if open). Tests: an AI with a strong stack next to an
+encounter site clears it; a weak stack leaves it. Check the learned AI (`f4x-learn`) is not worse (its mirror test is
+`-- --ignored`, run only when asked).
+
+*Needs:* 353 (the shared loot rules).
+
+**357. Site discovery: the music and the node colour slide.** The original plays a short discovery tune when a stack
+finds a site and slides the colours of a node's picture (`docs/lairs.md`, "Missing"). Add both to the site prompt
+(`f4x-client/src/site_prompt.rs`) where the client has the music and image support for it; text stays in
+`content/text/en/site.ron`.
+
+*Needs:* nothing.
+
+Already tracked elsewhere (not repeated): spell and book treasure that matches the wizard's books is on-hold task 305;
+checking the lair data against `MONSTER.LBX` and `EVENTS.LBX` is on-hold task 241; where loot items are made (at
+clearing today) belongs to task 334; a freed prisoner needs no square because the hire is free, so nothing is open there.
