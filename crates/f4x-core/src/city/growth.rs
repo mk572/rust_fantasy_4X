@@ -162,7 +162,7 @@ impl Economy<'_> {
                 .map_or(0, |e| e.max_size as i32);
             for (p, _) in self.city_area(at) {
                 if let Some(f) = grid
-                    .feature(p.x as i32, p.y as i32)
+                    .mineral(p.x as i32, p.y as i32)
                     .and_then(|f| self.content.features.get(f))
                 {
                     grow += f.city.outpost_growth;

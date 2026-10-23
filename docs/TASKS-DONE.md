@@ -233,6 +233,10 @@ original task numbers. Newest work is merged in ascending order by number.
 | 326 | Hero | (done) Hero entity that outlives its unit body |
 | 327 | Hero | (done) Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
 | 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
+| 329 | Feature | Terrain feature entity: position index, mapgen as a placement list, minerals and encounter markers (done) |
+| 330 | Feature | Node entity (done) |
+| 331 | Feature | Lair and site entity, tower on both planes, loot (done) |
+| 332 | Feature | Volcano and tower ownership as feature entities (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
@@ -601,6 +605,43 @@ entity's components. The items themselves stay plain structs until 333. *Needs:*
 task 313 already; and a hero's spell list stays a list of ids on `Hero`, because a hero casts only in
 a battle (whose enchantments stay in `Battle`, task 324) and nothing it knows lasts on the map, so there
 is no spell instance to make.
+
+**329. Terrain feature entity (done).** Only a feature that something happens on when a unit enters its
+square is an entity: towers, nodes and encounter sites (`FeatureKind::Tower`, `Node`, `Encounter`).
+They get the `TerrainFeature(FeatureId)` component with `Position` and `Serial`, and a position
+index (square to entity) on `Game`. **Minerals are passive and stay a layer of the map** (`Grid.features`
+holds minerals only; no entity, no serial). `feature::place`, `feature::node::generate_nodes` and
+`feature::lair::generate_lairs` become one placement step: the map generator returns the terrain layers
+(minerals included) and a list of placements of the active features, and the game spawns the
+entities. A tower is one entity on both planes. The move of `Node` and `Lair` out of `map.rs` (309) is already done.
+Whatever reads `Grid.feature` for a tower, node or site (movement, lair entry, the surveyor, the
+client's map and minimap, the console, the tools) reads the entity instead. *Needs:* 313.
+
+**Done (23 October 2026), tasks 329 to 332 together.** `feature/entity.rs`: the components `TerrainFeature(FeatureId)`, `Volcano`, and the existing `Node` and `Lair` (stripped of position, owner and site id; a node and a tower have both), a `FeatureIndex` in the `Map` (not on `Game`: the economy handle holds the map; it is updated by `spawn_feature` and `despawn_feature` and never saved), `Placement` for the map generator's output (`Generated {map, placements}`; `set_generated` spawns them), the readers on `Economy` (`feature_at`, `nodes`, `node_at`, `node_covering`, `lairs`, `lair_at`, `tower_owner`, `volcano_at`, `volcanoes`) and the changes on `Game`. Minerals stay `Grid`'s layer (renamed `mineral`, `set_mineral`). A tower is one entity and one lair (the old twins were equal), found on both planes. `Entry::Site`, `Event::SiteEncounter` and `ActiveBattle::site` hold the site's entity. Volcanoes are entities with an `Owner` and no `TerrainFeature`; cooling, Change Terrain and Gaia's Blessing despawn them, and only the owner's volcanoes give power. Save: a `features` list in serial order; the map saves minerals only. **The creation numbers the console shows for cities and units now start higher** (the features take the first numbers). Loot items are still made at clearing. Also set on 23 October 2026 with it: Armageddon (see `divergences.md` 17).
+
+**330. Node entity (done).** The `Node` component (realm, power, aura, guardian, `Owner(Entity)`) on the
+feature entity; `Map.nodes`, `node_at`, `node_covering`, melding, node income, corruption of nodes and
+the dispel and Armageddon paths use it. A warped node is a spell instance targeting the feature
+(323). *Needs:* 329, 323.
+
+**Done:** with task 329.
+
+**331. Lair and site entity (done).** The `Site` component (intact, guards, gold, mana, loot values, prisoner,
+special) on the feature entity; `Map.lairs` and `Entry::Site(usize)` go, entry and clearing address
+the entity. Check first whether the twin lairs of a tower differ between the planes; if they do,
+`Site` keeps a guard list per plane. Guards are still spawned as neutral units at entry and
+despawned after the fight (no change in the rules). Decide where the loot items are made: at map
+creation (item entities held as `Loot` by the feature) or at clearing, as now; the draw order no
+longer matters. *Needs:* 329.
+
+**Done:** with task 329.
+
+**332. Volcano and tower ownership (done).** `Grid.volcanoes` (owner byte) and `tower_owners` become
+`Volcano` and `Owner(Entity)` on feature entities. `terraform` spawns a volcano feature when it makes
+one and despawns it when it cools. Mana per turn, the tower claim (`claim_tower`) and `map_draw` in
+the client read the entities. *Needs:* 329 and 313.
+
+**Done:** with task 329.
 
 **338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
 (`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself

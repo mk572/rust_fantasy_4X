@@ -35,6 +35,9 @@ const SAFE_DISTANCE: i32 = 2;
 const MIN_SQUARES: u32 = 3;
 const SQUARE_SPREAD: u32 = 4;
 const TRIES: u32 = 50;
+/// Armageddon's volcano at sea: the chance (percent) a sea square that was rolled is kept. The
+/// original never raises one at sea; here it can, but seldom.
+const SEA_PERCENT: u32 = 20;
 
 impl Game {
     /// One turn of the world-scale enchantments every wizard keeps going.
@@ -78,6 +81,7 @@ impl Game {
         &mut self,
         player: PlayerId,
         spare_cities: bool,
+        sea_percent: u32,
         fit: impl Fn(&Game, Position) -> bool,
     ) -> Vec<Position> {
         let Some((w, h)) = self.map.as_ref().map(|m| (m.width(), m.height())) else {
@@ -100,6 +104,11 @@ impl Game {
                     && (!spare_cities || !self.near_city_of(player, at))
                     && fit(self, at)
                 {
+                    let sea = self.economy().terrain_class_at(at)
+                        == Some(crate::content::TerrainClass::Ocean);
+                    if sea && self.roll(100) > sea_percent {
+                        continue;
+                    }
                     found.push(at);
                     break;
                 }
@@ -111,17 +120,19 @@ impl Game {
     /// Great Wasting: any land squares, the caster's own cities' too, are corrupted (the caster
     /// is proof against it, see `city/economy.rs`).
     fn great_wasting(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, |g, at| g.check_corrupt(at).is_ok());
+        let squares = self.pick_squares(player, false, 100, |g, at| g.check_corrupt(at).is_ok());
         squares
             .into_iter()
             .flat_map(|at| self.corrupt(at))
             .collect()
     }
 
-    /// Armageddon: volcanoes rise on any square, the caster's cities and the sea included,
-    /// owned by the caster, who gains power from every volcano in the world.
+    /// Armageddon: volcanoes rise on any square, the caster's cities included and the sea too
+    /// (seldom), owned by the caster, who gains a point of power from each.
     fn armageddon(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, |g, at| g.can_armageddon_volcano(at));
+        let squares = self.pick_squares(player, false, SEA_PERCENT, |g, at| {
+            g.can_armageddon_volcano(at)
+        });
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xA2E6);
         squares
             .into_iter()

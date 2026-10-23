@@ -20,13 +20,48 @@ const SITE_SPACING: u32 = 2;
 /// Towers and nodes stay away from the polar rows.
 const POLE_MARGIN: u32 = 3;
 
+/// Every feature placed on the map so far, one layer per plane. While a map is made minerals,
+/// towers, nodes and encounter sites are all placed here; the minerals then go into the map's
+/// layer and the others become entities (`Placement`).
+#[derive(Debug, Clone)]
+pub struct Placed {
+    width: u32,
+    height: u32,
+    layers: [Vec<Option<FeatureId>>; 2],
+}
+
+impl Placed {
+    pub fn new(width: u32, height: u32) -> Self {
+        let len = (width * height) as usize;
+        Self {
+            width,
+            height,
+            layers: [vec![None; len], vec![None; len]],
+        }
+    }
+
+    /// The feature on `(x, y)` (x wraps, y outside the map yields `None`).
+    pub fn get(&self, plane: Plane, x: i32, y: i32) -> Option<FeatureId> {
+        if y < 0 || y >= self.height as i32 {
+            return None;
+        }
+        let x = x.rem_euclid(self.width as i32) as u32;
+        self.layers[plane.index()][(y as u32 * self.width + x) as usize]
+    }
+
+    pub(crate) fn set(&mut self, plane: Plane, x: u32, y: u32, feature: FeatureId) {
+        self.layers[plane.index()][(y * self.width + x) as usize] = Some(feature);
+    }
+}
+
 pub fn place_features(
     seed: u64,
     params: &GenParams,
     content: &Content,
     map: &mut Map,
-) -> Result<(), GenError> {
-    let towers = place_towers(seed, params, content, map)?;
+) -> Result<Placed, GenError> {
+    let mut placed = Placed::new(map.width(), map.height());
+    let towers = place_towers(seed, params, content, map, &mut placed)?;
     let mut rngs = Vec::new();
     for plane in Plane::ALL {
         let salt = 0x51ED_2701_F00D_0000u64 + plane.index() as u64;
@@ -41,15 +76,16 @@ pub fn place_features(
             &towers,
             content,
             grid,
+            &mut placed,
         );
         rngs.push(rng);
     }
-    place_random_sites(seed, params, content, map, &towers);
+    place_random_sites(seed, params, content, map, &mut placed, &towers);
     for plane in Plane::ALL {
         let mut rng = rngs.remove(0);
         let pp = params.planes[plane.index()];
         let grid = map.plane_mut(plane);
-        let mineral_tiles = candidates(grid, content, |c| {
+        let mineral_tiles = candidates(grid, &placed, plane, content, |c| {
             !content
                 .features
                 .weighted(FeatureKind::Mineral, c, plane)
@@ -57,9 +93,17 @@ pub fn place_features(
         })
         .len();
         let n = mineral_tiles * pp.mineral_percent as usize / 100;
-        place_weighted(&mut rng, plane, FeatureKind::Mineral, n, content, grid);
+        place_weighted(
+            &mut rng,
+            plane,
+            FeatureKind::Mineral,
+            n,
+            content,
+            grid,
+            &mut placed,
+        );
     }
-    Ok(())
+    Ok(placed)
 }
 
 /// The random encounter sites of the original's `Generate_Lairs`: a fixed number (25 strong and
@@ -71,6 +115,7 @@ fn place_random_sites(
     params: &GenParams,
     content: &Content,
     map: &mut Map,
+    placed_features: &mut Placed,
     towers: &[(u32, u32)],
 ) {
     let want = (params.strong_sites + params.weak_sites) as usize;
@@ -81,11 +126,10 @@ fn place_random_sites(
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x517E_5EED_0000_0003);
     let mut taken: Vec<(u32, u32)> = towers.to_vec();
     for plane in Plane::ALL {
-        let grid = map.plane(plane);
         for y in 0..h {
             for x in 0..w {
-                let is_node = grid
-                    .feature(x as i32, y as i32)
+                let is_node = placed_features
+                    .get(plane, x as i32, y as i32)
                     .and_then(|f| content.features.get(f))
                     .is_some_and(|d| d.kind == FeatureKind::Node);
                 if is_node {
@@ -103,7 +147,7 @@ fn place_random_sites(
             rng.gen_range(SITE_MARGIN..h - SITE_MARGIN),
         );
         let grid = map.plane(plane);
-        if grid.feature(x as i32, y as i32).is_some()
+        if placed_features.get(plane, x as i32, y as i32).is_some()
             || taken
                 .iter()
                 .any(|&o| grid.chebyshev(o, (x, y)) < SITE_SPACING)
@@ -126,7 +170,7 @@ fn place_random_sites(
         ) else {
             continue;
         };
-        map.plane_mut(plane).set_feature(x, y, Some(id));
+        placed_features.set(plane, x, y, id);
         taken.push((x, y));
         placed += 1;
     }
@@ -138,6 +182,7 @@ fn place_towers(
     params: &GenParams,
     content: &Content,
     map: &mut Map,
+    placed: &mut Placed,
 ) -> Result<Vec<(u32, u32)>, GenError> {
     if params.tower_count == 0 {
         return Ok(Vec::new());
@@ -185,7 +230,7 @@ fn place_towers(
             if is_water {
                 grid.set(x, y, grass);
             }
-            grid.set_feature(x, y, Some(tower));
+            placed.set(plane, x, y, tower);
         }
     }
     Ok(spots)
@@ -198,9 +243,10 @@ fn place_nodes(
     towers: &[(u32, u32)],
     content: &Content,
     grid: &mut Grid,
+    layer: &mut Placed,
 ) {
     let mut placed: Vec<(u32, u32)> = Vec::new();
-    let mut spots = candidates(grid, content, |_| true);
+    let mut spots = candidates(grid, layer, plane, content, |_| true);
     shuffle(rng, &mut spots);
     for (x, y, class) in spots {
         if placed.len() >= count {
@@ -218,7 +264,7 @@ fn place_nodes(
             rng,
             &content.features.weighted(FeatureKind::Node, class, plane),
         ) {
-            grid.set_feature(x, y, Some(id));
+            layer.set(plane, x, y, id);
             put_node_terrain(content, plane, id, x, y, grid);
             placed.push((x, y));
         }
@@ -256,8 +302,9 @@ fn place_weighted(
     count: usize,
     content: &Content,
     grid: &mut Grid,
+    layer: &mut Placed,
 ) {
-    let mut spots = candidates(grid, content, |_| true);
+    let mut spots = candidates(grid, layer, plane, content, |_| true);
     shuffle(rng, &mut spots);
     let mut placed = 0;
     for (x, y, class) in spots {
@@ -265,7 +312,7 @@ fn place_weighted(
             break;
         }
         if let Some(id) = pick(rng, &content.features.weighted(kind, class, plane)) {
-            grid.set_feature(x, y, Some(id));
+            layer.set(plane, x, y, id);
             placed += 1;
         }
     }
@@ -274,13 +321,15 @@ fn place_weighted(
 /// Free (feature-less) land tiles whose terrain class passes `filter`, in scan order.
 fn candidates(
     grid: &Grid,
+    layer: &Placed,
+    plane: Plane,
     content: &Content,
     filter: impl Fn(TerrainClass) -> bool,
 ) -> Vec<(u32, u32, TerrainClass)> {
     let mut out = Vec::new();
     for y in 0..grid.height() {
         for x in 0..grid.width() {
-            if grid.feature(x as i32, y as i32).is_some() {
+            if layer.get(plane, x as i32, y as i32).is_some() {
                 continue;
             }
             let class = grid

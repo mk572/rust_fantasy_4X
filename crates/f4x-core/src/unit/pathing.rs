@@ -100,7 +100,7 @@ impl Game {
                     && self
                         .economy()
                         .lair_at(next)
-                        .is_some_and(|(_, l)| !l.guards.is_empty())
+                        .is_some_and(|l| !l.guards.is_empty())
                 {
                     continue;
                 }
@@ -167,7 +167,7 @@ impl Game {
                     && self
                         .economy()
                         .lair_at(next)
-                        .is_some_and(|(_, l)| !l.guards.is_empty())
+                        .is_some_and(|l| !l.guards.is_empty())
                 {
                     continue;
                 }

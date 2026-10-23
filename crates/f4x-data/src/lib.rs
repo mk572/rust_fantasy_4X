@@ -694,13 +694,25 @@ mod tests {
         ));
     }
 
-    fn feature_ids(grid: &f4x_core::map::Grid, c: &Content) -> Vec<(u32, u32, String)> {
+    /// The minerals and the placed features on one plane of a generated map (a tower is on both).
+    fn feature_ids(
+        generated: &f4x_core::map::mapgen::Generated,
+        plane: Plane,
+        c: &Content,
+    ) -> Vec<(u32, u32, String)> {
+        let grid = generated.map.plane(plane);
         let mut out = Vec::new();
         for y in 0..grid.height() {
             for x in 0..grid.width() {
-                if let Some(f) = grid.feature(x as i32, y as i32) {
+                if let Some(f) = grid.mineral(x as i32, y as i32) {
                     out.push((x, y, c.features.get(f).unwrap().id.clone()));
                 }
+            }
+        }
+        for p in &generated.placements {
+            let def = c.features.get(p.feature).unwrap();
+            if p.at.plane == plane || def.kind == FeatureKind::Tower {
+                out.push((p.at.x, p.at.y, def.id.clone()));
             }
         }
         out
@@ -877,7 +889,7 @@ mod tests {
         for seed in 0..5 {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
             let towers = |plane| -> Vec<(u32, u32)> {
-                feature_ids(map.plane(plane), &c)
+                feature_ids(&map, plane, &c)
                     .into_iter()
                     .filter(|(_, _, id)| id == "tower")
                     .map(|(x, y, _)| (x, y))
@@ -891,8 +903,8 @@ mod tests {
             );
             assert_eq!(towers(Plane::Arcanus), towers(Plane::Myrror), "seed {seed}");
             for plane in Plane::ALL {
-                let grid = map.plane(plane);
-                let nodes = feature_ids(grid, &c)
+                let grid = map.map.plane(plane);
+                let nodes = feature_ids(&map, plane, &c)
                     .into_iter()
                     .filter(|(_, _, id)| id.ends_with("_node"))
                     .count();
@@ -902,7 +914,7 @@ mod tests {
                     "seed {seed}"
                 );
                 // No feature sits on ocean; every feature is on terrain its rules allow.
-                for (x, y, id) in feature_ids(grid, &c) {
+                for (x, y, id) in feature_ids(&map, plane, &c) {
                     let class = c
                         .terrains
                         .get(grid.get(x as i32, y as i32).unwrap())
@@ -940,8 +952,8 @@ mod tests {
         let (mut arc_minerals, mut myr_minerals) = (0, 0);
         for seed in 0..10 {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
-            let arcanus = feature_ids(map.plane(Plane::Arcanus), &c);
-            let myrror = feature_ids(map.plane(Plane::Myrror), &c);
+            let arcanus = feature_ids(&map, Plane::Arcanus, &c);
+            let myrror = feature_ids(&map, Plane::Myrror, &c);
             let is_myrror_only = |id: &str| id == "adamantium_ore" || id == "crysx_crystal";
             assert!(
                 arcanus.iter().all(|(_, _, id)| !is_myrror_only(id)),
@@ -966,7 +978,7 @@ mod tests {
         let p = f4x_core::map::mapgen::GenParams::default();
         let found = (0..10).any(|seed| {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
-            feature_ids(map.plane(Plane::Myrror), &c)
+            feature_ids(&map, Plane::Myrror, &c)
                 .iter()
                 .any(|(_, _, id)| id == "adamantium_ore")
         });

@@ -476,7 +476,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() {
 }
 
 #[test]
-fn while_armageddon_lasts_no_building_calms_a_city() {
+fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working() {
     use crate::rules::stats::compute;
     use crate::rules::Stat;
     let mut g = world();
@@ -485,14 +485,18 @@ fn while_armageddon_lasts_no_building_calms_a_city() {
         add_building(&mut g, city, b);
     }
     let pacify = |g: &Game| -compute(Stat::CityUnrest, 0, &g.economy().city_modifiers(city));
-    assert!(pacify(&g) >= 3);
-    // Anyone's Armageddon, the city owner's own included.
+    let calm = pacify(&g);
+    assert!(calm >= 3);
     let a = g.content.rules.spells.id_of("armageddon").unwrap();
     g.add_global(P1, a);
-    assert_eq!(pacify(&g), 0, "an enemy's Armageddon");
+    assert_eq!(
+        pacify(&g),
+        calm - 2,
+        "an enemy's Armageddon: two more unrest"
+    );
     g.clear_globals(P1);
     g.add_global(P0, a);
-    assert_eq!(pacify(&g), 0, "and one's own");
+    assert_eq!(pacify(&g), calm, "the owner's own changes nothing");
 }
 
 #[test]
@@ -543,20 +547,28 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
 fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
     use crate::battle::immunity::Realm;
     let mut g = world();
+    let chaos = g
+        .content
+        .terrains
+        .first_of_class(crate::content::TerrainClass::ChaosNode, Plane::Arcanus)
+        .unwrap();
     g.map
         .as_mut()
         .unwrap()
-        .set_nodes(vec![crate::feature::node::Node {
-            plane: Plane::Arcanus,
-            x: 7,
-            y: 6,
+        .plane_mut(Plane::Arcanus)
+        .set(7, 6, chaos);
+    g.put_node_data(
+        at(7, 6),
+        "node",
+        crate::feature::node::Node {
             realm: "chaos".into(),
             power: 2,
             aura: vec![(7, 6), (8, 6)],
-            owner: None,
             guardian: false,
             warped: false,
-        }]);
+        },
+        None,
+    );
     let walker = g.content.rules.units.id_of("walker").unwrap();
     for (x, aura, site) in [
         (7, Some(Realm::Chaos), Some(Realm::Chaos)),

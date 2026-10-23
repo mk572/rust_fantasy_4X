@@ -72,7 +72,8 @@ impl Game {
         true
     }
 
-    /// Put a feature (or none) on a square.
+    /// Put a feature (or none) on a square: a mineral goes in the map layer, a tower, node or
+    /// encounter site becomes an entity (with no guards or treasure, and a node with no aura).
     pub fn cheat_set_feature(
         &mut self,
         pos: Position,
@@ -85,7 +86,26 @@ impl Game {
         if pos.x >= grid.width() || pos.y >= grid.height() {
             return false;
         }
-        grid.set_feature(pos.x, pos.y, feature);
+        grid.set_mineral(pos.x, pos.y, None);
+        if let Some(old) = map.feature_entity(pos) {
+            self.despawn_feature(old);
+        }
+        let Some(id) = feature else {
+            return true;
+        };
+        let kind = self.content.features.get(id).map(|d| d.kind);
+        if kind == Some(crate::content::FeatureKind::Mineral) {
+            if let Some(map) = self.map.as_mut() {
+                map.plane_mut(pos.plane).set_mineral(pos.x, pos.y, Some(id));
+            }
+        } else {
+            self.spawn_feature(crate::feature::entity::Placement {
+                at: pos,
+                feature: id,
+                node: None,
+                lair: None,
+            });
+        }
         true
     }
 

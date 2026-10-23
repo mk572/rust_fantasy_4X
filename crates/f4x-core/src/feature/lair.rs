@@ -14,6 +14,9 @@ use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
 use crate::content::{Content, FeatureKind};
+use crate::feature::entity::LairInfo;
+use crate::feature::node::Node;
+use crate::feature::place::Placed;
 use crate::item::make::{make_item, Grade};
 use crate::map::mapgen::GenParams;
 use crate::map::{Map, Plane, Position};
@@ -248,8 +251,6 @@ fn make_lair(
     rng: &mut Pcg64Mcg,
     content: &Content,
     plane: Plane,
-    at: (u32, u32),
-    site_id: &str,
     site: SiteType,
     budget: i32,
     guard_percent: i32,
@@ -260,10 +261,6 @@ fn make_lair(
     let list = candidates(content, realm);
     let (guards, first, second) = pick_guards(rng, &list, budget);
     let mut lair = Lair {
-        plane,
-        x: at.0,
-        y: at.1,
-        site: site_id.to_string(),
         intact: true,
         guards,
         gold: 0,
@@ -277,14 +274,9 @@ fn make_lair(
 }
 
 /// What a guarded site holds: its guards and its treasure. Towers, magic nodes and the
-/// encounter sites each have one (the original's "lair" table).
+/// encounter sites each have one (the original's "lair" table), a component of their entity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Lair {
-    pub plane: Plane,
-    pub x: u32,
-    pub y: u32,
-    /// Id of the site's feature: `tower`, a node, or an encounter site.
-    pub site: String,
     /// False once cleared.
     pub intact: bool,
     /// Guard unit ids with counts; empty for an unguarded site.
@@ -300,28 +292,28 @@ pub struct Lair {
     pub special: u8,
 }
 
-impl Lair {
-    /// Number of guard units.
-    pub fn guard_count(&self) -> u32 {
-        self.guards.iter().map(|g| g.1).sum()
-    }
-}
-
-/// Give every tower, node and encounter site on the map its guards and treasure.
-pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Content) {
+/// Give every tower, node and encounter site on the map its guards and treasure, each with the
+/// square it is on. A tower is one site, on its Arcanus square.
+pub fn generate_lairs(
+    seed: u64,
+    params: &GenParams,
+    map: &Map,
+    placed: &Placed,
+    nodes: &[(Position, Node)],
+    content: &Content,
+) -> Vec<(Position, Lair)> {
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x1A12_5EED_600D_5CA1);
     let guards = i32::from(params.lair_guard_percent.min(300));
     let treasure = i32::from(params.lair_treasure_percent.min(500));
     let magic = i32::from(params.magic_strength.min(2));
-    let mut lairs: Vec<Lair> = Vec::new();
+    let mut lairs: Vec<(Position, Lair)> = Vec::new();
     // Towers stand on both planes and share one set of guards and treasure.
     let mut seen_towers: Vec<(u32, u32)> = Vec::new();
     for plane in Plane::ALL {
-        let grid = map.plane(plane);
-        for y in 0..grid.height() {
-            for x in 0..grid.width() {
-                let Some(def) = grid
-                    .feature(x as i32, y as i32)
+        for y in 0..map.height() {
+            for x in 0..map.width() {
+                let Some(def) = placed
+                    .get(plane, x as i32, y as i32)
                     .and_then(|f| content.features.get(f))
                 else {
                     continue;
@@ -335,47 +327,44 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
                     &mut rng,
                     content,
                     Plane::Arcanus,
-                    (x, y),
-                    &def.id,
                     SiteType::Tower,
                     budget,
                     guards,
                     treasure,
                 );
-                lairs.push(Lair {
-                    plane: Plane::Myrror,
-                    ..lair.clone()
-                });
-                lairs.push(lair);
+                lairs.push((
+                    Position {
+                        plane: Plane::Arcanus,
+                        x,
+                        y,
+                    },
+                    lair,
+                ));
             }
         }
     }
-    for node in map.nodes().to_vec() {
+    for (pos, node) in nodes {
         let power = i32::from(node.power);
         let budget = (power * power * (4 + random(&mut rng, 11)) * (magic + 1) / 2).min(32767);
-        let id = format!("{}_node", node.realm);
         let lair = make_lair(
             &mut rng,
             content,
-            node.plane,
-            (node.x, node.y),
-            &id,
+            pos.plane,
             SiteType::Node(&node.realm),
             budget,
             guards,
             treasure,
         );
-        lairs.push(lair);
+        lairs.push((*pos, lair));
     }
     // The random sites, in map order; exactly `strong_sites` of them (picked at random) are the
     // strong ones, the rest weak.
     let mut sites = Vec::new();
     for plane in Plane::ALL {
-        let grid = map.plane(plane);
-        for y in 0..grid.height() {
-            for x in 0..grid.width() {
-                let Some(def) = grid
-                    .feature(x as i32, y as i32)
+        for y in 0..map.height() {
+            for x in 0..map.width() {
+                let Some(def) = placed
+                    .get(plane, x as i32, y as i32)
                     .and_then(|f| content.features.get(f))
                 else {
                     continue;
@@ -409,16 +398,21 @@ pub fn generate_lairs(seed: u64, params: &GenParams, map: &mut Map, content: &Co
             &mut rng,
             content,
             plane,
-            (x, y),
-            &def.id,
             site_type(&def.id, def.kind),
             budget,
             guards,
             treasure,
         );
-        lairs.push(lair);
+        lairs.push((Position { plane, x, y }, lair));
     }
-    map.set_lairs(lairs);
+    lairs
+}
+
+impl Lair {
+    /// Number of guard units.
+    pub fn guard_count(&self) -> u32 {
+        self.guards.iter().map(|g| g.1).sum()
+    }
 }
 
 /// What a cleared site gave its conqueror.
@@ -455,36 +449,6 @@ impl SiteError {
             Self::Busy => "refuse_map.site_error_busy",
         }
     }
-}
-
-/// Clear the lair at `index` on the map: it stops being intact (a tower's twin on the other
-/// plane too), and an encounter site vanishes from the map (towers and nodes stay). Returns
-/// the lair as it was, with its treasure; `None` if there is none or it is cleared already.
-pub(crate) fn clear_site(map: &mut Map, content: &Content, index: usize) -> Option<Lair> {
-    let lair = map.lairs().get(index).cloned()?;
-    if !lair.intact {
-        return None;
-    }
-    let is_tower = lair.site == "tower";
-    for l in 0..map.lairs().len() {
-        let Some(other) = map.lair_mut(l) else {
-            continue;
-        };
-        let same = l == index
-            || (is_tower && other.site == "tower" && (other.x, other.y) == (lair.x, lair.y));
-        if same {
-            other.intact = false;
-        }
-    }
-    let is_encounter = content
-        .features
-        .id_of(&lair.site)
-        .and_then(|f| content.features.get(f).map(|d| d.kind))
-        == Some(FeatureKind::Encounter);
-    if is_encounter {
-        map.plane_mut(lair.plane).set_feature(lair.x, lair.y, None);
-    }
-    Some(lair)
 }
 
 /// A random spell of about `rarity` from a realm the wizard has no books in (arcane counts as
@@ -542,7 +506,7 @@ pub(crate) fn award_spell(
 pub(crate) fn award_special(
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     rng: &mut crate::game::rng::GameRng,
-    lair: &Lair,
+    lair: &LairInfo,
     picks: i32,
     loot: &mut Loot,
 ) {
@@ -609,7 +573,8 @@ impl Game {
         if self.battle.is_some() {
             return Err(SiteError::Busy);
         }
-        let (index, lair) = self.economy().lair_at(to).ok_or(SiteError::NoSite)?;
+        let lair = self.economy().lair_at(to).ok_or(SiteError::NoSite)?;
+        let site = lair.entity;
         if lair.guards.is_empty() {
             return Err(SiteError::NoSite);
         }
@@ -618,7 +583,7 @@ impl Game {
             .economy()
             .plan_step(units, to)
             .map_err(SiteError::Move)?;
-        if !matches!(entry, crate::unit::movement::Entry::Site(i) if i == index) {
+        if !matches!(entry, crate::unit::movement::Entry::Site(e) if e == site) {
             return Err(SiteError::NoSite);
         }
         let guards: Vec<(String, u32)> = lair.guards.clone();
@@ -636,7 +601,7 @@ impl Game {
         match self.start_battle(units, &defenders) {
             Ok(events) => {
                 if let Some(active) = self.battle.as_mut() {
-                    active.site = Some(index);
+                    active.site = Some(site);
                 }
                 Ok(events)
             }
@@ -655,24 +620,37 @@ impl Game {
             return Vec::new();
         };
         match self.economy().lair_at(to) {
-            Some((i, l)) if l.guards.is_empty() && owner != MONSTERS => self.claim_lair(i, owner),
+            Some(l) if l.guards.is_empty() && owner != MONSTERS => self.claim_lair(l.entity, owner),
             _ => Vec::new(),
         }
     }
 
+    /// Clear the guarded site on an entity: it stops being intact, and an encounter site vanishes
+    /// from the map (towers and nodes stay). Returns the site as it was, with its treasure;
+    /// `None` if there is none or it is cleared already.
+    pub(crate) fn clear_site(&mut self, entity: hecs::Entity) -> Option<LairInfo> {
+        let lair = self.economy().lair_of(entity).filter(|l| l.intact)?;
+        if let Ok(mut l) = self.world.get::<&mut Lair>(entity) {
+            l.intact = false;
+        }
+        let is_encounter = self
+            .content
+            .features
+            .id_of(&lair.site)
+            .and_then(|f| self.content.features.get(f).map(|d| d.kind))
+            == Some(FeatureKind::Encounter);
+        if is_encounter {
+            self.despawn_feature(entity);
+        }
+        Some(lair)
+    }
+
     /// Clear a lair and give `player` its treasure.
-    pub(crate) fn claim_lair(&mut self, index: usize, player: PlayerId) -> Vec<Event> {
-        let Some(map) = self.map.as_mut() else {
+    pub(crate) fn claim_lair(&mut self, site: hecs::Entity, player: PlayerId) -> Vec<Event> {
+        let Some(lair) = self.clear_site(site) else {
             return Vec::new();
         };
-        let Some(lair) = clear_site(map, &self.content, index) else {
-            return Vec::new();
-        };
-        let pos = Position {
-            plane: lair.plane,
-            x: lair.x,
-            y: lair.y,
-        };
+        let pos = lair.pos;
         let mut loot = Loot {
             gold: lair.gold,
             mana: lair.mana,
@@ -768,24 +746,15 @@ impl Game {
     /// After a battle at a site: the guards go, and a win clears the site.
     pub(crate) fn finish_site_battle(
         &mut self,
-        index: usize,
+        site: hecs::Entity,
         winner: Option<PlayerId>,
         attackers: &[hecs::Entity],
         guards: &[hecs::Entity],
     ) -> Vec<Event> {
-        let Some(lair) = self
-            .map
-            .as_ref()
-            .and_then(|m| m.lairs().get(index))
-            .cloned()
-        else {
+        let Some(lair) = self.economy().lair_of(site) else {
             return Vec::new();
         };
-        let pos = Position {
-            plane: lair.plane,
-            x: lair.x,
-            y: lair.y,
-        };
+        let pos = lair.pos;
         // The guards were made for the fight and go with it. Other neutral units on the site
         // (the undead raised for the monsters) stay, as do guards the victors took as undead.
         for &u in guards {
@@ -801,7 +770,7 @@ impl Game {
             .copied()
             .filter(|&u| self.world.contains(u))
             .collect();
-        let mut events = self.claim_lair(index, winner);
+        let mut events = self.claim_lair(site, winner);
         if !survivors.is_empty() {
             let from = self.units().unit_position(survivors[0]);
             if self.move_stack(&survivors, pos).is_ok() {

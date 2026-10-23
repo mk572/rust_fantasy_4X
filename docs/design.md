@@ -72,7 +72,7 @@ short, the entities of the game are:
 | **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328, done: one hero entity of each of the 35 types in the whole game, with a state (free, serving one wizard, dead, gone) |
 | **City** | name, owner, position, population, buildings, race, production | exists |
 | **Spell instance** | spell definition, caster (a wizard), target (global, wizard, city, unit, feature, square, battlefield), duration | tasks 318 to 325. Today bare spell ids in eight containers |
-| **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner | tasks 329 to 332 and 338. Today `Grid.features`, `Map.nodes`, `Map.lairs`, `tower_owners`, `volcanoes` |
+| **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner | tasks 329 to 332 and 338, done: towers, nodes, encounter sites and volcanoes are entities; minerals stay a map layer |
 | **Item** | kind, name, bonus, powers, charges, prefab, and who holds it | tasks 333, 334. Today a copied struct in five places |
 | **Definitions** (spells, units, buildings, features, items...) | not entities: typed-id registries loaded from data | |
 | **Battle** | a `Battle` outside the world, with a small world of its own for its spell instances | exists; spell world in task 324 |

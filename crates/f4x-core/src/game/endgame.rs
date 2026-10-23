@@ -228,13 +228,14 @@ impl Game {
         for u in self.units().player_units(loser) {
             self.remove_unit(u, crate::hero::Fate::Released);
         }
-        if let Some(map) = self.map.as_mut() {
-            for i in 0..map.nodes().len() {
-                if let Some(n) = map.node_mut(i) {
-                    if n.owner == Some(loser) {
-                        n.owner = None;
-                        n.guardian = false;
-                    }
+        for node in self.economy().nodes() {
+            if node.owner == Some(loser) {
+                let _ = self.world.remove_one::<crate::player::Owner>(node.entity);
+                if let Ok(mut n) = self
+                    .world
+                    .get::<&mut crate::feature::node::Node>(node.entity)
+                {
+                    n.guardian = false;
                 }
             }
         }

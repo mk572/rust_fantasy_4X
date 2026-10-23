@@ -109,9 +109,7 @@ impl App {
             text.effects = [self.text("surveyor.corruption"), String::new()];
         }
 
-        let feature = grid
-            .feature(pos.x as i32, pos.y as i32)
-            .and_then(|f| content.features.get(f));
+        let feature = self.game.economy().feature_at(pos);
         let city = self.game.economy().city_at(pos);
         if let Some(city) = city {
             let size = self.city_size_name(city);
@@ -141,8 +139,7 @@ impl App {
             text.detail = self.texts().join(&bits);
             match f.kind {
                 FeatureKind::Node => {
-                    if let Some(i) = map.node_at(pos.plane, pos.x, pos.y) {
-                        let n = &map.nodes()[i];
+                    if let Some(n) = self.game.economy().node_at(pos) {
                         let realm = n.realm.clone();
                         let realm = realm[..1].to_uppercase() + &realm[1..];
                         text.special = vec![
@@ -212,7 +209,7 @@ impl App {
             .get((pos.y * width + pos.x) as usize)
             .copied()
             .unwrap_or(false);
-        let Some((_, lair)) = self.game.economy().lair_at(pos) else {
+        let Some(lair) = self.game.economy().lair_at(pos) else {
             return Vec::new();
         };
         if !seen {

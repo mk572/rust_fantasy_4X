@@ -369,7 +369,7 @@ impl EffectHost for GameHost<'_> {
             return;
         };
         if let Some(map) = self.game.map.as_mut() {
-            map.plane_mut(at.plane).set_feature(at.x, at.y, Some(id));
+            map.plane_mut(at.plane).set_mineral(at.x, at.y, Some(id));
         }
     }
 

@@ -9,8 +9,8 @@ pub mod neutral;
 pub mod nightshade;
 pub mod production;
 
-use crate::content::{Content, FeatureKind, TerrainClass};
-use crate::map::{Map, Plane, Position};
+use crate::content::{FeatureKind, TerrainClass};
+use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 
 /// The longest a city's name can be (the original's name field holds twelve characters).
@@ -57,12 +57,12 @@ impl FoundCityError {
 
 /// Check the map-level rules for founding a city; `existing` are current city positions.
 pub fn check_site(
-    map: Option<&Map>,
-    content: &Content,
+    economy: &economy::Economy,
     pos: Position,
     existing: impl IntoIterator<Item = Position>,
 ) -> Result<(), FoundCityError> {
-    let map = map.ok_or(FoundCityError::NoMap)?;
+    let content = economy.content;
+    let map = economy.map.ok_or(FoundCityError::NoMap)?;
     let grid = map.plane(pos.plane);
     if pos.x >= grid.width() || pos.y >= grid.height() {
         return Err(FoundCityError::OutOfBounds);
@@ -76,18 +76,13 @@ pub fn check_site(
     }
     // As the original's `Map_Square_Survey`: a tower (on either plane) or a node always blocks,
     // an encounter site only while its lair is intact (B17).
-    let kind_at = |plane: Plane| {
-        let g = map.plane(plane);
-        g.feature(pos.x as i32, pos.y as i32)
-            .and_then(|f| content.features.get(f))
-            .map(|f| f.kind)
-    };
+    let kind_at = |plane: Plane| economy.feature_kind_at(Position { plane, ..pos });
     let tower_here = [Plane::Arcanus, Plane::Myrror]
         .into_iter()
         .any(|pl| kind_at(pl) == Some(FeatureKind::Tower));
     let blocked = tower_here
         || kind_at(pos.plane) == Some(FeatureKind::Node)
-        || map.lair_at(pos.plane, pos.x, pos.y).is_some();
+        || economy.lair_at(pos).is_some();
     if blocked {
         return Err(FoundCityError::BlockedByFeature);
     }
@@ -121,34 +116,29 @@ mod tests {
                 g.set(0, y, id("ocean"));
             }
             g.set(5, 5, id("mountains"));
-            g.set_feature(8, 5, c.features.id_of("lair"));
-            g.set_feature(12, 5, c.features.id_of("iron"));
+            g.set_mineral(12, 5, c.features.id_of("iron"));
             g
         };
         let mut game = Game::new(1);
-        let mut map = crate::map::Map::new(build(), build());
-        // A tower stands on both planes, a node on one.
-        for plane in [Plane::Arcanus, Plane::Myrror] {
-            map.plane_mut(plane)
-                .set_feature(14, 8, c.features.id_of("tower"));
-        }
-        map.plane_mut(Plane::Arcanus)
-            .set_feature(16, 8, c.features.id_of("node"));
-        map.set_lairs(vec![crate::feature::lair::Lair {
-            plane: Plane::Arcanus,
-            x: 8,
-            y: 5,
-            site: "lair".into(),
-            intact: true,
-            guards: Vec::new(),
-            gold: 0,
-            mana: 0,
-            items: Vec::new(),
-            prisoner: false,
-            special: 0,
-        }]);
-        game.map = Some(map);
+        game.map = Some(crate::map::Map::new(build(), build()));
         game.content = c;
+        let at = |plane, x, y| Position { plane, x, y };
+        // A tower stands on both planes, a node on one.
+        game.put_feature(at(Plane::Arcanus, 14, 8), "tower");
+        game.put_feature(at(Plane::Arcanus, 16, 8), "node");
+        game.put_lair(
+            at(Plane::Arcanus, 8, 5),
+            "lair",
+            crate::feature::lair::Lair {
+                intact: true,
+                guards: Vec::new(),
+                gold: 0,
+                mana: 0,
+                items: Vec::new(),
+                prisoner: false,
+                special: 0,
+            },
+        );
         for id in (0..3).map(PlayerId) {
             game.add_player(id, "");
         }
@@ -214,10 +204,9 @@ mod tests {
             g.can_found_city(at(a, 8, 5)),
             Err(FoundCityError::BlockedByFeature)
         );
-        // Cleared: the lair is no longer intact, so the square is free (the feature stays here
-        // only because the test did not run a real assault).
-        g.map.as_mut().unwrap().lair_mut(0).unwrap().intact = false;
-        g.map.as_mut().unwrap().plane_mut(a).set_feature(8, 5, None);
+        // Cleared: the encounter site is gone, so the square is free.
+        let lair = g.economy().lair_at(at(a, 8, 5)).unwrap().entity;
+        g.clear_site(lair);
         assert_eq!(g.can_found_city(at(a, 8, 5)), Ok(()));
         // A tower blocks on both planes, even with no intact lair record.
         for plane in [a, Plane::Myrror] {

@@ -258,10 +258,7 @@ impl App {
                 };
                 let (sx, sy) = px(x, y);
                 square(sx, sy, CART_SQUARE, crate::frame::mini_terrain_color(class));
-                let kind = grid
-                    .feature(x as i32, y as i32)
-                    .and_then(|f| content.features.get(f))
-                    .map(|f| f.kind);
+                let kind = self.game.economy().feature_kind_at(at);
                 let marked = match kind {
                     Some(FeatureKind::Node | FeatureKind::Tower) => true,
                     Some(FeatureKind::Encounter) => self.game.economy().lair_at(at).is_some(),

@@ -95,11 +95,16 @@ pub fn draw_square(
     } else {
         0
     };
-    let feature = grid.feature(x, yi).and_then(|f| content.features.get(f));
+    let here = f4x_core::map::Position { plane, x: wx, y };
+    let feature = game.economy().feature_at(here);
     // The ground: a node's own piece, or the type the neighbours call for.
-    let ground = pick::ground_type(grid, content, x, yi, plane.index(), &|table, mask| {
-        art.autotile_type(table, mask)
-    });
+    let ground = if game.economy().volcano_at(here).is_some() {
+        Some(pick::VOLCANO)
+    } else {
+        pick::ground_type(grid, content, x, yi, plane.index(), &|table, mask| {
+            art.autotile_type(table, mask)
+        })
+    };
     let Some(ground) = ground else {
         return;
     };
@@ -143,7 +148,7 @@ pub fn draw_square(
                     draw_pic(tex, sx, sy, k);
                 }
             }
-            FeatureKind::Tower => match map.tower_owner(wx, y) {
+            FeatureKind::Tower => match game.economy().tower_owner(here) {
                 Some(owner) => {
                     let banner = banner_of(game, owner);
                     if let Some(tex) = art.banner_picture("tower_owned", banner, 0) {
@@ -194,8 +199,7 @@ pub fn draw_square(
         }
     }
     // The aura of a node somebody owns, in the owner's banner, shimmering.
-    if let Some(i) = map.node_covering(plane, wx, y) {
-        let node = &map.nodes()[i];
+    if let Some(node) = game.economy().node_covering(here) {
         if let Some(owner) = node.owner.filter(|_| node_owners) {
             let banner = banner_of(game, owner).min(4);
             let slot = node.aura.iter().position(|&a| a == (wx, y)).unwrap_or(0);
@@ -204,7 +208,7 @@ pub fn draw_square(
                 draw_pic(tex, sx, sy, k);
             }
         }
-        if node.warped && node.x == wx && node.y == y {
+        if node.warped && node.pos == here {
             draw_rectangle(sx, sy, t.x, t.y, Color::new(0.45, 0.0, 0.5, 0.35));
         }
     }

@@ -216,18 +216,13 @@ impl Game {
                 if self.is_corrupted(p) && self.roll(5) == 1 {
                     events.extend(self.purify_square(p));
                 }
-                let has_volcano = self
-                    .map
-                    .as_ref()
-                    .is_some_and(|m| m.plane(p.plane).volcano(p.x as i32, p.y as i32).is_some());
+                let has_volcano = self.economy().volcano_at(p).is_some();
                 match self.economy().terrain_class_at(p) {
                     Some(TerrainClass::Desert) if self.roll(10) == 1 => {
                         events.extend(self.set_class(p, TerrainClass::Grassland));
                     }
                     Some(TerrainClass::Mountains) if has_volcano && self.roll(10) == 1 => {
-                        if let Some(m) = self.map.as_mut() {
-                            m.plane_mut(p.plane).set_volcano(p.x, p.y, None);
-                        }
+                        self.remove_volcano(p);
                         events.extend(self.set_class(p, TerrainClass::Hills));
                     }
                     _ => {}
@@ -259,13 +254,13 @@ impl Game {
     }
 
     pub(crate) fn warp_node(&mut self, at: Position) -> Vec<Event> {
-        let Some(map) = self.map.as_mut() else {
+        let Some(node) = self.economy().node_at(at) else {
             return Vec::new();
         };
-        let Some(i) = map.node_at(at.plane, at.x, at.y) else {
-            return Vec::new();
-        };
-        if let Some(n) = map.node_mut(i) {
+        if let Ok(mut n) = self
+            .world
+            .get::<&mut crate::feature::node::Node>(node.entity)
+        {
             n.warped = true;
         }
         vec![Event::NodeWarped { pos: at }]

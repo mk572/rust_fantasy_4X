@@ -122,15 +122,15 @@ impl Game {
         let mut game = Self::new(seed);
         game.settings.basic.magic_strength = params.magic_strength.min(2);
         game.settings.basic.difficulty = params.difficulty.min(4);
-        game.map = Some(map::mapgen::generate(seed, params, content)?);
         game.content = content.clone();
+        game.set_generated(map::mapgen::generate(seed, params, content)?);
         Ok(game)
     }
 
     /// Whether a city could be founded at `pos` right now.
     pub fn can_found_city(&self, pos: map::Position) -> Result<(), city::FoundCityError> {
         let existing = self.economy().cities().into_iter().map(|(_, _, p)| p);
-        city::check_site(self.map.as_ref(), &self.content, pos, existing)
+        city::check_site(&self.economy(), pos, existing)
     }
 
     /// Let `player` see the tiles within `sight` (half-squares) of `at`.

@@ -57,7 +57,7 @@ impl Game {
                 survey.production_percent += half(def.production_percent);
             }
             if let Some(f) = grid
-                .feature(p.x as i32, p.y as i32)
+                .mineral(p.x as i32, p.y as i32)
                 .filter(|_| !spoiled)
                 .and_then(|f| self.content.features.get(f))
             {

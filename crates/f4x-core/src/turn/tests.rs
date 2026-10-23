@@ -266,9 +266,9 @@ fn mines_add_gold_mana_and_cheaper_units() {
     let adamant = g.content.features.id_of("adamantium_ore").unwrap();
     let iron = g.content.features.id_of("iron").unwrap();
     let plane = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
-    plane.set_feature(10, 8, Some(gold_ore));
-    plane.set_feature(11, 6, Some(adamant));
-    plane.set_feature(9, 6, Some(iron));
+    plane.set_mineral(10, 8, Some(gold_ore));
+    plane.set_mineral(11, 6, Some(adamant));
+    plane.set_mineral(9, 6, Some(iron));
     let eco = g.economy().city_economy(city).unwrap();
     assert_eq!(eco.gold, 4 + 3, "taxes plus the gold ore");
     assert_eq!(
@@ -866,7 +866,7 @@ fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
         .as_mut()
         .unwrap()
         .plane_mut(Plane::Arcanus)
-        .set_feature(x, y, Some(id));
+        .set_mineral(x, y, Some(id));
 }
 
 #[test]
@@ -1072,7 +1072,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() {
         .as_mut()
         .unwrap()
         .plane_mut(Plane::Arcanus)
-        .set_feature(10, 8, Some(game));
+        .set_mineral(10, 8, Some(game));
     // The special's own +10 and the 2 food it adds to what the land can feed.
     assert_eq!(g.economy().outpost_growth_chance(outpost), plain + 10 + 2);
 }

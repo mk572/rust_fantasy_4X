@@ -352,7 +352,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let map = g.map().unwrap();
     assert_eq!(
         map.plane(find.at.plane)
-            .feature(find.at.x as i32, find.at.y as i32),
+            .mineral(find.at.x as i32, find.at.y as i32),
         Some(find.ore)
     );
     assert!(told[0].ore.contains("iron") || told[0].ore.contains("coal"));
@@ -365,7 +365,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let map = g.map().unwrap();
     assert_eq!(
         map.plane(lost.at.plane)
-            .feature(lost.at.x as i32, lost.at.y as i32),
+            .mineral(lost.at.x as i32, lost.at.y as i32),
         None
     );
 }

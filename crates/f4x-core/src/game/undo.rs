@@ -299,7 +299,7 @@ mod tests {
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
         g.undo().unwrap();
-        assert_eq!(g.map.as_ref().unwrap().nodes()[0].owner, None);
+        assert_eq!(g.economy().nodes()[0].owner, None);
         // Guard it again, then a rival tries: the one-in-four roll cannot be re-rolled.
         let guard = {
             let ids: Vec<_> = g.units().all_units();

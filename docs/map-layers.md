@@ -25,16 +25,13 @@ Data: `content/terrain.ron`, `content/features.ron`.
 | Layer | Stored as | Holds | Who changes it |
 |---|---|---|---|
 | **Base terrain** | `Grid` tile array of `TerrainId` | one terrain per tile | map generation; terraforming spells (`spell/terraform.rs`) |
-| **Feature** | `Grid` array of `Option<FeatureId>` | at most one feature per tile | map generation; clearing an encounter site removes it |
+| **Mineral** | `Grid` array of `Option<FeatureId>` | at most one mineral per tile; no entity, nothing happens when a unit enters | map generation; Transmute, Change Terrain, random events |
 | **Road** | `Grid` array of `bool` | whether a road runs through the tile | engineers (`map/road.rs`) |
 | **Enchanted road** | `Grid` array of `bool` | roads that cost nothing to travel | Enchant Road; all Myrror roads count |
 | **River** | `Grid` array of `bool` | a river runs through the tile | map generation (rivers end in the sea or a basin lake) |
 | **Lake** | `Grid` array of `bool` | water tile inside land, drawn as a shore with land all round | map generation |
-| **Volcano** | `Grid` array of `Option<owner>` | a volcano and who raised it | the Raise Volcano spell |
 | **Corruption** | `Grid` array of `bool` | corrupted land: no food or production, no mineral bonus | Corruption, Land Corruption; purified by engineers or Gaia's Blessing |
-| **Nodes** | `Map::nodes` | power, aura squares, owner, guardian and warped flags | generation (`feature/node.rs`), melding, Warp Node |
-| **Tower owners** | `Map::tower_owners` | who last stood in each tower | movement |
-| **Lairs** | `Map::lairs` | guards and hoard of every tower, node and encounter site | generation (`feature/lair.rs`), clearing |
+| **Tower, node, encounter site, volcano** | entities with a `Position` (`feature/entity.rs`); `Map` keeps the square-to-entity index | a tower (one entity on both planes), a node (power, aura squares, guardian and warped flags, owner), a guarded site (`Lair`: guards and hoard of every tower, node and encounter site) and a volcano (its owner gets a point of power a turn) | generation, melding, Warp Node, clearing, the volcano spells, tower claims |
 | **Cities** | entities with a `Position` | founded cities and outposts | `FoundCity`, `SettleOutpost` |
 | **Units** | entities with a `Position` | everything that moves | movement commands |
 | **Exploration** | `Fog`, one flag per tile per plane per player | what a player has seen | moving, founding, creating units |
@@ -93,7 +90,7 @@ the original's manual says (its code gives none; see the conflicts document).
 **Not modelled as terrain types:** the original stores shore, river, lake and volcano variants
 as terrain types (762 of them). Here shores follow from neighbouring ocean tiles and are a
 rendering matter (the client picks the tile from the original's neighbour-mask table). Rivers
-and volcanoes are per-tile flags on `Grid` (a river flag, and a volcano owner); lakes are not
+are per-tile flags on `Grid`, and a volcano is an entity (its owner is a component); lakes are not
 modelled yet.
 
 - **Rivers:** generated from high ground to the sea; a city on a river gets +20% trade, on a
@@ -238,7 +235,7 @@ from the original's. Reproducing the original's generator is a possible later pa
 | One number per tile encodes terrain, shore variant and river variant (762 types) | A terrain per tile; transitions are derived for drawing |
 | Specials (minerals), flags and exploration are separate bitfields | Features, roads and fog are separate, typed layers |
 | Lairs, nodes and towers are separate fixed arrays (102, 30, 6) | One feature per tile with a `kind`; counts are generation parameters |
-| Rivers, lakes, volcanoes, corrupted tiles, enchanted roads | Separate layers on the grid; the client works the terrain type number out for drawing (`terrain_pick.rs`) |
+| Rivers, lakes, corrupted tiles, enchanted roads | Separate layers on the grid; the client works the terrain type number out for drawing (`terrain_pick.rs`); a volcano is an entity the client draws as its own piece |
 | Node auras and power | `Map::nodes`, Myrror nodes have double the power at generation |
 | Lair records with up to two guard kinds, hoard and a "treasure" bit field | `Lair` with guard list, gold, mana, item values, prisoner and a spell/book/retort tier |
 | Tower lairs copied to Myrror at generation | Both planes hold a record; clearing one clears both |

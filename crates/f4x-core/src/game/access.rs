@@ -152,9 +152,16 @@ impl Game {
         self.content = content;
     }
 
-    /// Replace the map.
+    /// Replace the map. The features on the old one go with it.
     pub fn set_map(&mut self, map: Map) {
         self.map = Some(map);
+        self.despawn_all_features();
+    }
+
+    /// Replace the map with a generated one, and spawn its features.
+    pub fn set_generated(&mut self, generated: crate::map::mapgen::Generated) {
+        self.set_map(generated.map);
+        self.spawn_features(generated.placements);
     }
 
     /// Give a unit experience points, as a scenario sets it up (no level checks).

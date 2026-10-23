@@ -72,6 +72,21 @@ pub struct Snapshot {
     pub heroes: Vec<HeroSave>,
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
+    /// The towers, nodes, encounter sites and volcanoes, oldest first.
+    pub features: Vec<FeatureSave>,
+}
+
+/// A terrain feature entity: its creation number, what it is, where it stands and what it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureSave {
+    pub serial: u64,
+    /// The id of the feature in the content; `None` for a volcano.
+    pub feature: Option<String>,
+    pub at: Position,
+    pub node: Option<crate::feature::node::Node>,
+    pub lair: Option<crate::feature::lair::Lair>,
+    /// The player who owns it (a node, a tower or a volcano).
+    pub owner: Option<u8>,
 }
 
 /// The map with terrain and features saved as indexes into name lists.
@@ -83,26 +98,18 @@ pub struct MapSave {
     pub features: Vec<String>,
     /// Arcanus, then Myrror.
     pub planes: Vec<PlaneSave>,
-    /// Magic nodes with their power, aura and owner.
-    pub nodes: Vec<crate::feature::node::Node>,
-    /// Tower owners `(x, y, player)`.
-    pub tower_owners: Vec<(u32, u32, PlayerId)>,
-    /// Guards and treasure of towers, nodes and encounter sites.
-    pub lairs: Vec<crate::feature::lair::Lair>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlaneSave {
     /// Index into `MapSave::terrains` for every tile, row by row.
     pub tiles: Vec<u16>,
-    /// `(tile index, index into MapSave::features)` for tiles that have a feature.
+    /// `(tile index, index into MapSave::features)` for tiles that have a mineral.
     pub features: Vec<(u32, u16)>,
     /// Tile indexes that have a road.
     pub roads: Vec<u32>,
     /// Tile indexes that have a river.
     pub rivers: Vec<u32>,
-    /// `(tile index, owner's player number)` for every volcano.
-    pub volcanoes: Vec<(u32, u8)>,
     /// Tile indexes whose road is enchanted.
     pub enchanted_roads: Vec<u32>,
     /// Tile indexes that are lakes.
@@ -529,6 +536,62 @@ fn intern(list: &mut Vec<String>, name: &str) -> u16 {
 }
 
 impl Game {
+    /// The feature entities, oldest first.
+    fn feature_saves(&self) -> Vec<FeatureSave> {
+        let eco = self.economy();
+        let mut found: Vec<(Serial, hecs::Entity)> = self
+            .world
+            .query::<&Serial>()
+            .iter()
+            .filter(|(e, _)| {
+                self.world
+                    .satisfies::<&crate::feature::entity::TerrainFeature>(*e)
+                    .unwrap_or(false)
+                    || self
+                        .world
+                        .satisfies::<&crate::feature::entity::Volcano>(*e)
+                        .unwrap_or(false)
+            })
+            .map(|(e, s)| (*s, e))
+            .collect();
+        found.sort_by_key(|&(s, e)| (s, e.id()));
+        found
+            .into_iter()
+            .filter_map(|(serial, e)| {
+                let at = *self.world.get::<&Position>(e).ok()?;
+                let feature = match self.world.get::<&crate::feature::entity::TerrainFeature>(e) {
+                    Ok(f) => Some(self.content.features.get(f.0)?.id.clone()),
+                    Err(_) => None,
+                };
+                let owner = self
+                    .world
+                    .get::<&crate::player::Owner>(e)
+                    .ok()
+                    .and_then(|o| crate::player::id_of(&self.world, o.0))
+                    .map(|p| p.0);
+                let node = self
+                    .world
+                    .get::<&crate::feature::node::Node>(e)
+                    .ok()
+                    .map(|n| (*n).clone());
+                let lair = self
+                    .world
+                    .get::<&crate::feature::lair::Lair>(e)
+                    .ok()
+                    .map(|l| (*l).clone());
+                let _ = &eco;
+                Some(FeatureSave {
+                    serial: serial.0,
+                    feature,
+                    at,
+                    node,
+                    lair,
+                    owner,
+                })
+            })
+            .collect()
+    }
+
     /// Capture everything needed to continue this game later.
     pub fn snapshot(&self) -> Snapshot {
         let rules = &self.content.rules;
@@ -549,7 +612,7 @@ impl Game {
                         })
                         .collect();
                     let features = grid
-                        .features()
+                        .minerals()
                         .iter()
                         .enumerate()
                         .filter_map(|(i, f)| {
@@ -571,13 +634,6 @@ impl Game {
                         .filter(|(_, &r)| r)
                         .map(|(i, _)| i as u32)
                         .collect();
-                    let volcanoes = grid
-                        .volcanoes()
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, &v)| v > 0)
-                        .map(|(i, &v)| (i as u32, v - 1))
-                        .collect();
                     let enchanted_roads = grid
                         .enchanted_roads()
                         .iter()
@@ -590,7 +646,6 @@ impl Game {
                         features,
                         roads,
                         rivers,
-                        volcanoes,
                         enchanted_roads,
                         corrupted: grid
                             .corrupted()
@@ -615,9 +670,6 @@ impl Game {
                 terrains,
                 features,
                 planes,
-                nodes: map.nodes().to_vec(),
-                tower_owners: map.tower_owners().to_vec(),
-                lairs: map.lairs().to_vec(),
             }
         });
         let (width, height, fog_players) = self.fog.to_parts();
@@ -820,6 +872,7 @@ impl Game {
             map,
             fog,
             players,
+            features: self.feature_saves(),
             heroes: self
                 .units()
                 .all_heroes()
@@ -977,6 +1030,59 @@ impl Snapshot {
             }
             Ok(Serial(serial))
         };
+        for f in self.features {
+            let serial = take(f.serial, "a feature")?;
+            if game
+                .map
+                .as_ref()
+                .is_none_or(|m| f.at.x >= m.width() || f.at.y >= m.height())
+            {
+                return Err(LoadError::Inconsistent("a feature is off the map".into()));
+            }
+            if let Some(n) = &f.node {
+                let m = game.map.as_ref().expect("checked above");
+                if n.aura
+                    .iter()
+                    .any(|&(x, y)| x >= m.width() || y >= m.height())
+                {
+                    return Err(LoadError::Inconsistent("a node is off the map".into()));
+                }
+            }
+            let entity = match &f.feature {
+                Some(id) => {
+                    let feature = game
+                        .content
+                        .features
+                        .id_of(id)
+                        .ok_or(LoadError::UnknownId("feature", id.clone()))?;
+                    game.spawn_feature_with(
+                        serial,
+                        crate::feature::entity::Placement {
+                            at: f.at,
+                            feature,
+                            node: f.node,
+                            lair: f.lair,
+                        },
+                    )
+                }
+                None => {
+                    let owner = f
+                        .owner
+                        .map(PlayerId)
+                        .ok_or_else(|| LoadError::Inconsistent("a volcano has no owner".into()))?;
+                    game.spawn_volcano_with(serial, owner, f.at)
+                        .ok_or_else(|| {
+                            LoadError::Inconsistent("a volcano belongs to a missing player".into())
+                        })?
+                }
+            };
+            if let (Some(owner), true) = (f.owner, f.feature.is_some()) {
+                if game.player_entity(PlayerId(owner)).is_none() {
+                    return Err(LoadError::Inconsistent("a feature has a bad owner".into()));
+                }
+                game.set_feature_owner(entity, PlayerId(owner));
+            }
+        }
         for h in self.heroes {
             let serial = take(h.serial, "a hero")?;
             if h.hero.kind >= game.content.rules.hero_templates.len()
@@ -1366,13 +1472,6 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                 .get_mut(i as usize)
                 .ok_or_else(|| LoadError::Inconsistent("a river is off the map".into()))? = true;
         }
-        let mut volcanoes = vec![0u8; len];
-        for (i, owner) in plane.volcanoes {
-            *volcanoes
-                .get_mut(i as usize)
-                .ok_or_else(|| LoadError::Inconsistent("a volcano is off the map".into()))? =
-                owner.saturating_add(1);
-        }
         let mut corrupted = vec![false; len];
         for i in plane.corrupted {
             *corrupted
@@ -1397,7 +1496,6 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
                     LoadError::Inconsistent("a plane does not match the map size".into())
                 })?
                 .with_rivers(rivers)
-                .with_volcanoes(volcanoes)
                 .with_enchanted_roads(enchanted)
                 .with_lakes(lakes)
                 .with_corruption(corrupted),
@@ -1405,20 +1503,7 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
     }
     let myrror = grids.pop().expect("two planes");
     let arcanus = grids.pop().expect("two planes");
-    let mut map = Map::new(arcanus, myrror);
-    for n in &m.nodes {
-        let on_map = n.x < m.width && n.y < m.height;
-        if !on_map || n.aura.iter().any(|&(x, y)| x >= m.width || y >= m.height) {
-            return Err(LoadError::Inconsistent("a node is off the map".into()));
-        }
-        if n.owner.is_some_and(|o| o.0 > 250) {
-            return Err(LoadError::Inconsistent("a node has a bad owner".into()));
-        }
-    }
-    map.set_nodes(m.nodes);
-    map.set_tower_owners(m.tower_owners);
-    map.set_lairs(m.lairs);
-    Ok(map)
+    Ok(Map::new(arcanus, myrror))
 }
 
 fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {

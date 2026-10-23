@@ -325,7 +325,7 @@ impl Economy<'_> {
                 continue;
             }
             let id = grid
-                .feature(p.x as i32, p.y as i32)
+                .mineral(p.x as i32, p.y as i32)
                 .and_then(|f| self.content.features.get(f))
                 .map(|f| f.id.as_str());
             match id {

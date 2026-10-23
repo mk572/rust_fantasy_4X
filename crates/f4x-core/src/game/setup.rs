@@ -130,8 +130,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::new(spec.seed);
     game.settings = settings;
-    game.map = Some(map);
     game.content = content.clone();
+    game.set_generated(map);
     for k in 0..wizards {
         let name = match (k, spec.all_ai) {
             (0, false) => "You".to_string(),

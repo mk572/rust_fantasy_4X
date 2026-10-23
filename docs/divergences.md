@@ -442,15 +442,20 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   and someone else's Great Wasting protects nobody. Every corrupted square, from any source, has a
   two in a hundred chance each turn of healing by itself (like a cooling volcano; the original's
   corruption is permanent until purified).
-- **Armageddon is riskier than the original's** (decided by the user, 17 October 2026): it raises
-  three to six volcanoes a turn on **any** square of either plane, the caster's own cities included
-  and the sea too (a volcano island; a ship on the square sinks), but not on a square with a node or
-  other site, or a volcano already. A volcano that comes up on a **city's own square** (not the
+- **Armageddon differs from the original's** (decided by the user, 17 October 2026; the sea, the
+  unrest and the volcano power were set again on 23 October 2026): it raises three to six volcanoes a
+  turn on **any** square of either plane, the caster's own cities included, but not on a square with
+  a node or other site, or a volcano already; **the sea too** (a volcano island; a ship on the
+  square sinks), where the original never raises one, but a sea square is kept only one time in five
+  of the times it is rolled; and a volcano that comes up on a **city's own square** (not the
   squares around) kills each of the city's buildings, units and citizens with one chance in four
-  (the original destroys nothing; never the last citizen). While anyone's Armageddon lasts **no
-  building reduces unrest in any city** (the original sets the *other* wizards' cities to unrest of
-  its own, as a bug-looking assignment). The caster gets one mana a turn from **every** volcano in
-  the world, whoever raised it; a wizard without Armageddon still gets one from each of their own.
+  (the original destroys nothing; never the last citizen). The original's **unrest** is a bug-looking
+  assignment that sets the pacifying of every other wizard's city to minus two, which wipes out its
+  buildings; as in the **community patch** the buildings (the religious ones too) keep working and
+  **every city that is not the caster's has two more unrest** while the spell lasts. Each volcano
+  is an entity with its owner, the caster, and gives its **owner** one power a turn, as the
+  original's `Volcano_Counts` does (an earlier rule here paid the caster for every volcano in the
+  world; it is gone).
 - **Volcanoes in general** (also Raise Volcano's): each new volcano has a one in five chance of
   bringing a mineral, and each turn each volcano has two chances in a hundred of cooling into plain
   mountains (the original rolls `Random(100) < 3`, two in a hundred; its comment says three). Neither

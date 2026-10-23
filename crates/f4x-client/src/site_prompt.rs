@@ -174,7 +174,7 @@ const PICTURE_CLEAR: (f32, f32) = (49.0, 45.0);
 impl App {
     /// The news of a site event, for the log and the boxes.
     pub(crate) fn site_encounter(&mut self, units: Vec<hecs::Entity>, to: Position) {
-        let Some((_, lair)) = self.game.economy().lair_at(to) else {
+        let Some(lair) = self.game.economy().lair_at(to) else {
             return;
         };
         let site = site_type(&lair.site);
@@ -226,23 +226,16 @@ impl App {
     /// For the screenshot check: the box of kind `ask`, `found` or `treasure` for the first
     /// guarded site of the map (the treasure is a made-up one).
     pub fn open_test_site(&mut self, kind: &str) {
-        let Some((to, lair)) = self.game.map().and_then(|m| {
-            m.lairs()
-                .iter()
-                .find(|l| l.intact && !l.guards.is_empty() && l.site != "tower")
-                .map(|l| {
-                    (
-                        Position {
-                            plane: l.plane,
-                            x: l.x,
-                            y: l.y,
-                        },
-                        l.clone(),
-                    )
-                })
-        }) else {
+        let Some(lair) = self
+            .game
+            .economy()
+            .lairs()
+            .into_iter()
+            .find(|l| l.intact && !l.guards.is_empty() && l.site != "tower")
+        else {
             return;
         };
+        let to = lair.pos;
         self.center_on(to);
         let site = site_type(&lair.site);
         match kind {

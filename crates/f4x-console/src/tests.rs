@@ -79,7 +79,11 @@ fn queries_describe_the_new_game() {
         assert!(!r.lines.is_empty(), "{line}");
     }
     let cities = c.execute(&mut g, "cities");
-    assert!(cities.text().contains("city 1"), "{}", cities.text());
+    assert!(
+        cities.text().contains(&format!("city {}", first_city(&g))),
+        "{}",
+        cities.text()
+    );
     assert!(c.execute(&mut g, "city 99").error.is_some());
 }
 
@@ -128,14 +132,15 @@ fn legal_commands_check_ownership() {
 #[test]
 fn a_player_can_run_a_turn_by_text() {
     let (mut g, mut c) = (game(), console());
-    let city = c.execute(&mut g, "city 1");
+    let n = first_city(&g);
+    let city = c.execute(&mut g, &format!("city {n}"));
     assert!(city.ok, "{}", city.text());
-    let options = c.execute(&mut g, "options 1");
+    let options = c.execute(&mut g, &format!("options {n}"));
     let first = options.lines.first().expect("something to build");
     let id = first.split_whitespace().next().unwrap().to_string();
-    let r = c.execute(&mut g, &format!("produce 1 {id}"));
+    let r = c.execute(&mut g, &format!("produce {n} {id}"));
     assert!(r.ok, "{}", r.text());
-    assert!(c.execute(&mut g, "farmers 1 1").ok);
+    assert!(c.execute(&mut g, &format!("farmers {n} 1")).ok);
     assert!(c.execute(&mut g, "tax 1").ok);
     assert!(c.execute(&mut g, "power 34 33 33").ok);
     let end = c.execute(&mut g, "end");
@@ -502,24 +507,36 @@ fn the_vizier_command_turns_the_vizier_on_and_off() {
     assert!(c.execute(&mut g, "vizier maybe").error.is_some());
 }
 
+/// The number the console gives the first city (its creation number).
+fn first_city(g: &Game) -> u64 {
+    g.serial_of(g.economy().cities()[0].0).0
+}
+
 #[test]
 fn the_autobuild_command_sets_and_clears_a_citys_plan() {
     let (mut g, mut c) = (game(), console());
     let city = g.economy().cities()[0].0;
-    let r = c.execute(&mut g, "autobuild 1 both defense gold settlers=5");
+    let n = first_city(&g);
+    let r = c.execute(
+        &mut g,
+        &format!("autobuild {n} both defense gold settlers=5"),
+    );
     assert!(r.ok, "{}", r.text());
     let plan = g.autobuild_of(city).unwrap().plan;
     assert_eq!(plan.mix, f4x_core::city::autobuild::Mix::Both);
     assert_eq!(plan.primary, f4x_core::city::autobuild::Focus::Defense);
     assert_eq!(plan.secondary, Some(f4x_core::city::autobuild::Focus::Gold));
     assert!(plan.settlers && plan.min_settler_pop == 5);
-    assert!(c.execute(&mut g, "autobuild 1 off").ok);
+    assert!(c.execute(&mut g, &format!("autobuild {n} off")).ok);
     assert!(g.autobuild_of(city).is_none());
     assert!(c
-        .execute(&mut g, "autobuild 1 both nonsense")
+        .execute(&mut g, &format!("autobuild {n} both nonsense"))
         .error
         .is_some());
-    assert!(c.execute(&mut g, "autobuild 1 stuff gold").error.is_some());
+    assert!(c
+        .execute(&mut g, &format!("autobuild {n} stuff gold"))
+        .error
+        .is_some());
 }
 
 #[test]
@@ -881,10 +898,10 @@ fn a_world_has_the_originals_number_of_lairs() {
             },
         )
         .unwrap();
-        let map = g.map().unwrap();
-        // 6 towers on each plane, a lair at each of the 30 nodes, and 25 + 32 random sites.
-        assert_eq!(map.nodes().len(), 30, "seed {seed}");
-        assert_eq!(map.lairs().len(), 12 + 30 + 57, "seed {seed}");
+        // 6 towers (one site each, on both planes), a lair at each of the 30 nodes, and
+        // 25 + 32 random sites.
+        assert_eq!(g.economy().nodes().len(), 30, "seed {seed}");
+        assert_eq!(g.economy().lairs().len(), 6 + 30 + 57, "seed {seed}");
         for plane in [Plane::Arcanus, Plane::Myrror] {
             // Up to 15 a plane: the original gives up after 1000 tries, too.
             let n = neutral_cities(&g)

@@ -7,8 +7,9 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
 use crate::content::{Content, FeatureKind, TerrainClass, Terrains, REQUIRED_CLASSES};
+use crate::feature::entity::Placement;
 use crate::feature::place;
-use crate::map::{Grid, Map, Plane, TerrainId};
+use crate::map::{Grid, Map, Plane, Position, TerrainId};
 
 /// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,7 +92,14 @@ impl std::fmt::Display for GenError {
 
 impl std::error::Error for GenError {}
 
-pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map, GenError> {
+/// A generated map: the terrain layers, with the minerals, and the features to spawn as entities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Generated {
+    pub map: Map,
+    pub placements: Vec<Placement>,
+}
+
+pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Generated, GenError> {
     let terrains = &content.terrains;
     if params.width < 8 || params.height < 8 {
         return Err(GenError::BadParams(
@@ -113,10 +121,35 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Map,
     }
     let [arcanus, myrror] = Plane::ALL.map(|p| generate_plane(seed, p, params, terrains));
     let mut map = Map::new(arcanus?, myrror?);
-    place::place_features(seed, params, content, &mut map)?;
-    crate::feature::node::generate_nodes(seed, &mut map, content);
-    crate::feature::lair::generate_lairs(seed, params, &mut map, content);
-    Ok(map)
+    let placed = place::place_features(seed, params, content, &mut map)?;
+    let nodes = crate::feature::node::generate_nodes(seed, &map, &placed, content);
+    let lairs = crate::feature::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
+    let mut placements = Vec::new();
+    for plane in Plane::ALL {
+        for y in 0..map.height() {
+            for x in 0..map.width() {
+                let Some(feature) = placed.get(plane, x as i32, y as i32) else {
+                    continue;
+                };
+                let Some(def) = content.features.get(feature) else {
+                    continue;
+                };
+                let at = Position { plane, x, y };
+                match def.kind {
+                    FeatureKind::Mineral => map.plane_mut(plane).set_mineral(x, y, Some(feature)),
+                    // A tower is one entity, made for its Arcanus square.
+                    FeatureKind::Tower if plane == Plane::Myrror => {}
+                    _ => placements.push(Placement {
+                        at,
+                        feature,
+                        node: nodes.iter().find(|(p, _)| *p == at).map(|(_, n)| n.clone()),
+                        lair: lairs.iter().find(|(p, _)| *p == at).map(|(_, l)| l.clone()),
+                    }),
+                }
+            }
+        }
+    }
+    Ok(Generated { map, placements })
 }
 
 fn generate_plane(
@@ -421,7 +454,7 @@ mod tests {
     #[test]
     fn land_share_matches_request_and_planes_differ() {
         let (c, p) = (content(), GenParams::default());
-        let map = generate(1, &p, &c).unwrap();
+        let map = generate(1, &p, &c).unwrap().map;
         for plane in Plane::ALL {
             let pct = land_percent(map.plane(plane), &c.terrains);
             assert!((p.land_percent as u32).abs_diff(pct) <= 2, "land {pct}%");
@@ -488,7 +521,7 @@ mod tests {
         assert_eq!(a, b);
         let mut count = 0;
         for plane in Plane::ALL {
-            let g = a.plane(plane);
+            let g = a.map.plane(plane);
             for y in 0..g.height() as i32 {
                 for x in 0..g.width() as i32 {
                     if g.has_river(x, y) {
@@ -513,7 +546,8 @@ mod tests {
         let c = content();
         let mut lakes = 0;
         for seed in 1..=30 {
-            let m = generate(seed, &GenParams::default(), &c).unwrap();
+            let generated = generate(seed, &GenParams::default(), &c).unwrap();
+            let m = &generated.map;
             for plane in Plane::ALL {
                 let g = m.plane(plane);
                 for y in 0..g.height() as i32 {
@@ -524,7 +558,15 @@ mod tests {
                         lakes += 1;
                         let class = |x, y| g.get(x, y).map(|t| c.terrains.get(t).unwrap().class);
                         assert_eq!(class(x, y), Some(TerrainClass::Ocean), "a lake is water");
-                        assert!(g.feature(x, y).is_none(), "nothing stands in a lake");
+                        assert!(g.mineral(x, y).is_none(), "nothing stands in a lake");
+                        assert!(
+                            generated
+                                .placements
+                                .iter()
+                                .all(|p| p.at.plane != plane
+                                    || (p.at.x as i32, p.at.y as i32) != (x, y)),
+                            "nothing stands in a lake"
+                        );
                         for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                             let n = class(x + dx, y + dy);
                             assert!(
@@ -549,7 +591,7 @@ mod tests {
                 land_percent: 40,
                 ..GenParams::default()
             };
-            let map = generate(3, &p, &c).unwrap();
+            let map = generate(3, &p, &c).unwrap().map;
             assert_eq!((map.width(), map.height()), (w, h));
         }
     }

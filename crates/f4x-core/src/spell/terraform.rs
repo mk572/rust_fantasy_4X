@@ -1,7 +1,7 @@
 //! Spells that reshape a map square: Raise Volcano and Change Terrain.
 //!
-//! A volcano is a mountain square with an owner (the wizard who raised it); the owner gets
-//! one point of magic power per volcano each turn. Change Terrain turns a volcano back into
+//! A volcano is a mountain square with a volcano entity on it (`feature::entity`), owned by the
+//! wizard who raised it; the owner gets one point of magic power per volcano each turn. Change Terrain turns a volcano back into
 //! plain mountains.
 
 use rand::RngCore;
@@ -27,23 +27,13 @@ const COOL_PERCENT: u32 = 2;
 const ARMAGEDDON_CITY_PERCENT: u32 = 25;
 
 impl Game {
-    /// Volcanoes that add to `player`'s magic power, one each: the ones they own, or every
-    /// volcano on both planes, whoever's, while they keep Armageddon going.
+    /// Volcanoes that add to `player`'s magic power, one each: the ones they own.
     pub fn volcano_count(&self, player: PlayerId) -> i32 {
-        let Some(map) = self.map.as_ref() else {
-            return 0;
-        };
-        let all = self.has_global(player, "armageddon");
-        crate::map::Plane::ALL
+        self.economy()
+            .volcanoes()
             .iter()
-            .map(|&p| {
-                map.plane(p)
-                    .volcanoes()
-                    .iter()
-                    .filter(|&&v| v != 0 && (all || v == player.0 + 1))
-                    .count() as i32
-            })
-            .sum()
+            .filter(|&&(_, owner)| owner == player)
+            .count() as i32
     }
 
     /// A volcano may rise on land that is not mountains or hills, or in the sea, and not on a node or any
@@ -58,11 +48,9 @@ impl Game {
             TerrainClass::Hills => return Err(TargetError::VolcanoOnHill),
             _ => {}
         }
-        let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
-        map.plane(at.plane)
-            .feature(at.x as i32, at.y as i32)
-            .and_then(|f| self.content.features.get(f))
-            .is_none_or(|f| f.kind == FeatureKind::Mineral)
+        self.economy()
+            .feature_entity_at(at)
+            .is_none()
             .then_some(())
             .ok_or(TargetError::VolcanoOnSite)
     }
@@ -90,13 +78,6 @@ impl Game {
         }
     }
 
-    fn volcano_at(&self, at: Position) -> Option<PlayerId> {
-        self.map
-            .as_ref()?
-            .plane(at.plane)
-            .volcano(at.x as i32, at.y as i32)
-    }
-
     /// Raise Volcano: a volcano on land that can take one.
     pub(crate) fn raise_volcano(
         &mut self,
@@ -111,18 +92,11 @@ impl Game {
     }
 
     /// Whether Armageddon may put a volcano on `at`: any square that is not a volcano already
-    /// and holds no node or other site, water and cities included.
+    /// and holds no node or other site, water and cities included (the original keeps to land and
+    /// away from the caster's cities; the sea is rarer, see `world.rs`).
     pub fn can_armageddon_volcano(&self, at: Position) -> bool {
-        let Some(map) = self.map.as_ref() else {
-            return false;
-        };
         self.economy().terrain_class_at(at).is_some()
-            && self.volcano_at(at).is_none()
-            && map
-                .plane(at.plane)
-                .feature(at.x as i32, at.y as i32)
-                .and_then(|f| self.content.features.get(f))
-                .is_none_or(|f| f.kind == FeatureKind::Mineral)
+            && self.economy().feature_entity_at(at).is_none()
     }
 
     /// One of Armageddon's volcanoes, on land or sea (`can_armageddon_volcano`).
@@ -194,9 +168,9 @@ impl Game {
         if let Some(map) = self.map.as_mut() {
             let grid = map.plane_mut(at.plane);
             grid.set(at.x, at.y, mountains);
-            grid.set_feature(at.x, at.y, mineral);
-            grid.set_volcano(at.x, at.y, Some(owner));
+            grid.set_mineral(at.x, at.y, mineral);
         }
+        self.spawn_volcano(owner, at);
         for ship in ships {
             self.remove_unit(ship, crate::hero::Fate::Slain);
         }
@@ -282,20 +256,18 @@ impl Game {
 
     /// Each turn every volcano has a small chance of cooling into plain mountains.
     pub(crate) fn cool_volcanoes(&mut self, rng: &mut dyn RngCore) {
-        let Some(map) = self.map.as_mut() else {
-            return;
-        };
-        for plane in crate::map::Plane::ALL {
-            let grid = map.plane_mut(plane);
-            let (w, h) = (grid.width(), grid.height());
-            for y in 0..h {
-                for x in 0..w {
-                    if grid.volcano(x as i32, y as i32).is_some()
-                        && rng.next_u32() % 100 < COOL_PERCENT
-                    {
-                        grid.set_volcano(x, y, None);
-                    }
-                }
+        for (at, _) in self.economy().volcanoes() {
+            if rng.next_u32() % 100 < COOL_PERCENT {
+                self.remove_volcano(at);
+            }
+        }
+    }
+
+    /// The volcano on a square goes out: the square stays plain mountains.
+    pub(crate) fn remove_volcano(&mut self, at: Position) {
+        if self.economy().volcano_at(at).is_some() {
+            if let Some(e) = self.economy().feature_entity_at(at) {
+                self.despawn_feature(e);
             }
         }
     }
@@ -305,10 +277,8 @@ impl Game {
             return Vec::new();
         };
         // A volcano is mountains with an owner: removing the owner is the whole change.
-        if self.volcano_at(at).is_some() {
-            if let Some(map) = self.map.as_mut() {
-                map.plane_mut(at.plane).set_volcano(at.x, at.y, None);
-            }
+        if self.economy().volcano_at(at).is_some() {
+            self.remove_volcano(at);
             return vec![Event::TerrainChanged { pos: at }];
         }
         let Some(id) = self.content.terrains.first_of_class(new, at.plane) else {
@@ -379,15 +349,15 @@ mod tests {
             .as_mut()
             .unwrap()
             .plane_mut(Plane::Arcanus)
-            .set_feature(4, 4, Some(gold));
+            .set_mineral(4, 4, Some(gold));
         let before = g.income(P0).power_base;
         let events = cast(&mut g, "raise_volcano", at(4, 4));
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::VolcanoRaised { .. })));
         let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
-        assert_eq!(grid.volcano(4, 4), Some(PlayerId(0)));
-        assert_eq!(grid.feature(4, 4), None);
+        assert_eq!(g.economy().volcano_at(at(4, 4)), Some(PlayerId(0)));
+        assert_eq!(grid.mineral(4, 4), None);
         assert_eq!(
             g.economy().terrain_class_at(at(4, 4)),
             Some(TerrainClass::Mountains)
@@ -404,12 +374,12 @@ mod tests {
             .terrains
             .first_of_class(TerrainClass::Hills, Plane::Arcanus)
             .unwrap();
-        let node = g.content.features.id_of("node").unwrap();
-        {
-            let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
-            grid.set(2, 2, hills);
-            grid.set_feature(3, 3, Some(node));
-        }
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set(2, 2, hills);
+        g.put_feature(at(3, 3), "node");
         assert_eq!(
             g.check_raise_volcano(at(2, 2)),
             Err(TargetError::VolcanoOnHill)

@@ -115,12 +115,7 @@ fn magic_nodes_cannot_be_corrupted() {
 #[test]
 fn corrupted_squares_give_a_city_nothing() {
     let mut g = world();
-    let gold = g.content.features.id_of("gold").unwrap();
-    g.map
-        .as_mut()
-        .unwrap()
-        .plane_mut(Plane::Arcanus)
-        .set_feature(10, 8, Some(gold));
+    g.put_feature(at(10, 8), "gold");
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(10, 6),
@@ -251,18 +246,17 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
         .features
         .first_of_kind(crate::content::FeatureKind::Tower)
         .unwrap();
-    for plane in Plane::ALL {
-        g.map
-            .as_mut()
-            .unwrap()
-            .plane_mut(plane)
-            .set_feature(8, 8, Some(tower));
-    }
+    g.spawn_feature(crate::feature::entity::Placement {
+        at: at(8, 8),
+        feature: tower,
+        node: None,
+        lair: None,
+    });
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let u = g.spawn_unit(P0, at(7, 8), walker);
-    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), None);
+    assert_eq!(g.economy().tower_owner(at(8, 8)), None);
     g.move_stack(&[u], at(8, 8)).unwrap();
-    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(0)));
+    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(0)));
     let other_plane = Position {
         plane: Plane::Myrror,
         ..at(8, 8)
@@ -272,14 +266,14 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
     let rival = g.spawn_unit(P1, at(9, 8), walker);
     let _ = g.world.insert_one(u, at(7, 9));
     g.move_stack(&[rival], at(8, 8)).unwrap();
-    assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(1)));
+    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
     let seal = g.content.rules.spells.id_of("planar_seal");
     if let Some(s) = seal {
         g.attach_enchantment(Target::Player(P0), s, P0);
         let third = g.spawn_unit(P0, at(7, 8), walker);
         g.move_stack(&[third], at(8, 8))
             .unwrap_or(crate::unit::movement::Entry::Free);
-        assert_eq!(g.map.as_ref().unwrap().tower_owner(8, 8), Some(PlayerId(1)));
+        assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
     }
 }
 
@@ -287,21 +281,18 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
 fn warp_node_turns_a_rivals_node_against_them() {
     use crate::feature::node::Node;
     let mut g = world();
-    let node = |owner| Node {
-        plane: Plane::Arcanus,
-        x: 6,
-        y: 6,
-        realm: "chaos".into(),
-        power: 8,
-        aura: vec![(6, 6)],
-        owner,
-        guardian: false,
-        warped: false,
-    };
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_nodes(vec![node(Some(PlayerId(1)))]);
+    g.put_node_data(
+        at(6, 6),
+        "node",
+        Node {
+            realm: "chaos".into(),
+            power: 8,
+            aura: vec![(6, 6)],
+            guardian: false,
+            warped: false,
+        },
+        Some(PlayerId(1)),
+    );
     assert_eq!(g.check_warp_node(at(6, 6), P0), Ok(()));
     assert_eq!(g.check_warp_node(at(6, 6), P1), Err(TargetError::NodeOwn));
     assert_eq!(g.check_warp_node(at(7, 7), P0), Err(TargetError::NoNode));

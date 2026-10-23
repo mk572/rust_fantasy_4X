@@ -62,7 +62,7 @@ impl Game {
         self.economy()
             .city_area(at)
             .iter()
-            .filter(|(p, _)| grid.feature(p.x as i32, p.y as i32) == Some(plant))
+            .filter(|(p, _)| grid.mineral(p.x as i32, p.y as i32) == Some(plant))
             .count() as u32
     }
 
@@ -138,7 +138,7 @@ mod tests {
         game.content = c;
         let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         for &(x, y) in plants {
-            map.plane_mut(Plane::Arcanus).set_feature(x, y, Some(plant));
+            map.plane_mut(Plane::Arcanus).set_mineral(x, y, Some(plant));
         }
         game.map = Some(map);
         game.add_player(P0, "Owner");

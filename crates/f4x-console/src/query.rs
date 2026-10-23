@@ -471,10 +471,7 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .and_then(|t| ctx.game.content().terrains.get(t))
         .map_or("outside the map".to_string(), |d| d.name.clone());
     let mut line = format!("{}: {t}", describe::pos(p));
-    if let Some(f) = grid
-        .feature(p.x as i32, p.y as i32)
-        .and_then(|f| ctx.game.content().features.get(f))
-    {
+    if let Some(f) = ctx.game.economy().feature_at(p) {
         line.push_str(&format!(", {}", f.name));
     }
     for (flag, name) in [

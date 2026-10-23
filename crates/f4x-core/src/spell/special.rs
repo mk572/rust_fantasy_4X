@@ -35,7 +35,7 @@ impl Game {
     pub fn transmute_result(&self, at: Position) -> Result<crate::map::FeatureId, TargetError> {
         let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
         (|| {
-            let here = map.plane(at.plane).feature(at.x as i32, at.y as i32)?;
+            let here = map.plane(at.plane).mineral(at.x as i32, at.y as i32)?;
             let name = &self.content.features.get(here)?.id;
             let (_, to) = TRANSMUTED.iter().find(|(from, _)| from == name)?;
             self.content.features.id_of(to)
@@ -78,7 +78,7 @@ impl Game {
             return Vec::new();
         };
         if let Some(map) = self.map.as_mut() {
-            map.plane_mut(at.plane).set_feature(at.x, at.y, Some(to));
+            map.plane_mut(at.plane).set_mineral(at.x, at.y, Some(to));
         }
         vec![Event::TerrainChanged { pos: at }]
     }
@@ -284,7 +284,7 @@ mod tests {
                 .as_mut()
                 .unwrap()
                 .plane_mut(Plane::Arcanus)
-                .set_feature(pos.x, pos.y, Some(id));
+                .set_mineral(pos.x, pos.y, Some(id));
             let events = cast(&mut g, "transmute", Target::Tile(pos));
             assert!(!rejected(&events), "{from}: {events:?}");
             let now = g
@@ -292,7 +292,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .plane(Plane::Arcanus)
-                .feature(pos.x as i32, pos.y as i32);
+                .mineral(pos.x as i32, pos.y as i32);
             assert_eq!(now, g.content.features.id_of(to), "{from}");
         }
         let adamantium = g.content.features.id_of("adamantium_ore").unwrap();
@@ -301,7 +301,7 @@ mod tests {
             .as_mut()
             .unwrap()
             .plane_mut(Plane::Arcanus)
-            .set_feature(pos.x, pos.y, Some(adamantium));
+            .set_mineral(pos.x, pos.y, Some(adamantium));
         assert!(rejected(&cast(&mut g, "transmute", Target::Tile(pos))));
         assert!(rejected(&cast(
             &mut g,

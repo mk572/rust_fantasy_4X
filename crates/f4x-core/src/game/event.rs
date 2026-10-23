@@ -391,7 +391,7 @@ pub enum Event {
         units: Vec<hecs::Entity>,
         from: map::Position,
         to: map::Position,
-        lair: usize,
+        lair: hecs::Entity,
     },
     /// A site was cleared and its treasure taken.
     SiteCleared {

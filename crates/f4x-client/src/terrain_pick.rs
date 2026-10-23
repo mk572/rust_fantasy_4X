@@ -317,7 +317,6 @@ pub fn ground_type(
                 .fold(0, |m, &(_, _, bit)| m | bit);
             shore_with_rivers(land, rivers, plain)
         }
-        _ if grid.volcano(x, y).is_some() => VOLCANO,
         TerrainClass::SorceryNode => SORCERY_NODE,
         TerrainClass::NatureNode => NATURE_NODE,
         TerrainClass::ChaosNode => CHAOS_NODE,
@@ -548,13 +547,6 @@ mod tests {
         let (mut g, c) = world(&["ooo", "ooo", "ogg"]);
         g.set_river(1, 2, true);
         assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(0xDA));
-    }
-
-    #[test]
-    fn volcanoes_have_their_own_piece() {
-        let (mut g, c) = world(&["ggg", "gmg", "ggg"]);
-        g.set_volcano(1, 1, Some(f4x_core::player::PlayerId(0)));
-        assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(VOLCANO));
     }
 
     #[test]

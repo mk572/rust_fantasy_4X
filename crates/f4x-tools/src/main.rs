@@ -148,13 +148,14 @@ fn mapgen(args: &[String]) -> Result<(), String> {
         ..d
     };
     let c = content(args.get(4))?;
-    let map = generate(seed, &params, &c).map_err(|e| e.to_string())?;
+    let generated = generate(seed, &params, &c).map_err(|e| e.to_string())?;
+    let (map, placements) = (generated.map, generated.placements);
     for plane in Plane::ALL {
         println!("{plane:?}");
         let grid = map.plane(plane);
         for y in 0..grid.height() as i32 {
             let row: String = (0..grid.width() as i32)
-                .map(|x| tile_glyph(&c, grid, x, y))
+                .map(|x| tile_glyph(&c, grid, &placements, plane, x, y))
                 .collect();
             println!("{row}");
         }
@@ -164,8 +165,26 @@ fn mapgen(args: &[String]) -> Result<(), String> {
 }
 
 /// Features win over terrain: `T` tower, `N` node, `!` encounter site, `*` mineral.
-fn tile_glyph(c: &Content, grid: &f4x_core::map::Grid, x: i32, y: i32) -> char {
-    let feature = grid.feature(x, y).and_then(|f| c.features.get(f));
+fn tile_glyph(
+    c: &Content,
+    grid: &f4x_core::map::Grid,
+    placements: &[f4x_core::feature::entity::Placement],
+    plane: Plane,
+    x: i32,
+    y: i32,
+) -> char {
+    // A tower stands on both planes, though it is placed on Arcanus.
+    let placed = placements.iter().find(|p| {
+        let tower = c
+            .features
+            .get(p.feature)
+            .is_some_and(|d| d.kind == FeatureKind::Tower);
+        (p.at.plane == plane || tower) && p.at.x as i32 == x && p.at.y as i32 == y
+    });
+    let feature = placed
+        .map(|p| p.feature)
+        .or_else(|| grid.mineral(x, y))
+        .and_then(|f| c.features.get(f));
     match feature.map(|f| f.kind) {
         Some(FeatureKind::Tower) => 'T',
         Some(FeatureKind::Node) => 'N',

@@ -69,10 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 329 | Feature | Terrain feature entity: position index, mapgen as a placement list, minerals and encounter markers |
-| 330 | Feature | Node entity |
-| 331 | Feature | Lair and site entity, tower on both planes, loot |
-| 332 | Feature | Volcano and tower ownership as feature entities |
 | 333 | Item | Item entity: components, holder, lifecycle |
 | 334 | Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
 | 335 | Core | Save format 2 and the game-version check |
@@ -88,40 +84,9 @@ neighbours.
 
 ## Descriptions
 
-### E. Terrain feature
-
 Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, `Map.lairs`,
 `tower_owners` and an owner byte per volcano. Nodes and lairs are found by `Vec` index
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
-
-**329. Terrain feature entity.** Only a feature that something happens on when a unit enters its
-square is an entity: towers, nodes and encounter sites (`FeatureKind::Tower`, `Node`, `Encounter`).
-They get the `TerrainFeature(FeatureId)` component with `Position` and `Serial`, and a position
-index (square to entity) on `Game`. **Minerals are passive and stay a layer of the map** (`Grid.features`
-holds minerals only; no entity, no serial). `feature::place`, `feature::node::generate_nodes` and
-`feature::lair::generate_lairs` become one placement step: the map generator returns the terrain layers
-(minerals included) and a list of placements of the active features, and the game spawns the
-entities. A tower is one entity on both planes. The move of `Node` and `Lair` out of `map.rs` (309) is already done.
-Whatever reads `Grid.feature` for a tower, node or site (movement, lair entry, the surveyor, the
-client's map and minimap, the console, the tools) reads the entity instead. *Needs:* 313.
-
-**330. Node entity.** The `Node` component (realm, power, aura, guardian, `Owner(Entity)`) on the
-feature entity; `Map.nodes`, `node_at`, `node_covering`, melding, node income, corruption of nodes and
-the dispel and Armageddon paths use it. A warped node is a spell instance targeting the feature
-(323). *Needs:* 329, 323.
-
-**331. Lair and site entity.** The `Site` component (intact, guards, gold, mana, loot values, prisoner,
-special) on the feature entity; `Map.lairs` and `Entry::Site(usize)` go, entry and clearing address
-the entity. Check first whether the twin lairs of a tower differ between the planes; if they do,
-`Site` keeps a guard list per plane. Guards are still spawned as neutral units at entry and
-despawned after the fight (no change in the rules). Decide where the loot items are made: at map
-creation (item entities held as `Loot` by the feature) or at clearing, as now; the draw order no
-longer matters. *Needs:* 329.
-
-**332. Volcano and tower ownership.** `Grid.volcanoes` (owner byte) and `tower_owners` become
-`Volcano` and `Owner(Entity)` on feature entities. `terraform` spawns a volcano feature when it makes
-one and despawns it when it cools. Mana per turn, the tower claim (`claim_tower`) and `map_draw` in
-the client read the entities. *Needs:* 329 and 313.
 
 ### F. Item
 

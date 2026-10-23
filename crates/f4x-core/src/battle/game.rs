@@ -23,7 +23,7 @@ pub struct ActiveBattle {
     /// fate of their side.
     pub left_out: Vec<(Side, hecs::Entity)>,
     /// The lair being assaulted, if this is a fight against a site's guards.
-    pub site: Option<usize>,
+    pub site: Option<hecs::Entity>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -512,13 +512,9 @@ impl Game {
     /// and (when `open_ground`, no city) the one that stands on it (`Combat_Node_Type` and the
     /// centre structure of `Build_Battlefield`).
     fn node_realms_at(&self, site: Position, open_ground: bool) -> (Option<Realm>, Option<Realm>) {
-        let Some(map) = self.map() else {
-            return (None, None);
-        };
-        let aura = map
-            .nodes()
-            .iter()
-            .find(|n| n.plane == site.plane && n.aura.contains(&(site.x, site.y)))
+        let aura = self
+            .economy()
+            .node_covering(site)
             .and_then(|n| Realm::from_id(&n.realm));
         let on = open_ground
             .then(|| self.node_at(site))
@@ -560,22 +556,9 @@ impl Game {
         }
         // A tower, node or encounter site on the square puts its building in the middle of the
         // field (`Build_Battlefield`), which nobody can enter.
-        // The original's nodes are terrain of their own: a nature node counts as forest, a chaos
-        // node as mountains and a sorcery node as grassland (`Square_Is_Forest` and the like).
-        if city.is_none() {
-            match self.node_at(site).map(|n| n.realm.as_str()) {
-                Some("nature") => spec.set = layout::Set::Forest,
-                Some("chaos") => spec.set = layout::Set::Mountains,
-                Some("sorcery") => spec.set = layout::Set::Plains,
-                _ => {}
-            }
-        }
+        // (A node's own square is a forest, mountain or plains by its terrain: `set_of`.)
         if city.is_none() && spec.set != layout::Set::Water {
-            let feature = self.map().and_then(|m| {
-                m.plane(site.plane)
-                    .feature(site.x as i32, site.y as i32)
-                    .and_then(|f| self.content.features.get(f))
-            });
+            let feature = self.economy().feature_at(site);
             if let Some(structure) = feature.and_then(|d| layout::Structure::of_feature(&d.id)) {
                 spec.site = Site::Outpost;
                 spec.structure = structure;

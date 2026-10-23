@@ -27,27 +27,16 @@ fn game() -> Game {
             g.set(0, y, ocean);
         }
         g.set(5, 5, hills);
-        g.set_feature(10, 8, Some(gold));
+        g.set_mineral(10, 8, Some(gold));
         g.set_road(12, 6, true);
         g.set_road(13, 6, true);
         g.set_river(14, 6, true);
-        g.set_volcano(15, 6, Some(PlayerId(0)));
         g.set_lake(16, 6, true);
         g.set_corrupted(17, 6, true);
         g
     };
-    let mut map = Map::new(build(), build());
-    map.set_nodes(vec![crate::feature::node::Node {
-        plane: Plane::Myrror,
-        x: 3,
-        y: 3,
-        realm: "chaos".into(),
-        power: 12,
-        aura: vec![(3, 3), (4, 3), (3, 4)],
-        owner: Some(PlayerId(0)),
-        guardian: true,
-        warped: false,
-    }]);
+    let map = Map::new(build(), build());
+    let node = c.features.id_of("node").unwrap();
     let mut g = Game::new(99);
     g.content = c;
     g.settings.basic.magic_strength = 2;
@@ -58,6 +47,24 @@ fn game() -> Game {
     g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 2;
     g.set_grand_vizier(P0, true);
     g.add_player(PlayerId(1), "Rival");
+    let magic_node = g.spawn_feature(crate::feature::entity::Placement {
+        at: Position {
+            plane: Plane::Myrror,
+            x: 3,
+            y: 3,
+        },
+        feature: node,
+        node: Some(crate::feature::node::Node {
+            realm: "chaos".into(),
+            power: 12,
+            aura: vec![(3, 3), (4, 3), (3, 4)],
+            guardian: true,
+            warped: false,
+        }),
+        lair: None,
+    });
+    g.set_feature_owner(magic_node, P0);
+    g.spawn_volcano(P0, at(15, 6));
     let elf = g.content.rules.races.id_of("elf");
     let dwarf = g.content.rules.races.id_of("dwarf");
     g.apply(Command::FoundCity {
@@ -141,17 +148,26 @@ fn restoring_gives_the_same_game() {
     let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
     assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));
     assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
-    assert_eq!(grid.volcano(15, 6), Some(PlayerId(0)));
-    assert_eq!(grid.volcano(14, 6), None);
+    assert_eq!(back.economy().volcano_at(at(15, 6)), Some(PlayerId(0)));
+    assert_eq!(back.economy().volcano_at(at(14, 6)), None);
     assert!(grid.is_lake(16, 6) && !grid.is_lake(15, 6));
     assert!(grid.is_corrupted(17, 6) && !grid.is_corrupted(16, 6));
-    assert_eq!(
-        back.map.as_ref().unwrap().nodes(),
-        g.map.as_ref().unwrap().nodes()
-    );
+    let nodes = |game: &Game| {
+        game.economy()
+            .nodes()
+            .into_iter()
+            .map(|n| {
+                (
+                    n.pos, n.realm, n.power, n.aura, n.owner, n.guardian, n.warped,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(nodes(&back), nodes(&g));
+    assert_eq!(nodes(&g).len(), 1);
     assert_eq!(back.settings.basic.magic_strength, 2);
     assert_eq!(back.settings.basic.difficulty, 4);
-    assert!(grid.feature(10, 8).is_some());
+    assert!(grid.mineral(10, 8).is_some());
     assert_eq!(
         back.fog.explored_count(P0, Plane::Arcanus),
         g.fog.explored_count(P0, Plane::Arcanus)

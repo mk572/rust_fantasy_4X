@@ -103,8 +103,8 @@ mod tests {
     fn game() -> Game {
         let content = content();
         let mut g = Game::new(21);
-        g.set_map(generate(21, &GenParams::default(), &content).unwrap());
-        g.set_content(content);
+        g.set_content(content.clone());
+        g.set_generated(generate(21, &GenParams::default(), &content).unwrap());
         g.add_player(PlayerId(0), "Merlin");
         g.init_wizard(
             PlayerId(0),

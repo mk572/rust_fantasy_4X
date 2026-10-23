@@ -252,14 +252,14 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
         .unwrap()
         .0
         .clear();
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![crate::feature::lair::Lair {
+    let site = g.put_lair(
+        crate::map::Position {
             plane: crate::map::Plane::Arcanus,
             x: 5,
             y: 5,
-            site: "lair".into(),
+        },
+        "lair",
+        crate::feature::lair::Lair {
             intact: true,
             guards: Vec::new(),
             gold: 0,
@@ -267,8 +267,9 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
             items: Vec::new(),
             prisoner: true,
             special: 0,
-        }]);
-    let events = g.claim_lair(0, P0);
+        },
+    );
+    let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         panic!("{events:?}");
     };

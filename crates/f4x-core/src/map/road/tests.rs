@@ -112,16 +112,16 @@ fn a_river_square_needs_two_more_turns_for_its_bridge() {
 }
 
 #[test]
-fn a_road_on_a_node_takes_the_time_of_the_ground_under_it() {
+fn a_road_on_a_node_takes_the_time_of_its_own_ground() {
     let mut g = world();
-    let node = g.content.features.id_of("node");
-    set_terrain(&mut g, at(3, 3), TerrainClass::Hills);
-    g.map
-        .as_mut()
-        .unwrap()
-        .plane_mut(Plane::Arcanus)
-        .set_feature(3, 3, node);
-    assert_eq!(g.turns_to_build_road(at(3, 3)), Some(6));
+    for (class, turns) in [
+        (TerrainClass::SorceryNode, 4),
+        (TerrainClass::NatureNode, 5),
+        (TerrainClass::ChaosNode, 5),
+    ] {
+        set_terrain(&mut g, at(3, 3), class);
+        assert_eq!(g.turns_to_build_road(at(3, 3)), Some(turns), "{class:?}");
+    }
 }
 
 #[test]

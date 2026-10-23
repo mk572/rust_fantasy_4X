@@ -156,7 +156,7 @@ and not worked around, and names are singular.
 | **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroItems` (until 333), `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
-| **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)`, `Position`, `Serial`; `Node`, `Site`, `Volcano` by kind; `Owner` where owned | 329 to 332, 338 |
+| **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)` (all but a volcano), `Position`, `Serial`; `Node` and `Lair` (a node and a tower have both), `Volcano`; `Owner` where owned | 329 to 332, 338 (done) |
 | **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` | 333, 334 |
 
 Everything with a `Serial` can be named in a save and in a command log (section 3.9). Definitions
@@ -205,8 +205,9 @@ item entities held by the player); **defeat** is the player's, **banishment** th
 - `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
   `economy().city_owner` give the `PlayerId` back, `unit_owner_entity` and `city_owner_entity` the
   entity. `economy().cities()` returns `CityInfo` (name and owner id) for display code.
-- A **position index** (square to entity, for terrain features) is the one other index. It is rebuilt
-  on load and is never saved.
+- A **position index** (square to entity, for terrain features) is the one other index. It is kept
+  in the `Map` (which the economy handle already holds), is updated when a feature is spawned or
+  despawned, and is never saved: loading spawns the features again.
 
 ### 3.4 Spell instance
 
@@ -227,7 +228,7 @@ work and leaves no entity.
   wards): a `Battle` is cloned and a `hecs::World` cannot be, and a side is no wizard entity (task 324).
 - Not spell instances: corruption and enchanted roads (map layers: the original keeps them as flags of
   the square, they have no caster, no upkeep and are read for every step of a path), the random events
-  (a table, 3.10), volcanoes (terrain features), and the temporary effects the rules engine puts on a
+  (a table, 3.10), volcanoes (feature entities, 3.6), and the temporary effects the rules engine puts on a
   unit or city (`TempEffects`, a component: the rules, not only spells, cause them; task 321).
 
 ### 3.5 Hero
@@ -269,17 +270,19 @@ that has identity and state is an entity.
   towers, nodes; and volcanoes, made and cooled by spells. **Minerals are passive and stay a map
   layer** (a feature id per square in `Grid`), like roads and corruption: they have no state and
   no entity. A spell that adds or removes one (Transmute, Change Terrain) edits the layer.
-- `Node` (realm, power, aura squares, guardian, `Owner`) and `Site` (the lair: intact, guards, gold,
-  mana, loot values, prisoner, special) are components on the feature entity. A cleared tower or
-  node stays; a cleared encounter site is despawned, as its marker is removed today. A tower is one
-  entity at one `(x, y)` on both planes; if its two lairs differ between planes, `Site` keeps a guard
-  list per plane.
+- `Node` (realm, power, aura squares, guardian, warped; its owner is the entity's `Owner`) and
+  `Lair` (intact, guards, gold, mana, loot values, prisoner, special) are components on the feature
+  entity; a node and a tower have both. A cleared tower or node stays; a cleared encounter site is
+  despawned. A tower is one entity at one `(x, y)`, found on both planes through the index (the
+  two lairs of the old tower were always the same). A **volcano** is an entity with `Volcano`,
+  `Position`, `Serial` and `Owner` and no `TerrainFeature`: it is no feature of the content and is
+  found through the same index; the square under it is plain mountains. Its owner gets a point of
+  power a turn, and only its owner.
 - **Node base terrain.** A node square also has the node's base terrain (`sorcery_node`,
   `nature_node`, `chaos_node`: their own food, production and movement values), as in the original.
   The aura squares keep their terrain (task 338; the one change of rules in the rework).
 - Lair guards are made as neutral units when the site is entered and removed after the fight, as
-  today. Where loot items are made (at map creation as item entities held as `Loot`, or at clearing)
-  is decided in task 331.
+  today. Loot items are still made at clearing (task 331 left it so; task 334 decides again).
 
 ### 3.7 Item
 

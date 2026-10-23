@@ -416,14 +416,18 @@ impl App {
                     continue;
                 }
                 let art = &self.art;
-                let ground = crate::terrain_pick::ground_type(
-                    grid,
-                    content,
-                    x,
-                    y,
-                    self.plane.index(),
-                    &|table, mask| art.autotile_type(table, mask),
-                );
+                let ground = if self.game.economy().volcano_at(at).is_some() {
+                    Some(crate::terrain_pick::VOLCANO)
+                } else {
+                    crate::terrain_pick::ground_type(
+                        grid,
+                        content,
+                        x,
+                        y,
+                        self.plane.index(),
+                        &|table, mask| art.autotile_type(table, mask),
+                    )
+                };
                 if let Some(ground) = ground {
                     pixel(i, j, art.minimap().terrain(ground + plane_offset));
                 }

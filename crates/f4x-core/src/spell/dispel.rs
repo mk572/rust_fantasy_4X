@@ -264,19 +264,19 @@ impl Game {
             .spells
             .id_of(crate::map::corruption::WARP_NODE)
             .map_or(300, |s| self.content.rules.spells.get(s).cost);
-        let Some(map) = self.map.as_mut() else {
+        let Some(node) = self.economy().node_at(at) else {
             return 0;
         };
-        let Some(i) = map.node_at(at.plane, at.x, at.y) else {
-            return 0;
-        };
-        match map.node_mut(i) {
-            Some(n) if n.warped && dispel_roll(strength, warp, rng) => {
+        if node.warped && dispel_roll(strength, warp, rng) {
+            if let Ok(mut n) = self
+                .world
+                .get::<&mut crate::feature::node::Node>(node.entity)
+            {
                 n.warped = false;
-                1
             }
-            _ => 0,
+            return 1;
         }
+        0
     }
 
     /// Disjunction and Spell Binding: attack the global enchantment `instance` of another

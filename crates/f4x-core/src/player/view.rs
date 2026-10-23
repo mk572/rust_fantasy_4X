@@ -373,11 +373,7 @@ impl<'a> PlayerView<'a> {
 
     /// Is an explored square under a magic node's influence?
     pub fn in_node(&self, at: Position) -> bool {
-        self.explored(at)
-            && self
-                .game
-                .map()
-                .is_some_and(|m| m.node_covering(at.plane, at.x, at.y).is_some())
+        self.explored(at) && self.game.economy().node_covering(at).is_some()
     }
 
     /// Is there a guarded site on an explored square?

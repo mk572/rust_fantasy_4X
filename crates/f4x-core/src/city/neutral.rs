@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 
 use crate::city::economy::{Buildings, Farmers};
 use crate::city::production::{Production, ProductionItem};
-use crate::content::{FeatureKind, TerrainClass};
+use crate::content::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 
@@ -92,30 +92,15 @@ impl Game {
     /// Whether no node, tower or lair on `pos`'s plane is within `distance` (the original's
     /// `Range`).
     pub(crate) fn clear_of_sites(&self, pos: Position, distance: u32) -> bool {
-        let Some(map) = self.map.as_ref() else {
-            return false;
-        };
-        let near = |x: u32, y: u32| range(x, y, pos.x, pos.y) < distance;
-        if map
-            .nodes()
-            .iter()
-            .any(|n| n.plane == pos.plane && near(n.x, n.y))
-            || map
-                .lairs()
-                .iter()
-                .any(|l| l.plane == pos.plane && near(l.x, l.y))
-        {
+        if self.map.is_none() {
             return false;
         }
-        let Some(tower) = self.content.features.first_of_kind(FeatureKind::Tower) else {
-            return true;
-        };
         // Towers stand on both planes at the same place.
-        let towers = map.plane(Plane::Arcanus);
-        !(0..towers.height()).any(|y| {
-            (0..towers.width())
-                .any(|x| towers.feature(x as i32, y as i32) == Some(tower) && near(x, y))
-        })
+        !self
+            .economy()
+            .site_squares()
+            .iter()
+            .any(|s| s.plane == pos.plane && range(s.x, s.y, pos.x, pos.y) < distance)
     }
 
     /// A number for every land square telling which landmass it belongs to (0 for sea).

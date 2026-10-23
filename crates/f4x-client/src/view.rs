@@ -2304,10 +2304,7 @@ impl App {
                 .count("cost", def.move_cost);
             lines.push((self.text_with("ui.terrain_move", &args), WHITE));
         }
-        if let Some(f) = grid
-            .feature(pos.x as i32, pos.y as i32)
-            .and_then(|f| content.features.get(f))
-        {
+        if let Some(f) = self.game.economy().feature_at(pos) {
             lines.push((f.name.clone(), Color::new(0.6, 0.9, 1.0, 1.0)));
         }
         if let Some(city) = self.game.economy().city_at(pos) {

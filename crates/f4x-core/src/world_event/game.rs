@@ -250,7 +250,9 @@ impl Game {
             };
             for (sq, _) in self.economy().city_area(at) {
                 let grid = map.plane(sq.plane);
-                let feature = grid.feature(sq.x as i32, sq.y as i32);
+                let feature = grid
+                    .mineral(sq.x as i32, sq.y as i32)
+                    .or_else(|| self.economy().feature_id_at(sq));
                 if new {
                     let Some(class) = self.economy().terrain_class_at(sq) else {
                         continue;
@@ -411,7 +413,7 @@ impl Game {
                 let feature = (kind == EventKind::NewMinerals).then_some(d.ore);
                 if let Some(map) = self.map.as_mut() {
                     map.plane_mut(d.at.plane)
-                        .set_feature(d.at.x, d.at.y, feature);
+                        .set_mineral(d.at.x, d.at.y, feature);
                 }
                 let id = self
                     .content

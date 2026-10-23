@@ -7,9 +7,7 @@ pub mod road;
 pub mod survey;
 pub mod vision;
 
-use crate::feature::lair::Lair;
-use crate::feature::node::Node;
-use crate::player::PlayerId;
+use crate::feature::entity::FeatureIndex;
 use serde::{Deserialize, Serialize};
 
 /// Where an entity stands. Components on map objects such as cities and units.
@@ -18,6 +16,19 @@ pub struct Position {
     pub plane: Plane,
     pub x: u32,
     pub y: u32,
+}
+
+impl Position {
+    /// The same square on the other plane.
+    pub fn on_other_plane(self) -> Self {
+        Self {
+            plane: match self.plane {
+                Plane::Arcanus => Plane::Myrror,
+                Plane::Myrror => Plane::Arcanus,
+            },
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -42,14 +53,15 @@ pub struct TerrainId(pub u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FeatureId(pub u16);
 
-/// One plane: a base terrain layer plus an optional feature overlay per tile
-/// (minerals, encounter sites, towers, nodes). Cities are entities, not tiles.
+/// One plane: a base terrain layer plus an optional mineral per tile, with the layers of roads,
+/// rivers, lakes and corruption. Cities, towers, nodes, encounter sites and volcanoes are
+/// entities, not tiles (`feature::entity`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Grid {
     width: u32,
     height: u32,
     tiles: Vec<TerrainId>,
-    features: Vec<Option<FeatureId>>,
+    minerals: Vec<Option<FeatureId>>,
     /// Roads make movement between two road tiles cost half a move.
     #[serde(default)]
     roads: Vec<bool>,
@@ -65,9 +77,6 @@ pub struct Grid {
     /// Lake squares: ocean-class water that is not part of any sea.
     #[serde(default)]
     lakes: Vec<bool>,
-    /// Volcano owner per tile: 0 for none, else the owner's player number plus one.
-    #[serde(default)]
-    volcanoes: Vec<u8>,
 }
 
 impl Grid {
@@ -78,10 +87,9 @@ impl Grid {
             width,
             height,
             tiles: vec![fill; len],
-            features: vec![None; len],
+            minerals: vec![None; len],
             roads: vec![false; len],
             rivers: vec![false; len],
-            volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
             lakes: vec![false; len],
             corrupted: vec![false; len],
@@ -114,17 +122,17 @@ impl Grid {
         self.tiles[i] = terrain;
     }
 
-    /// Feature on the tile at `(x, y)` (x wraps, y outside the map yields `None`).
-    pub fn feature(&self, x: i32, y: i32) -> Option<FeatureId> {
+    /// Mineral on the tile at `(x, y)` (x wraps, y outside the map yields `None`).
+    pub fn mineral(&self, x: i32, y: i32) -> Option<FeatureId> {
         if y < 0 || y >= self.height as i32 {
             return None;
         }
-        self.features[(y as u32 * self.width + self.wrap_x(x)) as usize]
+        self.minerals[(y as u32 * self.width + self.wrap_x(x)) as usize]
     }
 
-    pub fn set_feature(&mut self, x: u32, y: u32, feature: Option<FeatureId>) {
+    pub fn set_mineral(&mut self, x: u32, y: u32, mineral: Option<FeatureId>) {
         let i = self.index(x, y);
-        self.features[i] = feature;
+        self.minerals[i] = mineral;
     }
 
     /// Rebuild a grid from saved parts. Returns `None` if the lengths do not match.
@@ -132,23 +140,22 @@ impl Grid {
         width: u32,
         height: u32,
         tiles: Vec<TerrainId>,
-        features: Vec<Option<FeatureId>>,
+        minerals: Vec<Option<FeatureId>>,
         roads: Vec<bool>,
     ) -> Option<Self> {
         let len = (width as usize).checked_mul(height as usize)?;
         let ok = width > 0
             && height > 0
             && tiles.len() == len
-            && features.len() == len
+            && minerals.len() == len
             && roads.len() == len;
         ok.then_some(Self {
             width,
             height,
             tiles,
-            features,
+            minerals,
             roads,
             rivers: vec![false; len],
-            volcanoes: vec![0; len],
             enchanted_roads: vec![false; len],
             lakes: vec![false; len],
             corrupted: vec![false; len],
@@ -168,9 +175,9 @@ impl Grid {
         &self.tiles
     }
 
-    /// Feature per tile, row by row.
-    pub fn features(&self) -> &[Option<FeatureId>] {
-        &self.features
+    /// Mineral per tile, row by row.
+    pub fn minerals(&self) -> &[Option<FeatureId>] {
+        &self.minerals
     }
 
     /// Road flag per tile, row by row (all false if roads were never set).
@@ -293,42 +300,6 @@ impl Grid {
         self.enchanted_roads[i] = on;
     }
 
-    /// The same grid with the given volcano layer (owner plus one, 0 for none); ignored if
-    /// its length is wrong.
-    pub fn with_volcanoes(mut self, volcanoes: Vec<u8>) -> Self {
-        if volcanoes.len() == self.tiles.len() {
-            self.volcanoes = volcanoes;
-        }
-        self
-    }
-
-    /// Volcano owner per tile, row by row (owner plus one, 0 for none).
-    pub fn volcanoes(&self) -> Vec<u8> {
-        let mut v = self.volcanoes.clone();
-        v.resize(self.tiles.len(), 0);
-        v
-    }
-
-    /// The wizard whose volcano stands on `(x, y)`, if there is one.
-    pub fn volcano(&self, x: i32, y: i32) -> Option<PlayerId> {
-        if y < 0 || y >= self.height as i32 {
-            return None;
-        }
-        let i = (y as u32 * self.width + self.wrap_x(x)) as usize;
-        match self.volcanoes.get(i).copied().unwrap_or(0) {
-            0 => None,
-            n => Some(PlayerId(n - 1)),
-        }
-    }
-
-    pub fn set_volcano(&mut self, x: u32, y: u32, owner: Option<PlayerId>) {
-        let i = self.index(x, y);
-        if self.volcanoes.len() != self.tiles.len() {
-            self.volcanoes = vec![0; self.tiles.len()];
-        }
-        self.volcanoes[i] = owner.map_or(0, |o| o.0 + 1);
-    }
-
     /// River flag per tile, row by row (all false if rivers were never set).
     pub fn rivers(&self) -> Vec<bool> {
         let mut rivers = self.rivers.clone();
@@ -373,16 +344,11 @@ impl Grid {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Map {
     planes: [Grid; 2],
-    #[serde(default)]
-    nodes: Vec<Node>,
-    /// Who last stood in each tower: `(x, y, player number)`. Towers are on both planes.
-    #[serde(default)]
-    tower_owners: Vec<(u32, u32, PlayerId)>,
-    #[serde(default)]
-    lairs: Vec<Lair>,
+    /// Finds the tower, node, encounter site or volcano entity on a square.
+    features: FeatureIndex,
 }
 
 impl Map {
@@ -393,78 +359,28 @@ impl Map {
         );
         Self {
             planes: [arcanus, myrror],
-            nodes: Vec::new(),
-            tower_owners: Vec::new(),
-            lairs: Vec::new(),
+            features: FeatureIndex::default(),
         }
     }
 
-    pub fn lairs(&self) -> &[Lair] {
-        &self.lairs
+    /// The feature entity (tower, node, encounter site or volcano) on a square.
+    pub fn feature_entity(&self, at: Position) -> Option<hecs::Entity> {
+        self.features.get(at)
     }
 
-    pub fn set_lairs(&mut self, lairs: Vec<Lair>) {
-        self.lairs = lairs;
-    }
-
-    pub fn lair_mut(&mut self, index: usize) -> Option<&mut Lair> {
-        self.lairs.get_mut(index)
-    }
-
-    /// The intact lair on a square.
-    pub fn lair_at(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
-        self.lairs
-            .iter()
-            .position(|l| l.intact && l.plane == plane && l.x == x && l.y == y)
-    }
-
-    /// The wizard whose stack last stood in the tower at `(x, y)`.
-    pub fn tower_owner(&self, x: u32, y: u32) -> Option<PlayerId> {
-        self.tower_owners
-            .iter()
-            .find(|&&(tx, ty, _)| tx == x && ty == y)
-            .map(|&(_, _, o)| o)
-    }
-
-    pub fn set_tower_owner(&mut self, x: u32, y: u32, owner: PlayerId) {
-        match self.tower_owners.iter_mut().find(|t| t.0 == x && t.1 == y) {
-            Some(t) => t.2 = owner,
-            None => self.tower_owners.push((x, y, owner)),
+    /// Enter a feature entity in the index; a tower stands on both planes.
+    pub(crate) fn index_feature(&mut self, entity: hecs::Entity, at: Position, both_planes: bool) {
+        self.features.insert(at, entity);
+        if both_planes {
+            self.features.insert(at.on_other_plane(), entity);
         }
     }
 
-    pub fn tower_owners(&self) -> &[(u32, u32, PlayerId)] {
-        &self.tower_owners
-    }
-
-    pub fn set_tower_owners(&mut self, owners: Vec<(u32, u32, PlayerId)>) {
-        self.tower_owners = owners;
-    }
-
-    pub fn nodes(&self) -> &[Node] {
-        &self.nodes
-    }
-
-    pub fn set_nodes(&mut self, nodes: Vec<Node>) {
-        self.nodes = nodes;
-    }
-
-    pub fn node_mut(&mut self, index: usize) -> Option<&mut Node> {
-        self.nodes.get_mut(index)
-    }
-
-    /// Index of the node standing on this tile.
-    pub fn node_at(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
-        self.nodes
-            .iter()
-            .position(|n| n.plane == plane && n.x == x && n.y == y)
-    }
-
-    /// Index of the node whose aura covers this tile (the node's own tile included).
-    pub fn node_covering(&self, plane: Plane, x: u32, y: u32) -> Option<usize> {
-        self.nodes
-            .iter()
-            .position(|n| n.plane == plane && n.aura.contains(&(x, y)))
+    pub(crate) fn unindex_feature(&mut self, at: Position, both_planes: bool) {
+        self.features.remove(at);
+        if both_planes {
+            self.features.remove(at.on_other_plane());
+        }
     }
 
     pub fn plane(&self, plane: Plane) -> &Grid {
@@ -499,11 +415,11 @@ mod tests {
     }
 
     #[test]
-    fn features_overlay_terrain_and_distance_wraps() {
+    fn minerals_overlay_terrain_and_distance_wraps() {
         let mut g = Grid::new(10, 10, TerrainId(0));
-        g.set_feature(9, 2, Some(FeatureId(3)));
-        assert_eq!(g.feature(-1, 2), Some(FeatureId(3)));
-        assert_eq!(g.feature(0, 2), None);
+        g.set_mineral(9, 2, Some(FeatureId(3)));
+        assert_eq!(g.mineral(-1, 2), Some(FeatureId(3)));
+        assert_eq!(g.mineral(0, 2), None);
         assert_eq!(g.get(9, 2), Some(TerrainId(0)));
         assert_eq!(g.distance_sq((9, 2), (0, 2)), 1);
         assert_eq!(g.chebyshev((9, 2), (1, 5)), 3);

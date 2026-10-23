@@ -1,5 +1,6 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
+use crate::feature::place::Placed;
 use crate::game::testutil::{content_with_magic, unit};
 use crate::map::{Grid, Plane};
 use crate::player::PlayerId;
@@ -62,21 +63,29 @@ fn world(seed: u64) -> Game {
     g
 }
 
-fn put_feature(g: &mut Game, plane: Plane, x: u32, y: u32, id: &str) {
-    let f = g.content.features.id_of(id).unwrap();
-    g.map
-        .as_mut()
-        .unwrap()
-        .plane_mut(plane)
-        .set_feature(x, y, Some(f));
+/// A guarded site of kind `site` on Arcanus.
+fn put_lair(g: &mut Game, x: u32, y: u32, site: &str, guards: Vec<(&str, u32)>) -> hecs::Entity {
+    g.put_lair(at(x, y), site, lair(guards))
 }
 
-fn lair(x: u32, y: u32, guards: Vec<(&str, u32)>) -> Lair {
+/// What the rules read of a site called `site` with nothing in it.
+fn info(site: &str) -> LairInfo {
+    LairInfo {
+        entity: hecs::Entity::DANGLING,
+        pos: at(1, 1),
+        site: site.into(),
+        intact: true,
+        guards: Vec::new(),
+        gold: 0,
+        mana: 0,
+        items: Vec::new(),
+        prisoner: false,
+        special: 0,
+    }
+}
+
+fn lair(guards: Vec<(&str, u32)>) -> Lair {
     Lair {
-        plane: Plane::Arcanus,
-        x,
-        y,
-        site: "lair".into(),
         intact: true,
         guards: guards
             .into_iter()
@@ -171,34 +180,29 @@ fn a_site_type_decides_the_guards_realm() {
 }
 
 #[test]
-fn every_site_gets_a_lair_and_towers_share_one_on_both_planes() {
-    let mut g = world(1);
-    put_feature(&mut g, Plane::Arcanus, 3, 3, "tower");
-    put_feature(&mut g, Plane::Myrror, 3, 3, "tower");
-    put_feature(&mut g, Plane::Arcanus, 8, 5, "lair");
-    put_feature(&mut g, Plane::Myrror, 9, 5, "lair");
-    put_feature(&mut g, Plane::Myrror, 12, 9, "lair");
+fn every_site_gets_a_lair_and_a_tower_has_one_for_both_planes() {
+    let g = world(1);
+    let mut placed = Placed::new(24, 14);
+    let id = |name: &str| g.content.features.id_of(name).unwrap();
+    placed.set(Plane::Arcanus, 3, 3, id("tower"));
+    placed.set(Plane::Myrror, 3, 3, id("tower"));
+    placed.set(Plane::Arcanus, 8, 5, id("lair"));
+    placed.set(Plane::Myrror, 9, 5, id("lair"));
+    placed.set(Plane::Myrror, 12, 9, id("lair"));
     let params = GenParams::default();
-    let mut map = g.map.take().unwrap();
-    generate_lairs(11, &params, &mut map, &g.content);
-    let lairs = map.lairs();
-    assert_eq!(lairs.len(), 2 + 3, "tower twice, three encounter sites");
-    assert!(lairs.iter().all(|l| l.intact));
-    let towers: Vec<_> = lairs.iter().filter(|l| l.site == "tower").collect();
-    assert_eq!(towers.len(), 2);
-    assert_ne!(towers[0].plane, towers[1].plane);
-    assert_eq!(towers[0].guards, towers[1].guards);
-    assert_eq!(
-        (towers[0].gold, towers[0].special),
-        (towers[1].gold, towers[1].special)
-    );
-    assert!(towers[0].special >= 1, "a tower always holds a spell");
+    let map = g.map.as_ref().unwrap();
+    let lairs = generate_lairs(11, &params, map, &placed, &[], &g.content);
+    assert_eq!(lairs.len(), 1 + 3, "one tower, three encounter sites");
+    assert!(lairs.iter().all(|(_, l)| l.intact));
+    let towers: Vec<_> = lairs.iter().filter(|(p, _)| (p.x, p.y) == (3, 3)).collect();
+    assert_eq!(towers.len(), 1);
+    assert_eq!(towers[0].0.plane, Plane::Arcanus);
+    assert!(towers[0].1.special >= 1, "a tower always holds a spell");
     // The same seed gives the same lairs.
-    let mut again = map.clone();
-    generate_lairs(11, &params, &mut again, &g.content);
-    assert_eq!(again.lairs(), map.lairs());
-    generate_lairs(12, &params, &mut again, &g.content);
-    assert_ne!(again.lairs(), map.lairs());
+    let again = generate_lairs(11, &params, map, &placed, &[], &g.content);
+    assert_eq!(again, lairs);
+    let other = generate_lairs(12, &params, map, &placed, &[], &g.content);
+    assert_ne!(other, lairs);
 }
 
 #[test]
@@ -217,8 +221,6 @@ fn hoards_follow_the_original_rules() {
             &mut rng,
             &g.content,
             plane,
-            (1, 1),
-            "lair",
             SiteType::Wild,
             200 + (i % 40) * 100,
             75,
@@ -248,8 +250,6 @@ fn hoards_follow_the_original_rules() {
                     &mut rng,
                     &g.content,
                     Plane::Arcanus,
-                    (1, 1),
-                    "lair",
                     SiteType::Wild,
                     900,
                     guard_percent,
@@ -265,11 +265,7 @@ fn hoards_follow_the_original_rules() {
 #[test]
 fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
     let mut g = world(2);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 3)])]);
+    let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
@@ -282,7 +278,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
             units: vec![w],
             from: at(4, 5),
             to: at(5, 5),
-            lair: 0
+            lair: site
         }]
     );
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
@@ -292,8 +288,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
 #[test]
 fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     let mut g = world(3);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map.as_mut().unwrap().set_lairs(vec![lair(5, 5, vec![])]);
+    let site = put_lair(&mut g, 5, 5, "lair", vec![]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
@@ -320,31 +315,30 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
         (g.treasury(P0).unwrap().gold, g.treasury(P0).unwrap().mana),
         (220, 130)
     );
-    let map = g.map.as_ref().unwrap();
-    assert!(map.lair_at(Plane::Arcanus, 5, 5).is_none());
+    assert!(g.economy().lair_at(at(5, 5)).is_none());
     assert_eq!(
-        map.plane(Plane::Arcanus).feature(5, 5),
+        g.economy().feature_id_at(at(5, 5)),
         None,
         "the site is gone"
     );
     // Nothing to take the second time.
-    let again = g.claim_lair(0, P0);
+    let again = g.claim_lair(site, P0);
     assert!(again.is_empty());
 }
 
 #[test]
 fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let mut g = world(4);
-    let mut l = lair(5, 5, vec![]);
+    let mut l = lair(vec![]);
     l.gold = 0;
     l.mana = 0;
     l.items.clear();
     l.prisoner = false;
     // A spell: from a realm the wizard has no books in, newly known.
     l.special = 2;
-    g.map.as_mut().unwrap().set_lairs(vec![l.clone()]);
+    let site = g.put_lair(at(5, 5), "lair", l);
     let known_before = g.wizard(P0).unwrap().known().len();
-    let events = g.claim_lair(0, P0);
+    let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         panic!("{events:?}");
     };
@@ -360,9 +354,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
         .iter()
         .any(|e| matches!(e, Event::SpellLearned { .. })));
     // A book of a dungeon's realm (death): refused while the wizard has life books.
-    let mut l = lair(6, 6, vec![]);
-    l.site = "dungeon".into();
-    l.special = 5;
+    let l = info("dungeon");
     let mut loot = Loot::default();
     let e = crate::wizard::entity::of_player(&g.world, g.player_entity(P0).unwrap()).unwrap();
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
@@ -372,8 +364,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the twelve-book limit.
-    let mut l = lair(7, 7, vec![]);
-    l.site = "ancient_temple".into();
+    let l = info("ancient_temple");
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
@@ -431,11 +422,7 @@ fn fight_to_the_end(g: &mut Game) {
 #[test]
 fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
     let mut g = world(5);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 1)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
     // Make the guard feeble and the attackers strong.
     let mut units = g.content.rules.units.defs().to_vec();
     for u in &mut units {
@@ -469,18 +456,8 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
     );
     fight_to_the_end(&mut g);
     assert!(g.world.contains(w));
-    assert!(
-        g.map
-            .as_ref()
-            .unwrap()
-            .lair_at(Plane::Arcanus, 5, 5)
-            .is_none(),
-        "cleared"
-    );
-    assert_eq!(
-        g.map.as_ref().unwrap().plane(Plane::Arcanus).feature(5, 5),
-        None
-    );
+    assert!(g.economy().lair_at(at(5, 5)).is_none(), "cleared");
+    assert_eq!(g.economy().feature_id_at(at(5, 5)), None);
     assert_eq!(g.treasury(P0).unwrap().gold, 220);
     assert_eq!(
         g.units().unit_position(w),
@@ -500,10 +477,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
 fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
     use crate::battle::map::layout::Structure;
     let mut g = world(5);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "tower");
-    let mut tower = lair(5, 5, vec![("skeletons", 1)]);
-    tower.site = "tower".into();
-    g.map.as_mut().unwrap().set_lairs(vec![tower]);
+    put_lair(&mut g, 5, 5, "tower", vec![("skeletons", 1)]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -520,11 +494,7 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
 fn a_guard_drained_to_death_joins_the_victors_as_undead() {
     use crate::battle::Status;
     let mut g = world(5);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 2)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -581,10 +551,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
 fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     use crate::battle::Status;
     let mut g = world(7);
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 2)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
     // Make the guards normal units, and give the winner Zombie Mastery.
     let mut units = g.content.rules.units.defs().to_vec();
     for d in units.iter_mut().filter(|d| d.id == "skeletons") {
@@ -633,11 +600,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
 fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     use crate::battle::Status;
     let mut g = world(5);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 1)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let (w, bystander) = (
         g.spawn_unit(P0, at(4, 5), walker),
@@ -683,11 +646,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
 #[test]
 fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
     let mut g = world(6);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 3)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -697,12 +656,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
     assert_eq!(g.units().units_at(at(5, 5)).len(), 3);
     g.apply(Command::Battle(BattleCommand::Flee));
     assert!(!g.in_battle());
-    assert!(g
-        .map
-        .as_ref()
-        .unwrap()
-        .lair_at(Plane::Arcanus, 5, 5)
-        .is_some());
+    assert!(g.economy().lair_at(at(5, 5)).is_some());
     assert!(
         g.units().units_at(at(5, 5)).is_empty(),
         "the guards are made anew on each visit"
@@ -714,11 +668,8 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
 #[test]
 fn only_a_guarded_site_next_to_the_stack_can_be_entered() {
     let mut g = world(7);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "lair");
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 1)]), lair(9, 9, vec![])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
+    put_lair(&mut g, 9, 9, "lair", vec![]);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(2, 2), walker);
     let reject = |g: &mut Game, to| g.apply(Command::EnterSite { units: vec![w], to });
@@ -738,22 +689,16 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() {
 }
 
 #[test]
-fn clearing_a_tower_clears_it_on_both_planes() {
+fn a_tower_is_cleared_on_both_planes_and_stays() {
     let mut g = world(8);
-    put_feature(&mut g, Plane::Arcanus, 5, 5, "tower");
-    put_feature(&mut g, Plane::Myrror, 5, 5, "tower");
-    let mut a = lair(5, 5, vec![]);
-    a.site = "tower".into();
-    let b = Lair {
-        plane: Plane::Myrror,
-        ..a.clone()
-    };
-    g.map.as_mut().unwrap().set_lairs(vec![b, a]);
-    g.claim_lair(1, P0);
-    let map = g.map.as_ref().unwrap();
-    assert!(map.lairs().iter().all(|l| !l.intact));
+    let tower = put_lair(&mut g, 5, 5, "tower", vec![]);
+    let other_plane = at(5, 5).on_other_plane();
+    assert_eq!(g.economy().feature_entity_at(other_plane), Some(tower));
+    g.claim_lair(tower, P0);
+    assert!(g.economy().lair_at(at(5, 5)).is_none());
+    assert!(g.economy().lair_at(other_plane).is_none());
     assert!(
-        map.plane(Plane::Arcanus).feature(5, 5).is_some(),
+        g.economy().feature_id_at(at(5, 5)).is_some(),
         "the tower itself stays"
     );
 }
@@ -761,55 +706,36 @@ fn clearing_a_tower_clears_it_on_both_planes() {
 #[test]
 fn lairs_survive_a_save() {
     let mut g = world(9);
-    g.map
-        .as_mut()
-        .unwrap()
-        .set_lairs(vec![lair(5, 5, vec![("skeletons", 2), ("ghouls", 1)])]);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2), ("ghouls", 1)]);
     let snap = g.snapshot();
     let back = snap.restore(g.content.clone()).unwrap();
-    assert_eq!(
-        back.map.as_ref().unwrap().lairs(),
-        g.map.as_ref().unwrap().lairs()
-    );
-}
-
-/// A map and content with a lair on it and no game.
-fn bare(lairs: Vec<Lair>) -> (Map, Content) {
-    let c = content();
-    let grass = c.terrains.id_of("grassland").unwrap();
-    let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
-    map.set_lairs(lairs);
-    (map, c)
+    assert_eq!(back.economy().lairs(), g.economy().lairs());
 }
 
 #[test]
-fn clearing_a_site_takes_its_treasure_once_and_needs_no_game() {
-    let (mut map, c) = bare(vec![lair(5, 5, vec![("walker", 1)])]);
-    let cleared = clear_site(&mut map, &c, 0).expect("an intact lair");
+fn clearing_a_site_takes_its_treasure_once() {
+    let mut g = world(10);
+    let site = put_lair(&mut g, 5, 5, "lair", vec![("walker", 1)]);
+    let cleared = g.clear_site(site).expect("an intact lair");
     assert_eq!(
         (cleared.gold, cleared.mana, cleared.items),
         (120, 30, vec![400])
     );
-    assert!(map.lair_at(Plane::Arcanus, 5, 5).is_none());
-    assert!(
-        clear_site(&mut map, &c, 0).is_none(),
-        "nothing the second time"
-    );
-    assert!(clear_site(&mut map, &c, 7).is_none(), "no such site");
+    assert!(g.economy().lair_at(at(5, 5)).is_none());
+    assert!(g.clear_site(site).is_none(), "nothing the second time");
 }
 
 #[test]
-fn clearing_a_tower_clears_its_twin_on_the_other_plane() {
-    let mut a = lair(3, 3, vec![]);
-    a.site = "tower".into();
-    let mut b = a.clone();
-    b.plane = Plane::Myrror;
-    let mut other = lair(8, 8, vec![]);
-    other.site = "tower".into();
-    let (mut map, c) = bare(vec![a, b, other]);
-    clear_site(&mut map, &c, 0).unwrap();
-    assert!(!map.lairs()[0].intact && !map.lairs()[1].intact);
-    assert!(map.lairs()[2].intact, "another tower stays");
+fn clearing_a_tower_leaves_another_tower_alone() {
+    let mut g = world(11);
+    let a = put_lair(&mut g, 3, 3, "tower", vec![]);
+    put_lair(&mut g, 8, 8, "tower", vec![]);
+    g.clear_site(a).unwrap();
+    assert!(g.economy().lair_at(at(3, 3)).is_none());
+    assert!(
+        g.economy().lair_at(at(8, 8)).is_some(),
+        "another tower stays"
+    );
 }
 
 /// A wizard's sheet with no game: a world holding one wizard.
@@ -828,8 +754,7 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     let (mut world, e) = sheet(&[("life", 11)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(5);
-    let mut l = lair(1, 1, vec![]);
-    l.site = "ruins".into();
+    let mut l = info("ruins");
     for _ in 0..30 {
         let mut loot = Loot::default();
         award_special(&mut magic, &mut rng, &l, 1, &mut loot);
@@ -845,8 +770,7 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
 #[test]
 fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort() {
     use crate::wizard::magic::Retort::*;
-    let mut l = lair(1, 1, vec![]);
-    l.site = "nature_node".into();
+    let l = info("nature_node");
     // Six retorts: only books can come.
     let (mut world, e) = sheet(
         &[("nature", 3)],

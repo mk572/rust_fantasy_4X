@@ -64,7 +64,7 @@ pub enum Entry {
     Hostile(Vec<hecs::Entity>),
     /// A guarded site (tower, node or encounter site): nothing moved; its guards must be
     /// fought first. Holds the lair's index.
-    Site(usize),
+    Site(hecs::Entity),
 }
 
 const FULL_MOVE: u32 = 2;
@@ -335,9 +335,9 @@ impl Economy<'_> {
             return Ok((costs, Entry::Hostile(defenders)));
         }
         if owner != crate::player::MONSTERS {
-            if let Some((index, lair)) = self.lair_at(to) {
+            if let Some(lair) = self.lair_at(to) {
                 if !lair.guards.is_empty() {
-                    return Ok((costs, Entry::Site(index)));
+                    return Ok((costs, Entry::Site(lair.entity)));
                 }
             }
         }
@@ -355,12 +355,8 @@ impl Economy<'_> {
         if self.units().planar_seal_active() {
             return Err(MoveError::CannotShiftPlane);
         }
-        let map = self.map.ok_or(MoveError::NoMap)?;
-        let on_tower = map
-            .plane(from.plane)
-            .feature(from.x as i32, from.y as i32)
-            .and_then(|f| self.content.features.get(f))
-            .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower);
+        self.map.ok_or(MoveError::NoMap)?;
+        let on_tower = self.is_tower(from);
         let all_travel = units
             .iter()
             .all(|&u| self.units().unit_has_ability(u, "planar_travel"));
@@ -395,12 +391,7 @@ impl Economy<'_> {
 
     /// Whether the square holds a tower.
     pub(crate) fn is_tower(&self, at: Position) -> bool {
-        self.map.is_some_and(|m| {
-            m.plane(at.plane)
-                .feature(at.x as i32, at.y as i32)
-                .and_then(|f| self.content.features.get(f))
-                .is_some_and(|f| f.kind == crate::content::FeatureKind::Tower)
-        })
+        self.feature_kind_at(at) == Some(crate::content::FeatureKind::Tower)
     }
 }
 
@@ -414,8 +405,11 @@ impl Game {
         if !self.economy().is_tower(at) || self.units().planar_seal_active() {
             return;
         }
-        if let Some(m) = self.map.as_mut() {
-            m.set_tower_owner(at.x, at.y, owner);
+        if let (Some(tower), Some(player)) = (
+            self.economy().feature_entity_at(at),
+            self.player_entity(owner),
+        ) {
+            let _ = self.world.insert_one(tower, crate::player::Owner(player));
         }
         for plane in Plane::ALL {
             self.fog.explore(

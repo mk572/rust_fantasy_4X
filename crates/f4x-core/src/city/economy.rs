@@ -79,6 +79,10 @@ pub fn area_offsets() -> impl Iterator<Item = (i32, i32)> {
         .filter(|(dx, dy)| !(dx.abs() == 2 && dy.abs() == 2))
 }
 
+/// The unrest another wizard's Armageddon adds to a city (the original sets the pacifying of
+/// those cities to minus two; the community patch adds two unrest and leaves the buildings).
+const ARMAGEDDON_UNREST: i32 = 2;
+
 fn wrap_distance(width: u32, a: u32, b: u32) -> u32 {
     let d = a.abs_diff(b);
     d.min(width - d)
@@ -206,9 +210,11 @@ impl<'a> Economy<'a> {
                 .and_then(|o| self.wizard(o))
                 .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
             let (mut power, mut pacify) = (0, 0);
-            // While any wizard keeps Armageddon going, no building calms a city.
+            // While another wizard keeps Armageddon going, the city has two more rebels' worth of
+            // unrest (the buildings still calm it, as in the community patch).
             let armageddon = crate::player::ids(self.world)
                 .into_iter()
+                .filter(|&id| Some(id) != owner)
                 .filter_map(|id| self.wizard(id))
                 .any(|w| {
                     crate::spell::global_enchantment::magic_has_global(
@@ -220,9 +226,6 @@ impl<'a> Economy<'a> {
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
-                if armageddon {
-                    found.retain(|m| m.stat != Stat::CityUnrest);
-                }
                 // Evil Presence destroys the magic power of the religious buildings (the help;
                 // the original's code stops their pacifying instead, B22).
                 if evil && RELIGIOUS.contains(&def.id.as_str()) {
@@ -238,6 +241,14 @@ impl<'a> Economy<'a> {
                     }
                 }
                 mods.extend(found);
+            }
+            if armageddon {
+                mods.push(Modifier::new(
+                    Stat::CityUnrest,
+                    crate::rules::ModOp::Add,
+                    ARMAGEDDON_UNREST,
+                    Source::Other,
+                ));
             }
             // Divine and Infernal Power take 150 percent of the religious buildings' power,
             // Dark Rituals doubles it, and the two together make 300 percent (`CITYCALC.c`).
@@ -435,7 +446,7 @@ impl<'a> Economy<'a> {
             let food = self.square_food(grid, p.x as i32, p.y as i32) * 2;
             food_x2 += if shared { food / 2 } else { food };
             if let Some(f) = grid
-                .feature(p.x as i32, p.y as i32)
+                .mineral(p.x as i32, p.y as i32)
                 .and_then(|f| self.content.features.get(f))
             {
                 wild_food += if shared { f.city.food / 2 } else { f.city.food };
@@ -548,7 +559,7 @@ impl<'a> Economy<'a> {
             terrain_food_x2 += food;
             production_percent += prod;
             if let Some(f) = grid
-                .feature(p.x as i32, p.y as i32)
+                .mineral(p.x as i32, p.y as i32)
                 .filter(|_| !spoiled)
                 .and_then(|f| self.content.features.get(f))
             {
@@ -802,13 +813,6 @@ impl<'a> Economy<'a> {
         let map = self.map?;
         let id = map.plane(at.plane).get(at.x as i32, at.y as i32)?;
         self.content.terrains.get(id).map(|d| d.class)
-    }
-
-    /// The intact lair on a square, with its index.
-    pub fn lair_at(&self, pos: Position) -> Option<(usize, &'a crate::feature::lair::Lair)> {
-        let map = self.map?;
-        let i = map.lair_at(pos.plane, pos.x, pos.y)?;
-        Some((i, &map.lairs()[i]))
     }
 
     /// The city standing at `pos`.

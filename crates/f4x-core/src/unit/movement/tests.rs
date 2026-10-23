@@ -29,17 +29,13 @@ fn world() -> Game {
         g.set(7, 2, id("ocean"));
         g.set(8, 2, id("ocean"));
         g.set(1, 4, id("grassland"));
-        let tower = c
-            .features
-            .first_of_kind(crate::content::FeatureKind::Tower)
-            .unwrap();
-        g.set_feature(1, 4, Some(tower));
         g
     };
     let map = Map::new(build(), build());
     let mut game = Game::new(1);
     game.content = c;
     game.map = Some(map);
+    game.put_feature(at(1, 4), "tower");
     for id in (0..4).map(PlayerId) {
         game.add_player(id, "");
     }

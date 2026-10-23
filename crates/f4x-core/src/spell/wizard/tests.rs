@@ -921,20 +921,20 @@ fn armageddon_raises_volcanoes_that_pay_the_caster_power() {
 }
 
 #[test]
-fn armageddon_pays_for_every_volcano_in_the_world_but_only_its_own_wizard() {
+fn a_volcano_pays_a_point_of_power_to_its_owner_only() {
     let mut g = world();
     for (x, o) in [(2, P0), (3, P1), (4, P1)] {
-        g.map
-            .as_mut()
-            .unwrap()
-            .plane_mut(Plane::Myrror)
-            .set_volcano(x, 2, Some(o));
+        let at = Position {
+            plane: Plane::Myrror,
+            x,
+            y: 2,
+        };
+        g.spawn_volcano(o, at).unwrap();
     }
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
+    // Keeping Armageddon going changes nothing about whose volcanoes pay.
     keep(&mut g, P0, "armageddon");
-    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (3, 2));
-    keep(&mut g, P1, "armageddon");
-    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (3, 3));
+    assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
 }
 
 #[test]
@@ -962,6 +962,33 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
     assert_eq!(g.volcano_count(P0), 1);
     assert!(!g.world.contains(boat), "the ship went down");
     assert!(!g.can_armageddon_volcano(at(6, 6)), "already a volcano");
+}
+
+#[test]
+fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() {
+    // The west half of both planes is sea, the east half land, and the same number of squares.
+    let mut g = world();
+    let ocean = g
+        .content
+        .terrains
+        .first_of_class(crate::content::TerrainClass::Ocean, Plane::Arcanus)
+        .unwrap();
+    for plane in Plane::ALL {
+        for x in 0..12 {
+            for y in 0..14 {
+                g.map.as_mut().unwrap().plane_mut(plane).set(x, y, ocean);
+            }
+        }
+    }
+    keep(&mut g, P0, "armageddon");
+    for _ in 0..40 {
+        g.process_world_enchantments();
+    }
+    let volcanoes = g.economy().volcanoes();
+    let sea = volcanoes.iter().filter(|(p, _)| p.x < 12).count();
+    let land = volcanoes.len() - sea;
+    assert!(sea > 0, "volcano islands do rise");
+    assert!(sea * 3 < land, "but seldom: {sea} at sea, {land} on land");
 }
 
 #[test]
@@ -1022,7 +1049,7 @@ fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() {
                 .as_ref()
                 .unwrap()
                 .plane(Plane::Arcanus)
-                .feature(x, y)
+                .mineral(x, y)
                 .is_some()
         })
         .count();

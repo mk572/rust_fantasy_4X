@@ -213,17 +213,18 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
     g.attach_enchantment(Target::City(city), aura, P0);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
-    g.map.as_mut().unwrap().set_nodes(vec![Node {
-        plane: Plane::Arcanus,
-        x: 6,
-        y: 6,
-        realm: "chaos".into(),
-        power: 8,
-        aura: vec![(6, 6)],
-        owner: Some(PlayerId(0)),
-        guardian: false,
-        warped: true,
-    }]);
+    g.put_node_data(
+        at(6, 6),
+        "node",
+        Node {
+            realm: "chaos".into(),
+            power: 8,
+            aura: vec![(6, 6)],
+            guardian: false,
+            warped: true,
+        },
+        Some(PlayerId(0)),
+    );
     let events = cast(&mut g, "disenchant_area", Target::Tile(at(6, 6)));
     assert!(
         events.contains(&Event::Dispelled {
@@ -232,7 +233,8 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
         }),
         "only the warp on the caster's own node goes, their own enchantments stay: {events:?}"
     );
-    g.map.as_mut().unwrap().node_mut(0).unwrap().warped = true;
+    let node = g.economy().nodes()[0].entity;
+    g.world.get::<&mut Node>(node).unwrap().warped = true;
     // The same cast by the other wizard takes it all.
     let da = sp(&g, "disenchant_area");
     g.wizard_mut(P1)
