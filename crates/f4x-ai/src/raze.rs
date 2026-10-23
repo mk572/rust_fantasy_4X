@@ -106,9 +106,7 @@ mod tests {
         let city = g.economy().city_at(at(ENEMY_CITY.0, ENEMY_CITY.1)).unwrap();
         // Take the enemy's only city: the former owner has nothing else near, so even the
         // fiercest temper does not raze it (-200 for no rival land on the continent).
-        let mut w = g.wizard_mut(P0).unwrap();
-        w.put(Some(Personality::Maniacal));
-        drop(w);
+        g.wizard_mut(P0).unwrap().put(Some(Personality::Maniacal));
         g.conquer_city(city, P0, 0);
         let view = PlayerView::new(&g, P0);
         let pos = at(ENEMY_CITY.0, ENEMY_CITY.1);
