@@ -638,7 +638,9 @@ impl Game {
         }
         if self.spell_has_hook(spell, crate::spell::special::FLOATING_ISLAND) {
             return match target {
-                Some(Target::Tile(p)) => self.check_floating_island(p).map_err(MagicError::Target),
+                Some(Target::Tile(p)) => self
+                    .check_floating_island(player, p)
+                    .map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };

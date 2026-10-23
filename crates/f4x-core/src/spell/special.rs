@@ -43,17 +43,29 @@ impl Game {
         .ok_or(TargetError::NothingToTransmute)
     }
 
-    /// Floating Island needs a water square: the island is raised where the wizard aims.
-    pub fn check_floating_island(&self, at: Position) -> Result<(), TargetError> {
+    /// Floating Island needs a water square with no enemy units on it and room for the island:
+    /// it is raised where the wizard aims.
+    pub fn check_floating_island(
+        &self,
+        owner: crate::player::PlayerId,
+        at: Position,
+    ) -> Result<(), TargetError> {
         match self.economy().terrain_class_at(at) {
-            None => Err(TargetError::OffMap),
-            Some(crate::content::TerrainClass::Ocean) => Ok(()),
-            Some(_) => Err(TargetError::NotWater),
+            None => return Err(TargetError::OffMap),
+            Some(crate::content::TerrainClass::Ocean) => {}
+            Some(_) => return Err(TargetError::NotWater),
         }
+        if self.economy().hostile_at(at, owner).is_some() {
+            return Err(TargetError::EnemyOnSquare);
+        }
+        if self.units().units_at(at).len() >= MAX_STACK {
+            return Err(TargetError::SquareFull);
+        }
+        Ok(())
     }
 
     pub(crate) fn floating_island(&mut self, owner: crate::player::PlayerId, at: Position) {
-        if self.check_floating_island(at).is_err() {
+        if self.check_floating_island(owner, at).is_err() {
             return;
         }
         if let Some(id) = self.content.rules.units.id_of("floating_island") {
@@ -392,11 +404,30 @@ mod tests {
         let events = cast(&mut g, "floating_island", Target::Tile(land));
         assert!(rejected(&events), "{events:?}");
         assert_eq!(
-            g.check_floating_island(land),
+            g.check_floating_island(P0, land),
             Err(TargetError::NotWater),
             "land is refused"
         );
         assert!(g.units().units_at(land).is_empty());
+        // An enemy boat on the square bars it; a square already holding nine units is full.
+        let boat = g.content.rules.units.id_of("walker").unwrap();
+        g.add_player(PlayerId(1), "X");
+        let enemy = g.spawn_unit(PlayerId(1), sea, boat);
+        assert_eq!(
+            g.check_floating_island(P0, sea),
+            Err(TargetError::EnemyOnSquare)
+        );
+        g.world.despawn(enemy).unwrap();
+        for _ in 0..MAX_STACK {
+            g.spawn_unit(P0, sea, boat);
+        }
+        assert_eq!(
+            g.check_floating_island(P0, sea),
+            Err(TargetError::SquareFull)
+        );
+        for u in g.units().units_at(sea) {
+            g.world.despawn(u).unwrap();
+        }
         let events = cast(&mut g, "floating_island", Target::Tile(sea));
         assert!(!rejected(&events), "{events:?}");
         let here = g.units().units_at(sea);
