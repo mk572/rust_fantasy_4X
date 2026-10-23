@@ -658,3 +658,29 @@ the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain un
   each turn); a chaos node never changes and has no owner of its own.
 - Change Terrain, Raise Volcano and Corruption refuse a node square, as the original does
   (Corruption with its own message 41; Change Terrain with the fixed-terrain words, task 350).
+
+## 34. Terrain movement costs (task 240)
+
+`TERRSTAT.LBX` entry 0 holds six bytes for each of the 770 terrain types of the map: the half-move cost
+for the unused mode, walking, Forester, Mountaineer, swimming and sailing (255 is "cannot enter";
+`Movement_Mode_Cost_Maps`, `MAPGEN.c`). Read on 24 October 2026 for the types a generated map uses
+(ids as in `TerrType.h`; the Community Patch changes only the volcano, id 179, to a mountain's costs):
+
+| Terrain | Original, walking | Ours (`terrain.ron`) |
+|---|---|---|
+| Grassland (162, 172 to 176) | 1 | 1 |
+| Forest (163, 183, 184) | 2 | 2 |
+| Mountains (164, 259 to 274) | **4** | **3** |
+| Hills (171, 275 to 291) | **3** | **2** |
+| Desert (292 to 451) | 1 | 1 |
+| Swamp (166, 177, 178) | **3** | **2** |
+| Tundra (602 to 761) | 2 | 2 |
+| River squares (233 to 258) | 2 | (the terrain's own) |
+| Sorcery node / nature node / chaos node (168 to 170) | 1 / 2 / 4 | 1 / 2 / 3 |
+
+So hills, swamp and mountains cost one more move in the original than in the game, and a chaos node
+(a mountain) 4. The Forester column makes forests cost 1, the Mountaineer column hills and
+mountains 1 (as ours does), and the Mountaineer column puts 3 on grassland and 2 on forest: a
+slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) is not read by any
+function of ReMoM; `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Not changed:** the
+costs are a balance question; the follow-up is task 372.
