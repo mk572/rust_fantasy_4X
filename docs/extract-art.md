@@ -87,6 +87,16 @@ Settings, `items`, `special`, `wizards`, `cityscap`) stay in `art/`. A picture t
 `extract-art` again: it writes the picture in its new place and deletes the old copy in `art/`.
 Unit art is filed by the unit's id from `content/units.ron` (its `art` and hero `portrait`;
 unit type numbers: `unit_type_number`), so the extractor must run from the project directory.
+Spell art is filed by the table `content/spell_art.ron` (spell id to `(lbx, entry, role)`): a picture
+of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several spells use or that
+belongs to none (the realm pictures, the summon scene, the boxes, the masks) to `art/spells/_shared/`,
+and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. A picture no spell names
+stays in `art/<lbx>/`. `extract-art` writes this layout from the start. For art already extracted,
+`f4x-tools refile-art [art-dir]` moves the files to where the current rules put them (screens, units
+and spells alike; it touches only pictures whose place changed, takes their `_cycle` and `_banner`
+masks along and rewrites `index.tsv`) without reading the game files again. `manifest.tsv` stays
+`lbx entry frames width height`; `index.tsv` is where the paths are. The client reads the table
+through `Art::spell_picture(spell, role)` and `Art::shared_picture(role)`.
 The client finds every place through `Art::picture(lbx, entry, frame)` and `Art::figure`, which read
 `index.tsv`, so the call sites keep the original's numbers.
 

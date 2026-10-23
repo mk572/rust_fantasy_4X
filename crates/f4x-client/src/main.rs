@@ -404,7 +404,21 @@ async fn main() {
         }
     };
     let help = f4x_data::load_help(&options.content).unwrap_or_default();
-    let mut app = match App::new(content, art::Art::load(options.assets), options.seed) {
+    let spell_art = match f4x_data::spell_art::load_spell_art(
+        &[&options.content, Path::new("content")],
+        &content.rules,
+    ) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("could not load the spell art table: {e}");
+            std::process::exit(1);
+        }
+    };
+    let mut app = match App::new(
+        content,
+        art::Art::load(options.assets, spell_art),
+        options.seed,
+    ) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("could not start a game: {e}");

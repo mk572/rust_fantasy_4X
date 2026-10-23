@@ -2,6 +2,7 @@
 
 pub mod rules;
 pub mod save;
+pub mod spell_art;
 
 use std::collections::HashSet;
 use std::fmt;

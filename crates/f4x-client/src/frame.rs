@@ -7,6 +7,7 @@
 //! set; without it the same layout is drawn in flat colours.
 
 use f4x_core::map::Position;
+use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::ui::GOLD;
@@ -104,6 +105,19 @@ impl App {
         y: f32,
     ) -> Option<Rect> {
         self.draw_pic_tinted(lay, lbx, entry, frame, x, y, WHITE)
+    }
+
+    /// Draw the picture for `role` that belongs to no one spell (a box, the sparkle).
+    pub(crate) fn draw_shared_pic(
+        &mut self,
+        lay: &Layout,
+        role: &Role,
+        frame: usize,
+        x: f32,
+        y: f32,
+    ) -> Option<Rect> {
+        let (lbx, entry) = self.art.shared_picture(role)?;
+        self.draw_pic(lay, &lbx, entry, frame, x, y)
     }
 
     /// `draw_pic` multiplied by a colour (a faded one shows a disabled control).

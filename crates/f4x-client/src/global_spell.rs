@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
+use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -22,43 +23,13 @@ const STAGE: f64 = 0.11;
 /// The animation ends by itself after 120 stages.
 const STAGES: usize = 120;
 
-/// The `specfx` picture of each global enchantment (15 plus the spell's `Param0`; the ones
-/// with their own entries are Death Wish, Great Unsummoning and Awareness).
-const PICTURES: [(&str, usize); 26] = [
-    ("eternal_night", 15),
-    ("evil_omens", 16),
-    ("zombie_mastery", 17),
-    ("aura_of_majesty", 18),
-    ("wind_mastery", 19),
-    ("suppress_magic", 20),
-    ("time_stop", 21),
-    ("nature_awareness", 22),
-    ("natures_wrath", 23),
-    ("herb_mastery", 24),
-    ("chaos_surge", 25),
-    ("doom_mastery", 26),
-    ("great_wasting", 27),
-    ("meteor_storm", 28),
-    ("armageddon", 29),
-    ("tranquility", 30),
-    ("life_force", 31),
-    ("crusade", 32),
-    ("just_cause", 33),
-    ("holy_arms", 34),
-    ("planar_seal", 35),
-    ("charm_of_life", 36),
-    ("detect_magic", 37),
-    ("death_wish", 38),
-    ("great_unsummoning", 39),
-    ("awareness", 56),
-];
-
 /// A global spell cast and not yet shown.
 #[derive(Debug, Clone)]
 pub(crate) struct GlobalCast {
     player: PlayerId,
     spell: SpellId,
-    picture: usize,
+    /// The picture in the mirror (`Role::Global` of the spell in `content/spell_art.ron`).
+    picture: (String, usize),
     /// When it began, once it has.
     started: Option<f64>,
 }
@@ -75,7 +46,7 @@ impl App {
     /// Remember a cast to show, if the spell is a global enchantment with a picture.
     pub(crate) fn announce_global_cast(&mut self, player: PlayerId, spell: SpellId) {
         let id = &self.game.content().rules.spells.get(spell).id;
-        let Some(&(_, picture)) = PICTURES.iter().find(|(name, _)| name == id) else {
+        let Some(picture) = self.art.spell_picture(id, &Role::Global) else {
             return;
         };
         self.global_casts.push_back(GlobalCast {
@@ -148,7 +119,7 @@ impl App {
         if !animated {
             self.bm_text_outlined(view, 5, &words, line.0, line.1, Align::Center);
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
-            self.draw_pic(lay, "specfx", cast.picture, 0, x + 10.0, y + 8.0);
+            self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
             self.bm_text_outlined(view, 5, &name, line.0, line.1 + 20.0, Align::Center);
             return;
         }
@@ -161,9 +132,9 @@ impl App {
             // frames, then the second's.
             self.draw_pic(lay, "moodwiz", face, 0, inside.0, inside.1);
             let (mask, frame) = if stage < 10 {
-                (54, stage)
+                (1, stage)
             } else {
-                (55, stage - 10)
+                (2, stage - 10)
             };
             self.draw_masked(lay, "diplomac", 1, mask, frame, inside);
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
@@ -174,34 +145,37 @@ impl App {
         } else if stage < 34 {
             // The face dissolves in a swirl (the second mask over and over, restarted at 30)
             // out of the spell's picture.
-            self.draw_pic(lay, "specfx", cast.picture, 0, x + 10.0, y + 8.0);
+            self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
             let frame = if stage < 30 {
                 (stage - 20) % 4
             } else {
                 stage - 30
             };
-            self.draw_masked(lay, "moodwiz", face, 55, frame, inside);
+            self.draw_masked(lay, "moodwiz", face, 2, frame, inside);
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
         } else {
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
-            self.draw_pic(lay, "specfx", cast.picture, 0, x + 10.0, y + 8.0);
+            self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
             self.bm_text_outlined(view, 5, &name, line.0, line.1, Align::Center);
         }
     }
 
-    /// Draw frame 0 of a picture through a `specfx` mask frame.
+    /// Draw frame 0 of a picture through a frame of the first or second mask picture.
     fn draw_masked(
         &mut self,
         lay: &Layout,
         lbx: &str,
         entry: usize,
-        mask: usize,
+        mask: u8,
         mask_frame: usize,
         at: (f32, f32),
     ) {
+        let Some((mask_lbx, mask_entry)) = self.art.shared_picture(&Role::Mask(mask)) else {
+            return;
+        };
         let Some(tex) = self
             .art
-            .masked_picture(lbx, entry, 0, mask, mask_frame)
+            .masked_picture(lbx, entry, 0, (&mask_lbx, mask_entry), mask_frame)
             .cloned()
         else {
             return;

@@ -83,44 +83,10 @@ neighbours.
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production |
 | 339 | AI | Scripted and trained AI on the new framework |
-| 340 | Spell | One art folder per spell in `assets-local/art/spells` |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 
 ## Descriptions
-
-### C. Spell
-
-**340. One art folder per spell.** The extracted art is one folder per source `.lbx` in
-`assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,
-`magic` 54, `spells` 12), files named `<entry>_<frame>.png`, listed in `manifest.tsv`. Which spell
-uses which picture is only in code and docs: the tables in `spell_fx.rs` (battle), `global_spell.rs`,
-`event_popup.rs`, `learn_spell.rs` and `overland_spell_animations.md`. Change it to
-`assets-local/art/spells/<spell id>/`, one folder for each spell of `content/spells.ron`, holding
-that spell's pictures and animation frames, moved out of the `.lbx` folders (not copied), file names
-kept as `<lbx>_<entry>_<frame>.png` so the source stays traceable.
-- **The spell-to-art table first.** Write it as one data file (`content/spell_art.ron`: spell id to
-  a list of `(lbx, entry, role)`, roles such as cast, projectile, impact, summon, global, notice),
-  built from the existing tables and the doc, and make `spell_fx.rs`, `global_spell.rs`,
-  `event_popup.rs` and `learn_spell.rs` read it instead of their own copies. A test checks that every
-  id in it is a spell and every spell with art has a folder.
-- **Shared pictures.** Some pictures belong to many spells (the five realm pictures `specfx` 0 to
-  5, the summon backgrounds `spellscr` 46 and up, the city-spell scroll `spellscr` 73, the sparkle
-  `specfx` 49). They go to `spells/_shared/` and the table points at them; they are not copied into
-  every spell folder. Pictures that belong to no spell stay in their `.lbx` folder (units,
-  screens). The 12 spell book pictures now directly in `spells/` move to `spells/_book/`.
-- **Extractor and migration.** `f4x-tools` (`art.rs`, `extract-art`) writes the new layout and
-  `manifest.tsv` gets the new paths, so a fresh extraction is right from the start. For art
-  already extracted, a move mode (or a script logged in `docs/scripts.md`, with `--help`) moves the
-  existing files by the table, so the original files need not be read again.
-- **Client.** `Art` (`art.rs`) loads a spell's pictures by spell id and role; `draw_pic` by
-  `(lbx, entry, frame)` stays for everything else. The game still runs with no files (no art found,
-  no change).
-- **Docs.** `extract-art.md`, `local-assets.md`, `overland_spell_animations.md` and the on-hold tasks
-  that name `specfx` and `cmbtfx` entries (285, 287, 306) say where the files are now.
-
-*Needs:* nothing in code; it is placed last in phase C so that it does not collide with the spell
-entity work in 318 to 325 (the folder name is the spell's definition id, which does not change).
 
 ### D. Hero
 

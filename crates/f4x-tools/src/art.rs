@@ -12,6 +12,7 @@ use std::path::Path;
 use crate::image::{decode, to_rgba, to_rgba_glass};
 use crate::lbx::Lbx;
 use crate::screens::{self, Placer, UnitArt};
+use f4x_data::spell_art::SpellArt;
 
 /// FONTS.LBX entry 2 starts with the 256-colour base palette (6-bit RGB).
 const PALETTE_ENTRY: usize = 2;
@@ -500,7 +501,12 @@ fn cycle_mask(pixels: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(), String> {
+pub fn extract(
+    game_dir: &Path,
+    out_dir: &Path,
+    units: &[UnitArt],
+    spell_art: &SpellArt,
+) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
         .map_err(|e| format!("{}: {e}", game_dir.display()))?
@@ -514,7 +520,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path, units: &[UnitArt]) -> Result<(),
         .collect();
     lbx_files.sort();
     fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
-    let placer = Placer::new(screens::rules()?, units);
+    let placer = Placer::new(screens::rules()?, units, spell_art);
     let root = out_dir.with_file_name("");
     // An earlier version kept the index in `screens/`.
     let _ = fs::remove_file(root.join("screens/index.tsv"));

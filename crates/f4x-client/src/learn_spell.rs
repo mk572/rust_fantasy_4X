@@ -1,9 +1,10 @@
 //! The animation of a spell just learned (`Learn_Spell_Animation`, `Spellbook.c`): the wizard in
 //! the lab with the familiar, then the open library at the spell's page, where its entry is
-//! decoded out of glowing text under the `specfx` 49 sparkle. With Spell Animations off the
+//! decoded out of glowing text under the sparkle (`Role::Sparkle`). With Spell Animations off the
 //! original shows a box over the map instead: "You have mastered the spell of X".
 
 use f4x_core::rules::SpellId;
+use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::bigbook::BigMode;
@@ -191,7 +192,7 @@ impl App {
             } else {
                 (20.0, 21.0)
             };
-            self.draw_pic(lay, "specfx", 49, stage - 16, sx, sy + 37.0 * slot as f32);
+            self.draw_shared_pic(lay, &Role::Sparkle, stage - 16, sx, sy + 37.0 * slot as f32);
         }
     }
 
@@ -204,7 +205,7 @@ impl App {
         let lay = Layout::new();
         let text = format!("You have mastered the spell of {name}");
         let closed = self.notify2_box(&lay, 40.0, GREEN, &text, |app, lay, x| {
-            app.draw_pic(lay, "spellscr", 60, 0, x, 40.0 + 9.0);
+            app.draw_shared_pic(lay, &Role::Learned, 0, x, 40.0 + 9.0);
         });
         if closed {
             self.big_ui.learned.pop_front();

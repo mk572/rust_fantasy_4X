@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use f4x_data::spell_art::{Role, SpellArt};
 use macroquad::prelude::*;
 
 pub const TILE_W: f32 = 20.0;
@@ -147,13 +148,15 @@ pub struct Art {
     masked: HashMap<(String, usize, usize, usize, usize), Option<Texture2D>>,
     /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
+    /// Which pictures belong to which spell (`content/spell_art.ron`).
+    spells: SpellArt,
 }
 
 /// Banner names in the order the game numbers them.
 pub const BANNER_NAMES: [&str; 6] = ["blue", "green", "purple", "red", "yellow", "neutral"];
 
 impl Art {
-    pub fn load(dir: PathBuf) -> Self {
+    pub fn load(dir: PathBuf, spells: SpellArt) -> Self {
         let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
         let type_tiles = types
             .lines()
@@ -221,7 +224,25 @@ impl Art {
             glows: HashMap::new(),
             unit_pictures: HashMap::new(),
             masked: HashMap::new(),
+            spells,
         }
+    }
+
+    /// Which pictures belong to which spell.
+    pub fn spells(&self) -> &SpellArt {
+        &self.spells
+    }
+
+    /// The `(file, entry)` of a spell's picture for `role`.
+    pub fn spell_picture(&self, spell: &str, role: &Role) -> Option<(String, usize)> {
+        let (lbx, entry) = self.spells.picture(spell, role)?;
+        Some((lbx.to_string(), entry))
+    }
+
+    /// The `(file, entry)` of the picture for `role` that no one spell owns.
+    pub fn shared_picture(&self, role: &Role) -> Option<(String, usize)> {
+        let (lbx, entry) = self.spells.shared(role)?;
+        Some((lbx.to_string(), entry))
     }
 
     /// Read `fonts/metrics.tsv` (see `f4x-tools` `extract-art`); the atlases load on demand.
@@ -714,20 +735,20 @@ impl Art {
         self.texture(PathBuf::from(format!("cursors/{number:02}.png")))
     }
 
-    /// A picture of `lbx` with its pixels cleared wherever frame `mask_frame` of `specfx` entry
-    /// `mask_entry` is transparent (`Clipped_Copy_Mask` as `OVL_DrawGlobalAnim` uses it): only
+    /// A picture of `lbx` with its pixels cleared wherever frame `mask_frame` of the `mask`
+    /// picture is transparent (`Clipped_Copy_Mask` as `OVL_DrawGlobalAnim` uses it): only
     /// what lies under the mask's solid part shows.
     pub fn masked_picture(
         &mut self,
         lbx: &str,
         entry: usize,
         frame: usize,
-        mask_entry: usize,
+        mask: (&str, usize),
         mask_frame: usize,
     ) -> Option<&Texture2D> {
-        let key = (lbx.to_string(), entry, frame, mask_entry, mask_frame);
+        let key = (lbx.to_string(), entry, frame, mask.1, mask_frame);
         if !self.masked.contains_key(&key) {
-            let tex = self.load_masked(lbx, entry, frame, mask_entry, mask_frame);
+            let tex = self.load_masked(lbx, entry, frame, mask, mask_frame);
             self.masked.insert(key.clone(), tex);
         }
         self.masked.get(&key).and_then(Option::as_ref)
@@ -738,7 +759,7 @@ impl Art {
         lbx: &str,
         entry: usize,
         frame: usize,
-        mask_entry: usize,
+        mask: (&str, usize),
         mask_frame: usize,
     ) -> Option<Texture2D> {
         let read = |lbx: &str, entry: usize, frame: usize| {
@@ -747,7 +768,7 @@ impl Art {
             Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
         };
         let mut img = read(lbx, entry, frame)?;
-        let mask = read("specfx", mask_entry, mask_frame)?;
+        let mask = read(mask.0, mask.1, mask_frame)?;
         let (w, h) = (usize::from(img.width), usize::from(img.height));
         let (mw, mh) = (usize::from(mask.width), usize::from(mask.height));
         for y in 0..h {

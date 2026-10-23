@@ -26,7 +26,7 @@ cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of
 
 Decodes every picture in the original `.lbx` files to PNG (`<lbx>/<entry>_<frame>.png`,
 index 0 transparent; the ones that belong to a single screen go to `assets-local/screens/<screen>/`
-and unit art to `assets-local/art/units/<unit id>/`; see `extract-art.md` section 3) plus `manifest.tsv`, and the terrain tiles (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
+unit art to `assets-local/art/units/<unit id>/` and a spell's pictures to `assets-local/art/spells/<spell id>/`; see `extract-art.md` section 3) plus `manifest.tsv`, and the terrain tiles (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
 `map/tiles/types.tsv` mapping terrain type -> tile, `map/tiles/sheet.png` overview).
 Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner recolouring and where each file is used: [`extract-art.md`](extract-art.md).
 

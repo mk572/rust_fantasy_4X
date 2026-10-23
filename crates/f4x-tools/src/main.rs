@@ -6,6 +6,7 @@ mod fonts;
 mod image;
 mod lbx;
 mod map_art;
+mod refile;
 mod screens;
 mod soak;
 
@@ -22,6 +23,8 @@ const USAGE: &str = "usage:
                                               print both planes as ASCII
   f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
                                               (default out: assets-local/art)
+  f4x-tools refile-art [out-dir]              move already extracted pictures to where extract-art
+                                              would put them now (default: assets-local/art)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
                                               run the game from text commands (stdin, or the script)
   f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
@@ -43,10 +46,20 @@ fn main() -> ExitCode {
                         .get(2)
                         .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from),
                     &units,
+                    &spell_art()?,
                 )
             }),
             None => Err(USAGE.to_string()),
         },
+        Some("refile-art") => spell_art().and_then(|spell_art| {
+            let art_dir = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from);
+            let placer = screens::Placer::new(screens::rules()?, &unit_art()?, &spell_art);
+            let moved = refile::refile(&art_dir, &placer)?;
+            println!("moved {moved} pictures");
+            Ok(())
+        }),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -80,6 +93,13 @@ fn unit_art() -> Result<Vec<screens::UnitArt>, String> {
             portrait: u.hero.as_ref().map(|h| h.portrait as usize),
         })
         .collect())
+}
+
+/// The table of which pictures belong to which spell, checked against the rules.
+fn spell_art() -> Result<f4x_data::spell_art::SpellArt, String> {
+    let c = content(None)?;
+    f4x_data::spell_art::load_spell_art(&[Path::new("content")], &c.rules)
+        .map_err(|e| e.to_string())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {

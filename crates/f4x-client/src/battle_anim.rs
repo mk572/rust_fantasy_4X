@@ -73,7 +73,7 @@ impl Anim {
             Anim::WallRise { frames, .. } => *frames as f32 * SPELL_FRAME,
             Anim::Spell {
                 fx, frames, cells, ..
-            } => spell_time(*fx, *frames, cells),
+            } => spell_time(fx, *frames, cells),
         }
     }
 }
@@ -84,7 +84,7 @@ pub const BOLT_FRAME: f32 = 0.06;
 
 /// How long a spell's animation plays: its frames one after the other (the later squares start
 /// a few frames after the first), the bolts' flight and landing, the tint's rise and fall.
-fn spell_time(fx: SpellFx, frames: usize, cells: &[(Pos, usize)]) -> f32 {
+fn spell_time(fx: &SpellFx, frames: usize, cells: &[(Pos, usize)]) -> f32 {
     match fx {
         SpellFx::Cell { .. } => {
             let latest = cells.iter().map(|&(_, delay)| delay).max().unwrap_or(0);

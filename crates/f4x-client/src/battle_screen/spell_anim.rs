@@ -7,6 +7,7 @@ use crate::frame::Layout;
 use crate::spell_fx::{self, SpellFx};
 use battle_anim::{BOLT_FRAME, SPELL_FRAME};
 use f4x_core::rules::effects::Effect;
+use f4x_data::spell_art::Role;
 
 impl App {
     /// Turn a cast into the animation the original plays for it: `caster` is the wizard's side
@@ -25,7 +26,7 @@ impl App {
                 .any(|e| matches!(e.effect, Effect::Summon { .. }));
             (def.id.clone(), def.realm.clone(), summons, def.name.clone())
         };
-        let fx = spell_fx::fx_for(&id, &realm, summons);
+        let fx = spell_fx::fx_for(self.art.spells(), &id, &realm, summons);
         let side = match caster {
             Ok(side) => side,
             Err(unit) => before.unit(unit)?.side,
@@ -91,15 +92,19 @@ impl App {
                 .collect(),
         };
         let frames = match fx {
-            SpellFx::Cell { lbx, entry, .. } | SpellFx::Ground { lbx, entry } => {
+            SpellFx::Cell { ref lbx, entry, .. } | SpellFx::Ground { ref lbx, entry } => {
                 self.art.frames(lbx, entry).max(1)
             }
-            SpellFx::Chaos => spell_fx::CHAOS_EFFECTS
-                .iter()
-                .flatten()
-                .map(|&(lbx, entry, _)| self.art.frames(lbx, entry))
-                .max()
-                .unwrap_or(1),
+            SpellFx::Chaos => {
+                let effects: Vec<_> = (1..8)
+                    .filter_map(|n| spell_fx::chaos_effect(self.art.spells(), n))
+                    .collect();
+                effects
+                    .iter()
+                    .map(|(lbx, entry, _)| self.art.frames(lbx, *entry))
+                    .max()
+                    .unwrap_or(1)
+            }
             SpellFx::Bolt { bolt, .. } => bolt.frames(),
             SpellFx::Lightning | SpellFx::Tint { .. } => 1,
         };
@@ -163,7 +168,13 @@ impl App {
                     }
                     let (px, py) = Self::spell_point(pos);
                     let from = if big { (28.0, 30.0) } else { (14.0, 25.0) };
-                    place(self, lbx, entry, frame as usize, (px - from.0, py - from.1));
+                    place(
+                        self,
+                        &lbx,
+                        entry,
+                        frame as usize,
+                        (px - from.0, py - from.1),
+                    );
                 }
             }
             SpellFx::Ground { lbx, entry } => {
@@ -172,13 +183,14 @@ impl App {
                 if frame < frames {
                     for (pos, _) in cells {
                         let (x, y) = cell_origin(pos);
-                        place(self, lbx, entry, frame, (x, y - 18.0));
+                        place(self, &lbx, entry, frame, (x, y - 18.0));
                     }
                 }
             }
             SpellFx::Chaos => {
                 for (&(pos, delay), &outcome) in cells.iter().zip(&outcomes) {
-                    let Some((lbx, entry, big)) = spell_fx::CHAOS_EFFECTS[usize::from(outcome) % 8]
+                    let Some((lbx, entry, big)) =
+                        spell_fx::chaos_effect(self.art.spells(), outcome)
                     else {
                         continue;
                     };
@@ -188,7 +200,13 @@ impl App {
                     }
                     let (px, py) = Self::spell_point(pos);
                     let from = if big { (28.0, 30.0) } else { (14.0, 25.0) };
-                    place(self, lbx, entry, frame as usize, (px - from.0, py - from.1));
+                    place(
+                        self,
+                        &lbx,
+                        entry,
+                        frame as usize,
+                        (px - from.0, py - from.1),
+                    );
                 }
             }
             SpellFx::Bolt { lbx, entry, bolt } => {
@@ -222,7 +240,7 @@ impl App {
                         rest.1 + start.1 + step.1 * frame_num as f32,
                     )
                 };
-                place(self, lbx, entry, picture, at);
+                place(self, &lbx, entry, picture, at);
             }
             SpellFx::Lightning => {
                 let Some(&(pos, _)) = cells.first() else {
@@ -232,7 +250,11 @@ impl App {
                 if (0.28..0.5).contains(&t) {
                     let (px, py) = Self::spell_point(pos);
                     let frame = (t * 20.0) as usize % 4;
-                    place(self, "cmbtfx", 24, frame, (px, py - 199.0));
+                    if let Some((lbx, entry)) =
+                        self.art.spell_picture("call_lightning", &Role::Cast)
+                    {
+                        place(self, &lbx, entry, frame, (px, py - 199.0));
+                    }
                 }
             }
             SpellFx::Tint { .. } => {}

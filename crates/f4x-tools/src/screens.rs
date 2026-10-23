@@ -1,8 +1,12 @@
 //! Where `extract-art` puts a picture: the ones that belong to one screen alone (`screens.tsv`) in
 //! `assets-local/screens/<screen>/`, unit art (overland picture, combat figures, hero portrait) in
-//! `assets-local/art/units/<unit id>/`, and the rest in `assets-local/art/<lbx>/`.
+//! `assets-local/art/units/<unit id>/`, a spell's pictures (`content/spell_art.ron`) in
+//! `assets-local/art/spells/<spell id>/` (`_shared` for those of several spells, `_book` for the
+//! spell book), and the rest in `assets-local/art/<lbx>/`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+use f4x_data::spell_art::{self, SpellArt};
 
 /// The table, compiled in so the extractor needs no extra file.
 const TABLE: &str = include_str!("../screens.tsv");
@@ -38,6 +42,8 @@ pub struct Placer {
     portraits: HashMap<usize, String>,
     /// `MAPBACK.LBX` entry -> the map sprite's name (`map_art::catalog_names`).
     map_sprites: HashMap<usize, String>,
+    /// `(lbx, entry)` -> the folder under `art/spells/` (`SpellArt::folders`).
+    spells: BTreeMap<(String, usize), String>,
 }
 
 /// What the placer needs to know of a unit: its id, its art `(file, entry)` and its portrait.
@@ -48,7 +54,7 @@ pub struct UnitArt {
 }
 
 impl Placer {
-    pub fn new(rules: Vec<Rule>, units: &[UnitArt]) -> Self {
+    pub fn new(rules: Vec<Rule>, units: &[UnitArt], spell_art: &SpellArt) -> Self {
         let mut types = HashMap::new();
         let mut portraits = HashMap::new();
         for u in units {
@@ -72,12 +78,19 @@ impl Placer {
             types,
             portraits,
             map_sprites,
+            spells: spell_art.folders(),
         }
     }
 
     /// Where a picture goes, relative to `assets-local/` and without the frame suffix
     /// (`<place>_<frame>.png`), or `None` to leave it in `art/<lbx>/`.
     pub fn place(&self, lbx: &str, entry: usize) -> Option<String> {
+        if lbx == "spells" {
+            return Some(format!("art/spells/{}/{lbx}_{entry:03}", spell_art::BOOK));
+        }
+        if let Some(folder) = self.spells.get(&(lbx.to_string(), entry)) {
+            return Some(format!("art/spells/{folder}/{lbx}_{entry:03}"));
+        }
         if let Some(place) = placement(&self.rules, lbx, entry) {
             return Some(format!("screens/{place}"));
         }
@@ -173,7 +186,7 @@ mod tests {
                 portrait: None,
             },
         ];
-        let p = Placer::new(rules().unwrap(), &units);
+        let p = Placer::new(rules().unwrap(), &units, &SpellArt::default());
         assert_eq!(
             p.place("units1", 0).as_deref(),
             Some("art/units/dwarf/picture")
@@ -230,6 +243,55 @@ mod tests {
             p.place("cmbtwall", 1).as_deref(),
             Some("screens/combat/cmbtwall_unknown/cmbtwall_001")
         );
+    }
+
+    #[test]
+    fn spell_art_goes_to_the_spell_folder_or_the_shared_one() {
+        let art = f4x_data::spell_art::parse_spell_art(
+            r#"(
+                shared: [(lbx: "specfx", entry: 49, role: Sparkle)],
+                spells: {
+                    "fire_bolt": [(lbx: "cmbtfx", entry: 0, role: Cast)],
+                    "petrify": [(lbx: "specfx", entry: 12, role: Cast)],
+                    "call_the_void": [(lbx: "specfx", entry: 12, role: Cast)],
+                },
+            )"#,
+        )
+        .unwrap();
+        let p = Placer::new(rules().unwrap(), &[], &art);
+        assert_eq!(
+            p.place("cmbtfx", 0).as_deref(),
+            Some("art/spells/fire_bolt/cmbtfx_000")
+        );
+        assert_eq!(
+            p.place("specfx", 12).as_deref(),
+            Some("art/spells/_shared/specfx_012")
+        );
+        assert_eq!(
+            p.place("specfx", 49).as_deref(),
+            Some("art/spells/_shared/specfx_049")
+        );
+        assert_eq!(
+            p.place("spells", 3).as_deref(),
+            Some("art/spells/_book/spells_003")
+        );
+        // A picture no spell names stays in its file's folder.
+        assert_eq!(p.place("specfx", 100), None);
+    }
+
+    #[test]
+    fn no_spell_picture_is_also_claimed_by_a_screen() {
+        let dir = std::path::Path::new("../../content");
+        let content = f4x_data::load_content(dir).unwrap();
+        let art = f4x_data::spell_art::load_spell_art(&[dir], &content.rules).unwrap();
+        let rules = rules().unwrap();
+        for (lbx, entry) in art.folders().keys() {
+            assert_eq!(
+                placement(&rules, lbx, *entry),
+                None,
+                "{lbx} {entry} is in screens.tsv and in spell_art.ron"
+            );
+        }
     }
 
     #[test]

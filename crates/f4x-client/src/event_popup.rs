@@ -5,6 +5,7 @@
 //! the right end. A click or a key closes it, and the next one follows.
 
 use f4x_core::world_event::{compose, EventKind};
+use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -32,13 +33,14 @@ const RED: usize = 43;
 /// The top of the fizzle box (`Notify2(160, 80, 1, ...)`).
 const FIZZLE_TOP: f32 = 80.0;
 
-/// A box about a spell: where it goes, the colour of its strip and the `specfx` picture in it.
+/// A box about a spell: where it goes, the colour of its strip and the picture in it (the role of
+/// a shared picture in `content/spell_art.ron`).
 #[derive(Debug, Clone)]
 pub(crate) struct SpellNotice {
     text: String,
     strip: usize,
     top: f32,
-    picture: usize,
+    picture: Role,
     /// Where the picture sits from the picture box's left edge plus 7, and from the box's top.
     shift: f32,
     drop: f32,
@@ -193,10 +195,9 @@ impl App {
             notice.strip,
             &notice.text,
             |app, lay, x| {
-                app.draw_pic(
+                app.draw_shared_pic(
                     lay,
-                    "specfx",
-                    notice.picture,
+                    &notice.picture,
                     0,
                     x + notice.shift,
                     notice.top + notice.drop,
@@ -235,7 +236,11 @@ impl App {
         let top = 40.0 + 25.0 * *count as f32;
         *count += 1;
         // The unit picture is a little right of the city's (`pict1_x` 4).
-        let (picture, shift) = if on_unit { (51, 4.0) } else { (52, 0.0) };
+        let (picture, shift) = if on_unit {
+            (Role::DispelledUnit, 4.0)
+        } else {
+            (Role::DispelledCity, 0.0)
+        };
         self.spell_notices.push_back(SpellNotice {
             text,
             strip: GREEN,
@@ -264,7 +269,7 @@ impl App {
             text,
             strip: RED,
             top: FIZZLE_TOP,
-            picture: 50,
+            picture: Role::Fizzle,
             shift: -1.0,
             drop: 7.0,
         });
@@ -301,7 +306,7 @@ impl App {
                 text,
                 strip: RED,
                 top: FIZZLE_TOP,
-                picture: 50,
+                picture: Role::Fizzle,
                 shift: -1.0,
                 drop: 7.0,
             });
