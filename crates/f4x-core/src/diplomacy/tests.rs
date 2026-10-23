@@ -827,57 +827,62 @@ fn spells_are_exchanged_one_for_one() {
 }
 
 #[test]
-fn the_rating_of_a_proposal_is_the_originals() {
-    let mut g = world();
-    met(&mut g, P0, P1);
-    // A pact below +10 is refused out of hand, and costs no patience.
-    set_rel(&mut g, P0, P1, 10);
-    assert_eq!(
-        g.rate_proposal(P0, P1, ProposalKind::Pact),
-        Verdict::Refused
-    );
-    assert_eq!(
-        g.diplomacy.stance(P0, P1).map_or(0, |s| s.treaty_patience),
-        0
-    );
-    // A great friend with great patience accepts a pact; patience then falls.
-    set_rel(&mut g, P0, P1, 90);
-    g.diplomacy.stance_mut(P0, P1).hidden = 30;
-    g.diplomacy.stance_mut(P0, P1).treaty_patience = 100;
-    g.wizard_mut(P1).unwrap().put(Some(Personality::Peaceful));
-    assert_eq!(
-        g.rate_proposal(P0, P1, ProposalKind::Pact),
-        Verdict::Accepted
-    );
-    let s = g.diplomacy.stance(P0, P1).unwrap();
-    assert!(
-        (100 - 10 - 49..=100 - 10 - 21).contains(&s.treaty_patience),
-        "{}",
-        s.treaty_patience
-    );
-    assert_eq!((s.exchange_patience, s.peace_patience), (-10, -10));
-    // An alliance needs above +50.
-    set_rel(&mut g, P0, P1, 50);
-    assert_eq!(
-        g.rate_proposal(P0, P1, ProposalKind::Alliance),
-        Verdict::Refused
-    );
+fn answering_wears_down_the_askers_patience_whatever_the_answer() {
+    for accept in [false, true] {
+        let mut g = world();
+        met(&mut g, P0, P1);
+        g.diplomacy.stance_mut(P0, P1).treaty_patience = 100;
+        let events = command(
+            &mut g,
+            DiplomacyCommand::Propose {
+                from: P0,
+                to: P1,
+                kind: ProposalKind::Pact,
+            },
+        );
+        assert!(rejected(&events).is_none(), "{events:?}");
+        command(
+            &mut g,
+            DiplomacyCommand::Answer {
+                player: P1,
+                from: P0,
+                accept,
+            },
+        );
+        let s = g.diplomacy.stance(P0, P1).unwrap();
+        // 10 and 20 to 49 are taken, whatever the answer.
+        assert!(
+            (100 - 10 - 49..=100 - 10 - 20).contains(&s.treaty_patience),
+            "{accept}: {}",
+            s.treaty_patience
+        );
+        assert_eq!((s.exchange_patience, s.peace_patience), (-10, -10));
+    }
 }
 
 #[test]
-fn a_bigger_army_makes_a_wizard_more_pliant() {
+fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() {
     let mut g = world();
     met(&mut g, P0, P1);
-    let spear = g.content.rules.units.id_of("walker").unwrap();
-    let cost = g.content.rules.units.get(spear).cost as i32;
-    // Neither has an army: the asker is 'weaker', no threat to speak of.
-    assert_eq!(threat_modifier(&g, P0, P1), -50);
-    for _ in 0..4 {
-        g.spawn_unit(P0, at(1, 1), spear);
-    }
-    assert_eq!(threat_modifier(&g, P0, P1), 50, "the other has no army");
-    g.spawn_unit(P1, at(5, 5), spear);
-    assert_eq!(threat_modifier(&g, P0, P1), -50 + 4 * cost * 100 / cost);
+    let before = g.diplomacy.stance(P0, P1).map_or(0, |s| s.treaty_patience);
+    let spell = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
+    g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+        from: P0,
+        to: P1,
+        kind: ProposalKind::Exchange {
+            give: spell,
+            get: spell,
+        },
+    }));
+    g.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+        player: P1,
+        from: P0,
+        accept: false,
+    }));
+    assert_eq!(
+        g.diplomacy.stance(P0, P1).map_or(0, |s| s.treaty_patience),
+        before
+    );
 }
 
 #[test]
@@ -1003,12 +1008,10 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
     }
     let mastery = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
     g.begin_cast_relations(P0, mastery);
-    // One time in nine the original has the offended wizard declare war as well.
-    if g.treaty(P0, P1) == Treaty::War {
-        assert!(g.relation(P0, P1) <= -75);
-    } else {
-        assert_eq!(g.relation(P0, P1), -50);
-    }
+    // The rules only sour the relation; a war on the caster is the AI's decision
+    // (`f4x-ai`, `diplomacy::mastery_scare`).
+    assert_eq!(g.treaty(P0, P1), Treaty::None);
+    assert_eq!(g.relation(P0, P1), -50);
 }
 
 #[test]

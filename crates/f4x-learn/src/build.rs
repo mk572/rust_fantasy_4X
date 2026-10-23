@@ -175,3 +175,142 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
     }
     Ok(game)
 }
+
+/// Where a situation fight is held instead of the scenario's own ground (the situations of
+/// `examples/situations.rs`): on a terrain class, or at a site of the map by its feature id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Spot {
+    Class(TerrainClass),
+    Site(String),
+}
+
+fn neighbour_land(game: &Game, at: Position) -> Option<Position> {
+    around(at).find(|&p| walkable(game, p) && game.economy().lair_at(p).is_none())
+}
+
+/// A square of the class with land beside it, the `nth` one found (wrapping), for the defenders.
+fn square_of_class(game: &Game, class: TerrainClass, nth: usize) -> Option<(Position, Position)> {
+    let map = game.map()?;
+    let mut found = Vec::new();
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        for y in 0..map.height() {
+            for x in 0..map.width() {
+                let at = Position { plane, x, y };
+                if game.economy().terrain_class_at(at) == Some(class)
+                    && game.economy().city_at(at).is_none()
+                    && game.economy().lair_at(at).is_none()
+                {
+                    if let Some(from) = neighbour_land(game, at) {
+                        found.push((from, at));
+                    }
+                }
+            }
+        }
+    }
+    (!found.is_empty()).then(|| found[nth % found.len()])
+}
+
+/// The `nth` intact site with the feature id, and land beside it.
+fn square_of_site(game: &Game, feature: &str, nth: usize) -> Option<(Position, Position)> {
+    let found: Vec<(Position, Position)> = game
+        .economy()
+        .lairs()
+        .into_iter()
+        .filter(|l| l.intact && l.site == feature && !l.guards.is_empty())
+        .filter_map(|l| neighbour_land(game, l.pos).map(|from| (from, l.pos)))
+        .collect();
+    (!found.is_empty()).then(|| found[nth % found.len()])
+}
+
+/// Like [`build`], but the fight is held on `spot` (the nth such square of the map), and with
+/// `hero` the attackers have a hero carrying an item. At a site the defenders are the site's own
+/// guards and the scenario's defenders are not used. `Err` when the map has no such square.
+pub fn build_at(
+    content: &Content,
+    s: &BattleScenario,
+    spot: &Spot,
+    nth: usize,
+    hero: bool,
+) -> Result<Game, String> {
+    let mut game = new_game(
+        content,
+        &NewGame {
+            seed: s.seed,
+            all_ai: true,
+            ..NewGame::default()
+        },
+    )?;
+    game.set_undo(false);
+    for u in game.units().all_units() {
+        game.scenario_remove_unit(u);
+    }
+    set_wizard(&mut game, ATTACKER, &s.attacker_wizard);
+    set_wizard(&mut game, DEFENDER, &s.defender_wizard);
+    let (from, to) = match spot {
+        Spot::Class(class) => square_of_class(&game, *class, nth),
+        Spot::Site(feature) => square_of_site(&game, feature, nth),
+    }
+    .ok_or("the map has no such square")?;
+    let mut attackers = spawn_army(&mut game, ATTACKER, from, &s.attackers);
+    if hero {
+        attackers.extend(spawn_hero_with_item(&mut game, from, s.seed));
+    }
+    let events = match spot {
+        Spot::Class(_) => {
+            let defenders = spawn_army(&mut game, DEFENDER, to, &s.defenders);
+            game.apply(Command::BeginBattle {
+                attackers,
+                defenders,
+            })
+        }
+        Spot::Site(_) => game.apply(Command::EnterSite {
+            units: attackers,
+            to,
+        }),
+    };
+    if let Some(Event::Rejected(r)) = events.iter().find(|e| matches!(e, Event::Rejected(_))) {
+        return Err(format!("the battle was refused: {r:?}"));
+    }
+    if !game.in_battle() {
+        return Err("no battle began".into());
+    }
+    Ok(game)
+}
+
+/// A free hero (the `seed`th kind that is available) joins the attacker at `at`, with a random
+/// item in the first slot it fits.
+fn spawn_hero_with_item(game: &mut Game, at: Position, seed: u64) -> Option<hecs::Entity> {
+    use f4x_core::item::armory::ItemSpot;
+    let kinds = game.units().hero_states().len();
+    let hero = (0..kinds)
+        .map(|k| (k + seed as usize) % kinds)
+        .find_map(|k| game.spawn_hero(ATTACKER, at, k).ok())?;
+    let item = {
+        let rules = game.content().rules.clone();
+        let mut taken = Vec::new();
+        let mut rng = f4x_core::game::rng::GameRng::new(seed ^ 0x1713);
+        f4x_core::item::make::make_item(
+            &mut rng,
+            &rules,
+            f4x_core::item::make::Grade::Any,
+            0,
+            &mut taken,
+        )
+    };
+    if let f4x_core::item::armory::Placed::Vault(i) = game.give_item(ATTACKER, item) {
+        for slot in 0..3 {
+            if game
+                .move_item(
+                    ATTACKER,
+                    ItemSpot::Vault(i),
+                    ItemSpot::Hero(hero, slot),
+                    false,
+                )
+                .is_ok()
+            {
+                break;
+            }
+        }
+    }
+    Some(hero)
+}

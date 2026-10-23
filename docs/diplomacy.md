@@ -167,7 +167,7 @@ wizard is remembered (`da_action`, `da_strength`) so the AI can comment next tur
 7. Applied: relation and the treaty and exchange patience move by the change; peace patience moves
    by a quarter of the pre-charisma change (negative) or the pre-charisma change (positive). The
    Earth Lore spell is mistakenly checked where Spell of Mastery was meant: an 11 percent chance
-   of war. Relation is clamped to -100..100, capped at +65 unless allied, and capped at -25 when
+   of war *(this game: not in the rules; the AI wizard rolls it itself, `f4x-ai` `diplomacy::mastery_scare`, design.md section 8)*. Relation is clamped to -100..100, capped at +65 unless allied, and capped at -25 when
    at war or worse; at war hostility becomes 3, allied 0; the reevaluation timer restarts.
 
 Special value `-10000` means "declare this on the record": no numbers change, the human's
@@ -308,7 +308,7 @@ MCP client, a language model, a remote player) can answer the same proposals thr
 hooks, a human receiver is asked instead of evaluated, and the AI can be changed or tuned without
 touching the rules. What the core does offer is data and helpers the AI may use: the visible
 relation, what a wizard may know about the other (never the hidden terms of another player), and
-the original's rating of a proposal (`Diplomacy_Test`, §4) as an optional function. The default AI
+the original's rating of a proposal (`Diplomacy_Test`, §4) lives in `f4x-ai` (`diplomacy::rate`; moved out of the core in October 2026). The default AI
 uses that function and the §8 rules as its starting logic, kept as AI code with its numbers in
 data, not as rules of the game. The core's own automatic parts remain rules: relation changes from
 events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).

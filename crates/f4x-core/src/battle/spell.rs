@@ -617,8 +617,8 @@ impl Game {
         let ended = self.battle.as_mut().and_then(|a| a.battle.check_winner());
         if let Some(end) = ended {
             out.push(Event::Battle(end));
-            out.extend(self.finish_battle());
         }
+        self.finish_if_over(&mut out);
         Ok(out)
     }
 

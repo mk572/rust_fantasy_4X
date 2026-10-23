@@ -4,8 +4,8 @@
 //! The core holds the state and applies the results; it never decides whether an AI wizard
 //! accepts. A proposal waits as a pending proposal until its receiver answers with a
 //! [`DiplomacyCommand::Answer`], and an AI's own initiatives (greetings, demands, war) are
-//! commands it issues itself. [`Game::rate_proposal`] is the original's rating of a proposal,
-//! offered as a helper to such an AI.
+//! commands it issues itself (`f4x-ai/src/diplomacy.rs` holds the rating of a proposal and the
+//! war a wizard declares on the caster of the Spell of Mastery).
 //!
 //! Structure (task 179, `architecture-plan.md`): the rules are methods of [`Diplomacy`], which
 //! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
@@ -156,16 +156,6 @@ pub struct Proposal {
     pub from: PlayerId,
     pub to: PlayerId,
     pub kind: ProposalKind,
-}
-
-/// The original's rating of a proposal (`Diplomacy_Test`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Verdict {
-    Refused,
-    /// A counter-offer would be due; the original has none.
-    Counter,
-    Maybe,
-    Accepted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -428,22 +418,6 @@ fn charismatic(view: &Game, wizard: PlayerId) -> bool {
         .is_some_and(|m| m.has(Retort::Charismatic))
 }
 
-/// How a threat weighs: the asker's army against the judge's, as the original rates it.
-fn threat_modifier(view: &Game, asker: PlayerId, judge: PlayerId) -> i32 {
-    let (mine, theirs) = (army_strength(view, asker), army_strength(view, judge));
-    if theirs < mine {
-        if theirs > 0 {
-            -50 + mine * 100 / theirs
-        } else {
-            50
-        }
-    } else if mine > 0 {
-        -50 + theirs * 100 / mine
-    } else {
-        -50
-    }
-}
-
 /// The enchantments that sour or sweeten relations: the change, whom it touches, and the
 /// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
 /// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
@@ -645,9 +619,6 @@ impl Diplomacy {
             } else {
                 self.stance_mut(defender, attacker).peace_patience += before_charisma;
             }
-            if action == Action::SpellOfMastery && ctx.rng.roll(100) < 11 {
-                self.declare_war(ctx, attacker, defender);
-            }
             if ctx.view.human() == Some(attacker) && action != Action::AuraOfMajesty {
                 let stance = self.stance_mut(defender, attacker);
                 if stance
@@ -819,78 +790,6 @@ impl Diplomacy {
         }
     }
 
-    // ---- the rating of a proposal ----------------------------------------------
-
-    /// The original's `Diplomacy_Test` of a proposal that `asker` makes to `judge`: an AI that
-    /// answers proposals can use it as its starting logic. It draws on the game's random
-    /// numbers and wears down the asker's patience as the original does.
-    pub fn rate_proposal(
-        &mut self,
-        ctx: &mut DiplomacyCtx<'_>,
-        asker: PlayerId,
-        judge: PlayerId,
-        kind: ProposalKind,
-    ) -> Verdict {
-        let relation = self.relation(ctx.view, asker, judge);
-        let (type_modifier, early) = match kind {
-            ProposalKind::Pact => (75, (relation <= PACT_RELATION).then_some(Verdict::Refused)),
-            ProposalKind::Alliance => (
-                125,
-                (relation <= ALLIANCE_RELATION).then_some(Verdict::Refused),
-            ),
-            ProposalKind::Peace => (60, None),
-            ProposalKind::WarOn(third) => {
-                let allied_with_both = self.treaty(asker, judge) == Treaty::Alliance
-                    && self.treaty(asker, third) == Treaty::Alliance;
-                let early = if allied_with_both {
-                    Some(if ctx.rng.roll(8) < 5 {
-                        Verdict::Accepted
-                    } else {
-                        Verdict::Refused
-                    })
-                } else {
-                    None
-                };
-                (150 + self.relation(ctx.view, judge, third), early)
-            }
-            ProposalKind::BreakAllianceWith(third) => (
-                175 + self.relation(ctx.view, judge, third),
-                (relation <= 24).then_some(Verdict::Maybe),
-            ),
-            // The original swaps spells without a test: both must have one the other lacks.
-            ProposalKind::Exchange { .. } => (0, Some(Verdict::Accepted)),
-        };
-        if let Some(v) = early {
-            return v;
-        }
-        let stance = self.stance(asker, judge).cloned().unwrap_or_default();
-        let relations = stance.treaty_patience
-            + stance.hidden
-            + relation
-            + ctx.view.personality(judge).modifier();
-        let mut final_value = relations + ctx.rng.roll(100) as i32 - type_modifier
-            + threat_modifier(ctx.view, asker, judge);
-        if self.treaty(asker, judge) == Treaty::Alliance {
-            final_value += 40;
-        }
-        let wear = 20 + ctx.rng.roll(30) as i32;
-        let s = self.stance_mut(asker, judge);
-        s.treaty_patience -= 10 + wear;
-        s.exchange_patience -= 10;
-        s.peace_patience -= 10;
-        let verdict = match final_value {
-            v if v < -75 => Verdict::Refused,
-            v if v < -50 => Verdict::Counter,
-            v if v < 0 => Verdict::Maybe,
-            _ => Verdict::Accepted,
-        };
-        // The original has no counter-offers: a doubtful answer is a yes half the time.
-        match verdict {
-            Verdict::Counter | Verdict::Maybe if ctx.rng.roll(2) == 1 => Verdict::Accepted,
-            v => v,
-        }
-    }
-
     // ---- proposals and the talk ------------------------------------------------
 
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
@@ -976,6 +875,16 @@ impl Diplomacy {
             .position(|p| p.from == from && p.to == player)
             .ok_or(DiplomacyError::NothingPending)?;
         let proposal = self.proposals.remove(at);
+        // Asking wears down the receiver's patience with the asker, whoever answers and
+        // whatever the answer is (the original does it inside the AI's rating, and not for a
+        // spell swap, which it grants unrated).
+        if !matches!(proposal.kind, ProposalKind::Exchange { .. }) {
+            let wear = 20 + ctx.rng.roll(30) as i32;
+            let s = self.stance_mut(from, player);
+            s.treaty_patience -= 10 + wear;
+            s.exchange_patience -= 10;
+            s.peace_patience -= 10;
+        }
         let accepted = accept
             && self
                 .check_proposal(ctx.view, from, player, proposal.kind)
@@ -1637,18 +1546,6 @@ impl Game {
     /// The total cost of a wizard's units, the original's army strength.
     pub fn army_strength(&self, player: PlayerId) -> i32 {
         army_strength(self, player)
-    }
-
-    /// The original's `Diplomacy_Test` of a proposal that `asker` makes to `judge`: an AI that
-    /// answers proposals can use it as its starting logic. It draws on the game's random
-    /// numbers and wears down the asker's patience as the original does.
-    pub fn rate_proposal(
-        &mut self,
-        asker: PlayerId,
-        judge: PlayerId,
-        kind: ProposalKind,
-    ) -> Verdict {
-        self.with_diplomacy(|d, ctx| d.rate_proposal(ctx, asker, judge, kind))
     }
 
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.

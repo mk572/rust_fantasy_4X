@@ -127,11 +127,53 @@ fn priority(k: Kind) -> u8 {
 
 /// Everything the wizard does with its magic in a turn.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    fund_return(ai, game, events);
     stop_aimless(ai, game, events);
     resolve_paid(ai, game, events);
     split(ai, game, events);
     research(ai, game, events);
     cast(ai, game, events);
+}
+
+/// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
+/// reserve does not cover this turn's payment it turns as much gold as it needs into mana, and no
+/// more (a choice of the script, not a rule: the original does it inside the rules).
+fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let gold = {
+        let view = PlayerView::new(game, me);
+        let Some(w) = view.wizard() else {
+            return;
+        };
+        let Some(casting) = w
+            .casting()
+            .filter(|c| view.spell(c.spell).id == "spell_of_return")
+        else {
+            return;
+        };
+        let due = w.casting_skill().min(casting.remaining).max(0);
+        let short = due - view.treasury().mana;
+        if !w.is_banished() || short <= 0 {
+            return;
+        }
+        let rate = if w.has(f4x_core::wizard::magic::Retort::Alchemy) {
+            1
+        } else {
+            2
+        };
+        (short * rate).min(view.treasury().gold)
+    };
+    if gold > 0 {
+        ai.send(
+            game,
+            Command::Alchemy {
+                player: me,
+                amount: gold,
+                gold_to_mana: true,
+            },
+            events,
+        );
+    }
 }
 
 /// The game asks a wizard whose spell has nothing to aim at whether to stop casting it; the AI
@@ -180,14 +222,20 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.send(game, set_split(me, MASTERY_SPLIT), events);
         return;
     }
+    let traits = crate::objective::traits(&PlayerView::new(game, me));
     let mut chosen = SPLITS[SPLITS.len() - 1];
-    for candidate in SPLITS {
+    for candidate in SPLITS.into_iter().skip(traits.split_shift) {
         game.apply(set_split(me, candidate));
         let view = PlayerView::new(game, me);
         let income = view.income();
-        // Mana for the upkeep and a little to spare; with a big reserve less is needed.
+        // Mana for the upkeep and a little to spare; with a big reserve less is needed (and a
+        // wizard that favours research never keeps a spare).
         let reserve = view.treasury().mana;
-        let margin = if reserve > 400 { 0 } else { 2 };
+        let margin = if reserve > 400 || traits.lean_mana {
+            0
+        } else {
+            2
+        };
         if income.split.mana - income.mana_upkeep >= margin {
             chosen = candidate;
             break;
@@ -225,6 +273,7 @@ fn research_score(
     have: &[(Kind, bool)],
     income: i32,
     racing: bool,
+    traits: &crate::objective::Traits,
 ) -> f32 {
     let def = view.spell(spell);
     let turns = view.research_cost(spell) as f32 / income.max(1) as f32;
@@ -244,7 +293,23 @@ fn research_score(
     if cat.0 == Kind::Mastery && turns > 250.0 && !racing {
         score = score * 100.0 + 1.0e6;
     }
+    if liked(def, cat.0, traits) {
+        score *= traits.like_share;
+    }
     score
+}
+
+/// Whether the wizard's objective has a liking for this sort of spell.
+fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool {
+    use crate::objective::Like;
+    traits.likes.iter().any(|like| match like {
+        Like::Summon => kind == Kind::Summon,
+        Like::UnitBuff => kind == Kind::UnitBuff,
+        Like::CityBuff => kind == Kind::CityBuff,
+        Like::GlobalBuff => kind == Kind::GlobalBuff,
+        Like::Explore => kind == Kind::Explore,
+        Like::Holy => def.realm == "life" || def.realm == "arcane",
+    })
 }
 
 fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -258,9 +323,10 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         let have: Vec<(Kind, bool)> = m.known().iter().map(|&s| category(view.spell(s))).collect();
         let income = view.income().research;
+        let traits = crate::objective::traits(&view);
         view.research_choices().into_iter().min_by(|&a, &b| {
-            research_score(&view, a, &have, income, ai.racing)
-                .total_cmp(&research_score(&view, b, &have, income, ai.racing))
+            research_score(&view, a, &have, income, ai.racing, &traits)
+                .total_cmp(&research_score(&view, b, &have, income, ai.racing, &traits))
                 .then(a.cmp(&b))
         })
     };
@@ -614,5 +680,86 @@ mod tests {
         let started = g.wizard(P1).unwrap().casting().is_some()
             || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
         assert!(started, "{events:?}");
+    }
+
+    #[test]
+    fn a_militarist_gives_more_power_to_mana_than_a_pragmatist() {
+        use crate::testworld::{game, COAST_CITY, P0};
+        use f4x_core::wizard::objective::Objective;
+        let research_share = |objective: Objective| {
+            let mut g = game(COAST_CITY, "high_men");
+            g.wizard_mut(P0).unwrap().put(Some(objective));
+            // A big reserve needs no spare mana income: the first candidate that pays is taken.
+            g.treasury_mut(P0).unwrap().mana = 1_000;
+            split(&Ai::new(P0), &mut g, &mut Vec::new());
+            g.wizard(P0).unwrap().power_split().research
+        };
+        assert!(research_share(Objective::Militarist) < research_share(Objective::Pragmatist));
+    }
+
+    #[test]
+    fn an_objective_researches_the_sort_of_spell_it_likes_first() {
+        use crate::objective::{traits_of, Like};
+        use f4x_core::wizard::objective::Objective;
+        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let def = |id: &str| {
+            let spell = content.rules.spells.id_of(id).unwrap();
+            content.rules.spells.get(spell)
+        };
+        let militarist = traits_of(Some(Objective::Militarist));
+        let bears = def("war_bears");
+        assert!(liked(bears, kind(bears), &militarist));
+        assert!(!liked(
+            bears,
+            kind(bears),
+            &traits_of(Some(Objective::Perfectionist))
+        ));
+        assert!(!liked(bears, kind(bears), &traits_of(None)));
+        assert!(militarist.likes.contains(&Like::Summon));
+    }
+
+    #[test]
+    fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() {
+        use crate::testworld::{game, COAST_CITY, P0, P1};
+        let mut g = game(COAST_CITY, "high_men");
+        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
+        g.wizard_mut(P0)
+            .unwrap()
+            .put(Some(f4x_core::wizard::fortress::Banishment {
+                by: Some(P1),
+            }));
+        g.wizard_mut(P0)
+            .unwrap()
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .points = 2_000;
+        g.scenario_casting(P0, spell, 500);
+        let due = g.wizard(P0).unwrap().casting_skill().min(500);
+        assert!(due > 4, "the test wizard has a casting skill ({due})");
+        {
+            let t = g.treasury_mut(P0).unwrap();
+            t.mana = 0;
+            t.gold = 10_000;
+        }
+        let ai = Ai::new(P0);
+        fund_return(&ai, &mut g, &mut Vec::new());
+        let t = g.player(P0).unwrap().treasury();
+        assert_eq!(t.mana, due, "mana now covers the payment");
+        assert!(t.gold < 10_000 && t.gold >= 10_000 - 2 * due - 2);
+        // Covered already: nothing more is converted.
+        let gold = t.gold;
+        fund_return(&ai, &mut g, &mut Vec::new());
+        assert_eq!(g.player(P0).unwrap().treasury().gold, gold);
+    }
+
+    #[test]
+    fn a_wizard_that_is_not_banished_keeps_its_gold() {
+        use crate::testworld::{game, COAST_CITY, P0};
+        let mut g = game(COAST_CITY, "high_men");
+        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
+        g.scenario_casting(P0, spell, 500);
+        g.treasury_mut(P0).unwrap().mana = 0;
+        let gold = g.player(P0).unwrap().treasury().gold;
+        fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
+        assert_eq!(g.player(P0).unwrap().treasury().gold, gold);
     }
 }

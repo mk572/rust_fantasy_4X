@@ -105,7 +105,10 @@ but the human, as the original's `Init_Magic_Personalities_Objectives` does (`ob
 primary realm's weight row plus the retort bonuses, personality first, then objective; both stored as
 components of the wizard (`Personality`, `Objective`; task 316) and in saves; `Wizard::objective`,
 `Wizard::personality`). Personality already acted in
-diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Open:** what
+diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Done 24 October 2026 (with 339):** the objective steers the scripted AI's city target, strike army,
+city focus, power split, research order and war declarations, and the personality the strike army and who
+starts wars (`f4x-ai/src/objective.rs`, `ai-objectives.md` section 0). **Open:** the building weights by
+category and the casting by weighted categories (task 366). Earlier open text: what
 the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
 (`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
 here yet.

@@ -253,6 +253,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 336 | Core | Other crates: `PlayerView`, console, client, tools (done) |
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
+| 339 | AI | Scripted and trained AI on the new framework (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) (done) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to (done) |
@@ -778,6 +779,42 @@ checked afterwards and retrained if they drift. Update `map-layers.md` and `dive
 *Needs:* 329 and 330.
 
 **Done (23 October 2026), ahead of 329 and 330** (the placement step in `feature/place.rs` puts the terrain under each node; 329 will carry it over to the spawn step). Three classes `SorceryNode`, `NatureNode`, `ChaosNode` (required per plane, so `validate` and the generator check them) and three rows at the end of `terrain.ron` (old terrain ids keep their numbers): food 4 / 5 / 0, production 0 / 3 / 5, movement 1 / 2 / 3 (`TERRSTAT.LBX` records 168 to 170 equal grassland, forest and mountains for walkers). The node's food and production were already given by `land_food` and `land_production` on the feature; those fields are gone and the terrain carries the values. **Nature node food is 5** as the task text said (decided by the user; `B16` had chosen 4 before), so a city working a nature node gains half a food. What changed: movement cost on a node square, a river is cleared under a node, a nature node counts as forest (Forester, Gaia, battle ground) and a chaos node as mountains (Mountaineer, battle ground), road turns 4 / 5 / 5, and the client draws a node square from its terrain class (`node_type` is gone). `Square_Is_Node` in the original tests only the sorcery node (a typo); ours finds all three. A node square keeps `can_found_city: true` so the node feature gives the refusal. Not done: the learned networks and the mirror tests (`cargo test -p f4x-learn --test mirror -- --ignored`) were not rerun; the AI's site value reads the node classes as their grassland, forest and mountain look-alikes. Docs: `map-layers.md`, `divergences.md` section 33, `help-vs-implementation-conflicts.md`.
+
+**339. Scripted and trained AI on the new framework (done).** The last task, because both AIs sit on top of
+everything else.
+- **Scripted AI (`f4x-ai`, about 4,400 lines):** `economy`, `expand`, `military`, `wizardry`,
+  `naval`, `scouts`, `race`, `offers`, `shortfall`, `diplomacy` read the game through
+  `PlayerView` (336). Rewrite them on the player and wizard handles (a wizard's books, retorts,
+  skill and fame; a player's gold, mana and orders), on spell instances for enchantments and
+  casts in progress, on hero entities instead of the roster, and on feature and item entities
+  (node and lair targets by entity, not by `Vec` index; items by holder). Neutral players have no
+  wizard: the neutral-city AI (`city/neutral.rs`) takes that explicitly. The objectives and
+  personalities now live on the wizard (316). Check the tests in `crates/f4x-ai/tests` and the
+  scripted battle AI (`battle/ai.rs`, `brain.rs`).
+- **Trained AI (`f4x-learn`, about 6,200 lines):** `obs.rs`, `act.rs`, `env.rs`, `reward.rs`,
+  `scenario.rs`, `duel.rs`, `net.rs`, `train.rs` and the agents. The observation and action
+  encodings may change where the new entities make them simpler. Stored networks in `models-local/`
+  (`battle-v1.bpk`, the banks and the run folders) that no longer load or no longer match are
+  retrained or dropped; say which in the task's notes. Scenario files that use the old save or
+  setup format are converted or rebuilt. After 338 (node terrains change food, production and
+  movement) run the mirror tests and the battle behaviour tests. Slow runs only when asked:
+  `cargo test -p f4x-ai --test behaviour -- --ignored`,
+  `cargo test -p f4x-learn --test mirror -- --ignored`, `f4x-tools soak`.
+- **Banished wizard (from 341):** a computer wizard casting the Spell of Return converts the gold it needs
+  into mana with `Command::Alchemy` when its reserve does not cover the turn's payment (see task 341's text
+  in `TASKS-DONE.md`); it starts no talk while banished.
+- **Docs:** `ai-design.md`, `ai-objectives.md`, `learning-ai.md` and `auto-builder.md` describe the
+  new entities. The tournament and training scripts (`scripts/tournament.sh`, `train_battle.sh`) still
+  work, and `docs/scripts.md` says so.
+
+*Done 24 October 2026.* The scripted AI, the battle AI and the trained one ran on the entities already (336);
+this pass fixed what the soak and the new `situations` fights showed (a battle left open, refused orders,
+slow searches), gave the objective and the personality their effect (on-hold task 64), moved the AI's
+diplomatic decisions out of the core, added the banished wizard's gold-to-mana payment, and wrote
+the baseline and the open issues into `ai-design.md` section 12. Nothing was retrained
+(`learning-ai.md`). The follow-ups are tasks 366 to 370.
+
+*Needs:* 336, 337 and 338.
 
 **340. (done) One art folder per spell.** The extracted art is one folder per source `.lbx` in
 `assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,

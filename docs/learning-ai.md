@@ -8,6 +8,13 @@ the scripted battle AI but is not clearly better than random orders, so it is **
 (section 7.8). Related tasks: 46 (battle AI), 64 to 67 (personalities, AI v1, spells, attack),
 77 (soak runs), 169 to 171 (done: phases 0 to 2), 172 (follow-ups).
 
+**Check after the entity rework (24 October 2026):** `cargo test -p f4x-learn --features train` passes
+(26 unit tests, the mirror tests, `tests/situations.rs`); the checkpoint `models-local/run-20261016-v3/best.bpk`
+loads and plays whole soak games (`f4x-tools --features learned soak --battle-ai ...`, 3 seeds, 150 turns,
+no refused command, no battle left open). `models-local/battle-v1.bpk` has no shape record and does not load
+(it never did since checkpoints got one). The mirror test still holds: the scripted smarter AI wins 171 and
+loses 129 of 300 mirrored fights. Nothing was retrained.
+
 ## 1. Goals and limits
 
 Goals:
@@ -65,7 +72,7 @@ Rules:
   tactics).
 
 A third, smaller concern, **diplomacy answers**, stays inside the strategic AI as extra action
-families (section 5.3). The hand-written `rate_proposal` helper in the core is not used as a
+families (section 5.3). The hand-written rating (`f4x_ai::diplomacy::rate`) is not used as a
 teacher.
 
 ## 3. Architecture: where code lives

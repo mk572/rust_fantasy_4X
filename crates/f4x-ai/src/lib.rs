@@ -14,6 +14,7 @@ mod expand;
 mod military;
 mod naval;
 mod neutral;
+mod objective;
 mod offer;
 mod race;
 mod scout;
@@ -94,6 +95,8 @@ pub struct Ai {
     /// it cannot beat to it.
     racing: bool,
     war_on: Option<PlayerId>,
+    /// The wizard this one went to war on by temper (`diplomacy::quarrel`).
+    quarrel: Option<PlayerId>,
     record_refusals: bool,
     refusals: RefCell<Vec<Refusal>>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
@@ -140,6 +143,7 @@ impl Ai {
             mastery_seen: HashMap::new(),
             racing: false,
             war_on: None,
+            quarrel: None,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             raiders: Vec::new(),
@@ -200,11 +204,13 @@ impl Ai {
             }
         }
         diplomacy::answer(self, game, &mut events);
+        diplomacy::quarrel(self, game, &mut events);
         offer::answer(self, game, &mut events);
         offer::equip(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
         race::run(self, game, &mut events);
+        diplomacy::mastery_scare(self, game, &mut events);
         wizardry::run(self, game, &mut events);
         expand::settlers(self, game, &mut events);
         scout::scout(self, game, &mut events);

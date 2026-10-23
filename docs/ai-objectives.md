@@ -3,7 +3,16 @@
 Task 238. Design for letting a wizard's objective (task 64: `wizard/objective.rs`, drawn at game start)
 steer the strategic AI in `crates/f4x-ai`. Part of the scripted AI ([`ai-design.md`](ai-design.md)).
 
-## 1. State today
+## 0. Status (24 October 2026)
+
+Steps 1, 2 and 4 are built in `crates/f4x-ai/src/objective.rs` (the table, `Traits`), read by `economy::plan_for`
+(cities wanted, strike army, the focus of a city), `wizardry::split` and `research_score` (power split and
+research likes) and `diplomacy::quarrel` (war on a weaker neighbour). The personality moves the strike
+army (`army_bias`: Maniacal +2 to Peaceful -1; ours, the original keeps personality in diplomacy). Step 3
+(building weights by category, casting as weighted categories) is open: task 366. The `AIK_CITIES`,
+`AIK_STRIKE` knobs still override the table. First soak numbers: `ai-design.md` section 12.
+
+## 1. State today (before the steps above)
 
 Every AI wizard has an objective (Pragmatist, Militarist, Theurgist, Perfectionist, Expansionist)
 and a personality. Nothing in `f4x-ai` reads the objective; the AI is a fixed ladder of rules with a

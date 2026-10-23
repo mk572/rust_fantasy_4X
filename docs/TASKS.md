@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 339 | AI | Scripted and trained AI on the new framework |
 | 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
@@ -80,43 +79,17 @@ neighbours.
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 360 | Client | Conquest, banishment and defeat scenes |
 | 361 | AI | The AI makes diplomacy proposals, to the human and to each other |
+| 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories |
+| 367 | AI | Overland spells, heroes and items the AI never uses |
+| 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) |
+| 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
+| 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 
 ## Descriptions
 
 Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, `Map.lairs`,
 `tower_owners` and an owner byte per volcano. Nodes and lairs are found by `Vec` index
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
-
-### G. Closing
-
-**339. Scripted and trained AI on the new framework.** The last task, because both AIs sit on top of
-everything else.
-- **Scripted AI (`f4x-ai`, about 4,400 lines):** `economy`, `expand`, `military`, `wizardry`,
-  `naval`, `scouts`, `race`, `offers`, `shortfall`, `diplomacy` read the game through
-  `PlayerView` (336). Rewrite them on the player and wizard handles (a wizard's books, retorts,
-  skill and fame; a player's gold, mana and orders), on spell instances for enchantments and
-  casts in progress, on hero entities instead of the roster, and on feature and item entities
-  (node and lair targets by entity, not by `Vec` index; items by holder). Neutral players have no
-  wizard: the neutral-city AI (`city/neutral.rs`) takes that explicitly. The objectives and
-  personalities now live on the wizard (316). Check the tests in `crates/f4x-ai/tests` and the
-  scripted battle AI (`battle/ai.rs`, `brain.rs`).
-- **Trained AI (`f4x-learn`, about 6,200 lines):** `obs.rs`, `act.rs`, `env.rs`, `reward.rs`,
-  `scenario.rs`, `duel.rs`, `net.rs`, `train.rs` and the agents. The observation and action
-  encodings may change where the new entities make them simpler. Stored networks in `models-local/`
-  (`battle-v1.bpk`, the banks and the run folders) that no longer load or no longer match are
-  retrained or dropped; say which in the task's notes. Scenario files that use the old save or
-  setup format are converted or rebuilt. After 338 (node terrains change food, production and
-  movement) run the mirror tests and the battle behaviour tests. Slow runs only when asked:
-  `cargo test -p f4x-ai --test behaviour -- --ignored`,
-  `cargo test -p f4x-learn --test mirror -- --ignored`, `f4x-tools soak`.
-- **Banished wizard (from 341):** a computer wizard casting the Spell of Return converts the gold it needs
-  into mana with `Command::Alchemy` when its reserve does not cover the turn's payment (see task 341's text
-  in `TASKS-DONE.md`); it starts no talk while banished.
-- **Docs:** `ai-design.md`, `ai-objectives.md`, `learning-ai.md` and `auto-builder.md` describe the
-  new entities. The tournament and training scripts (`scripts/tournament.sh`, `train_battle.sh`) still
-  work, and `docs/scripts.md` says so.
-
-*Needs:* 336, 337 and 338.
 
 ### H. Gaps found during the rework
 
@@ -134,7 +107,7 @@ and victory scenes and the banished wizard's portrait. Read `Conquest_Animation`
 `Lose_Animation` and `Win_Animation` (ReMoM `CONQUEST.c`) first. *Needs:* 341 (done).
 
 **361. The AI makes diplomacy proposals.** Today the AI only answers (`f4x-ai/src/diplomacy.rs`: `answer` rates
-each proposal with `Game::rate_proposal`); it never proposes, threatens, declares war or makes peace, so the
+each proposal with `diplomacy::rate`); it never proposes, threatens, declares war or makes peace, so the
 human is never approached and AI wizards never treat with each other. The rules and numbers are in
 `docs/diplomacy.md` sections 6 to 8 (`NPC_To_Human_Diplomacy`, `NPC_To_NPC_Treaty_Negotiations`,
 `DIPL_HumanWarOrPeace`, `G_DIPL_NeedForWar`, `DIPL_GetOffMyLawn`, `NPC_Required_Alliances`); read those and ReMoM
@@ -246,3 +219,33 @@ silent. A switch under Settings ("Fade Music") turns it off for those who want t
 
 *Needs:* 76 (done).
 
+### I. Found by the AI check of 24 October 2026
+
+The numbers and the reasons are in `ai-design.md` section 12.
+
+**366. Objectives, step 3.** The original weights the buildings of a city by category and objective
+(`AIBUILD.c`) and casts overland spells as weighted categories (`AIDUDES.c`); here the plan of a city
+takes only a focus pair (`objective.rs`) and `wizardry::cast` tries kinds in a fixed order. Design
+(`ai-objectives.md` step 3), build, soak. *Needs:* nothing.
+
+**367. Overland spells, heroes and items the AI never uses.** Curses and attacks on enemy cities and
+stacks, city protection and wards against what an enemy casts, Spell of Return and the banished wizard's
+casts, Enchant Item and Create Artifact, the special spells (Word of Recall, Spell Blast and the like),
+and research by what the enemy casts. Heroes: keep them out of lair fights they cannot win, spend
+their experience, raise them with Resurrection; items: trade and craft. Each as a function of what the
+AI sees; each gets a test and a soak line. *Needs:* nothing.
+
+**368. Human-only branches in the diplomacy rules.** List in `ai-design.md` section 12.3 item 6. For each:
+keep as a rule of the game with a reason (the human has no feelings to track; a UI hint), move it to the AI
+(the AI's mood towards a big human army is the AI's), or make it apply to every pair of wizards. Record in
+`diplomacy.md` and `divergences.md`. *Needs:* nothing.
+
+**369. The AI hardly fights and stops expanding.** After planned item 21 (outpost growth) and task 361
+(proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than
+its reason), the city target by objective once land is free, settlers by sea, using the gold (50 to 100
+in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2). *Needs:* 361.
+
+**370. Battle AI: retreat, sally, weigh a lair.** The battle AI never flees, does not sally from a walled
+city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the
+attacker is weak at the gate, and a better guess of a lair's guards (what the wizard has seen of them).
+Check with `examples/situations.rs` and the mirror test. *Needs:* nothing.

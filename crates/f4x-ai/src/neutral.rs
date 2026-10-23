@@ -243,12 +243,22 @@ pub(crate) fn assault(
     let sent = ai.send(
         game,
         Command::EnterSite {
-            units: fighters,
+            units: fighters.clone(),
             to: site,
         },
         events,
     );
     if !sent {
+        // A site nobody guards (the guards cannot be seen from outside) is not fought for: the
+        // stack walks onto it and takes the treasure.
+        ai.send(
+            game,
+            Command::GoTo {
+                units: fighters,
+                to: site,
+            },
+            events,
+        );
         return;
     }
     // The battle AI plays both sides; a battle that stalls ends with the active side fleeing.

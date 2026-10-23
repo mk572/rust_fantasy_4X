@@ -131,7 +131,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The wizard whose cities the armies should go for, if any.
 pub(crate) fn war_target(ai: &Ai) -> Option<PlayerId> {
-    ai.war_on
+    ai.war_on.or(ai.quarrel)
 }
 
 #[cfg(test)]

@@ -98,12 +98,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
         let started = Instant::now();
         let mut rejected = 0usize;
-        let (mut battles, mut captures) = (0usize, 0usize);
+        let (mut battles, mut captures, mut wars) = (0usize, 0usize, 0usize);
+        // Rounds that ended with a battle still open (nothing may be: every battle is fought out
+        // inside the round), and the first such turn.
+        let (mut open_rounds, mut first_open) = (0usize, None::<u32>);
         while game.turn <= turns && game.game_over.is_none() {
             if grant_mastery == Some(game.turn) {
                 grant_mastery_to_all(&mut game);
             }
             let events = play_round(&mut game, &mut ais);
+            if game.in_battle() {
+                open_rounds += 1;
+                first_open.get_or_insert(game.turn);
+            }
             if game.turn <= trace && trace > 0 {
                 for ai in &ais {
                     println!(
@@ -156,12 +163,28 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 .iter()
                 .filter(|e| matches!(e, f4x_core::game::Event::CityCaptured { .. }))
                 .count();
+            wars += events
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        f4x_core::game::Event::Diplomacy(
+                            f4x_core::diplomacy::DiplomacyEvent::WarDeclared { .. }
+                        )
+                    )
+                })
+                .count();
             rejected += events
                 .iter()
                 .filter(|e| matches!(e, f4x_core::game::Event::Rejected(_)))
                 .count();
             if every > 0 && game.turn % every == 0 {
-                println!("seed {seed} turn {}: {}", game.turn, status(&game));
+                println!(
+                    "seed {seed} turn {}: {} ({} entities)",
+                    game.turn,
+                    status(&game),
+                    game.entity_count()
+                );
                 if detail {
                     for line in detail_lines(&game, &ais) {
                         println!("    {line}");
@@ -199,8 +222,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
             ),
             None => format!("no winner after {} turns", game.turn - 1),
         };
+        let open = match first_open {
+            Some(turn) => {
+                format!(", {open_rounds} rounds ended with a battle open (first on turn {turn})")
+            }
+            None => String::new(),
+        };
         println!(
-            "seed {seed}: {outcome}; {}; {battles} battles, {captures} cities taken, {rejected} refused orders; {:.1}s",
+            "seed {seed}: {outcome}; {}; {battles} battles, {captures} cities taken, {wars} wars declared, {rejected} refused orders{open}; {:.1}s",
             status(&game),
             started.elapsed().as_secs_f32()
         );
@@ -214,7 +243,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Cities and units of each wizard, e.g. `p0 5c/14u, p1 2c/6u`.
+/// Objective and temper, cities, units and gold of each wizard, e.g. `p0[Mil/Agg] 5c(1o)/14u/80g` (`o`: outposts, counted in the cities).
 fn status(game: &Game) -> String {
     game.player_ids()
         .into_iter()
@@ -226,14 +255,30 @@ fn status(game: &Game) -> String {
                 .iter()
                 .filter(|(_, c, _)| c.owner == id)
                 .count();
+            // Outposts: cities with no citizen yet (they are counted in the cities).
+            let outposts = game
+                .economy()
+                .cities()
+                .iter()
+                .filter(|(e, c, _)| c.owner == id && game.city_population(*e).figures == 0)
+                .count();
             let units = game.units().player_units(id).len();
             let tag = if game.player(id).is_some_and(|p| p.is_defeated()) {
                 " (defeated)"
             } else {
                 ""
             };
+            let temper = game.wizard(id).map_or(String::new(), |w| {
+                let short = |s: String| s.chars().take(3).collect::<String>();
+                format!(
+                    "[{}/{}]",
+                    w.objective()
+                        .map_or("-".into(), |o| short(format!("{o:?}"))),
+                    short(format!("{:?}", w.personality()))
+                )
+            });
             format!(
-                "p{} {cities}c/{units}u/{}g{tag}",
+                "p{}{temper} {cities}c({outposts}o)/{units}u/{}g{tag}",
                 id.0,
                 game.player(id).map_or(0, |p| p.treasury().gold)
             )

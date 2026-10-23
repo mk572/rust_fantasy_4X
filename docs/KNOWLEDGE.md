@@ -27,3 +27,16 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   `game_method_limits.txt` (regenerate with `F4X_WRITE_LIMITS=1`). It never fails. The singular-name
   rule has no test on purpose: it is a guideline (`CLAUDE.md`), and a hard test would fail in
   surprising ways later.
+- **A battle can be won without its command saying so.** `Battle::winner` is set by `check_winner`, and
+  `Ended` is only in the events of the command that set it. A cast, a field refresh or an end-of-turn
+  effect can settle it earlier, and then `battle_command` found no `Ended` and left the battle open: every
+  later `AutoResolve`, `EnterSite` and `BeginBattle` was refused (`InProgress`, `Busy`) for the rest of the
+  game (found by the soak, 4 players seed 2, turn 219). `Game::finish_if_over` now closes any battle with a
+  winner after every battle command and after `auto_resolve`. `f4x-tools soak` reports "rounds ended with
+  a battle open".
+- **A search over the world costs queries per step.** `unit_abilities` reads the unit's spell instances and
+  items (a hecs query over all archetypes each), and `hostile_at` and `lair_at` scan units and features.
+  Called for each of the eight neighbours of each square, a reachability search of the AI took 100 ms.
+  `reachable_squares` and `find_path` now take a unit's `StepProfile` once and remember which squares stop
+  the walk. Do the same for any new search: take what does not depend on the square out of the loop.
+

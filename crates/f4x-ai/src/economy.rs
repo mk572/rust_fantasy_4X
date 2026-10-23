@@ -9,11 +9,6 @@ use f4x_core::player::view::PlayerView;
 use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
 
-/// Fighters beyond the home guard the AI wants, before a half per city more.
-const STRIKE_BASE: usize = 4;
-/// The most cities the AI settles before it only builds up.
-const WANTED_CITIES: usize = 7;
-
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
 /// rate that earns the most. Rebels from high taxes are counted by the treasury forecast.
 pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -159,18 +154,24 @@ fn plan_for(
         .iter()
         .map(|&(_, p)| garrison_wanted(view, p))
         .sum();
-    let strike = crate::knob("STRIKE", STRIKE_BASE as f32) as usize + all / 2;
+    let traits = crate::objective::traits(view);
+    let temper = view
+        .wizard()
+        .map_or(0, |w| crate::objective::army_bias(w.personality()));
+    let strike = (crate::knob("STRIKE", traits.strike_base as f32) as i32 + temper).max(1) as usize
+        + all / 2;
     let army_short = fighters < home_guard + strike && treasury_ok;
-    let expanding = all + *settlers_planned < WANTED_CITIES;
+    let expanding =
+        all + *settlers_planned < crate::knob("CITIES", traits.cities_wanted as f32) as usize;
     let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {
         view.is_rival_wizard(o) && view.distance(pos, p).is_some_and(|d| d <= RIVAL_RANGE)
     });
     let (primary, secondary) = if rival_near {
         (Focus::Offense, Some(Focus::Defense))
     } else if expanding {
-        (Focus::Production, Some(Focus::Population))
+        traits.expanding
     } else {
-        (Focus::Balanced, None)
+        traits.settled
     };
     let mix = if army_short {
         Mix::Units
@@ -314,5 +315,25 @@ mod tests {
         let plan = g.autobuild_of(city).unwrap().plan;
         assert!(!plan.settlers);
         assert_eq!(plan.primary, Focus::Balanced);
+    }
+
+    #[test]
+    fn a_militarist_that_has_settled_builds_for_offence() {
+        use f4x_core::wizard::objective::Objective;
+        let mut g = game(COAST_CITY, "high_men");
+        g.wizard_mut(P0).unwrap().put(Some(Objective::Militarist));
+        // Six cities to come (Militarist wants six): the wizard is done expanding.
+        crate::testworld::spawn(
+            &mut g,
+            P0,
+            crate::testworld::at(10, 6),
+            "high_men_settlers",
+            6,
+        );
+        cities(&mut Ai::new(P0), &mut g, &mut Vec::new());
+        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
+        let plan = g.autobuild_of(city).unwrap().plan;
+        assert_eq!(plan.primary, Focus::Offense);
+        assert_eq!(plan.secondary, Some(Focus::Production));
     }
 }

@@ -92,6 +92,13 @@ pub struct StackTraits {
     pub sea_lift: bool,
 }
 
+/// A unit's side of a step's cost: see [`Economy::step_profile`].
+pub struct StepProfile<'a> {
+    unit: hecs::Entity,
+    def: &'a crate::rules::UnitDef,
+    abilities: Vec<String>,
+}
+
 impl Economy<'_> {
     /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
     pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
@@ -115,7 +122,50 @@ impl Economy<'_> {
         to: Position,
         traits: StackTraits,
     ) -> Result<u32, MoveError> {
-        let straight = self.straight_step_cost(unit, from, to, traits)?;
+        self.step_cost_with(&self.step_profile(unit)?, from, to, traits)
+    }
+
+    /// What a unit's step costs depend on besides the squares: its definition and its abilities
+    /// (its own, its enchantments' and its items'). A search that costs many steps for one unit
+    /// takes it once and calls [`Economy::step_cost_with`].
+    pub fn step_profile(&self, unit: hecs::Entity) -> Result<StepProfile<'_>, MoveError> {
+        let def = self.units().unit_def(unit).ok_or(MoveError::BadSelection)?;
+        Ok(StepProfile {
+            unit,
+            def,
+            abilities: self.units().unit_abilities(unit),
+        })
+    }
+
+    /// The profiles of a stack's units, or `None` when one of them cannot take a step at all.
+    pub fn step_profiles(&self, units: &[hecs::Entity]) -> Option<Vec<StepProfile<'_>>> {
+        units.iter().map(|&u| self.step_profile(u).ok()).collect()
+    }
+
+    /// The cost of a step for the stack: that of its slowest unit; `None` when one cannot take it.
+    pub fn stack_step_cost(
+        &self,
+        profiles: &[StepProfile],
+        from: Position,
+        to: Position,
+        traits: StackTraits,
+    ) -> Option<u32> {
+        let mut worst = 0;
+        for p in profiles {
+            worst = worst.max(self.step_cost_with(p, from, to, traits).ok()?);
+        }
+        Some(worst)
+    }
+
+    /// [`Economy::step_cost`] for a unit whose profile is already at hand.
+    pub fn step_cost_with(
+        &self,
+        profile: &StepProfile,
+        from: Position,
+        to: Position,
+        traits: StackTraits,
+    ) -> Result<u32, MoveError> {
+        let straight = self.straight_step_cost(profile, from, to, traits)?;
         Ok(if self.diagonal_extra && from.x != to.x && from.y != to.y {
             (straight * 3).div_ceil(2)
         } else {
@@ -125,7 +175,7 @@ impl Economy<'_> {
 
     fn straight_step_cost(
         &self,
-        unit: hecs::Entity,
+        profile: &StepProfile,
         from: Position,
         to: Position,
         traits: StackTraits,
@@ -136,12 +186,16 @@ impl Economy<'_> {
         if to.y >= grid.height() || to.x >= grid.width() {
             return Err(MoveError::OffMap);
         }
-        let def = self.units().unit_def(unit).ok_or(MoveError::BadSelection)?;
+        let StepProfile {
+            unit,
+            def,
+            abilities,
+        } = profile;
+        let unit = *unit;
         let terrain = grid
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
             .ok_or(MoveError::OffMap)?;
-        let abilities = self.units().unit_abilities(unit);
         let has = |a: &str| abilities.iter().any(|x| x == a);
         let is_water = terrain.class == TerrainClass::Ocean;
 

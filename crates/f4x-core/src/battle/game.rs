@@ -10,9 +10,7 @@ use crate::unit::Hurt;
 use super::field::Field;
 use super::immunity::Realm;
 use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
-use super::{
-    Battle, BattleCommand, BattleError, BattleEvent, BattleUnit, RangedKind, Side, Status,
-};
+use super::{Battle, BattleCommand, BattleError, BattleUnit, RangedKind, Side, Status};
 
 /// A battle in progress and the overland units its fighters were copied from.
 pub struct ActiveBattle {
@@ -617,13 +615,21 @@ impl Game {
         // Mana Leak and the like change the wizards' reserves.
         self.sync_battle_mana();
         let mut out: Vec<Event> = events.iter().cloned().map(Event::Battle).collect();
-        if events
-            .iter()
-            .any(|e| matches!(e, BattleEvent::Ended { .. }))
+        self.finish_if_over(&mut out);
+        Ok(out)
+    }
+
+    /// A battle whose winner is settled is written back, whatever settled it. (A cast, an end of
+    /// turn effect or the start of the battle can settle it without the command's own events
+    /// saying so, and a battle left open this way blocks every later fight.)
+    pub(crate) fn finish_if_over(&mut self, out: &mut Vec<Event>) {
+        if self
+            .battle
+            .as_ref()
+            .is_some_and(|a| a.battle.winner.is_some())
         {
             out.extend(self.finish_battle());
         }
-        Ok(out)
     }
 
     /// Write a finished battle back: wounds, deaths, and who won.
@@ -953,6 +959,7 @@ impl Game {
                 Err(_) => break,
             }
         }
+        self.finish_if_over(&mut events);
         events
     }
 }

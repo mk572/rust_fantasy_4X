@@ -102,7 +102,15 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         } else if let Some(site) = target {
             march(ai, game, &units, site, events);
         } else if let Some(home) = home {
-            ai.send(game, Command::GoTo { units, to: home }, events);
+            let serials: Vec<Serial> = {
+                let view = PlayerView::new(game, me);
+                units.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            // A party that cannot find its way home (cut off by guarded ground or the sea) gives
+            // up the raid and is left to the army's rules.
+            if !ai.send(game, Command::GoTo { units, to: home }, events) {
+                ai.raiders.retain(|s| !serials.contains(s));
+            }
         }
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the

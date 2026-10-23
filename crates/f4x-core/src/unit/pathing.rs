@@ -50,12 +50,20 @@ impl Game {
             return None;
         }
         let flies = self.economy().stack_traits(units);
+        let economy = self.economy();
+        let profiles = economy.step_profiles(units)?;
         let step_cost = |from: Position, next: Position| -> Option<u32> {
-            let mut worst = 0;
-            for &u in units {
-                worst = worst.max(self.economy().step_cost(u, from, next, flies).ok()?);
-            }
-            Some(worst)
+            economy.stack_step_cost(&profiles, from, next, flies)
+        };
+        // Which squares stop the walk (hostile units or city, a guarded site), worked out once
+        // for every square the search looks at.
+        let mut stops: HashMap<Position, bool> = HashMap::new();
+        let mut blocked = |next: Position| -> bool {
+            *stops.entry(next).or_insert_with(|| {
+                economy.hostile_at(next, owner).is_some()
+                    || (owner != crate::player::MONSTERS
+                        && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
+            })
         };
 
         let mut best: HashMap<Position, u32> = HashMap::new();
@@ -91,17 +99,9 @@ impl Game {
                 continue;
             }
             for next in neighbours(self, here) {
-                if next != to && self.economy().hostile_at(next, owner).is_some() {
-                    continue;
-                }
-                // A guarded site stops the stack: go round unless it is the destination.
-                if next != to
-                    && owner != crate::player::MONSTERS
-                    && self
-                        .economy()
-                        .lair_at(next)
-                        .is_some_and(|l| !l.guards.is_empty())
-                {
+                // Hostile squares and guarded sites stop the stack: go round unless it is the
+                // destination.
+                if next != to && blocked(next) {
                     continue;
                 }
                 let Some(step) = step_cost(here, next) else {
@@ -138,12 +138,21 @@ impl Game {
             return seen;
         };
         let flies = self.economy().stack_traits(units);
+        let economy = self.economy();
+        let Some(profiles) = economy.step_profiles(units) else {
+            return seen;
+        };
         let step_cost = |from: Position, next: Position| -> Option<u32> {
-            let mut worst = 0;
-            for &u in units {
-                worst = worst.max(self.economy().step_cost(u, from, next, flies).ok()?);
-            }
-            Some(worst)
+            economy.stack_step_cost(&profiles, from, next, flies)
+        };
+        // Which squares stop the walk, worked out once for every square the search looks at.
+        let mut stops: HashMap<Position, bool> = HashMap::new();
+        let mut blocked = |next: Position| -> bool {
+            *stops.entry(next).or_insert_with(|| {
+                economy.hostile_at(next, owner).is_some()
+                    || (owner != crate::player::MONSTERS
+                        && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
+            })
         };
         let mut best: HashMap<Position, u32> = HashMap::new();
         let mut open = BinaryHeap::new();
@@ -160,15 +169,7 @@ impl Game {
             }
             seen.insert(here);
             for next in neighbours(self, here) {
-                if self.economy().hostile_at(next, owner).is_some() {
-                    continue;
-                }
-                if owner != crate::player::MONSTERS
-                    && self
-                        .economy()
-                        .lair_at(next)
-                        .is_some_and(|l| !l.guards.is_empty())
-                {
+                if blocked(next) {
                     continue;
                 }
                 let Some(step) = step_cost(here, next) else {

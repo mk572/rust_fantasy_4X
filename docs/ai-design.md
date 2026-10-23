@@ -37,7 +37,7 @@ cast, settlers, army, city production (`lib.rs`). Each part:
 
 | Part | What it does now |
 |---|---|
-| `diplomacy.rs` | Answers proposals with the core's `rate_proposal`. Never proposes anything. |
+| `diplomacy.rs` | Answers proposals with its own rating (`diplomacy::rate`, the original's `Diplomacy_Test`); a fierce militarist or expansionist declares war on a weaker neighbour (`quarrel`); a wizard may declare war on a Spell of Mastery caster (`mastery_scare`). Never proposes anything. |
 | `economy::taxes` | The lowest tax rate that leaves a small surplus. |
 | `economy::research` | When idle, takes the first of the offered candidates (the core lists the fastest first). |
 | `economy::cast` | Starts the dearest summoning spell it can pay for with a third of the mana left over. Nothing else is cast, so most spells are dead weight. |
@@ -509,3 +509,91 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/mirror.r
   included, and takes 3,000 more off for a wizard with every book at rank 11.
 - The AI never uses what a human player cannot see, but `PlayerView::reachable` answers over the
   real map, fog or no fog, as the game's own path check does (task 181).
+
+## 12. State after the entity rework (24 October 2026)
+
+The scripted AI (`f4x-ai`, the battle AI in `battle/ai.rs` and `brain.rs`) and the trained one
+(`f4x-learn`) already ran on the new entities (task 336 moved them to the handles). This pass checked
+them, fixed what the soak showed, and gave the objective and the personality something to do. All
+numbers are from `f4x-tools soak` on the shipped content plus `content-local`, release build.
+
+### 12.1 What was done
+
+- **Battle AI.** `examples/situations.rs` in `f4x-learn` (and `tests/situations.rs`) fights the scripted
+  AI on both sides on every terrain class, on the sites of the map (tower, three nodes, the encounter
+  sites) with and without a hero that carries an item: 1,840 fights, every one ended, none was refused a
+  command, none stalled (a battle averages 40 to 80 commands and 5 to 9 rounds). Mirror test: the smarter
+  AI wins 171 and loses 129 of 300 (it must beat the plain one by 20). The trained network loads and plays
+  whole games.
+- **A bug found by the soak: a battle left open.** A cast, a field refresh or an end-of-turn effect could
+  settle a battle without the command's events saying so; the battle then stayed open and every later
+  fight was refused for the rest of the game (4 players, seed 2, from turn 219). `Game::finish_if_over`
+  closes it (`docs/KNOWLEDGE.md`). The soak now reports "rounds ended with a battle open".
+- **Refused orders cut from 100+ a game to 0 to 4.** The neutral cities' raiders sent `EnterSite` every
+  turn to an unguarded site (they now walk onto it), and a raiding party that cannot find its way home
+  gives the raid up (`site.rs`).
+- **Speed.** A 300-turn game took up to 78 s (seed 2). `reachable_squares` and `find_path` asked the
+  world for the unit's abilities and for hostile units and guarded sites at every one of eight
+  neighbours of every square. They take the unit's `StepProfile` once and remember the squares that
+  stop the walk. The same game now takes 25 s; eight seeds of 300 turns take about two minutes.
+- **Objectives and personalities steer the AI** (`objective.rs`, `ai-objectives.md` section 0, on-hold
+  task 64). Cities wanted (Expansionist 10, Pragmatist 7, Militarist 6, Theurgist 6, Perfectionist 5), the
+  strike army (Militarist 6 beyond the guard, Pragmatist and Expansionist 4, Theurgist and Perfectionist
+  3), the focus of a city, the power split (Militarist favours mana; Theurgist and Perfectionist run
+  mana lean for research), the research order (a liked sort of spell costs two thirds), and wars: a
+  Militarist or Expansionist whose temper is not Lawful or Peaceful declares war once in twenty turns on
+  the weakest neighbour it has met, has no treaty with and that holds fewer cities. The temper moves the
+  strike army (Maniacal +2 to Peaceful -1). Tests: `objective.rs`, `diplomacy.rs`, `economy.rs`,
+  `wizardry.rs`.
+- **AI decisions out of the core's diplomacy** (design.md section 8). The rating of a proposal
+  (`Diplomacy_Test`) moved from `Game::rate_proposal` to `f4x-ai` (`diplomacy::rate`; the asker's patience is
+  worn down by the core when a proposal is answered, whoever answers); the 11 percent war on a caster of
+  the Spell of Mastery, which the core rolled for the offended wizard, is now the wizard's own roll
+  (`diplomacy::mastery_scare`). Section 12.3 lists what remains.
+- **Soak.** The lines show each wizard's objective and temper, cities with outposts, wars declared, the
+  entity count with `--every`, and rounds that ended with a battle open.
+
+### 12.2 Baseline (seeds 1 to 8, two wizards, 300 turns; 4 wizards seeds 1 to 4)
+
+| Run | Games won | Battles per game | Cities taken | Wars declared | Refused orders |
+|---|---|---|---|---|---|
+| 2 wizards, 8 seeds | 1 of 8 (conquest, turn 118) | 9 to 76 | 0 to 4 | 0 to 1 | 0 to 4 |
+| 4 wizards, 4 seeds | 0 of 4 | 34 to 79 | 2 to 11 | 1 to 3 | 1 to 9 |
+| 2 wizards, 4 seeds, Mastery granted on turn 40 | 4 of 4 (Mastery, turns 134 to 136) | 4 to 15 | 0 to 2 | 0 to 1 | 0 to 1 |
+
+Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wizard ends at 1 to 7 cities
+(often 1 to 3 of them outposts) and 5 to 30 units; the treasury sits at 50 to 100 gold.
+
+### 12.3 Open issues
+
+1. **The AI hardly fights.** Most two-wizard games have 0 or 1 war and 0 to 4 cities taken in 300 turns.
+   Armies march only when they are well ahead (`military.rs` thresholds), nobody proposes peace or a
+   pact (task 361), and a war once declared never ends. Wins by conquest are rare (one in eight).
+2. **Expansion stops at 5 to 7 cities, and outposts are slow.** An outpost gains about 0.4 tens a turn
+   and needs 100 (planned item 21); with `WANTED_CITIES` met, a wizard stops settling. Land is often
+   left free. Housing does nothing in an outpost (it makes no production).
+3. **Overland magic is thin.** The AI casts summons, unit and city buffs, a few global buffs, Earth Lore,
+   Nature's Cures, Resurrection and the Spell of Mastery. It never casts a curse or an attack on a city
+   or stack, never uses city protection, Spell of Return (task 339 note), item crafting or the
+   enchanting spells, and does not choose research by what its enemies do. Mana sits unspent in
+   long games.
+4. **Heroes and items are used little.** The AI hires the heroes it can pay for and equips them by
+   worth (`offer.rs`), but heroes march with the army as ordinary units, are not kept out of lair
+   fights, and the AI never trades or crafts items.
+5. **Battle AI.** It does not retreat or flee, does not sally from a city, and its attackers do badly at
+   the three magic nodes (12 to 27 percent wins in the situations table: the guards there are strong, as
+   they should be, but the AI does not weigh a lair before it attacks it with a small party; `site.rs`
+   uses a strength guess). Unit casts (hero spells, item charges) are scored like the wizard's but
+   happen about 0.5 times a fight.
+6. **Human-only branches remain in the diplomacy rules** (core): relation changes towards the human
+   army size and city count (`diplomacy_growth`), the human's peace duration after a war
+   (`declare_peace`), `peace_patience` moves only for a human attacker, `last_action` is kept only for a
+   human attacker, subversion spares the human. They are the original's AI-only rules, not decisions,
+   but they are exceptions between human and AI; task 368 decides each.
+7. **Small refusals left:** `shortfall.rs` sells a building the city lacks (once or twice a game),
+   neutral raiders and parties are refused a `GoTo` to a square they cannot reach (two or three a game),
+   an `EnterSite` on an unguarded site is refused once before the fallback walk-in.
+8. **Trained AI.** Not retrained. The battle network `run-20261016-v3/best.bpk` still loads and plays;
+   `models-local/battle-v1.bpk` has no shape file and does not. The strategic learned AI is still only
+   design.
+
