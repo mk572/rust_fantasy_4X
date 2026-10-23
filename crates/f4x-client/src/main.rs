@@ -43,6 +43,7 @@ mod outpost_screen;
 mod page_turn;
 mod pointer;
 mod preferences;
+mod resurrect_prompt;
 mod river_art;
 mod road_plan;
 mod sell_prompt;

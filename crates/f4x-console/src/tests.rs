@@ -2850,3 +2850,28 @@ fn an_item_is_designed_and_cast_from_the_console() {
         "the spell is being cast or the item is made"
     );
 }
+
+#[test]
+fn a_dead_hero_is_listed_and_raised_from_the_console() {
+    let (mut g, mut c) = (game(), console());
+    g.add_fame(HUMAN, 100);
+    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
+        .unwrap();
+    assert!(c.execute(&mut g, "accept 1 Rex").ok);
+    assert!(c.execute(&mut g, "dead").text().contains("no dead heroes"));
+    let hero = g.units().hero_units(HUMAN)[0];
+    g.cheat_slay_unit(hero);
+    let listed = c.execute(&mut g, "dead");
+    assert!(listed.text().contains("Rex"), "{}", listed.text());
+    let spell = g.content().rules.spells.id_of("resurrection").unwrap();
+    g.cheat_learn_spell(HUMAN, spell);
+    g.treasury_mut(HUMAN).unwrap().mana += 5000;
+    assert!(c.execute(&mut g, "resurrect Nobody").error.is_some());
+    let raised = c.execute(&mut g, "resurrect Rex");
+    assert!(raised.ok, "{}", raised.text());
+    assert!(
+        g.wizard(HUMAN).unwrap().casting().is_some() || !g.units().hero_units(HUMAN).is_empty(),
+        "the spell is being cast or the hero is back"
+    );
+}

@@ -465,7 +465,7 @@ Each step is testable without a screen; later steps add the client screens.
 4. **`roster` and `hero`**: roll, hire, dismiss, die, slots, upkeep, Noble, Torin; hero component and save. (219) **Done** (hiring with gold, the offers and dismissing a hero are 48, 220 and 221).
 5. **Hero abilities in battle and overland**: stat abilities, leadership and prayermaster, Sage, Legendary and
    `fame::total`; hero level bonuses (with 174). (47, 72, 174) **Done for 47** (`hero/mod.rs` functions; the fame total of task 72 and the hero level bonuses of 174 are theirs).
-6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48) **Done** (`spell/hero.rs`; Resurrection through `Command::ResurrectHero`, see `divergences.md` section 11).
+6. **Spells**: Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero. (48) **Done** (`spell/hero.rs`; Resurrection through a `Target::Hero` target, see `divergences.md` section 11).
 7. **Loot**: fallen heroes' items, the removal spells, lair items and prisoners (127). (49)
 8. **Crafting**: Enchant Item, Create Artifact, the pending item, the anvil. (50) **Done** (random and
    prefab items, `Make_Item`, are task 262; the crafting screen 260).

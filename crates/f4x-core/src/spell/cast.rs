@@ -221,6 +221,7 @@ impl EffectHost for GameHost<'_> {
                 .spells()
                 .caster_player(i)
                 .and_then(|p| self.game.summon_point(p)),
+            Target::Hero(_) => None,
         }
     }
 
@@ -230,7 +231,7 @@ impl EffectHost for GameHost<'_> {
             Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
             Target::Player(p) => Some(p),
             Target::Spell(i) => self.game.spells().caster_player(i),
-            Target::Tile(_) => None,
+            Target::Tile(_) | Target::Hero(_) => None,
         }
     }
 
@@ -412,7 +413,7 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
-        if let Some(events) = self.game.hero_hook(hook, ctx.owner, &mut self.rng) {
+        if let Some(events) = self.game.hero_hook(hook, ctx.owner, who, &mut self.rng) {
             self.events.extend(events);
             return;
         }
@@ -500,6 +501,10 @@ impl Game {
     /// Does casting `spell` ask the wizard for a target? Summoning spells do not when the
     /// wizard has a summoning circle: the creatures appear there.
     pub fn spell_needs_target(&self, player: PlayerId, spell: SpellId) -> bool {
+        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+            // The dead hero to raise is chosen when the cast is finished.
+            return true;
+        }
         if self.summons(spell) && self.summon_point(player).is_some() {
             return false;
         }
@@ -516,6 +521,14 @@ impl Game {
         spell: SpellId,
         target: Option<Target>,
     ) -> Result<(), MagicError> {
+        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+            return match target {
+                Some(Target::Hero(kind)) if self.units().raisable_heroes().contains(&kind) => {
+                    Ok(())
+                }
+                _ => Err(MagicError::Target(TargetError::WrongTarget)),
+            };
+        }
         let wanted = self.content.rules.spells.get(spell).target;
         let mine = |o: Option<PlayerId>| o == Some(player);
         let wrong = MagicError::Target(TargetError::WrongTarget);
@@ -777,7 +790,7 @@ impl Game {
                 self.add_global(p, spell);
                 self.reveal_for_globals(p);
             }
-            Target::Tile(_) | Target::Spell(_) => {}
+            Target::Tile(_) | Target::Spell(_) | Target::Hero(_) => {}
         }
     }
 

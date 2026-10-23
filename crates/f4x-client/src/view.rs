@@ -232,6 +232,8 @@ pub struct App {
     /// The spell being cast has nothing to aim at: ask whether to stop casting it.
     pub(crate) no_target_prompt: Option<f4x_core::rules::SpellId>,
     pub(crate) global_prompt: Option<(f4x_core::rules::SpellId, bool, usize)>,
+    /// Resurrection's list of the dead heroes: the spell, whether it is paid already, the row picked.
+    pub(crate) resurrect_prompt: Option<(f4x_core::rules::SpellId, bool, usize)>,
     /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
     pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
@@ -347,6 +349,7 @@ impl App {
             upkeep_prompt: None,
             ward_prompt: None,
             global_prompt: None,
+            resurrect_prompt: None,
             no_target_prompt: None,
             mastery_notice: std::collections::VecDeque::new(),
         };
@@ -1210,6 +1213,11 @@ impl App {
         if let Some(spell) = self.no_target_prompt {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.no_target_frame(spell);
+            }
+        }
+        if let Some(prompt) = self.resurrect_prompt {
+            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+                return self.resurrect_prompt_frame(prompt);
             }
         }
         if let Some(prompt) = self.global_prompt {

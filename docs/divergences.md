@@ -285,7 +285,7 @@ Where the item rules differ from the original's code or are read from ReMoM with
   serving or gone), so no mana is lost. A summoning that was paid over turns and then finds
   nobody is lost, with an event.
 - **Resurrection names the hero.** The wizard chooses which dead hero returns
-  (`Command::ResurrectHero`); the original lists the dead heroes for a human wizard
+  (a `Target::Hero` target); the original lists the dead heroes for a human wizard
   (a single one is raised unasked) and a computer wizard takes the last in type order
   (`Units::ai_resurrection_pick`). Torin is never on the list, as in the original (only
   Incarnation brings him). The original also marks hero type 0 gone when the list is empty or

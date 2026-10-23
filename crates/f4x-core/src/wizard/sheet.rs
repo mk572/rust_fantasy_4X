@@ -13,7 +13,7 @@ use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
 use crate::rules::{Rarity, SpellDef, SpellId};
-use crate::spell::instance::{Owed, Raising, Spells};
+use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
     base_casting_skill, default_spells, is_crafting, is_summoning, pick_spells, skill_points_for,
@@ -201,12 +201,6 @@ impl<'a> Wizard<'a> {
     pub fn crafting(&self) -> Option<crate::item::Item> {
         let player = crate::wizard::entity::player_id_of(self.world(), self.entity())?;
         crate::item::entity::crafting_of(self.world(), player).map(|(_, item)| item)
-    }
-
-    /// The dead hero Resurrection is bringing back while its cost is paid.
-    pub fn raising(&self) -> Option<hecs::Entity> {
-        let cast = Spells::new(self.world()).cast_of(self.entity())?;
-        Some(self.world().get::<&Raising>(cast).ok()?.0)
     }
 
     /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
@@ -784,19 +778,6 @@ impl<'a> WizardMut<'a> {
     /// The cast being paid for.
     fn cast(&self) -> Option<hecs::Entity> {
         Spells::new(self.world).cast_of(self.entity)
-    }
-
-    /// The dead hero being brought back is kept with the cast until it is paid.
-    pub fn set_raising(&mut self, hero: hecs::Entity) {
-        if let Some(cast) = self.cast() {
-            let _ = self.world.insert_one(cast, Raising(hero));
-        }
-    }
-
-    /// The dead hero the cast was bringing back.
-    pub fn take_raising(&mut self) -> Option<hecs::Entity> {
-        let cast = self.cast()?;
-        self.world.remove_one::<Raising>(cast).ok().map(|r| r.0)
     }
 
     /// Pay for a spell cast at once out of this turn's skill.

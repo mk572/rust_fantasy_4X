@@ -27,6 +27,8 @@ pub enum Target {
     ),
     Tile(Position),
     Player(PlayerId),
+    /// A dead hero, by its type (a roster index): what Resurrection is aimed at.
+    Hero(usize),
     /// A spell instance: an enemy wizard's global enchantment (`docs/ecs-structure.md` 3.4).
     Spell(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
 }

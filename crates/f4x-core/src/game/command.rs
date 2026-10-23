@@ -118,11 +118,6 @@ pub enum Command {
         craft: item::crafting::Craft,
         design: item::crafting::ItemDesign,
     },
-    /// Cast Resurrection on the dead hero `kind` (a roster index).
-    ResurrectHero {
-        player: player::PlayerId,
-        kind: usize,
-    },
     /// The anvil: destroy a vault or award item for half its value in mana.
     ScrapItem {
         player: player::PlayerId,

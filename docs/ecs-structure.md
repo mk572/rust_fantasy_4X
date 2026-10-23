@@ -155,7 +155,7 @@ and not worked around, and names are singular.
 | **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
 | **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
-| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
+| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting` on a cast in progress | 318 to 325 |
 | **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)` (all but a volcano), `Position`, `Serial`; `Node` and `Lair` (a node and a tower have both), `Volcano`; `Owner` where owned | 329 to 332, 338 (done) |
 | **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` | 333, 334 |
 
@@ -247,10 +247,10 @@ until it is hired; the roster of per-wizard records is gone.
   (the entity keeps its handle and serial) and sets the state by the way it left (`Fate`): `Dead`,
   `Free` or `Gone`. The spells on the body go with it. `hero::game::remove_unit` stays the one exit.
 - **A hero is named by its type number** (`Hero.kind`, the index in `Rules::hero_templates`): it is
-  unique in the game, so offers, events, `Command::ResurrectHero` and the save use that number and
-  the log needs no serial for a hero. (This replaces the rule in 3.9 for heroes.) A cast of
-  Resurrection holds the hero entity (`Raising(Entity)`); if another wizard raises the hero first,
-  the cast finds nobody and fails like any summoning that finds nobody.
+  unique in the game, so offers, events, `Target::Hero` and the save use that number and
+  the log needs no serial for a hero. (This replaces the rule in 3.9 for heroes.) Resurrection
+  names its hero when the cast is finished (`Target::Hero`); if the hero is not dead then, the cast
+  finds nobody and fails like any summoning that finds nobody.
 - Hiring a hero takes it off every wizard's offers. An offer that is answered after the hero was
   taken is refused.
 - A wizard has at most six heroes serving; `open_hero_slots` counts the entities with a body.

@@ -87,6 +87,13 @@ pub const TABLE: &[CommandDef] = &[
         run: items,
     },
     CommandDef {
+        name: "dead",
+        kind: Kind::Query,
+        usage: "dead",
+        help: "The dead heroes Resurrection can raise, with the number `resurrect` takes.",
+        run: dead,
+    },
+    CommandDef {
         name: "spells",
         kind: Kind::Query,
         usage: "spells",
@@ -951,6 +958,26 @@ fn offers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .collect();
     if lines.is_empty() {
         lines.push("no offers".into());
+    }
+    for line in lines {
+        ctx.say(line);
+    }
+    Ok(())
+}
+
+fn dead(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let mut lines: Vec<String> = ctx
+        .game
+        .units()
+        .raisable_heroes()
+        .into_iter()
+        .map(|kind| {
+            let name = ctx.game.units().hero_type_name(kind).unwrap_or_default();
+            format!("{kind} {name}")
+        })
+        .collect();
+    if lines.is_empty() {
+        lines.push("no dead heroes".into());
     }
     for line in lines {
         ctx.say(line);

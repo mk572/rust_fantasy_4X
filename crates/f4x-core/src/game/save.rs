@@ -195,8 +195,6 @@ pub struct MagicSave {
     pub research_remaining: i32,
     /// `(spell, mana still to pay, creation number)`.
     pub casting: Option<(String, i32, u64)>,
-    /// The dead hero Resurrection is bringing back.
-    pub raising: Option<usize>,
     /// `(spell, creation number)` of the lasting spells on the world.
     pub global: Vec<(String, u64)>,
     pub skill_left: i32,
@@ -218,7 +216,6 @@ impl Default for MagicSave {
             researching: None,
             research_remaining: 0,
             casting: None,
-            raising: None,
             global: Vec::new(),
             skill_left: 0,
         }
@@ -226,11 +223,11 @@ impl Default for MagicSave {
 }
 
 /// A spell of a wizard read from a save, made once the creation numbers are checked: a lasting
-/// spell on the world, or the cast in progress with `(mana owed, item, hero)`.
+/// spell on the world, or the cast in progress with the mana owed.
 struct PendingSpell {
     spell: SpellId,
     serial: u64,
-    cast: Option<(i32, Option<usize>)>,
+    cast: Option<i32>,
 }
 
 impl MagicSave {
@@ -257,12 +254,6 @@ impl MagicSave {
                 let cast = w.cast_instance()?;
                 let serial = *w.world().get::<&Serial>(cast).ok()?;
                 Some((name(&c.spell), c.remaining, serial.0))
-            }),
-            raising: w.raising().and_then(|hero| {
-                w.world()
-                    .get::<&crate::hero::Hero>(hero)
-                    .ok()
-                    .map(|h| h.kind)
             }),
             global: w
                 .global_instances()
@@ -300,18 +291,12 @@ impl MagicSave {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        match m.casting {
-            Some((s, owed, serial)) => pending.push(PendingSpell {
+        if let Some((s, owed, serial)) = m.casting {
+            pending.push(PendingSpell {
                 spell: id(&s)?,
                 serial,
-                cast: Some((owed, m.raising)),
-            }),
-            None if m.raising.is_some() => {
-                return Err(LoadError::Inconsistent(
-                    "a hero is waiting for a spell that is not being cast".into(),
-                ));
-            }
-            None => {}
+                cast: Some(owed),
+            });
         }
         if u32::from(m.mana_pct) + u32::from(m.research_pct) + u32::from(m.skill_pct) != 100 {
             return Err(LoadError::Inconsistent(
@@ -1131,18 +1116,10 @@ impl Snapshot {
                 target,
                 serial,
             ));
-            if let Some((owed, raising)) = p.cast {
+            if let Some(owed) = p.cast {
                 let _ = game
                     .world
                     .insert_one(instance, crate::spell::instance::Owed(owed));
-                if let Some(kind) = raising {
-                    let hero = game.units().hero_entity(kind).ok_or_else(|| {
-                        LoadError::Inconsistent("a cast raises a hero that is not there".into())
-                    })?;
-                    let _ = game
-                        .world
-                        .insert_one(instance, crate::spell::instance::Raising(hero));
-                }
             }
         }
         let in_map = |game: &Game, pos: Position| -> bool {

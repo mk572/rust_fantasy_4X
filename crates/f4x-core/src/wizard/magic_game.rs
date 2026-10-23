@@ -281,6 +281,9 @@ impl Game {
         if !self.spell_needs_target(player, spell) {
             return true;
         }
+        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+            return !self.units().raisable_heroes().is_empty();
+        }
         let ok = |t: Target| self.check_target(player, spell, Some(t)).is_ok();
         if self
             .units()
@@ -333,10 +336,6 @@ impl Game {
         let needs_target = self.spell_needs_target(player, spell);
         if self.spell_has_hook(spell, crate::item::crafting::CRAFT_ITEM) {
             // The items are designed first: `Command::CraftItem`.
-            return Err(MagicError::NotAvailable);
-        }
-        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
-            // The dead hero is chosen first: `Command::ResurrectHero`.
             return Err(MagicError::NotAvailable);
         }
         for hook in crate::spell::hero::HOOKS {

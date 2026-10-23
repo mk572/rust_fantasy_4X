@@ -3,12 +3,12 @@
 //! the wizard's summoning circle. The hero types and the entities are in `hero/kind.rs` and
 //! `hero/game.rs`.
 //!
-//! Resurrection needs the wizard to choose which dead hero returns, so it is cast through
-//! `Command::ResurrectHero` (as Enchant Item is through `Command::CraftItem`) and the chosen hero
-//! waits with the cast in progress while the cost is paid.
+//! Resurrection needs the wizard to choose which dead hero returns: the hero is the spell's
+//! target (`Target::Hero`), given with the cast when it takes effect at once, or when the cost
+//! has been paid over turns (`Command::ResolveCast`), as for any spell that wants a target.
 
 use crate::game::rng::GameRng;
-use crate::game::{Event, Game, Rejection};
+use crate::game::{Event, Game};
 use crate::hero::kind::{self, Class, Standing, HEROES};
 use crate::hero::{HeroError, HeroState};
 use crate::player::PlayerId;
@@ -128,6 +128,7 @@ impl Game {
         &mut self,
         hook: &str,
         player: PlayerId,
+        who: crate::rules::exec::Target,
         rng: &mut GameRng,
     ) -> Option<Vec<Event>> {
         let spell = self.content.rules.spells.id_of(hook)?;
@@ -140,8 +141,12 @@ impl Game {
             SUMMON_CHAMPION => pick(Class::Champion),
             INCARNATION => Some(torin(&self.content.rules)),
             RESURRECTION => {
-                let hero = self.wizard_mut(player).and_then(|mut w| w.take_raising());
-                hero.and_then(|h| self.units().hero_kind(h))
+                // Nobody to raise if the hero is not dead any more: the spell is lost, with a warning.
+                let dead = self.units().raisable_heroes();
+                match who {
+                    crate::rules::exec::Target::Hero(k) if dead.contains(&k) => Some(k),
+                    _ => None,
+                }
             }
             _ => return None,
         };
@@ -150,61 +155,6 @@ impl Game {
             Some((unit, kind)) => vec![Event::HeroJoined { player, unit, kind }],
             None => vec![Event::HeroSpellFailed { player, spell }],
         })
-    }
-
-    /// Cast Resurrection on the dead hero `kind`. Like any spell it takes effect now if the
-    /// casting skill and mana on hand pay for it, else it is paid over turns.
-    pub fn resurrect_hero(
-        &mut self,
-        player: PlayerId,
-        kind: usize,
-    ) -> Result<Vec<Event>, Rejection> {
-        use crate::wizard::magic::MagicError;
-        let spell = self
-            .content
-            .rules
-            .spells
-            .id_of(RESURRECTION)
-            .ok_or(Rejection::Magic(MagicError::NotAvailable))?;
-        let hero = self
-            .units()
-            .hero_entity(kind)
-            .ok_or(Rejection::Hero(HeroError::Unknown))?;
-        if self.units().hero_state(hero) != Some(HeroState::Dead)
-            || kind == torin(&self.content.rules)
-        {
-            return Err(Rejection::Hero(HeroError::NotAvailable));
-        }
-        if let Some(e) = self.units().hero_spell_blocked(player, RESURRECTION) {
-            return Err(Rejection::Hero(e));
-        }
-        let cost = self.casting_cost(player, spell, false);
-        let reserve = self.treasury(player).map_or(0, |p| p.mana);
-        let now = {
-            let m = self
-                .wizard(player)
-                .ok_or(Rejection::Magic(MagicError::UnknownPlayer))?;
-            m.check_can_cast(spell).map_err(Rejection::Magic)?;
-            cost <= m.instant_budget(reserve)
-        };
-        // The dead hero is kept with a cast in progress, which is paid already when it is now.
-        self.begin_casting(player, spell, if now { 0 } else { cost });
-        if let Some(mut w) = self.wizard_mut(player) {
-            w.set_raising(hero);
-            if now {
-                w.spend_skill(cost);
-            }
-        }
-        if now {
-            if let Some(t) = self.treasury_mut(player) {
-                t.mana -= cost;
-            }
-        }
-        self.begin_cast_relations(player, spell);
-        if !now {
-            return Ok(Vec::new());
-        }
-        Ok(self.resolve_cast(player, spell, None))
     }
 }
 
@@ -394,6 +344,15 @@ mod tests {
         ));
     }
 
+    fn raise(g: &mut Game, kind: usize) -> Vec<Event> {
+        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        g.apply(Command::CastSpell {
+            player: P0,
+            spell,
+            target: Some(crate::rules::exec::Target::Hero(kind)),
+        })
+    }
+
     #[test]
     fn resurrection_raises_the_chosen_dead_hero() {
         let mut g = caster();
@@ -403,25 +362,21 @@ mod tests {
         let _ = g.world.insert_one(b, Experience(75));
         g.remove_unit(a, Fate::Slain);
         g.remove_unit(b, Fate::Slain);
-        // The spell is not cast without saying whom.
+        // The spell is not cast at once without saying whom.
         assert!(matches!(
             cast(&mut g, RESURRECTION).as_slice(),
             [Event::Rejected(_)]
         ));
         let mana = g.treasury(P0).unwrap().mana;
-        let events = g.apply(Command::ResurrectHero {
-            player: P0,
-            kind: 1,
-        });
+        let events = raise(&mut g, 1);
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert_eq!(kind, 1);
         assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
         assert!(g.treasury(P0).unwrap().mana < mana);
-        assert_eq!(g.wizard(P0).unwrap().raising(), None);
         assert_eq!(g.units().raisable_heroes(), vec![0]);
         // A hero who is not dead, or never was, cannot be raised.
         for kind in [1, 5, 99] {
-            let events = g.apply(Command::ResurrectHero { player: P0, kind });
+            let events = raise(&mut g, kind);
             assert!(
                 matches!(events.as_slice(), [Event::Rejected(_)]),
                 "{kind}: {events:?}"
@@ -430,27 +385,25 @@ mod tests {
     }
 
     #[test]
-    fn resurrection_can_be_paid_over_turns_and_survives_a_save() {
+    fn resurrection_picks_its_hero_when_the_cost_is_paid_and_survives_a_save() {
         let mut g = caster();
         g.treasury_mut(P0).unwrap().gold = 5000;
         let a = g.hire_hero(P0, 3).unwrap();
         g.remove_unit(a, Fate::Slain);
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::sheet::Skill>()
-            .left = 0;
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<crate::wizard::sheet::Skill>()
-            .points = 0;
-        let events = g.apply(Command::ResurrectHero {
-            player: P0,
-            kind: 3,
-        });
-        assert!(events.is_empty(), "{events:?}");
-        let third = g.units().hero_entity(3);
-        assert!(third.is_some());
-        assert_eq!(g.wizard(P0).unwrap().raising(), third);
+        let mut skill = g.wizard_mut(P0).unwrap();
+        skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
+        skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
+        // Started with no hero named: the cost is paid over turns first.
+        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        let events = cast(&mut g, RESURRECTION);
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{events:?}"
+        );
+        assert_eq!(
+            g.wizard(P0).unwrap().casting().map(|c| c.spell),
+            Some(spell)
+        );
         // (The test world has no city for the fortress to stand in, which a save refuses.)
         g.wizard_mut(P0)
             .unwrap()
@@ -467,13 +420,48 @@ mod tests {
             .unwrap()
             .put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
         assert_eq!(
-            back.wizard(P0).unwrap().raising(),
-            back.units().hero_entity(3)
+            back.wizard(P0).unwrap().casting().map(|c| c.spell),
+            Some(spell)
         );
-        // The cost is paid; the spell takes effect.
-        let spell = back.content.rules.spells.id_of(RESURRECTION).unwrap();
-        let events = back.resolve_cast(P0, spell, None);
-        assert_eq!(joined(&events).map(|(_, k)| k), Some(3));
+        // The cost is paid; the hero is named then.
+        back.wizard_mut(P0).unwrap().cancel_casting();
+        back.begin_casting(P0, spell, 0);
+        let wrong = back.apply(Command::ResolveCast {
+            player: P0,
+            target: crate::rules::exec::Target::Hero(5),
+        });
+        assert!(
+            matches!(wrong.as_slice(), [Event::Rejected(_)]),
+            "{wrong:?}"
+        );
+        let events = back.apply(Command::ResolveCast {
+            player: P0,
+            target: crate::rules::exec::Target::Hero(3),
+        });
+        assert_eq!(joined(&events).map(|(_, k)| k), Some(3), "{events:?}");
+    }
+
+    #[test]
+    fn resurrection_warns_when_it_is_paid_and_no_hero_lies_dead() {
+        let mut g = caster();
+        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        assert!(!g.spell_has_target(P0, spell));
+        let mut skill = g.wizard_mut(P0).unwrap();
+        skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
+        skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
+        let started = cast(&mut g, RESURRECTION);
+        assert!(
+            !started.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{started:?}"
+        );
+        // The turn ends with the cast still on and nobody to raise: the wizard is asked.
+        let events = g.apply(Command::EndTurn);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::NoTargetForCast { .. })),
+            "{events:?}"
+        );
         // Torin is raised by Incarnation only; a computer wizard raises the last dead hero.
         let mut g = caster();
         g.treasury_mut(P0).unwrap().gold = 5000;
@@ -483,19 +471,7 @@ mod tests {
         }
         assert_eq!(g.units().raisable_heroes(), vec![1, 4]);
         assert_eq!(g.units().ai_resurrection_pick(), Some(4));
-        let events = g.apply(Command::ResurrectHero {
-            player: P0,
-            kind: 6,
-        });
-        assert!(matches!(events.as_slice(), [Event::Rejected(_)]));
-        // Giving the spell up forgets the hero.
-        let mut g = caster();
-        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
-        g.begin_casting(P0, spell, 100);
-        let hero = g.units().hero_entity(2).unwrap();
-        g.wizard_mut(P0).unwrap().set_raising(hero);
-        g.wizard_mut(P0).unwrap().cancel_casting();
-        assert_eq!(g.wizard(P0).unwrap().raising(), None);
+        assert!(matches!(raise(&mut g, 6).as_slice(), [Event::Rejected(_)]));
         let _ = (P1, Plane::Arcanus);
     }
 }

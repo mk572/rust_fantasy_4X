@@ -280,6 +280,18 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// A spell that has been paid for over turns and waits for its target.
 fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
+    let paid = PlayerView::new(game, ai.player).paid_spell();
+    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::hero::RESURRECTION)) {
+        if let Some(kind) = game.units().ai_resurrection_pick() {
+            let command = Command::ResolveCast {
+                player: ai.player,
+                target: Target::Hero(kind),
+            };
+            ai.send(game, command, events);
+        }
+        return;
+    }
     let target = {
         let view = PlayerView::new(game, ai.player);
         let Some(spell) = view.paid_spell() else {
@@ -401,8 +413,8 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 }
 
 /// Resurrection: the original weighs it highest when the wizard has a free place for a hero and
-/// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`), through
-/// `Command::ResurrectHero` since the spell needs a hero chosen. Returns whether it began.
+/// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`); a cast that
+/// is paid over turns picks its hero when it is done (`resolve_paid`). Returns whether it began.
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
@@ -437,7 +449,20 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    ai.send(game, Command::ResurrectHero { player: me, kind }, events);
+    let spell = game
+        .content()
+        .rules
+        .spells
+        .id_of(f4x_core::spell::hero::RESURRECTION);
+    let Some(spell) = spell else {
+        return false;
+    };
+    let command = Command::CastSpell {
+        player: me,
+        spell,
+        target: Some(Target::Hero(kind)),
+    };
+    ai.send(game, command, events);
     true
 }
 
@@ -586,10 +611,8 @@ mod tests {
         assert!(!resurrect(&ai, &mut g, &mut events));
         g.cheat_learn_spell(P1, spell);
         assert!(resurrect(&ai, &mut g, &mut events), "{events:?}");
-        let hero = g.units().hero_entity(4);
-        let raising = g.wizard(P1).unwrap().raising();
-        let started =
-            raising == hero || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
+        let started = g.wizard(P1).unwrap().casting().is_some()
+            || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
         assert!(started, "{events:?}");
     }
 }

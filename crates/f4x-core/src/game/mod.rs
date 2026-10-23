@@ -506,9 +506,6 @@ impl Game {
                 Ok(events) => events,
                 Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
             },
-            Command::ResurrectHero { player, kind } => self
-                .resurrect_hero(player, kind)
-                .unwrap_or_else(|r| vec![Event::Rejected(r)]),
             Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
                 Some(_) => Vec::new(),
                 None => vec![Event::Rejected(Rejection::Item(

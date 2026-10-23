@@ -47,6 +47,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("equip", "equip <from> <to> [pay]", "Move an item between the vault, the award list and a hero's slots (vault:N, award:N, hero:UNIT:SLOT; see `items`); `pay` agrees to the mana a far-off hero costs.", equip),
     legal!("scrap", "scrap <vault:N|award:N>", "Destroy a vault or award item for half its value in mana.", scrap),
     legal!("craft", "craft <enchant|artifact> <kind> <power,power|-> [charges:<spell>:<n>] [name...]", "Design an item and start casting Enchant Item or Create Artifact (kinds: sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail; powers are ids of `item_powers.ron`).", craft),
+    legal!("resurrect", "resurrect <hero>", "Cast Resurrection on a dead hero, by the number or name `dead` lists; if it is paid over turns, give the hero once the cost is paid.", resurrect),
     legal!("reject", "reject <offer>", "Turn an offer down.", reject),
     legal!(
         "autobuild",
@@ -604,6 +605,46 @@ fn scrap(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     let player = ctx.session.player;
     ctx.apply(Command::ScrapItem { player, from })
+}
+
+fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let which = a.rest(0);
+    let kind = {
+        let units = ctx.game.units();
+        let raisable = units.raisable_heroes();
+        match which.parse::<usize>() {
+            Ok(kind) => kind,
+            Err(_) => *raisable
+                .iter()
+                .find(|&&k| {
+                    units
+                        .hero_type_name(k)
+                        .is_some_and(|n| n.eq_ignore_ascii_case(&which))
+                })
+                .ok_or_else(|| ConsoleError::NoSuch(format!("dead hero {which:?}")))?,
+        }
+    };
+    let player = ctx.session.player;
+    let target = f4x_core::rules::exec::Target::Hero(kind);
+    // A cast paid over turns takes its hero when it is done.
+    let paid = ctx.game.wizard(player).and_then(|w| w.casting_paid());
+    match paid {
+        Some(_) => ctx.apply(Command::ResolveCast { player, target }),
+        None => {
+            let spell = ctx
+                .game
+                .content()
+                .rules
+                .spells
+                .id_of(f4x_core::spell::hero::RESURRECTION)
+                .ok_or_else(|| ConsoleError::NoSuch("spell resurrection".into()))?;
+            ctx.apply(Command::CastSpell {
+                player,
+                spell,
+                target: Some(target),
+            })
+        }
+    }
 }
 
 fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

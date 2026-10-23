@@ -138,6 +138,13 @@ impl App {
     /// global enchantment is picked from a list, anything else is aimed on the map.
     pub(crate) fn aim_paid_spell(&mut self, spell: SpellId) {
         self.screen = Screen::Map;
+        if self
+            .game
+            .spell_has_hook(spell, f4x_core::spell::hero::RESURRECTION)
+        {
+            self.open_resurrect(spell, true);
+            return;
+        }
         if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
             if self.game.rival_globals(HUMAN).is_empty() {
                 self.log.push(self.text("spell.no_globals_waits"));
@@ -166,6 +173,14 @@ impl App {
         let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
         let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         if needs && cost <= instant.min(mana) {
+            // The dead hero Resurrection raises is chosen from a list.
+            if self
+                .game
+                .spell_has_hook(spell, f4x_core::spell::hero::RESURRECTION)
+            {
+                self.open_resurrect(spell, false);
+                return;
+            }
             // A rival's global enchantment is no place on the map: it is chosen from a list.
             if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
             {
@@ -439,7 +454,10 @@ impl App {
                 .map_or(0, |m| m.skill_left())
                 .min(mana)
                 >= cost;
-            let crafting = matches!(def.id.as_str(), "enchant_item" | "create_artifact");
+            let crafting = matches!(
+                def.id.as_str(),
+                "enchant_item" | "create_artifact" | "resurrection"
+            );
             if instant && !crafting {
                 let word = self.text("spell.instant");
                 self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);

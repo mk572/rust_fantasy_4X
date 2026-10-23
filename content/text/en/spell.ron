@@ -17,6 +17,8 @@
     "spell.no_target": "There are no targets for {spell}. Do you wish to continue casting it?",
     "spell.global_row": "{wizard}: {spell} ({cost} MP)",
     "spell.choose_global": "{spell}: choose a global enchantment",
+    "spell.choose_dead": "{spell}: choose a hero to raise",
+    "spell.no_dead": "No hero has fallen who can be raised",
     "spell.global_keys": "Up/Down and Enter, or click; Esc: cancel",
     "spell.you_completed": "You have completed casting...",
     "spell.rival_cast": "{wizard} has cast...",
