@@ -48,10 +48,18 @@ impl Game {
         for &city in &cities {
             let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
             if figures == 0 {
-                if self.grow_outpost(city) {
-                    let farmers = self.economy().city_min_farmers(city);
-                    let _ = self.world.insert_one(city, Farmers(farmers));
-                    events.push(Event::CityGrew { city, figures: 1 });
+                match self.grow_outpost(city) {
+                    crate::city::growth::OutpostTurn::BecameCity => {
+                        let farmers = self.economy().city_min_farmers(city);
+                        let _ = self.world.insert_one(city, Farmers(farmers));
+                        events.push(Event::CityGrew { city, figures: 1 });
+                    }
+                    crate::city::growth::OutpostTurn::Lost => {
+                        if let Ok(lost) = self.destroy_city(city) {
+                            events.extend(lost);
+                        }
+                    }
+                    crate::city::growth::OutpostTurn::Stays => {}
                 }
                 continue;
             }

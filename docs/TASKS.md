@@ -241,7 +241,7 @@ keep as a rule of the game with a reason (the human has no feelings to track; a 
 (the AI's mood towards a big human army is the AI's), or make it apply to every pair of wizards. Record in
 `diplomacy.md` and `divergences.md`. *Needs:* nothing.
 
-**369. The AI hardly fights and stops expanding.** After planned item 21 (outpost growth) and task 361
+**369. The AI hardly fights and stops expanding.** The outpost rate was a bug (10 tens to a city, not 100, fixed 24 October 2026; re-run the soak first). After task 361
 (proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than
 its reason), the city target by objective once land is free, settlers by sea, using the gold (50 to 100
 in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2). *Needs:* 361.
@@ -259,7 +259,7 @@ sees (design.md section 8), each with a test and a soak line:
 - **Wars and fights** (369, 361): march when ahead and at a measured edge, keep a war going until it is
   won or ended by an offer, attack the weakest neighbour first, take lairs and nodes for their treasure,
   defend what is worth defending (370).
-- **Expansion** (369, planned 21): settle until the land is full, outposts grow (Housing, a better rate),
+- **Expansion** (369, planned 21): settle until the land is full, outposts grow (the original's rate since the 24 October 2026 fix; Housing does nothing in one),
   settlers by sea and to the other plane, found cities on good ground first (food, minerals, nodes).
 - **Magic cast** (367, 366): spend the mana each turn (the reserve should not climb past a few turns of
   upkeep), cast curses and attacks on enemy cities and stacks, protect the own cities, keep a spell in

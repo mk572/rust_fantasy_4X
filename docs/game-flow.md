@@ -130,9 +130,11 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 4. **Cities**, one by one in creation order:
    - *Outposts* (no citizens) roll to grow: a chance each turn made of the race's base
      chance, the land's food capacity, bonuses from worked features (mines, game), and
-     enchantments; if the roll succeeds the outpost gains a few tens of people, and a small
-     chance makes it lose some. At 100 tens it becomes a one-citizen city (farmers are set,
-     `CityGrew`). An outpost does nothing else.
+     enchantments; if the roll succeeds the outpost gains up to 3 tens of people, and a small
+     chance makes it lose up to 2. A new outpost starts with 3 tens. At 10 tens it becomes a
+     one-citizen city and keeps them (farmers are set, `CityGrew`); with none left it is
+     destroyed (`CityDestroyed`). Both as in the original (`NEXTTURN.c`, `Outpost.c`). An
+     outpost does nothing else.
    - *Cities*: the economy is computed **once**; the item in production gets this turn's production added and, if
      covered, completes (a building is added and the city falls back to housing; a unit is
      created in the city with the guilds' starting experience and the same unit is queued

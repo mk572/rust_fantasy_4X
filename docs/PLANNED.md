@@ -240,15 +240,17 @@ capital, and a faster research start. Each as an independent option with sensibl
 
 **21. Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
 (`grow_outpost` in `city/growth.rs`; the chance comes from the race, the land and features, task 21 of
-`TASKS.md` for the original's edge rules) and needs 100 tens, one citizen, to become a city. In
-AI-against-AI soak runs (`f4x-tools soak`) most outposts were still outposts after 100 to 250
+`TASKS.md` for the original's edge rules). **Changed 24 October 2026:** it needed 100 tens, one
+citizen, to become a city, ten times the original's 10 (and it started at 0 tens, not 3, and never
+died at 0); that was our bug and is fixed, so the rate is now the original's. The text below was
+written before the fix. In AI-against-AI soak runs (`f4x-tools soak`) most outposts were still outposts after 100 to 250
 turns: one wizard held 15 "cities", 12 of them outposts, which stalls expansion, production and
 army building. Add a rule option for how fast outposts grow: the original's rate (the default
 while parity is the goal), a multiplier on the growth chance and the tens gained, or a fixed
 number of turns to grow into a city. Housing production in an outpost (it already exists as a
 production item) could add to it. Keep it a rules setting in the saved game settings, so a game
-remembers which rate it used. First check the soak numbers against the original's real rate
-(`TASKS.md` 21), in case the engine's rate is the part that is wrong rather than the original's.
+remembers which rate it used. The soak numbers must be run again first: after the fix the engine's rate is the original's, and
+this option is only worth building if outposts are still too slow.
 
 **22. Alternative effect for the Charismatic retort.** The retort's effect in the original is on
 diplomacy: the wizard's positive diplomatic effects are doubled and its negative ones halved, and

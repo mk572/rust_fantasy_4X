@@ -49,8 +49,25 @@ pub(crate) fn outpost_shrink_chance(enchanted: impl Fn(&str) -> bool) -> i32 {
     shrink
 }
 
+/// What became of an outpost in a turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OutpostTurn {
+    Stays,
+    BecameCity,
+    /// It had no people left and is destroyed.
+    Lost,
+}
+
+/// Tens of people a new outpost starts with (`Outpost.c`).
+pub(crate) const OUTPOST_START_TENS: u32 = 3;
+
+/// Tens of people at which an outpost becomes a city of one (`NEXTTURN.c`). They are kept: the
+/// original does not reset them, so a new hamlet starts with a head start.
+pub(crate) const OUTPOST_CITY_TENS: u32 = 10;
+
 /// One turn of an outpost: by chance it gains up to three tens of people, and by another chance
-/// it loses up to two; at 100 tens it becomes a city of one. The draws are in this order.
+/// it loses up to two; at [`OUTPOST_CITY_TENS`] it becomes a city of one. The draws are in this
+/// order. An outpost left with no people is not changed here: see [`Game::grow_outpost`].
 pub(crate) fn outpost_step(
     mut pop: Population,
     grow: i32,
@@ -63,9 +80,8 @@ pub(crate) fn outpost_step(
     if rng.roll(100) as i32 <= shrink {
         pop.tens = pop.tens.saturating_sub(rng.roll(2));
     }
-    if pop.tens >= 100 {
+    if pop.tens >= OUTPOST_CITY_TENS {
         pop.figures = 1;
-        pop.tens -= 100;
     }
     pop
 }
@@ -83,10 +99,10 @@ impl Game {
         (pop.figures, grown.figures)
     }
 
-    /// Outposts grow a few tens of people at a time, by chance.
-    pub(crate) fn grow_outpost(&mut self, city: hecs::Entity) -> bool {
+    /// Outposts grow a few tens of people at a time, by chance. One left with none is lost.
+    pub(crate) fn grow_outpost(&mut self, city: hecs::Entity) -> OutpostTurn {
         if self.world.get::<&Position>(city).is_err() {
-            return false;
+            return OutpostTurn::Stays;
         }
         let grow = self.economy().outpost_growth_chance(city);
         let shrink = outpost_shrink_chance(|name| self.economy().city_has_enchantment(city, name));
@@ -97,7 +113,13 @@ impl Game {
             .unwrap_or_default();
         let pop = outpost_step(pop, grow, shrink, &mut self.rng);
         let _ = self.world.insert_one(city, pop);
-        pop.figures > 0
+        if pop.figures > 0 {
+            OutpostTurn::BecameCity
+        } else if pop.tens == 0 {
+            OutpostTurn::Lost
+        } else {
+            OutpostTurn::Stays
+        }
     }
 
     /// Found a city (or outpost, with no population) with all its economic components.
@@ -115,7 +137,10 @@ impl Game {
             City { name },
             crate::player::Owner(self.player_entity(owner).expect("a city has an owner")),
             pos,
-            Population { figures, tens: 0 },
+            Population {
+                figures,
+                tens: if figures == 0 { OUTPOST_START_TENS } else { 0 },
+            },
             Farmers(0),
             Buildings::default(),
             Production {

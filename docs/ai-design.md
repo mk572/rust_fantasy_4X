@@ -569,8 +569,10 @@ Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wi
 1. **The AI hardly fights.** Most two-wizard games have 0 or 1 war and 0 to 4 cities taken in 300 turns.
    Armies march only when they are well ahead (`military.rs` thresholds), nobody proposes peace or a
    pact (task 361), and a war once declared never ends. Wins by conquest are rare (one in eight).
-2. **Expansion stops at 5 to 7 cities, and outposts are slow.** An outpost gains about 0.4 tens a turn
-   and needs 100 (planned item 21); with `WANTED_CITIES` met, a wizard stops settling. Land is often
+2. **Expansion stops at 5 to 7 cities, and outposts are slow.** **Fixed 24 October 2026, not
+   yet re-measured:** an outpost gains about 0.4 tens a turn and needed 100, ten times the original's 10
+   (and started at 0 instead of 3), so the baseline above is too slow on outposts; run the soak again
+   (planned item 21 is now only an option). With `WANTED_CITIES` met, a wizard stops settling. Land is often
    left free. Housing does nothing in an outpost (it makes no production).
 3. **Overland magic is thin.** The AI casts summons, unit and city buffs, a few global buffs, Earth Lore,
    Nature's Cures, Resurrection and the Spell of Mastery. It never casts a curse or an attack on a city

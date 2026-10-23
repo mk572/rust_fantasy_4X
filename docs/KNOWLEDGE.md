@@ -40,3 +40,8 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   `reachable_squares` and `find_path` now take a unit's `StepProfile` once and remember which squares stop
   the walk. Do the same for any new search: take what does not depend on the square out of the loop.
 
+- **An outpost becomes a city at 10 tens, not 100.** ReMoM's `Apply_City_Changes` promotes at
+  `Pop_10s >= 10` and keeps the tens, a new outpost starts with 3 (`Outpost.c`), and one at 0 or less is
+  destroyed. We used 100, start 0 and no death, which made outposts about ten times too slow (about 230
+  turns instead of 16) and looked like an AI problem in the soak ("most outposts are still outposts after
+  200 turns"). When a number of the engine looks off in a soak, check the original's constant first.
