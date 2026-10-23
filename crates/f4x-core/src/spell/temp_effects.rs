@@ -14,14 +14,14 @@ use crate::rules::{ModOp, Modifier, Source, Stat};
 use crate::unit::UnitView;
 use hecs::World;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TempKind {
     Modifier { stat: Stat, op: ModOp, value: i32 },
     Grant(String),
     Remove(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TempEffect {
     pub kind: TempKind,
     /// Turns left, counted down once per turn change; `None` never runs out.

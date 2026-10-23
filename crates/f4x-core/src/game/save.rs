@@ -13,6 +13,8 @@
 //! the same snapshots. The random stream is resumed from the seed and the number of values
 //! drawn so far.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::city::economy::{Buildings, CityRace, Farmers, Population};
@@ -23,6 +25,7 @@ use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
 use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
+use crate::spell::instance::{Caster, Owed, SpellCast, SpellTarget};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
 
@@ -36,8 +39,9 @@ use crate::wizard::sheet::{
     Books, Candidates, KnownSpells, PowerSplit, Research, Retorts, Skill, WizardMut,
 };
 
-/// Bumped when the snapshot layout changes in a way old files cannot be read.
-pub const SAVE_VERSION: u32 = 1;
+/// Bumped when the snapshot layout changes in a way old files cannot be read. Version 2 saves each
+/// kind of entity as its own list (`docs/ecs-structure.md` section 3.9).
+pub const SAVE_VERSION: u32 = 2;
 
 /// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -67,15 +71,21 @@ pub struct Snapshot {
     pub prefab_taken: Vec<String>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
+    /// The player entities, in the order of their ids.
     pub players: Vec<PlayerSave>,
+    /// The wizard entities, one for each player that is no neutral player.
+    pub wizards: Vec<WizardSave>,
     /// The game's heroes, one of each type.
     pub heroes: Vec<HeroSave>,
+    /// The units, oldest first. A unit with the creation number of a hero is that hero's body.
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
-    /// The magic items, oldest first, with who holds each.
-    pub items: Vec<MagicItemSave>,
     /// The towers, nodes, encounter sites and volcanoes, oldest first.
     pub features: Vec<FeatureSave>,
+    /// The magic items, oldest first, with who holds each.
+    pub items: Vec<MagicItemSave>,
+    /// The spells that last or are being paid for, oldest first.
+    pub spells: Vec<SpellSave>,
     /// The battle being fought, if the game was saved in one. The world above is the world the
     /// battle is fought in.
     #[serde(default)]
@@ -150,44 +160,43 @@ pub struct FogSave {
     pub players: Vec<(u8, Vec<u8>, Vec<u8>)>,
 }
 
+/// A player entity: what it owns and does. Its wizard, if it has one, is a [`WizardSave`] with
+/// the same id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerSave {
     pub id: u8,
-    pub name: String,
     pub gold: i32,
     pub mana: i32,
     pub tax_rate: u8,
     /// The Grand Vizier chooses what the cities build.
     pub grand_vizier: bool,
-    /// An independent city's player.
+    /// An independent city's player: it has no wizard.
     pub neutral: bool,
     /// The wizard's power over the turns.
     pub history: Vec<u8>,
-    pub capital_race: Option<String>,
-    pub fame: i32,
-    pub magic: MagicSave,
     /// The offers waiting for an answer.
     pub offers: Vec<crate::player::offer::Offer>,
-    pub fortress: Option<Position>,
-    pub summon_at: Option<Position>,
-    pub banished: bool,
-    pub banished_by: Option<u8>,
     pub defeated: bool,
     pub defeated_by: Option<u8>,
-    /// The player's colour.
-    pub banner: Option<u8>,
-    /// The player's picture.
-    pub portrait: Option<u8>,
-    #[serde(default)]
-    pub gender: crate::text::Gender,
 }
 
-/// A wizard's books, retorts, spells and casting; spells are saved by id.
+/// A wizard entity: what the creation screen makes and what follows from it. Spells are saved by
+/// id; the wizard's lasting spells and the cast in progress are [`SpellSave`]s.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MagicSave {
+pub struct WizardSave {
+    /// The id of the player the wizard plays as.
+    pub player: u8,
+    pub name: String,
+    #[serde(default)]
+    pub gender: crate::text::Gender,
+    pub portrait: u8,
+    pub banner: u8,
+    pub capital_race: Option<String>,
+    pub fame: i32,
     pub books: Vec<(String, u8)>,
     pub retorts: Vec<Retort>,
     pub skill_points: i32,
+    pub skill_left: i32,
     pub mana_pct: u8,
     pub research_pct: u8,
     pub skill_pct: u8,
@@ -197,55 +206,51 @@ pub struct MagicSave {
     pub candidates: Vec<String>,
     pub researching: Option<String>,
     pub research_remaining: i32,
-    /// `(spell, mana still to pay, creation number)`.
-    pub casting: Option<(String, i32, u64)>,
-    /// `(spell, creation number)` of the lasting spells on the world.
-    pub global: Vec<(String, u64)>,
-    pub skill_left: i32,
+    pub fortress: Option<Position>,
+    pub summon_at: Option<Position>,
+    pub banished: bool,
+    pub banished_by: Option<u8>,
 }
 
-impl Default for MagicSave {
-    fn default() -> Self {
-        let split = PowerSplit::default();
-        Self {
-            books: Vec::new(),
-            retorts: Vec::new(),
-            skill_points: 0,
-            mana_pct: split.mana,
-            research_pct: split.research,
-            skill_pct: split.skill,
-            known: Vec::new(),
-            researchable: Vec::new(),
-            candidates: Vec::new(),
-            researching: None,
-            research_remaining: 0,
-            casting: None,
-            global: Vec::new(),
-            skill_left: 0,
-        }
-    }
+/// A spell instance: a spell that lasts, or the cast a wizard is paying for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellSave {
+    pub serial: u64,
+    pub spell: String,
+    /// The player of the wizard who cast it.
+    pub caster: u8,
+    pub target: SpellTargetSave,
+    /// The mana still to pay, on a cast in progress (which is aimed at its own caster).
+    pub owed: Option<i32>,
 }
 
-/// A spell of a wizard read from a save, made once the creation numbers are checked: a lasting
-/// spell on the world, or the cast in progress with the mana owed.
-struct PendingSpell {
-    spell: SpellId,
-    serial: u64,
-    cast: Option<i32>,
+/// What a spell is on: a player id for a wizard, a creation number for the other entities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpellTargetSave {
+    Global,
+    Wizard(u8),
+    City(u64),
+    Unit(u64),
+    Feature(u64),
 }
 
-impl MagicSave {
-    /// What the wizard's components hold (the default for a player without a wizard).
-    fn of(wizard: Option<Wizard<'_>>, rules: &crate::rules::Rules) -> Self {
-        let Some(w) = wizard else {
-            return Self::default();
-        };
+impl WizardSave {
+    /// What the wizard's components hold.
+    fn of(id: PlayerId, w: Wizard<'_>, rules: &crate::rules::Rules) -> Self {
         let name = |s: &SpellId| rules.spells.get(*s).id.clone();
         let split = w.power_split();
         Self {
+            player: id.0,
+            name: w.name(),
+            gender: w.gender(),
+            portrait: w.portrait(),
+            banner: w.banner(),
+            capital_race: w.capital_race().map(|r| rules.races.get(r).id.clone()),
+            fame: w.fame(),
             books: w.books().into_iter().collect(),
             retorts: w.retorts().into_iter().collect(),
             skill_points: w.skill_points(),
+            skill_left: w.skill_left(),
             mana_pct: split.mana,
             research_pct: split.research,
             skill_pct: split.skill,
@@ -254,29 +259,15 @@ impl MagicSave {
             candidates: w.candidates().iter().map(name).collect(),
             researching: w.researching().as_ref().map(name),
             research_remaining: w.research_remaining(),
-            casting: w.casting().and_then(|c| {
-                let cast = w.cast_instance()?;
-                let serial = *w.world().get::<&Serial>(cast).ok()?;
-                Some((name(&c.spell), c.remaining, serial.0))
-            }),
-            global: w
-                .global_instances()
-                .iter()
-                .map(|(s, serial)| (name(s), serial.0))
-                .collect(),
-            skill_left: w.skill_left(),
+            fortress: w.fortress(),
+            summon_at: w.summon_at(),
+            banished: w.is_banished(),
+            banished_by: w.banished_by().map(|d| d.0),
         }
     }
 
-    /// Put the saved magic on the wizard's components.
-    /// Returns the lasting spells on the world, which the caller makes once the creation
-    /// numbers are checked.
-    fn put(
-        self,
-        mut wizard: WizardMut<'_>,
-        rules: &crate::rules::Rules,
-    ) -> Result<Vec<PendingSpell>, LoadError> {
-        let m = self;
+    /// Put the saved sheet on the wizard's components.
+    fn put(self, mut wizard: WizardMut<'_>, rules: &crate::rules::Rules) -> Result<(), LoadError> {
         let id = |s: &String| {
             rules
                 .spells
@@ -284,58 +275,47 @@ impl MagicSave {
                 .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))
         };
         let ids = |v: &[String]| v.iter().map(id).collect::<Result<Vec<_>, _>>();
-        let mut pending = m
-            .global
-            .iter()
-            .map(|(s, serial)| {
-                id(s).map(|spell| PendingSpell {
-                    spell,
-                    serial: *serial,
-                    cast: None,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if let Some((s, owed, serial)) = m.casting {
-            pending.push(PendingSpell {
-                spell: id(&s)?,
-                serial,
-                cast: Some(owed),
-            });
-        }
-        if u32::from(m.mana_pct) + u32::from(m.research_pct) + u32::from(m.skill_pct) != 100 {
+        if u32::from(self.mana_pct) + u32::from(self.research_pct) + u32::from(self.skill_pct)
+            != 100
+        {
             return Err(LoadError::Inconsistent(
                 "power split does not add up to 100".into(),
             ));
         }
-        let known: std::collections::BTreeSet<SpellId> = ids(&m.known)?.into_iter().collect();
+        let known: std::collections::BTreeSet<SpellId> = ids(&self.known)?.into_iter().collect();
         let researchable: std::collections::BTreeSet<SpellId> =
-            ids(&m.researchable)?.into_iter().collect();
+            ids(&self.researchable)?.into_iter().collect();
         if known.intersection(&researchable).next().is_some() {
             return Err(LoadError::Inconsistent(
                 "a spell is both known and researchable".into(),
             ));
         }
-        *wizard.get_mut::<Books>() = Books(m.books.into_iter().collect());
-        *wizard.get_mut::<Retorts>() = Retorts(m.retorts.into_iter().collect());
+        wizard.put(self.fortress.map(Fortress));
+        wizard.put(self.summon_at.map(SummonAt));
+        wizard.put(self.banished.then(|| Banishment {
+            by: self.banished_by.map(PlayerId),
+        }));
+        *wizard.get_mut::<Books>() = Books(self.books.into_iter().collect());
+        *wizard.get_mut::<Retorts>() = Retorts(self.retorts.into_iter().collect());
         *wizard.get_mut::<Skill>() = Skill {
-            points: m.skill_points,
-            left: m.skill_left,
+            points: self.skill_points,
+            left: self.skill_left,
         };
         *wizard.get_mut::<PowerSplit>() = PowerSplit {
-            mana: m.mana_pct,
-            research: m.research_pct,
-            skill: m.skill_pct,
+            mana: self.mana_pct,
+            research: self.research_pct,
+            skill: self.skill_pct,
         };
         *wizard.get_mut::<KnownSpells>() = KnownSpells {
             known,
             researchable,
         };
-        *wizard.get_mut::<Candidates>() = Candidates(ids(&m.candidates)?);
+        *wizard.get_mut::<Candidates>() = Candidates(ids(&self.candidates)?);
         *wizard.get_mut::<Research>() = Research {
-            spell: m.researching.as_ref().map(id).transpose()?,
-            remaining: m.research_remaining,
+            spell: self.researching.as_ref().map(id).transpose()?,
+            remaining: self.research_remaining,
         };
-        Ok(pending)
+        Ok(())
     }
 }
 
@@ -361,82 +341,30 @@ pub struct UnitSave {
     /// Weapon quality (`unit::WeaponQuality`).
     pub weapon: u8,
     pub moves: u32,
-    pub order: Option<Vec<Position>>,
-    /// `(spell, caster, creation number)`.
-    pub enchantments: Vec<(String, u8, u64)>,
-    /// Road work in progress: `(square, turns left, squares still to do)`.
-    pub road_work: Option<(Position, u8, Vec<Position>)>,
+    pub order: Option<Order>,
+    /// Road work in progress.
+    pub road_work: Option<crate::map::road::RoadWork>,
     /// Creation number of the ship the unit is aboard.
     pub aboard: Option<u64>,
     /// The unit was made undead (`unit/undead.rs`).
     pub undead: bool,
     /// Done or Patrol (the main screen's buttons).
     pub standby: Option<crate::unit::Standby>,
-    /// Held in Stasis: 0 no, 1 just put there, 2 lingering.
-    pub stasis: u8,
+    pub stasis: Option<crate::unit::stasis::Stasis>,
     /// Temporary modifiers and abilities.
-    pub effects: Vec<TempSave>,
-    /// A hero's own record; none for other units.
-    pub hero: Option<crate::hero::Hero>,
+    pub effects: Vec<crate::spell::temp_effects::TempEffect>,
     /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
     pub marooned: bool,
 }
 
-/// A temporary effect as saved; stats are named by their own serialisation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TempSave {
-    pub kind: TempKindSave,
-    pub turns: Option<u16>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TempKindSave {
-    Modifier {
-        stat: crate::rules::Stat,
-        op: crate::rules::ModOp,
-        value: i32,
-    },
-    Grant(String),
-    Remove(String),
-}
-
-fn effects_save(game: &Game, e: hecs::Entity) -> Vec<TempSave> {
-    use crate::spell::temp_effects::TempKind;
-    game.units()
-        .temp_effects(e)
-        .into_iter()
-        .map(|t| TempSave {
-            kind: match t.kind {
-                TempKind::Modifier { stat, op, value } => {
-                    TempKindSave::Modifier { stat, op, value }
-                }
-                TempKind::Grant(a) => TempKindSave::Grant(a),
-                TempKind::Remove(a) => TempKindSave::Remove(a),
-            },
-            turns: t.turns,
-        })
-        .collect()
-}
-
-fn effects_load(world: &mut hecs::World, e: hecs::Entity, list: Vec<TempSave>) {
-    use crate::spell::temp_effects::{TempEffect, TempEffects, TempKind};
-    if list.is_empty() {
-        return;
+fn effects_load(
+    world: &mut hecs::World,
+    e: hecs::Entity,
+    list: Vec<crate::spell::temp_effects::TempEffect>,
+) {
+    if !list.is_empty() {
+        let _ = world.insert_one(e, crate::spell::temp_effects::TempEffects(list));
     }
-    let list = list
-        .into_iter()
-        .map(|t| TempEffect {
-            kind: match t.kind {
-                TempKindSave::Modifier { stat, op, value } => {
-                    TempKind::Modifier { stat, op, value }
-                }
-                TempKindSave::Grant(a) => TempKind::Grant(a),
-                TempKindSave::Remove(a) => TempKind::Remove(a),
-            },
-            turns: t.turns,
-        })
-        .collect();
-    let _ = world.insert_one(e, TempEffects(list));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -458,14 +386,12 @@ pub struct CitySave {
     pub farmers: u32,
     pub race: Option<String>,
     pub buildings: Vec<String>,
-    /// `(spell, caster, creation number)`.
-    pub enchantments: Vec<(String, u8, u64)>,
     /// The realms a Spell Ward guards the city against.
     pub wards: Vec<String>,
     pub item: Option<ItemSave>,
     pub progress: u32,
     /// Temporary modifiers.
-    pub effects: Vec<TempSave>,
+    pub effects: Vec<crate::spell::temp_effects::TempEffect>,
     /// Taken this turn by this player, who may still raze it.
     pub conquered: Option<u8>,
     /// A building was sold this turn.
@@ -478,8 +404,13 @@ pub struct CitySave {
 pub enum LoadError {
     /// The text is not a valid snapshot.
     Parse(String),
-    /// The file was written by a different version of the game.
+    /// The file was written with a different save layout.
     Version { found: u32, supported: u32 },
+    /// The file was written by a different version of the game.
+    GameVersion {
+        found: String,
+        supported: &'static str,
+    },
     /// The save refers to content that is not loaded: `(kind, id)`.
     UnknownId(&'static str, String),
     /// The save contradicts itself.
@@ -495,6 +426,9 @@ impl std::fmt::Display for LoadError {
                     f,
                     "save version {found} is not supported (this game reads version {supported})"
                 )
+            }
+            LoadError::GameVersion { found, supported } => {
+                write!(f, "saved by {found}, this is {supported}")
             }
             LoadError::UnknownId(kind, id) => write!(
                 f,
@@ -558,6 +492,34 @@ impl Game {
             .collect();
         items.sort_by_key(|i| i.serial);
         items
+    }
+
+    /// The spell instances, oldest first.
+    fn spell_saves(&self) -> Vec<SpellSave> {
+        let spells = self.spells();
+        spells
+            .all()
+            .into_iter()
+            .filter_map(|i| {
+                let target = match spells.target(i)? {
+                    SpellTarget::Global => SpellTargetSave::Global,
+                    SpellTarget::Wizard(w) => SpellTargetSave::Wizard(
+                        crate::wizard::entity::player_id_of(&self.world, w)?.0,
+                    ),
+                    SpellTarget::City(e) => SpellTargetSave::City(self.serial_of(e).0),
+                    SpellTarget::Unit(e) => SpellTargetSave::Unit(self.serial_of(e).0),
+                    SpellTarget::Feature(e) => SpellTargetSave::Feature(self.serial_of(e).0),
+                    SpellTarget::Battlefield => return None,
+                };
+                Some(SpellSave {
+                    serial: self.serial_of(i).0,
+                    spell: self.content.rules.spells.get(spells.def(i)?).id.clone(),
+                    caster: spells.caster_player(i)?.0,
+                    target,
+                    owed: self.world.get::<&Owed>(i).ok().map(|o| o.0),
+                })
+            })
+            .collect()
     }
 
     /// The feature entities, oldest first.
@@ -710,7 +672,6 @@ impl Game {
             .iter()
             .map(|id| PlayerSave {
                 id: id.0,
-                name: self.player_name(*id),
                 gold: self.treasury(*id).map_or(0, |t| t.gold),
                 mana: self.treasury(*id).map_or(0, |t| t.mana),
                 tax_rate: self.player_component::<Tax>(*id).map_or(0, |t| t.0),
@@ -719,23 +680,15 @@ impl Game {
                 history: self
                     .player_component::<History>(*id)
                     .map_or_else(Vec::new, |h| h.0.clone()),
-                capital_race: self
-                    .wizard(*id)
-                    .and_then(|w| w.capital_race())
-                    .map(|r| rules.races.get(r).id.clone()),
-                fame: self.wizard(*id).map_or(0, |w| w.fame()),
-                magic: MagicSave::of(self.wizard(*id), rules),
                 offers: self.offers(*id),
-                fortress: self.wizard(*id).and_then(|w| w.fortress()),
-                summon_at: self.wizard(*id).and_then(|w| w.summon_at()),
-                banished: self.wizard(*id).is_some_and(|w| w.is_banished()),
-                banished_by: self.wizard(*id).and_then(|w| w.banished_by()).map(|d| d.0),
                 defeated: self.is_defeated(*id),
                 defeated_by: self.defeat_by(*id).map(|d| d.0),
-                banner: Some(self.banner(*id)),
-                portrait: Some(self.portrait(*id)),
-                gender: self.wizard(*id).map(|w| w.gender()).unwrap_or_default(),
             })
+            .collect();
+        let wizards = self
+            .player_ids()
+            .iter()
+            .filter_map(|id| Some(WizardSave::of(*id, self.wizard(*id)?, rules)))
             .collect();
         let units = self
             .units()
@@ -751,16 +704,7 @@ impl Game {
                     xp: self.world.get::<&Experience>(u).map_or(0, |x| x.0),
                     weapon: self.units().unit_weapon_quality(u),
                     moves: self.units().unit_moves_left(u),
-                    order: self.world.get::<&Order>(u).ok().map(|o| {
-                        let Order::GoTo(path) = &*o;
-                        path.clone()
-                    }),
-                    enchantments: self
-                        .spells()
-                        .unit_instances(u)
-                        .into_iter()
-                        .map(|(s, p, serial)| (rules.spells.get(s).id.clone(), p.0, serial.0))
-                        .collect(),
+                    order: self.world.get::<&Order>(u).ok().map(|o| (*o).clone()),
                     aboard: self
                         .world
                         .get::<&crate::unit::transport::Aboard>(u)
@@ -770,29 +714,19 @@ impl Game {
                         .world
                         .get::<&crate::map::road::RoadWork>(u)
                         .ok()
-                        .map(|w| (w.at, w.left, w.rest.clone())),
-                    effects: effects_save(self, u),
-                    hero: self
-                        .world
-                        .get::<&crate::hero::Hero>(u)
-                        .ok()
-                        .map(|h| (*h).clone()),
+                        .map(|w| (*w).clone()),
+                    effects: self.units().temp_effects(u),
                     undead: self.units().unit_is_undead(u),
                     standby: self.units().unit_standby(u),
                     marooned: self
                         .world
                         .get::<&crate::unit::transport::Marooned>(u)
                         .is_ok(),
-                    stasis: match self
+                    stasis: self
                         .world
                         .get::<&crate::unit::stasis::Stasis>(u)
                         .ok()
-                        .map(|s| *s)
-                    {
-                        None => 0,
-                        Some(crate::unit::stasis::Stasis::Fresh) => 1,
-                        Some(crate::unit::stasis::Stasis::Lingering) => 2,
-                    },
+                        .map(|s| *s),
                 })
             })
             .collect();
@@ -842,16 +776,10 @@ impl Game {
                                 .collect()
                         })
                         .unwrap_or_default(),
-                    enchantments: self
-                        .spells()
-                        .city_instances(e)
-                        .into_iter()
-                        .map(|(s, p, serial)| (rules.spells.get(s).id.clone(), p.0, serial.0))
-                        .collect(),
                     wards: self.economy().city_wards(e),
                     item: production.item.map(item_save),
                     progress: production.progress,
-                    effects: effects_save(self, e),
+                    effects: self.units().temp_effects(e),
                     conquered: self
                         .world
                         .get::<&crate::city::conquest::Conquered>(e)
@@ -886,8 +814,10 @@ impl Game {
             map,
             fog,
             players,
+            wizards,
             items: self.item_saves(),
             features: self.feature_saves(),
+            spells: self.spell_saves(),
             heroes: self
                 .units()
                 .all_heroes()
@@ -908,27 +838,105 @@ impl Game {
     }
 }
 
+/// Just the version fields of a save, read before the rest so that a file of another layout is
+/// refused for its version and not for whatever it fails to parse as. The structs carry the names
+/// of the ones they stand for, which RON checks.
+mod header {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    pub struct Snapshot {
+        pub version: u32,
+        #[serde(default)]
+        pub game_version: String,
+    }
+
+    #[derive(Deserialize)]
+    pub struct Replay {
+        pub version: u32,
+        pub start: Snapshot,
+    }
+}
+
+/// Whether a save is as the game wrote it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Integrity {
+    Intact,
+    /// The text differs from what the checksum in its first line was made from: someone edited it.
+    Edited,
+    /// The first line carries no checksum.
+    Unsigned,
+}
+
+/// A 64-bit FNV-1a hash of the text. It catches an edit, not a forger: the game does not stop
+/// anyone from editing a save, it only says so.
+fn checksum(text: &str) -> u64 {
+    text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+/// Refuse a save or replay made by another save layout or another version of the game.
+fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
+    if version != SAVE_VERSION {
+        return Err(LoadError::Version {
+            found: version,
+            supported: SAVE_VERSION,
+        });
+    }
+    match game_version {
+        GAME_VERSION => Ok(()),
+        "" => Err(LoadError::GameVersion {
+            found: "an unknown version".into(),
+            supported: GAME_VERSION,
+        }),
+        other => Err(LoadError::GameVersion {
+            found: other.to_string(),
+            supported: GAME_VERSION,
+        }),
+    }
+}
+
+pub(crate) fn check_snapshot_text(text: &str) -> Result<(), LoadError> {
+    let h: header::Snapshot = ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
+    check_versions(h.version, &h.game_version)
+}
+
+pub(crate) fn check_replay_text(text: &str) -> Result<(), LoadError> {
+    let h: header::Replay = ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
+    check_versions(h.version, &h.start.game_version)
+}
+
 impl Snapshot {
-    /// The snapshot as readable text.
+    /// The snapshot as readable text. The first line names the versions and carries the checksum
+    /// of the rest.
     pub fn to_text(&self) -> Result<String, LoadError> {
         let body =
             ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default().depth_limit(8))
                 .map_err(|e| LoadError::Parse(e.to_string()))?;
+        let body = format!("{body}\n");
         Ok(format!(
-            "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}\n{body}\n"
+            "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}, checksum {:016x}\n{body}",
+            checksum(&body)
         ))
     }
 
-    pub fn from_text(text: &str) -> Result<Self, LoadError> {
-        let snapshot: Snapshot =
-            ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
-        if snapshot.version != SAVE_VERSION {
-            return Err(LoadError::Version {
-                found: snapshot.version,
-                supported: SAVE_VERSION,
-            });
+    /// Whether `text` is as `to_text` wrote it. A save that was edited still loads; the caller
+    /// says so.
+    pub fn integrity(text: &str) -> Integrity {
+        let Some((first, body)) = text.split_once('\n') else {
+            return Integrity::Unsigned;
+        };
+        match first.rsplit_once("checksum ") {
+            Some((_, sum)) if sum.trim() == format!("{:016x}", checksum(body)) => Integrity::Intact,
+            Some(_) => Integrity::Edited,
+            None => Integrity::Unsigned,
         }
-        Ok(snapshot)
+    }
+
+    pub fn from_text(text: &str) -> Result<Self, LoadError> {
+        check_snapshot_text(text)?;
+        ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))
     }
 
     /// Rebuild the game, resolving every id against `content`.
@@ -949,88 +957,100 @@ impl Snapshot {
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);
-        let mut pending = Vec::new();
 
         game.map = self
             .map
             .map(|m| restore_map(m, &game.content))
             .transpose()?;
         game.fog = restore_fog(self.fog, game.map.as_ref())?;
+        let mut wizards: std::collections::BTreeMap<u8, WizardSave> = BTreeMap::new();
+        for w in self.wizards {
+            let id = w.player;
+            if wizards.insert(id, w).is_some() {
+                return Err(LoadError::Inconsistent(format!(
+                    "player {id} has two wizards"
+                )));
+            }
+        }
         for p in self.players {
-            if game.player_entity(PlayerId(p.id)).is_some() {
+            let id = PlayerId(p.id);
+            if game.player_entity(id).is_some() {
                 return Err(LoadError::Inconsistent(format!(
                     "player {} appears twice",
                     p.id
                 )));
             }
-            let capital_race = p
-                .capital_race
-                .map(|r| {
-                    game.content
-                        .rules
-                        .races
-                        .id_of(&r)
-                        .ok_or(LoadError::UnknownId("race", r))
-                })
-                .transpose()?;
-            let id = PlayerId(p.id);
-            let (name, banner, portrait) = (
-                p.name,
-                p.banner
-                    .unwrap_or(if p.id == u8::MAX {
-                        crate::player::NEUTRAL_BANNER
-                    } else {
-                        p.id % crate::player::BANNER_CHOICES
-                    })
-                    .min(crate::player::NEUTRAL_BANNER),
-                p.portrait
-                    .unwrap_or(p.id % crate::player::PORTRAITS)
-                    .min(crate::player::PORTRAITS - 1),
-            );
-            let neutral = p.neutral;
-            let (gold, mana, tax_rate, grand_vizier) = (p.gold, p.mana, p.tax_rate, p.grand_vizier);
-            let (history, offers) = (p.history, p.offers);
-            let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
-            let (fame, magic) = (p.fame, p.magic);
-            let (fortress, summon_at) = (p.fortress, p.summon_at);
-            let banishment = p.banished.then(|| Banishment {
-                by: p.banished_by.map(PlayerId),
-            });
-            let entity = if neutral {
-                game.add_neutral_player(id)
-            } else {
-                game.add_player(id, name)
+            let wizard = wizards.remove(&p.id);
+            let entity = match (&wizard, p.neutral) {
+                (None, true) => game.add_neutral_player(id),
+                (Some(w), false) => game.add_player(id, w.name.clone()),
+                (Some(_), true) => {
+                    return Err(LoadError::Inconsistent(format!(
+                        "neutral player {} has a wizard",
+                        p.id
+                    )))
+                }
+                (None, false) => {
+                    return Err(LoadError::Inconsistent(format!(
+                        "player {} has no wizard",
+                        p.id
+                    )))
+                }
             };
             let _ = game.world.insert(
                 entity,
                 (
-                    Treasury { gold, mana },
-                    Tax(tax_rate),
-                    History(history),
-                    Offers(offers),
+                    Treasury {
+                        gold: p.gold,
+                        mana: p.mana,
+                    },
+                    Tax(p.tax_rate),
+                    History(p.history),
+                    Offers(p.offers),
                 ),
             );
-            if !neutral {
+            if let Some(w) = wizard {
+                let capital_race = w
+                    .capital_race
+                    .as_ref()
+                    .map(|r| {
+                        game.content
+                            .rules
+                            .races
+                            .id_of(r)
+                            .ok_or_else(|| LoadError::UnknownId("race", r.clone()))
+                    })
+                    .transpose()?;
+                let (fame, banner, portrait, gender) = (
+                    w.fame,
+                    w.banner.min(crate::player::NEUTRAL_BANNER),
+                    w.portrait.min(crate::player::PORTRAITS - 1),
+                    w.gender,
+                );
                 game.set_fame(id, fame);
                 let rules = &game.content.rules;
                 let entity = crate::wizard::entity::of_player(&game.world, entity)
                     .ok_or_else(|| LoadError::Inconsistent("a wizard without its entity".into()))?;
-                let mut wizard = WizardMut::new(&mut game.world, entity);
-                wizard.put(fortress.map(Fortress));
-                wizard.put(summon_at.map(SummonAt));
-                wizard.put(banishment);
-                for spell in magic.put(wizard, rules)? {
-                    pending.push((entity, spell));
-                }
+                w.put(WizardMut::new(&mut game.world, entity), rules)?;
+                game.wizard_set(id, Banner(banner));
+                game.wizard_set(id, Portrait(portrait));
+                game.wizard_set(id, gender);
+                game.wizard_set(id, CapitalRace(capital_race));
             }
-            game.set_grand_vizier(id, grand_vizier);
-            if defeated {
-                let _ = game.world.insert_one(entity, Defeat { by: defeated_by });
+            game.set_grand_vizier(id, p.grand_vizier);
+            if p.defeated {
+                let _ = game.world.insert_one(
+                    entity,
+                    Defeat {
+                        by: p.defeated_by.map(PlayerId),
+                    },
+                );
             }
-            game.wizard_set(id, Banner(banner));
-            game.wizard_set(id, Portrait(portrait));
-            game.wizard_set(id, p.gender);
-            game.wizard_set(id, CapitalRace(capital_race));
+        }
+        if let Some(id) = wizards.keys().next() {
+            return Err(LoadError::Inconsistent(format!(
+                "a wizard plays as the missing player {id}"
+            )));
         }
         game.set_human(self.human.map(PlayerId));
 
@@ -1109,24 +1129,6 @@ impl Snapshot {
             }
             game.make_hero_with(serial, h.hero, h.state, h.xp);
         }
-        for (caster, p) in pending {
-            let serial = take(p.serial, "a spell of a wizard")?;
-            let target = match p.cast {
-                None => crate::spell::instance::SpellTarget::Global,
-                Some(_) => crate::spell::instance::SpellTarget::Wizard(caster),
-            };
-            let instance = game.world.spawn((
-                crate::spell::instance::SpellCast { def: p.spell },
-                crate::spell::instance::Caster(caster),
-                target,
-                serial,
-            ));
-            if let Some(owed) = p.cast {
-                let _ = game
-                    .world
-                    .insert_one(instance, crate::spell::instance::Owed(owed));
-            }
-        }
         let in_map = |game: &Game, pos: Position| -> bool {
             game.map
                 .as_ref()
@@ -1136,15 +1138,11 @@ impl Snapshot {
         units.sort_by_key(|u| u.serial);
         for u in units {
             // A hero's body is its own entity already, made with its serial.
-            let hero_entity = match &u.hero {
-                Some(h) => Some(
-                    game.units()
-                        .hero_entity(h.kind)
-                        .filter(|&e| game.serial_of(e).0 == u.serial)
-                        .ok_or_else(|| LoadError::Inconsistent("a hero unit has no hero".into()))?,
-                ),
-                None => None,
-            };
+            let hero_entity = game
+                .units()
+                .all_heroes()
+                .into_iter()
+                .find(|&h| game.serial_of(h).0 == u.serial);
             let serial = match hero_entity {
                 Some(_) => Serial(u.serial),
                 None => take(u.serial, "a unit")?,
@@ -1211,49 +1209,14 @@ impl Snapshot {
                     .world
                     .insert_one(entity, crate::unit::transport::Marooned);
             }
-            match u.stasis {
-                1 => {
-                    let _ = game
-                        .world
-                        .insert_one(entity, crate::unit::stasis::Stasis::Fresh);
-                }
-                2 => {
-                    let _ = game
-                        .world
-                        .insert_one(entity, crate::unit::stasis::Stasis::Lingering);
-                }
-                _ => {}
+            if let Some(stasis) = u.stasis {
+                let _ = game.world.insert_one(entity, stasis);
             }
-            if let Some((at, left, rest)) = u.road_work {
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::map::road::RoadWork { at, left, rest });
+            if let Some(work) = u.road_work {
+                let _ = game.world.insert_one(entity, work);
             }
-            if let Some(path) = u.order {
-                let _ = game.world.insert_one(entity, Order::GoTo(path));
-            }
-            for (s, p, serial) in &u.enchantments {
-                let def = game
-                    .content
-                    .rules
-                    .spells
-                    .id_of(s)
-                    .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))?;
-                let serial = take(*serial, "a unit spell")?;
-                let wizard = game
-                    .wizard(PlayerId(*p))
-                    .map(|w| w.entity())
-                    .ok_or_else(|| {
-                        LoadError::Inconsistent(format!(
-                            "a spell on a unit cast by the missing player {p}"
-                        ))
-                    })?;
-                game.world.spawn((
-                    crate::spell::instance::SpellCast { def },
-                    crate::spell::instance::Caster(wizard),
-                    crate::spell::instance::SpellTarget::Unit(entity),
-                    serial,
-                ));
+            if let Some(order) = u.order {
+                let _ = game.world.insert_one(entity, order);
             }
         }
         // A hero serves exactly when it has its body.
@@ -1331,17 +1294,6 @@ impl Snapshot {
                         .ok_or(LoadError::UnknownId("building", b.clone()))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let enchantments = c
-                .enchantments
-                .iter()
-                .map(|(s, p, serial)| {
-                    rules
-                        .spells
-                        .id_of(s)
-                        .map(|id| (id, PlayerId(*p), *serial))
-                        .ok_or(LoadError::UnknownId("spell", s.clone()))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
             let item = c
                 .item
                 .map(|i| match i {
@@ -1385,21 +1337,6 @@ impl Snapshot {
             if let Some(r) = race {
                 let _ = game.world.insert_one(entity, CityRace(r));
             }
-            for (spell, caster, serial) in enchantments {
-                let serial = take(serial, "a city spell")?;
-                let wizard = game.wizard(caster).map(|w| w.entity()).ok_or_else(|| {
-                    LoadError::Inconsistent(format!(
-                        "a spell on a city cast by the missing player {}",
-                        caster.0
-                    ))
-                })?;
-                game.world.spawn((
-                    crate::spell::instance::SpellCast { def: spell },
-                    crate::spell::instance::Caster(wizard),
-                    crate::spell::instance::SpellTarget::City(entity),
-                    serial,
-                ));
-            }
             effects_load(&mut game.world, entity, c.effects);
             if !c.wards.is_empty() {
                 let _ = game
@@ -1418,6 +1355,83 @@ impl Snapshot {
                 let _ = game
                     .world
                     .insert_one(entity, crate::city::conquest::Conquered(by));
+            }
+        }
+        let by_serial: std::collections::HashMap<u64, hecs::Entity> = game
+            .world
+            .query::<&Serial>()
+            .iter()
+            .map(|(e, s)| (s.0, e))
+            .collect();
+        let mut owing = std::collections::BTreeSet::new();
+        let mut spells = self.spells;
+        spells.sort_by_key(|i| i.serial);
+        for i in spells {
+            let serial = take(i.serial, "a spell")?;
+            let def = game
+                .content
+                .rules
+                .spells
+                .id_of(&i.spell)
+                .ok_or_else(|| LoadError::UnknownId("spell", i.spell.clone()))?;
+            let caster = game
+                .wizard(PlayerId(i.caster))
+                .map(|w| w.entity())
+                .ok_or_else(|| {
+                    LoadError::Inconsistent(format!(
+                        "a spell cast by the missing player {}",
+                        i.caster
+                    ))
+                })?;
+            let on = |serial: u64, what: &str, has: &dyn Fn(hecs::Entity) -> bool| {
+                by_serial
+                    .get(&serial)
+                    .copied()
+                    .filter(|&e| has(e))
+                    .ok_or_else(|| {
+                        LoadError::Inconsistent(format!("a spell is on {what} that is not there"))
+                    })
+            };
+            let has =
+                |e: hecs::Entity, c: &dyn Fn(&hecs::World, hecs::Entity) -> bool| c(&game.world, e);
+            let target = match i.target {
+                SpellTargetSave::Global => SpellTarget::Global,
+                SpellTargetSave::Wizard(p) => {
+                    SpellTarget::Wizard(game.wizard(PlayerId(p)).map(|w| w.entity()).ok_or_else(
+                        || {
+                            LoadError::Inconsistent(
+                                "a spell is on a wizard who is not there".into(),
+                            )
+                        },
+                    )?)
+                }
+                SpellTargetSave::City(n) => SpellTarget::City(on(n, "a city", &|e| {
+                    has(e, &|w, e| w.satisfies::<&City>(e).unwrap_or(false))
+                })?),
+                SpellTargetSave::Unit(n) => SpellTarget::Unit(on(n, "a unit", &|e| {
+                    has(e, &|w, e| w.satisfies::<&Unit>(e).unwrap_or(false))
+                })?),
+                SpellTargetSave::Feature(n) => SpellTarget::Feature(on(n, "a feature", &|e| {
+                    has(e, &|w, e| {
+                        w.satisfies::<&Position>(e).unwrap_or(false)
+                            && (w
+                                .satisfies::<&crate::feature::entity::TerrainFeature>(e)
+                                .unwrap_or(false)
+                                || w.satisfies::<&crate::feature::entity::Volcano>(e)
+                                    .unwrap_or(false))
+                    })
+                })?),
+            };
+            let instance = game
+                .world
+                .spawn((SpellCast { def }, Caster(caster), target, serial));
+            if let Some(owed) = i.owed {
+                if target != SpellTarget::Wizard(caster) || !owing.insert(caster) {
+                    return Err(LoadError::Inconsistent(
+                        "a cast in progress is not the one of its own wizard".into(),
+                    ));
+                }
+                let _ = game.world.insert_one(instance, Owed(owed));
             }
         }
         for id in game.player_ids() {

@@ -232,14 +232,8 @@ impl Replay {
     }
 
     pub fn from_text(text: &str) -> Result<Self, ReplayError> {
-        let r: Replay = ron::from_str(text).map_err(|e| ReplayError::Load(e.to_string()))?;
-        if r.version != SAVE_VERSION {
-            return Err(ReplayError::Load(format!(
-                "replay version {} (this game reads {SAVE_VERSION})",
-                r.version
-            )));
-        }
-        Ok(r)
+        crate::game::save::check_replay_text(text).map_err(|e| ReplayError::Load(e.to_string()))?;
+        ron::from_str(text).map_err(|e| ReplayError::Load(e.to_string()))
     }
 
     /// Play the replay's first `count` commands into a game built from its start (all of them

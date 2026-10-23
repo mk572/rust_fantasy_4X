@@ -18,7 +18,7 @@ pub const ENCHANT_ROAD: &str = "enchant_road";
 pub const RIVER_BRIDGE_TURNS: u8 = 2;
 
 /// A stack of engineers at work.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RoadWork {
     /// The square being worked on.
     pub at: Position,

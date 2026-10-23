@@ -61,7 +61,7 @@ pub const WEAPON_ADAMANTIUM: u8 = 3;
 pub struct MovesLeft(pub u32);
 
 /// A standing order carried out at the start of each turn.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Order {
     /// Walk this path (the first entry is the next tile).
     GoTo(Vec<Position>),

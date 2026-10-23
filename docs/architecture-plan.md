@@ -127,6 +127,6 @@ pattern applies.
   diplomacy about a cast on another wizard's city: `begin_cast_relations`) must become either
   view questions or returned outcomes, or they will recreate the coupling inside the context.
 - **Event order** is observable (tests, replays, the learning AI's scenarios): keep it as it is.
-- **Save format** does not change; `game/save.rs` keeps mapping the structures.
+- **Save format** is version 2 (task 335): one list for each entity kind (`docs/ecs-structure.md` 3.9).
 - Do not start with a big move. Each domain moves one group of methods at a time, with the
   suite green after each.

@@ -235,7 +235,7 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
     let path = save_path(a)?;
     let content = ctx.game.content().clone();
-    let mut game = f4x_data::save::load_game(&path, content)
+    let (mut game, integrity) = f4x_data::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     game.ensure_human(ctx.session.player);
     game.set_undo(true);
@@ -245,6 +245,9 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         path.display(),
         ctx.game.turn
     ));
+    if integrity != f4x_core::game::save::Integrity::Intact {
+        ctx.say("warning: this save was edited since the game wrote it".to_string());
+    }
     Ok(())
 }
 

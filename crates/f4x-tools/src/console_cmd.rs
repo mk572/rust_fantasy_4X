@@ -45,7 +45,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())?;
     let mut game = match load {
         Some(path) => {
-            let mut g = f4x_data::save::load_game(&path, content).map_err(|e| e.to_string())?;
+            let (mut g, _) =
+                f4x_data::save::load_game(&path, content).map_err(|e| e.to_string())?;
             g.ensure_human(HUMAN);
             g
         }

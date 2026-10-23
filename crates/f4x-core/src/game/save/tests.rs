@@ -123,7 +123,7 @@ fn city_named(g: &Game, name: &str) -> hecs::Entity {
 fn a_snapshot_survives_text() {
     let snap = game().snapshot();
     let text = snap.to_text().unwrap();
-    assert!(text.starts_with("// f4x save, version 1"));
+    assert!(text.starts_with("// f4x save, version 2"));
     assert_eq!(Snapshot::from_text(&text).unwrap(), snap);
 }
 
@@ -537,4 +537,81 @@ fn a_spell_on_a_unit_stays_through_a_save() {
     let again = back.units().player_units(P0)[0];
     assert_eq!(back.units().unit_enchantments(again), vec![(spell, P0)]);
     assert_eq!(back.snapshot(), g.snapshot());
+}
+
+#[test]
+fn a_save_from_another_game_version_is_refused_by_name() {
+    let text = game().snapshot().to_text().unwrap();
+    let old = text.replace(
+        &format!("game_version: \"{}\"", crate::game::save::GAME_VERSION),
+        "game_version: \"0.0.1\"",
+    );
+    assert_ne!(old, text);
+    let err = Snapshot::from_text(&old).err().unwrap();
+    assert_eq!(
+        err,
+        LoadError::GameVersion {
+            found: "0.0.1".into(),
+            supported: crate::game::save::GAME_VERSION
+        }
+    );
+    assert_eq!(
+        err.to_string(),
+        format!(
+            "saved by 0.0.1, this is {}",
+            crate::game::save::GAME_VERSION
+        )
+    );
+}
+
+#[test]
+fn a_save_of_another_layout_is_refused_for_its_version_not_its_parse() {
+    // Fields this layout does not have: the header is read first.
+    let text = "Snapshot(version: 1, game_version: \"0.0.1\", something_else: 5)";
+    assert_eq!(
+        Snapshot::from_text(text).err(),
+        Some(LoadError::Version {
+            found: 1,
+            supported: SAVE_VERSION
+        })
+    );
+}
+
+#[test]
+fn a_replay_of_another_game_version_is_refused() {
+    let mut g = game();
+    g.start_recording().unwrap();
+    let text = g.stop_recording().unwrap().to_text().unwrap();
+    let old = text.replace(
+        &format!("game_version: \"{}\"", crate::game::save::GAME_VERSION),
+        "game_version: \"0.0.1\"",
+    );
+    let err = crate::game::replay::Replay::from_text(&old).err().unwrap();
+    assert!(format!("{err:?}").contains("saved by 0.0.1"), "{err:?}");
+}
+
+#[test]
+fn an_edited_save_is_noticed_and_still_loads() {
+    use crate::game::save::Integrity;
+    let text = game().snapshot().to_text().unwrap();
+    assert_eq!(Snapshot::integrity(&text), Integrity::Intact);
+    let edited = text.replacen("turn: ", "turn: 1", 1);
+    assert_eq!(Snapshot::integrity(&edited), Integrity::Edited);
+    assert!(Snapshot::from_text(&edited).is_ok());
+    let unsigned = text.replacen(", checksum", ", sum", 1);
+    assert_eq!(Snapshot::integrity(&unsigned), Integrity::Unsigned);
+    assert!(Snapshot::from_text(&unsigned).is_ok());
+}
+
+#[test]
+fn a_wizard_without_a_player_is_refused() {
+    let g = game();
+    let mut snap = g.snapshot();
+    let mut extra = snap.wizards[0].clone();
+    extra.player = 200;
+    snap.wizards.push(extra);
+    assert!(matches!(
+        snap.restore(g.content.clone()).err(),
+        Some(LoadError::Inconsistent(_))
+    ));
 }

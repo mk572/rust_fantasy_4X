@@ -1,6 +1,6 @@
 # rust_fantasy_4X
 
-**Version: 0.0.2** (set in `Cargo.toml`; saves and replays of another version will be refused, task 335).
+**Version: 0.0.2** (set in `Cargo.toml`; saves and replays of another version are refused).
 
 A fantasy 4X strategy game written in Rust. It starts from a Master of Magic-style design (two planes, wizards and spell-casting, heroes, tactical battles) but is expected to deviate over time. It is a gameplay-inspired reimagining, not a port: nothing protected by intellectual property is committed to this repository: no original art, music, sound or help text, and no original code. The game's rules (the names and numbers of races, units, buildings, spells and items) are data like any other and are committed.
 

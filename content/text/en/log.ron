@@ -85,6 +85,7 @@
 
     "log.saved": "Saved turn {turn} to {path}",
     "log.save_failed": "Save failed: {why}",
+    "log.save_edited": "Warning: this save was edited since the game wrote it, so it may not play as the game would",
     "log.loaded": "Loaded turn {turn} from {path}",
     "log.load_failed": "Load failed: {why}",
     "log.undid": "Undid {what}",

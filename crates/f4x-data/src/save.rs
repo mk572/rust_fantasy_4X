@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::Path;
 
 use f4x_core::content::Content;
-use f4x_core::game::save::{LoadError, Snapshot};
+use f4x_core::game::save::{Integrity, LoadError, Snapshot};
 use f4x_core::game::Game;
 
 #[derive(Debug)]
@@ -39,13 +39,15 @@ pub fn save_game(path: &Path, game: &Game) -> Result<(), SaveError> {
     std::fs::rename(&tmp, path).map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))
 }
 
-/// Read a save and rebuild the game against `content`.
-pub fn load_game(path: &Path, content: Content) -> Result<Game, SaveError> {
+/// Read a save and rebuild the game against `content`. The save is checked against its checksum:
+/// an edited save still loads, and the caller warns about it.
+pub fn load_game(path: &Path, content: Content) -> Result<(Game, Integrity), SaveError> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))?;
-    Snapshot::from_text(&text)
+    let game = Snapshot::from_text(&text)
         .and_then(|s| s.restore(content))
-        .map_err(SaveError::Load)
+        .map_err(SaveError::Load)?;
+    Ok((game, Snapshot::integrity(&text)))
 }
 
 /// What a save slot list shows about a save without rebuilding the game.
@@ -65,11 +67,11 @@ pub fn summarize_save(path: &Path) -> Result<SaveSummary, SaveError> {
     let snapshot = Snapshot::from_text(&text).map_err(SaveError::Load)?;
     let human = snapshot.human.unwrap_or(0);
     let wizard = snapshot
-        .players
+        .wizards
         .iter()
-        .find(|p| p.id == human)
-        .or_else(|| snapshot.players.first())
-        .map_or_else(String::new, |p| p.name.clone());
+        .find(|w| w.player == human)
+        .or_else(|| snapshot.wizards.first())
+        .map_or_else(String::new, |w| w.name.clone());
     Ok(SaveSummary {
         wizard,
         turn: snapshot.turn,
@@ -154,7 +156,8 @@ mod tests {
             !path.with_extension("ron.tmp").exists(),
             "no temporary file is left behind"
         );
-        let back = load_game(&path, content()).unwrap();
+        let (back, integrity) = load_game(&path, content()).unwrap();
+        assert_eq!(integrity, Integrity::Intact);
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
         assert!(back.wizard(PlayerId(0)).unwrap().researching().is_some());
@@ -167,7 +170,7 @@ mod tests {
         save_game(&path, &g).unwrap();
         g.apply(Command::EndTurn);
         save_game(&path, &g).unwrap();
-        assert_eq!(load_game(&path, content()).unwrap().turn, 5);
+        assert_eq!(load_game(&path, content()).unwrap().0.turn, 5);
     }
 
     #[test]

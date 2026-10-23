@@ -346,7 +346,7 @@ fn saves_keep_the_fortress_and_reject_a_misplaced_one() {
     assert!(loaded.wizard(P0).unwrap().is_banished());
     // A fortress where the wizard has no city is refused.
     let mut bad = g.snapshot();
-    bad.players[1].fortress = Some(at(9, 9));
+    bad.wizards[1].fortress = Some(at(9, 9));
     let err = bad.restore(content_with_magic()).err().unwrap();
     assert!(matches!(err, LoadError::Inconsistent(_)), "{err:?}");
 }

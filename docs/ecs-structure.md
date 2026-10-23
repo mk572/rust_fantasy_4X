@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.2** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves of another version will be refused (task 335).
+**Version: 0.0.2** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -200,7 +200,7 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   create in normal play exists only to test error handling (a rejected command, a refused save).
 - Independent cities' players get ids after the real players, in order of creation. The one player
   that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
-  255 until the save format changes in task 335). It is an entity with `PlayerId` and `Neutral` like
+  255; the save does not store it, the game makes it). It is an entity with `PlayerId` and `Neutral` like
   the cities' players but is in no list of players (`Game::has_player` is false for it). Whether a player is
   neutral is the `Neutral` component (`Game::is_neutral_player`), never an id test.
 - `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
@@ -340,14 +340,26 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
 
 ### 3.9 Saving and replaying
 
-- The save writes each entity kind as its own list, in `Serial` order; a link is written as the
-  linked entity's serial (the `stable_ref` of the replay code already does this for commands).
-  `PlayerId`s are written as values. The map layers are written as now; the node, lair, tower and
-  volcano tables are gone, replaced by the feature list; the mineral layer stays with the map layers.
-- `SAVE_VERSION` becomes 2 with game version 0.0.2. A save or replay of another game version is
-  refused with a plain message (task 335).
+- The save (`game/save.rs`, `SAVE_VERSION = 2`) writes each entity kind as its own list: `players`,
+  `wizards` (one for each player that is no neutral player, naming its player by id), `heroes`,
+  `units` (a unit with the creation number of a hero is that hero's body), `cities`, `features`,
+  `items` and `spells` (every spell instance: the lasting ones and the cast in progress, with its
+  caster's player id, its target and the mana still owed). The lists but `players` and `wizards` are in `Serial` order; a
+  link is written as the linked entity's creation number (a hero's item holder, a spell's target)
+  and `PlayerId`s are written as values. Spells and other content are written by id string.
+  The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
+  before; nodes, lairs, towers and volcanoes are feature entities.
+- A battle in progress is the `battle` field (`battle/save.rs`).
+- **Versions.** The first line of a save is `// f4x save, version 2, game 0.0.2, checksum <hex>`. The
+  loader reads the `version` and `game_version` fields before the rest and refuses a file of
+  another layout or game version with a plain message ("saved by 0.0.1, this is 0.0.2"); a replay
+  is checked the same way, through the snapshot it starts from.
+- **Checksum.** The checksum is a hash (FNV-1a, 64 bits) of the text after the first line. A save
+  whose text no longer matches it, or that has none, still loads; `Snapshot::integrity(text)` says
+  so and `load_game` returns it, and the client and the console warn (`log.save_edited`). It
+  catches an edit, it does not stop one.
 - A command that names an entity of a new kind (a hero, an item, a feature) names it by serial in the
-  log, as units and cities are named today.
+  log, as units and cities are named today (a hero by its type number, 3.5).
 
 ### 3.10 What stays outside the world
 

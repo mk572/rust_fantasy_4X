@@ -13,7 +13,7 @@ pub const STASIS: &str = "stasis";
 const FREEING_MODIFIER: i32 = -5;
 
 /// A unit held in stasis.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Stasis {
     /// Just put there: held through the next turn whatever it rolls.
     Fresh,

@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 335 | Core | Save format 2 and the game-version check |
 | 336 | Core | Other crates: `PlayerView`, console, client, tools |
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry |
 | 339 | AI | Scripted and trained AI on the new framework |
@@ -88,13 +87,6 @@ Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, 
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
 
 ### G. Closing
-
-**335. Save format 2 and the game-version check.** `SAVE_VERSION = 2`. Entities are saved in `Serial`
-order as now, with player, wizard, hero, spell, terrain feature and item entities. `PlayerSave`,
-`MagicSave`, `UnitSave.hero`, `UnitSave.items`, the roster and the node, lair and tower tables go;
-`MapSave` keeps the terrain layers (with the node base terrains of 338). The loader refuses any other game version with a plain message
-("saved by 0.0.1, this is 0.0.2"); replay files are checked the same way. Round-trip tests for each
-new entity. *Needs:* 317, 325, 332, 334 and 338.
 
 **336. Other crates.** `PlayerView`, `f4x-console`, `f4x-client` (about 65 player lookups; node and
 lair drawing, `surveyor`, `site_prompt`, `map_draw`) and `f4x-tools` use the new handles. The AI

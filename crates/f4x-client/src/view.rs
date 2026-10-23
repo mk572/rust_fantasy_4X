@@ -931,7 +931,8 @@ impl App {
     /// Replace the game with the one saved at `path`. On failure the current game is kept.
     pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
         let content = self.game.content().clone();
-        let game = f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
+        let (game, integrity) =
+            f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
         self.seed = game.seed();
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
@@ -963,6 +964,9 @@ impl App {
             .count("turn", self.game.turn)
             .text("path", path.display().to_string());
         self.log.push(self.text_with("log.loaded", &args));
+        if integrity != f4x_core::game::save::Integrity::Intact {
+            self.log.push(self.text("log.save_edited"));
+        }
         Ok(())
     }
 

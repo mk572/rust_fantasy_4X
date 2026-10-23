@@ -244,6 +244,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 332 | Feature | Volcano and tower ownership as feature entities (done) |
 | 333 | (done) Item | Item entity: components, holder, lifecycle |
 | 334 | (done) Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
+| 335 | Core | Save format 2 and the game-version check (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
@@ -683,6 +684,24 @@ held as `Award`. *Needs:* 313, 315 and 326.
 awards, `Magic.crafting`, `Offer::Item`, the spoils of a battle (an item of a slain hero passes to the
 heir or winner by changing `HeldBy`) and lair loot (`Loot.items`, `claim_lair`). Item charges
 written back after a battle are a component change. *Needs:* 333, 322, 327, 328 and 331. *Done (23 October 2026):* design in `ecs-structure.md` section 3.7. Kept as they were, on purpose: `Game.item_awards` is the queue of names for the "items awarded" message (the items it names are held as vault items), and lair loot is handed over at once (no `Loot` holder). Added at the user's request: the vault has no limit and the item screen scrolls it (`divergences.md`). The save lists the item entities (the full format change is task 335).
+
+**335. Save format 2 and the game-version check (done).** `SAVE_VERSION = 2`. Entities are saved in `Serial`
+order as now, with player, wizard, hero, spell, terrain feature and item entities. `PlayerSave`,
+`MagicSave`, `UnitSave.hero`, `UnitSave.items`, the roster and the node, lair and tower tables go;
+`MapSave` keeps the terrain layers (with the node base terrains of 338). The loader refuses any other game version with a plain message
+("saved by 0.0.1, this is 0.0.2"); replay files are checked the same way. Round-trip tests for each
+new entity. *Needs:* 317, 325, 332, 334 and 338.
+
+*Done:* `SAVE_VERSION = 2`. The save has one list for each entity kind: `players`, `wizards` (`WizardSave`, a
+wizard naming its player by id), `heroes`, `units` (a unit with a hero's creation number is its body; `UnitSave.hero`
+is gone), `cities`, `features`, `items` and `spells` (`SpellSave`: every spell instance with its caster, target
+and mana owed, which replaces `MagicSave`, the enchantment lists on units and cities and the cast and global-spell
+fields). Components that mirrored a save type (`TempEffect`, `Stasis`, `RoadWork`, `Order`) are written directly.
+Feature-targeted spells are saved too (they were lost before). The loader reads `version` and `game_version` first and
+refuses another layout or game version with "saved by 0.0.1, this is 0.0.2"; replays are checked through their start
+snapshot. Added on request: the first line carries a checksum (FNV-1a 64 of the rest); `Snapshot::integrity` and
+`load_game` report an edited or unsigned save, which still loads, and the client and the console warn
+(`log.save_edited`). The monsters' player keeps id 255 (the game makes it; the save does not store it).
 
 **338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
 (`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself
