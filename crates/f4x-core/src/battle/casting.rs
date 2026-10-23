@@ -146,6 +146,12 @@ pub enum SpellError {
     NoRoom,
     /// The side has this battlefield spell up already.
     AlreadyUp,
+    /// The unit has this lasting spell on it already.
+    AlreadyEnchanted,
+    /// The spell is not cumulative with one the unit has (or the wizard keeps).
+    NotCumulative,
+    /// The unit has the ability the spell would give it.
+    AlreadyAble,
     /// A Spell Ward on the city guards it from the spell's realm, and the caster is attacking it.
     Warded,
 }

@@ -3928,3 +3928,180 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
         "a dispel never takes down the caster's own spells"
     );
 }
+
+/// A battle of player A's wizard, who knows `spells` and has plenty to cast with; the first
+/// attacker is a `unit` of the test content.
+fn wizard_battle(unit: &str, spells: &[&str]) -> Game {
+    let mut g = casting_game();
+    g.treasury_mut(A).unwrap().mana = 2000;
+    g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
+        .unwrap();
+    for name in spells {
+        let id = g.content.rules.spells.id_of(name).unwrap();
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&id);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != id);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(id);
+    }
+    let kind = g.content.rules.units.id_of(unit).unwrap();
+    let ours = g.spawn_unit(A, at(4, 4), kind);
+    begin(&mut g, ours);
+    g
+}
+
+/// The wizard casts `spell` on the first attacker, with a fresh turn's casting.
+fn cast_on_first(g: &mut Game, spell: &str) -> Result<Vec<Event>, BattleError> {
+    let id = g.content.rules.spells.id_of(spell).unwrap();
+    g.battle.as_mut().unwrap().battle.set_caster(
+        Side::Attacker,
+        crate::battle::BattleCaster::new(2000, 2000, 10),
+    );
+    g.battle_command(BattleCommand::Cast {
+        spell: id,
+        aim: SpellAim::Unit(0),
+        mana: 0,
+    })
+}
+
+#[test]
+fn a_lasting_spell_is_cast_on_a_unit_once() {
+    let mut g = wizard_battle("walker", &["giant_strength"]);
+    cast_on_first(&mut g, "giant_strength").unwrap();
+    assert_eq!(
+        cast_on_first(&mut g, "giant_strength"),
+        Err(BattleError::Spell(SpellError::AlreadyEnchanted))
+    );
+}
+
+#[test]
+fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
+    let mut g = wizard_battle("walker", &["stone_skin", "iron_skin"]);
+    let defense = |g: &Game| g.battle().unwrap().unit(0).unwrap().defense;
+    let base = defense(&g);
+    cast_on_first(&mut g, "stone_skin").unwrap();
+    assert_eq!(defense(&g), base + 1);
+    // Iron Skin on top leaves its five, not six, and Stone Skin cannot follow it.
+    cast_on_first(&mut g, "iron_skin").unwrap();
+    assert_eq!(defense(&g), base + 5);
+    assert_eq!(
+        cast_on_first(&mut g, "stone_skin"),
+        Err(BattleError::Spell(SpellError::AlreadyEnchanted))
+    );
+
+    let mut g = wizard_battle("walker", &["stone_skin", "iron_skin"]);
+    cast_on_first(&mut g, "iron_skin").unwrap();
+    assert_eq!(
+        cast_on_first(&mut g, "stone_skin"),
+        Err(BattleError::Spell(SpellError::NotCumulative))
+    );
+    assert_eq!(defense(&g), base + 5);
+}
+
+#[test]
+fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
+    // Whichever of the three the dice take off, the defence is that of the stronger skin left.
+    for strength in [12, 25, 45, 80, 150] {
+        let mut g = wizard_battle("walker", &["stone_skin", "iron_skin", "giant_strength"]);
+        let base = g.battle().unwrap().unit(0).unwrap().defense;
+        for spell in ["stone_skin", "iron_skin", "giant_strength"] {
+            cast_on_first(&mut g, spell).unwrap();
+        }
+        g.dispel_battle_unit(0, strength, D);
+        let unit = g.battle().unwrap().unit(0).unwrap();
+        let has = |id: &str| unit.enchantments.iter().any(|e| e == id);
+        let expected = if has("iron_skin") {
+            5
+        } else if has("stone_skin") {
+            1
+        } else {
+            0
+        };
+        assert_eq!(unit.defense, base + expected, "strength {strength}");
+    }
+}
+
+#[test]
+fn a_wizard_cannot_give_a_unit_the_ability_it_has_by_nature() {
+    let mut g = wizard_battle("spirit", &["wraith_form", "flight"]);
+    assert_eq!(
+        cast_on_first(&mut g, "wraith_form"),
+        Err(BattleError::Spell(SpellError::AlreadyAble))
+    );
+    assert!(cast_on_first(&mut g, "flight").is_ok());
+}
+
+#[test]
+fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() {
+    let mut g = wizard_battle("walker", &["holy_weapon"]);
+    let arms = g.content.rules.spells.id_of("holy_arms").unwrap();
+    g.add_global(A, arms);
+    assert_eq!(
+        cast_on_first(&mut g, "holy_weapon"),
+        Err(BattleError::Spell(SpellError::NotCumulative))
+    );
+}
+
+#[test]
+fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() {
+    let names = ["bless", "righteousness", "resist_magic", "spell_lock"];
+    let mut g = wizard_battle("walker", &names);
+    for name in names {
+        cast_on_first(&mut g, name).unwrap();
+    }
+    let unit = g.battle().unwrap().unit(0).unwrap();
+    assert!(names
+        .iter()
+        .all(|n| unit.enchantments.iter().any(|e| e == n)));
+    assert_eq!(
+        cast_on_first(&mut g, "bless"),
+        Err(BattleError::Spell(SpellError::AlreadyEnchanted))
+    );
+}
+
+#[test]
+fn the_resistance_pairs_are_refused_in_a_battle() {
+    let mut g = wizard_battle(
+        "walker",
+        &[
+            "resist_elements",
+            "elemental_armor",
+            "resist_magic",
+            "magic_immunity",
+        ],
+    );
+    cast_on_first(&mut g, "elemental_armor").unwrap();
+    assert_eq!(
+        cast_on_first(&mut g, "resist_elements"),
+        Err(BattleError::Spell(SpellError::NotCumulative))
+    );
+    let mut g = wizard_battle("walker", &["resist_elements", "elemental_armor"]);
+    cast_on_first(&mut g, "resist_elements").unwrap();
+    // The stronger one goes on top.
+    cast_on_first(&mut g, "elemental_armor").unwrap();
+    let mut g = wizard_battle("walker", &["resist_magic", "magic_immunity"]);
+    cast_on_first(&mut g, "magic_immunity").unwrap();
+    assert_eq!(
+        cast_on_first(&mut g, "resist_magic"),
+        Err(BattleError::Spell(SpellError::NotCumulative))
+    );
+}
+
+#[test]
+fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() {
+    let mut g = wizard_battle("walker", &["heroism"]);
+    let melee = g.battle().unwrap().unit(0).unwrap().melee;
+    cast_on_first(&mut g, "heroism").unwrap();
+    // The test content's level path has one level above the first, worth a point of attack.
+    assert_eq!(g.battle().unwrap().unit(0).unwrap().melee, melee + 1);
+    // Dispelled, the unit goes back to what it was; a dispel of nothing leaves the bonus.
+    g.dispel_battle_unit(0, 1000, D);
+    let unit = g.battle().unwrap().unit(0).unwrap();
+    let has = unit.enchantments.iter().any(|e| e == "heroism");
+    assert_eq!(unit.melee, melee + i32::from(has));
+}

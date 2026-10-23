@@ -35,6 +35,8 @@ fn spell(id: &str, realm: &str, target: SpellTarget, hook: &str) -> SpellDef {
         upkeep: 0,
         dispel_difficulty: 0,
         save: None,
+        not_with: Vec::new(),
+        already_able: Vec::new(),
         effects: vec![EffectRule {
             when: Trigger::OnCast,
             target: TargetSel::Chosen,

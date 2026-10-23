@@ -118,6 +118,13 @@ pub enum MagicError {
     /// This spell cannot be cast on the overland map.
     NotOverland,
     NoSuchTarget,
+    /// The unit or city has this lasting spell on it already.
+    AlreadyEnchanted,
+    /// The spell is not cumulative with one the unit has (or the wizard keeps): Stone Skin with
+    /// Iron Skin, Holy Weapon with Holy Arms.
+    NotCumulative,
+    /// The unit has the ability the spell would give it, by its nature.
+    AlreadyAble,
     /// The spell needs a target and none was given.
     NeedsTarget,
     NothingToResolve,

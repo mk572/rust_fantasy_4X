@@ -122,6 +122,9 @@ to roll against each attack (`attack::process_attack`).
   Elements +3, against chaos and nature; Resist Magic +5 against any realm. They are read from
   the unit's lasting spells by name (`Game::unit_resistance_against`), so Resist Elements and
   Resist Magic have no flat resistance modifier any more.
+- **Spells read by name** (Resist Elements, Elemental Armor, Resist Magic, Spell Lock, Bless, Heroism,
+  Righteousness) have no rules of their own; cast in a battle, the unit carries them and the checks above find
+  them by name. Heroism also raises the unit to the level it gives (`heroism_modifiers`).
 - **Not here:** the defence bonuses the same enchantments give against ranged magic (Elemental
   Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
   gazes and touches that call a resistance check (36).

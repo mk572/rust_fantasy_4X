@@ -250,9 +250,8 @@ impl Game {
                     _ => return None,
                 }
             }
-            if mods.is_empty() && grants.is_empty() {
-                return None;
-            }
+            // A spell with no rules is read by its name where it matters (Bless, Righteousness,
+            // the resistance spells, Spell Lock, Heroism): the unit just carries it.
             return Some(Kind::Enchant {
                 mods,
                 grants,
@@ -741,8 +740,8 @@ impl Game {
                 {
                     return Err(SpellError::BadTarget);
                 }
-                if matches!(kind, Kind::Enchant { .. }) && u.enchantments.contains(&def.id) {
-                    return Err(SpellError::BadTarget);
+                if matches!(kind, Kind::Enchant { .. }) {
+                    self.check_stacking_in_battle(battle.player_of(side), def, u)?;
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
@@ -774,6 +773,79 @@ impl Game {
             }
             _ => Err(SpellError::BadTarget),
         }
+    }
+
+    /// The refusals for a lasting spell on a unit that cannot take it: it has the spell
+    /// already, one the spell is not cumulative with, or the ability by its nature
+    /// (`spell/stacking.rs` has the same rules for the map).
+    fn check_stacking_in_battle(
+        &self,
+        player: PlayerId,
+        def: &SpellDef,
+        unit: &super::BattleUnit,
+    ) -> Result<(), SpellError> {
+        if unit.enchantments.contains(&def.id) {
+            return Err(SpellError::AlreadyEnchanted);
+        }
+        if def
+            .not_with
+            .iter()
+            .any(|id| unit.enchantments.contains(id) || self.has_global(player, id))
+        {
+            return Err(SpellError::NotCumulative);
+        }
+        if def.already_able.iter().any(|a| unit.has(a)) {
+            return Err(SpellError::AlreadyAble);
+        }
+        Ok(())
+    }
+
+    /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it
+    /// to the level the spell gives (the unit was made without it).
+    fn battle_bonuses_by_name(&self, spell_id: &str, target: usize) -> Vec<Modifier> {
+        if spell_id != crate::unit::HEROISM {
+            return Vec::new();
+        }
+        let Some(active) = self.battle.as_ref() else {
+            return Vec::new();
+        };
+        active.battle.units[target]
+            .source
+            .and_then(|i| self.battle_source(i))
+            .map(|e| self.units().heroism_modifiers(e))
+            .unwrap_or_default()
+    }
+
+    /// What takes a spell's bonuses back off a unit that has a spell it gives way to, so that
+    /// the two are not cumulative: Iron Skin cast on a unit with Stone Skin leaves +5, not +6.
+    /// Only added bonuses are taken back.
+    fn superseded_bonuses(&self, spell_id: &str, present: &[String]) -> Vec<Modifier> {
+        let rules = &self.content.rules;
+        let mut out = Vec::new();
+        for id in present {
+            let Some(other) = rules.spells.id_of(id) else {
+                continue;
+            };
+            let def = rules.spells.get(other);
+            if !def.not_with.iter().any(|n| n == spell_id) {
+                continue;
+            }
+            for r in &def.effects {
+                if let (Trigger::Passive, Condition::Always, Effect::Modify { stat, op, value }) =
+                    (r.when, &r.condition, &r.effect)
+                {
+                    if *op == ModOp::Add {
+                        out.push(Modifier::new(
+                            *stat,
+                            ModOp::Add,
+                            -value,
+                            Source::Spell(other),
+                        ));
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Whether the unit of the battle is a hero, from the overland unit it was copied from.
@@ -1128,6 +1200,14 @@ impl Game {
             (Kind::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
             (Kind::Raise, SpellAim::Unit(target)) => self.raise_dead(side, target),
             (Kind::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
+                let present = self
+                    .battle
+                    .as_ref()
+                    .map(|a| a.battle.units[target].enchantments.clone())
+                    .unwrap_or_default();
+                let mut mods = mods;
+                mods.extend(self.superseded_bonuses(&def.id, &present));
+                mods.extend(self.battle_bonuses_by_name(&def.id, target));
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1387,7 +1467,7 @@ impl Game {
     /// A dispel of `strength` by `by` on a unit of the battle: the spells cast on it in the
     /// battle, and the lasting spells on the overland unit it was copied from, if another
     /// wizard cast them.
-    fn dispel_battle_unit(
+    pub(super) fn dispel_battle_unit(
         &mut self,
         target: usize,
         strength: u32,
@@ -1452,6 +1532,17 @@ impl Game {
                     }
                     _ => None,
                 }
+            })
+            .collect();
+        // A spell that gives way to another on the unit stays out of the numbers, as in the cast.
+        let mut present = base.enchantments.clone();
+        present.extend(lasting.iter().map(|(id, ..)| id.clone()));
+        let lasting: Vec<_> = lasting
+            .into_iter()
+            .map(|(id, mut mods, grants)| {
+                mods.extend(self.superseded_bonuses(&id, &present));
+                mods.extend(self.battle_bonuses_by_name(&id, target));
+                (id, mods, grants)
             })
             .collect();
         if let Some(active) = self.battle.as_mut() {

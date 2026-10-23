@@ -696,7 +696,10 @@ impl Game {
                 .is_some_and(|m| p.x < m.width() && p.y < m.height()),
             _ => false,
         };
-        ok.then_some(()).ok_or(MagicError::NoSuchTarget)
+        if !ok {
+            return Err(MagicError::NoSuchTarget);
+        }
+        self.check_stacking(player, spell, target)
     }
 
     /// Put a lasting spell on its target: a unit or city carries it with its caster, a

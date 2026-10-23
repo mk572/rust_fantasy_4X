@@ -403,6 +403,15 @@ pub struct SpellDef {
     /// A curse the target can resist when it is cast in a battle.
     #[serde(default)]
     pub save: Option<SpellSave>,
+    /// Spells this one is not cumulative with. It cannot be cast on a unit that has one of them
+    /// (or, for a global enchantment, on a wizard who keeps it), and while the unit has one its
+    /// own bonuses do not count: Stone Skin gives way to Iron Skin.
+    #[serde(default)]
+    pub not_with: Vec<String>,
+    /// Abilities a unit has of its own that make this spell pointless: it cannot be cast on a
+    /// unit that has one (a unit that flies by nature cannot be given Wind Walking).
+    #[serde(default)]
+    pub already_able: Vec<String>,
     pub effects: Vec<EffectRule>,
 }
 

@@ -7,6 +7,7 @@ pub mod global_enchantment;
 pub mod hero;
 pub mod instance;
 pub mod special;
+pub mod stacking;
 pub mod temp_effects;
 pub mod terraform;
 pub mod wizard;

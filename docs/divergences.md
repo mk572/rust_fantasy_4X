@@ -575,3 +575,21 @@ A battle still going after 100 turns is won by the defender (`TURN_LIMIT` in `ba
 ## 30. Spell Animations setting covers battle casts (task 280)
 
 In the original `magic_set.spell_animations` gates only the overland spell animations (summons, city enchantments, Change Terrain, the learn-spell scroll: `Spells130.c`, `Spells137.c`, `Spellbook.c`); `Combat_Cast_Apply_Spell_Effect` is always called with `anims_on` true, so battle animations ignore it. Ours skips the animations of the human's own battle casts when it is off, as the help (690, "spells you have thrown") reads and as a player who switches it off would expect. The rivals' casts still play. Decided 18 October 2026; `battle_screen/spell_anim.rs`. The overland animations do not exist yet (task 306, `overland_spell_animations.md`); when built they must check the same `Pref::SpellAnimations`, with the original's off path (the "You have completed casting..." box, which `spell_notices` already is).
+
+## 31. Spells that are not cumulative (task 349)
+
+The original refuses three pairs on the map only (`Cast_Spell_Overland`, `OverSpel.c`): Stone Skin
+on a unit with Iron Skin, Resist Elements on one with Elemental Armor, and a third whose message
+reads "Resist Magic is not cumulative with Magic Immunity". Its code for that third check tests
+Resist Elements against Wraith Form and shows that message, which looks like a slip of the
+reconstruction (ReMoM), since the asm is not at hand; **ours refuses Resist Magic on a unit with Magic
+Immunity**, as the message says. The battle target check of the original has no pair check, so a
+battle spell could be cast over its better twin; **ours refuses the pairs in battle too** (decided
+23 October 2026), with `SpellError::NotCumulative`. As in the original (`COMBINIT.c`: Iron Skin
+"else if" Stone Skin), the stronger spell wins when both are on a unit, whichever came first: Iron
+Skin may still be cast on a unit with Stone Skin and replaces its bonus, and takes it back again if
+Iron Skin is dispelled. The original asks the player to confirm a second cast of a global
+enchantment (message 16) and refuses Holy Weapon while Holy Arms is up (message 17); ours refuses
+Holy Weapon alike, for the AI too, and leaves the global's confirmation to the "continue casting?"
+prompts (task 348).
+

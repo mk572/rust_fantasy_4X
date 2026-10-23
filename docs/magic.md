@@ -106,6 +106,16 @@ left (task 61).
   `ResolveCast`.
 - `CancelCast` throws the spell away; mana already paid is lost.
 - **Targets** are checked against the spell's target kind (own unit, enemy city, tile...).
+- **Spells that cannot be combined** (`spell/stacking.rs`, data in `spells.ron`): a lasting spell
+  is refused on a unit or city that has it already (`AlreadyEnchanted`); `not_with` names the
+  spells it is not cumulative with, which refuse it on a unit that has one, and while the unit has
+  one the weaker spell adds nothing (Stone Skin under Iron Skin; Resist Elements under Elemental
+  Armor; Resist Magic under Magic Immunity; Holy Weapon is refused while its wizard keeps Holy Arms)
+  (`NotCumulative`); `already_able` names the abilities a unit has by nature that make the spell
+  pointless (Wraith Form on a non-corporeal unit: Immolation, Cloak of Fear, True Sight, Magic
+  Immunity, Planar Travel, Invisibility, Wraith Form, Wind Walking, Regeneration)
+  (`AlreadyAble`). The same checks run in a battle (`SpellError`). The no-target prompt and the AI
+  read the same check, so a unit that cannot take the spell is not a target.
 
 ## 7. What a spell does
 

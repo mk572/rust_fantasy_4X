@@ -204,10 +204,14 @@ impl<'a> UnitView<'a> {
         let mut ids: Vec<String> = self
             .unit_enchantments(unit)
             .iter()
+            .filter(|&&(spell, _)| !self.unit_spell_superseded(unit, spell))
             .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
             .collect();
         // What its items put on the hero counts as well.
         for spell in self.items().spells(unit) {
+            if self.unit_spell_superseded(unit, spell) {
+                continue;
+            }
             let id = &self.content.rules.spells.get(spell).id;
             if !ids.contains(id) {
                 ids.push(id.clone());

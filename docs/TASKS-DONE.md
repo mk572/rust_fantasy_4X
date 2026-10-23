@@ -235,6 +235,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
+| 349 | Magic | Spells that cannot be combined: duplicates, non-cumulative pairs, abilities a unit has by nature, Holy Weapon with Holy Arms (done) |
 
 ## Descriptions
 
@@ -661,3 +662,17 @@ the name step of a custom wizard); `crates/f4x-data/tests/text.rs` is the guard.
 `Objective`, retorts and the relation words give a key instead of a name. Races have a `plural` in `races.ron`. What stays
 is task 347.
 
+**349. Spells that cannot be combined (done).** The original refuses a spell that cannot be combined with what is
+already there (`OverSpel.c`, `SBookScr.c`, `Combat.c`: messages 22 to 24, 87, 17, and "already has X cast on it"); ours
+now refuses the same cases for every wizard, the AI included, on the map and in battle. **Done (23 October 2026):**
+`spells.ron` gains `not_with` (spells it is not cumulative with) and `already_able` (abilities a unit has by nature);
+`spell/stacking.rs` checks them with the duplicate check for units and cities, behind `check_target`, so the
+no-target prompt, the AI and the client picker see them. New errors `MagicError::{AlreadyEnchanted, NotCumulative,
+AlreadyAble}` and `SpellError` alike. While a unit has Iron Skin, Stone Skin adds nothing (map: `unit_modifiers`; battle: the
+bonus is taken back at the cast and at the rebuild after a dispel). Decisions in `divergences.md` section 31: Resist Magic
+with Magic Immunity is the third pair, and the pairs apply in battle too. The text for each refusal is task 348. The seven lasting spells with no rules of their own (Resist
+Elements, Elemental Armor, Resist Magic, Spell Lock, Bless, Heroism, Righteousness; the game reads them by name) could not
+be cast in battle (`Unsupported`); they can now: the unit carries the spell, and Heroism adds the bonuses of the levels it
+gives (`UnitView::heroism_modifiers`), also after a dispel rebuilds the unit.
+
+*Needs:* nothing.

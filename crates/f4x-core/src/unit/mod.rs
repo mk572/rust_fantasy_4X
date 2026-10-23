@@ -244,11 +244,16 @@ impl<'a> UnitView<'a> {
     /// same level as the map (the original's battle code ignores Warlord, Crusade and xp when
     /// Heroism is on: B9 in `help-vs-implementation-conflicts.md`, we follow the help).
     pub fn unit_level(&self, unit: hecs::Entity) -> usize {
+        self.level_with(unit, self.unit_has_heroism(unit))
+    }
+
+    /// The level the unit has with Heroism on it or without.
+    fn level_with(&self, unit: hecs::Entity, heroism: bool) -> usize {
         let Some(path) = self.unit_level_path(unit) else {
             return 0;
         };
         let mut level = self.unit_xp_level(unit);
-        if level < HEROISM_LEVEL && self.unit_has_heroism(unit) {
+        if level < HEROISM_LEVEL && heroism {
             level = HEROISM_LEVEL;
         }
         if let Some(owner) = self.unit_owner(unit) {
@@ -268,12 +273,65 @@ impl<'a> UnitView<'a> {
         level.min(path.level_count().saturating_sub(1))
     }
 
-    /// Every modifier currently affecting the unit: its abilities and level effects.
-    pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
-        let rules = &self.content.rules;
+    /// What Heroism adds to a unit that has not got it yet: the bonuses of the levels it would
+    /// then reach (a battle unit is made once, so a Heroism cast in the battle adds them).
+    pub fn heroism_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        let (from, to) = (self.level_with(unit, false), self.level_with(unit, true));
+        let mut mods = self.level_modifiers(unit, from + 1..to + 1);
+        // A hero's abilities grow with its level too; the change is added as a difference.
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
+                == crate::battle::RangedKind::Magic;
+            let before = hero.abilities.modifiers(from, magic);
+            for m in hero.abilities.modifiers(to, magic) {
+                let had = before
+                    .iter()
+                    .find(|b| b.stat == m.stat)
+                    .map_or(0, |b| b.value);
+                if m.value != had {
+                    mods.push(Modifier::new(m.stat, m.op, m.value - had, m.source));
+                }
+            }
+        }
+        mods
+    }
+
+    /// The modifiers of the unit's level path for these levels.
+    fn level_modifiers(&self, unit: hecs::Entity, levels: std::ops::Range<usize>) -> Vec<Modifier> {
         let Some(def) = self.unit_def(unit) else {
             return Vec::new();
         };
+        let Some(path) = def
+            .level_path
+            .as_deref()
+            .and_then(|p| self.content.rules.level_paths.by_name(p))
+        else {
+            return Vec::new();
+        };
+        let mut mods = Vec::new();
+        for i in levels {
+            if let Some((_, effects)) = path.level(i) {
+                // A level's attack plus only counts for a unit that has the attack
+                // (`Battle_Unit_Level_Stats`).
+                mods.extend(
+                    passive_modifiers(effects, Source::Level(i as u8))
+                        .into_iter()
+                        .filter(|m| {
+                            !matches!(m.stat, Stat::Melee | Stat::Ranged)
+                                || def.stats.get(&m.stat).copied().unwrap_or(0) > 0
+                        }),
+                );
+            }
+        }
+        mods
+    }
+
+    /// Every modifier currently affecting the unit: its abilities and level effects.
+    pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        let rules = &self.content.rules;
+        if self.unit_def(unit).is_none() {
+            return Vec::new();
+        }
         let mut mods = Vec::new();
         mods.extend(self.ability_modifiers(unit));
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
@@ -281,34 +339,20 @@ impl<'a> UnitView<'a> {
                 == crate::battle::RangedKind::Magic;
             mods.extend(hero.abilities.modifiers(self.unit_level(unit), magic));
         }
-        if let Some(path) = def
-            .level_path
-            .as_deref()
-            .and_then(|p| rules.level_paths.by_name(p))
-        {
-            let level = self.unit_level(unit);
-            for i in 0..=level {
-                if let Some((_, effects)) = path.level(i) {
-                    // A level's attack plus only counts for a unit that has the attack
-                    // (`Battle_Unit_Level_Stats`).
-                    mods.extend(
-                        passive_modifiers(effects, Source::Level(i as u8))
-                            .into_iter()
-                            .filter(|m| {
-                                !matches!(m.stat, Stat::Melee | Stat::Ranged)
-                                    || def.stats.get(&m.stat).copied().unwrap_or(0) > 0
-                            }),
-                    );
-                }
-            }
-        }
+        mods.extend(self.level_modifiers(unit, 0..self.unit_level(unit) + 1));
         for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
+            if self.unit_spell_superseded(unit, spell) {
+                continue;
+            }
             mods.extend(passive_modifiers(
                 &rules.spells.get(spell).effects,
                 Source::Spell(spell),
             ));
         }
         for spell in self.items().spells(unit) {
+            if self.unit_spell_superseded(unit, spell) {
+                continue;
+            }
             mods.extend(passive_modifiers(
                 &rules.spells.get(spell).effects,
                 Source::Spell(spell),
