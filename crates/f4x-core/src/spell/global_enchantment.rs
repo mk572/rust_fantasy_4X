@@ -42,12 +42,6 @@ impl Game {
         self.add_enchantment(SpellTarget::Global, spell, player);
     }
 
-    /// One of the wizard's lasting spells on the world ends (it is dispelled, cannot be paid for,
-    /// or is turned off).
-    pub(crate) fn remove_global(&mut self, player: PlayerId, spell: SpellId) {
-        self.remove_enchantment(SpellTarget::Global, spell, player);
-    }
-
     /// Turn off one of the wizard's own global enchantments.
     pub(crate) fn turn_off(&mut self, player: PlayerId, spell: SpellId) -> Result<(), MagicError> {
         if self.wizard(player).is_none() {
@@ -81,6 +75,27 @@ impl Game {
     pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
         self.wizard(player)
             .is_some_and(|m| magic_has_global(&m, &self.content, id))
+    }
+
+    /// The instance of `spell` that `player` keeps going on the whole world: what Disjunction
+    /// and Spell Binding take as their target.
+    pub fn global_instance(&self, player: PlayerId, spell: SpellId) -> Option<hecs::Entity> {
+        let wizard = self.wizard(player)?.entity();
+        let spells = self.spells();
+        let held = spells.globals_of(wizard);
+        held.into_iter().find(|&i| spells.def(i) == Some(spell))
+    }
+
+    /// The global enchantments of every wizard but `player`, wizard by wizard and oldest first:
+    /// the list Disjunction and Spell Binding choose from.
+    pub fn rival_globals(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        let spells = self.spells();
+        self.player_ids()
+            .into_iter()
+            .filter(|&p| p != player)
+            .filter_map(|p| self.wizard(p).map(|w| w.entity()))
+            .flat_map(|w| spells.globals_of(w))
+            .collect()
     }
 
     /// The wizard whose Time Stop is stopping everyone else's time, if any.

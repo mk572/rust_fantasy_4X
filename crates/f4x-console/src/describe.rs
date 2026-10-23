@@ -295,6 +295,12 @@ pub fn event(game: &Game, e: &Event) -> String {
             spell(game, *s),
             player(game, *by)
         ),
+        Event::NoTargetForCast { spell: s, .. } => {
+            format!(
+                "There are no targets for {}: it is not paid for until there is one (`cancelcast` stops it)",
+                spell(game, *s)
+            )
+        }
         Event::SpellReady { spell: s, .. } => {
             format!(
                 "{} is paid for: choose a target with `target`",
@@ -440,6 +446,9 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
         }
         B::Summoned { unit } => format!("Unit {unit} is summoned"),
         B::Raised { unit } => format!("Unit {unit} rises again as undead"),
+        B::FieldDispelled { side, spell: s } => {
+            format!("{side:?}'s {} is dispelled from the field", spell(game, *s))
+        }
         B::FieldRaised { side, spell: s } => {
             format!("{side:?} raises {} over the field", spell(game, *s))
         }

@@ -677,6 +677,11 @@ pub enum BattleEvent {
         unit: usize,
         removed: u32,
     },
+    /// A dispel took a battlefield spell down: the side that had put it up.
+    FieldDispelled {
+        side: Side,
+        spell: SpellId,
+    },
     /// A battlefield spell went up for a side.
     FieldRaised {
         side: Side,

@@ -541,6 +541,10 @@ pub(crate) mod tests {
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
         let nominal = g.wizard(P0).unwrap().casting_skill();
+        // Healing needs a unit to aim at, and the wizard keeps one after the hero is gone.
+        let soldier = g.content.rules.units.defs()[0].id.clone();
+        let soldier = g.content.rules.units.id_of(&soldier).unwrap();
+        g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_casting(P0, spell, 1000);
         g.tr_mut(0).mana = 5000;
         let _ = g.process_magic();

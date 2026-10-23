@@ -424,7 +424,7 @@ fn only_real_upkeep_can_be_released() {
     assert_ne!(stranger, first);
     for s in g.wizard(P0).unwrap().global() {
         if s != first {
-            g.remove_global(P0, s);
+            g.remove_enchantment(crate::spell::instance::SpellTarget::Global, s, P0);
         }
     }
     let before = g.wizard(P0).unwrap().global().clone();
@@ -530,6 +530,9 @@ fn cancelling_loses_what_was_paid() {
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(strength);
+    // Giant Strength needs a unit to aim at, or nothing is paid.
+    let galley = g.content.rules.units.id_of("galley").unwrap();
+    g.spawn_unit(P0, at(3, 3), galley);
     g.start_cast(P0, strength, None).unwrap();
     g.apply(Command::EndTurn);
     let mana = g.treasury(P0).unwrap().mana;
@@ -636,4 +639,42 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() {
         loaded.units().unit_stat(unit, Stat::Melee),
         g.units().unit_stat(g.units().all_units()[0], Stat::Melee)
     );
+}
+
+#[test]
+fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() {
+    const P1: PlayerId = PlayerId(1);
+    let mut g = world();
+    g.add_player(P1, "Rival");
+    g.init_wizard(P1, &[("sorcery", 2)], &[], None).unwrap();
+    g.treasury_mut(P1).unwrap().mana = 10_000;
+    g.wizard_mut(P0).unwrap().set_split(0, 100, 0).unwrap();
+    let disjunction = spell(&g, "disjunction");
+    g.wizard_mut(P0)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(disjunction);
+    g.treasury_mut(P0).unwrap().mana = 500;
+    assert_eq!(g.start_cast(P0, disjunction, None), Ok(vec![]));
+    let owed = g.wizard(P0).unwrap().casting().unwrap().remaining;
+    // No rival keeps a global enchantment going: asked, and nothing is paid.
+    let events = g.apply(Command::EndTurn);
+    assert!(
+        events.contains(&Event::NoTargetForCast {
+            player: P0,
+            spell: disjunction
+        }),
+        "{events:?}"
+    );
+    assert_eq!(g.wizard(P0).unwrap().casting().unwrap().remaining, owed);
+    assert_eq!(g.treasury(P0).unwrap().mana, 500);
+    // Once a rival has one, the payment goes on.
+    let aura = spell(&g, "aura_of_majesty");
+    g.attach_enchantment(Target::Player(P1), aura, P1);
+    let events = g.apply(Command::EndTurn);
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, Event::NoTargetForCast { .. })));
+    assert!(g.wizard(P0).unwrap().casting().unwrap().remaining < owed);
 }

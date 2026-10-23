@@ -257,6 +257,12 @@ pub enum Event {
         spell: rules::SpellId,
         city: hecs::Entity,
     },
+    /// The spell being cast has nothing to aim at (no rival global enchantment for Disjunction,
+    /// say). It is not paid for at the turn change; its wizard may stop casting it.
+    NoTargetForCast {
+        player: player::PlayerId,
+        spell: rules::SpellId,
+    },
     /// A spell has been paid for and waits for a target.
     SpellReady {
         player: player::PlayerId,

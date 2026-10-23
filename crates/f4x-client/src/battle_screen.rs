@@ -225,6 +225,9 @@ pub(crate) fn describe(
         }
         BattleEvent::Summoned { unit } => format!("{} appears", name(*unit)),
         BattleEvent::Raised { unit } => format!("{} rises again as undead", name(*unit)),
+        BattleEvent::FieldDispelled { spell: s, .. } => {
+            format!("{} is dispelled from the field", spell(*s))
+        }
         BattleEvent::FieldRaised { spell: s, .. } => format!("{} covers the field", spell(*s)),
         BattleEvent::SpellResisted { unit } => format!("{} resists", name(*unit)),
         BattleEvent::SpellSlew { unit, kills } => {

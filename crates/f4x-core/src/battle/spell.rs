@@ -1230,7 +1230,10 @@ impl Game {
                 vec![BattleEvent::Summoned { unit: id }]
             }
             (Kind::Dispel(per_mana), SpellAim::Unit(target)) => {
-                self.dispel_battle_unit(target, pool as u32 * per_mana, player)
+                let strength = pool as u32 * per_mana;
+                let mut events = self.dispel_battle_unit(target, strength, player);
+                events.extend(self.dispel_battle_fields(strength, player));
+                events
             }
             _ => Vec::new(),
         }
@@ -1344,6 +1347,38 @@ impl Game {
                     }
                 }
                 _ => {}
+            }
+        }
+        events
+    }
+
+    /// A dispel of `strength` by `by` on the battlefield enchantments the other side has up
+    /// (`Combat_Cast_Dispel`): each is tried at its spell's difficulty, with the retorts of the
+    /// wizard that cast it, and a success takes it down.
+    fn dispel_battle_fields(&mut self, strength: u32, by: PlayerId) -> Vec<BattleEvent> {
+        let Some(active) = self.battle.as_ref() else {
+            return Vec::new();
+        };
+        let Some(mine) = active.battle.side_of(by) else {
+            return Vec::new();
+        };
+        let theirs = mine.other();
+        let victim = active.battle.player_of(theirs);
+        let up: Vec<(Field, SpellId)> = active.battle.fields[theirs.index()].clone();
+        let mut rng = Pcg64Mcg::seed_from_u64(self.next_u64());
+        let mut events = Vec::new();
+        for (field, spell) in up {
+            let difficulty = self.dispel_difficulty(spell, Some(victim));
+            if !crate::spell::dispel::dispel_roll(strength, difficulty, &mut rng) {
+                continue;
+            }
+            if let Some(active) = self.battle.as_mut() {
+                if let Some(spell) = active.battle.take_down_field(theirs, field) {
+                    events.push(BattleEvent::FieldDispelled {
+                        side: theirs,
+                        spell,
+                    });
+                }
             }
         }
         events

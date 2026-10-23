@@ -280,26 +280,31 @@ impl Game {
         }
     }
 
-    /// Disjunction and Spell Binding: attack `victim`'s global enchantment `spell` with a dispel
-    /// of `strength`. When `steal` is set, a success hands the spell to `by` instead of ending
-    /// it. Returns whether it worked, or `None` if `victim` has no such spell (or is `by`).
+    /// Disjunction and Spell Binding: attack the global enchantment `instance` of another
+    /// wizard with a dispel of `strength`. When `steal` is set, a success hands the spell to `by`
+    /// (the instance gets a new caster) instead of ending it. Returns whether it worked, or
+    /// `None` if the instance is no global enchantment of another wizard.
     pub(crate) fn attack_global(
         &mut self,
         by: PlayerId,
-        victim: PlayerId,
-        spell: SpellId,
+        instance: hecs::Entity,
         strength: u32,
         steal: bool,
         rng: &mut dyn RngCore,
     ) -> Option<bool> {
-        if victim == by || !self.wizard(victim)?.has_global(spell) {
+        let spells = self.spells();
+        if spells.target(instance)? != SpellTarget::Global {
+            return None;
+        }
+        let (spell, victim) = (spells.def(instance)?, spells.caster_player(instance)?);
+        if victim == by {
             return None;
         }
         let difficulty = self.dispel_difficulty(spell, Some(victim));
         if !dispel_roll(strength, difficulty, rng) {
             return Some(false);
         }
-        self.remove_global(victim, spell);
+        self.despawn_spell(instance);
         if steal {
             self.add_global(by, spell);
             self.reveal_for_globals(by);

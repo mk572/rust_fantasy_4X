@@ -524,14 +524,19 @@ fn the_autobuild_command_sets_and_clears_a_citys_plan() {
 
 #[test]
 fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
-    let g = game();
+    use f4x_core::rules::exec::Target;
+    let mut g = game();
     let awareness = g.content().rules.spells.id_of("awareness").unwrap();
+    g.attach_enchantment(Target::Player(PlayerId(1)), awareness, PlayerId(1));
+    let held = g.global_instance(PlayerId(1), awareness).unwrap();
     assert_eq!(
         crate::args::parse_target(&g, "global:1:awareness").unwrap(),
-        f4x_core::rules::exec::Target::Global(PlayerId(1), awareness)
+        Target::Spell(held)
     );
     assert!(crate::args::parse_target(&g, "global:1").is_err());
     assert!(crate::args::parse_target(&g, "global:1:no_such_spell").is_err());
+    // A wizard that keeps nothing of the kind going has nothing to name.
+    assert!(crate::args::parse_target(&g, "global:2:awareness").is_err());
 }
 
 #[test]

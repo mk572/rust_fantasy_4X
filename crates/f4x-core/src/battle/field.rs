@@ -182,6 +182,16 @@ impl Battle {
         true
     }
 
+    /// Take an enchantment of `side` down, and its changes off the units. Returns the spell that
+    /// had put it up, or `None` if `side` had not.
+    pub fn take_down_field(&mut self, side: Side, field: Field) -> Option<SpellId> {
+        let list = &mut self.fields[side.index()];
+        let at = list.iter().position(|&(f, _)| f == field)?;
+        let (_, spell) = list.remove(at);
+        self.refresh_fields();
+        Some(spell)
+    }
+
     /// What the battlefield spells do to this unit's numbers now.
     fn field_bonus_for(&self, u: &BattleUnit) -> FieldBonus {
         let mine = u.side;

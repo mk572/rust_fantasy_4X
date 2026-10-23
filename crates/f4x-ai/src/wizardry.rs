@@ -127,10 +127,26 @@ fn priority(k: Kind) -> u8 {
 
 /// Everything the wizard does with its magic in a turn.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    stop_aimless(ai, game, events);
     resolve_paid(ai, game, events);
     split(ai, game, events);
     research(ai, game, events);
     cast(ai, game, events);
+}
+
+/// The game asks a wizard whose spell has nothing to aim at whether to stop casting it; the AI
+/// answers yes, as a human would.
+fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let Some(spell) = game
+        .wizard(ai.player)
+        .and_then(|m| m.casting())
+        .map(|c| c.spell)
+    else {
+        return;
+    };
+    if game.spell_needs_target(ai.player, spell) && !game.spell_has_target(ai.player, spell) {
+        ai.send(game, Command::CancelCast { player: ai.player }, events);
+    }
 }
 
 // ---- the power split ------------------------------------------------------------

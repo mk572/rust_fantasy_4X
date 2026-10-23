@@ -3856,3 +3856,74 @@ fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
     assert!(!b.units[1].revealed);
     assert!(!b.seen_by(Side::Attacker, 1));
 }
+
+/// Dispel Magic with 1500 mana against the enemy's Darkness (difficulty 25) and the caster's own
+/// Prayer, after `burn` rolls of the game's dice: whether Darkness came down, and whether Prayer
+/// is still up.
+fn dispel_the_field(burn: usize) -> (bool, bool) {
+    use crate::battle::field::Field;
+    let mut g = casting_game();
+    for _ in 0..burn {
+        g.next_u64();
+    }
+    g.treasury_mut(A).unwrap().mana = 2000;
+    g.init_wizard(A, &[("sorcery", 5)], &[], None).unwrap();
+    let dispel = g.content.rules.spells.id_of("dispel_magic").unwrap();
+    let darkness = g.content.rules.spells.id_of("darkness").unwrap();
+    let prayer = g.content.rules.spells.id_of("prayer").unwrap();
+    {
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(dispel);
+        m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
+    }
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let ours = g.spawn_unit(A, at(4, 4), walker);
+    let theirs = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: vec![theirs],
+    });
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        b.set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
+        assert!(b.raise_field(Side::Defender, Field::Darkness, darkness));
+        assert!(b.raise_field(Side::Attacker, Field::Prayer, prayer));
+    }
+    let events = g
+        .battle_command(BattleCommand::Cast {
+            spell: dispel,
+            aim: SpellAim::Unit(1),
+            mana: 1500,
+        })
+        .unwrap();
+    let b = g.battle().unwrap();
+    let down = !b.has_field(Side::Defender, Field::Darkness);
+    assert_eq!(
+        down,
+        events.contains(&Event::Battle(BattleEvent::FieldDispelled {
+            side: Side::Defender,
+            spell: darkness
+        })),
+        "{events:?}"
+    );
+    (down, b.has_field(Side::Attacker, Field::Prayer))
+}
+
+#[test]
+fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_own() {
+    // The roll misses one time in 250 whatever the strength, so look at several throws of the dice.
+    let throws: Vec<(bool, bool)> = (0..8).map(dispel_the_field).collect();
+    assert!(
+        throws.iter().filter(|&&(down, _)| down).count() >= 6,
+        "{throws:?}"
+    );
+    assert!(
+        throws.iter().all(|&(_, own)| own),
+        "a dispel never takes down the caster's own spells"
+    );
+}

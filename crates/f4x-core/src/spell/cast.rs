@@ -166,12 +166,17 @@ impl GameHost<'_> {
             }
             _ => return None,
         };
-        let Target::Global(victim, spell) = who else {
+        let Target::Spell(instance) = who else {
             return Some(Vec::new());
         };
-        let result =
-            self.game
-                .attack_global(by, victim, spell, cost * factor, steal, &mut self.rng);
+        let spells = self.game.spells();
+        let (Some(victim), Some(spell)) = (spells.caster_player(instance), spells.def(instance))
+        else {
+            return Some(Vec::new());
+        };
+        let result = self
+            .game
+            .attack_global(by, instance, cost * factor, steal, &mut self.rng);
         Some(global_attack_events(by, victim, spell, result, steal))
     }
 }
@@ -210,7 +215,11 @@ impl EffectHost for GameHost<'_> {
             Target::Tile(p) => Some(p),
             // A wizard is "at" their summoning circle.
             Target::Player(p) => self.game.summon_point(p),
-            Target::Global(owner, _) => self.game.summon_point(owner),
+            Target::Spell(i) => self
+                .game
+                .spells()
+                .caster_player(i)
+                .and_then(|p| self.game.summon_point(p)),
         }
     }
 
@@ -218,7 +227,8 @@ impl EffectHost for GameHost<'_> {
         match who {
             Target::Unit(u) => self.game.units().unit_owner(u),
             Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
-            Target::Player(p) | Target::Global(p, _) => Some(p),
+            Target::Player(p) => Some(p),
+            Target::Spell(i) => self.game.spells().caster_player(i),
             Target::Tile(_) => None,
         }
     }
@@ -676,8 +686,9 @@ impl Game {
                     && (!self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
                         || self.mana_spent_casting(p).is_some())
             }
-            (SpellTarget::GlobalEnchantment, Some(Target::Global(owner, s))) => {
-                owner != player && self.wizard(owner).is_some_and(|m| m.has_global(s))
+            (SpellTarget::GlobalEnchantment, Some(Target::Spell(i))) => {
+                self.spells().target(i) == Some(crate::spell::instance::SpellTarget::Global)
+                    && self.spells().caster_player(i).is_some_and(|o| o != player)
             }
             (SpellTarget::Tile, Some(Target::Tile(p))) => self
                 .map
@@ -700,7 +711,7 @@ impl Game {
                 self.add_global(p, spell);
                 self.reveal_for_globals(p);
             }
-            Target::Tile(_) | Target::Global(..) => {}
+            Target::Tile(_) | Target::Spell(_) => {}
         }
     }
 

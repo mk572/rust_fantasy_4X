@@ -27,8 +27,8 @@ pub enum Target {
     ),
     Tile(Position),
     Player(PlayerId),
-    /// An enemy wizard's global enchantment: its owner and the spell.
-    Global(PlayerId, crate::rules::SpellId),
+    /// A spell instance: an enemy wizard's global enchantment (`docs/ecs-structure.md` 3.4).
+    Spell(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
 }
 
 /// What the rules need to know about a target to evaluate a [`Condition`].

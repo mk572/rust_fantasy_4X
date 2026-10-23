@@ -174,6 +174,13 @@ impl Game {
             events.extend(self.apply_mana_upkeep(player));
         }
         for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
+            // A spell with nothing to aim at is not paid for; its wizard is asked whether to stop.
+            if let Some((spell, paid)) = self.aimless_cast(player) {
+                if !paid {
+                    events.push(Event::NoTargetForCast { player, spell });
+                }
+                continue;
+            }
             // Heroes at the fortress add to the skill that pays for a spell over turns.
             let heroes = self.hero_casting_skill(player);
             self.pay_for_casting(player, heroes);
@@ -248,9 +255,65 @@ impl Game {
             return Vec::new();
         };
         if self.spell_needs_target(player, spell) {
-            return vec![Event::SpellReady { player, spell }];
+            return vec![if self.spell_has_target(player, spell) {
+                Event::SpellReady { player, spell }
+            } else {
+                Event::NoTargetForCast { player, spell }
+            }];
         }
         self.resolve_cast(player, spell, None)
+    }
+
+    /// The spell the wizard is casting if it needs a target and there is none to aim it at, and
+    /// whether it is already paid for.
+    fn aimless_cast(&self, player: PlayerId) -> Option<(SpellId, bool)> {
+        let c = self.wizard(player)?.casting()?;
+        let aimless =
+            self.spell_needs_target(player, c.spell) && !self.spell_has_target(player, c.spell);
+        aimless.then_some((c.spell, c.remaining <= 0))
+    }
+
+    /// Is there anything `player` could aim `spell` at now? It tries every unit, city, wizard,
+    /// rival global enchantment and square against the same check a cast goes through.
+    pub fn spell_has_target(&self, player: PlayerId, spell: SpellId) -> bool {
+        use crate::map::{Plane, Position};
+        use crate::rules::exec::Target;
+        if !self.spell_needs_target(player, spell) {
+            return true;
+        }
+        let ok = |t: Target| self.check_target(player, spell, Some(t)).is_ok();
+        if self
+            .units()
+            .all_units()
+            .into_iter()
+            .any(|u| ok(Target::Unit(u)))
+            || self.player_ids().into_iter().any(|p| ok(Target::Player(p)))
+            || self
+                .rival_globals(player)
+                .into_iter()
+                .any(|i| ok(Target::Spell(i)))
+        {
+            return true;
+        }
+        let cities = self.economy().cities();
+        let realms = &self.content.rules.realms;
+        let realms: Vec<_> = realms
+            .defs()
+            .iter()
+            .filter_map(|d| realms.id_of(&d.id))
+            .collect();
+        if cities.iter().any(|&(c, ..)| {
+            ok(Target::City(c)) || realms.iter().any(|&r| ok(Target::CityRealm(c, r)))
+        }) {
+            return true;
+        }
+        let Some(map) = self.map.as_ref() else {
+            return false;
+        };
+        [Plane::Arcanus, Plane::Myrror].into_iter().any(|plane| {
+            (0..map.height())
+                .any(|y| (0..map.width()).any(|x| ok(Target::Tile(Position { plane, x, y }))))
+        })
     }
 
     /// Start casting `spell` overland. If the skill and mana on hand pay for all of it, it

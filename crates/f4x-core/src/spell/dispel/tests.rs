@@ -57,6 +57,11 @@ fn sp(g: &Game, id: &str) -> SpellId {
     g.content.rules.spells.id_of(id).unwrap()
 }
 
+/// The target that names the global enchantment `player` keeps going.
+fn global(g: &Game, player: PlayerId, spell: SpellId) -> Target {
+    Target::Spell(g.global_instance(player, spell).unwrap())
+}
+
 fn cast(g: &mut Game, spell: &str, target: Target) -> Vec<Event> {
     let s = sp(g, spell);
     g.wizard_mut(P0)
@@ -257,7 +262,8 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
     let mut g = world();
     let aura = sp(&g, "aura_of_majesty");
     g.attach_enchantment(Target::Player(P1), aura, P1);
-    let events = cast(&mut g, "spell_binding", Target::Global(P1, aura));
+    let held = global(&g, P1, aura);
+    let events = cast(&mut g, "spell_binding", held);
     assert!(
         events.contains(&Event::GlobalSpellTaken {
             player: P0,
@@ -269,6 +275,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
     assert!(g.wizard(P0).unwrap().has_global(aura));
     assert!(!g.wizard(P1).unwrap().has_global(aura));
     // Now P1 ends it with Disjunction.
+    let stolen = global(&g, P0, aura);
     let dj = sp(&g, "disjunction");
     g.wizard_mut(P1)
         .unwrap()
@@ -278,7 +285,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
     let events = g.apply(Command::CastSpell {
         player: P1,
         spell: sp(&g, "disjunction"),
-        target: Some(Target::Global(P0, aura)),
+        target: Some(stolen),
     });
     assert!(
         events.contains(&Event::GlobalSpellRemoved {
@@ -290,15 +297,33 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() {
     );
     assert!(g.wizard(P0).unwrap().global().is_empty());
     // Nothing to take: refused.
-    let events = cast(&mut g, "disjunction", Target::Global(P1, aura));
+    let events = cast(&mut g, "disjunction", held);
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
     // You cannot disjoin your own.
     g.attach_enchantment(Target::Player(P0), aura, P0);
-    let events = cast(&mut g, "disjunction", Target::Global(P0, aura));
+    let own = global(&g, P0, aura);
+    let events = cast(&mut g, "disjunction", own);
     assert!(matches!(events.as_slice(), [Event::Rejected(_)]));
+}
+
+#[test]
+fn the_rivals_globals_are_listed_wizard_by_wizard() {
+    let mut g = world();
+    let aura = sp(&g, "aura_of_majesty");
+    let omens = sp(&g, "evil_omens");
+    g.attach_enchantment(Target::Player(P1), aura, P1);
+    g.attach_enchantment(Target::Player(P1), omens, P1);
+    g.attach_enchantment(Target::Player(P0), aura, P0);
+    let seen: Vec<_> = g
+        .rival_globals(P0)
+        .into_iter()
+        .map(|i| g.spells().def(i).unwrap())
+        .collect();
+    assert_eq!(seen, [aura, omens], "P0's own is no target");
+    assert_eq!(g.rival_globals(P1).len(), 1);
 }
 
 #[test]
@@ -309,7 +334,8 @@ fn a_weak_disjunction_often_fails() {
     let mut r = rng();
     let wins = (0..2000)
         .filter(|_| {
-            let won = g.attack_global(P0, P1, aura, 400, false, &mut r) == Some(true);
+            let held = g.global_instance(P1, aura).unwrap();
+            let won = g.attack_global(P0, held, 400, false, &mut r) == Some(true);
             g.attach_enchantment(Target::Player(P1), aura, P1);
             won
         })

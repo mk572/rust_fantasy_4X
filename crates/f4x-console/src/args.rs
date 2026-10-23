@@ -194,7 +194,10 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
                 ConsoleError::Parse("a global target is global:<player>:<spell>".into())
             })?;
             let spell = resolve(&game.content().rules.spells, name, |d| &d.name, "spell")?;
-            Target::Global(parse_player(who)?, spell)
+            let owner = parse_player(who)?;
+            Target::Spell(game.global_instance(owner, spell).ok_or_else(|| {
+                ConsoleError::Parse(format!("player {} keeps no {name:?} going", owner.0))
+            })?)
         }
         other => {
             return Err(ConsoleError::Parse(format!(

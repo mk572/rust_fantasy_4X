@@ -511,7 +511,10 @@ mass spells that destroy.
 Console: `battle` lists the field enchantments' effects through the units' numbers; the spell events
 are described. The client's panel names the enchantments over the field.
 
-**Not here** (task 159): dispelling battlefield enchantments (Dispel Magic aims at a unit; the
-original's also reaches the field), the node auras and counter, Wall of Stone in battle (tasks 158 and 163),
+Dispel Magic (and True) also tries each battlefield enchantment of the caster's enemy
+(`Game::dispel_battle_fields`; task 161), at the spell's difficulty with the masteries of its caster.
+Counter Magic cannot be dispelled, and the dispel still aims at a unit.
+
+**Not here** (task 159): Disenchant Area and True in battle, the node auras and counter, Wall of Stone in battle (tasks 158 and 163),
 true sight (it cancels invisibility), the Mass Invisibility rule that an invisible unit next to an
 enemy is seen, Entangle's exemption for fliers in the help text.

@@ -110,6 +110,13 @@ impl App {
     }
 
     pub fn open_spellbook(&mut self) {
+        // A spell that is paid for and waits for its target: choose that first.
+        if let Some(spell) = self.game.wizard(HUMAN).and_then(|m| m.casting_paid()) {
+            if self.game.spell_needs_target(HUMAN, spell) {
+                self.aim_paid_spell(spell);
+                return;
+            }
+        }
         let spells = self.castable_spells();
         let pages = self.book_pages(&spells, SMALL_PAGE);
         // Open at the spell being cast, or where the book was left.
@@ -126,6 +133,26 @@ impl App {
         self.screen = Screen::Spellbook;
     }
 
+    /// The spell the wizard has paid for over turns is ready: choose its target. A rival's
+    /// global enchantment is picked from a list, anything else is aimed on the map.
+    pub(crate) fn aim_paid_spell(&mut self, spell: SpellId) {
+        self.screen = Screen::Map;
+        if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
+            if self.game.rival_globals(HUMAN).is_empty() {
+                self.log.push(
+                    "No other wizard keeps a global enchantment going; the spell waits".into(),
+                );
+            } else {
+                self.global_prompt = Some((spell, true, 0));
+            }
+            return;
+        }
+        self.targeting = Some(Targeting {
+            spell,
+            resolve: true,
+        });
+    }
+
     /// Start casting `spell`: one that needs a target and is paid for at once is aimed on the
     /// map, any other is started and paid for over the turns.
     pub(crate) fn begin_cast(&mut self, spell: SpellId) {
@@ -134,6 +161,18 @@ impl App {
         let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
         let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
         if needs && cost <= instant.min(mana) {
+            // A rival's global enchantment is no place on the map: it is chosen from a list.
+            if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
+            {
+                if self.game.rival_globals(HUMAN).is_empty() {
+                    self.log
+                        .push("No other wizard keeps a global enchantment going".into());
+                } else {
+                    self.global_prompt = Some((spell, false, 0));
+                }
+                self.screen = Screen::Map;
+                return;
+            }
             self.targeting = Some(Targeting {
                 spell,
                 resolve: false,

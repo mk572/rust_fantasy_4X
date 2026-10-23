@@ -85,7 +85,7 @@ impl EffectHost for MockHost {
             Target::Unit(e) => self.unit(e).pos,
             Target::City(_) | Target::CityRealm(..) => self.city.map(|c| c.1),
             Target::Tile(p) => Some(p),
-            Target::Player(_) | Target::Global(..) => None,
+            Target::Player(_) | Target::Spell(_) => None,
         }
     }
     fn owner_of(&self, who: Target) -> Option<PlayerId> {

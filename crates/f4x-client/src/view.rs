@@ -225,6 +225,11 @@ pub struct App {
     /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
     /// paid for (`Targeting::resolve`).
     pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
+    /// Disjunction or Spell Binding being aimed: the spell, whether it is already paid for, and
+    /// the row of the rival's global enchantment chosen so far.
+    /// The spell being cast has nothing to aim at: ask whether to stop casting it.
+    pub(crate) no_target_prompt: Option<f4x_core::rules::SpellId>,
+    pub(crate) global_prompt: Option<(f4x_core::rules::SpellId, bool, usize)>,
     /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
     pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
@@ -319,6 +324,8 @@ impl App {
             resign_prompt: false,
             upkeep_prompt: None,
             ward_prompt: None,
+            global_prompt: None,
+            no_target_prompt: None,
             mastery_notice: std::collections::VecDeque::new(),
         };
         app.start_game();
@@ -745,10 +752,21 @@ impl App {
                     "{removed} enchantment{} dispelled",
                     if removed == 1 { "" } else { "s" }
                 )),
-                Event::SpellReady { spell, .. } => Some(format!(
-                    "{} is ready: choose its target (M)",
-                    self.game.content().rules.spells.get(spell).name
-                )),
+                Event::NoTargetForCast { player, spell } => {
+                    if player == HUMAN {
+                        self.no_target_prompt = Some(spell);
+                    }
+                    None
+                }
+                Event::SpellReady { player, spell } => {
+                    if player == HUMAN {
+                        self.aim_paid_spell(spell);
+                    }
+                    Some(format!(
+                        "{} is ready: choose its target (S reopens the choice)",
+                        self.game.content().rules.spells.get(spell).name
+                    ))
+                }
                 Event::HeroJoined { kind, .. } => {
                     let name = self
                         .game
@@ -1109,6 +1127,16 @@ impl App {
                 return self.ward_prompt_frame(prompt);
             }
         }
+        if let Some(spell) = self.no_target_prompt {
+            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+                return self.no_target_frame(spell);
+            }
+        }
+        if let Some(prompt) = self.global_prompt {
+            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
+                return self.global_prompt_frame(prompt);
+            }
+        }
         if self.site_notice_frame() {
             return true;
         }
@@ -1321,6 +1349,127 @@ impl App {
             .collect();
         crate::frame::text_centered(&choices.join("   "), w / 2.0, h / 2.0 + 15.0, 22.0, GOLD);
         crate::frame::text_centered("Esc: cancel", w / 2.0, h / 2.0 + 50.0, 18.0, WHITE);
+        true
+    }
+
+    /// The cast has nothing to aim at: "There are no targets for X. Do you wish to continue
+    /// casting it?" Yes keeps the spell (it is not paid for until a target exists), No gives it
+    /// up.
+    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId) -> bool {
+        let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
+        if casting.is_none_or(|c| c.spell != spell) {
+            self.no_target_prompt = None;
+            return true;
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let lay = crate::frame::Layout::new();
+        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let text = format!("There are no targets for {name}. Do you wish to continue casting it?");
+        match self.confirmation_box(&lay, &text) {
+            Some(true) => self.no_target_prompt = None,
+            Some(false) => {
+                self.no_target_prompt = None;
+                let events = self.game.apply(Command::CancelCast { player: HUMAN });
+                self.note(events);
+            }
+            None => {}
+        }
+        true
+    }
+
+    /// The list of the rivals' global enchantments a Disjunction or Spell Binding can aim at,
+    /// by wizard, with the spell's name and cost: Up and Down move, Enter or a click casts, and
+    /// Escape gives up.
+    fn global_prompt_frame(
+        &mut self,
+        (spell, resolve, row): (f4x_core::rules::SpellId, bool, usize),
+    ) -> bool {
+        let rows = self.game.rival_globals(HUMAN);
+        let row = row.min(rows.len().saturating_sub(1));
+        let spells = self.game.spells();
+        let lines: Vec<String> = rows
+            .iter()
+            .filter_map(|&i| {
+                let def = self.game.content().rules.spells.get(spells.def(i)?);
+                let who = self.game.player_name(spells.caster_player(i)?);
+                Some(format!("{who}: {} ({} MP)", def.name, def.cost))
+            })
+            .collect();
+        let (w, h) = (screen_width(), screen_height());
+        let (top, step) = (h / 2.0 - 20.0, 30.0);
+        let clicked = if is_mouse_button_pressed(MouseButton::Left) {
+            let (mx, my) = mouse_position();
+            (0..lines.len()).find(|&n| {
+                let y = top + step * n as f32;
+                (w / 2.0 - 260.0..w / 2.0 + 260.0).contains(&mx)
+                    && (y - 20.0..y + 8.0).contains(&my)
+            })
+        } else {
+            None
+        };
+        let mut pick = clicked.unwrap_or(row);
+        if is_key_pressed(KeyCode::Up) {
+            pick = pick.saturating_sub(1);
+        }
+        if is_key_pressed(KeyCode::Down) {
+            pick = (pick + 1).min(lines.len().saturating_sub(1));
+        }
+        if is_key_pressed(KeyCode::Escape) || rows.is_empty() {
+            self.global_prompt = None;
+            self.log.push("Cast cancelled".into());
+        } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
+            self.global_prompt = None;
+            let target = f4x_core::rules::exec::Target::Spell(rows[pick]);
+            let cmd = if resolve {
+                Command::ResolveCast {
+                    player: HUMAN,
+                    target,
+                }
+            } else {
+                Command::CastSpell {
+                    player: HUMAN,
+                    spell,
+                    target: Some(target),
+                }
+            };
+            let events = self.game.apply(cmd);
+            self.note(events);
+        } else {
+            self.global_prompt = Some((spell, resolve, pick));
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let height = 110.0 + step * lines.len() as f32;
+        draw_rectangle(
+            w / 2.0 - 280.0,
+            h / 2.0 - 80.0,
+            560.0,
+            height,
+            Color::new(0.08, 0.06, 0.04, 0.95),
+        );
+        draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
+        let name = self.game.content().rules.spells.get(spell).name.clone();
+        crate::frame::text_centered(
+            &format!("{name}: choose a global enchantment"),
+            w / 2.0,
+            h / 2.0 - 45.0,
+            22.0,
+            WHITE,
+        );
+        for (n, line) in lines.iter().enumerate() {
+            let color = if n == pick { GOLD } else { WHITE };
+            crate::frame::text_centered(line, w / 2.0, top + step * n as f32, 22.0, color);
+        }
+        crate::frame::text_centered(
+            "Up/Down and Enter, or click; Esc: cancel",
+            w / 2.0,
+            top + step * lines.len() as f32 + 10.0,
+            18.0,
+            WHITE,
+        );
         true
     }
 
