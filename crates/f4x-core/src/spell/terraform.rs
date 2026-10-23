@@ -408,7 +408,11 @@ mod tests {
             events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
         );
-        assert_eq!(g.treasury(P0).unwrap().mana, 1000, "refused before paying");
+        assert_eq!(
+            g.player(P0).unwrap().treasury().mana,
+            1000,
+            "refused before paying"
+        );
     }
 
     #[test]

@@ -65,13 +65,13 @@ impl<'a> PlayerView<'a> {
     /// The player's gold and mana.
     pub fn treasury(&self) -> Treasury {
         self.game
-            .treasury(self.me)
-            .unwrap_or(Treasury { gold: 0, mana: 0 })
+            .player(self.me)
+            .map_or(Treasury { gold: 0, mana: 0 }, |p| p.treasury())
     }
 
     /// Has the player lost everything?
     pub fn is_defeated(&self) -> bool {
-        self.game.is_defeated(self.me)
+        self.game.player(self.me).is_some_and(|p| p.is_defeated())
     }
 
     /// The offers made to the player at the turn change that wait for an answer.

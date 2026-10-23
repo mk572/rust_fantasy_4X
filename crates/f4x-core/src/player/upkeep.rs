@@ -61,7 +61,7 @@ impl Game {
         } else {
             self.income(player).split.mana.max(0)
         };
-        let reserve = self.treasury(player)?.mana.saturating_add(income);
+        let reserve = self.player(player)?.treasury().mana.saturating_add(income);
         if owed <= reserve {
             return None;
         }

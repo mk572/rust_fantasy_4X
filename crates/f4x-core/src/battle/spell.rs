@@ -447,7 +447,11 @@ impl Game {
             }
             battle.set_caster(
                 side,
-                BattleCaster::new(skill, self.treasury(player).map_or(0, |t| t.mana), range),
+                BattleCaster::new(
+                    skill,
+                    self.player(player).map_or(0, |p| p.treasury().mana),
+                    range,
+                ),
             );
         }
     }

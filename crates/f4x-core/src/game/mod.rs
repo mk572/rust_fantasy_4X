@@ -177,6 +177,15 @@ impl Game {
         e
     }
 
+    /// The read handle on a player (the monsters' owner too).
+    pub fn player(&self, id: player::PlayerId) -> Option<player::entity::Player<'_>> {
+        Some(player::entity::Player::new(
+            &self.world,
+            self.player_entity(id)?,
+            id,
+        ))
+    }
+
     /// The wizard of a player, if it has one.
     pub fn wizard(&self, id: player::PlayerId) -> Option<wizard::entity::Wizard<'_>> {
         let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
@@ -205,21 +214,8 @@ impl Game {
     }
 
     /// How a player is called: its wizard's name, or its city's.
-    pub fn player_name(&self, id: player::PlayerId) -> String {
-        wizard::entity::player_name(&self.world, id)
-    }
-
     /// The banner colour of a player; the neutral banner if it has no wizard.
-    pub fn banner(&self, id: player::PlayerId) -> u8 {
-        self.wizard(id)
-            .map_or(player::NEUTRAL_BANNER, |w| w.banner())
-    }
-
     /// The wizard picture of a player.
-    pub fn portrait(&self, id: player::PlayerId) -> u8 {
-        self.wizard(id).map_or(0, |w| w.portrait())
-    }
-
     /// Change the wizard's components.
     pub(crate) fn wizard_set<C: hecs::Component>(&mut self, id: player::PlayerId, value: C) {
         if let Some(w) = self
@@ -279,10 +275,6 @@ impl Game {
     }
 
     /// A player's gold and mana.
-    pub fn treasury(&self, id: player::PlayerId) -> Option<player::Treasury> {
-        self.player_component::<player::Treasury>(id).map(|t| *t)
-    }
-
     /// A player's gold and mana, to change.
     pub fn treasury_mut(&mut self, id: player::PlayerId) -> Option<&mut player::Treasury> {
         self.player_component_mut(id)
@@ -320,16 +312,7 @@ impl Game {
     }
 
     /// The wizard's power at each turn, for the History screen.
-    pub fn history(&self, id: player::PlayerId) -> Vec<u8> {
-        self.player_component::<player::History>(id)
-            .map_or_else(Vec::new, |h| h.0.clone())
-    }
-
     /// Does the player's Grand Vizier choose what its cities build next?
-    pub fn has_grand_vizier(&self, id: player::PlayerId) -> bool {
-        self.player_component::<player::GrandVizier>(id).is_some()
-    }
-
     pub(crate) fn set_grand_vizier(&mut self, id: player::PlayerId, on: bool) {
         let Some(e) = self.player_entity(id) else {
             return;
@@ -342,18 +325,10 @@ impl Game {
     }
 
     /// Who took the last city of a defeated player.
-    pub fn defeat_by(&self, id: player::PlayerId) -> Option<player::PlayerId> {
-        self.player_component::<player::Defeat>(id)?.by
-    }
-
     /// Has the player lost everything?
-    pub fn is_defeated(&self, id: player::PlayerId) -> bool {
-        self.player_component::<player::Defeat>(id).is_some()
-    }
-
     #[cfg(test)]
     pub(crate) fn tr(&self, i: usize) -> player::Treasury {
-        self.treasury(self.player_ids()[i]).unwrap()
+        self.player(self.player_ids()[i]).unwrap().treasury()
     }
 
     #[cfg(test)]

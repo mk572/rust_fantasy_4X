@@ -219,8 +219,8 @@ impl App {
         // Gold and mana in the boxes under the minimap (`Main_Screen_Draw_Status_Window`): the
         // figures right-aligned in grey, the units after them; the narrow font when a figure
         // has five digits.
-        let gold = self.game.treasury(HUMAN).map_or(0, |p| p.gold);
-        let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
+        let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+        let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
         let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
         let grey = self.art.minimap().named("reserve_text", GRAY);

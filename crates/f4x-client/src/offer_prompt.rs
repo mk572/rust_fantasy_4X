@@ -75,8 +75,8 @@ impl App {
         let lay = Layout::new();
         let affordable = self
             .game
-            .treasury(HUMAN)
-            .is_some_and(|t| t.gold >= offer.price());
+            .player(HUMAN)
+            .is_some_and(|p| p.treasury().gold >= offer.price());
         let (accept, reject) = match &offer {
             Offer::Item { item, price } => self.merchant_box(&lay, item, *price, affordable),
             _ => self.hire_box(&lay, &offer, affordable),

@@ -1494,7 +1494,7 @@ impl App {
             .iter()
             .filter_map(|&i| {
                 let def = self.game.content().rules.spells.get(spells.def(i)?);
-                let who = self.game.player_name(spells.caster_player(i)?);
+                let who = self.game.player(spells.caster_player(i)?)?.name();
                 let args = Args::new()
                     .text("wizard", who)
                     .text("spell", &def.name)

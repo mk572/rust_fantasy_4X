@@ -312,8 +312,8 @@ impl App {
         // The gold and the mana, the anvil, the buttons.
         let (gold, mana) = self
             .game
-            .treasury(HUMAN)
-            .map_or((0, 0), |p| (p.gold, p.mana));
+            .player(HUMAN)
+            .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };
         self.bm_text_outlined(
             view,

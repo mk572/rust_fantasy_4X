@@ -99,7 +99,7 @@ impl Game {
             .units()
             .hero_hire_price(player, kind)
             .ok_or(HeroError::Unknown)?;
-        if self.treasury(player).map_or(0, |p| p.gold) < price {
+        if self.player(player).map_or(0, |p| p.treasury().gold) < price {
             return Err(HeroError::NoGold);
         }
         let unit = self.arrive(player, kind)?;
@@ -221,7 +221,7 @@ mod tests {
     fn hiring_charges_the_price_and_the_hero_appears_at_the_circle() {
         let mut g = caster();
         let h = g.hire_hero(P0, 0).unwrap();
-        assert_eq!(g.treasury(P0).unwrap().gold, 0);
+        assert_eq!(g.player(P0).unwrap().treasury().gold, 0);
         assert_eq!(g.units().unit_position(h), Some(at(3, 3)));
         assert_eq!(g.units().hero_kind(h), Some(0));
         // Not twice, not by the other wizard while it serves, not without the gold, not without
@@ -238,7 +238,7 @@ mod tests {
             .unwrap()
             .put::<crate::wizard::fortress::Fortress>(None);
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoCircle));
-        assert_eq!(g.treasury(P0).unwrap().gold, 500);
+        assert_eq!(g.player(P0).unwrap().treasury().gold, 500);
         assert!(g.units().heroes(P1).is_empty());
     }
 
@@ -263,8 +263,8 @@ mod tests {
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert!(kind < HEROES);
         assert_eq!(g.units().unit_position(unit), Some(at(3, 3)));
-        assert_eq!(g.treasury(P0).unwrap().gold, 100);
-        assert!(g.treasury(P0).unwrap().mana < 1000);
+        assert_eq!(g.player(P0).unwrap().treasury().gold, 100);
+        assert!(g.player(P0).unwrap().treasury().mana < 1000);
         assert_eq!(state(&g, kind), HeroState::Serving);
         // The necromancer (a death book) is not among those a life wizard can summon.
         for _ in 0..5 {
@@ -281,7 +281,7 @@ mod tests {
         for k in 0..6 {
             g.hire_hero(P0, k).unwrap();
         }
-        let mana = g.treasury(P0).unwrap().mana;
+        let mana = g.player(P0).unwrap().treasury().mana;
         for hook in [SUMMON_HERO, SUMMON_CHAMPION, INCARNATION] {
             let events = cast(&mut g, hook);
             assert!(
@@ -289,7 +289,7 @@ mod tests {
                 "{hook}: {events:?}"
             );
         }
-        assert_eq!(g.treasury(P0).unwrap().mana, mana);
+        assert_eq!(g.player(P0).unwrap().treasury().mana, mana);
         let h = g.units().hero_units(P0)[0];
         g.remove_unit(h, Fate::Released);
         g.wizard_mut(P0)
@@ -302,7 +302,7 @@ mod tests {
             cast(&mut g, SUMMON_HERO).as_slice(),
             [Event::Rejected(_)]
         ));
-        assert_eq!(g.treasury(P0).unwrap().mana, mana);
+        assert_eq!(g.player(P0).unwrap().treasury().mana, mana);
     }
 
     #[test]
@@ -367,12 +367,12 @@ mod tests {
             cast(&mut g, RESURRECTION).as_slice(),
             [Event::Rejected(_)]
         ));
-        let mana = g.treasury(P0).unwrap().mana;
+        let mana = g.player(P0).unwrap().treasury().mana;
         let events = raise(&mut g, 1);
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert_eq!(kind, 1);
         assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
-        assert!(g.treasury(P0).unwrap().mana < mana);
+        assert!(g.player(P0).unwrap().treasury().mana < mana);
         assert_eq!(g.units().raisable_heroes(), vec![0]);
         // A hero who is not dead, or never was, cannot be raised.
         for kind in [1, 5, 99] {

@@ -99,7 +99,7 @@ impl Game {
         let t = self.budget(player);
         let troops = self.troops(player);
         let fame = self.fame(player);
-        let gold = self.treasury(player)?.gold;
+        let gold = self.player(player)?.treasury().gold;
         let lines = troops
             .iter()
             .map(|tr| {

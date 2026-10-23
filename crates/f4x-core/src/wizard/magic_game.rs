@@ -209,7 +209,7 @@ impl Game {
     /// Heroes at the fortress add their skill, then skill and mana are spent on the spell being
     /// cast (`WizardMut::pay_casting`).
     fn pay_for_casting(&mut self, player: PlayerId, heroes: i32) {
-        let Some(reserve) = self.treasury(player).map(|t| t.mana) else {
+        let Some(reserve) = self.player(player).map(|p| p.treasury().mana) else {
             return;
         };
         let Some(mut w) = self.wizard_mut(player) else {
@@ -226,7 +226,7 @@ impl Game {
     /// summoned creatures are given up until it can (`upkeep_plan`).
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let items = self.upkeep_items(player);
-        let reserve = self.treasury(player).map_or(0, |p| p.mana);
+        let reserve = self.player(player).map_or(0, |p| p.treasury().mana);
         let (dropped, owed) = upkeep_plan(
             &items,
             self.wizard(player).map_or(1, |w| w.upkeep_divisor()),
@@ -328,7 +328,11 @@ impl Game {
         target: Option<crate::rules::exec::Target>,
     ) -> Result<Vec<Event>, MagicError> {
         let cost = self.casting_cost(player, spell, false);
-        let reserve = self.treasury(player).ok_or(MagicError::UnknownPlayer)?.mana;
+        let reserve = self
+            .player(player)
+            .ok_or(MagicError::UnknownPlayer)?
+            .treasury()
+            .mana;
         let def = self.content.rules.spells.get(spell);
         if !def.contexts.contains(&CastContext::Overland) {
             return Err(MagicError::NotOverland);

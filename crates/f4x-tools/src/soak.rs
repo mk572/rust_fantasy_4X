@@ -227,7 +227,7 @@ fn status(game: &Game) -> String {
                 .filter(|(_, c, _)| c.owner == id)
                 .count();
             let units = game.units().player_units(id).len();
-            let tag = if game.is_defeated(id) {
+            let tag = if game.player(id).is_some_and(|p| p.is_defeated()) {
                 " (defeated)"
             } else {
                 ""
@@ -235,7 +235,7 @@ fn status(game: &Game) -> String {
             format!(
                 "p{} {cities}c/{units}u/{}g{tag}",
                 id.0,
-                game.treasury(id).map_or(0, |t| t.gold)
+                game.player(id).map_or(0, |p| p.treasury().gold)
             )
         })
         .collect::<Vec<_>>()
@@ -271,7 +271,7 @@ fn detail_lines(game: &Game, ais: &[Ai]) -> Vec<String> {
             game.budget(id).unit_upkeep,
             game.budget(id).food_gold,
             game.budget(id).food_surplus,
-            game.treasury(id).map_or(0, |t| t.mana),
+            game.player(id).map_or(0, |p| p.treasury().mana),
             income.split.mana,
             income.mana_upkeep,
             m.known().len(),

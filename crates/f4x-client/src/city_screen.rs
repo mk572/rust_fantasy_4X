@@ -1127,7 +1127,10 @@ impl App {
                 );
             }
         }
-        let gold = self.game.treasury(crate::view::HUMAN).map_or(0, |p| p.gold);
+        let gold = self
+            .game
+            .player(crate::view::HUMAN)
+            .map_or(0, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
         let can_buy = price.is_some_and(|p| p as i32 <= gold);
         if self.pic_button(lay, 7, 214.0, 188.0, can_buy && !self.choosing) {

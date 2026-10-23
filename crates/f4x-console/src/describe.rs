@@ -18,8 +18,8 @@ pub fn pos(p: Position) -> String {
 }
 
 pub fn player(game: &Game, id: PlayerId) -> String {
-    if game.has_player(id) {
-        format!("{} ({})", game.player_name(id), id.0)
+    if let Some(p) = game.player(id).filter(|_| game.has_player(id)) {
+        format!("{} ({})", p.name(), id.0)
     } else {
         format!("player {}", id.0)
     }

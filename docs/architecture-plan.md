@@ -78,8 +78,9 @@ How a domain reaches the rest:
 2. **A read-only view trait for the world.** `diplomacy` needs a few questions answered:
    which units a player has and where, whether a unit is visible to a wizard, a wizard's
    cities, whether a wizard is alive, which global spells a wizard has, a wizard's retorts.
-   Those become one small trait (`WorldView`); `Game` implements it, and tests use a small
-   fake. The same trait is what the AI and the client use to look at the game (task 181).
+   Those became one small trait (`WorldView`) with a fake for the tests; the rework (task 336)
+   dropped both: the domain reads a `&Game` (questions in `game/view.rs`) and its tests build a
+   real game. `PlayerView` is what the AI and the client use to look at the game (task 181).
 3. **Plain data in, plain outcomes out** where a call needs more than reads: magic's turn gets
    the power base, the node income and the list of upkeep items as numbers, and returns events
    and "drop this upkeep item" outcomes that `Game` applies to the units and cities.
@@ -95,8 +96,8 @@ Rules that keep it from growing back:
 1. **Groundwork (177, 178):** the RNG as its own struct, and the `WorldView` trait with
    `Game`'s implementation. 177 and 178 are done (`game/rng.rs`; `game/view.rs`).
 2. **Diplomacy (179, done):** move its 46 methods onto `Diplomacy` with a context; callers in other
-   files go through `Game` wrappers that build the context. Move its tests to a fake view so they
-   no longer need a map and three wizards. The result is checked by the existing 51 tests
+   files go through `Game` wrappers that build the context. Its tests first ran on a fake view; they now
+   run on a real game (task 336). The result is checked by the existing 51 tests
    passing unchanged in meaning, and by saves staying compatible (`DiplomacySave`). The way it
    was done, which magic can follow: the domain's state and the generator are taken out of `Game`
    for the call so the rules run over `&Game` as the view, and what they ask of the rest comes

@@ -9,17 +9,15 @@
 //!
 //! Structure (task 179, `architecture-plan.md`): the rules are methods of [`Diplomacy`], which
 //! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
-//! read-only [`WorldView`], the random numbers and a list of changes it asks the game to make
+//! read-only [`Game`], the random numbers and a list of changes it asks the game to make
 //! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
 //! (`with_diplomacy`) and keeps thin methods with the old names for the other modules and the
-//! crates around. Tests of the rules run on a [`FakeView`](crate::game::testutil::FakeView), without a
-//! world.
+//! crates around. Tests of the rules run on a real game.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::game::rng::GameRng;
-use crate::game::view::WorldView;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -352,18 +350,13 @@ impl Diplomacy {
 
 /// The wizards `player` meets by looking at the squares within `radius` of `at`: the owners of
 /// the cities and of the units it can make out there, in player order.
-pub fn met_near(
-    view: &dyn WorldView,
-    player: PlayerId,
-    at: Position,
-    radius: u32,
-) -> Vec<PlayerId> {
+pub fn met_near(view: &Game, player: PlayerId, at: Position, radius: u32) -> Vec<PlayerId> {
     owners(view.foreign_sightings_near(player, at, radius))
 }
 
 /// The wizards `player` meets by what it sees now: the owners of the cities and of the units it
 /// can make out on the squares in its sight, in player order.
-pub fn met_in_sight(view: &dyn WorldView, player: PlayerId) -> Vec<PlayerId> {
+pub fn met_in_sight(view: &Game, player: PlayerId) -> Vec<PlayerId> {
     owners(view.foreign_sightings(player))
 }
 
@@ -375,7 +368,7 @@ fn owners(sightings: Vec<crate::game::view::Sighting>) -> Vec<PlayerId> {
 }
 
 /// The total cost of a wizard's units, the original's army strength.
-pub fn army_strength(view: &dyn WorldView, player: PlayerId) -> i32 {
+pub fn army_strength(view: &Game, player: PlayerId) -> i32 {
     view.units_of(player).iter().map(|u| u.cost as i32).sum()
 }
 
@@ -383,7 +376,7 @@ pub fn army_strength(view: &dyn WorldView, player: PlayerId) -> i32 {
 /// view of the world, the random numbers, and the difficulty. What they must change outside
 /// diplomacy (gold, a spell learned) they leave in `out` for the game to apply.
 pub struct DiplomacyCtx<'a> {
-    pub view: &'a dyn WorldView,
+    pub view: &'a Game,
     pub rng: &'a mut GameRng,
     pub out: Vec<Outcome>,
 }
@@ -402,14 +395,14 @@ pub enum Outcome {
 }
 
 /// Every wizard still in the game, in player order.
-pub fn wizards(view: &dyn WorldView) -> Vec<PlayerId> {
+pub fn wizards(view: &Game) -> Vec<PlayerId> {
     let mut out = view.living_wizards();
     out.sort();
     out
 }
 
 /// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
-fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
+fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
     let books =
         |p: PlayerId, realm: &str| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
     let max_death = books(a, "death").max(books(b, "death"));
@@ -427,13 +420,13 @@ fn start_relation(view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
     score.max(-90)
 }
 
-fn charismatic(view: &dyn WorldView, wizard: PlayerId) -> bool {
+fn charismatic(view: &Game, wizard: PlayerId) -> bool {
     view.wizard(wizard)
         .is_some_and(|m| m.has(Retort::Charismatic))
 }
 
 /// How a threat weighs: the asker's army against the judge's, as the original rates it.
-fn threat_modifier(view: &dyn WorldView, asker: PlayerId, judge: PlayerId) -> i32 {
+fn threat_modifier(view: &Game, asker: PlayerId, judge: PlayerId) -> i32 {
     let (mine, theirs) = (army_strength(view, asker), army_strength(view, judge));
     if theirs < mine {
         if theirs > 0 {
@@ -451,11 +444,7 @@ fn threat_modifier(view: &dyn WorldView, asker: PlayerId, judge: PlayerId) -> i3
 /// The enchantments that sour or sweeten relations: the change, whom it touches, and the
 /// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
 /// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
-fn enchantment_reaction(
-    view: &dyn WorldView,
-    spell: &str,
-    other: PlayerId,
-) -> Option<(i32, Action)> {
+fn enchantment_reaction(view: &Game, spell: &str, other: PlayerId) -> Option<(i32, Action)> {
     let books = |realm: &str| view.wizard(other).map_or(0, |m| m.books_in(realm));
     let reaction = match spell {
         "spell_of_mastery" => (-50, Action::SpellOfMastery),
@@ -480,7 +469,7 @@ fn enchantment_reaction(
 }
 
 impl Diplomacy {
-    fn pair_mut(&mut self, view: &dyn WorldView, a: PlayerId, b: PlayerId) -> &mut Pair {
+    fn pair_mut(&mut self, view: &Game, a: PlayerId, b: PlayerId) -> &mut Pair {
         self.pairs.entry(key(a, b)).or_insert_with(|| {
             let start = start_relation(view, a, b);
             Pair {
@@ -502,7 +491,7 @@ impl Diplomacy {
     }
 
     /// The relation between two wizards as the player sees it (0 before they have a record).
-    pub fn relation(&self, view: &dyn WorldView, a: PlayerId, b: PlayerId) -> i32 {
+    pub fn relation(&self, view: &Game, a: PlayerId, b: PlayerId) -> i32 {
         self.pair(a, b)
             .map_or_else(|| start_relation(view, a, b), |p| p.visible)
     }
@@ -904,7 +893,7 @@ impl Diplomacy {
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
     pub fn check_proposal(
         &self,
-        view: &dyn WorldView,
+        view: &Game,
         from: PlayerId,
         to: PlayerId,
         kind: ProposalKind,
@@ -1043,12 +1032,17 @@ impl Diplomacy {
         amount: i32,
     ) -> Result<(), DiplomacyError> {
         self.check_gift(ctx.view, from, to)?;
-        if amount <= 0 || ctx.view.treasury(from).is_none_or(|p| p.gold < amount) {
+        if amount <= 0
+            || ctx
+                .view
+                .player(from)
+                .is_none_or(|p| p.treasury().gold < amount)
+        {
             return Err(DiplomacyError::NotEnoughGold);
         }
         // The original offers a quarter, half, three quarters or all of the receiver's gold: the
         // larger the share, the warmer the thanks.
-        let reserve = ctx.view.treasury(to).map_or(0, |p| p.gold).max(1);
+        let reserve = ctx.view.player(to).map_or(0, |p| p.treasury().gold).max(1);
         let choice = ((amount * 4 + reserve - 1) / reserve).clamp(1, 4);
         let base = if army_strength(ctx.view, to) > 0 {
             choice * 4
@@ -1098,12 +1092,7 @@ impl Diplomacy {
         Ok(())
     }
 
-    fn check_gift(
-        &self,
-        view: &dyn WorldView,
-        from: PlayerId,
-        to: PlayerId,
-    ) -> Result<(), DiplomacyError> {
+    fn check_gift(&self, view: &Game, from: PlayerId, to: PlayerId) -> Result<(), DiplomacyError> {
         if !view.is_wizard(from) || !view.is_wizard(to) {
             return Err(DiplomacyError::NotWizards);
         }
@@ -1462,7 +1451,7 @@ impl Diplomacy {
                     }
                 }
             }
-            if ctx.view.turn().is_multiple_of(2) {
+            if ctx.view.turn.is_multiple_of(2) {
                 let cities = ctx.view.city_count(human) as i32;
                 for &ai in &wizards {
                     if ai == human || (LAND_SIZE + 1) * 3 >= cities || ctx.rng.roll(4) != 1 {
@@ -1502,7 +1491,7 @@ impl Diplomacy {
                 } else {
                     0
                 };
-                let turn = ctx.view.turn();
+                let turn = ctx.view.turn;
                 let pair = self.pair_mut(ctx.view, a, b);
                 if pair.visible < pair.default {
                     pair.visible = (pair.visible + gravitation).min(pair.default);
@@ -1550,11 +1539,6 @@ impl Game {
             }
         }
         result
-    }
-
-    /// A player that is a wizard: neither the monsters nor an independent city.
-    pub fn is_wizard(&self, id: PlayerId) -> bool {
-        WorldView::is_wizard(self, id)
     }
 
     /// Every wizard still in the game, in player order.

@@ -290,7 +290,7 @@ impl Game {
         }
         let plan = {
             let armory = self.items().armory(player);
-            let mana = self.treasury(player).map_or(0, |t| t.mana);
+            let mana = self.player(player).map_or(0, |p| p.treasury().mana);
             plan_move(&self.items(), &armory, mana, player, from, to, pay)?
         };
         let heroes: Vec<hecs::Entity> = [from, to]

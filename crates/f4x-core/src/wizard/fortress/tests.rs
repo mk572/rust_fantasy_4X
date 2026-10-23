@@ -186,7 +186,11 @@ fn the_fortress_spells_check_their_target_before_charging() {
             "{id}: {events:?}"
         );
     }
-    assert_eq!(g.treasury(P0).unwrap().mana, 500, "nothing was paid");
+    assert_eq!(
+        g.player(P0).unwrap().treasury().mana,
+        500,
+        "nothing was paid"
+    );
     // A legal move works, and Myrror adds five to the fortress's power.
     let events = cast(&mut g, "move_fortress", town);
     assert!(events.contains(&Event::FortressMoved {
@@ -231,7 +235,7 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let w_fame = g.wizard(P1).unwrap().fame();
-    let w_mana = g.treasury(P1).unwrap().mana;
+    let w_mana = g.player(P1).unwrap().treasury().mana;
     let events = g.capture_city(capital, P1);
     assert!(
         events.contains(&Event::WizardBanished { player: P0, by: P1 }),
@@ -241,11 +245,11 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     assert!(p.is_banished());
     assert_eq!((p.fortress(), p.summon_at()), (None, None));
     assert_eq!(
-        g.treasury(P0).unwrap().mana,
+        g.player(P0).unwrap().treasury().mana,
         50,
         "half the mana goes to the captor"
     );
-    assert_eq!(g.treasury(P1).unwrap().mana, w_mana + 50);
+    assert_eq!(g.player(P1).unwrap().treasury().mana, w_mana + 50);
     assert_eq!(g.wizard(P1).unwrap().fame(), w_fame + 5);
     // Casting the Spell of Return has begun, with no income of any kind meanwhile.
     let ret = spell(&g, "spell_of_return");
@@ -304,7 +308,7 @@ fn losing_the_last_city_defeats_the_wizard() {
     let events = g.capture_city(capital, P1);
     assert!(events.contains(&Event::WizardDefeated { player: P0 }));
     let p = g.wizard(P0).unwrap();
-    assert!(g.is_defeated(P0) && !p.is_banished());
+    assert!(g.player(P0).is_some_and(|p| p.is_defeated()) && !p.is_banished());
     assert_eq!(g.wizard(P0).unwrap().casting(), None);
     // A defeated wizard cannot place a new fortress.
     let r = g.place_fortress(P0, at(9, 9), "x".into(), None, 1);
@@ -362,10 +366,10 @@ fn taking_the_last_rivals_last_city_wins_by_conquest() {
         kind: crate::game::endgame::EndKind::Conquest,
         turn: 1
     }));
-    assert_eq!(g.defeat_by(P0), Some(P1));
+    assert_eq!(g.player(P0).and_then(|p| p.defeated_by()), Some(P1));
     // Half the loser's gold goes to the winner.
-    assert_eq!(g.treasury(P0).unwrap().gold, 45);
-    assert_eq!(g.treasury(P1).unwrap().gold, 145);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 45);
+    assert_eq!(g.player(P1).unwrap().treasury().gold, 145);
     assert_eq!(
         g.apply(Command::EndTurn),
         vec![Event::Rejected(crate::game::Rejection::GameOver)]
@@ -510,7 +514,7 @@ fn the_end_of_the_game_is_saved() {
         .unwrap();
     assert_eq!(loaded.game_over, g.game_over);
     assert_eq!(loaded.human(), Some(P0));
-    assert_eq!(loaded.defeat_by(P0), Some(P1));
+    assert_eq!(loaded.player(P0).and_then(|p| p.defeated_by()), Some(P1));
 }
 
 // ---- the rules over a wizard, with no map ---------------------------------------------------
@@ -645,8 +649,8 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
     );
     assert!(!events.contains(&Event::WizardBanished { player: P0, by: P1 }));
     let p = g.wizard(P0).unwrap();
-    assert!(g.is_defeated(P0) && !p.is_banished());
-    assert_eq!(g.defeat_by(P0), Some(P1));
+    assert!(g.player(P0).is_some_and(|p| p.is_defeated()) && !p.is_banished());
+    assert_eq!(g.player(P0).and_then(|p| p.defeated_by()), Some(P1));
     // The town is still there, owned by a neutral city player; its garrison of normal units
     // went with it, the fantastic creature and the unit in the field are gone.
     let owner = g.economy().city_owner(town).unwrap();
@@ -704,7 +708,7 @@ fn a_banished_human_may_resign() {
         .iter()
         .any(|e| matches!(e, Event::GameOver { winner, .. } if *winner == P1)));
     assert!(g.is_neutral_player(g.economy().city_owner(town).unwrap()));
-    assert_eq!(g.defeat_by(P0), Some(P1));
+    assert_eq!(g.player(P0).and_then(|p| p.defeated_by()), Some(P1));
 }
 
 #[test]

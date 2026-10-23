@@ -10,7 +10,7 @@
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
 use f4x_core::game::Command;
-use f4x_core::player::PlayerId;
+use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
@@ -354,7 +354,7 @@ impl App {
         );
 
         let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
-        let reserve = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
+        let reserve = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let base = income.power_base;
         let name =
             |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
@@ -412,11 +412,12 @@ impl App {
             .into_iter()
             .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
             .map(|id| {
+                let p = self.game.player(id);
                 (
                     id,
-                    self.game.portrait(id),
-                    self.game.banner(id),
-                    self.game.is_defeated(id),
+                    p.map_or(0, |p| p.portrait()),
+                    p.map_or(NEUTRAL_BANNER, |p| p.banner()),
+                    p.is_some_and(|p| p.is_defeated()),
                 )
             })
             .collect();
@@ -551,8 +552,8 @@ impl App {
             return;
         };
         let (px, py) = (80.0, 60.0);
-        let gold = self.game.treasury(HUMAN).map_or(0, |p| p.gold);
-        let mana = self.game.treasury(HUMAN).map_or(0, |p| p.mana);
+        let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+        let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let skilled = self
             .game
             .wizard(HUMAN)

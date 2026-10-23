@@ -114,7 +114,7 @@ impl Game {
         if kind.is_world() && self.events.world_event().is_some() {
             return None;
         }
-        if kind == EventKind::Piracy && self.treasury(victim).map_or(0, |p| p.gold) < 100 {
+        if kind == EventKind::Piracy && self.player(victim).map_or(0, |p| p.treasury().gold) < 100 {
             return None;
         }
         let (mut city, mut other) = (None, None);
@@ -377,7 +377,7 @@ impl Game {
                 notice.lost_population = people;
             }
             EventKind::Piracy => {
-                let gold = self.treasury(victim).map_or(0, |p| p.gold);
+                let gold = self.player(victim).map_or(0, |p| p.treasury().gold);
                 let take = pirates_take(gold, rng.roll(21)).min(gold);
                 if let Some(t) = self.treasury_mut(victim) {
                     t.gold = (t.gold - take).max(0);
@@ -459,7 +459,7 @@ impl Game {
         let human = self.human();
         if !world {
             notice.player = Some(victim);
-            notice.player_name = self.player_name(victim);
+            notice.player_name = self.player(victim).map_or_else(String::new, |p| p.name());
             let heard = match human {
                 Some(h) if h == victim => {
                     if notice.voice != Voice::Ended {

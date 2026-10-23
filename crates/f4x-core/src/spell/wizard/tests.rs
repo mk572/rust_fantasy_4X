@@ -230,7 +230,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
         })
         .unwrap_or_else(|| panic!("{events:?}"));
     assert!((10..=200).contains(&taken), "{taken}");
-    assert_eq!(g.treasury(P1).unwrap().mana, 1000 - taken);
+    assert_eq!(g.player(P1).unwrap().treasury().mana, 1000 - taken);
     // A poor victim loses only what is there.
     g.treasury_mut(P1).unwrap().mana = 4;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
@@ -239,7 +239,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
         victim: P1,
         amount: 4
     }));
-    assert_eq!(g.treasury(P1).unwrap().mana, 0);
+    assert_eq!(g.player(P1).unwrap().treasury().mana, 0);
 }
 
 #[test]
@@ -1225,12 +1225,20 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
         0,
         "their troops are frozen"
     );
-    assert_eq!(g.treasury(P0).unwrap().mana, 300, "200 for Time Stop");
-    assert_eq!(g.treasury(P0).unwrap().gold, 100, "no gold either way");
+    assert_eq!(
+        g.player(P0).unwrap().treasury().mana,
+        300,
+        "200 for Time Stop"
+    );
+    assert_eq!(
+        g.player(P0).unwrap().treasury().gold,
+        100,
+        "no gold either way"
+    );
     assert!(g.time_stopper() == Some(P0));
     // Out of mana, the spell is lost and time runs again.
     g.apply(Command::EndTurn);
-    assert_eq!(g.treasury(P0).unwrap().mana, 100);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, 100);
     g.apply(Command::EndTurn);
     assert_eq!(g.time_stopper(), None, "it could not be paid for");
     g.apply(Command::EndTurn);

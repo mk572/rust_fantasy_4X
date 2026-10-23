@@ -251,9 +251,9 @@ fn mana_income_fills_the_reserve() {
     let city = found(&mut g, at(10, 6), 4);
     add_building(&mut g, city, "temple");
     g.wizard_mut(P0).unwrap().set_split(100, 0, 0).unwrap();
-    let before = g.treasury(P0).unwrap().mana;
+    let before = g.player(P0).unwrap().treasury().mana;
     g.apply(Command::EndTurn);
-    assert_eq!(g.treasury(P0).unwrap().mana, before + 6);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, before + 6);
 }
 
 #[test]
@@ -275,7 +275,7 @@ fn an_affordable_spell_takes_effect_at_once() {
         .left = 100;
     g.treasury_mut(P0).unwrap().mana = 1000;
     let cost = g.casting_cost(P0, mend, false);
-    let mana = g.treasury(P0).unwrap().mana;
+    let mana = g.player(P0).unwrap().treasury().mana;
     // A spell with a target needs one.
     assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
     let events = g.apply(Command::CastSpell {
@@ -292,7 +292,7 @@ fn an_affordable_spell_takes_effect_at_once() {
         g.units().unit_hits(unit).1,
         "healed"
     );
-    assert_eq!(g.treasury(P0).unwrap().mana, mana - cost);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, mana - cost);
     assert_eq!(g.wizard(P0).unwrap().skill_left(), 100 - cost);
     assert_eq!(g.wizard(P0).unwrap().casting(), None);
 }
@@ -362,7 +362,7 @@ fn a_channeler_pays_half_the_spell_maintenance() {
     // The reserve pays the half, and the spell stays.
     g.treasury_mut(P0).unwrap().mana = dear.1 / 2;
     g.apply_mana_upkeep(P0);
-    assert_eq!(g.treasury(P0).unwrap().mana, 0);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, 0);
     assert!(g.wizard(P0).unwrap().has_global(dear.0));
 }
 
@@ -413,7 +413,7 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() {
     assert!(g.upkeep_shortfall(P0).is_none());
     g.apply_mana_upkeep(P0);
     assert_eq!(g.wizard(P0).unwrap().global(), vec![second]);
-    assert_eq!(g.treasury(P0).unwrap().mana, 2);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, 2);
 }
 
 #[test]
@@ -496,7 +496,11 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
     // Forty mana at four a turn is ten payments, but the last is borrowed from the next
     // turn's skill, as in the original.
     assert_eq!(ready_after, Some(9));
-    assert_eq!(g.treasury(P0).unwrap().mana, 60, "the 40 mana was paid");
+    assert_eq!(
+        g.player(P0).unwrap().treasury().mana,
+        60,
+        "the 40 mana was paid"
+    );
     let events = g.apply(Command::ResolveCast {
         player: P0,
         target: Target::Unit(unit),
@@ -507,9 +511,9 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() {
     }));
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
     assert_eq!(g.income(P0).mana_upkeep, 1);
-    let mana = g.treasury(P0).unwrap().mana;
+    let mana = g.player(P0).unwrap().treasury().mana;
     g.apply(Command::EndTurn);
-    assert_eq!(g.treasury(P0).unwrap().mana, mana - 1);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, mana - 1);
 
     // With no mana left the enchantment lapses.
     g.treasury_mut(P0).unwrap().mana = 0;
@@ -536,11 +540,11 @@ fn cancelling_loses_what_was_paid() {
     g.spawn_unit(P0, at(3, 3), galley);
     g.start_cast(P0, strength, None).unwrap();
     g.apply(Command::EndTurn);
-    let mana = g.treasury(P0).unwrap().mana;
+    let mana = g.player(P0).unwrap().treasury().mana;
     assert!(mana < 100);
     g.apply(Command::CancelCast { player: P0 });
     assert_eq!(g.wizard(P0).unwrap().casting(), None);
-    assert_eq!(g.treasury(P0).unwrap().mana, mana, "no refund");
+    assert_eq!(g.player(P0).unwrap().treasury().mana, mana, "no refund");
 }
 
 #[test]
@@ -669,7 +673,7 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() {
         "{events:?}"
     );
     assert_eq!(g.wizard(P0).unwrap().casting().unwrap().remaining, owed);
-    assert_eq!(g.treasury(P0).unwrap().mana, 500);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, 500);
     // Once a rival has one, the payment goes on.
     let aura = spell(&g, "aura_of_majesty");
     g.attach_enchantment(Target::Player(P1), aura, P1);

@@ -747,7 +747,7 @@ impl Game {
                     .then_some(TargetError::NotEnemyCity)
             }
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
-                if p == player || self.is_defeated(p) {
+                if p == player || self.player(p).is_some_and(|p| p.is_defeated()) {
                     Some(TargetError::NotEnemyWizard)
                 } else if self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
                     && self.mana_spent_casting(p).is_none()

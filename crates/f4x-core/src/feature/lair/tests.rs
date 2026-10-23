@@ -323,7 +323,10 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     // The test rules have no heroes to free.
     assert!(!loot.prisoner);
     assert_eq!(
-        (g.treasury(P0).unwrap().gold, g.treasury(P0).unwrap().mana),
+        (
+            g.player(P0).unwrap().treasury().gold,
+            g.player(P0).unwrap().treasury().mana
+        ),
         (220, 130)
     );
     assert!(g.economy().lair_at(at(5, 5)).is_none());
@@ -471,7 +474,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
     assert!(g.world.contains(w));
     assert!(g.economy().lair_at(at(5, 5)).is_none(), "cleared");
     assert_eq!(g.economy().feature_id_at(at(5, 5)), None);
-    assert_eq!(g.treasury(P0).unwrap().gold, 220);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 220);
     assert_eq!(
         g.units().unit_position(w),
         Some(at(5, 5)),
@@ -674,7 +677,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
         g.units().units_at(at(5, 5)).is_empty(),
         "the guards are made anew on each visit"
     );
-    assert_eq!(g.treasury(P0).unwrap().gold, 100, "no treasure");
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 100, "no treasure");
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
 }
 
@@ -870,7 +873,7 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() {
     l.items.clear();
     l.special = 4;
     let site = g.put_lair(at(5, 5), "lair", l);
-    let before = g.treasury(town).unwrap();
+    let before = g.player(town).unwrap().treasury();
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         panic!("{events:?}");
@@ -881,7 +884,7 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() {
         "the 800-point spell comes back as gold and mana: {loot:?}"
     );
     assert!(loot.items.is_empty(), "no hero, no item");
-    let t = g.treasury(town).unwrap();
+    let t = g.player(town).unwrap().treasury();
     assert_eq!(
         ((t.gold - before.gold) as u32, (t.mana - before.mana) as u32),
         (loot.gold, loot.mana)

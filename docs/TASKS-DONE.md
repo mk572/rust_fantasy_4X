@@ -245,6 +245,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 333 | (done) Item | Item entity: components, holder, lifecycle |
 | 334 | (done) Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
 | 335 | Core | Save format 2 and the game-version check (done) |
+| 336 | Core | Other crates: `PlayerView`, console, client, tools (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
@@ -703,6 +704,18 @@ refuses another layout or game version with "saved by 0.0.1, this is 0.0.2"; rep
 snapshot. Added on request: the first line carries a checksum (FNV-1a 64 of the rest); `Snapshot::integrity` and
 `load_game` report an edited or unsigned save, which still loads, and the client and the console warn
 (`log.save_edited`). The monsters' player keeps id 255 (the game makes it; the save does not store it).
+
+**336. Other crates. (done)** `PlayerView`, `f4x-console`, `f4x-client` (about 65 player lookups; node and
+lair drawing, `surveyor`, `site_prompt`, `map_draw`) and `f4x-tools` use the new handles. The AI
+crates (`f4x-ai`, `f4x-learn`) only need to compile and pass their tests here, with the smallest
+change that does it; the real work on them is task 339. *Needs:* 335.
+
+**Done.** The other crates already read nodes, lairs, wizards and heroes through the entity handles
+(tasks 313 to 335 kept them compiling). What was missing was the player handle of design 3.2:
+`Game::player(id)` returns `player::entity::Player` (`treasury`, `is_neutral`, `control`, `wizard`,
+`name`, `banner`, `portrait`, `history`, `has_grand_vizier`, `is_defeated`, `defeated_by`). The
+`Game` wrappers `treasury`, `history`, `has_grand_vizier`, `is_defeated`, `defeat_by`, `player_name`, `banner` and `portrait` are gone and about 190 calls in all crates use the handle (where an id may be unknown, `game.player(id)` is `None` and the caller picks the fallback). The `WorldView` trait and the `FakeView` test fake are gone: diplomacy reads a `&Game` (its questions are
+inherent methods in `game/view.rs`), and its tests, which ran on the fake, now build a real game.
 
 **338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
 (`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself

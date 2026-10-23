@@ -543,8 +543,9 @@ impl crate::game::Game {
                 crate::wizard::magic::MagicError::NotAvailable,
             ))?;
         let reserve = self
-            .treasury(player)
+            .player(player)
             .ok_or(CraftingError::UnknownPlayer)?
+            .treasury()
             .mana;
         let (item, price, now) = {
             let magic = self.wizard(player).ok_or(CraftingError::UnknownPlayer)?;

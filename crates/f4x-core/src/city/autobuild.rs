@@ -708,7 +708,8 @@ impl Game {
             return Some(*a);
         }
         let owner = self.economy().city_owner(city)?;
-        self.has_grand_vizier(owner)
+        self.player(owner)
+            .is_some_and(|p| p.has_grand_vizier())
             .then(|| AutoBuild::new(BuildPlan::vizier()))
     }
 

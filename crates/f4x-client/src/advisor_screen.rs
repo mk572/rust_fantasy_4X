@@ -85,7 +85,12 @@ impl App {
         let kept = self
             .known_wizards()
             .iter()
-            .map(|&id| self.game.history(id).len())
+            .map(|&id| {
+                self.game
+                    .player(id)
+                    .map_or_else(Vec::new, |p| p.history())
+                    .len()
+            })
             .max()
             .unwrap_or(0)
             .min(HISTORY_TURNS);
@@ -113,11 +118,13 @@ impl App {
         // Each wizard's power, a point a turn, from the left edge.
         let wizards = self.known_wizards();
         for (row, &id) in wizards.iter().enumerate() {
-            let Some((banner, history, name)) = self
-                .game
-                .wizard(id)
-                .map(|w| (w.banner(), self.game.history(id), w.name()))
-            else {
+            let Some((banner, history, name)) = self.game.wizard(id).map(|w| {
+                (
+                    w.banner(),
+                    self.game.player(id).map_or_else(Vec::new, |p| p.history()),
+                    w.name(),
+                )
+            }) else {
                 continue;
             };
             let colour = self.art.banner_color(banner);

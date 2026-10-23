@@ -140,10 +140,10 @@ fn restoring_gives_the_same_game() {
     assert_eq!(back.economy().cities().len(), 3);
     assert_eq!(back.units().all_units().len(), g.units().all_units().len());
     assert_eq!(
-        back.treasury(P0).unwrap().gold,
-        g.treasury(P0).unwrap().gold
+        back.player(P0).unwrap().treasury().gold,
+        g.player(P0).unwrap().treasury().gold
     );
-    assert!(back.has_grand_vizier(P0));
+    assert!(back.player(P0).is_some_and(|p| p.has_grand_vizier()));
     // Details that are easy to lose: roads, features, exploration, orders, the outpost.
     let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
     assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));

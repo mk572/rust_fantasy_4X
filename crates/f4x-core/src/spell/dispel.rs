@@ -325,7 +325,7 @@ impl Game {
             return None;
         }
         let spent = self.mana_spent_casting(victim)?;
-        if self.treasury(by)?.mana < spent {
+        if self.player(by)?.treasury().mana < spent {
             return None;
         }
         let spell = self.wizard(victim)?.casting()?.spell;

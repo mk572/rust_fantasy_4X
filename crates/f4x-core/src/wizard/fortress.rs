@@ -226,7 +226,7 @@ impl Game {
     ) -> Result<Vec<Event>, FortressError> {
         can_place(
             &self.wizard(player).ok_or(FortressError::UnknownPlayer)?,
-            self.is_defeated(player),
+            self.player(player).is_some_and(|p| p.is_defeated()),
         )?;
         self.can_found_city(pos).map_err(FortressError::Found)?;
         let city = self.spawn_city(player, pos, name, race, population);
@@ -334,7 +334,7 @@ impl Game {
     fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         let skill =
             self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
-        let mana = self.treasury(loser).map_or(0, |p| p.mana);
+        let mana = self.player(loser).map_or(0, |p| p.treasury().mana);
         let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
         if let Some(mut w) = self.wizard_mut(loser) {
             fortress_falls(&mut w);
@@ -369,7 +369,7 @@ impl Game {
     /// cities turn neutral and everything else of theirs goes (`Resolve_Wizard_Conquest`).
     pub fn resign(&mut self, player: PlayerId) -> Result<Vec<Event>, FortressError> {
         let w = self.wizard(player).ok_or(FortressError::UnknownPlayer)?;
-        if !w.is_banished() || self.is_defeated(player) {
+        if !w.is_banished() || self.player(player).is_some_and(|p| p.is_defeated()) {
             return Err(FortressError::WrongState);
         }
         let banished_by = w.banished_by();

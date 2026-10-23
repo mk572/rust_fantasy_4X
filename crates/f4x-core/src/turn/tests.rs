@@ -683,9 +683,9 @@ fn buying_costs_more_the_less_is_done() {
         Some(40),
         "remaining 20, accumulated 40: 2 x 20"
     );
-    let gold = g.treasury(P0).unwrap().gold;
+    let gold = g.player(P0).unwrap().treasury().gold;
     g.apply(Command::BuyProduction { city });
-    assert_eq!(g.treasury(P0).unwrap().gold, gold - 40);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, gold - 40);
     let events = g.apply(Command::EndTurn);
     assert!(
         events
@@ -723,9 +723,9 @@ fn selling_a_building_refunds_it_unless_others_need_it() {
         Err(ProductionError::MissingBuilding)
     );
     let guild = building(&g, "fighters_guild");
-    let gold = g.treasury(P0).unwrap().gold;
+    let gold = g.player(P0).unwrap().treasury().gold;
     assert_eq!(g.sell_building(city, guild), Ok(66));
-    assert_eq!(g.treasury(P0).unwrap().gold, gold + 66);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, gold + 66);
     g.apply(Command::EndTurn);
     assert_eq!(g.sell_building(city, guild), Err(ProductionError::NotBuilt));
 }
@@ -951,12 +951,12 @@ fn the_treasury_collects_taxes_and_pays_for_troops() {
     g.spawn_unit(P0, at(10, 6), spear);
     g.spawn_unit(P0, at(10, 6), spear);
     let eco = g.economy().city_economy(city).unwrap();
-    let before = g.treasury(P0).unwrap().gold;
+    let before = g.player(P0).unwrap().treasury().gold;
     g.apply(Command::EndTurn);
     // Income 4 gold; food: 6 produced - 4 eaten = 2 spare, the 2 soldiers eat it all -> no food gold.
     // Upkeep: two spearmen at 1 gold each.
     assert_eq!(eco.gold, 4);
-    assert_eq!(g.treasury(P0).unwrap().gold, before + 4 - 2);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, before + 4 - 2);
 }
 
 #[test]
@@ -965,10 +965,10 @@ fn spare_food_is_sold_for_gold() {
     let city = found(&mut g, at(10, 6), "elf", 4);
     let eco = g.economy().city_economy(city).unwrap();
     assert_eq!(eco.food, 6);
-    let before = g.treasury(P0).unwrap().gold;
+    let before = g.player(P0).unwrap().treasury().gold;
     g.apply(Command::EndTurn);
     // 6 food - 4 citizens = 2 spare, sold at two for one: +1, plus 4 tax.
-    assert_eq!(g.treasury(P0).unwrap().gold, before + 4 + 1);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, before + 4 + 1);
 }
 
 #[test]

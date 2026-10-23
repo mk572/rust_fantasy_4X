@@ -352,7 +352,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 60);
     assert_eq!(g.mana_spent_casting(P1), Some(60));
-    let mana = g.treasury(P0).unwrap().mana;
+    let mana = g.player(P0).unwrap().treasury().mana;
     let blast = sp(&g, "spell_blast");
     let paid = g.casting_cost(P0, blast, false);
     let events = cast(&mut g, "spell_blast", Target::Player(P1));
@@ -365,7 +365,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
         }),
         "{events:?}"
     );
-    assert_eq!(g.treasury(P0).unwrap().mana, mana - paid - 60);
+    assert_eq!(g.player(P0).unwrap().treasury().mana, mana - paid - 60);
     assert_eq!(g.wizard(P1).unwrap().casting(), None);
     // Nothing being cast: not a target.
     let events = cast(&mut g, "spell_blast", Target::Player(P1));

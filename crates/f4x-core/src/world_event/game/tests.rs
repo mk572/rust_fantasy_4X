@@ -80,7 +80,7 @@ fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
 fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() {
     let mut g = world();
     let told = play(&mut g, armed(K::Donation, P0, None));
-    let gold = g.treasury(P0).unwrap().gold;
+    let gold = g.player(P0).unwrap().treasury().gold;
     assert!((1105..=1600).contains(&gold), "{gold}");
     assert_eq!(told.len(), 1);
     assert_eq!(told[0].voice, Voice::Started);
@@ -92,7 +92,7 @@ fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() {
 fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() {
     let mut g = world();
     let told = play(&mut g, armed(K::Piracy, P0, None));
-    let gold = g.treasury(P0).unwrap().gold;
+    let gold = g.player(P0).unwrap().treasury().gold;
     assert!((500..=700).contains(&gold), "{gold}");
     assert_eq!(told[0].number, 1000 - gold);
     g.treasury_mut(P0).unwrap().gold = 99;
@@ -104,7 +104,10 @@ fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() {
 fn an_event_that_falls_on_a_wizard_you_have_not_met_is_not_told() {
     let mut g = world();
     assert!(play(&mut g, armed(K::Donation, P1, None)).is_empty());
-    assert!(g.treasury(P1).unwrap().gold > 1000, "but it happened");
+    assert!(
+        g.player(P1).unwrap().treasury().gold > 1000,
+        "but it happened"
+    );
     g.make_contact(P0, P1);
     let told = play(&mut g, armed(K::Donation, P1, None));
     assert_eq!(told[0].voice, Voice::Elsewhere);

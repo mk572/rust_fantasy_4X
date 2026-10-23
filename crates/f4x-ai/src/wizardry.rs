@@ -437,7 +437,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         {
             return false;
         }
-        let mana = game.treasury(me).map_or(0, |t| t.mana);
+        let mana = game.player(me).map_or(0, |p| p.treasury().mana);
         let cost = game.casting_cost(me, spell, false);
         // The same gate as the other spells: paid from the reserve, not more than fifty turns.
         let per_turn = mana / 10 + game.income(me).split.mana;

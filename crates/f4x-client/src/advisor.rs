@@ -68,7 +68,10 @@ const ADVISORS: [&str; 9] = [
 impl App {
     /// The Info button: the list of advisors.
     pub(crate) fn open_advisor_menu(&mut self) {
-        let vizier = self.game.has_grand_vizier(HUMAN);
+        let vizier = self
+            .game
+            .player(HUMAN)
+            .is_some_and(|p| p.has_grand_vizier());
         let rows = ADVISORS
             .iter()
             .enumerate()
@@ -159,7 +162,10 @@ impl App {
 
     /// The Grand Vizier: switched off at once; switching on asks first.
     fn toggle_grand_vizier(&mut self) {
-        let on = self.game.has_grand_vizier(HUMAN);
+        let on = self
+            .game
+            .player(HUMAN)
+            .is_some_and(|p| p.has_grand_vizier());
         if on {
             self.game.apply(Command::SetGrandVizier {
                 player: HUMAN,

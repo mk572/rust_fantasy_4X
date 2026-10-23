@@ -364,8 +364,11 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
         let g = level_game(level, 2, 5);
         let human = g.human().unwrap();
         let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
-        assert_eq!(g.treasury(human).unwrap().gold, (5 - i32::from(level)) * 25);
-        assert_eq!(g.treasury(ai).unwrap().gold, 150);
+        assert_eq!(
+            g.player(human).unwrap().treasury().gold,
+            (5 - i32::from(level)) * 25
+        );
+        assert_eq!(g.player(ai).unwrap().treasury().gold, 150);
         let percent = |p| {
             g.player_component::<f4x_core::player::Bonus>(p)
                 .unwrap()
@@ -383,7 +386,7 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
     assert!(g
         .player_ids()
         .into_iter()
-        .all(|id| g.treasury(id).unwrap().gold == 100
+        .all(|id| g.player(id).unwrap().treasury().gold == 100
             && g.player_component::<f4x_core::player::Bonus>(id)
                 .unwrap()
                 .gold
@@ -415,9 +418,9 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
                 assert!(
                     (picks..=picks + 1).contains(&spent),
                     "level {level} seed {seed}: {} spent {spent} of {picks}",
-                    g.player_name(id)
+                    g.player(id).unwrap().name()
                 );
-                names.push(g.player_name(id));
+                names.push(g.player(id).unwrap().name());
             }
             names.sort();
             names.dedup();
@@ -499,11 +502,11 @@ fn the_new_command_takes_the_settings_by_name() {
 #[test]
 fn the_vizier_command_turns_the_vizier_on_and_off() {
     let (mut g, mut c) = (game(), console());
-    assert!(!g.has_grand_vizier(HUMAN));
+    assert!(!g.player(HUMAN).is_some_and(|p| p.has_grand_vizier()));
     assert!(c.execute(&mut g, "vizier on").error.is_none());
-    assert!(g.has_grand_vizier(HUMAN));
+    assert!(g.player(HUMAN).is_some_and(|p| p.has_grand_vizier()));
     assert!(c.execute(&mut g, "vizier off").error.is_none());
-    assert!(!g.has_grand_vizier(HUMAN));
+    assert!(!g.player(HUMAN).is_some_and(|p| p.has_grand_vizier()));
     assert!(c.execute(&mut g, "vizier maybe").error.is_some());
 }
 
@@ -732,7 +735,7 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     let gold: Vec<_> = g
         .player_ids()
         .iter()
-        .map(|id| g.treasury(*id).unwrap().gold)
+        .map(|id| g.player(*id).unwrap().treasury().gold)
         .collect();
     for _ in 0..40 {
         f4x_ai::play_round(&mut g, &mut []);
@@ -757,7 +760,10 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     });
     assert!(grew, "a neutral city grew");
     assert!(built, "a neutral city built something");
-    assert!(g.player_ids().iter().all(|id| !g.is_defeated(*id)));
+    assert!(g
+        .player_ids()
+        .iter()
+        .all(|id| !g.player(*id).is_some_and(|p| p.is_defeated())));
     let _ = gold;
 }
 
@@ -771,7 +777,7 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .collect();
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
-        assert!(g.is_neutral_player(o) && g.treasury(o).unwrap().gold > 0);
+        assert!(g.is_neutral_player(o) && g.player(o).unwrap().treasury().gold > 0);
         assert!(!g.living_wizards().contains(&o), "not a wizard");
     }
     assert_eq!(wizards(&g), 2);
@@ -780,16 +786,16 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .player_ids()
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id))
-        .map(|id| g.treasury(id).unwrap().gold)
+        .map(|id| g.player(id).unwrap().treasury().gold)
         .collect();
     let before: Vec<_> = owners
         .iter()
-        .map(|&o| g.treasury(o).unwrap().gold)
+        .map(|&o| g.player(o).unwrap().treasury().gold)
         .collect();
     g.apply(f4x_core::game::Command::EndTurn);
     let after: Vec<_> = owners
         .iter()
-        .map(|&o| g.treasury(o).unwrap().gold)
+        .map(|&o| g.player(o).unwrap().treasury().gold)
         .collect();
     assert_ne!(before, after, "the treasuries moved");
     assert_eq!(
@@ -848,7 +854,10 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
     }
     assert!(neutral_cities(&g).is_empty());
     assert_eq!(wizards(&g), wizards_before);
-    assert!(g.player_ids().iter().all(|id| !g.is_defeated(*id)));
+    assert!(g
+        .player_ids()
+        .iter()
+        .all(|id| !g.player(*id).is_some_and(|p| p.is_defeated())));
 }
 
 #[test]
@@ -971,7 +980,7 @@ fn a_wizard_starts_as_in_the_original() {
                 "seed {seed} wizard {k}: {}",
                 eco.max_size
             );
-            assert_eq!(g.treasury(p).unwrap().gold, 100);
+            assert_eq!(g.player(p).unwrap().treasury().gold, 100);
         }
     }
 }
@@ -997,7 +1006,10 @@ fn the_starting_army_and_capital_pay_their_way() {
             g.apply(f4x_core::game::Command::EndTurn);
         }
         assert_eq!(start_army(&g, HUMAN).len(), 2, "seed {seed}");
-        assert!(g.treasury(HUMAN).unwrap().gold >= 100, "seed {seed}");
+        assert!(
+            g.player(HUMAN).unwrap().treasury().gold >= 100,
+            "seed {seed}"
+        );
     }
 }
 
@@ -1237,8 +1249,8 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
             ..
         }
     )));
-    assert_eq!(g.treasury(HUMAN).unwrap().gold, 210);
-    assert_eq!(g.treasury(loser).unwrap().gold, 0);
+    assert_eq!(g.player(HUMAN).unwrap().treasury().gold, 210);
+    assert_eq!(g.player(loser).unwrap().treasury().gold, 0);
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
     // wizard's fortress is worth 5 more.
     assert_eq!(g.wizard(loser).unwrap().fame(), 2);
@@ -1325,7 +1337,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
     g.treasury_mut(HUMAN).unwrap().gold = 0;
     g.conquer_city(city, HUMAN, 0);
     let fame_after_taking = g.wizard(HUMAN).unwrap().fame();
-    let gold_after_taking = g.treasury(HUMAN).unwrap().gold;
+    let gold_after_taking = g.player(HUMAN).unwrap().treasury().gold;
     // Only the taker may raze it.
     let events = g.apply(f4x_core::game::Command::RazeCity {
         player: PlayerId(2),
@@ -1357,7 +1369,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
         g.wizard(HUMAN).unwrap().fame(),
         (fame_after_taking - (size + 1)).max(0)
     );
-    assert!(g.treasury(HUMAN).unwrap().gold > gold_after_taking);
+    assert!(g.player(HUMAN).unwrap().treasury().gold > gold_after_taking);
 
     // Wait a turn and the window is shut.
     let (mut g, city) = neutral_world(12, &[]);
@@ -1532,7 +1544,7 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
     assert_eq!(before.skill_left - after.skill_left, 5);
     assert_eq!(before.mana - after.mana, 5 * before.range / 10);
     assert_eq!(
-        g.treasury(HUMAN).unwrap().mana,
+        g.player(HUMAN).unwrap().treasury().mana,
         after.mana,
         "the reserve pays"
     );
@@ -1599,12 +1611,15 @@ fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
         .battle
         .cast_counter_magic(Side::Defender, 100_000);
     let hits = g.battle().unwrap().unit(enemy).unwrap().hit_points();
-    let mana = g.treasury(HUMAN).unwrap().mana;
+    let mana = g.player(HUMAN).unwrap().treasury().mana;
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("Counter Magic stops"), "{}", r.text());
     assert_eq!(g.battle().unwrap().unit(enemy).unwrap().hit_points(), hits);
-    assert!(g.treasury(HUMAN).unwrap().mana < mana, "the mana is spent");
+    assert!(
+        g.player(HUMAN).unwrap().treasury().mana < mana,
+        "the mana is spent"
+    );
     assert_eq!(
         g.battle().unwrap().counter_magic[Side::Defender.index()],
         100_000 - f4x_core::spell::dispel::COUNTER_MAGIC_DRAIN,
@@ -1883,7 +1898,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
     assert!(cast(&mut g, "bcast mana leak").ok);
     pass_turn(&mut g);
     // The rival's turn began a new turn: the attacker's.
-    assert_eq!(g.treasury(PlayerId(1)).unwrap().mana, 95);
+    assert_eq!(g.player(PlayerId(1)).unwrap().treasury().mana, 95);
     assert_eq!(g.battle().unwrap().caster(Side::Defender).unwrap().mana, 95);
 }
 
@@ -2195,10 +2210,10 @@ fn gifts_move_gold_and_spells() {
     let (mut g, mut c) = (game(), console());
     let other = meet_all(&mut g)[0];
     let w = other.0;
-    let before = g.treasury(HUMAN).unwrap().gold;
+    let before = g.player(HUMAN).unwrap().treasury().gold;
     let r = c.execute(&mut g, &format!("givegold {w} 10"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.treasury(HUMAN).unwrap().gold, before - 10);
+    assert_eq!(g.player(HUMAN).unwrap().treasury().gold, before - 10);
     let broke = c.execute(&mut g, &format!("givegold {w} 99999"));
     assert!(broke.text().contains("not enough gold"), "{}", broke.text());
     let unknown = c.execute(&mut g, &format!("givespell {w} no-such-spell"));
@@ -2245,7 +2260,7 @@ fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id))
     {
-        let portrait = g.portrait(id);
+        let portrait = g.player(id).unwrap().portrait();
         assert!(portrait < f4x_core::player::PORTRAITS);
         assert!(seen.insert(portrait), "picture {portrait} twice");
     }
@@ -2552,7 +2567,7 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
         assert!(
             g.wizard(id).unwrap().objective().is_some(),
             "{} has an objective",
-            g.player_name(id)
+            g.player(id).unwrap().name()
         );
     }
     let back = g.snapshot().restore(content).unwrap();
@@ -2584,7 +2599,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
         g.player_ids()
             .into_iter()
             .filter(|id| !g.is_neutral_player(*id) && *id != g.human().unwrap())
-            .map(|id| g.player_name(id))
+            .map(|id| g.player(id).unwrap().name())
             .collect()
     };
     let lists = &content.rules.wizard_names;
@@ -2755,8 +2770,8 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
         let g = new_game(&content(), &spec).unwrap();
         let human = g.human().unwrap();
         let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
-        assert_eq!(g.treasury(human).unwrap().mana, mana);
-        assert_eq!(g.treasury(ai).unwrap().mana, 7);
+        assert_eq!(g.player(human).unwrap().treasury().mana, mana);
+        assert_eq!(g.player(ai).unwrap().treasury().mana, 7);
         g.explored_squares(human)
     };
     // With a diagonal step costing extra: a plus of 5, the 3 by 3 block, and the 5 by 5 block
@@ -2825,9 +2840,13 @@ fn items_are_listed_equipped_and_scrapped_by_place() {
         c.execute(&mut g, &format!("equip hero:{serial}:3 vault:2"))
             .ok
     );
-    let mana = g.treasury(HUMAN).unwrap().mana;
+    let mana = g.player(HUMAN).unwrap().treasury().mana;
     assert!(c.execute(&mut g, "scrap vault:2").ok);
-    assert_eq!(g.treasury(HUMAN).unwrap().mana, mana + 50, "half its value");
+    assert_eq!(
+        g.player(HUMAN).unwrap().treasury().mana,
+        mana + 50,
+        "half its value"
+    );
 }
 
 #[test]

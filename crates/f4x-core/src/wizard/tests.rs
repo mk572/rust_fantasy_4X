@@ -27,7 +27,7 @@ fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
     let town = PlayerId(9);
     g.add_neutral_player(town);
     assert!(g.wizard(town).is_none());
-    assert_eq!(g.player_name(town), "");
+    assert_eq!(g.player(town).unwrap().name(), "");
     let serial = g.take_serial();
     let owner = g.player_entity(town).unwrap();
     g.world.spawn((
@@ -37,8 +37,11 @@ fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
         crate::player::Owner(owner),
         serial,
     ));
-    assert_eq!(g.player_name(town), "Free Town");
-    assert_eq!(g.banner(town), crate::player::NEUTRAL_BANNER);
+    assert_eq!(g.player(town).unwrap().name(), "Free Town");
+    assert_eq!(
+        g.player(town).unwrap().banner(),
+        crate::player::NEUTRAL_BANNER
+    );
 }
 
 /// The `n`th real spell of a realm and rarity, in the order of the game's spell list.
@@ -182,7 +185,7 @@ fn starting_spells_are_chosen_then_defaulted() {
         .filter(|&&s| g.content.rules.spells.get(s).realm == "chaos")
         .count();
     assert_eq!(chaos, 5);
-    assert_eq!(g.player_name(P0), "Test");
+    assert_eq!(g.player(P0).unwrap().name(), "Test");
 }
 
 #[test]
@@ -211,18 +214,23 @@ fn bad_spell_choices_are_refused() {
 fn a_wizard_chooses_a_banner_and_it_is_saved() {
     let mut g = game();
     let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::Alchemy]);
-    assert_eq!(g.banner(P0), 0, "player 0 starts blue");
+    assert_eq!(g.player(P0).unwrap().banner(), 0, "player 0 starts blue");
     b.banner = Some(3);
     g.create_wizard(P0, &b).unwrap();
-    assert_eq!(g.banner(P0), 3);
+    assert_eq!(g.player(P0).unwrap().banner(), 3);
     b.banner = Some(9);
     g.create_wizard(P0, &b).unwrap();
-    assert_eq!(g.banner(P0), 4, "kept within the five choices");
+    assert_eq!(
+        g.player(P0).unwrap().banner(),
+        4,
+        "kept within the five choices"
+    );
     let content = g.content.clone();
     let back = g.snapshot().restore(content).unwrap();
-    assert_eq!(back.banner(P0), 4);
+    assert_eq!(back.player(P0).unwrap().banner(), 4);
+    g.add_neutral_player(PlayerId(9));
     assert_eq!(
-        g.banner(PlayerId(9)),
+        g.player(PlayerId(9)).unwrap().banner(),
         crate::player::NEUTRAL_BANNER,
         "no wizard"
     );
@@ -252,9 +260,9 @@ fn presets_come_from_the_rules() {
         .iter()
         .position(|w| w.id == "lo_pan")
         .unwrap();
-    assert_eq!(g.portrait(P0) as usize, place);
+    assert_eq!(g.player(P0).unwrap().portrait() as usize, place);
     let restored = g.snapshot().restore(g.content.clone()).unwrap();
-    assert_eq!(restored.portrait(P0) as usize, place);
+    assert_eq!(restored.player(P0).unwrap().portrait() as usize, place);
     assert!(g.wizard(P0).unwrap().has(Retort::Channeler));
     assert!(g.preset_build("nobody").is_none());
 }

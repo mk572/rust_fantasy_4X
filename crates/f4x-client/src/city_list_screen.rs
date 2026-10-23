@@ -147,8 +147,8 @@ impl App {
         }
         let (reserve_gold, reserve_mana) = self
             .game
-            .treasury(HUMAN)
-            .map_or((0, 0), |p| (p.gold, p.mana));
+            .player(HUMAN)
+            .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
         self.bm_text(
             view,
             1,

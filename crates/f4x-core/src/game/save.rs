@@ -672,17 +672,17 @@ impl Game {
             .iter()
             .map(|id| PlayerSave {
                 id: id.0,
-                gold: self.treasury(*id).map_or(0, |t| t.gold),
-                mana: self.treasury(*id).map_or(0, |t| t.mana),
+                gold: self.player(*id).map_or(0, |p| p.treasury().gold),
+                mana: self.player(*id).map_or(0, |p| p.treasury().mana),
                 tax_rate: self.player_component::<Tax>(*id).map_or(0, |t| t.0),
-                grand_vizier: self.has_grand_vizier(*id),
+                grand_vizier: self.player(*id).is_some_and(|p| p.has_grand_vizier()),
                 neutral: self.is_neutral_player(*id),
                 history: self
                     .player_component::<History>(*id)
                     .map_or_else(Vec::new, |h| h.0.clone()),
                 offers: self.offers(*id),
-                defeated: self.is_defeated(*id),
-                defeated_by: self.defeat_by(*id).map(|d| d.0),
+                defeated: self.player(*id).is_some_and(|p| p.is_defeated()),
+                defeated_by: self.player(*id).and_then(|p| p.defeated_by()).map(|d| d.0),
             })
             .collect();
         let wizards = self

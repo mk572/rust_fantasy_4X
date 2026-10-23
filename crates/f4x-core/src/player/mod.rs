@@ -1,5 +1,6 @@
 //! Players: each one is an entity with a [`PlayerId`] and the components below.
 
+pub mod entity;
 pub mod finance;
 pub mod offer;
 pub mod shortfall;

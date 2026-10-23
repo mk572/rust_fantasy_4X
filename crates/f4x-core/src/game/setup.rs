@@ -234,7 +234,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut used = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut banner = game.banner(id);
+        let mut banner = game.player(id).map_or(0, |p| p.banner());
         while used.contains(&banner) {
             banner = (banner + 1) % crate::player::BANNER_CHOICES;
         }
@@ -245,7 +245,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut shown = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut portrait = game.portrait(id);
+        let mut portrait = game.player(id).map_or(0, |p| p.portrait());
         while shown.contains(&portrait) {
             portrait = (portrait + 1) % crate::player::PORTRAITS;
         }

@@ -93,7 +93,7 @@ impl Game {
     pub fn living_wizards(&self) -> Vec<PlayerId> {
         self.player_ids()
             .into_iter()
-            .filter(|&id| self.is_wizard(id) && !self.is_defeated(id))
+            .filter(|&id| self.is_wizard(id) && !self.player(id).is_some_and(|p| p.is_defeated()))
             .collect()
     }
 
@@ -107,8 +107,11 @@ impl Game {
         self.player_ids()
             .into_iter()
             .filter(|&id| {
-                self.defeat_by(id) == Some(player)
-                    || (mastery && self.is_wizard(id) && id != player && !self.is_defeated(id))
+                self.player(id).and_then(|p| p.defeated_by()) == Some(player)
+                    || (mastery
+                        && self.is_wizard(id)
+                        && id != player
+                        && !self.player(id).is_some_and(|p| p.is_defeated()))
             })
             .collect()
     }
@@ -206,7 +209,7 @@ impl Game {
     pub(crate) fn check_conquest(&mut self, conqueror: PlayerId) -> Vec<Event> {
         let human_down = self
             .human()
-            .is_some_and(|h| self.has_player(h) && self.is_defeated(h));
+            .is_some_and(|h| self.has_player(h) && self.player(h).is_some_and(|p| p.is_defeated()));
         let living = self.living_wizards();
         if human_down {
             return self.finish(conqueror, EndKind::Conquest);
@@ -239,7 +242,7 @@ impl Game {
                 }
             }
         }
-        let loot = self.treasury(loser).map_or(0, |t| t.gold / 2);
+        let loot = self.player(loser).map_or(0, |p| p.treasury().gold / 2);
         if let Some(t) = self.treasury_mut(loser) {
             t.gold -= loot;
         }

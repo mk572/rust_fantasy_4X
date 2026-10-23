@@ -169,10 +169,11 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     ));
     let game = &*ctx.game;
     let mut lines = Vec::new();
-    if let (Some(wallet), Some(tax)) = (
-        game.treasury(me),
+    if let (Some(player), Some(tax)) = (
+        game.player(me),
         game.player_component::<f4x_core::player::Tax>(me),
     ) {
+        let wallet = player.treasury();
         let t = game.budget(me);
         lines.push(format!(
             "gold {} (net {:+}), mana {}, fame {}, tax rate {}",
@@ -232,7 +233,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .into_iter()
         .filter(|id| !ctx.game.is_neutral_player(*id))
         .map(|id| {
-            let state = if ctx.game.is_defeated(id) {
+            let state = if ctx.game.player(id).is_some_and(|p| p.is_defeated()) {
                 "defeated"
             } else if ctx.game.wizard(id).is_some_and(|w| w.is_banished()) {
                 "banished"
@@ -244,7 +245,11 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             } else {
                 ""
             };
-            format!("{} {}{me}: {state}", id.0, ctx.game.player_name(id))
+            format!(
+                "{} {}{me}: {state}",
+                id.0,
+                ctx.game.player(id).map_or_else(String::new, |p| p.name())
+            )
         })
         .collect();
     for r in rows {

@@ -5,7 +5,7 @@
 //! click leaves. Positions are the original's, measured from the panel's top-left.
 
 use f4x_core::diplomacy::relation_key;
-use f4x_core::player::PlayerId;
+use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
@@ -131,7 +131,7 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.18, 0.2, 0.3, 1.0));
             let _ = (pw, ph);
         }
-        let Some(wallet) = self.game.treasury(ui.who) else {
+        let Some(wallet) = self.game.player(ui.who).map(|p| p.treasury()) else {
             return;
         };
         let Some((owned_books, owned_retorts)) =
@@ -141,18 +141,12 @@ impl App {
         };
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let wizard_picture =
-            usize::from(self.game.portrait(ui.who)) * 5 + usize::from(self.game.banner(ui.who));
+        let me = self.game.player(ui.who);
+        let wizard_picture = usize::from(me.map_or(0, |p| p.portrait())) * 5
+            + usize::from(me.map_or(NEUTRAL_BANNER, |p| p.banner()));
+        let name = me.map_or_else(String::new, |p| p.name());
         self.draw_pic(&lay, "lilwiz", wizard_picture, 0, px + 11.0, py + 11.0);
-        self.bm_text(
-            view,
-            4,
-            gold,
-            &self.game.player_name(ui.who),
-            px + 114.0,
-            py + 11.0,
-            Align::Center,
-        );
+        self.bm_text(view, 4, gold, &name, px + 114.0, py + 11.0, Align::Center);
 
         if ui.who != HUMAN {
             let relation = self.text(relation_key(self.game.relation(HUMAN, ui.who)));

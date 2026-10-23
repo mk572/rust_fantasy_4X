@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 336 | Core | Other crates: `PlayerView`, console, client, tools |
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry |
 | 339 | AI | Scripted and trained AI on the new framework |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
@@ -87,11 +86,6 @@ Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, 
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
 
 ### G. Closing
-
-**336. Other crates.** `PlayerView`, `f4x-console`, `f4x-client` (about 65 player lookups; node and
-lair drawing, `surveyor`, `site_prompt`, `map_draw`) and `f4x-tools` use the new handles. The AI
-crates (`f4x-ai`, `f4x-learn`) only need to compile and pass their tests here, with the smallest
-change that does it; the real work on them is task 339. *Needs:* 335.
 
 **337. Docs and guards.** Bring `ecs-structure.md`, `design.md`, `magic.md`, `map-layers.md`, `lairs.md`
 and `architecture-plan.md` up to date. A test (or a script, logged in `docs/scripts.md`) fails on

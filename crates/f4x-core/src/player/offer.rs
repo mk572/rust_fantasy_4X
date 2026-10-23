@@ -307,7 +307,7 @@ impl Game {
     /// defeated wizards are not.
     fn can_be_offered(&self, player: PlayerId) -> bool {
         !self.is_neutral_player(player)
-            && !self.is_defeated(player)
+            && !self.player(player).is_some_and(|p| p.is_defeated())
             && self
                 .wizard(player)
                 .is_some_and(|w| !w.is_banished() && w.summon_point().is_some())
@@ -328,7 +328,7 @@ impl Game {
             &mut self.prefab_taken,
         );
         let price = item_price(item.cost, self.charismatic(player));
-        if price <= self.treasury(player).map_or(0, |p| p.gold) {
+        if price <= self.player(player).map_or(0, |p| p.treasury().gold) {
             self.spawn_item(item.clone(), crate::item::entity::HeldBy::Offered(player));
             Some(Offer::Item { item, price })
         } else {
@@ -352,7 +352,7 @@ impl Game {
     fn mercenary_offer(&mut self, player: PlayerId) -> Option<Offer> {
         let fame = self.fame(player);
         let charismatic = self.charismatic(player);
-        let gold = self.treasury(player).map_or(0, |p| p.gold);
+        let gold = self.player(player).map_or(0, |p| p.treasury().gold);
         if self.turn < FIRST_MERCENARY_TURN {
             return None;
         }
@@ -406,7 +406,7 @@ impl Game {
             .player_component::<Offers>(player)
             .and_then(|o| o.0.get(index).cloned())
             .ok_or(OfferError::NoOffer)?;
-        if self.treasury(player).map_or(0, |t| t.gold) < offer.price() {
+        if self.player(player).map_or(0, |p| p.treasury().gold) < offer.price() {
             return Err(OfferError::NoGold);
         }
         let taken = offer.clone();

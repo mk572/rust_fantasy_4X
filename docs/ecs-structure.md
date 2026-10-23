@@ -103,11 +103,11 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
    methods of the wizard handles in `wizard/sheet.rs`, over components of the wizard entity.)
 3. **A domain takes what it needs, not `&mut Game`.** Its methods take `&Content`, `&mut GameRng`
    or numbers the game worked out (`Magic`), or a context value (`DiplomacyCtx`).
-4. **The rest of the world is asked through `WorldView`** (`game/view.rs`): a small read-only trait
-   with the turn, the human, the content, the players and a few questions with plain-data
-   answers (what a wizard sees, a player's units, a city count). `Game` implements it and
-   `testutil::FakeView` answers from lists, so a domain's rules can be tested with no world,
-   map or fog. A question goes into the trait when two domains need it.
+4. **The rest of the world is asked of a read-only `&Game`**: its handles (`player`, `wizard`) and a
+   few questions with plain-data answers in `game/view.rs` (what a wizard sees, a player's units,
+   a city count). There is no fake of the world: a domain's tests build a real game
+   (`testutil`), so they run on the code the game runs. A question goes into `view.rs` when two
+   domains need it.
 5. **What a domain wants changed outside itself comes back as outcomes**, not as writes:
    diplomacy leaves `Outcome::Gold` and `Outcome::Spell` in its context, and `Game` applies
    them. Events are returned the same way.
@@ -120,7 +120,7 @@ Three ways to give a domain what it needs, all in use:
   borrow beside the content and the generator (the wizard handles: `Game::wizard`, `Game::wizard_mut`).
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
   view (`Diplomacy`: `Game::with_diplomacy` takes the state and the generator out of the game,
-  runs the rules over `&Game` as the `WorldView`, puts them back and applies the outcomes).
+  runs the rules over `&Game`, puts them back and applies the outcomes).
   The spell executor lends the generator to its host the same way (`GameHost`, task 184).
 - **A read handle over a few fields** where the domain's state lives in the ECS world (units:
   `UnitView<'a>` holds `&World` and `&Content`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map and the content, made by `Game::economy()`; what changes

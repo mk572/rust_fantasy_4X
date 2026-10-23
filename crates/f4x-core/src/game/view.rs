@@ -1,19 +1,10 @@
-//! A read-only view of the game for the domains (diplomacy, magic and the rest).
-//!
-//! The base rule (`design.md` section 3) is that domain logic takes the pieces it needs and not
-//! `&mut Game`. Where a domain needs a few facts about the rest of the world (who is in the
-//! game, what a wizard can see, how much an army costs) it asks them through [`WorldView`]. The
-//! trait is small on purpose: a question only one domain asks stays out of it, and it has no
-//! entity or component in its signatures, so a test can answer it with [`FakeView`]
-//! (`game/testutil.rs`) without a world, a map or a fog.
-//!
-//! [`Game`] implements it by answering from what it has. Add a question here when two domains
-//! need it, with a plain-data answer.
+//! What the domains (diplomacy, magic and the rest) ask of the game: who is in it, what a wizard
+//! can see, how much an army costs. The questions answer in plain data, so a domain takes a
+//! `&Game` that it only reads and never an entity or a component of its own. Tests of a domain
+//! build a real game (`game/testutil.rs`) and run on it.
 
-use crate::content::Content;
 use crate::map::Position;
-use crate::player::{PlayerId, Treasury};
-use crate::wizard::entity::Wizard;
+use crate::player::PlayerId;
 
 use crate::game::Game;
 
@@ -33,110 +24,25 @@ pub struct UnitInfo {
     pub cost: u32,
 }
 
-pub trait WorldView {
-    /// The turn number.
-    fn turn(&self) -> u32;
-    /// The human wizard, if there is one.
-    fn human(&self) -> Option<PlayerId>;
+impl Game {
     /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
-    fn difficulty(&self) -> u8;
-    /// The definitions of the game.
-    fn content(&self) -> &Content;
-    /// Every player's id: wizards, independent cities' players, ascending.
-    fn player_ids(&self) -> Vec<PlayerId>;
-    /// Whether `id` is a player of the game (the monsters' owner is none).
-    fn has_player(&self, id: PlayerId) -> bool;
-    /// A player's gold and mana.
-    fn treasury(&self, id: PlayerId) -> Option<Treasury>;
-    /// Has the player lost everything?
-    fn is_defeated(&self, id: PlayerId) -> bool;
-    /// Whether the player is neutral: the monsters' owner or an independent city's player.
-    fn is_neutral(&self, id: PlayerId) -> bool;
-
-    /// Another player's cities and units that `viewer` sees now: on squares it has in sight,
-    /// the units only when it can make them out (an invisible one is hidden).
-    fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting>;
-    /// Another player's cities and units within `radius` squares of `at` (the same plane),
-    /// the units only when `viewer` can make them out. The squares need not be in sight.
-    fn foreign_sightings_near(&self, viewer: PlayerId, at: Position, radius: u32) -> Vec<Sighting>;
-    /// The units a player has.
-    fn units_of(&self, player: PlayerId) -> Vec<UnitInfo>;
-    /// How many cities (outposts too) a player has.
-    fn city_count(&self, player: PlayerId) -> usize;
-
-    /// A player's wizard, if it has one.
-    fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>>;
+    pub fn difficulty(&self) -> u8 {
+        self.settings.basic.difficulty
+    }
 
     /// A wizard's temper (`Chaotic` for a player without one).
-    fn personality(&self, id: PlayerId) -> crate::wizard::objective::Personality {
+    pub fn personality(&self, id: PlayerId) -> crate::wizard::objective::Personality {
         self.wizard(id).map(|w| w.personality()).unwrap_or_default()
     }
 
     /// A player that is a wizard: neither the monsters nor an independent city.
-    fn is_wizard(&self, id: PlayerId) -> bool {
-        self.has_player(id) && !self.is_neutral(id)
+    pub fn is_wizard(&self, id: PlayerId) -> bool {
+        self.has_player(id) && !self.is_neutral_player(id)
     }
 
-    /// Wizards that have not been defeated, in the order of the players.
-    fn living_wizards(&self) -> Vec<PlayerId> {
-        self.player_ids()
-            .into_iter()
-            .filter(|&id| self.is_wizard(id) && !self.is_defeated(id))
-            .collect()
-    }
-
-    /// Does the wizard keep the global spell with this id going?
-    fn has_global(&self, player: PlayerId, spell: &str) -> bool {
-        self.wizard(player).is_some_and(|w| {
-            w.global()
-                .iter()
-                .any(|&s| self.content().rules.spells.get(s).id == spell)
-        })
-    }
-}
-
-impl WorldView for Game {
-    fn turn(&self) -> u32 {
-        self.turn
-    }
-
-    fn human(&self) -> Option<PlayerId> {
-        Game::human(self)
-    }
-
-    fn difficulty(&self) -> u8 {
-        self.settings.basic.difficulty
-    }
-
-    fn content(&self) -> &Content {
-        &self.content
-    }
-
-    fn player_ids(&self) -> Vec<PlayerId> {
-        Game::player_ids(self)
-    }
-
-    fn has_player(&self, id: PlayerId) -> bool {
-        Game::has_player(self, id)
-    }
-
-    fn wizard(&self, id: PlayerId) -> Option<Wizard<'_>> {
-        Game::wizard(self, id)
-    }
-
-    fn treasury(&self, id: PlayerId) -> Option<Treasury> {
-        Game::treasury(self, id)
-    }
-
-    fn is_defeated(&self, id: PlayerId) -> bool {
-        Game::is_defeated(self, id)
-    }
-
-    fn is_neutral(&self, id: PlayerId) -> bool {
-        self.is_neutral_player(id)
-    }
-
-    fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting> {
+    /// Another player's cities and units that `viewer` sees now: on squares it has in sight,
+    /// the units only when it can make them out (an invisible one is hidden).
+    pub fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting> {
         let Some(map) = self.map.as_ref() else {
             return Vec::new();
         };
@@ -154,7 +60,14 @@ impl WorldView for Game {
         self.sightings_where(viewer, sees)
     }
 
-    fn foreign_sightings_near(&self, viewer: PlayerId, at: Position, radius: u32) -> Vec<Sighting> {
+    /// Another player's cities and units within `radius` squares of `at` (the same plane),
+    /// the units only when `viewer` can make them out. The squares need not be in sight.
+    pub fn foreign_sightings_near(
+        &self,
+        viewer: PlayerId,
+        at: Position,
+        radius: u32,
+    ) -> Vec<Sighting> {
         let Some(map) = self.map.as_ref() else {
             return Vec::new();
         };
@@ -164,7 +77,8 @@ impl WorldView for Game {
         })
     }
 
-    fn units_of(&self, player: PlayerId) -> Vec<UnitInfo> {
+    /// The units a player has.
+    pub fn units_of(&self, player: PlayerId) -> Vec<UnitInfo> {
         self.units()
             .player_units(player)
             .into_iter()
@@ -177,16 +91,15 @@ impl WorldView for Game {
             .collect()
     }
 
-    fn city_count(&self, player: PlayerId) -> usize {
+    /// How many cities (outposts too) a player has.
+    pub fn city_count(&self, player: PlayerId) -> usize {
         self.economy()
             .cities()
             .iter()
             .filter(|(_, c, _)| c.owner == player)
             .count()
     }
-}
 
-impl Game {
     /// The cities and visible units of other players on the squares `keep` accepts.
     fn sightings_where(&self, viewer: PlayerId, keep: impl Fn(Position) -> bool) -> Vec<Sighting> {
         let mut out = Vec::new();
@@ -216,10 +129,10 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diplomacy::{army_strength, met_in_sight, met_near};
-    use crate::game::testutil::{content_with_magic, FakeView};
+    use crate::diplomacy::army_strength;
+    use crate::game::testutil::content_with_magic;
     use crate::map::Plane;
-    use crate::map::Position;
+    use crate::spell::instance::SpellTarget;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -233,68 +146,32 @@ mod tests {
         }
     }
 
-    fn sighting(owner: PlayerId, x: u32, y: u32) -> Sighting {
-        Sighting {
-            owner,
-            pos: at(x, y),
+    fn game() -> Game {
+        let mut g = Game::new(3);
+        g.content = content_with_magic();
+        let grass = g.content.terrains.id_of("grassland").unwrap();
+        g.map = Some(crate::map::Map::new(
+            crate::map::Grid::new(30, 20, grass),
+            crate::map::Grid::new(30, 20, grass),
+        ));
+        for id in [P0, P1, P2] {
+            g.add_player(id, "W");
         }
-    }
-
-    #[test]
-    fn a_domain_can_be_tested_against_a_fake_view() {
-        let mut view = FakeView::new(&[P0, P1, P2]);
-        view.sightings = vec![
-            (P0, sighting(P1, 12, 10)),
-            (P0, sighting(P1, 14, 10)),
-            (P0, sighting(P2, 30, 10)),
-            (P0, sighting(P0, 11, 10)),
-            (P1, sighting(P0, 12, 10)),
-        ];
-        assert_eq!(met_in_sight(&view, P0), vec![P1, P2], "sorted, once each");
-        assert_eq!(met_in_sight(&view, P2), vec![]);
-        assert_eq!(met_near(&view, P0, at(10, 10), 2), vec![P1]);
-        assert_eq!(met_near(&view, P0, at(10, 10), 25), vec![P1, P2]);
-        let other_plane = Position {
-            plane: Plane::Myrror,
-            ..at(10, 10)
-        };
-        assert_eq!(met_near(&view, P0, other_plane, 25), vec![]);
-        view.units = vec![
-            (
-                P0,
-                UnitInfo {
-                    pos: at(1, 1),
-                    cost: 30,
-                },
-            ),
-            (
-                P0,
-                UnitInfo {
-                    pos: at(2, 1),
-                    cost: 50,
-                },
-            ),
-            (
-                P1,
-                UnitInfo {
-                    pos: at(3, 1),
-                    cost: 7,
-                },
-            ),
-        ];
-        assert_eq!(army_strength(&view, P0), 80);
-        assert_eq!(army_strength(&view, P2), 0);
+        g
     }
 
     #[test]
     fn the_provided_questions_follow_from_the_players() {
-        let mut view = FakeView::new(&[P0, P1, P2]).with_content(content_with_magic());
-        view.neutral.push(P1);
-        view.defeated.push(P2);
-        assert!(view.is_wizard(P0) && !view.is_wizard(P1));
-        assert!(!view.is_wizard(crate::player::MONSTERS) && !view.is_wizard(PlayerId(9)));
-        assert_eq!(view.living_wizards(), vec![P0]);
-        let spell = view
+        let mut g = game();
+        g.add_neutral_player(PlayerId(7));
+        let defeated = g.player_entity(P2).unwrap();
+        g.world
+            .insert_one(defeated, crate::player::Defeat { by: None })
+            .unwrap();
+        assert!(g.is_wizard(P0) && !g.is_wizard(PlayerId(7)));
+        assert!(!g.is_wizard(crate::player::MONSTERS) && !g.is_wizard(PlayerId(9)));
+        assert_eq!(g.living_wizards(), vec![P0, P1]);
+        let (spell, id) = g
             .content
             .rules
             .spells
@@ -302,10 +179,11 @@ mod tests {
             .map(|(id, d)| (id, d.id.clone()))
             .next()
             .unwrap();
-        assert!(!view.has_global(P0, &spell.1));
-        view.give_global(P0, spell.0);
-        assert!(view.has_global(P0, &spell.1));
-        assert!(!view.has_global(P1, &spell.1));
+        assert!(!g.has_global(P0, &id));
+        let wizard = g.wizard(P0).unwrap().entity();
+        g.spawn_spell(spell, wizard, SpellTarget::Global);
+        assert!(g.has_global(P0, &id));
+        assert!(!g.has_global(P1, &id));
     }
 
     #[test]
@@ -354,6 +232,5 @@ mod tests {
         assert_eq!(army_strength(&g, P0), cost as i32);
         // Another viewpoint: P1 sees its own side's neighbours, not itself.
         assert!(g.foreign_sightings(P1).iter().all(|s| s.owner != P1));
-        assert_eq!(WorldView::turn(&g), g.turn);
     }
 }
