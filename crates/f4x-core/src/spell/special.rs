@@ -6,6 +6,7 @@ use crate::map::{Plane, Position};
 
 use crate::game::{Event, Game};
 use crate::rules::exec::Target;
+use crate::spell::target_error::TargetError;
 use crate::unit::{Hurt, MAX_STACK};
 
 pub const TRANSMUTE: &str = "transmute";
@@ -29,17 +30,20 @@ const LORE_WIDTH: u32 = 12;
 const LORE_HEIGHT: u32 = 10;
 
 impl Game {
-    /// The mineral Transmute makes of the one on `at`, if there is one it can change.
-    pub fn transmute_result(&self, at: Position) -> Option<crate::map::FeatureId> {
-        let map = self.map.as_ref()?;
-        let here = map.plane(at.plane).feature(at.x as i32, at.y as i32)?;
-        let name = &self.content.features.get(here)?.id;
-        let (_, to) = TRANSMUTED.iter().find(|(from, _)| from == name)?;
-        self.content.features.id_of(to)
+    /// The mineral Transmute makes of the one on `at`, or why there is none it can change.
+    pub fn transmute_result(&self, at: Position) -> Result<crate::map::FeatureId, TargetError> {
+        let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
+        (|| {
+            let here = map.plane(at.plane).feature(at.x as i32, at.y as i32)?;
+            let name = &self.content.features.get(here)?.id;
+            let (_, to) = TRANSMUTED.iter().find(|(from, _)| from == name)?;
+            self.content.features.id_of(to)
+        })()
+        .ok_or(TargetError::NothingToTransmute)
     }
 
     pub(crate) fn transmute(&mut self, at: Position) -> Vec<Event> {
-        let Some(to) = self.transmute_result(at) else {
+        let Ok(to) = self.transmute_result(at) else {
             return Vec::new();
         };
         if let Some(map) = self.map.as_mut() {
@@ -77,28 +81,39 @@ impl Game {
         &self,
         player: crate::player::PlayerId,
         unit: hecs::Entity,
-    ) -> Option<Position> {
-        let to = self.wizard(player)?.summon_at()?;
+    ) -> Result<Position, TargetError> {
+        let to = self
+            .wizard(player)
+            .and_then(|w| w.summon_at())
+            .ok_or(TargetError::NoCircle)?;
         let there = self.units().units_at(to);
-        (there.contains(&unit) || there.len() < MAX_STACK).then_some(to)
+        (there.contains(&unit) || there.len() < MAX_STACK)
+            .then_some(to)
+            .ok_or(TargetError::CircleFull)
     }
 
     pub(crate) fn word_of_recall(&mut self, caster: crate::player::PlayerId, unit: hecs::Entity) {
-        if let Some(to) = self.recall_destination(caster, unit) {
+        if let Ok(to) = self.recall_destination(caster, unit) {
             let _ = self.world.insert_one(unit, to);
             self.explore(caster, to, crate::map::fog::sight_for(1));
         }
     }
 
-    /// Where Plane Shift would take the stack `unit` stands in, or `None` if it cannot go:
+    /// Where Plane Shift would take the stack `unit` stands in, or why it cannot go:
     /// the Planar Seal is up, an enemy holds the square on the other plane, the stack would
     /// not fit, or one of its units could not stand there.
-    pub fn plane_shift_destination(&self, unit: hecs::Entity) -> Option<Position> {
+    pub fn plane_shift_destination(&self, unit: hecs::Entity) -> Result<Position, TargetError> {
         if self.units().planar_seal_active() {
-            return None;
+            return Err(TargetError::PlanarSeal);
         }
-        let from = self.units().unit_position(unit)?;
-        let owner = self.units().unit_owner(unit)?;
+        let from = self
+            .units()
+            .unit_position(unit)
+            .ok_or(TargetError::WrongTarget)?;
+        let owner = self
+            .units()
+            .unit_owner(unit)
+            .ok_or(TargetError::WrongTarget)?;
         let to = Position {
             plane: match from.plane {
                 Plane::Arcanus => Plane::Myrror,
@@ -107,23 +122,25 @@ impl Game {
             ..from
         };
         let stack = self.units().units_at(from);
-        if self.economy().hostile_at(to, owner).is_some()
-            || self.units().units_at(to).len() + stack.len() > MAX_STACK
-        {
-            return None;
+        if self.economy().hostile_at(to, owner).is_some() {
+            return Err(TargetError::EnemyOnOtherPlane);
+        }
+        if self.units().units_at(to).len() + stack.len() > MAX_STACK {
+            return Err(TargetError::OtherPlaneFull);
         }
         let traits = self.economy().stack_traits(&stack);
         stack
             .iter()
             .all(|&u| self.economy().step_cost(u, to, to, traits).is_ok())
             .then_some(to)
+            .ok_or(TargetError::CannotStandThere)
     }
 
     pub(crate) fn plane_shift(&mut self, caster: crate::player::PlayerId, unit: hecs::Entity) {
         let Some(from) = self.units().unit_position(unit) else {
             return;
         };
-        let Some(to) = self.plane_shift_destination(unit) else {
+        let Ok(to) = self.plane_shift_destination(unit) else {
             return;
         };
         for u in self.units().units_at(from) {

@@ -11,6 +11,7 @@
 use crate::game::rng::GameRng;
 use crate::game::Game;
 use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
+use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
 
 /// Hook of Chaos Channels.
@@ -41,13 +42,19 @@ impl UnitView<'_> {
 
 impl Game {
     /// Chaos Channels works on a normal unit that is not undead and not mutated yet.
-    pub fn can_mutate(&self, unit: hecs::Entity) -> bool {
+    pub fn check_mutate(&self, unit: hecs::Entity) -> Result<(), TargetError> {
         let units = self.units();
-        units
-            .unit_def(unit)
-            .is_some_and(|d| d.kind == UnitKind::Normal)
-            && !units.unit_counts_as_undead(unit)
-            && !units.unit_is_mutated(unit)
+        let def = units.unit_def(unit).ok_or(TargetError::WrongTarget)?;
+        if def.kind != UnitKind::Normal {
+            return Err(TargetError::NotNormalUnit);
+        }
+        if units.unit_counts_as_undead(unit) {
+            return Err(TargetError::Undead);
+        }
+        if units.unit_is_mutated(unit) {
+            return Err(TargetError::AlreadyMutated);
+        }
+        Ok(())
     }
 
     /// The mutations that suit the unit: wings not for a flier or a ship, breath only for a unit
@@ -71,7 +78,7 @@ impl Game {
 
     /// Mutate the unit with a random suitable mutation; `None` if it cannot be mutated.
     pub(crate) fn mutate(&mut self, unit: hecs::Entity, rng: &mut GameRng) -> Option<Mutation> {
-        if !self.can_mutate(unit) {
+        if self.check_mutate(unit).is_err() {
             return None;
         }
         let options = self.mutations_for(unit);
@@ -112,7 +119,7 @@ impl Game {
         unit: hecs::Entity,
         owner: crate::player::PlayerId,
     ) {
-        if !self.has_global(owner, "doom_mastery") || !self.can_mutate(unit) {
+        if !self.has_global(owner, "doom_mastery") || self.check_mutate(unit).is_err() {
             return;
         }
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());

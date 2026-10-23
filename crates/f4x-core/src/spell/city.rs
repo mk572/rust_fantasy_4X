@@ -15,6 +15,7 @@ use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::spell::target_error::TargetError;
 
 /// The hook of the city enchantments the engine reads by name: casting only enchants the city.
 pub const CITY_FLAG: &str = "city_flag";
@@ -44,9 +45,14 @@ pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathe
 impl Game {
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
     /// built or replaced is refused).
-    pub fn can_raise_wall_of_stone(&self, city: hecs::Entity) -> bool {
-        self.content.rules.buildings.id_of("city_walls").is_some()
-            && !self.economy().city_has_building(city, "city_walls")
+    pub fn check_raise_wall_of_stone(&self, city: hecs::Entity) -> Result<(), TargetError> {
+        if self.content.rules.buildings.id_of("city_walls").is_none() {
+            return Err(TargetError::WrongTarget);
+        }
+        if self.economy().city_has_building(city, "city_walls") {
+            return Err(TargetError::Walled);
+        }
+        Ok(())
     }
 
     /// Wall of Stone: the city gets City Walls.
@@ -54,7 +60,7 @@ impl Game {
         let Some(walls) = self.content.rules.buildings.id_of("city_walls") else {
             return Vec::new();
         };
-        if !self.can_raise_wall_of_stone(city) {
+        if self.check_raise_wall_of_stone(city).is_err() {
             return Vec::new();
         }
         if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
@@ -142,9 +148,19 @@ impl Game {
 
     /// Whether a Spell Ward against `realm` can be put on the city: it is one of the five realms
     /// and not warded yet.
-    pub fn can_ward(&self, city: hecs::Entity, realm: crate::rules::RealmId) -> bool {
+    pub fn check_ward(
+        &self,
+        city: hecs::Entity,
+        realm: crate::rules::RealmId,
+    ) -> Result<(), TargetError> {
         let id = &self.content.rules.realms.get(realm).id;
-        WARD_REALMS.contains(&id.as_str()) && !self.economy().city_warded_against(city, id)
+        if !WARD_REALMS.contains(&id.as_str()) {
+            return Err(TargetError::NotWardRealm);
+        }
+        if self.economy().city_warded_against(city, id) {
+            return Err(TargetError::Warded);
+        }
+        Ok(())
     }
 
     /// Whether every realm a Spell Ward can name is warded already.

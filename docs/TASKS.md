@@ -84,7 +84,7 @@ neighbours.
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 | 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` |
 | 347 | Text | Text the core builds as game data: made item names, random event texts, default names, battle info names; translated names in the rules files |
-| 348 | Text | Every refusal in words: a text key for each `Rejection` error variant, checked against the original's 89 `MESSAGE.LBX` cases |
+| 348 | Text | Every refusal in words: a text key for each `Rejection` error variant (done), split the target refusals (done), check against the original's 89 `MESSAGE.LBX` cases |
 
 ## Descriptions
 
@@ -293,20 +293,20 @@ files or a table of names in `content/text/<lang>/`, and how the plural of a rac
 
 *Needs:* 345 (done), and 333 for the item names.
 
-**348. Every refusal in words.** The client shows a rejected command as `log.cannot` with the Debug name of the error
-("Cannot: NoSuchTarget"). Give each variant of `Rejection` and of the errors inside it (`MagicError`, `SpellError`,
-`HeroError`, `MoveError`, `ProductionError`, `FoundCityError`, `ItemError`, `OfferError`, `DiplomacyError`, and the
-rest) a key in `content/text/en/`, in our own words, with the numbers and names the sentence needs (count, plural,
-gender), and a function in core that maps the error to its key and arguments, so the client, the log and the console
-read one source. Remove `log.cannot` with the Debug form; the guard test of task 345 keeps every key in use.
-The original's `MESSAGE.LBX` (89 lines, 0 to 88; only 5 were ever used) is a checklist, not a source: its cases are
-spell-target refusals (dispel, warp node, volcano, corruption, transmute, Lycanthropy, Guise, Floating Islands, Chaos
-Channel, Warp Wood, Star Fires, Web), hero limits (Summon Hero, Incarnation, Resurrection), Planar Seal and Plane Shift,
-battle refusals (9 units, spell already up, invisible units, Wall of Darkness, mana), the "continue casting?" prompts
-(12 to 16). The stacking refusals (duplicates, the non-cumulative pairs, abilities a unit has by nature, Holy Weapon with
-Holy Arms) are task 349 (done); only their words are left here. For each case say: our rule refuses it and the key says
-so; our rule does not exist (add a task or decide it is not wanted, in `docs/divergences.md`); or the rule works
-differently. Write that table in the task's "Done" paragraph. The original's wording is not copied; fragments 27, 66 and 69 are joined with a name there, so write whole
-sentences.
+**348. Every refusal in words.** *First part done:* every variant of `Rejection` and of the errors inside it has a
+sentence in `content/text/en/refuse_map.ron`, `refuse_wizard.ron` and `refuse_battle.ron`, and `Rejection::key()` (with a
+`key()` on each error enum) maps the error to its key. The client's log and the battle log show that sentence; `log.cannot`
+with the Debug name is gone. The errors carry no data, so the sentences take no arguments. The console keeps the Debug
+form (a developer tool, `docs/text.md`).
+
+*Second part done:* `MagicError::Target` and `SpellError::Target` carry a `TargetError` (`spell/target_error.rs`, sentences in `refuse_target.ron`), one reason for each target refusal: volcano on a mountain, hill or site, corruption, warp node, road, terrain, transmute, Lycanthropy, Chaos Channels, Word of Recall, Plane Shift, walls, wards, Evil Presence, and in battle the unseen, the death-realm, the bind, the wall and the vortex cases.
+
+*Left:* The checklist: the original's `MESSAGE.LBX` (89 lines, 0 to 88; only 5
+were ever used) is a checklist, not a source. For each line say in the task's "Done" paragraph: our rule refuses it and the
+key says so; our rule does not exist (add a task or decide it is not wanted, in `docs/divergences.md`); or the rule works
+differently. The cases: spell-target refusals, hero limits (Summon Hero, Incarnation, Resurrection), battle refusals
+(9 units, spell already up, invisible units, Wall of Darkness, mana) and the "continue casting?" prompts (12 to 16). The
+stacking refusals are task 349 (done) and have their words now. The original's wording is not copied; fragments 27, 66
+and 69 are joined with a name there, so write whole sentences.
 
 *Needs:* 345 (done).

@@ -31,6 +31,19 @@ pub enum HeroError {
     NoGold,
 }
 
+impl HeroError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Unknown => "refuse_wizard.hero_error_unknown",
+            Self::NotAvailable => "refuse_wizard.hero_error_not_available",
+            Self::NoRoom => "refuse_wizard.hero_error_no_room",
+            Self::NoCircle => "refuse_wizard.hero_error_no_circle",
+            Self::NoGold => "refuse_wizard.hero_error_no_gold",
+        }
+    }
+}
+
 /// Where a hero is in its wizard's service (the original keeps this in the hero's level: 0 or
 /// more free, `-20` gone, other negatives dead). The entity carries the unit components only
 /// while `Serving`.

@@ -110,6 +110,20 @@ pub enum ItemError {
     WouldDrown,
 }
 
+impl ItemError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoSuchPlace => "refuse_wizard.item_error_no_such_place",
+            Self::Empty => "refuse_wizard.item_error_empty",
+            Self::WrongSlot => "refuse_wizard.item_error_wrong_slot",
+            Self::Transfer => "refuse_wizard.item_error_transfer",
+            Self::NoMana => "refuse_wizard.item_error_no_mana",
+            Self::WouldDrown => "refuse_wizard.item_error_would_drown",
+        }
+    }
+}
+
 /// What the item screen's rules ask of the world: a hero's slots, items and place, and where
 /// a wizard's fortress is. [`ItemView`] answers for the game; a test can answer with a fake.
 pub trait ItemWorld {

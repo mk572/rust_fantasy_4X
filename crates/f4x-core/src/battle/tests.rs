@@ -6,6 +6,7 @@ use crate::game::testutil::content_with_units;
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
+use crate::spell::target_error::TargetError;
 
 const A: PlayerId = PlayerId(0);
 const D: PlayerId = PlayerId(1);
@@ -2729,7 +2730,12 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
         aim: SpellAim::Unit(1),
         mana: 0,
     });
-    assert_eq!(bad, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        bad,
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NotYourUnit
+        )))
+    );
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell: healing,
@@ -2853,7 +2859,10 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
     let walls = g.battle().unwrap().map.standing_walls();
     assert!(walls.len() > 2);
     let bad = cast_unit(&mut g, "disrupt", SpellAim::Tile((3, 3)), 0);
-    assert_eq!(bad, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        bad,
+        Err(BattleError::Spell(SpellError::Target(TargetError::NoWall)))
+    );
     let target = walls[1];
     let events = cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0).unwrap();
     assert!(events.iter().any(
@@ -2864,7 +2873,10 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
     assert_eq!(map.standing_walls().len(), walls.len() - 1);
     // The broken section cannot be struck again.
     let again = cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0);
-    assert_eq!(again, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        again,
+        Err(BattleError::Spell(SpellError::Target(TargetError::NoWall)))
+    );
 }
 
 #[test]
@@ -2927,18 +2939,31 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
     // Death creatures cannot be aimed at.
     g.battle.as_mut().unwrap().battle.units[1].realm = Some(Realm::Death);
     let refused = cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10);
-    assert_eq!(refused, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        refused,
+        Err(BattleError::Spell(SpellError::Target(TargetError::Deathly)))
+    );
 }
 
 #[test]
 fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() {
     let mut g = hook_game("word_of_recall");
     let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
-    assert_eq!(no_circle, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        no_circle,
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NoCircle
+        )))
+    );
     g.wiz_mut(0)
         .put(Some(crate::wizard::fortress::SummonAt(at(1, 1))));
     let enemy = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(1), 0);
-    assert_eq!(enemy, Err(BattleError::Spell(SpellError::BadTarget)));
+    assert_eq!(
+        enemy,
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NotYourUnit
+        )))
+    );
     let events = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0).unwrap();
     assert!(events
         .iter()
@@ -3709,7 +3734,9 @@ fn magic_vortex_is_cast_on_a_free_square() {
     let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
     assert_eq!(
         cast_unit(&mut g, "magic_vortex", SpellAim::Tile(enemy_cell), 0),
-        Err(BattleError::Spell(SpellError::BadTarget))
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NoVortexRoom
+        )))
     );
     let events = cast_unit(&mut g, "magic_vortex", SpellAim::Tile((10, 10)), 0).unwrap();
     assert!(events

@@ -36,6 +36,26 @@ pub enum MoveError {
     Warded,
 }
 
+impl MoveError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoMap => "refuse_map.move_error_no_map",
+            Self::NoUnits => "refuse_map.move_error_no_units",
+            Self::BadSelection => "refuse_map.move_error_bad_selection",
+            Self::NotAdjacent => "refuse_map.move_error_not_adjacent",
+            Self::OffMap => "refuse_map.move_error_off_map",
+            Self::Impassable => "refuse_map.move_error_impassable",
+            Self::NoMovesLeft => "refuse_map.move_error_no_moves_left",
+            Self::StackFull => "refuse_map.move_error_stack_full",
+            Self::NoRoom => "refuse_map.move_error_no_room",
+            Self::CannotShiftPlane => "refuse_map.move_error_cannot_shift_plane",
+            Self::NoGate => "refuse_map.move_error_no_gate",
+            Self::Warded => "refuse_map.move_error_warded",
+        }
+    }
+}
+
 /// What a step into a tile leads to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Entry {

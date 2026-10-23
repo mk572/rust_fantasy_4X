@@ -8,6 +8,7 @@ use crate::content::TerrainClass;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::rules::Stat;
+use crate::spell::target_error::TargetError;
 use crate::unit::movement::MoveError;
 
 /// Hook of the Enchant Road spell.
@@ -37,6 +38,18 @@ pub enum RoadError {
     CannotBuildHere,
     /// The path is not a chain of neighbouring squares.
     BadPath,
+}
+
+impl RoadError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::BadSelection => "refuse_map.road_error_bad_selection",
+            Self::NoBuilders => "refuse_map.road_error_no_builders",
+            Self::CannotBuildHere => "refuse_map.road_error_cannot_build_here",
+            Self::BadPath => "refuse_map.road_error_bad_path",
+        }
+    }
 }
 
 impl Game {
@@ -270,8 +283,11 @@ impl Game {
     }
 
     /// Whether Enchant Road has anything to work on around `at`.
-    pub fn can_enchant_road(&self, at: Position) -> bool {
-        self.roads_within(at, 2).next().is_some()
+    pub fn check_enchant_road(&self, at: Position) -> Result<(), TargetError> {
+        self.roads_within(at, 2)
+            .next()
+            .map(|_| ())
+            .ok_or(TargetError::NoRoad)
     }
 
     fn roads_within(&self, at: Position, radius: i32) -> impl Iterator<Item = (u32, u32)> + '_ {

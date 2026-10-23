@@ -8,6 +8,7 @@ pub mod hero;
 pub mod instance;
 pub mod special;
 pub mod stacking;
+pub mod target_error;
 pub mod temp_effects;
 pub mod terraform;
 pub mod wizard;

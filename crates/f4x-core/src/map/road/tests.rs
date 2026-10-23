@@ -226,9 +226,10 @@ fn enchanted_roads_and_myrror_roads_are_free() {
             grid.set_road(x, 5, true);
         }
     }
-    assert!(g.can_enchant_road(at(6, 6)));
-    assert!(
-        !g.can_enchant_road(at(15, 10)),
+    assert_eq!(g.check_enchant_road(at(6, 6)), Ok(()));
+    assert_eq!(
+        g.check_enchant_road(at(15, 10)),
+        Err(TargetError::NoRoad),
         "no road within two squares"
     );
     let events = g.enchant_roads(at(6, 6));

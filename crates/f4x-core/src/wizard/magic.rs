@@ -117,7 +117,8 @@ pub enum MagicError {
     BadSplit,
     /// This spell cannot be cast on the overland map.
     NotOverland,
-    NoSuchTarget,
+    /// The target is not one the spell can be cast on, and why.
+    Target(crate::spell::target_error::TargetError),
     /// The unit or city has this lasting spell on it already.
     AlreadyEnchanted,
     /// The spell is not cumulative with one the unit has (or the wizard keeps): Stone Skin with
@@ -130,6 +131,28 @@ pub enum MagicError {
     NothingToResolve,
     NotEnoughGold,
     NotEnoughMana,
+}
+
+impl MagicError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::UnknownPlayer => "refuse_wizard.magic_error_unknown_player",
+            Self::NotAvailable => "refuse_wizard.magic_error_not_available",
+            Self::AlreadyResearching => "refuse_wizard.magic_error_already_researching",
+            Self::AlreadyCasting => "refuse_wizard.magic_error_already_casting",
+            Self::BadSplit => "refuse_wizard.magic_error_bad_split",
+            Self::NotOverland => "refuse_wizard.magic_error_not_overland",
+            Self::Target(e) => e.key(),
+            Self::AlreadyEnchanted => "refuse_wizard.magic_error_already_enchanted",
+            Self::NotCumulative => "refuse_wizard.magic_error_not_cumulative",
+            Self::AlreadyAble => "refuse_wizard.magic_error_already_able",
+            Self::NeedsTarget => "refuse_wizard.magic_error_needs_target",
+            Self::NothingToResolve => "refuse_wizard.magic_error_nothing_to_resolve",
+            Self::NotEnoughGold => "refuse_wizard.magic_error_not_enough_gold",
+            Self::NotEnoughMana => "refuse_wizard.magic_error_not_enough_mana",
+        }
+    }
 }
 
 pub(crate) fn is_summoning(def: &SpellDef) -> bool {

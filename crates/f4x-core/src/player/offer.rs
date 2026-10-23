@@ -81,6 +81,18 @@ pub enum OfferError {
     Hero(HeroError),
 }
 
+impl OfferError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoOffer => "refuse_wizard.offer_error_no_offer",
+            Self::NoGold => "refuse_wizard.offer_error_no_gold",
+            Self::NoRoom => "refuse_wizard.offer_error_no_room",
+            Self::Hero(e) => e.key(),
+        }
+    }
+}
+
 /// The chance in percent of an offer: `base + fame / per`, doubled for a Famous wizard, at most 10.
 pub fn offer_chance(base: i32, per: i32, fame: i32, famous: bool) -> i32 {
     let chance = base + fame / per;

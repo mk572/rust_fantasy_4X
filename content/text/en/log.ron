@@ -3,7 +3,6 @@
 {
     "log.city_number": "City {n}",
     "log.founded": "Founded {city}",
-    "log.cannot": "Cannot: {why}",
     "log.a_rival": "a rival",
     "log.a_hero": "A hero",
     "log.items_awarded": (count: "lost",

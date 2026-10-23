@@ -36,6 +36,17 @@ pub enum BattleStartError {
     NotAdjacent,
 }
 
+impl BattleStartError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::InProgress => "refuse_map.battle_start_error_in_progress",
+            Self::BadSides => "refuse_map.battle_start_error_bad_sides",
+            Self::NotAdjacent => "refuse_map.battle_start_error_not_adjacent",
+        }
+    }
+}
+
 /// What kind of ranged attack the unit's abilities give it.
 pub fn ranged_kind_of(abilities: &[String]) -> RangedKind {
     let has = |names: &[&str]| abilities.iter().any(|a| names.contains(&a.as_str()));

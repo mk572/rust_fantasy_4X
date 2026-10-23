@@ -32,6 +32,7 @@ use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget
 use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::SpellId;
+use crate::spell::target_error::TargetError;
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
@@ -639,14 +640,14 @@ impl Game {
                 if battle.map.has_wall(cell) {
                     Ok(())
                 } else {
-                    Err(SpellError::BadTarget)
+                    Err(SpellError::Target(TargetError::NoWall))
                 }
             }
             (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Vortex) => {
                 if battle.can_make_vortex(cell) {
                     Ok(())
                 } else {
-                    Err(SpellError::BadTarget)
+                    Err(SpellError::Target(TargetError::NoVortexRoom))
                 }
             }
             (SpellTarget::Tile, SpellAim::Tile(cell))
@@ -655,7 +656,7 @@ impl Game {
                 if battle.map.is_playable(cell) {
                     Ok(())
                 } else {
-                    Err(SpellError::BadTarget)
+                    Err(SpellError::Target(TargetError::BadSquare))
                 }
             }
             (SpellTarget::Tile, SpellAim::Tile(cell)) => {
@@ -675,7 +676,7 @@ impl Game {
                 if self.can_raise(battle, side, id) {
                     Ok(())
                 } else {
-                    Err(SpellError::BadTarget)
+                    Err(SpellError::Target(TargetError::NothingToRaise))
                 }
             }
             (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Animate) => {
@@ -687,7 +688,7 @@ impl Game {
                 if self.can_animate(battle, side, id) {
                     Ok(())
                 } else {
-                    Err(SpellError::BadTarget)
+                    Err(SpellError::Target(TargetError::NothingToAnimate))
                 }
             }
             (
@@ -697,68 +698,78 @@ impl Game {
                 let u = battle
                     .unit(id)
                     .filter(|u| u.is_active())
-                    .ok_or(SpellError::BadTarget)?;
+                    .ok_or(SpellError::Target(TargetError::NotInBattle))?;
                 let own = u.side == side;
-                if (target == SpellTarget::OwnUnit && !own)
-                    || (target == SpellTarget::EnemyUnit && own)
-                {
-                    return Err(SpellError::BadTarget);
+                if target == SpellTarget::OwnUnit && !own {
+                    return Err(SpellError::Target(TargetError::NotYourUnit));
+                }
+                if target == SpellTarget::EnemyUnit && own {
+                    return Err(SpellError::Target(TargetError::NotEnemyUnit));
                 }
                 // An invisible enemy that cannot be seen cannot be picked.
                 if !battle.seen_by(side, id) {
-                    return Err(SpellError::BadTarget);
+                    return Err(SpellError::Target(TargetError::Unseen));
                 }
                 // Death creatures, born so or undead, cannot be healed.
                 if matches!(kind, Kind::Heal { all: false, .. }) && u.realm == Some(Realm::Death) {
-                    return Err(SpellError::BadTarget);
+                    return Err(SpellError::Target(TargetError::Deathly));
                 }
                 if let Kind::Turn { bind, .. } = kind {
                     // Binding takes fantastic creatures, Possession normal units, not heroes.
-                    let fits = if *bind {
-                        u.is_fantastic()
-                    } else {
-                        !u.is_fantastic() && !self.battle_unit_is_hero(u)
-                    };
-                    if !fits
-                        || u.bound_from.is_some()
-                        || battle.active_units(side).count() >= MAX_SIDE_UNITS
-                    {
-                        return Err(SpellError::BadTarget);
+                    if *bind && !u.is_fantastic() {
+                        return Err(SpellError::Target(TargetError::CannotBind));
+                    }
+                    if !*bind && u.is_fantastic() {
+                        return Err(SpellError::Target(TargetError::NotNormalUnit));
+                    }
+                    if !*bind && self.battle_unit_is_hero(u) {
+                        return Err(SpellError::Target(TargetError::Hero));
+                    }
+                    if u.bound_from.is_some() {
+                        return Err(SpellError::Target(TargetError::AlreadyBound));
+                    }
+                    if battle.active_units(side).count() >= MAX_SIDE_UNITS {
+                        return Err(SpellError::NoRoom);
                     }
                 }
                 // Recall Hero takes one of the wizard's own heroes, and needs a place to send it.
                 if let Kind::Recall { anyone } = kind {
-                    if !own
-                        || (!anyone && !self.battle_unit_is_hero(u))
-                        || self.summon_point(battle.player_of(side)).is_none()
-                    {
-                        return Err(SpellError::BadTarget);
+                    if !own {
+                        return Err(SpellError::Target(TargetError::NotYourUnit));
+                    }
+                    if !anyone && !self.battle_unit_is_hero(u) {
+                        return Err(SpellError::Target(TargetError::RecallOnlyHeroes));
+                    }
+                    if self.summon_point(battle.player_of(side)).is_none() {
+                        return Err(SpellError::Target(TargetError::NoCircle));
                     }
                 }
                 if matches!(kind, Kind::LifeDrain)
                     && (u.realm == Some(Realm::Death) || u.has("death_immunity"))
                 {
-                    return Err(SpellError::BadTarget);
+                    return Err(SpellError::Target(TargetError::Deathly));
                 }
                 if matches!(kind, Kind::Enchant { .. }) {
                     self.check_stacking_in_battle(battle.player_of(side), def, u)?;
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
+                if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
+                    return Err(SpellError::Target(TargetError::NotNormalUnit));
+                }
                 if matches!(kind, Kind::WarpWood)
-                    && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0 || u.is_fantastic())
+                    && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0)
                 {
-                    return Err(SpellError::BadTarget);
+                    return Err(SpellError::Target(TargetError::NeedsMissile));
                 }
                 if matches!(kind, Kind::Warp { .. })
-                    && (u.is_fantastic()
-                        || u.enchantments.iter().any(|e| WARPS.contains(&e.as_str())))
+                    && u.enchantments.iter().any(|e| WARPS.contains(&e.as_str()))
                 {
-                    return Err(SpellError::BadTarget);
+                    return Err(SpellError::Target(TargetError::AlreadyWarped));
                 }
                 if let Some(realms) = only_against(&def.id) {
                     if !u.realm.is_some_and(|r| realms.contains(&r)) {
-                        return Err(SpellError::BadTarget);
+                        return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
                 if let Kind::Slay {
@@ -766,12 +777,12 @@ impl Game {
                 } = kind
                 {
                     if !slay_allows(*only, u) {
-                        return Err(SpellError::BadTarget);
+                        return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
                 Ok(())
             }
-            _ => Err(SpellError::BadTarget),
+            _ => Err(SpellError::Target(TargetError::WrongTarget)),
         }
     }
 

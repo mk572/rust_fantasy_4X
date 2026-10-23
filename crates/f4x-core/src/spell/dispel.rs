@@ -21,7 +21,8 @@ use crate::player::PlayerId;
 use crate::rules::exec::Target;
 use crate::rules::SpellId;
 use crate::spell::instance::SpellTarget;
-use crate::wizard::magic::Retort;
+use crate::spell::target_error::TargetError;
+use crate::wizard::magic::{MagicError, Retort};
 
 /// Enchantments with the wizard who cast each.
 pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
@@ -58,9 +59,8 @@ impl Game {
         city: hecs::Entity,
         spell: SpellId,
     ) -> Result<Vec<Event>, crate::wizard::magic::MagicError> {
-        use crate::wizard::magic::MagicError::NoSuchTarget;
         if !self.turn_off_enchantment(SpellTarget::City(city), player, spell) {
-            return Err(NoSuchTarget);
+            return Err(MagicError::Target(TargetError::SpellNotThere));
         }
         if self.content.rules.spells.get(spell).id == "spell_ward" {
             let _ = self
@@ -99,9 +99,8 @@ impl Game {
         unit: hecs::Entity,
         spell: SpellId,
     ) -> Result<Vec<Event>, crate::wizard::magic::MagicError> {
-        use crate::wizard::magic::MagicError::NoSuchTarget;
         if !self.turn_off_enchantment(SpellTarget::Unit(unit), player, spell) {
-            return Err(NoSuchTarget);
+            return Err(MagicError::Target(TargetError::SpellNotThere));
         }
         let mut events = vec![Event::EnchantmentLapsed { player, spell }];
         events.extend(self.drown_stranded());

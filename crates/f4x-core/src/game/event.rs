@@ -430,3 +430,30 @@ pub enum Rejection {
     /// The game has ended; nothing more can be done.
     GameOver,
 }
+
+impl Rejection {
+    /// The key of the sentence that tells why the command was refused (task 348): the client, the
+    /// log and the console read this one source.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Diplomacy(e) => e.key(),
+            Self::Site(e) => e.key(),
+            Self::FoundCity(e) => e.key(),
+            Self::Move(e) => e.key(),
+            Self::Production(e) => e.key(),
+            Self::Magic(e) => e.key(),
+            Self::Fortress(e) => e.key(),
+            Self::Meld(e) => e.key(),
+            Self::Road(e) => e.key(),
+            Self::Purify(e) => e.key(),
+            Self::BattleStart(e) => e.key(),
+            Self::Raze(e) => e.key(),
+            Self::Battle(e) => e.key(),
+            Self::Item(e) => e.key(),
+            Self::Craft(e) => e.key(),
+            Self::Hero(e) => e.key(),
+            Self::Offer(e) => e.key(),
+            Self::GameOver => "refuse_map.game_over",
+        }
+    }
+}

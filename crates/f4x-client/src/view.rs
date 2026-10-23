@@ -486,9 +486,7 @@ impl App {
                         &Args::new().text("city", self.city_name(city)),
                     ))
                 }
-                Event::Rejected(why) => {
-                    Some(self.text_with("log.cannot", &Args::new().text("why", format!("{why:?}"))))
-                }
+                Event::Rejected(why) => Some(self.text(why.key())),
                 Event::ItemMade { player, .. } => {
                     self.item_pool_pending |= player == HUMAN;
                     None

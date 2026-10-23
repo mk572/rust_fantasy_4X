@@ -593,3 +593,10 @@ enchantment (message 16) and refuses Holy Weapon while Holy Arms is up (message 
 Holy Weapon alike, for the AI too, and leaves the global's confirmation to the "continue casting?"
 prompts (task 348).
 
+## 32. Raise Volcano in the sea (task 348)
+
+The original refuses Raise Volcano in water (message 36, "Volcanoes can not be raised in water").
+**Ours allows it** (decided by the user, 23 October 2026): a volcano may rise in the sea and
+makes a volcano island, as Armageddon's already do; a ship on the square sinks and those aboard
+are left on the land. Mountains, hills and squares with a node or other site are still refused.
+

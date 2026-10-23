@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
+use crate::spell::target_error::TargetError;
 
 use crate::game::Command;
 use crate::rules::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
@@ -537,6 +538,10 @@ fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
+    assert_eq!(
+        g.check_become_werewolf(summoned),
+        Err(TargetError::Summoned)
+    );
     let risen = unit(&mut g, P0, "walker", at(1, 2));
     g.make_undead(risen);
     let events = cast(&mut g, "lycanthropy", Some(Target::Unit(risen)));
@@ -544,12 +549,23 @@ fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
+    assert_eq!(g.check_become_werewolf(risen), Err(TargetError::Undead));
     let theirs = unit(&mut g, P1, "walker", at(1, 3));
     let events = cast(&mut g, "lycanthropy", Some(Target::Unit(theirs)));
     assert!(
         events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
     );
+    assert_eq!(
+        g.check_target(P0, lycanthropy_id(&g), Some(Target::Unit(theirs))),
+        Err(crate::wizard::magic::MagicError::Target(
+            TargetError::NotYourUnit
+        ))
+    );
+}
+
+fn lycanthropy_id(g: &Game) -> crate::rules::SpellId {
+    g.content.rules.spells.id_of("lycanthropy").unwrap()
 }
 
 /// Total hit points the units on a square have left.
@@ -933,9 +949,10 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
     let boat = unit(&mut g, P1, "boat", at(6, 6));
     let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(3);
     assert!(g.can_armageddon_volcano(at(6, 6)));
-    assert!(
-        !g.can_raise_volcano(at(6, 6)),
-        "Raise Volcano still needs land"
+    assert_eq!(
+        g.check_raise_volcano(at(6, 6)),
+        Ok(()),
+        "Raise Volcano may rise in the sea too"
     );
     g.armageddon_volcano(P0, at(6, 6), &mut rng);
     assert_eq!(

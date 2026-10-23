@@ -49,6 +49,23 @@ pub enum ProductionError {
     AlreadySold,
 }
 
+impl ProductionError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NotACity => "refuse_wizard.production_error_not_a_city",
+            Self::AlreadyBuilt => "refuse_wizard.production_error_already_built",
+            Self::WrongRace => "refuse_wizard.production_error_wrong_race",
+            Self::MissingBuilding => "refuse_wizard.production_error_missing_building",
+            Self::NothingToBuy => "refuse_wizard.production_error_nothing_to_buy",
+            Self::NotEnoughGold => "refuse_wizard.production_error_not_enough_gold",
+            Self::NotCoastal => "refuse_wizard.production_error_not_coastal",
+            Self::NotBuilt => "refuse_wizard.production_error_not_built",
+            Self::AlreadySold => "refuse_wizard.production_error_already_sold",
+        }
+    }
+}
+
 /// What a building brings when sold: a third of its cost, city walls half of that, at least 1
 /// (`City_Sell_Building_Value`).
 pub(crate) fn sale_value(cost: u32, walls: bool) -> u32 {

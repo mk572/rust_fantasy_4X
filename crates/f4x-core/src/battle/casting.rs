@@ -140,8 +140,8 @@ pub enum SpellError {
     TooExpensive,
     /// Less than the spell costs was put in.
     TooLittle,
-    /// Not a unit or square the spell can be cast on.
-    BadTarget,
+    /// Not a unit or square the spell can be cast on, and why.
+    Target(crate::spell::target_error::TargetError),
     /// No square for a creature, or the side has as many as it can control.
     NoRoom,
     /// The side has this battlefield spell up already.
@@ -154,6 +154,29 @@ pub enum SpellError {
     AlreadyAble,
     /// A Spell Ward on the city guards it from the spell's realm, and the caster is attacking it.
     Warded,
+}
+
+impl SpellError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NeedsGame => "refuse_battle.spell_error_needs_game",
+            Self::NoWizard => "refuse_battle.spell_error_no_wizard",
+            Self::AlreadyCast => "refuse_battle.spell_error_already_cast",
+            Self::NotKnown => "refuse_battle.spell_error_not_known",
+            Self::NotForBattle => "refuse_battle.spell_error_not_for_battle",
+            Self::Unsupported => "refuse_battle.spell_error_unsupported",
+            Self::TooExpensive => "refuse_battle.spell_error_too_expensive",
+            Self::TooLittle => "refuse_battle.spell_error_too_little",
+            Self::Target(e) => e.key(),
+            Self::NoRoom => "refuse_battle.spell_error_no_room",
+            Self::AlreadyUp => "refuse_battle.spell_error_already_up",
+            Self::AlreadyEnchanted => "refuse_battle.spell_error_already_enchanted",
+            Self::NotCumulative => "refuse_battle.spell_error_not_cumulative",
+            Self::AlreadyAble => "refuse_battle.spell_error_already_able",
+            Self::Warded => "refuse_battle.spell_error_warded",
+        }
+    }
 }
 
 impl Battle {

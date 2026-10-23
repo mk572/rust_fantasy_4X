@@ -11,6 +11,7 @@ use crate::content::{FeatureKind, TerrainClass};
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::spell::target_error::TargetError;
 
 pub const RAISE_VOLCANO: &str = "raise_volcano";
 pub const CHANGE_TERRAIN: &str = "change_terrain";
@@ -45,40 +46,43 @@ impl Game {
             .sum()
     }
 
-    /// A volcano may rise on land that is not mountains or hills, and not on a node or any
+    /// A volcano may rise on land that is not mountains or hills, or in the sea, and not on a node or any
     /// other site (minerals are fine: they are destroyed).
-    pub fn can_raise_volcano(&self, at: Position) -> bool {
-        let Some(class) = self.economy().terrain_class_at(at) else {
-            return false;
-        };
-        if matches!(
-            class,
-            TerrainClass::Ocean | TerrainClass::Mountains | TerrainClass::Hills
-        ) {
-            return false;
+    pub fn check_raise_volcano(&self, at: Position) -> Result<(), TargetError> {
+        let class = self
+            .economy()
+            .terrain_class_at(at)
+            .ok_or(TargetError::OffMap)?;
+        match class {
+            TerrainClass::Mountains => return Err(TargetError::VolcanoOnMountain),
+            TerrainClass::Hills => return Err(TargetError::VolcanoOnHill),
+            _ => {}
         }
-        let Some(map) = self.map.as_ref() else {
-            return false;
-        };
+        let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
         map.plane(at.plane)
             .feature(at.x as i32, at.y as i32)
             .and_then(|f| self.content.features.get(f))
             .is_none_or(|f| f.kind == FeatureKind::Mineral)
+            .then_some(())
+            .ok_or(TargetError::VolcanoOnSite)
     }
 
-    /// What Change Terrain turns the square into, or `None` if it is not a valid target:
+    /// What Change Terrain turns the square into, or why it is not a valid target:
     /// deserts, forests, hills and swamps become grassland, grassland becomes forest,
     /// mountains become hills, and a volcano becomes plain mountains.
-    pub fn change_terrain_result(&self, at: Position) -> Option<TerrainClass> {
-        let class = self.economy().terrain_class_at(at)?;
+    pub fn change_terrain_result(&self, at: Position) -> Result<TerrainClass, TargetError> {
+        let class = self
+            .economy()
+            .terrain_class_at(at)
+            .ok_or(TargetError::OffMap)?;
         match class {
             TerrainClass::Desert
             | TerrainClass::Forest
             | TerrainClass::Hills
-            | TerrainClass::Swamp => Some(TerrainClass::Grassland),
-            TerrainClass::Grassland => Some(TerrainClass::Forest),
-            TerrainClass::Mountains => Some(TerrainClass::Hills),
-            TerrainClass::Ocean | TerrainClass::Tundra => None,
+            | TerrainClass::Swamp => Ok(TerrainClass::Grassland),
+            TerrainClass::Grassland => Ok(TerrainClass::Forest),
+            TerrainClass::Mountains => Ok(TerrainClass::Hills),
+            TerrainClass::Ocean | TerrainClass::Tundra => Err(TargetError::TerrainFixed),
         }
     }
 
@@ -96,7 +100,7 @@ impl Game {
         at: Position,
         rng: &mut dyn RngCore,
     ) -> Vec<Event> {
-        if !self.can_raise_volcano(at) {
+        if self.check_raise_volcano(at).is_err() {
             return Vec::new();
         }
         self.make_volcano(owner, at, rng, false)
@@ -293,7 +297,7 @@ impl Game {
     }
 
     pub(crate) fn change_terrain_spell(&mut self, at: Position) -> Vec<Event> {
-        let Some(new) = self.change_terrain_result(at) else {
+        let Ok(new) = self.change_terrain_result(at) else {
             return Vec::new();
         };
         // A volcano is mountains with an owner: removing the owner is the whole change.
@@ -402,9 +406,15 @@ mod tests {
             grid.set(2, 2, hills);
             grid.set_feature(3, 3, Some(node));
         }
-        assert!(!g.can_raise_volcano(at(2, 2)));
-        assert!(!g.can_raise_volcano(at(3, 3)));
-        assert!(g.can_raise_volcano(at(5, 5)));
+        assert_eq!(
+            g.check_raise_volcano(at(2, 2)),
+            Err(TargetError::VolcanoOnHill)
+        );
+        assert_eq!(
+            g.check_raise_volcano(at(3, 3)),
+            Err(TargetError::VolcanoOnSite)
+        );
+        assert_eq!(g.check_raise_volcano(at(5, 5)), Ok(()));
         let s = g.content.rules.spells.id_of("raise_volcano").unwrap();
         g.wizard_mut(P0)
             .unwrap()
@@ -477,7 +487,7 @@ mod tests {
                 .unwrap()
                 .plane_mut(Plane::Arcanus)
                 .set(6, 6, id);
-            assert_eq!(g.change_terrain_result(at(6, 6)), Some(to), "{from:?}");
+            assert_eq!(g.change_terrain_result(at(6, 6)), Ok(to), "{from:?}");
         }
         for class in [TerrainClass::Ocean, TerrainClass::Tundra] {
             let id = terr(&g, class);
@@ -486,7 +496,10 @@ mod tests {
                 .unwrap()
                 .plane_mut(Plane::Arcanus)
                 .set(6, 6, id);
-            assert_eq!(g.change_terrain_result(at(6, 6)), None);
+            assert_eq!(
+                g.change_terrain_result(at(6, 6)),
+                Err(TargetError::TerrainFixed)
+            );
         }
     }
 

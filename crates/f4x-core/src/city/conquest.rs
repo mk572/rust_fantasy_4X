@@ -315,5 +315,14 @@ pub enum RazeError {
     NotJustTaken,
 }
 
+impl RazeError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NotJustTaken => "refuse_map.raze_error_not_just_taken",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

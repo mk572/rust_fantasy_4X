@@ -55,6 +55,19 @@ pub enum MeldError {
     AlreadyGuarded,
 }
 
+impl MeldError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::BadSelection => "refuse_map.meld_error_bad_selection",
+            Self::NoNode => "refuse_map.meld_error_no_node",
+            Self::NoMelder => "refuse_map.meld_error_no_melder",
+            Self::Warped => "refuse_map.meld_error_warped",
+            Self::AlreadyGuarded => "refuse_map.meld_error_already_guarded",
+        }
+    }
+}
+
 /// Squares of a node's aura: its own tile, then up to eight of the squares around it, then
 /// the rest from the ring two squares out; fewer if the map edge leaves no room.
 fn make_aura(

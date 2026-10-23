@@ -6,6 +6,7 @@ use crate::map::{Grid, Map, Plane, Position};
 use crate::game::Command;
 use crate::rules::exec::Target;
 use crate::rules::Stat;
+use crate::spell::target_error::TargetError;
 use crate::wizard::magic::*;
 use std::collections::BTreeSet;
 
@@ -321,13 +322,13 @@ fn spells_need_a_known_spell_and_a_valid_target() {
         .extend([mend, zap]);
     assert_eq!(
         g.check_target(P0, mend, Some(Target::Unit(theirs))),
-        Err(MagicError::NoSuchTarget),
+        Err(MagicError::Target(TargetError::NotYourUnit)),
         "healing is for your own units"
     );
     assert_eq!(g.check_target(P0, zap, Some(Target::Unit(theirs))), Ok(()));
     assert_eq!(
         g.check_target(P0, zap, Some(Target::Unit(mine))),
-        Err(MagicError::NoSuchTarget)
+        Err(MagicError::Target(TargetError::NotEnemyUnit))
     );
     // Five damage kills a spear-sized unit with that few hit points or hurts it.
     g.start_cast(P0, zap, Some(Target::Unit(theirs))).unwrap();

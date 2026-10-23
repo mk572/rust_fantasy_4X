@@ -111,7 +111,7 @@ impl Game {
     /// Great Wasting: any land squares, the caster's own cities' too, are corrupted (the caster
     /// is proof against it, see `city/economy.rs`).
     fn great_wasting(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, |g, at| g.can_corrupt(at));
+        let squares = self.pick_squares(player, false, |g, at| g.check_corrupt(at).is_ok());
         squares
             .into_iter()
             .flat_map(|at| self.corrupt(at))

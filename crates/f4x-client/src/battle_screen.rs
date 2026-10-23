@@ -767,8 +767,7 @@ impl App {
                     self.log.push(line);
                 }
                 Event::Rejected(why) => {
-                    let args = Args::new().text("why", format!("{why:?}"));
-                    let line = self.text_with("log.cannot", &args);
+                    let line = self.text(why.key());
                     self.battle_ui.log.push(line);
                 }
                 _ => {}

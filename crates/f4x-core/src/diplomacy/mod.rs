@@ -185,6 +185,22 @@ pub enum DiplomacyError {
     SpellUnavailable,
 }
 
+impl DiplomacyError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NotWizards => "refuse_wizard.diplomacy_error_not_wizards",
+            Self::SameWizard => "refuse_wizard.diplomacy_error_same_wizard",
+            Self::NotContacted => "refuse_wizard.diplomacy_error_not_contacted",
+            Self::NotAllowed => "refuse_wizard.diplomacy_error_not_allowed",
+            Self::AlreadyPending => "refuse_wizard.diplomacy_error_already_pending",
+            Self::NothingPending => "refuse_wizard.diplomacy_error_nothing_pending",
+            Self::NotEnoughGold => "refuse_wizard.diplomacy_error_not_enough_gold",
+            Self::SpellUnavailable => "refuse_wizard.diplomacy_error_spell_unavailable",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiplomacyEvent {
     ContactMade {

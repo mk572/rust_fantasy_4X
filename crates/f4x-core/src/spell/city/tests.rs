@@ -5,6 +5,7 @@ use crate::map::{Grid, Map, Plane, Position};
 use crate::game::Command;
 use crate::rules::exec::Target;
 use crate::rules::{BuildingDef, Registry};
+use crate::spell::target_error::TargetError;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -105,14 +106,18 @@ fn wall_of_stone_builds_walls_once() {
     assert!(g.economy().city_has_building(city, "city_walls"));
     assert_eq!(
         g.check_target(P0, spell, Some(Target::City(city))),
-        Err(crate::wizard::magic::MagicError::NoSuchTarget),
+        Err(crate::wizard::magic::MagicError::Target(
+            crate::spell::target_error::TargetError::Walled
+        )),
         "a walled city is refused"
     );
     // Nor does it work on somebody else's city.
     let other = found(&mut g, P1, at(18, 6), 4);
     assert_eq!(
         g.check_target(P0, spell, Some(Target::City(other))),
-        Err(crate::wizard::magic::MagicError::NoSuchTarget)
+        Err(crate::wizard::magic::MagicError::Target(
+            TargetError::NotYourCity
+        ))
     );
 }
 
@@ -324,16 +329,21 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() {
     let other = found(&mut g, P1, at(18, 6), 4);
     let ward = g.content.rules.spells.id_of("spell_ward").unwrap();
     // Only your own city, and one of the five realms.
-    for (c, r) in [(other, "death"), (city, "arcane")] {
+    for (c, r, why) in [
+        (other, "death", TargetError::NotYourCity),
+        (city, "arcane", TargetError::NotWardRealm),
+    ] {
         let realm = realm(&g, r);
         assert_eq!(
             g.check_target(P0, ward, Some(Target::CityRealm(c, realm))),
-            Err(crate::wizard::magic::MagicError::NoSuchTarget)
+            Err(crate::wizard::magic::MagicError::Target(why))
         );
     }
     assert_eq!(
         g.check_target(P0, ward, Some(Target::City(city))),
-        Err(crate::wizard::magic::MagicError::NoSuchTarget),
+        Err(crate::wizard::magic::MagicError::Target(
+            crate::spell::target_error::TargetError::WrongTarget
+        )),
         "a city alone is not enough"
     );
     cast_ward(&mut g, city, "death");
@@ -349,7 +359,9 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() {
     let death = realm(&g, "death");
     assert_eq!(
         g.check_target(P0, ward, Some(Target::CityRealm(city, death))),
-        Err(crate::wizard::magic::MagicError::NoSuchTarget),
+        Err(crate::wizard::magic::MagicError::Target(
+            crate::spell::target_error::TargetError::Warded
+        )),
         "already warded against death"
     );
     cast_ward(&mut g, city, "chaos");
@@ -457,7 +469,9 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() {
         .insert("death".into(), 1);
     assert_eq!(
         g.check_target(P1, spell, Some(Target::City(city))),
-        Err(crate::wizard::magic::MagicError::NoSuchTarget)
+        Err(crate::wizard::magic::MagicError::Target(
+            crate::spell::target_error::TargetError::EvilPresenceWasted
+        ))
     );
 }
 

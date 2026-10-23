@@ -591,6 +591,30 @@ pub enum BattleError {
     WallOfDarkness,
 }
 
+impl BattleError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Over => "refuse_battle.battle_error_over",
+            Self::NoSuchUnit => "refuse_battle.battle_error_no_such_unit",
+            Self::NotYours => "refuse_battle.battle_error_not_yours",
+            Self::NoMovesLeft => "refuse_battle.battle_error_no_moves_left",
+            Self::Unreachable => "refuse_battle.battle_error_unreachable",
+            Self::NotAdjacent => "refuse_battle.battle_error_not_adjacent",
+            Self::OutOfRange => "refuse_battle.battle_error_out_of_range",
+            Self::AlreadyAttacked => "refuse_battle.battle_error_already_attacked",
+            Self::NoRangedAttack => "refuse_battle.battle_error_no_ranged_attack",
+            Self::OutOfAmmo => "refuse_battle.battle_error_out_of_ammo",
+            Self::BadTarget => "refuse_battle.battle_error_bad_target",
+            Self::Unseen => "refuse_battle.battle_error_unseen",
+            Self::NoWall => "refuse_battle.battle_error_no_wall",
+            Self::NotWallCrusher => "refuse_battle.battle_error_not_wall_crusher",
+            Self::Spell(e) => e.key(),
+            Self::WallOfDarkness => "refuse_battle.battle_error_wall_of_darkness",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BattleEvent {
     /// A dead unit rose again as undead (Animate Dead).

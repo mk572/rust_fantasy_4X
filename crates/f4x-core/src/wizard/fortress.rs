@@ -31,6 +31,20 @@ pub enum FortressError {
     CannotDestroyFortress,
 }
 
+impl FortressError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::UnknownPlayer => "refuse_map.fortress_error_unknown_player",
+            Self::NotAllowed => "refuse_map.fortress_error_not_allowed",
+            Self::Found(e) => e.key(),
+            Self::NotYourCity => "refuse_map.fortress_error_not_your_city",
+            Self::WrongState => "refuse_map.fortress_error_wrong_state",
+            Self::CannotDestroyFortress => "refuse_map.fortress_error_cannot_destroy_fortress",
+        }
+    }
+}
+
 /// A computer wizard whose casting skill (with heroes) is below this resigns when banished
 /// rather than casting the Spell of Return.
 const RESIGN_BELOW_SKILL: i32 = 40;

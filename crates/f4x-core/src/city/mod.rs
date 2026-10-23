@@ -41,6 +41,20 @@ pub enum FoundCityError {
     TooCloseToCity,
 }
 
+impl FoundCityError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoMap => "refuse_map.found_city_error_no_map",
+            Self::OutOfBounds => "refuse_map.found_city_error_out_of_bounds",
+            Self::BadTerrain => "refuse_map.found_city_error_bad_terrain",
+            Self::BlockedByFeature => "refuse_map.found_city_error_blocked_by_feature",
+            Self::CityAlreadyHere => "refuse_map.found_city_error_city_already_here",
+            Self::TooCloseToCity => "refuse_map.found_city_error_too_close_to_city",
+        }
+    }
+}
+
 /// Check the map-level rules for founding a city; `existing` are current city positions.
 pub fn check_site(
     map: Option<&Map>,

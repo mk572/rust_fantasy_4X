@@ -446,6 +446,17 @@ pub enum SiteError {
     Busy,
 }
 
+impl SiteError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Move(e) => e.key(),
+            Self::NoSite => "refuse_map.site_error_no_site",
+            Self::Busy => "refuse_map.site_error_busy",
+        }
+    }
+}
+
 /// Clear the lair at `index` on the map: it stops being intact (a tower's twin on the other
 /// plane too), and an encounter site vanishes from the map (towers and nodes stay). Returns
 /// the lair as it was, with its treasure; `None` if there is none or it is cleared already.

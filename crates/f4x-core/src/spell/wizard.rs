@@ -10,6 +10,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::UnitKind;
+use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for, Retort};
 
 pub const DRAIN_POWER: &str = "drain_power";
@@ -147,16 +148,28 @@ impl Game {
     /// Whether Lycanthropy may be cast on the unit: a normal land unit that is not undead.
     /// (The original refuses heroes, fantastic creatures and the mutated; ships are refused
     /// here too, which its test does not do.)
-    pub fn can_become_werewolf(&self, unit: hecs::Entity) -> bool {
+    pub fn check_become_werewolf(&self, unit: hecs::Entity) -> Result<(), TargetError> {
         let units = self.units();
-        let Some(def) = units.unit_def(unit) else {
-            return false;
-        };
-        def.kind == UnitKind::Normal
-            && def.realm.is_none()
-            && def.movement != crate::rules::MovementType::Sailing
-            && !units.unit_counts_as_undead(unit)
-            && self.content.rules.units.id_of(WEREWOLVES).is_some()
+        let def = units.unit_def(unit).ok_or(TargetError::WrongTarget)?;
+        match def.kind {
+            UnitKind::Normal => {}
+            UnitKind::Hero => return Err(TargetError::Hero),
+            UnitKind::Summoned => return Err(TargetError::Summoned),
+            UnitKind::Fantastic => return Err(TargetError::NotNormalUnit),
+        }
+        if def.realm.is_some() {
+            return Err(TargetError::NotNormalUnit);
+        }
+        if def.movement == crate::rules::MovementType::Sailing {
+            return Err(TargetError::Ship);
+        }
+        if units.unit_counts_as_undead(unit) {
+            return Err(TargetError::Undead);
+        }
+        if self.content.rules.units.id_of(WEREWOLVES).is_none() {
+            return Err(TargetError::WrongTarget);
+        }
+        Ok(())
     }
 
     /// Lycanthropy: the unit becomes Werewolves for good, starting again from no experience. It
@@ -165,7 +178,7 @@ impl Game {
         &mut self,
         unit: hecs::Entity,
     ) -> Option<(crate::rules::UnitId, crate::rules::UnitId)> {
-        if !self.can_become_werewolf(unit) {
+        if self.check_become_werewolf(unit).is_err() {
             return None;
         }
         let to = self.content.rules.units.id_of(WEREWOLVES)?;

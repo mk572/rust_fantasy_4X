@@ -12,6 +12,7 @@ use crate::rules::effects::{DamageKind, Trigger};
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
 use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat};
 use crate::spell::instance::SpellTarget as Placed;
+use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 use crate::wizard::magic::MagicError;
 
@@ -513,6 +514,14 @@ impl Game {
     ) -> Result<(), MagicError> {
         let wanted = self.content.rules.spells.get(spell).target;
         let mine = |o: Option<PlayerId>| o == Some(player);
+        let wrong = MagicError::Target(TargetError::WrongTarget);
+        let own_city = |c: hecs::Entity| {
+            if mine(self.economy().city_owner(c)) {
+                Ok(())
+            } else {
+                Err(MagicError::Target(TargetError::NotYourCity))
+            }
+        };
         if !self.spell_needs_target(player, spell) {
             return Ok(());
         }
@@ -529,175 +538,216 @@ impl Game {
                 return Err(MagicError::NeedsTarget);
             };
             if self.economy().city_owner(c) != Some(player) {
-                return Err(MagicError::NoSuchTarget);
+                return Err(MagicError::Target(TargetError::NotYourCity));
             }
             let here = self.world.get::<&Position>(c).ok().map(|x| *x);
-            let ok = match hook {
-                crate::wizard::fortress::RETURN => w.is_banished(),
-                crate::wizard::fortress::MOVE_FORTRESS => {
-                    w.fortress().is_some() && here != w.fortress()
+            let refused = match hook {
+                crate::wizard::fortress::RETURN => {
+                    (!w.is_banished()).then_some(TargetError::NotBanished)
                 }
-                _ => here != w.summon_at(),
+                crate::wizard::fortress::MOVE_FORTRESS => match w.fortress() {
+                    None => Some(TargetError::NoFortress),
+                    Some(f) if Some(f) == here => Some(TargetError::FortressHere),
+                    Some(_) => None,
+                },
+                _ => (here == w.summon_at()).then_some(TargetError::CircleHere),
             };
-            return ok.then_some(()).ok_or(MagicError::NoSuchTarget);
+            return refused.map_or(Ok(()), |e| Err(MagicError::Target(e)));
         }
         if self.spell_has_hook(spell, crate::spell::city::SPELL_WARD) {
             return match target {
-                Some(Target::CityRealm(c, r))
-                    if self.economy().city_owner(c) == Some(player) && self.can_ward(c, r) =>
-                {
-                    Ok(())
+                Some(Target::CityRealm(c, r)) => {
+                    own_city(c)?;
+                    self.check_ward(c, r).map_err(MagicError::Target)
                 }
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.content.rules.spells.get(spell).id == "evil_presence" {
             if let Some(Target::City(c)) = target {
                 if self.economy().evil_presence_is_wasted_on(c) {
-                    return Err(MagicError::NoSuchTarget);
+                    return Err(MagicError::Target(TargetError::EvilPresenceWasted));
                 }
             }
         }
         if self.spell_has_hook(spell, crate::spell::city::WALL_OF_STONE) {
             return match target {
-                Some(Target::City(c))
-                    if self.economy().city_owner(c) == Some(player)
-                        && self.can_raise_wall_of_stone(c) =>
-                {
-                    Ok(())
+                Some(Target::City(c)) => {
+                    own_city(c)?;
+                    self.check_raise_wall_of_stone(c)
+                        .map_err(MagicError::Target)
                 }
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::spell::terraform::RAISE_VOLCANO) {
             return match target {
-                Some(Target::Tile(p)) if self.can_raise_volcano(p) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => self.check_raise_volcano(p).map_err(MagicError::Target),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::map::corruption::CORRUPT_LAND) {
             return match target {
-                Some(Target::Tile(p)) if self.can_corrupt(p) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => self.check_corrupt(p).map_err(MagicError::Target),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::map::corruption::WARP_NODE) {
             return match target {
-                Some(Target::Tile(p)) if self.can_warp_node(p, player) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => {
+                    self.check_warp_node(p, player).map_err(MagicError::Target)
+                }
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::map::road::ENCHANT_ROAD) {
             return match target {
-                Some(Target::Tile(p)) if self.can_enchant_road(p) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => self.check_enchant_road(p).map_err(MagicError::Target),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::spell::terraform::CHANGE_TERRAIN) {
             return match target {
-                Some(Target::Tile(p)) if self.change_terrain_result(p).is_some() => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => self
+                    .change_terrain_result(p)
+                    .map(|_| ())
+                    .map_err(MagicError::Target),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::spell::special::TRANSMUTE) {
             return match target {
-                Some(Target::Tile(p)) if self.transmute_result(p).is_some() => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Tile(p)) => self
+                    .transmute_result(p)
+                    .map(|_| ())
+                    .map_err(MagicError::Target),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        let unit_ok = |u: hecs::Entity| match target {
-            Some(Target::Unit(t)) if t == u => mine(self.units().unit_owner(u)),
-            _ => false,
+        let own_unit = |u: hecs::Entity| match target {
+            Some(Target::Unit(t)) if t == u && mine(self.units().unit_owner(u)) => Ok(()),
+            _ => Err(MagicError::Target(TargetError::NotYourUnit)),
         };
         if self.spell_has_hook(spell, crate::spell::special::WORD_OF_RECALL) {
             return match target {
-                Some(Target::Unit(u))
-                    if unit_ok(u) && self.recall_destination(player, u).is_some() =>
-                {
-                    Ok(())
+                Some(Target::Unit(u)) => {
+                    own_unit(u)?;
+                    self.recall_destination(player, u)
+                        .map(|_| ())
+                        .map_err(MagicError::Target)
                 }
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::spell::special::PLANE_SHIFT) {
             return match target {
-                Some(Target::Unit(u))
-                    if unit_ok(u) && self.plane_shift_destination(u).is_some() =>
-                {
-                    Ok(())
+                Some(Target::Unit(u)) => {
+                    own_unit(u)?;
+                    self.plane_shift_destination(u)
+                        .map(|_| ())
+                        .map_err(MagicError::Target)
                 }
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::unit::mutation::CHAOS_CHANNELS) {
             return match target {
-                Some(Target::Unit(u)) if unit_ok(u) && self.can_mutate(u) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Unit(u)) => {
+                    own_unit(u)?;
+                    self.check_mutate(u).map_err(MagicError::Target)
+                }
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.spell_has_hook(spell, crate::spell::wizard::LYCANTHROPY) {
             return match target {
-                Some(Target::Unit(u)) if unit_ok(u) && self.can_become_werewolf(u) => Ok(()),
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(Target::Unit(u)) => {
+                    own_unit(u)?;
+                    self.check_become_werewolf(u).map_err(MagicError::Target)
+                }
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
         if self.is_square_spell(spell) {
             return match target {
-                Some(Target::Tile(at))
-                    if self.units().units_at(at).iter().any(|&u| {
+                Some(Target::Tile(at)) => {
+                    let enemy_there = self.units().units_at(at).iter().any(|&u| {
                         !mine(self.units().unit_owner(u))
                             && !(self.spell_has_hook(spell, crate::unit::stasis::STASIS)
                                 && self.unit_in_stasis(u))
-                    }) =>
-                {
-                    Ok(())
+                    });
+                    if enemy_there {
+                        Ok(())
+                    } else {
+                        Err(MagicError::Target(TargetError::NoEnemyHere))
+                    }
                 }
-                Some(_) => Err(MagicError::NoSuchTarget),
+                Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        let ok = match (wanted, target) {
-            (SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield, _) => true,
+        let refused = match (wanted, target) {
+            (SpellTarget::None | SpellTarget::Wizard | SpellTarget::Battlefield, _) => None,
             (_, None) => return Err(MagicError::NeedsTarget),
-            (SpellTarget::OwnUnit, Some(Target::Unit(u))) => mine(self.units().unit_owner(u)),
-            (SpellTarget::EnemyUnit, Some(Target::Unit(u))) => {
-                self.units().unit_owner(u).is_some_and(|o| o != player)
+            (SpellTarget::OwnUnit, Some(Target::Unit(u))) => {
+                (!mine(self.units().unit_owner(u))).then_some(TargetError::NotYourUnit)
             }
-            (SpellTarget::AnyUnit, Some(Target::Unit(u))) => self.units().unit_owner(u).is_some(),
-            (SpellTarget::OwnCity, Some(Target::City(c))) => mine(self.economy().city_owner(c)),
+            (SpellTarget::EnemyUnit, Some(Target::Unit(u))) => {
+                (!self.units().unit_owner(u).is_some_and(|o| o != player))
+                    .then_some(TargetError::NotEnemyUnit)
+            }
+            (SpellTarget::AnyUnit, Some(Target::Unit(u))) => self
+                .units()
+                .unit_owner(u)
+                .is_none()
+                .then_some(TargetError::WrongTarget),
+            (SpellTarget::OwnCity, Some(Target::City(c))) => {
+                (!mine(self.economy().city_owner(c))).then_some(TargetError::NotYourCity)
+            }
             (SpellTarget::EnemyCity, Some(Target::City(c))) => {
-                self.economy().city_owner(c).is_some_and(|o| o != player)
+                (!self.economy().city_owner(c).is_some_and(|o| o != player))
+                    .then_some(TargetError::NotEnemyCity)
             }
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
-                p != player
-                    && !self.is_defeated(p)
-                    && (!self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
-                        || self.mana_spent_casting(p).is_some())
+                if p == player || self.is_defeated(p) {
+                    Some(TargetError::NotEnemyWizard)
+                } else if self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
+                    && self.mana_spent_casting(p).is_none()
+                {
+                    Some(TargetError::NotCasting)
+                } else {
+                    None
+                }
             }
             (SpellTarget::GlobalEnchantment, Some(Target::Spell(i))) => {
-                self.spells().target(i) == Some(crate::spell::instance::SpellTarget::Global)
-                    && self.spells().caster_player(i).is_some_and(|o| o != player)
+                let other_wizards = self.spells().target(i)
+                    == Some(crate::spell::instance::SpellTarget::Global)
+                    && self.spells().caster_player(i).is_some_and(|o| o != player);
+                (!other_wizards).then_some(TargetError::NotGlobalSpell)
             }
-            (SpellTarget::Tile, Some(Target::Tile(p))) => self
-                .map
-                .as_ref()
-                .is_some_and(|m| p.x < m.width() && p.y < m.height()),
-            _ => false,
+            (SpellTarget::Tile, Some(Target::Tile(p))) => {
+                let on_map = self
+                    .map
+                    .as_ref()
+                    .is_some_and(|m| p.x < m.width() && p.y < m.height());
+                (!on_map).then_some(TargetError::OffMap)
+            }
+            _ => Some(TargetError::WrongTarget),
         };
-        if !ok {
-            return Err(MagicError::NoSuchTarget);
+        if let Some(why) = refused {
+            return Err(MagicError::Target(why));
         }
         self.check_stacking(player, spell, target)
     }

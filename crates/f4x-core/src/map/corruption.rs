@@ -7,6 +7,7 @@ use crate::content::TerrainClass;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::spell::target_error::TargetError;
 
 pub const CORRUPT_LAND: &str = "corrupt_land";
 
@@ -32,6 +33,17 @@ pub enum PurifyError {
     NotCorrupted,
 }
 
+impl PurifyError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoUnits => "refuse_map.purify_error_no_units",
+            Self::CannotPurify => "refuse_map.purify_error_cannot_purify",
+            Self::NotCorrupted => "refuse_map.purify_error_not_corrupted",
+        }
+    }
+}
+
 impl Game {
     pub fn is_corrupted(&self, at: Position) -> bool {
         self.map
@@ -40,15 +52,17 @@ impl Game {
     }
 
     /// Corruption works on any land square that is not already corrupted.
-    pub fn can_corrupt(&self, at: Position) -> bool {
-        self.economy()
-            .terrain_class_at(at)
-            .is_some_and(|c| c != TerrainClass::Ocean)
-            && !self.is_corrupted(at)
+    pub fn check_corrupt(&self, at: Position) -> Result<(), TargetError> {
+        match self.economy().terrain_class_at(at) {
+            None => Err(TargetError::OffMap),
+            Some(TerrainClass::Ocean) => Err(TargetError::CorruptWater),
+            Some(_) if self.is_corrupted(at) => Err(TargetError::AlreadyCorrupted),
+            Some(_) => Ok(()),
+        }
     }
 
     pub(crate) fn corrupt(&mut self, at: Position) -> Vec<Event> {
-        if !self.can_corrupt(at) {
+        if self.check_corrupt(at).is_err() {
             return Vec::new();
         }
         if let Some(m) = self.map.as_mut() {
@@ -232,9 +246,14 @@ impl Game {
     }
 
     /// Warp Node: a node somebody owns turns against them, draining five power.
-    pub fn can_warp_node(&self, at: Position, caster: PlayerId) -> bool {
-        self.node_at(at)
-            .is_some_and(|n| n.owner.is_some_and(|o| o != caster) && !n.warped)
+    pub fn check_warp_node(&self, at: Position, caster: PlayerId) -> Result<(), TargetError> {
+        let node = self.node_at(at).ok_or(TargetError::NoNode)?;
+        match node.owner {
+            None => Err(TargetError::NodeUnowned),
+            Some(o) if o == caster => Err(TargetError::NodeOwn),
+            Some(_) if node.warped => Err(TargetError::NodeWarped),
+            Some(_) => Ok(()),
+        }
     }
 
     pub(crate) fn warp_node(&mut self, at: Position) -> Vec<Event> {

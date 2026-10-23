@@ -62,13 +62,16 @@ fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
 #[test]
 fn the_corruption_spell_spoils_land_but_not_water() {
     let mut g = world();
-    assert!(g.can_corrupt(at(5, 5)));
+    assert_eq!(g.check_corrupt(at(5, 5)), Ok(()));
     let events = cast(&mut g, "corruption", at(5, 5));
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::LandCorrupted { .. })));
     assert!(g.is_corrupted(at(5, 5)));
-    assert!(!g.can_corrupt(at(5, 5)), "already corrupted");
+    assert_eq!(
+        g.check_corrupt(at(5, 5)),
+        Err(TargetError::AlreadyCorrupted)
+    );
     let ocean = g
         .content
         .terrains
@@ -79,7 +82,7 @@ fn the_corruption_spell_spoils_land_but_not_water() {
         .unwrap()
         .plane_mut(Plane::Arcanus)
         .set(8, 8, ocean);
-    assert!(!g.can_corrupt(at(8, 8)));
+    assert_eq!(g.check_corrupt(at(8, 8)), Err(TargetError::CorruptWater));
     let events = cast(&mut g, "corruption", at(8, 8));
     assert!(events.iter().any(|e| matches!(e, Event::Rejected(_))));
 }
@@ -274,14 +277,17 @@ fn warp_node_turns_a_rivals_node_against_them() {
         .as_mut()
         .unwrap()
         .set_nodes(vec![node(Some(PlayerId(1)))]);
-    assert!(g.can_warp_node(at(6, 6), P0));
-    assert!(!g.can_warp_node(at(6, 6), P1), "not your own node");
-    assert!(!g.can_warp_node(at(7, 7), P0), "no node there");
+    assert_eq!(g.check_warp_node(at(6, 6), P0), Ok(()));
+    assert_eq!(g.check_warp_node(at(6, 6), P1), Err(TargetError::NodeOwn));
+    assert_eq!(g.check_warp_node(at(7, 7), P0), Err(TargetError::NoNode));
     let events = cast(&mut g, "warp_node", at(6, 6));
     assert!(
         events.iter().any(|e| matches!(e, Event::NodeWarped { .. })),
         "{events:?}"
     );
     assert_eq!(g.node_income(P1), -5);
-    assert!(!g.can_warp_node(at(6, 6), P0), "already warped");
+    assert_eq!(
+        g.check_warp_node(at(6, 6), P0),
+        Err(TargetError::NodeWarped)
+    );
 }

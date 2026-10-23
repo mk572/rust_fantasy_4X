@@ -104,6 +104,24 @@ pub enum CraftError {
     BadCharges,
 }
 
+impl CraftError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::NoPowers => "refuse_wizard.craft_error_no_powers",
+            Self::TooManyPowers => "refuse_wizard.craft_error_too_many_powers",
+            Self::UnknownPower => "refuse_wizard.craft_error_unknown_power",
+            Self::Repeated => "refuse_wizard.craft_error_repeated",
+            Self::WrongKind => "refuse_wizard.craft_error_wrong_kind",
+            Self::SameGroup => "refuse_wizard.craft_error_same_group",
+            Self::TooCostly => "refuse_wizard.craft_error_too_costly",
+            Self::NeedsBooks => "refuse_wizard.craft_error_needs_books",
+            Self::BadSpell => "refuse_wizard.craft_error_bad_spell",
+            Self::BadCharges => "refuse_wizard.craft_error_bad_charges",
+        }
+    }
+}
+
 /// The group of powers that are free to combine (the special powers): the others allow one
 /// power each.
 const FREE_GROUP: u8 = 9;
@@ -361,6 +379,17 @@ pub enum CraftingError {
     /// The wizard does not know the spell, or is casting another.
     Magic(crate::wizard::magic::MagicError),
     Design(CraftError),
+}
+
+impl CraftingError {
+    /// The key of its sentence in `content/text` (task 348).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::UnknownPlayer => "refuse_wizard.crafting_error_unknown_player",
+            Self::Magic(e) => e.key(),
+            Self::Design(e) => e.key(),
+        }
+    }
 }
 
 impl crate::game::Game {
