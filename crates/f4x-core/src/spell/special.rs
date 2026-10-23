@@ -1,5 +1,5 @@
 //! Special overland spells with no home of their own: Transmute, Earth Lore, Nature's Cures,
-//! Word of Recall and Plane Shift (task 56). Each is a hook the spell runs; the targets they
+//! Word of Recall, Plane Shift (task 56) and Floating Island. Each is a hook the spell runs; the targets they
 //! accept are checked by `check_target` in `spell/cast.rs`.
 
 use crate::map::{Plane, Position};
@@ -14,6 +14,7 @@ pub const EARTH_LORE: &str = "earth_lore";
 pub const NATURES_CURES: &str = "natures_cures";
 pub const WORD_OF_RECALL: &str = "word_of_recall";
 pub const PLANE_SHIFT: &str = "plane_shift";
+pub const FLOATING_ISLAND: &str = "floating_island";
 
 /// What Transmute turns each mineral into. Adamantium and the crystals are left alone.
 const TRANSMUTED: [(&str, &str); 6] = [
@@ -40,6 +41,24 @@ impl Game {
             self.content.features.id_of(to)
         })()
         .ok_or(TargetError::NothingToTransmute)
+    }
+
+    /// Floating Island needs a water square: the island is raised where the wizard aims.
+    pub fn check_floating_island(&self, at: Position) -> Result<(), TargetError> {
+        match self.economy().terrain_class_at(at) {
+            None => Err(TargetError::OffMap),
+            Some(crate::content::TerrainClass::Ocean) => Ok(()),
+            Some(_) => Err(TargetError::NotWater),
+        }
+    }
+
+    pub(crate) fn floating_island(&mut self, owner: crate::player::PlayerId, at: Position) {
+        if self.check_floating_island(at).is_err() {
+            return;
+        }
+        if let Some(id) = self.content.rules.units.id_of("floating_island") {
+            self.spawn_unit(owner, at, id);
+        }
     }
 
     pub(crate) fn transmute(&mut self, at: Position) -> Vec<Event> {
@@ -350,5 +369,41 @@ mod tests {
         let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
         g.attach_enchantment(Target::Player(other), seal, other);
         assert!(rejected(&cast(&mut g, "plane_shift", Target::Unit(a))));
+    }
+
+    #[test]
+    fn floating_island_is_raised_on_the_aimed_water_square_and_refused_on_land() {
+        let mut g = world();
+        let ocean = g.content.terrains.id_of("ocean").unwrap();
+        let sea = at(Plane::Arcanus, 5, 5);
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set(sea.x, sea.y, ocean);
+        let mut units = g.content.rules.units.defs().to_vec();
+        if !units.iter().any(|u| u.id == "floating_island") {
+            let mut island = units.iter().find(|u| u.id == "walker").unwrap().clone();
+            island.id = "floating_island".into();
+            units.push(island);
+            g.content.rules.units = crate::rules::Registry::new(units);
+        }
+        let land = at(Plane::Arcanus, 6, 5);
+        let events = cast(&mut g, "floating_island", Target::Tile(land));
+        assert!(rejected(&events), "{events:?}");
+        assert_eq!(
+            g.check_floating_island(land),
+            Err(TargetError::NotWater),
+            "land is refused"
+        );
+        assert!(g.units().units_at(land).is_empty());
+        let events = cast(&mut g, "floating_island", Target::Tile(sea));
+        assert!(!rejected(&events), "{events:?}");
+        let here = g.units().units_at(sea);
+        assert_eq!(here.len(), 1, "the island rises where it was aimed");
+        assert_eq!(
+            g.units().unit_def(here[0]).map(|d| d.id.as_str()),
+            Some("floating_island")
+        );
     }
 }

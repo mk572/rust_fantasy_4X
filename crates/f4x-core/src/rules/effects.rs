@@ -29,6 +29,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::spell::special::NATURES_CURES,
     crate::spell::special::WORD_OF_RECALL,
     crate::spell::special::PLANE_SHIFT,
+    crate::spell::special::FLOATING_ISLAND,
     crate::item::crafting::CRAFT_ITEM,
     crate::spell::hero::SUMMON_HERO,
     crate::spell::hero::SUMMON_CHAMPION,

@@ -435,6 +435,10 @@ impl EffectHost for GameHost<'_> {
                 crate::map::corruption::CORRUPT_LAND => self.game.corrupt(at),
                 crate::map::corruption::WARP_NODE => self.game.warp_node(at),
                 crate::spell::special::TRANSMUTE => self.game.transmute(at),
+                crate::spell::special::FLOATING_ISLAND => {
+                    self.game.floating_island(ctx.owner, at);
+                    return;
+                }
                 crate::spell::special::EARTH_LORE => {
                     self.game.earth_lore(ctx.owner, at);
                     return;
@@ -628,6 +632,13 @@ impl Game {
                     .transmute_result(p)
                     .map(|_| ())
                     .map_err(MagicError::Target),
+                Some(_) => Err(wrong),
+                None => Err(MagicError::NeedsTarget),
+            };
+        }
+        if self.spell_has_hook(spell, crate::spell::special::FLOATING_ISLAND) {
+            return match target {
+                Some(Target::Tile(p)) => self.check_floating_island(p).map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
