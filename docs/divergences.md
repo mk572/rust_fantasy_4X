@@ -685,3 +685,10 @@ slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) 
 table (`TBL_Unrest`), which `rules.ron` (`racial_unrest`) already holds, identical (the Klackon's -2 is
 the byte 254); `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Not changed:** the
 costs are a balance question; the follow-up is task 372.
+
+## 35. Immunity fixes (task 263)
+
+Three places where the original's immunity code is a known bug and the game follows the fix
+(`combat.md` section 2.1 has the whole audit): **ships and catapults** have no magical weapon, so
+weapon immunity stops them; **Wraith Form** is no shelter from Wrack or Call Lightning; **death
+immunity** protects against Terror. The other differences listed there are kept as the original.

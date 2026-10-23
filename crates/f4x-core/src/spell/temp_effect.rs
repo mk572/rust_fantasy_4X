@@ -186,9 +186,15 @@ impl<'a> UnitView<'a> {
     /// adamantium weapons, anything with the `magical_weapon` ability (a flaming or blessed
     /// blade), and the living normal units of a wizard who keeps Holy Arms.
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
-        self.unit_def(unit)
-            .is_some_and(|d| d.kind != crate::rules::UnitKind::Normal)
-            || self.unit_weapon_quality(unit) > 0
+        // Ships and catapults are `Fantastic` in the data, as in the original, but they are not
+        // creatures: their blows and boulders are stopped by weapon immunity (the Unofficial Patch
+        // fixes the original, where they were not).
+        self.unit_def(unit).is_some_and(|d| {
+            d.kind != crate::rules::UnitKind::Normal
+                && !(d.kind == crate::rules::UnitKind::Fantastic
+                    && (d.movement == crate::rules::MovementType::Sailing
+                        || d.abilities.iter().any(|a| a == "wall_crusher")))
+        }) || self.unit_weapon_quality(unit) > 0
             || (self
                 .unit_owner(unit)
                 .is_some_and(|o| self.has_global(o, "holy_arms"))
@@ -491,6 +497,29 @@ mod tests {
         assert!(g.units().unit_protected_from(u, Some(Realm::Death)));
         assert!(!g.units().unit_protected_from(u, Some(Realm::Nature)));
         assert!(!g.units().unit_protected_from(u, None));
+    }
+
+    #[test]
+    fn ships_and_catapults_are_fantastic_but_their_weapons_are_not_magical() {
+        let mut g = world();
+        for (i, (movement, ability)) in [
+            (crate::rules::MovementType::Sailing, None),
+            (crate::rules::MovementType::Walking, Some("wall_crusher")),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut defs = g.content.rules.units.defs().to_vec();
+            let mut def = defs.iter().find(|d| d.id == "spear").unwrap().clone();
+            def.id = format!("machine{i}");
+            def.kind = UnitKind::Fantastic;
+            def.movement = movement;
+            def.abilities.extend(ability.map(String::from));
+            defs.push(def);
+            g.content.rules.units = crate::rules::Registry::new(defs);
+            let m = unit(&mut g, &format!("machine{i}"));
+            assert!(!g.units().unit_has_magical_weapon(m), "machine {i}");
+        }
     }
 
     #[test]

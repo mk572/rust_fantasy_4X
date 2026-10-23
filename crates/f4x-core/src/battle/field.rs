@@ -372,11 +372,7 @@ impl Battle {
             tries += 1;
             let id = self.rng.gen_range(0..self.units.len());
             let u = &self.units[id];
-            if u.side == caster
-                || !u.is_active()
-                || u.has_enchantment("wraith_form")
-                || self.rng.gen_range(1..=2) != 1
-            {
+            if u.side == caster || !u.is_active() || self.rng.gen_range(1..=2) != 1 {
                 continue;
             }
             let dmg = self.spell_damage(id, CALL_LIGHTNING_STRENGTH, &traits, nature);
@@ -388,16 +384,13 @@ impl Battle {
     }
 
     /// Every figure of every enemy unit without death immunity must resist at +1 or lose a hit
-    /// point.
+    /// point. Wraith Form gives no shelter: the original's code skips such units and marks that
+    /// as a bug, and Call Lightning's identical skip is fixed by the Unofficial Patch.
     fn wrack(&mut self, caster: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for id in 0..self.units.len() {
             let u = &self.units[id];
-            if u.side == caster
-                || !u.is_active()
-                || u.has("death_immunity")
-                || u.has_enchantment("wraith_form")
-            {
+            if u.side == caster || !u.is_active() || u.has("death_immunity") {
                 continue;
             }
             let mut state = u.defender_state();
@@ -434,7 +427,9 @@ impl Battle {
             if self.units[id].side != side || !self.units[id].is_active() {
                 continue;
             }
-            if terror {
+            // Death immunity "negates all spells which cause death and fear" (the help; the
+            // original's Terror ignores it and the Unofficial Patch fixes that).
+            if terror && !self.units[id].has("death_immunity") {
                 let state = self.units[id].defender_state();
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {

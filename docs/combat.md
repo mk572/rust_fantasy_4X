@@ -132,6 +132,35 @@ to roll against each attack (`attack::process_attack`).
   Armor +10, Bless +3, Resist Elements +3, task 156), armour piercing and large shield (36, 37),
   gazes and touches that call a resistance check (36).
 
+- **The audit of 24 October 2026 (task 263).** Sources: the code of ReMoM (`Combat_Effective_Resistance`,
+  `Battle_Unit_Attack_Immunities`, `Battle_Unit_Defense_Special`, `Compute_Battle_Unit_Damage_From_Spell`),
+  the immunity byte of `SPELLDAT.LBX` for the eleven damage spells (strength, immunities and attributes
+  of every one equal `spells.ron`), the help, and the bug lists of the Insecticide and Unofficial Patch 1.50
+  pages saved in `reference/`. The pure cells (defence and resistance by immunity and attack) are tested
+  in `battle/immunity/tests.rs`, the rest in `battle/tests.rs`; where the original is a known bug, this is
+  what the game does:
+
+  | Known bug of the original | Here |
+  |---|---|
+  | Thrown normal weapons ignore weapon immunity (ReMoM `OGBUG`) | stopped by it (fixed before) |
+  | Ships and catapults ignore weapon immunity (patch 635): they are `Fantastic` in the data, and fantastic creatures have magical weapons | **fixed 24 October 2026**: a `Fantastic` unit that sails or is a wall crusher has no magical weapon (`unit_has_magical_weapon`), so weapon immunity stops its blows and boulders |
+  | Wrack skips units with Wraith Form (ReMoM: "BUG: this enchantment should not help here"); Call Lightning does the same (patch IW112) | **fixed**: Wraith Form is no shelter from either; magic immunity still is, through the spell's damage roll |
+  | Wraith Form protects against Flame Strike, Death Spell and Holy Word (patch 318) | never was: the spell grants only non-corporeal and weapon immunity |
+  | Undead lack cold, poison and illusion immunity (patch 144) | they have them (task 29, `unit/undead.rs`) |
+  | Death immunity does not stop Terror (patch 440; the help: it "negates all spells which cause death and fear") | **fixed 24 October 2026**: a unit with death immunity is not frightened (`field.rs`) |
+  | Wall of Darkness is no hindrance to a shooter that sees through illusions (patch 470) | it is none (task 25) |
+  | Righteousness does not work against ranged attacks (patch 694) | it does (`righteous_ward`, and +30 resistance) |
+  | Blur rolls the defender's illusion immunity (patch 156) | the attacker's (task 13's rule, simplified) |
+  | Weapon immunity overrides missile immunity (Insecticide IW083) | **kept as the original**: weapon plus missile immunity gives 10 against arrows (tested) |
+  | Weapon immunity gives 50 against thrown, boulders and missiles (Insecticide, reverted by patch 637) | 10, the original's |
+  | Create undead is stopped by magic immunity and not by death immunity (patch 496, 498) | **kept as the original** (`attack.rs`); the help has no word on it |
+  | Entangle holds non-corporeal units (the original; patch 045 removed it, the Community Patch put it back) | not on them (the help says so, `field.rs`) |
+  | Merging gives no immunity to Cracks Call (patch IW106 adds it) | none, as the original |
+  | Invulnerability cannot be dispelled in combat (patch 261, 444) | it can, like any other unit spell |
+
+  The help says Magic Immunity raises the defence to 50 against magic *melee* attacks too (topics 468 and
+  556); the code (kept) does it for ranged ones only, and our melee blows have no realm.
+
 - **Weapon quality** (task 18, `unit::WeaponQuality`): set where a unit is trained (an alchemists
   guild gives magic weapons, mithril or adamantium in the city's area raises them, the Alchemy
   retort gives at least magic) and copied into `BattleUnit::weapon_quality`. Mithril adds one and

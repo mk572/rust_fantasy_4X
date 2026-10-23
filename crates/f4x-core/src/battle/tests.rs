@@ -2062,6 +2062,16 @@ mod fields {
             }
         }
         assert!(frozen > 30, "{frozen} of 40 froze");
+        // Death immunity is proof against it.
+        for seed in 0..20 {
+            let mut deathless = of(Side::Defender, None, (17, 5));
+            deathless.resistance = 0;
+            deathless.abilities.push("death_immunity".into());
+            let mut b = duel(of(Side::Attacker, None, (3, 5)), deathless, seed);
+            b.raise_field(Side::Attacker, Field::Terror, spell());
+            end_turns(&mut b, 1);
+            assert!(!b.units[1].attacked, "seed {seed}");
+        }
     }
 
     /// A lasting spell put on a unit the way the casting does it.
@@ -2210,6 +2220,18 @@ mod fields {
         hurt += b.units[1].max_hit_points() - b.units[1].hit_points();
         assert!(hurt >= 1, "a figure with no resistance feels it");
         assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
+        // Wraith Form is no shelter from it.
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[1].resistance = 0;
+        b.units[1].figures_start = 4;
+        b.units[1].figures = 4;
+        b.units[1].enchantments.push("wraith_form".into());
+        b.raise_field(Side::Attacker, Field::Wrack, spell());
+        end_turns(&mut b, 4);
+        assert!(b.units[1].hit_points() < b.units[1].max_hit_points());
         // Call Lightning: bolts of strength eight on the enemy only.
         let mut b = pair(
             of(Side::Attacker, None, (3, 5)),
