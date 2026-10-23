@@ -681,6 +681,7 @@ for the unused mode, walking, Forester, Mountaineer, swimming and sailing (255 i
 So hills, swamp and mountains cost one more move in the original than in the game, and a chaos node
 (a mountain) 4. The Forester column makes forests cost 1, the Mountaineer column hills and
 mountains 1 (as ours does), and the Mountaineer column puts 3 on grassland and 2 on forest: a
-slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) is not read by any
-function of ReMoM; `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Not changed:** the
+slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) is the 14 by 14 racial unrest
+table (`TBL_Unrest`), which `rules.ron` (`racial_unrest`) already holds, identical (the Klackon's -2 is
+the byte 254); `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Not changed:** the
 costs are a balance question; the follow-up is task 372.
