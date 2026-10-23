@@ -361,7 +361,7 @@ impl Economy<'_> {
             .iter()
             .all(|&u| self.units().unit_has_ability(u, "planar_travel"));
         let (_, owner) = self.check_stack(units)?;
-        let on_gate = self.has_gate(from, owner, crate::city::gates::ASTRAL_GATE);
+        let on_gate = self.has_gate(from, owner, crate::city::gate::ASTRAL_GATE);
         if !on_tower && !all_travel && !on_gate {
             return Err(MoveError::CannotShiftPlane);
         }

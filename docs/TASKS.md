@@ -69,7 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 337 | Docs | Update the docs; guard tests; knowledge-base entry |
 | 339 | AI | Scripted and trained AI on the new framework |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
@@ -86,12 +85,6 @@ Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, 
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
 
 ### G. Closing
-
-**337. Docs and guards.** Bring `ecs-structure.md`, `design.md`, `magic.md`, `map-layers.md`, `lairs.md`
-and `architecture-plan.md` up to date. A test (or a script, logged in `docs/scripts.md`) fails on
-plural module names. Update the method-count limits of task 183's test. A knowledge-base entry
-(project docs, or `~/projects/KNOWLEDGE_BASE.md` if general) for anything non-obvious found in the
-rework. *Needs:* 336.
 
 **339. Scripted and trained AI on the new framework.** The last task, because both AIs sit on top of
 everything else.

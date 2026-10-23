@@ -3,7 +3,7 @@
 pub mod autobuild;
 pub mod conquest;
 pub mod economy;
-pub mod gates;
+pub mod gate;
 pub(crate) mod growth;
 pub mod neutral;
 pub mod nightshade;

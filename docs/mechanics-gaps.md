@@ -64,7 +64,7 @@ diplomacy, AI, random events, victory and score.
   can be enchanted), movement types: walking, forester, mountaineer, pathfinding,
   swimming, sailing, flying, wind walking, non-corporeal (half cost anywhere), planar
   travel, plane shift, teleporting and merging [253-261, 545-551, 565, 575].
-- Gates (`city/gates.rs`, task 12): Earth Gate links two own cities with gates on the same plane for
+- Gates (`city/gate.rs`, task 12): Earth Gate links two own cities with gates on the same plane for
   one move (`Command::EarthGate`); Astral Gate lets a stack in the city change plane, unless a
   city lies on the other side; towers link planes; Planar Seal closes them [750, 752].
 - Fog of war: unexplored squares, sight radius (scouting), Oracle sees 4 squares, walls 3,

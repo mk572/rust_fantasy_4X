@@ -11,7 +11,7 @@ pub mod astrology;
 pub mod entity;
 pub mod fortress;
 pub mod magic;
-pub(crate) mod magic_commands;
+pub(crate) mod magic_command;
 pub(crate) mod magic_game;
 pub mod magic_income;
 pub mod objective;

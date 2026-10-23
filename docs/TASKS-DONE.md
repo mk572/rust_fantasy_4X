@@ -246,6 +246,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 334 | (done) Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
 | 335 | Core | Save format 2 and the game-version check (done) |
 | 336 | Core | Other crates: `PlayerView`, console, client, tools (done) |
+| 337 | Docs | Update the docs; guard tests; knowledge-base entry (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
@@ -716,6 +717,14 @@ change that does it; the real work on them is task 339. *Needs:* 335.
 `name`, `banner`, `portrait`, `history`, `has_grand_vizier`, `is_defeated`, `defeated_by`). The
 `Game` wrappers `treasury`, `history`, `has_grand_vizier`, `is_defeated`, `defeat_by`, `player_name`, `banner` and `portrait` are gone and about 190 calls in all crates use the handle (where an id may be unknown, `game.player(id)` is `None` and the caller picks the fallback). The `WorldView` trait and the `FakeView` test fake are gone: diplomacy reads a `&Game` (its questions are
 inherent methods in `game/view.rs`), and its tests, which ran on the fake, now build a real game.
+
+**337. Docs and guards (done).** Bring `ecs-structure.md`, `design.md`, `magic.md`, `map-layers.md`, `lairs.md`
+and `architecture-plan.md` up to date. A test (or a script, logged in `docs/scripts.md`) fails on
+plural module names. Update the method-count limits of task 183's test. A knowledge-base entry
+(project docs, or `~/projects/KNOWLEDGE_BASE.md` if general) for anything non-obvious found in the
+rework. *Needs:* 336.
+
+**Done:** `ecs-structure.md` (section 2 layout), `design.md`, `magic.md`, `map-layers.md`, `lairs.md` and `architecture-plan.md` describe the entities; the plural-name guard test was dropped on the owner's decision (the singular rule stays a documented guideline in `CLAUDE.md`; `gates`, `temp_effects` and `magic_commands` were renamed `gate`, `temp_effect`, `magic_command`); the method-count baseline of task 183 is regenerated; `docs/KNOWLEDGE.md` holds the lessons.
 
 **338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
 (`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself

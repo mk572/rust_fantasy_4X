@@ -35,7 +35,7 @@ Data: `content/terrain.ron`, `content/features.ron`.
 | **Cities** | entities with a `Position` | founded cities and outposts | `FoundCity`, `SettleOutpost` |
 | **Units** | entities with a `Position` | everything that moves | movement commands |
 | **Exploration** | `Fog`, one flag per tile per plane per player | what a player has seen | moving, founding, creating units |
-| **Visibility** | computed on demand (`Game::visibility`) | what a player sees right now | derived from units and cities |
+| **Visibility** | computed on demand (`Economy::visibility`) | what a player sees right now | derived from units and cities |
 
 Terrain, features, roads and the other grid layers are the **static map** (changes rarely); cities and units are
 entities and appear on top of it; exploration is remembered; visibility is never stored.
@@ -173,7 +173,7 @@ each city gets half its food, production bonus and mine yield. The city's own ti
   the owner explores the squares within its sight (half-squares, `map::fog::in_sight`): the
   unit's `Sight` stat (at least 3) or 5 for a city. Exploring a plane is independent of the other.
 - **Visibility** is what a player can see *now*: the same squares, computed from the
-  player's units and cities as they stand (`Game::visibility`). Enemy units are shown only on
+  player's units and cities as they stand (`Economy::visibility`). Enemy units are shown only on
   visible tiles; explored but not visible tiles show terrain, dimmed.
 - Fog is per player and per plane, a flag per tile, sized when the first exploration
   happens.

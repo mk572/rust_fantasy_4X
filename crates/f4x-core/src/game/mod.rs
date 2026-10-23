@@ -579,7 +579,7 @@ impl Game {
             Command::CancelCast { player } => {
                 let returning = self.casting_return(player);
                 reject(match self.wizard_mut(player) {
-                    Some(mut w) => wizard::magic_commands::cancel_cast(&mut w, returning),
+                    Some(mut w) => wizard::magic_command::cancel_cast(&mut w, returning),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
                 })
             }
@@ -606,7 +606,7 @@ impl Game {
                     .wizard(player)
                     .is_some_and(|w| w.has(wizard::magic::Retort::Alchemy));
                 reject(match self.treasury_mut(player) {
-                    Some(t) => wizard::magic_commands::alchemy(skilled, t, amount, gold_to_mana),
+                    Some(t) => wizard::magic_command::alchemy(skilled, t, amount, gold_to_mana),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
                 })
             }

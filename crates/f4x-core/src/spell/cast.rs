@@ -265,7 +265,7 @@ impl EffectHost for GameHost<'_> {
     }
 
     /// Bare modifiers and abilities from instant spells and rules go to the bearer's
-    /// temporary effects (`spell/temp_effects.rs`); lasting spells use enchantments instead.
+    /// temporary effects (`spell/temp_effect.rs`); lasting spells use enchantments instead.
     fn add_modifier(&mut self, who: Target, modifier: Modifier) {
         self.game.add_temp_modifier(who, modifier, None);
     }
@@ -398,7 +398,7 @@ impl EffectHost for GameHost<'_> {
 
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context) {
         if hook == crate::spell::global_enchantment::GLOBAL_EFFECT
-            || hook == crate::city::gates::CITY_GATE
+            || hook == crate::city::gate::CITY_GATE
             || hook == crate::spell::city::CITY_FLAG
         {
             // Carried out by the engine wherever the wizard's global spells are consulted.

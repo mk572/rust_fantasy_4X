@@ -3,7 +3,7 @@
 //!
 //! The rules of units are in [`UnitView`] (task 185): a read handle that borrows only the world,
 //! the content and the players (for the owner's retorts and global spells), with the queries as
-//! its methods. They are spread over the files of the unit rules (`spell/temp_effects.rs`,
+//! its methods. They are spread over the files of the unit rules (`spell/temp_effect.rs`,
 //! `unit/undead.rs`, `unit/experience.rs`, `spell/global_enchantment.rs`), each an `impl UnitView` block. What changes units
 //! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
 //! `Game` keeps thin methods with the old names that make a handle and ask it (`Game::units`).

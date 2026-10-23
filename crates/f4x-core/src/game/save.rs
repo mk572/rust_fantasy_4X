@@ -352,7 +352,7 @@ pub struct UnitSave {
     pub standby: Option<crate::unit::Standby>,
     pub stasis: Option<crate::unit::stasis::Stasis>,
     /// Temporary modifiers and abilities.
-    pub effects: Vec<crate::spell::temp_effects::TempEffect>,
+    pub effects: Vec<crate::spell::temp_effect::TempEffect>,
     /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
     pub marooned: bool,
 }
@@ -360,10 +360,10 @@ pub struct UnitSave {
 fn effects_load(
     world: &mut hecs::World,
     e: hecs::Entity,
-    list: Vec<crate::spell::temp_effects::TempEffect>,
+    list: Vec<crate::spell::temp_effect::TempEffect>,
 ) {
     if !list.is_empty() {
-        let _ = world.insert_one(e, crate::spell::temp_effects::TempEffects(list));
+        let _ = world.insert_one(e, crate::spell::temp_effect::TempEffects(list));
     }
 }
 
@@ -391,7 +391,7 @@ pub struct CitySave {
     pub item: Option<ItemSave>,
     pub progress: u32,
     /// Temporary modifiers.
-    pub effects: Vec<crate::spell::temp_effects::TempEffect>,
+    pub effects: Vec<crate::spell::temp_effect::TempEffect>,
     /// Taken this turn by this player, who may still raze it.
     pub conquered: Option<u8>,
     /// A building was sold this turn.

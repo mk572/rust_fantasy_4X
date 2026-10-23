@@ -30,12 +30,14 @@ behaviour that depends on slot order.
 ## 2. This project's model
 
 ```
-Game                                   (lib.rs; the owner and the orchestrator)
-├── world: hecs::World                 entities: units, cities, players and wizards (a player is an entity with
-│                                      `PlayerId` and its components; a wizard one with `Name`, `Portrait`, `Banner`,
-│                                      `CapitalRace`; heroes and battle units are not, yet)
+Game                                   (game/mod.rs; the owner and the orchestrator)
+├── world: hecs::World                 every kind of thing that has an identity: units (heroes are units with a
+│                                      `Hero`), cities, players, wizards, terrain features, spell instances,
+│                                      items (section 3)
 ├── player_index: HashMap              `PlayerId` to the player's `Entity` (`Game::player_entity`)
-├── map: Option<Map>                   two dense grids (terrain, feature, road); not entities
+├── monsters: Entity                   the monsters' neutral player (`MONSTERS`), in no player list
+├── map: Option<Map>                   the dense grids of two planes (docs/map-layers.md) and the index from a square
+│                                      to its feature entity; the tiles are not entities
 ├── fog: Fog                           what each player has explored
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
@@ -45,19 +47,18 @@ Game                                   (lib.rs; the owner and the orchestrator)
 │                                      was copied from (battle/); saved with the
 │                                      world (`Snapshot.battle`, battle/save.rs)
 ├── rng: GameRng                       the one source of randomness, with its draw count (game/rng.rs)
-├── turn, magic_strength, difficulty   the game's counters and settings
+├── turn, settings                     the turn counter and the game's settings (`game/setting.rs`)
 ├── human: Option<PlayerId>            the human wizard
 ├── game_over: Option<GameOver>        set once the game has ended; every later command is refused
 ├── next_serial                        the counter behind `Serial` (section 5)
+├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the debug cheat mutators that changed the game (the console cheats are out, see `reference/console-cheat/`)
 ├── battle_brains                      the learned players of battles (task 170)
 └── undo_stack                         snapshots for undoing a command (game/undo.rs)
 ```
 
-This is the layout today. The rework of tasks 307 to 339 changes the left half of it: `players` goes,
-and wizards, heroes, spell instances, terrain features and items become entities in `world`. Section 3
-is the design; it is written first and each task replaces the text above it as it lands (task 337
-finishes the pass).
+This is the layout after the entity rework (tasks 307 to 337). Section 3 is the design of the entities;
+section 3.9 is the save.
 
 `Game::apply(Command) -> Vec<Event>` is the only way state changes. Commands name
 entities by `hecs::Entity`; events report what happened. The client, the AI and tests all
@@ -70,17 +71,17 @@ use the same entry point.
 2. **Definitions**: static content loaded once into registries (`Registry<UnitDef>` and so
    on). Never mutated at runtime. An entity points at its definition with a typed id.
 3. **Resources owned by `Game`**: things that are numerous, dense or global (the map
-   grids, fog, the player list, the RNG). They are plain fields, not entities.
+   grids, fog, the RNG). They are plain fields, not entities.
 
 The rule of thumb: if it has an identity that other things refer to and a varied set of
 attributes, it is an entity; if it is addressed by coordinates or is one per player, it is
-a field of `Game`.
+a field of `Game`. A player is one per player and still an entity, because other things point at it.
 
 ### Who may read and change what
 
-The fields of `Game` (`world`, `map`, `fog`, `content`, `players`) are private to `f4x-core`. The
-other crates ask the game through its queries (`unit_*`, `city_*`, `player`, and `game/access.rs`:
-`content()`, `map()`, `players()`, `is_explored`, `city_buildings`...), play through
+The fields of `Game` (`world`, `map`, `fog`, `content`, `player_index`) are private to `f4x-core`. The
+other crates ask the game through its queries (`units()`, `economy()`, the handles `player(id)` and `wizard(id)`, and `game/access.rs`:
+`content()`, `map()`, `player_ids()`, `is_explored`, `city_buildings`...), play through
 `Game::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
 `game/access.rs` and the `cheat_*` mutators of `game/cheat.rs`, which only debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
 others on squares it has explored and the units on squares it sees, so it cannot know more than a
@@ -102,7 +103,7 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
    not reach into its fields. (`Diplomacy` is private in this sense; the wizard's rules are
    methods of the wizard handles in `wizard/sheet.rs`, over components of the wizard entity.)
 3. **A domain takes what it needs, not `&mut Game`.** Its methods take `&Content`, `&mut GameRng`
-   or numbers the game worked out (`Magic`), or a context value (`DiplomacyCtx`).
+   or numbers the game worked out, or a context value (`DiplomacyCtx`).
 4. **The rest of the world is asked of a read-only `&Game`**: its handles (`player`, `wizard`) and a
    few questions with plain-data answers in `game/view.rs` (what a wizard sees, a player's units,
    a city count). There is no fake of the world: a domain's tests build a real game
@@ -125,11 +126,11 @@ Three ways to give a domain what it needs, all in use:
 - **A read handle over a few fields** where the domain's state lives in the ECS world (units:
   `UnitView<'a>` holds `&World` and `&Content`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map and the content, made by `Game::economy()`; what changes
   units is a function over `&mut World`, such as `unit::spawn`, `experience::gain_xp` and
-  the `spell/temp_effects.rs` functions). A test builds a world and the content and no `Game`.
+  the `spell/temp_effect.rs` functions). A test builds a world and the content and no `Game`.
 
 Where this stands: every domain of the game follows it (tasks 179, 180, 185 to 193 and 196, 197):
 diplomacy, magic (income in `wizard/magic_income.rs` over a small view; the commands that need no world in
-`wizard/magic_commands.rs`), the units, the economy and production (the checks are methods of `Economy`,
+`wizard/magic_command.rs`), the units, the economy and production (the checks are methods of `Economy`,
 which is the world over the map), the turn (`process_turn` only sequences the steps), movement and
 transport (plans on `Economy`; the moves themselves stay on `Game` because they change the fog), the
 lairs (clearing and loot as functions over the map and the wizard's magic), conquest (the loss, the
@@ -175,7 +176,7 @@ Two entities, because they answer different questions.
   casting skill and the split of power between mana, research and skill, fame, personality and objective, and the fortress and summoning circle (a wizard's
   home) with the banishment that follows from losing it.
 - A player may have no wizard. The independent (neutral) cities and the monsters' owner are players
-  with `Neutral` and no `WizardLink`. Code that reads a wizard for "every player" (today
+  with `Neutral` and no `WizardLink`. Code that reads a wizard for "every player" (before the rework
   `player.magic`) must handle the missing wizard explicitly.
 - The two refer to each other (`WizardLink`, `PlayerLink`) and are made together by game setup and
   by the AI wizard builder. `Game::player(id)` and `Game::wizard(id)` return read handles.
@@ -283,7 +284,7 @@ that has identity and state is an entity.
   `nature_node`, `chaos_node`: their own food, production and movement values), as in the original.
   The aura squares keep their terrain (task 338; the one change of rules in the rework).
 - Lair guards are made as neutral units when the site is entered and removed after the fight, as
-  today. Loot items are still made at clearing (task 331 left it so; task 334 decides again).
+  today. The hoard holds item *values*; the items are made as entities when a winner claims the lair (`claim_lair`, task 334).
 
 ### 3.7 Item
 
@@ -324,7 +325,7 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
 | City destroyed | | the city; spell instances targeting it | |
 | Neutral city taken or destroyed | | its neutral player once nothing refers to it | its `PlayerId` is not reused |
 | Wizard banished | the Spell of Return, as a cast in progress | the fortress and summoning circle (components of the wizard) | player, wizard, `Banishment`, the wizard's other spell instances |
-| Wizard defeated | | all the spell instances the wizard cast (global, on cities, on units, the cast in progress), as `aftermath` does today; the wizard's units; its nodes are freed (`Owner` removed) | player, wizard and `Defeat`; its cities become neutral cities with a neutral player each |
+| Wizard defeated | | all the spell instances the wizard cast (global, on cities, on units, the cast in progress), as `aftermath` does; the wizard's units; its nodes are freed (`Owner` removed) | player, wizard and `Defeat`; its cities become neutral cities with a neutral player each |
 | Spell cast (lasting) | a spell instance | | |
 | Spell expires, is dispelled or cancelled | | the spell instance | |
 | Feature cleared (encounter site) | | the feature | |

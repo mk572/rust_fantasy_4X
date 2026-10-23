@@ -48,7 +48,7 @@ pub const CUSTOM_HOOKS: &[&str] = &[
     crate::unit::stasis::STASIS,
     crate::battle::vortex::MAGIC_VORTEX,
     crate::game::endgame::SPELL_OF_MASTERY,
-    crate::city::gates::CITY_GATE,
+    crate::city::gate::CITY_GATE,
     crate::spell::city::CITY_FLAG,
     crate::spell::city::WALL_OF_STONE,
     crate::spell::city::SPELL_WARD,

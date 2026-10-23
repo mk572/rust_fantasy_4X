@@ -5,6 +5,11 @@ how do we keep it from growing?". The state of `f4x-core` is in `ecs-structure.m
 holds the audit (numbers measured on the code at the time) and the plan. The tasks are 177 to
 183 in `TASKS.md`.
 
+> **Status after the entity rework (tasks 307 to 337).** Section 1 is the audit as it was: its numbers
+> and the names `Player::magic`, `game.players` and `Magic` as a field of a player describe the code
+> before the rework. Players, wizards, heroes, spell instances, terrain features and items are now
+> entities (`ecs-structure.md` section 3), and the rules in sections 2 to 4 still hold.
+
 ## 1. What the audit found
 
 `Game` (`lib.rs`) is the one value every rule runs on: the `hecs` world, the map, the fog, the
@@ -66,13 +71,13 @@ applies what the domain returns.
 
 ```
 Game  ── owns ──>  Diplomacy      impl Diplomacy { fn propose(&mut self, ctx: &mut DiplomacyCtx, ...) -> Vec<Event> }
-      ── owns ──>  Magic (per wizard; the wizards' state)
+      ── owns ──>  wizard entities (the wizards' state, in the world)
       ── owns ──>  world, map, fog, content, rng ...   (shared data the domains read through a context)
 ```
 
 How a domain reaches the rest:
 1. **A context value, not `&mut Game`.** The caller builds it from disjoint borrows of `Game`
-   (`DiplomacyCtx { rng, players, view, turn, human }`), so a method on `Diplomacy` can borrow
+   (`DiplomacyCtx { view, rng, out }`), so a method on `Diplomacy` can borrow
    `&mut self` and the context at once. This needs the RNG to be its own struct (`GameRng`,
    which keeps the draw counter the save replays), so it can be borrowed on its own.
 2. **A read-only view trait for the world.** `diplomacy` needs a few questions answered:
@@ -105,9 +110,9 @@ Rules that keep it from growing back:
 3. **Magic (180, done):** split the wizard's logic (research, skill, costs, upkeep, power split) from
    spell resolution. `Magic` gets the methods; the resolution layer (`cast`, `dispel`,
    `city_spells`...) stays on `Game` and calls into `Magic` for the wizard-side questions.
-   Magic did not need the take-out trick: the wizard is a field of a `Player` in a `Vec`, so the
-   game borrows the wizard, the content and the generator apart (`magic_parts`) and the rules
-   of `Magic` take them as arguments.
+   Magic did not need the take-out trick: the wizard is an entity in the world (`wizard/entity.rs`,
+   task 315), so the rules take the wizard's components, the content and the generator as
+   arguments.
 4. **Read-only view for the AI and client (181, done: `game/access.rs`, `player/view.rs`)**, replacing direct use of `game.world`,
    `game.map` and `game.content` outside the core where a query would do.
 5. **Docs and guard (182, 183):** bring `ecs-structure.md` up to date, write the rules above
@@ -122,7 +127,7 @@ pattern applies.
 ## 4. Risks and things to watch
 
 - **Borrow splitting** is the technical heart: the context has to be built from disjoint field
-  borrows inside `Game`'s own methods. If a method needs `&mut self.rng` and `&self.players`
+  borrows inside `Game`'s own methods. If a method needs `&mut self.rng` and `&self.world`
   together, that works only when they are separate fields, which is why the RNG moves first.
 - **Callbacks from a domain into the game** (diplomacy asking `magic` for a retort, magic asking
   diplomacy about a cast on another wizard's city: `begin_cast_relations`) must become either

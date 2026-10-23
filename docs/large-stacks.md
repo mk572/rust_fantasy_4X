@@ -13,7 +13,7 @@ What is checked and what is not is marked. Where a line says "to check", I have 
 
 | Place | What it limits |
 |---|---|
-| `unit/movement.rs` (two checks), `city/gates.rs` (two), `spell/special.rs` (three) | moving, gating and teleporting a stack onto a square |
+| `unit/movement.rs` (two checks), `city/gate.rs` (two), `spell/special.rs` (three) | moving, gating and teleporting a stack onto a square |
 | `unit/transport.rs` | to check: boarding and landing |
 | `city/neutral.rs` | the garrison of a neutral city (`population / 4`, at most nine) |
 | `feature/lair.rs` | the defenders of a lair |

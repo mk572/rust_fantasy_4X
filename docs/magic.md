@@ -14,7 +14,7 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 > `KnownSpells`, `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), `Name`,
 > `Portrait`, `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`
 > and `Banishment`. The cast in progress (with the item or hero it carries) and the lasting spells are
-> spell instances, built in tasks 318 to 322 ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
+> spell instances, built in tasks 318 to 322, done ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
 > no wizard. The table below lists the wizard's data; the mana reserve is the player's
 > `Treasury`.
 
@@ -78,7 +78,7 @@ generator, so a seed gives the same wizard.
 
 ## 5. Research
 
-Eight spells are on offer at a time (`Magic::candidates`, `RESEARCH_SLOTS`), the original's
+Eight spells are on offer at a time (`Wizard::candidates`, `RESEARCH_SLOTS`), the original's
 `research_spells`: `refill_research` tops the offer up from `research_pool` (the original's
 `Build_Research_List`: in each realm every researchable spell of its lowest rarity that is
 still left, so commons come before uncommons; arcane spells in three steps, the first three, the
@@ -92,8 +92,8 @@ left (task 61).
 
 ## 6. Casting overland
 
-> **Rework.** The spell being paid for (`casting`, and the item being crafted and the hero being
-> raised) becomes a spell instance in a casting state, owned by the casting wizard (task 322).
+> **Rework (done).** The spell being paid for (`casting`, and the item being crafted and the hero being
+> raised) is a spell instance in a casting state, owned by the casting wizard (task 322).
 
 - **Cost:** the spell's `cost`; a spell that can also be cast in battle costs **five times** as
   much overland. Reductions (percent): each book beyond seven 10, realm mastery 15, Artificer 50
@@ -130,7 +130,7 @@ home; battle spells are cast in battles (`combat.md` section 8).
 
 ## 8. Upkeep
 
-> **Rework.** The lasting spells a wizard pays for are the spell instances whose caster it is: the
+> **Rework (done).** The lasting spells a wizard pays for are the spell instances whose caster it is: the
 > upkeep is one query over them, and so is giving them up (task 325).
 
 Each turn the wizard pays mana for lasting spells they cast (global, city, unit) and for units
@@ -191,7 +191,7 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 > **Rework.** The fortress, the summoning circle and the banishment are components of the wizard
 > (`Fortress`, `SummonAt`, `Banishment {by}`, task 316); `defeated` is the player's `Defeat`. The
 > fortress city stays a city entity; the wizard names it. Defeating a wizard despawns all the
-> spell instances it cast (`aftermath` does the same to the lists today); player and wizard
+> spell instances it cast (`aftermath`, `despawn_spells_of`); player and wizard
 > entities stay.
 
 Code: `crates/f4x-core/src/wizard/fortress.rs`. A wizard has `Fortress` and `SummonAt` (positions of

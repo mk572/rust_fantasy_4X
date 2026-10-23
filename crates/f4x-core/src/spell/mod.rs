@@ -9,7 +9,7 @@ pub mod instance;
 pub mod special;
 pub mod stacking;
 pub mod target_error;
-pub mod temp_effects;
+pub mod temp_effect;
 pub mod terraform;
 pub mod wizard;
 pub mod world;
