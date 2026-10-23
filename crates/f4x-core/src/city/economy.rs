@@ -16,7 +16,8 @@ use std::collections::{HashSet, VecDeque};
 use hecs::World;
 
 use crate::city::{City, CityInfo};
-use crate::content::{Content, TerrainClass};
+use crate::content::Content;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Map, Plane, Position};
 use crate::player::{Owner, PlayerId};
 
@@ -809,7 +810,7 @@ impl<'a> Economy<'a> {
     }
 
     /// The terrain class of a square.
-    pub fn terrain_class_at(&self, at: Position) -> Option<crate::content::TerrainClass> {
+    pub fn terrain_class_at(&self, at: Position) -> Option<crate::map::terrain::TerrainClass> {
         let map = self.map?;
         let id = map.plane(at.plane).get(at.x as i32, at.y as i32)?;
         self.content.terrains.get(id).map(|d| d.class)

@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
-use f4x_core::content::Features;
+use f4x_core::feature::def::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
 use f4x_core::rules::{
     AbilityDef, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef, LevelPathDef,

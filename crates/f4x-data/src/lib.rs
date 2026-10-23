@@ -8,11 +8,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 
-use f4x_core::content::{
-    Content, FeatureDef, FeatureKind, Features, TerrainClass, TerrainDef, Terrains,
-    REQUIRED_CLASSES,
-};
+use f4x_core::content::Content;
+use f4x_core::feature::def::{FeatureDef, FeatureKind, Features};
 use f4x_core::game::setting::SettingsDef;
+use f4x_core::map::terrain::{TerrainClass, TerrainDef, Terrains, REQUIRED_CLASSES};
 use f4x_core::map::Plane;
 
 #[derive(Debug)]

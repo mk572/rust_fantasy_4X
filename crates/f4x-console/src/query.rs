@@ -598,7 +598,7 @@ fn map_char(ctx: &Ctx, p: Position) -> char {
     if ctx.game.economy().city_at(p).is_some() {
         return 'C';
     }
-    use f4x_core::content::TerrainClass as C;
+    use f4x_core::map::terrain::TerrainClass as C;
     match ctx.game.economy().terrain_class_at(p) {
         Some(C::Ocean) => '~',
         Some(C::Hills) | Some(C::Mountains) => '^',

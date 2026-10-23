@@ -330,19 +330,19 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let mut g = world();
     let mut defs = g.content.features.defs().to_vec();
     for (id, name) in [("iron_ore", "Iron Ore"), ("coal", "Coal")] {
-        defs.push(crate::content::FeatureDef {
+        defs.push(crate::feature::def::FeatureDef {
             id: id.into(),
             name: name.into(),
-            kind: crate::content::FeatureKind::Mineral,
+            kind: crate::feature::def::FeatureKind::Mineral,
             city: Default::default(),
-            spawn: vec![crate::content::SpawnRule {
-                terrain: vec![crate::content::TerrainClass::Grassland],
+            spawn: vec![crate::feature::def::SpawnRule {
+                terrain: vec![crate::map::terrain::TerrainClass::Grassland],
                 planes: Plane::ALL.to_vec(),
                 weight: 1,
             }],
         });
     }
-    g.content.features = crate::content::Features::new(defs);
+    g.content.features = crate::feature::def::Features::new(defs);
     let mut rng = GameRng::new(8);
     let find = g
         .find_deposit(P0, true, &mut rng)

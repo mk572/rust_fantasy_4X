@@ -11,7 +11,7 @@ use rand::RngCore;
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::battle::immunity::{resistance_failure, Realm};
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 

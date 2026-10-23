@@ -6,9 +6,11 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::content::{Content, FeatureKind, TerrainClass, Terrains, REQUIRED_CLASSES};
+use crate::content::Content;
+use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
 use crate::feature::place;
+use crate::map::terrain::{TerrainClass, Terrains, REQUIRED_CLASSES};
 use crate::map::{Grid, Map, Plane, Position, TerrainId};
 
 /// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
@@ -497,7 +499,7 @@ mod tests {
         ));
 
         let mut no_tower = c.clone();
-        no_tower.features = crate::content::Features::new(
+        no_tower.features = crate::feature::def::Features::new(
             c.features
                 .defs()
                 .iter()

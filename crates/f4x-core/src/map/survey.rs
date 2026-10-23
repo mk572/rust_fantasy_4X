@@ -3,8 +3,8 @@
 //! would get from the land around it.
 
 use crate::city::FoundCityError;
-use crate::content::TerrainClass;
 use crate::game::Game;
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 

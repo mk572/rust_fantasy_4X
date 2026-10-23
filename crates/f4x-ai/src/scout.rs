@@ -280,10 +280,8 @@ mod tests {
         let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
         let view = PlayerView::new(&g, P0);
         let first = best_target(&view, walker, city(), &[]).unwrap();
-        let second = best_target(&view, walker, city(), &[first]);
-        if let Some(second) = second {
-            assert!(distance(&view, first, second).unwrap() >= KEEP_APART);
-        }
+        let second = best_target(&view, walker, city(), &[first]).expect("a second target");
+        assert!(distance(&view, first, second).unwrap() >= KEEP_APART);
     }
 
     #[test]

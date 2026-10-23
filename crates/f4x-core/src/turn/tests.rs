@@ -150,7 +150,7 @@ fn a_lake_counts_as_a_shore_for_trade() {
     let ocean = g
         .content
         .terrains
-        .first_of_class(crate::content::TerrainClass::Ocean, Plane::Arcanus)
+        .first_of_class(crate::map::terrain::TerrainClass::Ocean, Plane::Arcanus)
         .unwrap();
     let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
     grid.set(11, 6, ocean);
@@ -235,7 +235,7 @@ fn the_foresters_guilds_food_raises_the_size_limit_too() {
     let desert = g
         .content
         .terrains
-        .first_of_class(crate::content::TerrainClass::Desert, Plane::Arcanus)
+        .first_of_class(crate::map::terrain::TerrainClass::Desert, Plane::Arcanus)
         .unwrap();
     for x in 0..24 {
         for y in 0..14 {

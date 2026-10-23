@@ -3,8 +3,8 @@
 //!
 //! A corrupted square gives its city no food, no production bonus and no mineral bonus.
 
-use crate::content::TerrainClass;
 use crate::game::{Event, Game};
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;

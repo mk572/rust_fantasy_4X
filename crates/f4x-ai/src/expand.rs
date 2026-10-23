@@ -1,7 +1,7 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
-use f4x_core::content::TerrainClass;
 use f4x_core::game::{Command, Event, Game};
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 

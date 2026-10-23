@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::content::*;
+use crate::content::Content;
+use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features, SpawnRule};
+use crate::map::terrain::{TerrainClass, TerrainDef, Terrains};
 use crate::map::Plane;
 use crate::rules::{
     AbilityDef, LevelDef, LevelPathDef, MovementType, Registry, Rules, Stat, UnitDef, UnitKind,

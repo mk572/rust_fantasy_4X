@@ -5,8 +5,10 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::content::{Content, FeatureKind, TerrainClass};
+use crate::content::Content;
+use crate::feature::def::FeatureKind;
 use crate::map::mapgen::{GenError, GenParams};
+use crate::map::terrain::TerrainClass;
 use crate::map::{FeatureId, Grid, Map, Plane};
 
 /// Minimum distance between towers (when the map has room for it).

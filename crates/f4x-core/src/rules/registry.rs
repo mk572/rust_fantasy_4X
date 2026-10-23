@@ -33,6 +33,13 @@ impl<T: Def> Registry<T> {
         assert!(defs.len() <= u16::MAX as usize, "too many definitions");
         let mut index = HashMap::new();
         for (i, d) in defs.iter().enumerate() {
+            // Content validation reports a repeated id; a test must not build one by accident.
+            #[cfg(test)]
+            assert!(
+                !index.contains_key(d.id()),
+                "id repeated in a registry: {}",
+                d.id()
+            );
             index.entry(d.id().to_string()).or_insert(i as u16);
         }
         Self { defs, index }

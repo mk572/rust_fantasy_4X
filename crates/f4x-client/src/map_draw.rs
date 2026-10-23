@@ -1,8 +1,9 @@
 //! Drawing one overland map square the way the original does: ground, river, corruption,
 //! the thing standing on it (mineral, site, tower, node), roads, and the owner's node aura.
 
-use f4x_core::content::{FeatureKind, TerrainClass};
+use f4x_core::feature::def::FeatureKind;
 use f4x_core::game::Game;
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Grid, Plane};
 use f4x_core::player::PlayerId;
 use macroquad::prelude::*;

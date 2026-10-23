@@ -4,9 +4,8 @@ use crate::map::{Grid, Map, Plane, Position};
 use crate::spell::target_error::TargetError;
 
 use crate::game::Command;
-use crate::rules::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use crate::rules::exec::Target;
-use crate::rules::{CastContext, Duration, Rarity, Registry, SpellDef, SpellTarget, UnitKind};
+use crate::rules::{Registry, UnitKind};
 use rand::SeedableRng;
 
 const P0: PlayerId = PlayerId(0);
@@ -18,32 +17,6 @@ fn at(x: u32, y: u32) -> Position {
         plane: Plane::Arcanus,
         x,
         y,
-    }
-}
-
-fn spell(id: &str, realm: &str, target: SpellTarget, hook: &str) -> SpellDef {
-    SpellDef {
-        id: id.into(),
-        name: id.into(),
-        realm: realm.into(),
-        rarity: Rarity::Common,
-        cost: 10,
-        research_cost: 10,
-        contexts: vec![CastContext::Overland],
-        overland_x5: false,
-        target,
-        duration: Duration::Instant,
-        upkeep: 0,
-        dispel_difficulty: 0,
-        save: None,
-        not_with: Vec::new(),
-        already_able: Vec::new(),
-        effects: vec![EffectRule {
-            when: Trigger::OnCast,
-            target: TargetSel::Chosen,
-            condition: Condition::Always,
-            effect: Effect::Custom(hook.into()),
-        }],
     }
 }
 
@@ -76,107 +49,6 @@ fn world() -> Game {
     squad.stats.insert(crate::rules::Stat::Resistance, 0);
     units.push(squad);
     c.rules.units = Registry::new(units);
-    let mut spells = c.rules.spells.defs().to_vec();
-    for (id, realm, target, hook) in [
-        (
-            "drain_power",
-            "death",
-            SpellTarget::EnemyWizard,
-            DRAIN_POWER,
-        ),
-        (
-            "cruel_unminding",
-            "death",
-            SpellTarget::EnemyWizard,
-            CRUEL_UNMINDING,
-        ),
-        ("subversion", "death", SpellTarget::EnemyWizard, SUBVERSION),
-        (
-            "great_unsummoning",
-            "sorcery",
-            SpellTarget::None,
-            GREAT_UNSUMMONING,
-        ),
-        ("death_wish", "death", SpellTarget::None, DEATH_WISH),
-        ("earthquake", "nature", SpellTarget::EnemyCity, EARTHQUAKE),
-        ("black_wind", "death", SpellTarget::Tile, BLACK_WIND),
-        ("lycanthropy", "death", SpellTarget::OwnUnit, LYCANTHROPY),
-        (
-            "call_the_void",
-            "chaos",
-            SpellTarget::EnemyCity,
-            crate::spell::world::CALL_THE_VOID,
-        ),
-        (
-            "natures_wrath",
-            "nature",
-            SpellTarget::None,
-            "global_effect",
-        ),
-        (
-            "chaos_channels",
-            "chaos",
-            SpellTarget::OwnUnit,
-            crate::unit::mutation::CHAOS_CHANNELS,
-        ),
-        ("doom_mastery", "chaos", SpellTarget::None, "global_effect"),
-        ("meteor_storm", "chaos", SpellTarget::None, "global_effect"),
-        ("great_wasting", "chaos", SpellTarget::None, "global_effect"),
-        ("armageddon", "chaos", SpellTarget::None, "global_effect"),
-    ] {
-        spells.push(spell(id, realm, target, hook));
-    }
-    // Black Wind reaches every unit on the square, one by one.
-    for s in spells.iter_mut().filter(|s| s.id == "black_wind") {
-        s.effects[0].target = TargetSel::UnitsOnChosenSquare;
-    }
-    // The storms, as the content has them: a strength attack on every figure on the square.
-    for (id, realm, strength, kind, immune) in [
-        ("ice_storm", "nature", 6, DamageKind::Cold, "cold_immunity"),
-        ("fire_storm", "chaos", 8, DamageKind::Fire, "fire_immunity"),
-    ] {
-        let mut storm = spell(id, realm, SpellTarget::Tile, "");
-        storm.effects = vec![EffectRule {
-            when: Trigger::OnCast,
-            target: TargetSel::UnitsOnChosenSquare,
-            condition: Condition::Always,
-            effect: Effect::Damage {
-                amount: strength,
-                kind,
-                resistible: false,
-                immune: vec![immune.into(), "magic_immunity".into()],
-                realm: Some(realm.into()),
-                resist_modifier: 0,
-                traits: crate::rules::effects::DamageTraits {
-                    area: true,
-                    ..Default::default()
-                },
-            },
-        }];
-        spells.push(storm);
-    }
-    let mut stasis = spell(
-        "stasis",
-        "sorcery",
-        SpellTarget::Tile,
-        crate::unit::stasis::STASIS,
-    );
-    stasis.effects[0].target = TargetSel::UnitsOnChosenSquare;
-    spells.push(stasis);
-    let mut time_stop = spell("time_stop", "sorcery", SpellTarget::None, "global_effect");
-    time_stop.duration = Duration::Permanent;
-    time_stop.upkeep = 200;
-    spells.push(time_stop);
-    c.rules.spells = Registry::new(spells);
-    let mut realms = c.rules.realms.defs().to_vec();
-    for r in ["sorcery", "death", "arcane"] {
-        realms.push(crate::rules::RealmDef {
-            id: r.into(),
-            name: r.into(),
-            ..realms[0].clone()
-        });
-    }
-    c.rules.realms = Registry::new(realms);
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(9);
     g.content = c;
@@ -957,7 +829,7 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
     g.armageddon_volcano(P0, at(6, 6), &mut rng);
     assert_eq!(
         g.economy().terrain_class_at(at(6, 6)),
-        Some(crate::content::TerrainClass::Mountains)
+        Some(crate::map::terrain::TerrainClass::Mountains)
     );
     assert_eq!(g.volcano_count(P0), 1);
     assert!(!g.world.contains(boat), "the ship went down");
@@ -971,7 +843,7 @@ fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() {
     let ocean = g
         .content
         .terrains
-        .first_of_class(crate::content::TerrainClass::Ocean, Plane::Arcanus)
+        .first_of_class(crate::map::terrain::TerrainClass::Ocean, Plane::Arcanus)
         .unwrap();
     for plane in Plane::ALL {
         for x in 0..12 {

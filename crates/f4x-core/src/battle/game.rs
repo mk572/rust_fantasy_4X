@@ -361,7 +361,8 @@ impl Game {
         // A fight on the sea: only ships, fliers and swimmers take part, unless the side has a
         // Floating Island or Wind Walking, which carry the rest (`Undeployable_Battle_Units_On_Water`).
         let ocean = city.is_none()
-            && self.economy().terrain_class_at(site) == Some(crate::content::TerrainClass::Ocean);
+            && self.economy().terrain_class_at(site)
+                == Some(crate::map::terrain::TerrainClass::Ocean);
         let is_island = |g: &Game, u: hecs::Entity| {
             g.units()
                 .unit_def(u)

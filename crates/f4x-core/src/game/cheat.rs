@@ -101,7 +101,7 @@ impl Game {
             return true;
         };
         let kind = self.content.features.get(id).map(|d| d.kind);
-        if kind == Some(crate::content::FeatureKind::Mineral) {
+        if kind == Some(crate::feature::def::FeatureKind::Mineral) {
             if let Some(map) = self.map.as_mut() {
                 map.plane_mut(pos.plane).set_mineral(pos.x, pos.y, Some(id));
             }

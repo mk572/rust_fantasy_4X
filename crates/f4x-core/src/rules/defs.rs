@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::effects::EffectRule;
 use super::registry::{Def, Registry};
 use super::stats::Stat;
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 
 macro_rules! impl_def {
     ($($t:ty),*) => { $(impl Def for $t { fn id(&self) -> &str { &self.id } })* };

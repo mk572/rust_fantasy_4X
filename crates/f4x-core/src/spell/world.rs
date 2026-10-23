@@ -105,7 +105,7 @@ impl Game {
                     && fit(self, at)
                 {
                     let sea = self.economy().terrain_class_at(at)
-                        == Some(crate::content::TerrainClass::Ocean);
+                        == Some(crate::map::terrain::TerrainClass::Ocean);
                     if sea && self.roll(100) > sea_percent {
                         continue;
                     }

@@ -244,7 +244,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
     let tower = g
         .content
         .features
-        .first_of_kind(crate::content::FeatureKind::Tower)
+        .first_of_kind(crate::feature::def::FeatureKind::Tower)
         .unwrap();
     g.spawn_feature(crate::feature::entity::Placement {
         at: at(8, 8),

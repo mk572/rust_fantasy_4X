@@ -292,7 +292,7 @@ impl App {
                     .get(x as i32, y as i32)
                     .and_then(|t| content.terrains.get(t))
                     .map(|d| d.class);
-                use f4x_core::content::TerrainClass as T;
+                use f4x_core::map::terrain::TerrainClass as T;
                 let c = match class {
                     Some(T::Ocean) => Color::new(0.1, 0.2, 0.6, 1.0),
                     Some(T::Mountains) => Color::new(0.6, 0.6, 0.6, 1.0),

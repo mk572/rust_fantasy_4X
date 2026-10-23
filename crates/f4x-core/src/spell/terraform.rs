@@ -7,8 +7,9 @@
 use rand::RngCore;
 
 use crate::city::economy::Buildings;
-use crate::content::{FeatureKind, TerrainClass};
+use crate::feature::def::FeatureKind;
 use crate::game::{Event, Game};
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;

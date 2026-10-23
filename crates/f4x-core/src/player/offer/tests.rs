@@ -23,25 +23,19 @@ fn world() -> Game {
     let mut units = g.content.rules.units.defs().to_vec();
     // Only the units added below are ordinary race units.
     units.retain(|u| u.kind != UnitKind::Normal);
-    let mut add = |id: &str, race: &str, cost: u32, abilities: &[&str], sail: bool| {
-        let movement = if sail {
-            crate::rules::MovementType::Sailing
-        } else {
-            crate::rules::MovementType::Walking
-        };
-        let mut u = unit(id, movement, 1, abilities);
+    let mut add = |id: &str, race: &str, cost: u32, abilities: &[&str]| {
+        let mut u = unit(id, crate::rules::MovementType::Walking, 1, abilities);
         u.kind = UnitKind::Normal;
         u.race = Some(race.into());
         u.cost = cost;
         units.push(u);
     };
-    add("elf_spear", "elf", 20, &[], false);
-    add("troll_spear", "troll", 30, &[], false);
-    add("settler", "elf", 30, &["create_outpost"], false);
-    add("elf_engineers", "elf", 40, &[], false);
-    add("draconian_spear", "draconian", 30, &[], false);
-    add("draconian_engineers", "draconian", 40, &[], false);
-    add("galley", "elf", 50, &[], true);
+    add("elf_spear", "elf", 20, &[]);
+    add("troll_spear", "troll", 30, &[]);
+    add("settler", "elf", 30, &["create_outpost"]);
+    add("elf_engineers", "elf", 40, &[]);
+    add("draconian_spear", "draconian", 30, &[]);
+    add("draconian_engineers", "draconian", 40, &[]);
     g.content.rules.units = Registry::new(units);
     // Each wizard has one unit on Arcanus, so Arcanus is the plane they can be offered.
     let scout = g.content.rules.units.id_of("elf_spear").unwrap();

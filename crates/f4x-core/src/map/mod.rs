@@ -5,6 +5,7 @@ pub mod fog;
 pub mod mapgen;
 pub mod road;
 pub mod survey;
+pub mod terrain;
 pub mod vision;
 
 use crate::feature::entity::FeatureIndex;
@@ -45,11 +46,11 @@ impl Plane {
     }
 }
 
-/// Index into the loaded [`crate::content::Terrains`] table.
+/// Index into the loaded [`crate::map::terrain::Terrains`] table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TerrainId(pub u16);
 
-/// Index into the loaded [`crate::content::Features`] table.
+/// Index into the loaded [`crate::feature::def::Features`] table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FeatureId(pub u16);
 

@@ -199,7 +199,7 @@ impl Economy<'_> {
             (-1i32..=1).any(|dx| {
                 grid.get(at.x as i32 + dx, at.y as i32 + dy)
                     .and_then(|t| self.content.terrains.get(t))
-                    .is_some_and(|d| d.class == crate::content::TerrainClass::Ocean)
+                    .is_some_and(|d| d.class == crate::map::terrain::TerrainClass::Ocean)
             })
         })
     }

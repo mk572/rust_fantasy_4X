@@ -2,7 +2,7 @@
 
 use hecs::Entity;
 
-use crate::content::FeatureKind;
+use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
 use crate::feature::lair::Lair;
 use crate::feature::node::Node;

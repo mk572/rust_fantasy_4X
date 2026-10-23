@@ -2069,7 +2069,7 @@ mod tests {
     fn the_ground_set_follows_terrain_and_plane() {
         use crate::battle_ground::ground_file;
         use f4x_core::battle::map::set_of;
-        use f4x_core::content::TerrainClass;
+        use f4x_core::map::terrain::TerrainClass;
         let terrain_set = |c: Option<TerrainClass>, p: Plane| ground_file(set_of(c), p);
         assert_eq!(
             terrain_set(Some(TerrainClass::Desert), Plane::Arcanus),

@@ -52,7 +52,7 @@ impl Game {
     ) -> Result<(), TargetError> {
         match self.economy().terrain_class_at(at) {
             None => return Err(TargetError::OffMap),
-            Some(crate::content::TerrainClass::Ocean) => {}
+            Some(crate::map::terrain::TerrainClass::Ocean) => {}
             Some(_) => return Err(TargetError::NotWater),
         }
         if self.economy().hostile_at(at, owner).is_some() {
@@ -203,7 +203,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::{CityBonus, FeatureDef, FeatureKind, Features};
+    use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features};
     use crate::game::testutil::content_with_magic;
     use crate::game::Command;
     use crate::map::{Grid, Map};

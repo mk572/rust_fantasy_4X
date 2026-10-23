@@ -9,7 +9,8 @@ pub mod neutral;
 pub mod nightshade;
 pub mod production;
 
-use crate::content::{FeatureKind, TerrainClass};
+use crate::feature::def::FeatureKind;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 

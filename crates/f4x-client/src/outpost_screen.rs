@@ -222,8 +222,8 @@ impl App {
                     .get(at.x as i32 + dx, at.y as i32 + dy)
                     .and_then(|t| self.game.content().terrains.get(t))
                     .map(|d| d.class);
-                mountain |= class == Some(f4x_core::content::TerrainClass::Mountains);
-                hills |= class == Some(f4x_core::content::TerrainClass::Hills);
+                mountain |= class == Some(f4x_core::map::terrain::TerrainClass::Mountains);
+                hills |= class == Some(f4x_core::map::terrain::TerrainClass::Hills);
             }
         }
         let flying = self

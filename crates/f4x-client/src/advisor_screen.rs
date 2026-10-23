@@ -225,7 +225,7 @@ impl App {
     /// nodes, lairs and towers seen, the units and the cities. N flips the plane, a click on
     /// the map takes the main map there, C, Esc or the Close corner leave.
     pub(crate) fn cartographer_screen(&mut self) {
-        use f4x_core::content::FeatureKind;
+        use f4x_core::feature::def::FeatureKind;
         use f4x_core::map::Plane;
 
         clear_background(BLACK);

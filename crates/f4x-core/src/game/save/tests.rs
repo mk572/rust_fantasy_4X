@@ -279,7 +279,7 @@ fn missing_content_is_reported_by_name() {
         .filter(|t| t.id != "hills")
         .cloned()
         .collect();
-    no_terrain.terrains = crate::content::Terrains::new(terrains);
+    no_terrain.terrains = crate::map::terrain::Terrains::new(terrains);
     assert_eq!(
         snap.restore(no_terrain).err(),
         Some(LoadError::UnknownId("terrain", "hills".into()))

@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::stats::{ModOp, Stat};
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 use crate::map::Plane;
 
 /// Names of `Effect::Custom` hooks implemented in Rust. A `Custom` effect naming

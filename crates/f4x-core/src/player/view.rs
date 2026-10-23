@@ -15,9 +15,10 @@ use std::cell::OnceCell;
 
 use crate::city::economy::CityEconomy;
 use crate::city::production::{Production, ProductionError, ProductionItem};
-use crate::content::{Content, TerrainClass};
+use crate::content::Content;
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::{PlayerId, Treasury};
 

@@ -9,7 +9,8 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
-use crate::content::{Content, FeatureKind};
+use crate::content::Content;
+use crate::feature::def::FeatureKind;
 use crate::feature::entity::NodeInfo;
 use crate::feature::place::Placed;
 use crate::map::{Map, Plane, Position};

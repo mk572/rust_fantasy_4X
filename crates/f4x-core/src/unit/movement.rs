@@ -4,7 +4,7 @@
 //! the step costs more than it has left (it just ends with none).
 
 use crate::city::economy::Economy;
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 
@@ -391,7 +391,7 @@ impl Economy<'_> {
 
     /// Whether the square holds a tower.
     pub(crate) fn is_tower(&self, at: Position) -> bool {
-        self.feature_kind_at(at) == Some(crate::content::FeatureKind::Tower)
+        self.feature_kind_at(at) == Some(crate::feature::def::FeatureKind::Tower)
     }
 }
 

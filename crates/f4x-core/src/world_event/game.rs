@@ -257,12 +257,12 @@ impl Game {
                     let Some(class) = self.economy().terrain_class_at(sq) else {
                         continue;
                     };
-                    if feature.is_some() || class == crate::content::TerrainClass::Ocean {
+                    if feature.is_some() || class == crate::map::terrain::TerrainClass::Ocean {
                         continue;
                     }
                     let options: Vec<_> = rules
                         .features
-                        .weighted(crate::content::FeatureKind::Mineral, class, sq.plane)
+                        .weighted(crate::feature::def::FeatureKind::Mineral, class, sq.plane)
                         .into_iter()
                         .filter(|(f, _)| ores.contains(f))
                         .collect();

@@ -550,7 +550,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
     let chaos = g
         .content
         .terrains
-        .first_of_class(crate::content::TerrainClass::ChaosNode, Plane::Arcanus)
+        .first_of_class(crate::map::terrain::TerrainClass::ChaosNode, Plane::Arcanus)
         .unwrap();
     g.map
         .as_mut()

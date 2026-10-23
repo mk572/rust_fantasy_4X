@@ -54,15 +54,6 @@ impl Rig {
         guild.effects = vec![];
         buildings.push(guild);
         c.rules.buildings = Registry::new(buildings);
-        let mut spells = c.rules.spells.defs().to_vec();
-        let mut stream = spells
-            .iter()
-            .find(|s| s.id == "gaias_blessing")
-            .unwrap()
-            .clone();
-        stream.id = "stream_of_life".into();
-        spells.push(stream);
-        c.rules.spells = Registry::new(spells);
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         Rig {

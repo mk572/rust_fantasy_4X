@@ -574,11 +574,6 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
         d.kind = crate::rules::UnitKind::Normal;
     }
     g.content.rules.units = Registry::new(units);
-    let mut spells = g.content.rules.spells.defs().to_vec();
-    let mut zm = spells[0].clone();
-    zm.id = "zombie_mastery".into();
-    spells.push(zm);
-    g.content.rules.spells = Registry::new(spells);
     let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
     g.add_global(P0, zm);
     let walker = g.content.rules.units.id_of("walker").unwrap();

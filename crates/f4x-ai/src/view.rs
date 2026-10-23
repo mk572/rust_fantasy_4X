@@ -1,7 +1,7 @@
 //! How the AI weighs what it sees: strengths and who can fight. It reads the game only through
 //! a [`PlayerView`], which holds what a player may know.
 
-use f4x_core::content::TerrainClass;
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::{MovementType, Stat};

@@ -101,7 +101,7 @@ fn my_ships(view: &PlayerView) -> Vec<hecs::Entity> {
 /// and a sea square beside that. The troops walk the rest of the way. `None` if no coast is
 /// known on its land mass.
 fn landing(view: &PlayerView, city: Position) -> Option<(Position, Position)> {
-    use f4x_core::content::TerrainClass;
+    use f4x_core::map::terrain::TerrainClass;
     use std::collections::{HashSet, VecDeque};
     let mut seen: HashSet<Position> = HashSet::new();
     let mut queue: VecDeque<Position> = VecDeque::new();
@@ -379,7 +379,7 @@ fn voyage(
                             if let Some(p) = view.shift(plan.sea, dx, dy) {
                                 if p != plan.land
                                     && view.terrain_class(p)
-                                        != Some(f4x_core::content::TerrainClass::Ocean)
+                                        != Some(f4x_core::map::terrain::TerrainClass::Ocean)
                                     && p != plan.target
                                 {
                                     squares.push(p);
@@ -478,7 +478,7 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
 mod tests {
     use super::*;
     use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0};
-    use f4x_core::content::TerrainClass;
+    use f4x_core::map::terrain::TerrainClass;
 
     fn port() -> Position {
         at(COAST_CITY.0, COAST_CITY.1)

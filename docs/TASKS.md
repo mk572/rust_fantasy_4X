@@ -70,7 +70,6 @@ neighbours.
 | # | Area | Summary |
 |---|---|---|
 | 339 | AI | Scripted and trained AI on the new framework |
-| 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 | 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
@@ -117,16 +116,6 @@ everything else.
 *Needs:* 336, 337 and 338.
 
 ### H. Gaps found during the rework
-
-**342. Clean up `f4x-core/src/content.rs`.** The file is a grab-bag: terrain definitions and classes,
-feature definitions and spawn rules, city bonuses and the `Content` bundle sit side by side, and parts of
-it belong with the concept they describe (`feature`, `terrain`, `city`, `map`). Review it once the new
-structure is in place, so the review sees where each concept ended up. For each item decide where it
-belongs (its concept's module, or `f4x-data` if it is loading or validation), move it with no re-export
-shim, keep `Content` only if something still needs a bundle, and update the imports in every crate and the
-docs that name the file (`ecs-structure.md`, `scripts.md` if any).
-
-*Needs:* 337 (the structure is final). Best after 330 to 332, which reshape the feature types.
 
 **358. Names in the rules files per language.** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`,
 `realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read

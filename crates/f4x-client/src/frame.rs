@@ -485,8 +485,8 @@ impl App {
 }
 
 /// The colour of a terrain on the minimap and the Cartographer's map.
-pub(crate) fn mini_terrain_color(class: f4x_core::content::TerrainClass) -> Color {
-    use f4x_core::content::TerrainClass as T;
+pub(crate) fn mini_terrain_color(class: f4x_core::map::terrain::TerrainClass) -> Color {
+    use f4x_core::map::terrain::TerrainClass as T;
     match class {
         T::Ocean => Color::new(0.1, 0.2, 0.6, 1.0),
         T::Mountains => Color::new(0.6, 0.6, 0.6, 1.0),

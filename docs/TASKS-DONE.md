@@ -250,6 +250,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) (done) |
+| 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to (done) |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
 | 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` (done) |
 | 347 | Text | Text the core builds as game data: made item names, random event words, default names, battle info names (done) |
@@ -851,6 +852,18 @@ them) and `DiplomacyError::Banished` (no proposals, war, treaty breaks or gifts 
 wizard), with the client messages and the turns left; the old owner's enchantments end in
 `capture_city`; tests for each; `magic.md` section 12 and `divergences.md` section 25 updated. Left to
 other tasks: the AI paying the Spell of Return with gold (339) and the scenes (360).
+
+**342. Clean up `f4x-core/src/content.rs` (done).** The file is a grab-bag: terrain definitions and classes,
+feature definitions and spawn rules, city bonuses and the `Content` bundle sit side by side, and parts of
+it belong with the concept they describe (`feature`, `terrain`, `city`, `map`). Review it once the new
+structure is in place, so the review sees where each concept ended up. For each item decide where it
+belongs (its concept's module, or `f4x-data` if it is loading or validation), move it with no re-export
+shim, keep `Content` only if something still needs a bundle, and update the imports in every crate and the
+docs that name the file (`ecs-structure.md`, `scripts.md` if any).
+
+*Needs:* 337 (the structure is final). Best after 330 to 332, which reshape the feature types.
+
+**Done:** `TerrainClass`, `REQUIRED_CLASSES`, `TerrainDef` and `Terrains` are in `map/terrain.rs`; `FeatureKind`, `SpawnRule`, `CityBonus`, `FeatureDef` and `Features` in `feature/def.rs` (`CityBonus` is what a feature gives the city that works its tile). `content.rs` keeps only `Content`, the bundle that `Game`, the loader and about 40 files use. No re-exports; every import in all crates was moved. Loading and validation stay in `f4x-data`.
 
 **345. One text flow for player-facing messages (done).** Messages are hardcoded in `.rs` files today (about 390 string literals in
 the client, and `format!` all over core, client and console), which blocks localization. Build one flow and move every

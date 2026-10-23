@@ -9,7 +9,8 @@
 //! passes in ReMoM `MAPGEN.c`). Look-alike variants are picked from the square's position so
 //! they stay put.
 
-use f4x_core::content::{Content, TerrainClass};
+use f4x_core::content::Content;
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Grid;
 
 pub const GRASS: [usize; 3] = [0xA2, 0xAC, 0xAD];
@@ -421,7 +422,7 @@ pub fn site_sprite(id: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::content::{TerrainClass as C, Terrains};
+    use f4x_core::map::terrain::{TerrainClass as C, Terrains};
 
     /// A content with the eight terrain classes in a known order, and a grid built from rows
     /// of letters: o ocean, g grass, f forest, h hills, m mountains, s swamp, d desert, t tundra.

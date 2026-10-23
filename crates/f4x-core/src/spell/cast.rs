@@ -3,9 +3,9 @@
 use rand::RngCore;
 
 use crate::battle::immunity::Realm;
-use crate::content::TerrainClass;
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::{DamageKind, Trigger};

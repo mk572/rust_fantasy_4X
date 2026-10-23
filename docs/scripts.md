@@ -5,6 +5,7 @@ row when you add or change a script (see `CLAUDE.md`).
 
 | Script | What it does |
 |---|---|
+| `test_changed.py` | Runs only the tests the changes since a git ref (default `HEAD`, worktree and untracked files included) can break: the changed crate and its dependents, the core modules that mention a changed module, and the slow console and learn tests only when their area changed. `content/` and `Cargo` changes run everything; `--all` is `cargo test --workspace` (run before a commit), `--slow` adds the slow tests, `--dry-run` prints the plan. |
 | `item_icons.py` | Writes the original's item picture number (`ITEMDATA.LBX`, byte 30 of a record) as `icon: N` on each row of `content/items.ron`; safe to run again; `--dry-run` reports only. |
 | `archive_done_tasks.py` | Moves finished tasks (summary or title marked "(done)", or struck through) from `docs/TASKS.md` to `docs/TASKS-DONE.md`, keeping the numbers and the done list in ascending order. `--dry-run` lists what would move. |
 | `cool_run.sh` | Runs a long command (training, soak runs) at low priority and pauses it while the Mac is under thermal pressure; `--state` prints the thermal state. Builds `thermal_state` when missing. |

@@ -50,6 +50,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 37 | AI | Record the battle AI's orders for replays |
 | 38 | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
 | 39 | Client | Resolution setting x1, x2 or x4: imported images are upscaled to match |
+| 40 | Rules | Life and death nodes, and a setting that lifts the ban on combining life and death books |
 
 ## Descriptions
 
@@ -549,4 +550,48 @@ new layouts); what changes is the sharpness of everything the client draws from 
 Needs: the importer's picture passes (`docs/extract-art.md`), the upscaling choice of item 6 (this item is item 6's
 setting and its tests), and the layout code (`frame::Layout`, the city screen's `Layout`); it should come before item 11,
 which builds on art that holds up at the new sizes.
+
+**40. Life and death nodes; life and death books together.** Two changes that belong together: the base game has
+magic nodes for sorcery, nature and chaos only, and a wizard cannot hold life and death books at once. Both are
+options of the game setup (`docs/game-settings.md`), off by default so the base game stays as it is.
+- **Life nodes and death nodes**, built like the other three: a node is a terrain feature entity (`feature/`, `Node`
+  with its realm; `content/features.ron`) on a base terrain of its own (`TerrainClass` gains `LifeNode` and
+  `DeathNode` beside `SorceryNode`, `NatureNode` and `ChaosNode`, with food, production and movement values in
+  `content/terrain.ron`; the nature node counts as forest and the chaos node as mountains, so decide what a life
+  node and a death node count as, if anything). Parts:
+  - **Placement and guards:** map generation places them with the node budget (`content/lairs.ron`, the node
+    budget formula of `docs/lairs.md`), the realm picked among five instead of three; the guards of a node follow its
+    realm, so a life node is held by life-realm creatures and a death node by death-realm ones (as the original does
+    for the other realms); a new realm's guard table is data.
+  - **What a node gives** a wizard who owns it: read first how the other three do it (`node_income` in
+    `wizard/magic_income.rs`, the node's power and aura squares, the owner's books of the node's realm, the
+    original's `Node` rules) and give the new two the same rule with their own numbers as data. If the original
+    gives the three realms different kinds of power, decide and write down what a life node and a death node give
+    instead.
+  - **Spells that touch nodes:** Meld with Node (the spell and its unit rule), Corruption and Land Corruption on
+    a node, Warp Node, Change Terrain's refusal on a node, and the awareness spells (Nature Awareness shows nature
+    nodes; add whichever shows the new ones), so each takes the five realms, not three. Death Wish, Armageddon and
+    the other world spells that look at nodes are checked for a node of any realm.
+  - **Art and text:** a node picture and a map tile for each (`docs/extract-art.md`; the original has none, so a
+    recolour of an existing node picture, with a note in `docs/divergences.md`), the node name keys in
+    `content/text/en/`, and the node colour the client draws on the minimap and the surveyor.
+  - **AI:** the scripted AI's targets and the learned AI's observation of nodes include the new realms; saves list
+    nodes by realm already, but old saves with only three realms still load.
+- **Setting: allow life and death together.** A game setting (`game-settings.md`, with the other rules switches) that
+  removes the limitation: today the new-wizard screen drops the opposite realm's books when one picks a book (life
+  against death, `newgame_picks.rs`), the custom wizard cannot take both, the computer wizards are made without both,
+  and `Consolidate_Spell_Book_Realms` (`docs/game-settings.md`) turns the opposed pairs into one realm by a coin
+  flip for a computer wizard. With the setting on, all four stop: one may pick books of both realms (the pick cost and
+  the total of 12 books stay), computer wizards may roll both, and nothing merges them. A few rules assume the
+  opposition and are checked: a wizard with both realms is the target of both realms' resistance and protection
+  spells (Death magic's Bless and Curses cancel, Holy Arms and its opposite), the Life-and-Death retort pairs
+  (Infernal Power against Divine Power, Life Force against Death Mastery), the mascot realm of the notice boxes
+  (`event_popup.rs`, which picks the realm with most books), and the save check that rejects an opposed pair if there is one.
+- **Tests:** a game with the setting off is unchanged (the base tests stay green); with it on, the setup accepts both
+  realms, map generation places all five node realms over many seeds, a wizard owning each node gets its bonus, and
+  Meld with Node works on a life and a death node; a soak shows no crash.
+
+Needs: the node entity work (`feature/node.rs`, done), the game-settings screen (`docs/game-settings.md`), and the art
+tools if the node pictures are recoloured (`docs/extract-art.md`). It touches the AI's node targets (task 339), so do it
+after that task or tell the AI work.
 

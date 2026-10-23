@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 
 use crate::city::economy::{Buildings, Farmers};
 use crate::city::production::{Production, ProductionItem};
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 

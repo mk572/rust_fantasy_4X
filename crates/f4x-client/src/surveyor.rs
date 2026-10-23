@@ -5,7 +5,8 @@
 //! (or a right-click) leave.
 
 use f4x_core::city::FoundCityError;
-use f4x_core::content::{FeatureKind, TerrainClass};
+use f4x_core::feature::def::FeatureKind;
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;

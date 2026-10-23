@@ -4,8 +4,8 @@
 //! mountains and swamp, two more for a river's bridge); the stack's total construction strength divides it, with a minimum
 //! of one turn. Roads halve movement; enchanted roads (and every road on Myrror) cost nothing.
 
-use crate::content::TerrainClass;
 use crate::game::{Event, Game};
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::rules::Stat;
 use crate::spell::target_error::TargetError;

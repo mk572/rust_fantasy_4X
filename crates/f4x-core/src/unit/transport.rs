@@ -7,8 +7,8 @@
 //! passenger left at sea without a ship drowns.
 
 use crate::city::economy::Economy;
-use crate::content::TerrainClass;
 use crate::game::serial::Serial;
+use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::{MovementType, Stat};

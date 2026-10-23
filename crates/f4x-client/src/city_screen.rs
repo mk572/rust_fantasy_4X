@@ -577,12 +577,13 @@ impl App {
             buildings,
             magic,
             fortress: self.game.economy().is_fortress_city(city),
-            many_trees: class == Some(f4x_core::content::TerrainClass::Forest) || house_type == 1,
+            many_trees: class == Some(f4x_core::map::terrain::TerrainClass::Forest)
+                || house_type == 1,
             many_rocks: matches!(
                 class,
                 Some(
-                    f4x_core::content::TerrainClass::Mountains
-                        | f4x_core::content::TerrainClass::Hills
+                    f4x_core::map::terrain::TerrainClass::Mountains
+                        | f4x_core::map::terrain::TerrainClass::Hills
                 )
             ),
             seed: 0x2895 + u64::from(at.x) * u64::from(at.y),
@@ -650,10 +651,10 @@ impl App {
                         .get(x, y)
                         .and_then(|t| self.game.content().terrains.get(t))
                         .map(|d| d.class);
-                    ocean |= class == Some(f4x_core::content::TerrainClass::Ocean);
+                    ocean |= class == Some(f4x_core::map::terrain::TerrainClass::Ocean);
                     if dy <= 0 && !(dy == 0 && dx != 0) {
-                        mountain |= class == Some(f4x_core::content::TerrainClass::Mountains);
-                        hills |= class == Some(f4x_core::content::TerrainClass::Hills);
+                        mountain |= class == Some(f4x_core::map::terrain::TerrainClass::Mountains);
+                        hills |= class == Some(f4x_core::map::terrain::TerrainClass::Hills);
                     }
                 }
             }

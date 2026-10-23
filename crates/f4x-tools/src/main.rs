@@ -13,8 +13,10 @@ mod soak;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use f4x_core::content::{Content, FeatureKind, TerrainClass};
+use f4x_core::content::Content;
+use f4x_core::feature::def::FeatureKind;
 use f4x_core::map::mapgen::{generate, GenParams};
+use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Plane;
 
 const USAGE: &str = "usage:

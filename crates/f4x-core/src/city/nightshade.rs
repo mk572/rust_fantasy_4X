@@ -92,7 +92,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::{CityBonus, FeatureDef, FeatureKind, Features};
+    use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features};
     use crate::game::testutil::content_with_economy;
     use crate::game::Command;
     use crate::map::Position;

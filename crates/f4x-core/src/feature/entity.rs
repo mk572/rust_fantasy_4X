@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use hecs::{Entity, World};
 
 use crate::city::economy::Economy;
-use crate::content::{FeatureDef, FeatureKind};
+use crate::feature::def::{FeatureDef, FeatureKind};
 use crate::feature::lair::Lair;
 use crate::feature::node::Node;
 use crate::game::serial::Serial;

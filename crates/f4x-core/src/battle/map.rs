@@ -11,7 +11,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::content::TerrainClass;
+use crate::map::terrain::TerrainClass;
 
 pub mod layout;
 

@@ -39,7 +39,7 @@ Game                                   (game/mod.rs; the owner and the orchestra
 ├── map: Option<Map>                   the dense grids of two planes (docs/map-layers.md) and the index from a square
 │                                      to its feature entity; the tiles are not entities
 ├── fog: Fog                           what each player has explored
-├── content: Content                   definitions loaded from data: terrains, features, rules
+├── content: Content                   definitions loaded from data (content.rs bundles them): terrains (`map/terrain.rs`), features (`feature/def.rs`), rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
 │                                      items, level paths
 ├── diplomacy: Diplomacy               contact, relations, treaties, proposals (diplomacy/mod.rs)
