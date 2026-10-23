@@ -35,6 +35,12 @@ pub(crate) struct GlobalCast {
     started: Option<f64>,
 }
 
+impl GlobalCast {
+    pub(crate) fn spell(&self) -> SpellId {
+        self.spell
+    }
+}
+
 fn any_input() -> bool {
     is_mouse_button_pressed(MouseButton::Left)
         || is_mouse_button_pressed(MouseButton::Right)

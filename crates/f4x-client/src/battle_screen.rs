@@ -287,7 +287,7 @@ fn kills(texts: &Texts, count: u32) -> String {
 /// The missile picture set (`cmbmagic` entries in eights) a unit's ranged attack throws
 /// (`msl_*`: 0 lightning, 1 arrow, 2 fireball, 3 illusion, 4 rocks, 5 sling, 6 deathbolt,
 /// 7 icebolt, 9 priest, 10 drow, 11 shimmer).
-fn missile_type(u: &BattleUnit) -> usize {
+pub(crate) fn missile_type(u: &BattleUnit) -> usize {
     let has = |a: &str| u.abilities.iter().any(|x| x == a);
     [
         ("rock_throwing", 4),
@@ -847,10 +847,14 @@ impl App {
                 });
             }
             BattleEvent::UnitDied { unit } => out.push(Anim::Death { unit: *unit }),
+            // The vortex's round sounds like a small flyer (`Vortex_Combat_Round`).
+            BattleEvent::VortexMoved { .. } => out.push(Anim::Sound { cast: 7 }),
             BattleEvent::SpellCast { side, spell, .. } => {
+                out.extend(self.spell_cast_sound(*spell));
                 out.extend(self.spell_animation(before, *spell, Ok(*side)));
             }
             BattleEvent::UnitSpellCast { unit, spell, .. } => {
+                out.extend(self.spell_cast_sound(*spell));
                 out.extend(self.spell_animation(before, *spell, Err(*unit)));
             }
             _ => {}
@@ -859,19 +863,87 @@ impl App {
 
     /// Run the animation clock; when the last one has played, show the real battle again.
     fn advance_animation(&mut self, dt: f32) {
+        let mut started = None;
+        let mut stepped = None;
         let ui = &mut self.battle_ui;
         if let Some((anim, t)) = ui.playing.as_mut() {
+            let before = *t;
             *t += dt;
+            if let Anim::Move { unit, .. } = anim {
+                // A sound for each square after the first, which sounded as the walk began.
+                if (*t / battle_anim::STEP_TIME) as usize
+                    > (before / battle_anim::STEP_TIME) as usize
+                {
+                    stepped = Some(*unit);
+                }
+            }
             if *t >= anim.duration() {
                 ui.playing = None;
             }
         }
         if ui.playing.is_none() {
             ui.playing = ui.queue.pop_front().map(|a| (a, 0.0));
+            started = ui.playing.as_ref().map(|(a, _)| a.clone());
         }
         if ui.playing.is_none() && ui.queue.is_empty() {
             ui.shown = None;
         }
+        if let Some(anim) = started {
+            self.hear_animation(&anim);
+        }
+        if let Some(unit) = stepped {
+            self.hear_step(unit);
+        }
+    }
+
+    /// The unit of the battle as it is shown now.
+    fn shown_unit(&self, id: usize) -> Option<&BattleUnit> {
+        self.battle_ui
+            .shown
+            .as_ref()
+            .or_else(|| self.game.battle())
+            .and_then(|b| b.unit(id))
+    }
+
+    /// What the original's table says the unit sounds like.
+    fn unit_sound(&self, id: usize) -> Option<f4x_data::sound::UnitSound> {
+        let unit = self.shown_unit(id)?;
+        self.audio.table.units.get(&unit.unit_id).copied()
+    }
+
+    /// The sound that goes with an animation as it starts.
+    fn hear_animation(&mut self, anim: &Anim) {
+        let key = match anim {
+            Anim::Move { unit, .. } => self
+                .unit_sound(*unit)
+                .and_then(|s| crate::audio::step_sound(s.r#move)),
+            Anim::Attack { attacker, .. } => self
+                .unit_sound(*attacker)
+                .and_then(|s| crate::audio::melee_sound(s.melee)),
+            Anim::Shot { attacker, .. } => self
+                .shown_unit(*attacker)
+                .and_then(|u| crate::audio::shot_sound(missile_type(u))),
+            Anim::Sound { cast } => crate::audio::spell_sound(*cast),
+            _ => None,
+        };
+        self.audio.effect(key);
+    }
+
+    fn hear_step(&mut self, unit: usize) {
+        let key = self
+            .unit_sound(unit)
+            .and_then(|s| crate::audio::step_sound(s.r#move));
+        self.audio.effect(key);
+    }
+
+    /// The animation that plays the cast sound of a spell, if the table has one.
+    fn spell_cast_sound(&self, spell: f4x_core::rules::SpellId) -> Option<Anim> {
+        let id = &self.game.content().rules.spells.get(spell).id;
+        self.audio
+            .table
+            .spells
+            .get(id)
+            .map(|&cast| Anim::Sound { cast })
     }
 
     /// How a unit of the battle being drawn looks right now.

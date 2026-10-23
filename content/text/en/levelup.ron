@@ -1,0 +1,8 @@
+// Player-facing messages of the box that announces a hero's new level. One key is in one file only (docs/text.md).
+{
+    "levelup.title": "{name} has leveled up.",
+    "levelup.hit_points": "+1 Hit Points",
+    "levelup.resistance": "+1 Resistance",
+    "levelup.attack": "+1 Attack",
+    "levelup.defense": "+{n} Defense",
+}

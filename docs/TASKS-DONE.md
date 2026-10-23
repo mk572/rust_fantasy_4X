@@ -73,6 +73,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 73 | Meta | Save-format migration (done) |
 | 74 | Meta | Stable command references for replays (done) |
 | 75 | Client | Wizard overview screen (done) |
+| 76 | Client | Background music (done) |
 | 78 | Content | Open conflict decisions (B9-B13, B15, B16, C3) (done) |
 | 80 | Housekeeping | Push to GitHub and tidy the old reference folder (done) |
 | 82 | Meta | Wizard defeat aftermath and fortress display (done) |
@@ -87,6 +88,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 93 | Client | Spell-book view of the magic screen (done) |
 | 94 | Client | Settings screen (done) |
 | 96 | Client | City screen: enchantments list (done) |
+| 97 | Client | Sound effects (done) |
 | 99 | Combat | Saving during a battle (done) |
 | 100 | Map | Draw the original's edge variants for mountains, hills and tundra (done) |
 | 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
@@ -203,6 +205,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 261 | Heroes | Item icons: the icon of prefab, made and random items (done) |
 | 262 | Heroes | Random and prefab items (`Make_Item`) (done) |
 | 265 | Heroes | Heroes cast in battle: innate spells, item charges, item spell save (done) |
+| 266 | Client | Settings: Sound Effects (done) |
+| 267 | Client | Settings: Background Music (done) |
+| 268 | Client | Settings: Event Music (done) |
 | 272 | Client | Settings: End of Turn Summary (done) |
 | 274 | Rules | Settings: Random Events (done) |
 | 280 | Client | Settings: Spell Animations (done) |
@@ -260,6 +265,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 354 | AI | Neutral cities raid nearby lairs and keep what they win (done) |
 | 355 | (done) Lair | Guard and treasure tables as `.ron` data (`content/lairs.ron`), checked against the original |
 | 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
+| 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
 
 ## Descriptions
 
@@ -275,6 +281,11 @@ conversion step before `restore` has no use. Version 1 is the only format; saves
 simply not loaded.
 
 **74. Stable command references (done).** Commands carry `hecs` entity ids, which change when a game is loaded or an undo rebuilds the world, so a command log could not cross a load. **Done for local play** (replays and saving a game with its history): `replay.rs` writes every accepted command with creation numbers (`Serial`) in place of its entities (`serde(with)` helpers on the `Command` fields, `Target` and `ItemSpot`), keeps the start snapshot beside them (`Game::start_recording`, `stop_recording`, `replay_so_far`), and `Replay::play` rebuilds the game from the snapshot and applies the commands, resolving the numbers against the game it is playing into; a refused or undone command is dropped from the record, and a replayed game goes on recording. Console: `record [start|stop [name]|status]`, `replay [name] [count]` (`saves/<name>.replay.ron`). `Command` itself is unchanged, so no call site moved. Not done: the client has no replay menu, and a battle in progress cannot be recorded (a snapshot holds none). Multiplayer is not part of it: `PLANNED.md` item 36 (to be discussed).
+
+**76. Background music (done).** *(Done 2026-10-24: the player, the music rules and every piece the client has a box for are built (`audio.rs`, `sound.md` "What is wired"), with volume sliders on the Settings screen. The songs are XMI, so it plays nothing until task 363 renders them. Left to other tasks: the summon, city-spell and Force-of-Nature scenes (364), crossfading (365), the intro (85).)* Play music in the client: a track per situation (title, map, city, battle,
+victory and defeat, and the diplomacy screen's own tune; also `MUSIC_New_Outpost` for a newly founded outpost, `MUSIC_SoM_Started` for the Spell of Mastery announcement, and the game-end music), looping and crossfading, with a volume setting (94). The original's music
+can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
+repo ships none); decide the audio crate, and keep the game silent and working without files.
 
 **78. Open conflict decisions (done).** Items still marked "Check" or open in
 `help-vs-implementation-conflicts.md`: B9 Heroism, B10 undead immunities, B11 Evil Omens cost,
@@ -316,6 +327,11 @@ Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and build
 screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
 The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
 screen, the hero sheet and the diplomacy screen.
+
+**97. Sound effects (done).** *(Done 2026-10-24: clicks, battle moves, blows, shots, spell casts, the vortex, the conquest scream by the wizard's gender, overland casts, all from the extracted files (`sound.md` "What is wired"); volume sliders on the Settings screen. Left to other tasks: the teleport and tunnel sounds (137), the conquest scene (360), the intro (85), new effects (planned mod 41).)* *(The full list of the original's effects and where they play is `sound.md`; it has no sound for turn end, city growth or unit death, and no voices, so the list below is a superset.)* Short sounds for UI clicks, turn end, city growth, spell casting, combat
+hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the
+same audio layer as the music (76) with its own volume, from locally extracted files. Events
+(`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
 
 **99. Saving during a battle (done).** A battle in progress is not part of a save today (`Game::battle`
 is skipped, so saving mid-fight would lose it, and the client should block saving). Make
@@ -428,6 +444,12 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 **255. River terrain on the battlefield (done).** The original has the whole machinery and never uses it: `Build_Battlefield` passes `Generate_Combat_Map` a river array it has zeroed, so `Carve_River_Terrain` (a river walked across the field from the sides the overland river leaves by, only on plains) never runs. What exists to port: the river ground group (walking cost 4, sailing cost 2), the tile types 56 to 67 (`Set_Terrain_Tile_Types`: left-right, up-down and the four corners, two variants each), the animated river pictures (`cmbtcity` 97 to 108 on Arcanus, `chriver` 0 to 11 on Myrror, drawn over the ground in `Combat_Screen_Map_Draw`), and the rule that the ground under a river picture is the base square `(cgx + cgy) & 3`. Decide whether battles on a square with an overland river should show one (the original's intent, a rule-set choice because it changes the walking costs of those fights), then: fill the river flags from the square and its eight neighbours (`Grid::has_river`), port `Carve_River_Terrain` with its two cases, keep trees, rocks and roads off river squares, add `Layout` data and the cost, draw the pictures, and test that a river crosses the field and the deployment squares stay reachable. Related to the overland river pieces in task 253. **Done (17 October 2026):** a battle on plains with a river on the overland square has one (`carve_river`, tile types 56 to 67, sailing cost 2, walking 4, bridges under roads); the files hold only six of the twelve pictures, used on both planes; start squares moved into the band. See `combat.md` section 6.
 
 **260. Item crafting screen. (done)** `Item_Make_Screen` (`ItemMake.c`) and its spell pop-up: the screen the wizard designs an item on when casting Enchant Item or Create Artifact. Ten kind buttons, the power list of the kind (`crafting::available_powers`, one column for the plain powers and one for the special ones, the ones the wizard has no books for left out), the icon arrows (needs 261), the name box (empty takes `crafting::default_name`), the running cost with the wizard's reduction (`Magic::cost_reduction`) and the OK button; Spell Charges opens the spell list (known spells that can be cast in battle) and the choice of one to four charges. A design with no power asks whether to give up (`Confirmation_Box`). Sends `Command::CraftItem`. The Spellbook screen must route the two spells here (`Game::start_cast` refuses them: they need a design). The art is `SPELLSCR.LBX` entries 13 to 41 (see `heroes-items-design.md` section 6). Needs 261. **Done:** `craft_screen.rs` (positions and logic from `Item_Make_Screen`); `begin_cast` in the Spellbook opens it for the two spells, OK sends `Command::CraftItem`. Checked by compiling and by unit tests of the choices; the screen has not been looked at in the running client. The art positions of the spell list pop-up (book at 28,12) are the original's but untested by eye.
+
+**266. Settings: Sound Effects (done).** Play the effects of task 97 only when Sound Effects is on; the switch also mutes any sound played by other tasks (spell casting, combat). Needs 97. The switch is `Pref::SoundEffects` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**267. Settings: Background Music (done).** Play the music of task 76 only when Background Music is on; switching it off in the Settings page stops the track at once and switching it on starts the one for the current screen. Needs 76. The switch is `Pref::BackgroundMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**268. Settings: Event Music (done).** *(Correction from `sound.md` section 2: in the original this switch covers only the two random-event pieces; the victory, city, spell and hero pieces follow Background Music.)* The short pieces the original plays for events (a wizard's victory or defeat, a city falling, a new spell or hero) play only when Event Music is on. Needs 76 for the audio layer; find the triggers among the `Event` values. The switch is `Pref::EventMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **274. Settings: Random Events (done).** Decided with the user: a game setting, and the preferences page's entry is the default for new games (an Intro game keeps events off). The draw also reads `events.frequency` (Half, Normal, Double); its screen waits for task 248.
 
@@ -1053,3 +1075,14 @@ encounter site clears it; a weak stack leaves it. Check the learned AI (`f4x-lea
 `-- --ignored`, run only when asked).
 
 *Needs:* 353 (the shared loot rules).
+
+**362. Import the original's sound and music (done).** `f4x-tools extract-audio <game-dir> [out-dir]` (default
+`assets-local/audio`; needs `oggenc` from vorbis-tools, or `ffmpeg`, on the PATH) writes the 154 effects of `SOUNDFX`, `CMBTSND`, `NEWSOUND` and
+`INTROSFX` as OGG Vorbis (VOC decoded in `crates/f4x-tools/src/audio.rs`), the 118 songs of `MUSIC` and `INTROSND`
+unchanged as `.xmi`, the MT-32 timbre banks (`FAT*`, `SNDDRV.LBX`) into `timbres/`, and `index.tsv` (file, archive,
+entry, format, rate, seconds). Names follow ReMoM's `SOUND.h` (`soundfx/002_left_btn_clk.ogg`,
+`music/104_main_menu.xmi`). The catalogue of what plays when is `docs/sound.md`. Encoder: `oggenc -q 5` (libvorbis, mono kept,
+original sample rates) if installed; else `ffmpeg` with libvorbis; else ffmpeg's own experimental Vorbis (stereo, 96 kbit/s).
+Homebrew's ffmpeg has no libvorbis, hence `brew install vorbis-tools`.
+
+*Needs:* nothing.

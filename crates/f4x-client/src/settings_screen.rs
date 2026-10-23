@@ -45,6 +45,13 @@ const HEADINGS: [(&str, f32, f32); 4] = [
     ("settings.display", 192.0, 92.0),
 ];
 
+/// The volume sliders (not in the original): label x, bar x and width, and the row's top.
+const SLIDERS: [(&str, f32, f32, f32); 2] = [
+    ("settings.music_volume", 100.0, 126.0, 40.0),
+    ("settings.effects_volume", 172.0, 209.0, 46.0),
+];
+const SLIDER_Y: f32 = 187.0;
+
 /// OK's click area: left, top, right, bottom.
 const OK_AREA: (f32, f32, f32, f32) = (265.0, 175.0, 306.0, 189.0);
 /// The row's click width, from the box's left edge.
@@ -117,6 +124,7 @@ impl App {
                 self.leave_settings();
             }
         }
+        self.volume_sliders(&lay, view, mouse);
         // The game's own settings (task 94), which the original keeps on the new-game screen.
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
         if button(game, &self.text("settings.game"), true) {
@@ -130,6 +138,38 @@ impl App {
             || is_key_pressed(KeyCode::Escape)
         {
             self.leave_settings();
+        }
+    }
+
+    /// The two volume sliders in the bottom row: a press or a drag on a bar sets that volume.
+    fn volume_sliders(&mut self, lay: &Layout, view: (f32, f32, f32), mouse: Vec2) {
+        let down = is_mouse_button_down(MouseButton::Left);
+        for (i, &(key, label_x, bar_x, bar_w)) in SLIDERS.iter().enumerate() {
+            let label = self.text(key);
+            self.bm_text(view, 2, WHITE, &label, label_x, SLIDER_Y + 1.0, Align::Left);
+            let bar = lay.rect((bar_x, SLIDER_Y + 2.0, bar_w, 5.0));
+            let hit = lay.rect((bar_x - 2.0, SLIDER_Y - 1.0, bar_w + 4.0, 11.0));
+            let volume = if i == 0 {
+                &mut self.prefs.music_volume
+            } else {
+                &mut self.prefs.effects_volume
+            };
+            if down && hit.contains(mouse) {
+                *volume = (((mouse.x - bar.x) / bar.w) * 100.0)
+                    .round()
+                    .clamp(0.0, 100.0) as u8;
+            }
+            let fraction = f32::from(*volume) / 100.0;
+            draw_rectangle(bar.x, bar.y, bar.w, bar.h, Color::new(0.0, 0.0, 0.0, 0.7));
+            draw_rectangle(bar.x, bar.y, bar.w * fraction, bar.h, GOLD);
+            draw_rectangle_lines(
+                bar.x,
+                bar.y,
+                bar.w,
+                bar.h,
+                1.0,
+                Color::new(0.8, 0.65, 0.3, 1.0),
+            );
         }
     }
 

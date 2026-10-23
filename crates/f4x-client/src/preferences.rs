@@ -119,12 +119,22 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
     on: [bool; 20],
+    /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
+    /// original).
+    pub music_volume: u8,
+    pub effects_volume: u8,
 }
+
+/// The volumes a game starts with.
+const MUSIC_VOLUME: u8 = 70;
+const EFFECTS_VOLUME: u8 = 100;
 
 impl Default for Preferences {
     fn default() -> Self {
         Self {
             on: PREFS.map(Pref::default_on),
+            music_volume: MUSIC_VOLUME,
+            effects_volume: EFFECTS_VOLUME,
         }
     }
 }
@@ -164,6 +174,12 @@ impl Preferences {
         };
         for line in text.lines() {
             if let Some((key, value)) = line.split_once('=') {
+                let volume = value.trim().parse::<u8>().ok().map(|v| v.min(100));
+                match (key.trim(), volume) {
+                    ("music_volume", Some(v)) => prefs.music_volume = v,
+                    ("effects_volume", Some(v)) => prefs.effects_volume = v,
+                    _ => {}
+                }
                 if let Some(&p) = PREFS.iter().find(|p| p.key() == key.trim()) {
                     prefs.set(p, value.trim() == "1");
                 }
@@ -176,10 +192,16 @@ impl Preferences {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let text: String = PREFS
+        let mut text: String = PREFS
             .iter()
             .map(|&p| format!("{}={}\n", p.key(), u8::from(self.get(p))))
             .collect();
+        for (key, value) in [
+            ("music_volume", self.music_volume),
+            ("effects_volume", self.effects_volume),
+        ] {
+            text += &format!("{}={}\n", key, value);
+        }
         std::fs::write(path, text)
     }
 }
@@ -202,6 +224,8 @@ mod tests {
         let mut p = Preferences::default();
         p.toggle(Pref::RazeCity);
         p.toggle(Pref::StrategicCombatOnly);
+        p.music_volume = 30;
+        p.effects_volume = 0;
         p.save(&path).unwrap();
         let mut text = std::fs::read_to_string(&path).unwrap();
         text.push_str("nonsense=1\njunk\n");

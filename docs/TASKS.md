@@ -74,6 +74,9 @@ neighbours.
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures |
+| 363 | Tools | Render the original's XMI music as the Roland MT-32 played it, with `mt32-rs` and the user's ROMs |
+| 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
+| 365 | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 360 | Client | Conquest, banishment and defeat scenes |
 | 361 | AI | The AI makes diplomacy proposals, to the human and to each other |
@@ -199,3 +202,47 @@ of the player text already is (`docs/text.md`):
 Already tracked elsewhere (not repeated): spell and book treasure that matches the wizard's books is on-hold task 305;
 checking the lair data against `MONSTER.LBX` and `EVENTS.LBX` is on-hold task 241; where loot items are made (at
 clearing today) belongs to task 334; a freed prisoner needs no square because the hire is free, so nothing is open there.
+
+**363. Render the original's music as the Roland MT-32 played it.** The songs are XMI (AIL Extended MIDI), written by
+task 362. Turn them into audio the client can play, using `https://github.com/CopperlineHQ/mt32-rs` (a safe-Rust port
+of Munt; LGPL-2.1-or-later; the notes are in `docs/sound.md`, "mt32-rs") with the control and PCM ROMs of a real
+MT-32 that the author supplies (`assets-local/`, never committed; the revision to use, new or old, is the author's
+pick). Steps: (1) a spike: convert one song (`104_main_menu.xmi`) and render it, to see whether the timbres of
+`timbres/fat.mt` are needed (the DOS drivers uploaded them to the unit by SysEx before a song) and whether the
+result sounds right; (2) the XMI to standard MIDI converter: try the `cnc-formats` crate first (`xmi` feature: `XmiFile`, `XmiSequence`,
+`XmiTimbre` and `to_mid()`; MIT or Apache-2.0, 0.1.0-alpha.5 of 2026-03-26, github.com/iron-curtain-engine/cnc-formats;
+its docs do not say how it treats `FOR`/`NEXT` loops and branches, or several sequences in one file, so test it on
+all 118 songs and write our own if it falls short: delta times are the XMI's delay bytes, a note carries its
+duration, loops become a loop point). Its `XmiTimbre` list of a song's `TIMB` chunk also answers the question of
+step (1): which timbres of `fat.mt` each song needs;
+(3) a `f4x-tools render-music` step that renders every song to OGG with a loop point, in `assets-local/audio/music/`;
+(4) keep the dependency out of the shipped game (the extractor only), because of the LGPL; pin a git commit, since
+the crate has no release. The ROM path is an argument and the step fails with a message if a ROM is missing.
+
+*Needs:* 362 (done), the ROMs from the author.
+
+**364. Scenes with their own music.** Three scenes of the original that the client does not have, each with the music
+`sound.md` section 3.3 lists (the audio layer of tasks 76 and 97 is built; each scene only names its track and cast
+sound in `audio.rs`): (1) the **summon scene** (`Summon_Animation`, `Spells137.c`; the `SPELLSCR` summon background of the
+unit's race, 46 + race, the caster's figure and the flame frame `cmbtfx` 22, the music of the unit's rarity, 0 weak to 3
+mighty: `Weak/Avg/Powerful/Mighty_Summon`, entries 13 to 16), shown when a summoning spell completes, for the human's casts and
+for a rival's with Summoning Events on; the rarity comes from the spell's rarity or the unit's cost, decide and
+write it in `sound.md`. (2) The **city-spell scroll** (`Cast_Spell_City_Enchantment_Animation_1` and `_2`; `SPELLSCR` 73
+with the city's cityscape, "You cast X" or "<wizard> casts X", with the realm's good or bad piece, entries 0 to 11:
+`Good_<Realm>` 0 to 5, `Bad_<Realm>` 6 to 11, bad for a curse), shown for the city spells with City Spell Events on.
+(3) The **Force of Nature scene** (`Spells129.c`, music entry 27): no spell of that name is in `spells.ron`, so find
+which spell or effect the original plays it for in ReMoM and whether we have it; if it is Nature's Wrath or an
+effect we do not have, say so in `sound.md` and drop the scene. Each scene follows the Spell Animations and the
+matching Events preferences, and plays its piece through `Track::piece`.
+
+*Needs:* 76, 97 (done).
+
+**365. Crossfade the music.** Ours; the original stops all sound and starts the next piece. Fade the old track out and
+the new one in over about a second when the music changes (a screen, a battle, a short piece and back to the
+background), so the changes are less abrupt; short pieces fade the background out and in again on their own end.
+`Audio::music` in `crates/f4x-client/src/audio.rs` is the one place that changes tracks; macroquad's audio has
+`set_sound_volume`, so the fade is volume steps per frame on the two sounds, and the old sound is kept loaded until it is
+silent. A switch under Settings ("Fade Music") turns it off for those who want the original's cuts.
+
+*Needs:* 76 (done).
+

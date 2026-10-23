@@ -1,6 +1,7 @@
 //! Developer tooling: content validation and map preview.
 
 mod art;
+mod audio;
 mod console_cmd;
 mod fonts;
 mod image;
@@ -25,6 +26,9 @@ const USAGE: &str = "usage:
                                               print both planes as ASCII
   f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
                                               (default out: assets-local/art)
+  f4x-tools extract-audio <game-dir> [out-dir]
+                                              the original's effects as OGG (needs oggenc or ffmpeg), its music as XMI
+                                              (default out: assets-local/audio)
   f4x-tools refile-art [out-dir]              move already extracted pictures to where extract-art
                                               would put them now (default: assets-local/art)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
@@ -51,6 +55,15 @@ fn main() -> ExitCode {
                     &spell_art()?,
                 )
             }),
+            None => Err(USAGE.to_string()),
+        },
+        Some("extract-audio") => match args.get(1) {
+            Some(game) => audio::extract(
+                &PathBuf::from(game),
+                &args
+                    .get(2)
+                    .map_or_else(|| PathBuf::from("assets-local/audio"), PathBuf::from),
+            ),
             None => Err(USAGE.to_string()),
         },
         Some("refile-art") => spell_art().and_then(|spell_art| {

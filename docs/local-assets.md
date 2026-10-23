@@ -30,6 +30,20 @@ unit art to `assets-local/art/units/<unit id>/` and a spell's pictures to `asset
 `map/tiles/types.tsv` mapping terrain type -> tile, `map/tiles/sheet.png` overview).
 Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner recolouring and where each file is used: [`extract-art.md`](extract-art.md).
 
+## Sound and music: `assets-local/audio/`
+
+```
+cargo run --release -p f4x-tools -- extract-audio "reference/mom-classic/Master of Magic Official Release"
+```
+
+Needs `oggenc` (`brew install vorbis-tools`; `ffmpeg` is the fallback). Writes the 154 effects of `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` as OGG
+(`<archive>/<entry>_<name>.ogg`), the 118 songs of `MUSIC` and `INTROSND` unchanged as XMI (`music/NNN_name.xmi`; they
+are not yet audio, task 363), the MT-32 timbre banks in `timbres/`, and `index.tsv`. What plays when: [`sound.md`](sound.md).
+Format code: `crates/f4x-tools/src/audio.rs`.
+The client plays them (`crates/f4x-client/src/audio.rs`, macroquad's audio): `--audio DIR` names another folder, `--mute`
+plays nothing, `--hear soundfx:2` plays one sound and quits (a check that a file decodes). Without the folder the
+game is silent. Which entry a spell or unit plays is `content/sound.ron` (`scripts/sound_table.py`).
+
 ## Rules data: `content/` (committed)
 
 ```

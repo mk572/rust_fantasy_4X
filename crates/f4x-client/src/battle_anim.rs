@@ -43,6 +43,10 @@ pub enum Anim {
     Death {
         unit: usize,
     },
+    /// A spell's cast sound (the spell row's number), played as its picture starts; it takes no time.
+    Sound {
+        cast: i16,
+    },
     /// A spell's picture, played on each square in turn (the frames each waits before it
     /// starts), under the line that says who cast it.
     /// A wall of fire or darkness (`Some(dark)`) rising, or a wall of stone (`None`, which the
@@ -70,6 +74,7 @@ impl Anim {
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
+            Anim::Sound { .. } => 0.0,
             Anim::WallRise { frames, .. } => *frames as f32 * SPELL_FRAME,
             Anim::Spell {
                 fx, frames, cells, ..

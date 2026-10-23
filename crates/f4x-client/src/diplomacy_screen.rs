@@ -126,6 +126,12 @@ pub(crate) struct DiploUi {
     pub leave_after: bool,
 }
 
+impl DiploUi {
+    pub(crate) fn mood_is_bad(&self) -> bool {
+        self.mood == Mood::Bad
+    }
+}
+
 impl Default for DiploUi {
     fn default() -> Self {
         Self {

@@ -13,12 +13,10 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | # | Area | Summary |
 |---|---|---|
 | 64 | Meta | Wizard personalities and AI objectives |
-| 76 | Client | Background music |
 | 81 | Housekeeping | Packaging for Mac |
 | 85 | Client | Import and play the original's opening movie |
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
-| 97 | Client | Sound effects |
 | 106 | Combat | Battle views for the AI and for tools |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
@@ -67,9 +65,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 259 | Combat | Bug fix: path abilities and flight in battle movement |
 | 263 | Magic | Audit every immunity against the spells and effects it should cover |
 | 264 | Client | Pop-up leftovers: level-up and event messages, item power texts, hire variants, attack box |
-| 266 | Client | Settings: Sound Effects |
-| 267 | Client | Settings: Background Music |
-| 268 | Client | Settings: Event Music |
 | 269 | Client | Settings: City Spell Events |
 | 270 | Client | Settings: Overland Spell Events |
 | 271 | Client | Settings: Summoning Events |
@@ -117,11 +112,6 @@ here yet.
 
 ### Client, content, housekeeping
 
-**76. Background music.** Play music in the client: a track per situation (title, map, city, battle,
-victory and defeat, and the diplomacy screen's own tune; also `MUSIC_New_Outpost` for a newly founded outpost, `MUSIC_SoM_Started` for the Spell of Mastery announcement, and the game-end music), looping and crossfading, with a volume setting (94). The original's music
-can be extracted locally for the author's own copy (like the art, under `assets-local/`; the
-repo ships none); decide the audio crate, and keep the game silent and working without files.
-
 **81. Packaging for Mac.** (A local-play `.app` exists: `scripts/make_app.sh`, see `docs/local-assets.md`; the rest below is for distribution.) A macOS build: a `.app` bundle (icon, `Info.plist`), universal or
 per-architecture binaries (Apple silicon and Intel), code signing and notarisation if the
 author has a developer account (otherwise documented right-click-open steps), a disk image or
@@ -147,11 +137,6 @@ Built: the presentation half, as the original's Settings page (19 switches, `pre
 
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
-
-**97. Sound effects.** Short sounds for UI clicks, turn end, city growth, spell casting, combat
-hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the
-same audio layer as the music (76) with its own volume, from locally extracted files. Events
-(`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 
@@ -266,13 +251,7 @@ Parity task, low priority.
 
 **263. Audit the immunities.** Check every immunity in the game (Magic Immunity, Elemental/Fire/Cold/Poison/Stoning/Death/Illusion/Weapon Immunity, Resist Elements, Righteousness, Invulnerability, Bless, the Large Shield and the like, Non-Corporeal, Wraith Form, city and node protections) against the spells, attacks and effects it should and should not stop, using the original's rules (ReMoM, manual) and what the community wikis document. Several bugs in this area are known from wikis and not yet listed here, so start by collecting them (wiki pages, the manual's tables, `help.ron`), then write a table of immunity x effect in `magic.md`, test each cell, and fix the mismatches (record deliberate departures in `divergences.md`; fixed original bugs go there too). Also check the effects that ignore immunities in the original (for example Disenchant, Wrack and Cracks Call) and whether they still do. Asked for by the user, 16 October 2026.
 
-**264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`), drawn from `HIRE.c` in ReMoM with the art in `HIRE.LBX` (the random-event messages are done with task 68); (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.
-
-**266. Settings: Sound Effects.** Play the effects of task 97 only when Sound Effects is on; the switch also mutes any sound played by other tasks (spell casting, combat). Needs 97. The switch is `Pref::SoundEffects` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**267. Settings: Background Music.** Play the music of task 76 only when Background Music is on; switching it off in the Settings page stops the track at once and switching it on starts the one for the current screen. Needs 76. The switch is `Pref::BackgroundMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**268. Settings: Event Music.** The short pieces the original plays for events (a wizard's victory or defeat, a city falling, a new spell or hero) play only when Event Music is on. Needs 76 for the audio layer; find the triggers among the `Event` values. The switch is `Pref::EventMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+**264. Pop-up leftovers.** What the original-style offer boxes (task 143, `offer_prompt.rs`) and the attack box (task 133, `attack_prompt.rs`) still lack: (1) the **level-up announcement** (`Hero_LevelUp_Popup`; **done 2026-10-24**, `level_up.rs`: checked at each turn change against the heroes' levels of the turn before, so a level gained before a save is loaded is not announced; `--level-up` for a screenshot) (the random-event messages are done with task 68); (2) the **item card's power texts**: `Item_View_Prepare` prints the text of each special power after its name (`ITEM_ViewTexts` in `UnitView.c`, 32 entries of name, text and flag); extract or import them (the text is the original's, so it stays local like the help text, `docs/local-assets.md`) and show them on the card (`draw_item_card`), which the item screen (142) and the crafting screen (260) reuse; (3) the **hire box variants** of `GAME_HeroHireType`: Hero Summoned, Champion Summoned and "A prisoner asks to join your army" (title, the Accept button, and the summon square for types 1 and 3), for when something offers them (the Summon Hero and Summon Champion spells, a prisoner in a cleared site); (4) the **attack prompt's look**: find what the original shows before an attack (ReMoM) and draw that instead of the plain box; (5) the hero's level in the hire sheet is the level path's bonuses added to the base numbers, check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Asked for by the user, 16 October 2026.
 
 **269. Settings: City Spell Events.** Show a message when a city spell (an enchantment on a city, a spell that hits one) is cast that the player can see; off hides them. Check what the client shows now for spells cast on the player's cities and by the computer wizards, and what the original's help says about whose spells count. The switch is `Pref::CitySpellEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 

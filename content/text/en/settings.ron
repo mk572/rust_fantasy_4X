@@ -5,5 +5,7 @@
     "settings.combat": "Combat",
     "settings.display": "Display",
     "settings.game": "Game...",
+    "settings.music_volume": "Music",
+    "settings.effects_volume": "Effects",
     "settings.save_failed": "Could not save the settings: {why}",
 }

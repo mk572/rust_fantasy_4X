@@ -96,6 +96,13 @@ pub struct App {
     pub(crate) chancellor: Option<crate::chancellor::Chancellor>,
     /// The player's preferences (the Settings screen), shared by every game.
     pub(crate) prefs: crate::preferences::Preferences,
+    /// The sounds and the music (`audio.rs`).
+    pub(crate) audio: crate::audio::Audio,
+    /// The levels the human's heroes had at the last turn, and heroes whose new level waits to be announced.
+    pub(crate) hero_levels: std::collections::HashMap<hecs::Entity, usize>,
+    pub(crate) level_ups: std::collections::VecDeque<hecs::Entity>,
+    /// The turn the heroes' levels were last looked at (`u32::MAX`: not yet).
+    pub(crate) levels_turn: u32,
     /// A list box over the map: the advisors, the tax rates (task 71).
     pub(crate) list_box: Option<crate::advisor::SelectionBox>,
     /// The question before the Grand Vizier is switched on.
@@ -278,6 +285,10 @@ impl App {
             params,
             options,
             prefs,
+            audio: crate::audio::Audio::silent(),
+            hero_levels: Default::default(),
+            level_ups: Default::default(),
+            levels_turn: u32::MAX,
             chancellor: None,
             list_box: None,
             vizier_ask: false,
@@ -475,6 +486,28 @@ impl App {
         let mut founded = false;
         let mut dispelled = 0;
         for event in events {
+            if let Event::SpellCast { player, spell } = &event {
+                if *player == HUMAN || self.prefs.get(crate::preferences::Pref::EnemySpells) {
+                    let id = &self.game.content().rules.spells.get(*spell).id;
+                    let key = self
+                        .audio
+                        .table
+                        .spells
+                        .get(id)
+                        .and_then(|&n| crate::audio::spell_sound(n));
+                    self.audio.effect(key);
+                }
+            }
+            if let Event::WizardDefeated { player } | Event::WizardBanished { player, .. } = &event
+            {
+                // The conquest scene's scream (task 360 will play it inside the scene).
+                let feminine = self
+                    .game
+                    .wizard(*player)
+                    .is_some_and(|w| w.gender() == f4x_core::text::Gender::Feminine);
+                self.audio
+                    .effect(Some(crate::audio::scream_sound(feminine)));
+            }
             let line = match event {
                 Event::EnchantmentDispelled {
                     victim,
@@ -1179,6 +1212,7 @@ impl App {
 
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self) -> bool {
+        self.update_audio();
         if self.turn_pending > 0 {
             self.run_pending_turn();
         }
@@ -1287,6 +1321,15 @@ impl App {
             && !self.game.in_battle()
             && self.attack_prompt_frame()
         {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.turn_events.is_none()
+        {
+            self.check_hero_levels();
+        }
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.level_up_frame() {
             return true;
         }
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.event_popup_frame()

@@ -47,6 +47,13 @@ pub(crate) struct SpellNotice {
     drop: f32,
 }
 
+impl SpellNotice {
+    /// The box of a spell that fizzled (the red one).
+    pub(crate) fn fizzled(&self) -> bool {
+        self.strip == RED
+    }
+}
+
 impl App {
     /// For screenshots and checks: make an event happen to the human wizard (`great_meteor`,
     /// `gift`, `plague`...). The reason it cannot is printed.

@@ -13,7 +13,7 @@ rand = { version = "0.8", default-features = false }
 rand_pcg = "0.3"
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
-macroquad = { version = "0.4", default-features = false }
+macroquad = { version = "0.4", default-features = false, features = ["audio"] }
 png = { version = "0.17", default-features = false }
 f4x-core = { path = "crates/f4x-core" }
 f4x-data = { path = "crates/f4x-data" }

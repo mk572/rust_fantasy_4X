@@ -301,8 +301,8 @@ The table is a guide. For anything with an index not listed here read the loader
 
 ## 10. What is not extracted
 
-- **Sound and music:** `MUSIC.LBX`, `SOUNDFX.LBX`, `CMBTSND.LBX`, `INTROSND.LBX`, `INTROSFX.LBX`,
-  `NEWSOUND.LBX`, `SNDDRV.LBX` and the `FAT*` instrument banks. Tasks 76, 97.
+- **Sound and music** are not pictures: `f4x-tools extract-audio` writes them to `assets-local/audio` (task 362,
+  `local-assets.md`, `sound.md`).
 - **Data tables, read by `scripts/import_mom.py` into `content/` (names and numbers):**
   `SPELLDAT`, `BUILDDAT`, `ITEMDATA`, `TERRSTAT`, and `HELP`/`HLPENTRY` and `CITYNAME` into
   `content-local/` (they are IP).

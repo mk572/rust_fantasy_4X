@@ -6,6 +6,7 @@ mod advisor_screen;
 mod army_screen;
 mod art;
 mod attack_prompt;
+mod audio;
 mod autobuild_dialog;
 mod battle_anim;
 mod battle_ground;
@@ -32,6 +33,7 @@ mod global_spell;
 mod hall_of_fame;
 mod item_screen;
 mod learn_spell;
+mod level_up;
 mod magic_screen;
 mod map_draw;
 mod menu_screen;
@@ -151,6 +153,8 @@ struct Options {
     learn_at: f64,
     /// With `--shot`, show the box of a spell that fizzled.
     fizzle: bool,
+    /// With `--shot`, show the box that announces a hero's new level.
+    level_up: bool,
     /// With `--shot`, show the notices of a dispel: `city` or `unit`.
     dispelled: Option<String>,
     /// With `--shot`, show the combat results scroll: `won`, `lost`, `fled`, `city` or `raze`.
@@ -163,6 +167,12 @@ struct Options {
     sheet_ask: bool,
     /// With `--shot`, end this many turns first.
     turns: u32,
+    /// Where the original's sounds are (`f4x-tools extract-audio`); none are played with `--shot`.
+    audio: PathBuf,
+    /// Play no sound.
+    mute: bool,
+    /// Play one sound at start-up and quit after three seconds: `--hear soundfx:2`.
+    hear: Option<(audio::Archive, u16)>,
     /// Start from a saved game.
     load: Option<PathBuf>,
     /// Save the game (after any `--turns`) before carrying on.
@@ -177,6 +187,9 @@ fn parse_args() -> Result<Options, String> {
             "content".into()
         },
         assets: "assets-local/art".into(),
+        audio: "assets-local/audio".into(),
+        mute: false,
+        hear: None,
         seed: 1,
         shot: None,
         city: false,
@@ -232,6 +245,7 @@ fn parse_args() -> Result<Options, String> {
         global_at: 0.0,
         learn_at: 0.0,
         fizzle: false,
+        level_up: false,
         dispelled: None,
         results: None,
         upkeep: false,
@@ -242,6 +256,17 @@ fn parse_args() -> Result<Options, String> {
         match a.as_str() {
             "--content" => o.content = value("--content")?.into(),
             "--assets" => o.assets = value("--assets")?.into(),
+            "--audio" => o.audio = value("--audio")?.into(),
+            "--mute" => o.mute = true,
+            "--hear" => {
+                let v = value("--hear")?;
+                o.hear = v
+                    .split_once(':')
+                    .and_then(|(a, n)| Some((audio::Archive::named(a)?, n.parse().ok()?)));
+                if o.hear.is_none() {
+                    return Err("--hear takes ARCHIVE:ENTRY, e.g. soundfx:2".into());
+                }
+            }
             "--seed" => {
                 o.seed = value("--seed")?
                     .parse()
@@ -270,6 +295,7 @@ fn parse_args() -> Result<Options, String> {
             "--event" => o.event = Some(value("--event")?),
             "--dispelled" => o.dispelled = Some(value("--dispelled")?),
             "--fizzle" => o.fizzle = true,
+            "--level-up" => o.level_up = true,
             "--built" => o.built = Some(value("--built")?),
             "--learn" => o.learn = Some(value("--learn")?),
             "--turn" => o.turn = Some(value("--turn")?),
@@ -391,7 +417,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -416,6 +442,12 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    let sounds =
+        f4x_data::sound::load_sound(&[&options.content, Path::new("content")], &content.rules)
+            .unwrap_or_else(|e| {
+                eprintln!("could not load the sound table: {e}");
+                std::process::exit(1);
+            });
     let mut app = match App::new(
         content,
         art::Art::load(options.assets, spell_art),
@@ -428,6 +460,15 @@ async fn main() {
         }
     };
     app.help = help;
+    if !options.mute && options.shot.is_none() {
+        app.audio = audio::Audio::scan(&options.audio, sounds);
+        if !app.audio.has_files() {
+            eprintln!(
+                "no sound files in {}: the game is silent (f4x-tools extract-audio)",
+                options.audio.display()
+            );
+        }
+    }
     app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
     if let Some(path) = &options.load {
@@ -544,6 +585,9 @@ async fn main() {
     if options.fizzle {
         app.open_test_fizzle();
     }
+    if options.level_up {
+        app.open_test_level_up();
+    }
     if let Some(kind) = &options.results {
         app.open_test_results(kind);
     }
@@ -595,9 +639,25 @@ async fn main() {
         app.open_main_menu();
     }
     let mut frames = 0;
+    if let Some(key) = options.hear {
+        if app.audio.can_play(key) {
+            println!("playing {key:?}");
+        } else {
+            eprintln!("{key:?}: no such sound file, or it does not decode");
+        }
+    }
     loop {
         if !app.frame() {
             break;
+        }
+        if let Some(key) = options.hear {
+            if frames == 5 {
+                app.audio.effects_on = true;
+                app.audio.effect(Some(key));
+            }
+            if get_time() > 3.0 {
+                break;
+            }
         }
         frames += 1;
         if let Some(path) = &options.shot {

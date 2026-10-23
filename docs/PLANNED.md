@@ -51,6 +51,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 38 | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
 | 39 | Client | Resolution setting x1, x2 or x4: imported images are upscaled to match |
 | 40 | Rules | Life and death nodes, and a setting that lifts the ban on combining life and death books |
+| 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
 
 ## Descriptions
 
@@ -594,4 +595,20 @@ options of the game setup (`docs/game-settings.md`), off by default so the base 
 Needs: the node entity work (`feature/node.rs`, done), the game-settings screen (`docs/game-settings.md`), and the art
 tools if the node pictures are recoloured (`docs/extract-art.md`). It touches the AI's node targets (task 339), so do it
 after that task or tell the AI work.
+
+**41. Free sounds.** The original has sound for only a few things (`docs/sound.md` section 4: clicks, combat, spell
+casts) and the repository may not ship its audio. Look for free-to-use sounds (CC0 first; CC-BY with credit where the
+licence allows redistribution; no non-commercial or no-derivatives licences) from sources such as OpenGameArt,
+freesound.org, Kenney's packs, and for music Incompetech-style libraries or pieces generated locally with the
+`soundgen` project, and use them for two jobs:
+- **Events with no sound today:** end of turn, city growth and shrinking, a building or unit completed, a unit moving
+  on the map, a unit dying or taking a hit in battle, a diplomacy proposal arriving, a wizard banished or defeated,
+  an item found, a hero hired or levelling up, a turn that ends with a shortage, and the new content of other planned
+  items (life and death nodes, new wizards). Each gets a cue name in `sound.ron` and a switch under Sound Effects.
+- **Replacements for the original's sounds and music:** one free file for every cue the original has (the 154
+  effects and 118 songs of `index.tsv` are the checklist), so a build with no original files is complete and the
+  game is no longer tied to the author's copy. The files go in `assets/audio/` beside the code and
+  `assets-local/audio/` still takes precedence for a player who has the originals, as for the art (item 12).
+Keep a credits file with each file's source, author and licence, and a check (a script or a test) that every file in
+`assets/audio/` is listed there. Needs the audio layer and the cue names of tasks 76 and 97.
 
