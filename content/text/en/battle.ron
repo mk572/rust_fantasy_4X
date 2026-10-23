@@ -35,6 +35,7 @@
     "battle.raised": "{unit} rises again as undead",
     "battle.field_dispelled": "{spell} is dispelled from the field",
     "battle.field_raised": "{spell} covers the field",
+    "battle.wall_raised": "{spell} rises at the city",
     "battle.resists": "{unit} resists",
     "battle.spell_slew": (count: "kills",
         one: "{unit} loses 1 figure to the spell",

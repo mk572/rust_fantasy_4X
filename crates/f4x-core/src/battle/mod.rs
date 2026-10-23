@@ -731,6 +731,11 @@ pub enum BattleEvent {
         side: Side,
         spell: SpellId,
     },
+    /// The defender raised a wall at its city (Wall of Stone, Fire or Darkness).
+    WallRaised {
+        side: Side,
+        spell: SpellId,
+    },
     /// A spell's resistance check: the unit resisted it.
     SpellResisted {
         unit: usize,

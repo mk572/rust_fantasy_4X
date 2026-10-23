@@ -475,6 +475,9 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
         B::FieldRaised { side, spell: s } => {
             format!("{side:?} raises {} over the field", spell(game, *s))
         }
+        B::WallRaised { side, spell: s } => {
+            format!("{side:?} raises {} at the city", spell(game, *s))
+        }
         B::SpellResisted { unit } => format!("Unit {unit} resists the spell"),
         B::SpellSlew { unit, kills } => format!("Spell destroys {kills} figures of unit {unit}"),
         B::FieldStruck { unit, dealt, kills } => {

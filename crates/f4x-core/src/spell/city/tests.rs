@@ -296,6 +296,12 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() {
     enchant(&mut g, city, "heavenly_light", P0);
     g.start_battle(&[attacker], &[defender]).unwrap();
     assert!(!dark(&g), "Heavenly Light keeps the city out of it");
+    assert!(
+        g.battle().unwrap().fields[Side::Defender.index()]
+            .iter()
+            .any(|&(f, _)| f == Field::TrueLight),
+        "and gives its defender True Light"
+    );
 }
 
 fn realm(g: &Game, id: &str) -> crate::rules::RealmId {

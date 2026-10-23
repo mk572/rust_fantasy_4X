@@ -476,6 +476,12 @@ impl Game {
                 battle.raise_field(Side::Defender, Field::Darkness, cloud);
             }
         }
+        // Heavenly Light gives the defender True Light in every fight at the city.
+        if let Some(light) = self.content.rules.spells.id_of("heavenly_light") {
+            if has("heavenly_light") {
+                battle.raise_field(Side::Defender, Field::TrueLight, light);
+            }
+        }
         // Eternal Night covers every fight in Darkness, except at a city with Heavenly Light.
         if let Some(night) = self.content.rules.spells.id_of("eternal_night") {
             if self.any_global("eternal_night") && !has("heavenly_light") {

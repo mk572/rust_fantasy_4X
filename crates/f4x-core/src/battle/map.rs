@@ -219,6 +219,31 @@ impl BattleMap {
         self.wall(pos) == Wall::Standing
     }
 
+    /// Whether every wall site of the city has a standing wall.
+    pub fn is_fully_walled(&self) -> bool {
+        self.walls.is_some_and(|w| {
+            (CITY_Y0..CITY_Y0 + CITY_SIZE)
+                .flat_map(|y| (CITY_X0..CITY_X0 + CITY_SIZE).map(move |x| (x, y)))
+                .filter(|&p| is_wall_site(p))
+                .all(|p| w[Self::city_index(p)] == Wall::Standing)
+        })
+    }
+
+    /// Raise a wall on every wall site (Wall of Stone), whole or broken before. A unit that
+    /// stands on a site stays there, as in the original.
+    pub fn raise_walls(&mut self) {
+        let Some(walls) = self.walls.as_mut() else {
+            return;
+        };
+        for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
+            for x in CITY_X0..CITY_X0 + CITY_SIZE {
+                if is_wall_site((x, y)) {
+                    walls[Self::city_index((x, y))] = Wall::Standing;
+                }
+            }
+        }
+    }
+
     /// Knock a wall down. Does nothing where no wall stands.
     pub fn break_wall(&mut self, pos: Pos) {
         if self.has_wall(pos) {

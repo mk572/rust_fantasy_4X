@@ -4303,3 +4303,50 @@ fn a_replay_can_start_in_a_battle() {
         g.snapshot().to_text().unwrap()
     );
 }
+
+#[test]
+fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() {
+    let mut g = wizard_battle("walker", &[]);
+    g.treasury_mut(D).unwrap().mana = 2000;
+    g.init_wizard(D, &[("nature", 5), ("chaos", 5), ("death", 5)], &[], None)
+        .unwrap();
+    for name in ["wall_of_stone", "wall_of_fire", "wall_of_darkness"] {
+        let id = g.content.rules.spells.id_of(name).unwrap();
+        g.wizard_mut(D)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(id);
+    }
+    let cast = |g: &mut Game, name: &str, side: Side| {
+        let spell = g.content.rules.spells.id_of(name).unwrap();
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        b.active = side;
+        b.set_caster(side, crate::battle::BattleCaster::new(2000, 2000, 10));
+        g.battle_command(BattleCommand::Cast {
+            spell,
+            aim: SpellAim::None,
+            mana: 0,
+        })
+    };
+    // In open country there is no city to wall.
+    assert!(cast(&mut g, "wall_of_stone", Side::Defender).is_err());
+    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(false);
+    assert!(g.battle().unwrap().map.standing_walls().is_empty());
+    // The attacker cannot raise one, the defender can, once.
+    assert!(cast(&mut g, "wall_of_stone", Side::Attacker).is_err());
+    let events = cast(&mut g, "wall_of_stone", Side::Defender).unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::Battle(BattleEvent::WallRaised { .. }))));
+    assert!(g.battle().unwrap().map.is_fully_walled());
+    assert_eq!(
+        cast(&mut g, "wall_of_stone", Side::Defender),
+        Err(BattleError::Spell(SpellError::AlreadyUp))
+    );
+    // Fire and Darkness are flags of the battle.
+    cast(&mut g, "wall_of_fire", Side::Defender).unwrap();
+    cast(&mut g, "wall_of_darkness", Side::Defender).unwrap();
+    let b = g.battle().unwrap();
+    assert!(b.wall_of_fire && b.wall_of_darkness);
+}

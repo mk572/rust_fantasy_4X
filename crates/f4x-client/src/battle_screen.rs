@@ -248,6 +248,7 @@ pub(crate) fn describe(
         BattleEvent::Raised { unit: u } => say("battle.raised", unit(*u)),
         BattleEvent::FieldDispelled { spell: s, .. } => say("battle.field_dispelled", spell_of(*s)),
         BattleEvent::FieldRaised { spell: s, .. } => say("battle.field_raised", spell_of(*s)),
+        BattleEvent::WallRaised { spell: s, .. } => say("battle.wall_raised", spell_of(*s)),
         BattleEvent::SpellResisted { unit: u } => say("battle.resists", unit(*u)),
         BattleEvent::SpellSlew { unit: u, kills: k } => {
             say("battle.spell_slew", unit(*u).count("kills", *k))

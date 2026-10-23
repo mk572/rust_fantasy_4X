@@ -78,6 +78,14 @@ fn warp_mods(variant: usize, spell: SpellId) -> Vec<Modifier> {
     }
 }
 
+/// The walls a defender can raise at its city in a battle (`Wall_Rise`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CityWall {
+    Stone,
+    Fire,
+    Darkness,
+}
+
 /// What a spell does in a battle, from its effects.
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
@@ -138,6 +146,8 @@ enum Kind {
     CracksCall,
     /// A section of the city wall is destroyed (Disrupt).
     Disrupt,
+    /// The defender raises a wall at its city for the battle: stone, fire or darkness.
+    CityWall(CityWall),
     /// Life from the target to the caster (Life Drain); extra mana makes it harder to resist.
     LifeDrain,
     /// A unit changes sides after a resistance check: for good until a dispel (Creature
@@ -323,6 +333,14 @@ impl Game {
             Effect::Custom(h) if h == CRACKS_CALL => Some(Kind::CracksCall),
             Effect::Custom(h) if h == super::vortex::MAGIC_VORTEX => Some(Kind::Vortex),
             Effect::Custom(h) if h == DISRUPT => Some(Kind::Disrupt),
+            Effect::Custom(h) if h == crate::spell::city::WALL_OF_STONE => {
+                Some(Kind::CityWall(CityWall::Stone))
+            }
+            Effect::Custom(h) if h == "city_flag" => match def.id.as_str() {
+                "wall_of_fire" => Some(Kind::CityWall(CityWall::Fire)),
+                "wall_of_darkness" => Some(Kind::CityWall(CityWall::Darkness)),
+                _ => None,
+            },
             Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
             Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
                 save: def.save.clone(),
@@ -640,6 +658,22 @@ impl Game {
                 }
                 Ok(())
             }
+            (SpellTarget::OwnCity, SpellAim::None) => match kind {
+                // Only the defender, at its own city, and not what already stands.
+                Kind::CityWall(wall) if side == Side::Defender && battle.map.is_city() => {
+                    let up = match wall {
+                        CityWall::Stone => battle.map.is_fully_walled(),
+                        CityWall::Fire => battle.wall_of_fire,
+                        CityWall::Darkness => battle.wall_of_darkness,
+                    };
+                    if up {
+                        Err(SpellError::AlreadyUp)
+                    } else {
+                        Ok(())
+                    }
+                }
+                _ => Err(SpellError::Unsupported),
+            },
             (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Disrupt) => {
                 if battle.map.has_wall(cell) {
                     Ok(())
@@ -1108,6 +1142,20 @@ impl Game {
                 };
                 active.battle.spread_mud(cell);
                 vec![BattleEvent::MudMade { cell }]
+            }
+            (Kind::CityWall(wall), _) => {
+                let Some(active) = self.battle.as_mut() else {
+                    return Vec::new();
+                };
+                let battle = &mut active.battle;
+                match wall {
+                    CityWall::Stone => {
+                        battle.map.raise_walls();
+                    }
+                    CityWall::Fire => battle.wall_of_fire = true,
+                    CityWall::Darkness => battle.wall_of_darkness = true,
+                }
+                vec![BattleEvent::WallRaised { side, spell }]
             }
             (Kind::Disrupt, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
