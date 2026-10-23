@@ -144,12 +144,18 @@ impl Modifier {
 ///
 /// Order: `base + Σ Add`, then `× (100 + Σ Percent) / 100` (rounded toward negative
 /// infinity), then `Min`/`Max` bounds, then `Set` overrides everything, then the
-/// stat's own floor.
+/// stat's own floor. Moves are the exception: a `Min` (Flight, Wind Walking, wings) raises the
+/// unit's own moves first and the bonuses (Endurance, items) come on top, as in the original
+/// (a flier with Endurance has 3 + 1).
 pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
     let of = |op: ModOp| {
         mods.iter()
             .filter(move |m| m.stat == stat && m.op == op)
             .map(|m| m.value)
+    };
+    let base = match (stat, of(ModOp::Min).max()) {
+        (Stat::Moves, Some(min)) => base.max(min),
+        _ => base,
     };
     let adds: i64 = of(ModOp::Add).map(i64::from).sum();
     let percent: i64 = of(ModOp::Percent).map(i64::from).sum();
@@ -159,7 +165,7 @@ pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
         v -= 1;
     }
     let mut v = v.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
-    if let Some(min) = of(ModOp::Min).max() {
+    if let (Some(min), false) = (of(ModOp::Min).max(), stat == Stat::Moves) {
         v = v.max(min);
     }
     if let Some(max) = of(ModOp::Max).min() {
@@ -240,10 +246,18 @@ mod tests {
         let up = [m(Stat::Moves, ModOp::Add, 5), m(Stat::Moves, ModOp::Max, 4)];
         assert_eq!(compute(Stat::Moves, 2, &up), 4);
         let down = [
-            m(Stat::Moves, ModOp::Add, -5),
-            m(Stat::Moves, ModOp::Min, 1),
+            m(Stat::Sight, ModOp::Add, -5),
+            m(Stat::Sight, ModOp::Min, 1),
         ];
-        assert_eq!(compute(Stat::Moves, 2, &down), 1);
+        assert_eq!(compute(Stat::Sight, 2, &down), 1);
+        // A Min on the moves comes before the bonuses: Flight (3) and Endurance (+1) make 4.
+        let flier = [m(Stat::Moves, ModOp::Min, 3), m(Stat::Moves, ModOp::Add, 1)];
+        assert_eq!(compute(Stat::Moves, 1, &flier), 4);
+        assert_eq!(
+            compute(Stat::Moves, 5, &flier),
+            6,
+            "a faster unit keeps its own moves"
+        );
         let set = [
             m(Stat::Resistance, ModOp::Add, 3),
             m(Stat::Resistance, ModOp::Set, 10),

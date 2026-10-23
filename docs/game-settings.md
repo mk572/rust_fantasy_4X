@@ -207,6 +207,11 @@ All values are the original's where it has one (`INITGAME.c`, `EVENTS.c`, `CITYC
 | `score_percent` | 50 | 75 | 100 | 200 | 300 |
 | `max_stack`, `starting_mana`, `max_books_per_realm` | no original effect: 9, 0, 11 at every level | | | | |
 
+Where `ai.mana_percent` applies (checked 24 October 2026 against `Players_Update_Magic_Power`, task 251): to the
+power of the wizard's **nodes** (phase 4) and to each city's mana. The cities' mana is added after
+the multiplier, and the volcanoes' power after that. The fortress is not part of that function in the original.
+So our `base_from` is right: the nodes are multiplied, the fortress and the volcanoes are not.
+
 Notes:
 
 - **This changes today's game.** Our start is 100 gold for everyone and no AI bonus at all, so at

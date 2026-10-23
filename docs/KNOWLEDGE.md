@@ -45,3 +45,6 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   destroyed. We used 100, start 0 and no death, which made outposts about ten times too slow (about 230
   turns instead of 16) and looked like an AI problem in the soak ("most outposts are still outposts after
   200 turns"). When a number of the engine looks off in a soak, check the original's constant first.
+- **Forester, Mountaineer and Pathfinding do nothing in battle.** The original's `Battle_Unit_Movement_Mode`
+  maps them all to ground movement; the battle's trees and rocks cost them the same as anyone. A `Min` on
+  `Moves` (Flight) is applied before the bonuses, not after (`rules/stats.rs`).
