@@ -1,6 +1,6 @@
 # Diplomacy
 
-The diplomacy system (tasks 63, 64 and 91). **Status:** the core is built (task 63, `crates/f4x-core/src/diplomacy.rs`:
+The diplomacy system (tasks 63, 64 and 91). **Status:** the core is built (task 63, `crates/f4x-core/src/diplomacy/mod.rs`:
 sections 2 to 7 and the hooks of 9.3), the AI answers proposals (`crates/f4x-ai/src/diplomacy.rs`) and the console can talk
 (`crates/f4x-console/src/talk.rs`). Not built: the diplomacy screen (task 91), personalities and what the AI starts on its own
 (tasks 64 and 65) and the leftovers of task 167. This document records the original's rules
@@ -280,7 +280,7 @@ with `-5`. Wizards at war ignore it.
 
 ## 9. Implementation plan
 
-New module `crates/f4x-core/src/diplomacy.rs` (and `diplomacy/` submodules if it grows), data in
+New module `crates/f4x-core/src/diplomacy/mod.rs` (and `diplomacy/` submodules if it grows), data in
 `Game`, saved and loaded with the game (`game/save.rs`).
 
 **9.1 State.** `Diplomacy` in `Game`: a vector of `Relation` records indexed by ordered pair

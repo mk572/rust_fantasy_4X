@@ -40,7 +40,7 @@ Game                                   (lib.rs; the owner and the orchestrator)
 ├── content: Content                   definitions loaded from data: terrains, features, rules
 │   └── rules: Rules                   registries: races, units, abilities, buildings, realms, spells,
 │                                      items, level paths
-├── diplomacy: Diplomacy               contact, relations, treaties, proposals (diplomacy.rs)
+├── diplomacy: Diplomacy               contact, relations, treaties, proposals (diplomacy/mod.rs)
 ├── battle: Option<ActiveBattle>       the fight in progress: a `Battle` plus the overland units it
 │                                      was copied from (battle/); not saved
 ├── rng: GameRng                       the one source of randomness, with its draw count (game/rng.rs)
