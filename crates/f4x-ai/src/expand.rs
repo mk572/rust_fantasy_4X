@@ -133,9 +133,11 @@ fn site_value(view: &PlayerView, at: Position) -> f32 {
                 continue;
             };
             value += match view.terrain_class(p) {
-                Some(TerrainClass::Grassland) => 3.0,
-                Some(TerrainClass::Forest) | Some(TerrainClass::Hills) => 2.0,
-                Some(TerrainClass::Swamp) | Some(TerrainClass::Mountains) => 1.0,
+                Some(TerrainClass::Grassland | TerrainClass::SorceryNode) => 3.0,
+                Some(TerrainClass::Forest | TerrainClass::NatureNode | TerrainClass::Hills) => 2.0,
+                Some(TerrainClass::Swamp | TerrainClass::Mountains | TerrainClass::ChaosNode) => {
+                    1.0
+                }
                 Some(TerrainClass::Desert) | Some(TerrainClass::Tundra) => 0.5,
                 Some(TerrainClass::Ocean) => 0.7,
                 None => 0.0,

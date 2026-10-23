@@ -219,8 +219,32 @@ fn place_nodes(
             &content.features.weighted(FeatureKind::Node, class, plane),
         ) {
             grid.set_feature(x, y, Some(id));
+            put_node_terrain(content, plane, id, x, y, grid);
             placed.push((x, y));
         }
+    }
+}
+
+/// A node's own square takes the node's base terrain (the original sets `tt_SorceryNode`,
+/// `tt_NatureNode` or `tt_ChaosNode` there, which also replaces a river tile). Its aura
+/// squares keep what they are.
+fn put_node_terrain(
+    content: &Content,
+    plane: Plane,
+    node: FeatureId,
+    x: u32,
+    y: u32,
+    grid: &mut Grid,
+) {
+    let terrain = content
+        .features
+        .get(node)
+        .and_then(|d| d.id.strip_suffix("_node"))
+        .and_then(TerrainClass::of_node_realm)
+        .and_then(|class| content.terrains.first_of_class(class, plane));
+    if let Some(terrain) = terrain {
+        grid.set(x, y, terrain);
+        grid.set_river(x, y, false);
     }
 }
 

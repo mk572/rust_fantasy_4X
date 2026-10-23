@@ -156,7 +156,7 @@ and not worked around, and names are singular.
 | **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroItems` (until 333), `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
-| **Terrain feature** | `feature/` | `TerrainFeature(FeatureId)`, `Position`, `Serial`; `Node`, `Site`, `Volcano` by kind; `Owner` where owned | 329 to 332, 338 |
+| **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)`, `Position`, `Serial`; `Node`, `Site`, `Volcano` by kind; `Owner` where owned | 329 to 332, 338 |
 | **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` | 333, 334 |
 
 Everything with a `Serial` can be named in a save and in a command log (section 3.9). Definitions
@@ -264,8 +264,11 @@ until it is hired; the roster of per-wizard records is gone.
 The map keeps the per-tile layers: terrain, roads, rivers, lakes, corruption. Everything placed on it
 that has identity and state is an entity.
 
-- Kinds (`FeatureKind` in `content/features.ron`): minerals and other markers (no extra component),
-  encounter sites, towers, nodes; and volcanoes, made and cooled by spells.
+- **Only active features are entities**: those something happens on when a unit enters the square
+  (a fight, treasure, a claim). Kinds (`FeatureKind` in `content/features.ron`): encounter sites,
+  towers, nodes; and volcanoes, made and cooled by spells. **Minerals are passive and stay a map
+  layer** (a feature id per square in `Grid`), like roads and corruption: they have no state and
+  no entity. A spell that adds or removes one (Transmute, Change Terrain) edits the layer.
 - `Node` (realm, power, aura squares, guardian, `Owner`) and `Site` (the lair: intact, guards, gold,
   mana, loot values, prisoner, special) are components on the feature entity. A cleared tower or
   node stays; a cleared encounter site is despawned, as its marker is removed today. A tower is one
@@ -316,7 +319,7 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
 - The save writes each entity kind as its own list, in `Serial` order; a link is written as the
   linked entity's serial (the `stable_ref` of the replay code already does this for commands).
   `PlayerId`s are written as values. The map layers are written as now; the node, lair, tower and
-  volcano tables and `Grid.features` are gone, replaced by the feature list.
+  volcano tables are gone, replaced by the feature list; the mineral layer stays with the map layers.
 - `SAVE_VERSION` becomes 2 with game version 0.0.2. A save or replay of another game version is
   refused with a plain message (task 335).
 - A command that names an entity of a new kind (a hero, an item, a feature) names it by serial in the

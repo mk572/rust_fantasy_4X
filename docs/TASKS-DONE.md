@@ -233,6 +233,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 326 | Hero | (done) Hero entity that outlives its unit body |
 | 327 | Hero | (done) Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
 | 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
+| 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
 | 348 | Text | Every refusal in words: a text key for each `Rejection` error variant, the reason a target is refused, checked against the original's 89 `MESSAGE.LBX` cases (done) |
@@ -600,6 +601,35 @@ entity's components. The items themselves stay plain structs until 333. *Needs:*
 task 313 already; and a hero's spell list stays a list of ids on `Hero`, because a hero casts only in
 a battle (whose enchantments stay in `Battle`, task 324) and nothing it knows lasts on the map, so there
 is no spell instance to make.
+
+**338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
+(`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself
+(`_NODES`). Here the node is a feature on an ordinary terrain, so a node square counts as grassland,
+hills or whatever it was generated on. Add three terrain definitions to `content/terrain.ron`
+(`sorcery_node`, `nature_node`, `chaos_node`, on both planes) and put the matching base terrain under
+every node feature when the placement step (329) spawns it, as `MAPGEN.c` does. Only the node's own
+square changes; its aura squares keep their terrain. Values from ReMoM (`MoM/src/Terrain.c`,
+`Square_Food_x2` and `Square_Production_Bonus`; half-food units as in `terrain.ron`):
+
+| Base terrain | Food | Production | Like |
+|---|---|---|---|
+| Sorcery node | 4 | 0 | none |
+| Nature node | 5 (the MGC build has 4: a recorded original bug, `OGBUG` in ReMoM; pick one and write it in `divergences.md`) | 3 | forest |
+| Chaos node | 0 | 5 | mountains |
+
+Still to read from the original: the movement cost of the three (the `TERRSTAT.LBX` records 168 to
+170; `f4x-tools` has the LBX reader), whether a city may be founded on them (the original has
+`Square_Is_Node`; check its use), the wild-game and mineral rules, and the battlefield each node type
+gives (`Combat.c`, around line 15627). The terrain classes in `terrain.ron` gain three node classes,
+so `f4x-tools validate` and the map generator's class check (at least one definition per class and
+plane) are updated; the client needs a tile for each (the original's TERRAIN tiles, not the node
+overlay). **This task changes behaviour on purpose:** cities and units near a node see new food,
+production and movement values, so the tests that pin them change with it, and the learned networks
+in `models-local/` and the mirror tests (`cargo test -p f4x-learn --test mirror -- --ignored`) are
+checked afterwards and retrained if they drift. Update `map-layers.md` and `divergences.md`.
+*Needs:* 329 and 330.
+
+**Done (23 October 2026), ahead of 329 and 330** (the placement step in `feature/place.rs` puts the terrain under each node; 329 will carry it over to the spawn step). Three classes `SorceryNode`, `NatureNode`, `ChaosNode` (required per plane, so `validate` and the generator check them) and three rows at the end of `terrain.ron` (old terrain ids keep their numbers): food 4 / 4 / 0, production 0 / 3 / 5, movement 1 / 2 / 3 (`TERRSTAT.LBX` records 168 to 170 equal grassland, forest and mountains for walkers). The node's food and production were already given by `land_food` and `land_production` on the feature; those fields are gone and the terrain carries the values, so city output near nodes did not change. **Nature node food stays 4** (the task text said 5; `B16` had already chosen 4). What changed: movement cost on a node square, a river is cleared under a node, a nature node counts as forest (Forester, Gaia, battle ground) and a chaos node as mountains (Mountaineer, battle ground), road turns 4 / 5 / 5, and the client draws a node square from its terrain class (`node_type` is gone). `Square_Is_Node` in the original tests only the sorcery node (a typo); ours finds all three. A node square keeps `can_found_city: true` so the node feature gives the refusal. Not done: the learned networks and the mirror tests (`cargo test -p f4x-learn --test mirror -- --ignored`) were not rerun; the AI's site value reads the node classes as their grassland, forest and mountain look-alikes. Docs: `map-layers.md`, `divergences.md` section 33, `help-vs-implementation-conflicts.md`.
 
 **340. (done) One art folder per spell.** The extracted art is one folder per source `.lbx` in
 `assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,

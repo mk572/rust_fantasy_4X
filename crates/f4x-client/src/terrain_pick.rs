@@ -318,6 +318,9 @@ pub fn ground_type(
             shore_with_rivers(land, rivers, plain)
         }
         _ if grid.volcano(x, y).is_some() => VOLCANO,
+        TerrainClass::SorceryNode => SORCERY_NODE,
+        TerrainClass::NatureNode => NATURE_NODE,
+        TerrainClass::ChaosNode => CHAOS_NODE,
         TerrainClass::Grassland => GRASS[v % 3],
         TerrainClass::Forest => FOREST[v % 3],
         TerrainClass::Swamp => SWAMP[v % 3],
@@ -413,15 +416,6 @@ pub fn site_sprite(id: &str) -> usize {
         74
     } else {
         71
-    }
-}
-
-/// The node's own ground piece.
-pub fn node_type(id: &str) -> usize {
-    match id {
-        "sorcery_node" => SORCERY_NODE,
-        "nature_node" => NATURE_NODE,
-        _ => CHAOS_NODE,
     }
 }
 
@@ -589,6 +583,5 @@ mod tests {
         assert_eq!(site_sprite("fallen_temple"), 75);
         assert_eq!(site_sprite("abandoned_keep"), 73);
         assert_eq!(site_sprite("dungeon"), 74);
-        assert_eq!(node_type("chaos_node"), CHAOS_NODE);
     }
 }

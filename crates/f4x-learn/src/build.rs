@@ -15,10 +15,10 @@ pub const DEFENDER: PlayerId = PlayerId(1);
 
 fn walkable(game: &Game, at: Position) -> bool {
     game.economy().city_at(at).is_none()
-        && !matches!(
-            game.economy().terrain_class_at(at),
-            None | Some(TerrainClass::Ocean) | Some(TerrainClass::Mountains)
-        )
+        && game
+            .economy()
+            .terrain_class_at(at)
+            .is_some_and(|c| c != TerrainClass::Ocean && !c.is_mountain())
 }
 
 fn around(at: Position) -> impl Iterator<Item = Position> {

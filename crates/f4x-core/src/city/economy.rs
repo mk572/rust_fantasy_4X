@@ -354,20 +354,13 @@ impl<'a> Economy<'a> {
     }
 
     /// What one square gives a city that works it, in half-food units (the original's
-    /// `Square_Food_x2`): the terrain's own food; a river square gives two food whatever it is
-    /// laid on; water next to land (the shore) gives half a food, open sea none; a magic node
-    /// takes over its square and gives what the node says.
+    /// `Square_Food_x2`): the terrain's own food (a magic node's square has its own terrain); a
+    /// river square gives two food whatever it is laid on; water next to land (the shore) gives
+    /// half a food, open sea none.
     pub fn square_food(&self, grid: &crate::map::Grid, x: i32, y: i32) -> i32 {
         let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
             return 0;
         };
-        if let Some(land) = grid
-            .feature(x, y)
-            .and_then(|f| self.content.features.get(f))
-            .and_then(|f| f.city.land_food)
-        {
-            return i32::from(land);
-        }
         let food = i32::from(def.food);
         if def.class == TerrainClass::Ocean {
             let land = |dx: i32, dy: i32| {
@@ -411,27 +404,19 @@ impl<'a> Economy<'a> {
     }
 
     /// What one square adds to the production of a city that works it, in percent (the
-    /// original's `Square_Production_Bonus`): the terrain's own, or the node's on a magic node. A
-    /// river square adds nothing, being a river and not the land it crosses. Gaia's Blessing
-    /// doubles forests and nature nodes.
+    /// original's `Square_Production_Bonus`): the terrain's own, a magic node's square having
+    /// its own terrain. A river square adds nothing, being a river and not the land it crosses.
+    /// Gaia's Blessing doubles forests and nature nodes.
     pub fn square_production(&self, grid: &crate::map::Grid, x: i32, y: i32, gaia: bool) -> i32 {
         let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
             return 0;
         };
-        let node = grid
-            .feature(x, y)
-            .and_then(|f| self.content.features.get(f))
-            .filter(|f| f.city.land_production.is_some());
-        let base = match node {
-            Some(f) => f.city.land_production.unwrap_or(0),
-            None if grid.has_river(x, y) => 0,
-            None => def.production_percent,
+        let base = if grid.has_river(x, y) {
+            0
+        } else {
+            def.production_percent
         };
-        let doubled = match node {
-            Some(f) => f.id == "nature_node",
-            None => def.class == TerrainClass::Forest,
-        };
-        if gaia && doubled {
+        if gaia && def.class.is_forest() {
             base * 2
         } else {
             base
@@ -950,7 +935,6 @@ mod growth_tests {
 #[cfg(test)]
 mod handle_tests {
     use super::*;
-    use crate::content::{CityBonus, FeatureDef, FeatureKind};
     use crate::game::testutil::content_with_economy;
     use crate::map::Grid;
 
@@ -1058,23 +1042,11 @@ mod handle_tests {
 
     #[test]
     fn a_squares_food_follows_the_original() {
-        let mut content = content_with_economy();
+        let content = content_with_economy();
         let grass = content.terrains.id_of("grassland").unwrap();
         let swamp = content.terrains.id_of("swamp").unwrap();
         let ocean = content.terrains.id_of("ocean").unwrap();
-        let mut defs = content.features.defs().to_vec();
-        defs.push(FeatureDef {
-            id: "node_test".into(),
-            name: "node".into(),
-            kind: FeatureKind::Node,
-            city: CityBonus {
-                land_food: Some(4),
-                ..Default::default()
-            },
-            spawn: vec![],
-        });
-        content.features = crate::content::Features::new(defs);
-        let node = content.features.id_of("node_test").unwrap();
+        let sorcery = content.terrains.id_of("sorcery_node").unwrap();
         let mut grid = Grid::new(24, 14, grass);
         for x in 0..8 {
             for y in 0..4 {
@@ -1084,7 +1056,7 @@ mod handle_tests {
         grid.set(5, 5, swamp);
         grid.set(7, 7, grass);
         grid.set_river(7, 7, true);
-        grid.set_feature(9, 9, Some(node));
+        grid.set(9, 9, sorcery);
         let map = Map::new(grid.clone(), grid.clone());
         let world = World::new();
         let eco = Economy::new(&world, Some(&map), &content);
@@ -1095,7 +1067,7 @@ mod handle_tests {
         assert_eq!(
             eco.square_food(g, 9, 9),
             4,
-            "a node square gives the node's food"
+            "a node square has its own terrain and food"
         );
         assert_eq!(eco.square_food(g, 2, 2), 0, "open sea");
         assert_eq!(
@@ -1108,26 +1080,12 @@ mod handle_tests {
 
     #[test]
     fn rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production() {
-        let mut content = content_with_economy();
+        let content = content_with_economy();
         let grass = content.terrains.id_of("grassland").unwrap();
         let ocean = content.terrains.id_of("ocean").unwrap();
         let forest = content.terrains.id_of("forest").unwrap();
-        let mut defs = content.features.defs().to_vec();
-        for (id, production) in [("nature_node", 3), ("chaos_node", 5)] {
-            defs.push(FeatureDef {
-                id: id.into(),
-                name: id.into(),
-                kind: FeatureKind::Node,
-                city: CityBonus {
-                    land_production: Some(production),
-                    ..Default::default()
-                },
-                spawn: vec![],
-            });
-        }
-        content.features = crate::content::Features::new(defs);
-        let nature = content.features.id_of("nature_node").unwrap();
-        let chaos = content.features.id_of("chaos_node").unwrap();
+        let nature = content.terrains.id_of("nature_node").unwrap();
+        let chaos = content.terrains.id_of("chaos_node").unwrap();
         let mut grid = Grid::new(24, 14, grass);
         // A lake with a river running into it from the north.
         grid.set(5, 5, ocean);
@@ -1146,8 +1104,8 @@ mod handle_tests {
         grid.set(12, 7, forest);
         grid.set(13, 7, forest);
         grid.set_river(13, 7, true);
-        grid.set_feature(16, 7, Some(nature));
-        grid.set_feature(17, 7, Some(chaos));
+        grid.set(16, 7, nature);
+        grid.set(17, 7, chaos);
         grid.set(18, 7, forest);
         let map = Map::new(grid.clone(), grid.clone());
         let world = World::new();

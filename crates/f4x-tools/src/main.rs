@@ -189,6 +189,7 @@ fn glyph(class: Option<TerrainClass>) -> char {
         Some(TerrainClass::Swamp) => 's',
         Some(TerrainClass::Desert) => 'd',
         Some(TerrainClass::Tundra) => 't',
+        Some(TerrainClass::SorceryNode | TerrainClass::NatureNode | TerrainClass::ChaosNode) => 'N',
         None => '?',
     }
 }

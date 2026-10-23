@@ -53,7 +53,7 @@ per plane (checked by `f4x-tools validate` and again by the generator).
 | Field | Meaning |
 |---|---|
 | `id`, `name` | stable id and display name |
-| `class` | one of the eight classes |
+| `class` | one of the eleven classes: the eight land and sea classes and the base terrains of the three node kinds |
 | `walkable` | ground units can enter (false for ocean) |
 | `can_found_city` | a city or outpost may be founded here |
 | `move_cost` | movement cost in whole moves (0 for ocean); see the movement rules in `design.md` |
@@ -73,6 +73,17 @@ The shipped sample set:
 | Swamp | 2 | 1 | 0 | yes |
 | Desert | 1 | 0 | 0 | yes |
 | Tundra | 2 | 0 | 0 | yes |
+| Sorcery node | 1 | 4 | 0 | yes (the node refuses it) |
+| Nature node | 2 | 4 | 3 | yes (the node refuses it) |
+| Chaos node | 3 | 0 | 5 | yes (the node refuses it) |
+
+The last three are the base terrains under the three kinds of magic node (the original's
+`tt_SorceryNode`, `tt_NatureNode` and `tt_ChaosNode`). The placement step puts the matching one
+under every node it places, and clears a river there as the original's node replaces the river
+tile; the node's aura squares keep their terrain. The rules read them as the original does:
+a nature node is a forest (Forester, Gaia's Blessing, the forest battle ground) and a chaos node
+a mountain (Mountaineer, the mountain battle ground). A chaos node is not a volcano: a spell volcano is a mountain with an owner and a power
+point for the owner and a chaos node has no owner and never cools (divergence 33).
 
 Arcanus and Myrror use the same classes and rules. In the original the planes differ in
 artwork and in what spawns, not in terrain behaviour, so a definition simply lists the

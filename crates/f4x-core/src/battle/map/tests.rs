@@ -321,3 +321,10 @@ fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
     assert!(reach.len() > 30);
     assert!(ocean.reachable_as((14, 10), 20, walker(), &|_| false).len() == 1);
 }
+
+#[test]
+fn a_node_square_is_fought_on_the_ground_of_its_kind() {
+    assert_eq!(set_of(Some(TerrainClass::NatureNode)), Set::Forest);
+    assert_eq!(set_of(Some(TerrainClass::ChaosNode)), Set::Mountains);
+    assert_eq!(set_of(Some(TerrainClass::SorceryNode)), Set::Plains);
+}

@@ -60,14 +60,14 @@ impl Game {
         if grid.has_road(at.x as i32, at.y as i32) {
             return Some(0);
         }
-        // A node is a feature on ordinary ground here, so its square takes the ground's time
-        // (the original's node is a terrain of its own: 4 sorcery, 5 nature and chaos).
         let ground = match self.economy().terrain_class_at(at)? {
             TerrainClass::Ocean => return None,
             TerrainClass::Grassland => 3,
             TerrainClass::Desert => 4,
             TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Tundra => 6,
             TerrainClass::Mountains | TerrainClass::Swamp => 8,
+            TerrainClass::SorceryNode => 4,
+            TerrainClass::NatureNode | TerrainClass::ChaosNode => 5,
         };
         // A river needs a bridge: two turns more (the original's river square takes 5).
         let bridge = if grid.has_river(at.x as i32, at.y as i32) {

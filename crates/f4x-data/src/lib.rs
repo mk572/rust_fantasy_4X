@@ -910,7 +910,16 @@ mod tests {
                         .class;
                     assert_ne!(class, TerrainClass::Ocean, "{id} on ocean, seed {seed}");
                     let def = c.features.get(c.features.id_of(&id).unwrap()).unwrap();
-                    if def.kind != FeatureKind::Tower {
+                    if def.kind == FeatureKind::Node {
+                        // A node's square has its own base terrain, and no river runs there.
+                        let realm = id.strip_suffix("_node").unwrap();
+                        assert_eq!(
+                            Some(class),
+                            TerrainClass::of_node_realm(realm),
+                            "{id}'s square, seed {seed}"
+                        );
+                        assert!(!grid.has_river(x as i32, y as i32), "{id}, seed {seed}");
+                    } else if def.kind != FeatureKind::Tower {
                         assert!(
                             c.features
                                 .weighted(def.kind, class, plane)

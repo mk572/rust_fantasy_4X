@@ -82,7 +82,11 @@ impl Game {
             | TerrainClass::Swamp => Ok(TerrainClass::Grassland),
             TerrainClass::Grassland => Ok(TerrainClass::Forest),
             TerrainClass::Mountains => Ok(TerrainClass::Hills),
-            TerrainClass::Ocean | TerrainClass::Tundra => Err(TargetError::TerrainFixed),
+            TerrainClass::Ocean
+            | TerrainClass::Tundra
+            | TerrainClass::SorceryNode
+            | TerrainClass::NatureNode
+            | TerrainClass::ChaosNode => Err(TargetError::TerrainFixed),
         }
     }
 

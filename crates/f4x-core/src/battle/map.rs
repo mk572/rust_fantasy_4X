@@ -476,12 +476,14 @@ impl BattleMap {
 /// plains, and open water has no ground of its own.
 pub fn set_of(terrain: Option<TerrainClass>) -> Set {
     match terrain {
-        Some(TerrainClass::Forest) => Set::Forest,
+        Some(TerrainClass::Forest | TerrainClass::NatureNode) => Set::Forest,
         Some(TerrainClass::Hills) => Set::Hills,
-        Some(TerrainClass::Mountains) => Set::Mountains,
+        Some(TerrainClass::Mountains | TerrainClass::ChaosNode) => Set::Mountains,
         Some(TerrainClass::Desert) => Set::Desert,
         Some(TerrainClass::Tundra) => Set::Tundra,
-        Some(TerrainClass::Swamp) | Some(TerrainClass::Grassland) => Set::Plains,
+        Some(TerrainClass::Swamp | TerrainClass::Grassland | TerrainClass::SorceryNode) => {
+            Set::Plains
+        }
         Some(TerrainClass::Ocean) | None => Set::Water,
     }
 }

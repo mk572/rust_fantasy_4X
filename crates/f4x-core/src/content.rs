@@ -17,10 +17,44 @@ pub enum TerrainClass {
     Swamp,
     Desert,
     Tundra,
+    /// The base terrain of a sorcery node's square (`tt_SorceryNode` in the original).
+    SorceryNode,
+    /// The base terrain of a nature node's square (`tt_NatureNode`).
+    NatureNode,
+    /// The base terrain of a chaos node's square (`tt_ChaosNode`). Not the volcano a spell
+    /// raises: that is a mountain with an owner.
+    ChaosNode,
+}
+
+impl TerrainClass {
+    /// The base terrain class under a node of this realm (`"sorcery"`, `"nature"`, `"chaos"`).
+    pub fn of_node_realm(realm: &str) -> Option<Self> {
+        match realm {
+            "sorcery" => Some(Self::SorceryNode),
+            "nature" => Some(Self::NatureNode),
+            "chaos" => Some(Self::ChaosNode),
+            _ => None,
+        }
+    }
+
+    /// Forest for the rules that ask: a nature node counts as forest (`Square_Is_Forest`).
+    pub fn is_forest(self) -> bool {
+        matches!(self, Self::Forest | Self::NatureNode)
+    }
+
+    /// Mountains for the rules that ask: a chaos node counts as mountains (`Square_Is_Mountain`).
+    pub fn is_mountain(self) -> bool {
+        matches!(self, Self::Mountains | Self::ChaosNode)
+    }
+
+    /// Whether this is the base terrain of a magic node's square.
+    pub fn is_node(self) -> bool {
+        matches!(self, Self::SorceryNode | Self::NatureNode | Self::ChaosNode)
+    }
 }
 
 /// Every class the map generator may place; content must define each one per plane.
-pub const REQUIRED_CLASSES: [TerrainClass; 8] = [
+pub const REQUIRED_CLASSES: [TerrainClass; 11] = [
     TerrainClass::Ocean,
     TerrainClass::Grassland,
     TerrainClass::Forest,
@@ -29,6 +63,9 @@ pub const REQUIRED_CLASSES: [TerrainClass; 8] = [
     TerrainClass::Swamp,
     TerrainClass::Desert,
     TerrainClass::Tundra,
+    TerrainClass::SorceryNode,
+    TerrainClass::NatureNode,
+    TerrainClass::ChaosNode,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,12 +151,6 @@ pub struct CityBonus {
     pub mana: i32,
     /// Whole food (wild game); not affected by mining.
     pub food: i32,
-    /// For a square the feature takes over (a magic node): the food the square gives a city, in
-    /// half-food units, instead of the terrain's own.
-    pub land_food: Option<u8>,
-    /// For a square the feature takes over (a magic node): the percent of production it adds to
-    /// a city working it, instead of the terrain's own.
-    pub land_production: Option<i32>,
     /// Percent off the cost of military units built in the city (stacks up to a limit).
     pub unit_cost_percent: i32,
     /// Added to the chance an outpost grows each turn.
@@ -205,4 +236,30 @@ pub struct Content {
     pub settings: crate::game::setting::SettingsDef,
     /// Every player-facing message, in the language of `settings.language`.
     pub texts: crate::text::Texts,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_nature_node_is_a_forest_and_a_chaos_node_a_mountain() {
+        assert!(TerrainClass::NatureNode.is_forest() && TerrainClass::Forest.is_forest());
+        assert!(TerrainClass::ChaosNode.is_mountain() && TerrainClass::Mountains.is_mountain());
+        assert!(!TerrainClass::SorceryNode.is_forest() && !TerrainClass::SorceryNode.is_mountain());
+    }
+
+    #[test]
+    fn node_realms_name_their_base_terrain() {
+        for (realm, class) in [
+            ("sorcery", TerrainClass::SorceryNode),
+            ("nature", TerrainClass::NatureNode),
+            ("chaos", TerrainClass::ChaosNode),
+        ] {
+            assert_eq!(TerrainClass::of_node_realm(realm), Some(class));
+            assert!(class.is_node());
+        }
+        assert_eq!(TerrainClass::of_node_realm("life"), None);
+        assert!(!TerrainClass::Hills.is_node());
+    }
 }

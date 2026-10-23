@@ -199,11 +199,11 @@ impl Economy<'_> {
         if has("pathfinding") || traits.pathfinding {
             cost = cost.min(1);
         }
-        if (has("forester") || traits.forester) && terrain.class == TerrainClass::Forest {
+        if (has("forester") || traits.forester) && terrain.class.is_forest() {
             cost = cost.min(FULL_MOVE);
         }
         if (has("mountaineer") || traits.mountaineer)
-            && matches!(terrain.class, TerrainClass::Hills | TerrainClass::Mountains)
+            && (terrain.class == TerrainClass::Hills || terrain.class.is_mountain())
         {
             cost = cost.min(FULL_MOVE);
         }

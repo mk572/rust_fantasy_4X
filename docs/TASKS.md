@@ -78,7 +78,6 @@ neighbours.
 | 335 | Core | Save format 2 and the game-version check |
 | 336 | Core | Other crates: `PlayerView`, console, client, tools |
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry |
-| 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production |
 | 339 | AI | Scripted and trained AI on the new framework |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
@@ -95,11 +94,16 @@ Today `Game.map` (outside the world) holds a `FeatureId` per tile, `Map.nodes`, 
 `tower_owners` and an owner byte per volcano. Nodes and lairs are found by `Vec` index
 (`Entry::Site(usize)`, `lair_at`, `node_at`), which breaks when one is removed.
 
-**329. Terrain feature entity.** The `TerrainFeature(FeatureId)` entity with `Position` and `Serial`,
-and a position index (square to entity) in place of `Grid.features`. `feature::place`, `feature::node::generate_nodes`
-and `feature::lair::generate_lairs` become one placement step: the map generator returns the terrain layers
-and a list of placements, and the game spawns the entities. Minerals and encounter markers are features with no further component. A tower is one entity
-on both planes. The move of `Node` and `Lair` out of `map.rs` (309) is already done. *Needs:* 313.
+**329. Terrain feature entity.** Only a feature that something happens on when a unit enters its
+square is an entity: towers, nodes and encounter sites (`FeatureKind::Tower`, `Node`, `Encounter`).
+They get the `TerrainFeature(FeatureId)` component with `Position` and `Serial`, and a position
+index (square to entity) on `Game`. **Minerals are passive and stay a layer of the map** (`Grid.features`
+holds minerals only; no entity, no serial). `feature::place`, `feature::node::generate_nodes` and
+`feature::lair::generate_lairs` become one placement step: the map generator returns the terrain layers
+(minerals included) and a list of placements of the active features, and the game spawns the
+entities. A tower is one entity on both planes. The move of `Node` and `Lair` out of `map.rs` (309) is already done.
+Whatever reads `Grid.feature` for a tower, node or site (movement, lair entry, the surveyor, the
+client's map and minimap, the console, the tools) reads the entity instead. *Needs:* 313.
 
 **330. Node entity.** The `Node` component (realm, power, aura, guardian, `Owner(Entity)`) on the
 feature entity; `Map.nodes`, `node_at`, `node_covering`, melding, node income, corruption of nodes and
@@ -118,33 +122,6 @@ longer matters. *Needs:* 329.
 `Volcano` and `Owner(Entity)` on feature entities. `terraform` spawns a volcano feature when it makes
 one and despawns it when it cools. Mana per turn, the tower claim (`claim_tower`) and `map_draw` in
 the client read the entities. *Needs:* 329 and 313.
-
-**338. Node base terrains.** In the original a node is two things: the base terrain of its square
-(`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself
-(`_NODES`). Here the node is a feature on an ordinary terrain, so a node square counts as grassland,
-hills or whatever it was generated on. Add three terrain definitions to `content/terrain.ron`
-(`sorcery_node`, `nature_node`, `chaos_node`, on both planes) and put the matching base terrain under
-every node feature when the placement step (329) spawns it, as `MAPGEN.c` does. Only the node's own
-square changes; its aura squares keep their terrain. Values from ReMoM (`MoM/src/Terrain.c`,
-`Square_Food_x2` and `Square_Production_Bonus`; half-food units as in `terrain.ron`):
-
-| Base terrain | Food | Production | Like |
-|---|---|---|---|
-| Sorcery node | 4 | 0 | none |
-| Nature node | 5 (the MGC build has 4: a recorded original bug, `OGBUG` in ReMoM; pick one and write it in `divergences.md`) | 3 | forest |
-| Chaos node | 0 | 5 | mountains |
-
-Still to read from the original: the movement cost of the three (the `TERRSTAT.LBX` records 168 to
-170; `f4x-tools` has the LBX reader), whether a city may be founded on them (the original has
-`Square_Is_Node`; check its use), the wild-game and mineral rules, and the battlefield each node type
-gives (`Combat.c`, around line 15627). The terrain classes in `terrain.ron` gain three node classes,
-so `f4x-tools validate` and the map generator's class check (at least one definition per class and
-plane) are updated; the client needs a tile for each (the original's TERRAIN tiles, not the node
-overlay). **This task changes behaviour on purpose:** cities and units near a node see new food,
-production and movement values, so the tests that pin them change with it, and the learned networks
-in `models-local/` and the mirror tests (`cargo test -p f4x-learn --test mirror -- --ignored`) are
-checked afterwards and retrained if they drift. Update `map-layers.md` and `divergences.md`.
-*Needs:* 329 and 330.
 
 ### F. Item
 
@@ -298,6 +275,6 @@ files or a table of names in `content/text/<lang>/`, and how the plural of a rac
 
 *Needs:* 348 (done).
 
-**351. Research the untraced `MESSAGE.LBX` lines.** Task 348 (done) could not say what rule stands behind these lines of the original: 8 ("All units retreat exhausted"), 10 (monsters rampage through the city), 18, 19, 20, 45, 46 (notices that other city, unit, Stasis or combat enchantments were dispelled) and 61 (Guise on a hero; no spell of that name in `spells.ron`). For each: find the original code that shows the message (ReMoM) and what triggers it, check whether our game has the rule, and write the answer in this task's "Done" paragraph as in the table of task 348: refused, no refusal, different on purpose, or no such rule. A missing rule goes to task 350 or a task of its own; the text is a key in `content/text/`.
+**351. Research the untraced `MESSAGE.LBX` lines.** Task 348, which is finished, could not say what rule stands behind these lines of the original: 8 ("All units retreat exhausted"), 10 (monsters rampage through the city), 18, 19, 20, 45, 46 (notices that other city, unit, Stasis or combat enchantments were dispelled) and 61 (Guise on a hero; no spell of that name in `spells.ron`). For each: find the original code that shows the message (ReMoM) and what triggers it, check whether our game has the rule, and write the answer in this task's "Done" paragraph as in the table of task 348: refused, no refusal, different on purpose, or no such rule. A missing rule goes to task 350 or a task of its own; the text is a key in `content/text/`.
 
 *Needs:* 348 (done).

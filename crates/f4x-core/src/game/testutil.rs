@@ -16,18 +16,22 @@ pub fn content() -> Content {
         walkable,
         can_found_city,
         move_cost: match class {
-            TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Swamp => 2,
-            TerrainClass::Mountains => 3,
+            TerrainClass::Forest
+            | TerrainClass::NatureNode
+            | TerrainClass::Hills
+            | TerrainClass::Swamp => 2,
+            TerrainClass::Mountains | TerrainClass::ChaosNode => 3,
             _ => 1,
         },
         food: match class {
             TerrainClass::Grassland => 3,
+            TerrainClass::SorceryNode | TerrainClass::NatureNode => 4,
             TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Swamp => 1,
             _ => 0,
         },
         production_percent: match class {
-            TerrainClass::Forest | TerrainClass::Hills => 3,
-            TerrainClass::Mountains => 5,
+            TerrainClass::Forest | TerrainClass::NatureNode | TerrainClass::Hills => 3,
+            TerrainClass::Mountains | TerrainClass::ChaosNode => 5,
             _ => 0,
         },
         planes: Plane::ALL.to_vec(),
@@ -41,6 +45,9 @@ pub fn content() -> Content {
         terrain("swamp", TerrainClass::Swamp, true, true),
         terrain("desert", TerrainClass::Desert, true, true),
         terrain("tundra", TerrainClass::Tundra, true, true),
+        terrain("sorcery_node", TerrainClass::SorceryNode, true, true),
+        terrain("nature_node", TerrainClass::NatureNode, true, true),
+        terrain("chaos_node", TerrainClass::ChaosNode, true, true),
     ]);
     let land = vec![
         TerrainClass::Grassland,

@@ -97,14 +97,9 @@ pub fn draw_square(
     };
     let feature = grid.feature(x, yi).and_then(|f| content.features.get(f));
     // The ground: a node's own piece, or the type the neighbours call for.
-    let ground = feature
-        .filter(|f| f.kind == FeatureKind::Node)
-        .map(|f| pick::node_type(&f.id))
-        .or_else(|| {
-            pick::ground_type(grid, content, x, yi, plane.index(), &|table, mask| {
-                art.autotile_type(table, mask)
-            })
-        });
+    let ground = pick::ground_type(grid, content, x, yi, plane.index(), &|table, mask| {
+        art.autotile_type(table, mask)
+    });
     let Some(ground) = ground else {
         return;
     };

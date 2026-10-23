@@ -532,7 +532,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
 
 - **Square food and production** follow the original's `Square_Food_x2` and `Square_Production_Bonus`
   (`Economy::square_food`, `square_production`): river squares, shore water, lakes and river mouths,
-  and magic nodes (which take over their square) give the original's food; Gaia's Blessing doubles
+  and magic nodes (whose square has a base terrain of its own, section 33) give the original's food; Gaia's Blessing doubles
   forests and nature nodes. A river square gives no production bonus, as in the original, where a
   river replaces the land. Details in `help-vs-implementation-conflicts.md`.
 - **Blur** is a flat -1 to the attacker's chance to hit (none for an attacker immune to illusions), not the original's 10% miss for each point of damage.
@@ -600,3 +600,25 @@ The original refuses Raise Volcano in water (message 36, "Volcanoes can not be r
 makes a volcano island, as Armageddon's already do; a ship on the square sinks and those aboard
 are left on the land. Mountains, hills and squares with a node or other site are still refused.
 
+
+## 33. Node base terrains (task 338)
+
+In the original a magic node is two things: the base terrain of its square (`tt_SorceryNode`,
+`tt_NatureNode`, `tt_ChaosNode`) and the node record. Ours has both too: the node is a feature and
+the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain under it
+(`content/terrain.ron`). Food, production and movement are the original's (`Square_Food_x2`,
+`Square_Production_Bonus`, `TERRSTAT.LBX`): sorcery 4 / 0 / 1, nature 4 / 3 / 2, chaos 0 / 5 / 3.
+
+- **Nature node food is 4**, as before (`B16` in `help-vs-implementation-conflicts.md`). The
+  original's in-game `Square_Food_x2` gives 5 and its new-game code (`MAPGEN.c`, also marked there as
+  a bug) 4; we keep 4.
+- **A river is cleared under a node**, since the original's node replaces the river tile.
+- **A nature node is a forest and a chaos node a mountain** wherever the original asks
+  (`Square_Is_Forest`, `Square_Is_Mountain`): Forester and Mountaineer movement, Gaia's Blessing and the
+  battle ground. The original's `Square_Is_Node` tests the sorcery node three times and so finds only
+  that one; ours finds all three.
+- **A chaos node is not a volcano.** Both are drawn with similar art, but a volcano raised by a
+  spell is a mountain square with an owner (a power point a turn for the owner, a 2% chance to cool
+  each turn); a chaos node never changes and has no owner of its own.
+- Change Terrain and Raise Volcano refuse a node square, as the original does. Corruption on a node
+  square is refused by the original (message 41) and not yet by ours (task 350).

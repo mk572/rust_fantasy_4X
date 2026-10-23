@@ -11,4 +11,11 @@
     (id: "swamp",     name: "Swamp",     class: Swamp,     walkable: true,  can_found_city: true,  move_cost: 2, food: 1, production_percent: 0, planes: [Arcanus, Myrror]),
     (id: "desert",    name: "Desert",    class: Desert,    walkable: true,  can_found_city: true,  move_cost: 1, food: 0, production_percent: 3, planes: [Arcanus, Myrror]),
     (id: "tundra",    name: "Tundra",    class: Tundra,    walkable: true,  can_found_city: true,  move_cost: 2, food: 0, production_percent: 0, planes: [Arcanus, Myrror]),
+    // The base terrain of a node's square, as the original's tt_SorceryNode, tt_NatureNode and
+    // tt_ChaosNode (food and production from Square_Food_x2 and Square_Production_Bonus; the
+    // nature node's food is 4, see divergences.md; movement cost as TERRSTAT.LBX: grassland,
+    // forest and mountains). A city may not stand on one: the node feature refuses it.
+    (id: "sorcery_node", name: "Sorcery Node", class: SorceryNode, walkable: true, can_found_city: true, move_cost: 1, food: 4, production_percent: 0, planes: [Arcanus, Myrror]),
+    (id: "nature_node",  name: "Nature Node",  class: NatureNode,  walkable: true, can_found_city: true, move_cost: 2, food: 4, production_percent: 3, planes: [Arcanus, Myrror]),
+    (id: "chaos_node",   name: "Chaos Node",   class: ChaosNode,   walkable: true, can_found_city: true, move_cost: 3, food: 0, production_percent: 5, planes: [Arcanus, Myrror]),
 ]
