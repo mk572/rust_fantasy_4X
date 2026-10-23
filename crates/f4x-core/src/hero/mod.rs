@@ -1,4 +1,7 @@
-//! Heroes (task 219): what a hero unit carries and the abilities it was rolled with.
+//! Heroes (tasks 219 and 326): a hero is an entity of its own that outlives its body. Each wizard
+//! has one hero entity for each of the 35 hero types from the start of the game, holding the
+//! abilities rolled for it, its name, its experience and its state; while it serves it also
+//! carries the unit components (`Unit`, `Position`...), and it loses them when the body dies.
 //!
 //! What the abilities are, so the roster, the save and `unit_abilities` read one type, and what
 //! they do (task 47): one pure function per row of the table in `heroes-items-design.md` 2.3,
@@ -7,7 +10,7 @@
 //! separate [`HeroItems`](crate::item::HeroItems) component.
 
 pub(crate) mod game;
-pub mod roster;
+pub mod kind;
 
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +29,43 @@ pub enum HeroError {
     NoCircle,
     /// The wizard cannot pay the hero's price.
     NoGold,
+}
+
+/// Where a hero is in its wizard's service (the original keeps this in the hero's level: 0 or
+/// more free, `-20` gone, other negatives dead). The entity carries the unit components only
+/// while `Serving`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HeroState {
+    /// Not in anybody's service here: offered by `pick`, summoned, or hired.
+    Free,
+    /// Has a unit in the wizard's army.
+    Serving,
+    /// Fell in battle: Resurrection brings it back.
+    Dead,
+    /// Gone for good (Disintegrate, Banish and the like).
+    Gone,
+}
+
+/// Why a hero left the army.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fate {
+    /// Killed in a fight or by a spell: Dead, and Resurrection can bring it back.
+    Slain,
+    /// Dismissed or let go (no gold to pay it): Free again, with its experience.
+    Released,
+    /// Destroyed so that nothing can bring it back.
+    Gone,
+}
+
+impl Fate {
+    /// The state the hero is in after leaving the army this way.
+    pub fn state(self) -> HeroState {
+        match self {
+            Fate::Slain => HeroState::Dead,
+            Fate::Released => HeroState::Free,
+            Fate::Gone => HeroState::Gone,
+        }
+    }
 }
 
 /// How much of an ability a hero has: the plain one or the doubled ("super") one.
@@ -231,10 +271,14 @@ impl HeroAbilities {
     }
 }
 
-/// The component of a hero unit: what the roster knew of the hero when it was hired. (Its type
-/// is the unit's own `Unit` component; its level comes from its experience.)
+/// The component of a hero entity: what was rolled for it when the game began. (Its experience is
+/// the `Experience` component; its state is [`HeroState`]; while it serves, its unit definition
+/// is the `Unit` component.)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hero {
+    /// The hero type: its index among `Rules::hero_templates`, the one number that names the hero
+    /// to its wizard (a wizard has one hero of each type).
+    pub kind: usize,
     pub name: String,
     pub abilities: HeroAbilities,
     pub casting_skill: u8,

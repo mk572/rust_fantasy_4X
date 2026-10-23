@@ -415,9 +415,9 @@ mod tests {
     }
 
     #[test]
-    fn rolled_hero_rosters_follow_init_heroes() {
+    fn rolled_heroes_follow_init_heroes() {
         use f4x_core::game::rng::GameRng;
-        use f4x_core::hero::roster::{roll, Availability};
+        use f4x_core::hero::kind::roll;
         use f4x_core::hero::{HeroAbilities, Tier};
         use f4x_core::rules::PickType;
         let c =
@@ -450,100 +450,95 @@ mod tests {
                 + i32::from(a.noble)
         };
         let mut distinct = std::collections::BTreeSet::new();
-        for seed in 0..40 {
-            // The wizards are rolled one after the other from the game's stream.
-            let mut rng = GameRng::new(seed);
-            let rosters: Vec<_> = (0..5).map(|player| roll(&mut rng, rules, player)).collect();
-            let mut again = GameRng::new(seed);
-            for (player, roster) in rosters.into_iter().enumerate() {
-                assert_eq!(roster, roll(&mut again, rules, player));
-                assert_eq!(roster.0.len(), 35);
-                for (r, t) in roster.0.iter().zip(&rules.hero_templates) {
-                    assert_eq!(r.state, Availability::Free);
-                    let fixed = HeroAbilities::from_names(&t.abilities);
-                    let gained = steps(&r.abilities) - steps(&fixed)
-                        + (i32::from(r.casting_skill) - t.casting_skill as i32);
-                    // A pick that finds nothing to raise (a second Arcane Power on a hero
-                    // without a magic attack) still counts, so never more than the picks.
-                    assert!(
-                        (0..=t.picks as i32).contains(&gained),
-                        "{} gained {gained} of {} picks",
-                        t.unit,
-                        t.picks
-                    );
-                    assert_eq!(r.spells, t.spells);
-                    // Fixed abilities stay (a pick may double one).
-                    let a = &r.abilities;
-                    for name in [
-                        "leadership",
-                        "legendary",
-                        "blademaster",
-                        "armsmaster",
-                        "constitution",
-                        "might",
-                        "arcane_power",
-                        "prayermaster",
-                        "agility",
-                        "sage",
-                    ] {
-                        assert!(a.tier(name) >= fixed.tier(name), "{} lost {name}", t.unit);
-                    }
-                    assert!(a.lucky >= fixed.lucky && a.charmed >= fixed.charmed);
-                    assert!(a.noble >= fixed.noble && a.female == fixed.female);
-                    let martial = [
-                        a.leadership,
-                        a.legendary,
-                        a.blademaster,
-                        a.armsmaster,
-                        a.constitution,
-                        a.might,
-                        a.agility,
-                    ];
-                    let magic = [a.arcane_power, a.prayermaster, a.sage];
-                    let (f_martial, f_magic) = (
-                        [
-                            fixed.leadership,
-                            fixed.legendary,
-                            fixed.blademaster,
-                            fixed.armsmaster,
-                            fixed.constitution,
-                            fixed.might,
-                            fixed.agility,
-                        ],
-                        [fixed.arcane_power, fixed.prayermaster, fixed.sage],
-                    );
-                    match t.pick_type {
-                        PickType::Mage => {
-                            assert_eq!(martial, f_martial, "{} drew a warrior ability", t.unit)
-                        }
-                        PickType::Warrior => {
-                            assert_eq!(magic, f_magic, "{} drew a mage ability", t.unit);
-                            assert_eq!(i32::from(r.casting_skill), t.casting_skill as i32);
-                        }
-                        PickType::Any => {}
-                    }
-                    // The original's exclusions.
-                    // Arcane Power only goes to a hero with a magic ranged attack.
-                    let unit = rules.units.by_name(&t.unit).unwrap();
-                    if !unit
-                        .abilities
-                        .iter()
-                        .any(|x| f4x_core::hero::roster::MAGIC_RANGED.contains(&x.as_str()))
-                    {
-                        assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
-                    }
-                    if t.unit == "chosen" {
-                        assert!(!a.noble);
-                    }
-                    if unit.abilities.iter().any(|x| x == "magic_immunity") {
-                        assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
-                    }
+        for seed in 0..200 {
+            // The game's heroes are rolled once from its stream, not once for each wizard.
+            let roster = roll(&mut GameRng::new(seed), rules);
+            assert_eq!(roster, roll(&mut GameRng::new(seed), rules));
+            assert_eq!(roster.len(), 35);
+            for (r, t) in roster.iter().zip(&rules.hero_templates) {
+                let fixed = HeroAbilities::from_names(&t.abilities);
+                let gained = steps(&r.abilities) - steps(&fixed)
+                    + (i32::from(r.casting_skill) - t.casting_skill as i32);
+                // A pick that finds nothing to raise (a second Arcane Power on a hero
+                // without a magic attack) still counts, so never more than the picks.
+                assert!(
+                    (0..=t.picks as i32).contains(&gained),
+                    "{} gained {gained} of {} picks",
+                    t.unit,
+                    t.picks
+                );
+                assert_eq!(r.spells, t.spells);
+                // Fixed abilities stay (a pick may double one).
+                let a = &r.abilities;
+                for name in [
+                    "leadership",
+                    "legendary",
+                    "blademaster",
+                    "armsmaster",
+                    "constitution",
+                    "might",
+                    "arcane_power",
+                    "prayermaster",
+                    "agility",
+                    "sage",
+                ] {
+                    assert!(a.tier(name) >= fixed.tier(name), "{} lost {name}", t.unit);
                 }
-                distinct.insert(format!(
-                    "{:?}",
-                    roster.0.iter().map(|r| r.abilities).collect::<Vec<_>>()
-                ));
+                assert!(a.lucky >= fixed.lucky && a.charmed >= fixed.charmed);
+                assert!(a.noble >= fixed.noble && a.female == fixed.female);
+                let martial = [
+                    a.leadership,
+                    a.legendary,
+                    a.blademaster,
+                    a.armsmaster,
+                    a.constitution,
+                    a.might,
+                    a.agility,
+                ];
+                let magic = [a.arcane_power, a.prayermaster, a.sage];
+                let (f_martial, f_magic) = (
+                    [
+                        fixed.leadership,
+                        fixed.legendary,
+                        fixed.blademaster,
+                        fixed.armsmaster,
+                        fixed.constitution,
+                        fixed.might,
+                        fixed.agility,
+                    ],
+                    [fixed.arcane_power, fixed.prayermaster, fixed.sage],
+                );
+                match t.pick_type {
+                    PickType::Mage => {
+                        assert_eq!(martial, f_martial, "{} drew a warrior ability", t.unit)
+                    }
+                    PickType::Warrior => {
+                        assert_eq!(magic, f_magic, "{} drew a mage ability", t.unit);
+                        assert_eq!(i32::from(r.casting_skill), t.casting_skill as i32);
+                    }
+                    PickType::Any => {}
+                }
+                // The original's exclusions.
+                // Arcane Power only goes to a hero with a magic ranged attack.
+                let unit = rules.units.by_name(&t.unit).unwrap();
+                if !unit
+                    .abilities
+                    .iter()
+                    .any(|x| f4x_core::hero::kind::MAGIC_RANGED.contains(&x.as_str()))
+                {
+                    assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
+                }
+                if t.unit == "chosen" {
+                    assert!(!a.noble);
+                }
+                if unit.abilities.iter().any(|x| x == "magic_immunity") {
+                    assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
+                }
             }
+            distinct.insert(format!(
+                "{:?}",
+                roster.iter().map(|r| r.abilities).collect::<Vec<_>>()
+            ));
         }
         assert!(
             distinct.len() > 100,

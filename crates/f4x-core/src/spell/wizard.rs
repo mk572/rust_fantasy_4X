@@ -95,7 +95,7 @@ impl Game {
             }
             let resistance = self.units().unit_resistance_against(unit, Some(realm));
             if resistance_failure(resistance, modifier, rng) > 0 {
-                self.remove_unit(unit, crate::hero::roster::Fate::Slain);
+                self.remove_unit(unit, crate::hero::Fate::Slain);
                 slain += 1;
             }
         }
@@ -121,7 +121,7 @@ impl Game {
             .count() as u32;
         let damage = failed * hits_each;
         if damage >= left {
-            self.remove_unit(unit, crate::hero::roster::Fate::Slain);
+            self.remove_unit(unit, crate::hero::Fate::Slain);
             return true;
         }
         if damage > 0 {
@@ -250,7 +250,7 @@ impl Game {
                     continue;
                 }
                 if rng.roll(100) <= unit_percent {
-                    self.remove_unit(unit, crate::hero::roster::Fate::Slain);
+                    self.remove_unit(unit, crate::hero::Fate::Slain);
                     units_lost += 1;
                 }
             }

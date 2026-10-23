@@ -2393,7 +2393,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
 
 #[test]
 fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
-    use crate::hero::{Hero, HeroAbilities};
+    use crate::hero::Hero;
     use crate::item::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
@@ -2401,17 +2401,11 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     assert_eq!((plain.mana, plain.hero_caster), (0, false));
-    let hero = |skill| Hero {
-        name: "Ann".into(),
-        abilities: HeroAbilities::from_names::<&str>(&[]),
-        casting_skill: skill,
-        spells: Vec::new(),
-    };
     // No casting skill, no mana, whatever the items bring.
-    let _ = g.world.insert_one(unit, hero(0));
+    let unit = hero_unit(&mut g, &[], 0);
     assert_eq!(g.battle_unit_from(unit, Side::Attacker, 0).unwrap().mana, 0);
     // Skill 2 at the first level: (2 + 1) * 1 * 5 / 2.
-    let _ = g.world.insert_one(unit, hero(2));
+    g.world.get::<&mut Hero>(unit).unwrap().casting_skill = 2;
     let bare = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     assert_eq!((bare.mana, bare.hero_caster), (7, true));
     // An item's spell skill adds to it.
@@ -2450,20 +2444,52 @@ fn casting_game() -> Game {
     g
 }
 
-fn a_caster(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
-    use crate::hero::{Hero, HeroAbilities};
-    let walker = g.content.rules.units.id_of("walker").unwrap();
-    let unit = g.spawn_unit(A, at(4, 4), walker);
-    let _ = g.world.insert_one(
-        unit,
+/// A hero of player A that serves at (4, 4), made the way the game makes one: a hero type in the
+/// rules (a walker that is a hero), the hero entity, and hiring it. Skill 0 and the spells it knows
+/// are set after, as the rolled ones would be.
+fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
+    use crate::hero::{Hero, HeroAbilities, HeroState};
+    use crate::rules::{HeroDef, HeroKind, HeroTemplate, PickType, Registry, UnitKind};
+    if g.content.rules.hero_templates.is_empty() {
+        let mut def = g
+            .content
+            .rules
+            .units
+            .get(g.content.rules.units.id_of("walker").unwrap())
+            .clone();
+        def.id = "hero_walker".into();
+        def.kind = UnitKind::Hero;
+        def.race = None;
+        def.hero = Some(HeroDef {
+            kind: HeroKind::Warrior,
+            portrait: 0,
+            hire_cost: 100,
+        });
+        let mut defs = g.content.rules.units.defs().to_vec();
+        defs.push(def);
+        g.content.rules.units = Registry::new(defs);
+        g.content.rules.hero_templates = vec![HeroTemplate {
+            unit: "hero_walker".into(),
+            picks: 0,
+            pick_type: PickType::Warrior,
+            abilities: Vec::new(),
+            casting_skill: 0,
+            spells: Vec::new(),
+            names: vec!["Ann".into()],
+        }];
+    }
+    g.make_hero(
         Hero {
+            kind: 0,
             name: "Ann".into(),
-            abilities: HeroAbilities::from_names::<&str>(&[]),
+            abilities: HeroAbilities::default(),
             casting_skill: skill,
             spells: spells.iter().map(|s| s.to_string()).collect(),
         },
+        HeroState::Free,
+        0,
     );
-    unit
+    g.spawn_hero(A, at(4, 4), 0).unwrap()
 }
 
 fn begin(g: &mut Game, attacker: hecs::Entity) {
@@ -2565,7 +2591,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
 #[test]
 fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
     let mut g = casting_game();
-    let hero = a_caster(&mut g, &["fire_bolt", "healing"], 2);
+    let hero = hero_unit(&mut g, &["fire_bolt", "healing"], 2);
     begin(&mut g, hero);
     let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
     let mend = g.content.rules.spells.id_of("healing").unwrap();
@@ -2634,7 +2660,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     use crate::item::{HeroItems, Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = casting_game();
-    let hero = a_caster(&mut g, &[], 0);
+    let hero = hero_unit(&mut g, &[], 0);
     let wand = |slot_name: &str| Item {
         name: slot_name.into(),
         kind: ItemKind::Wand,
@@ -2745,7 +2771,7 @@ fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
 /// battle is on; the enemy is battle unit 1.
 fn hook_game(id: &str) -> Game {
     let mut g = casting_game();
-    let hero = a_caster(&mut g, &[id], 4);
+    let hero = hero_unit(&mut g, &[id], 4);
     begin(&mut g, hero);
     g.battle.as_mut().unwrap().battle.units[0].mana = 1000;
     g

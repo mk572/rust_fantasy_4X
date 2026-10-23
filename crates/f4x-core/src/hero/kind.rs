@@ -1,15 +1,10 @@
-//! A wizard's hero roster (task 219): one record for each of the 35 hero types, kept in every
-//! wizard's game, with the abilities rolled when the game started (`Init_Heroes`), whether the
-//! hero can be hired, is serving, is dead, or is gone for good, and the experience it keeps
-//! from one service to the next.
-//!
-//! These are plain functions over the records and the rules; the game's side (spawning the
-//! unit, removing it, the gold) is in `hero/game.rs`.
-
-use serde::{Deserialize, Serialize};
+//! The hero types (task 219): the rules over `Rules::hero_templates` that do not need the game's
+//! world: which unit a type is, its level and hire price, how a wizard's heroes are rolled when the
+//! game starts (`Init_Heroes`) and which one is offered or summoned (`Pick_Random_Hero`). The
+//! heroes themselves are entities (`hero/game.rs`).
 
 use crate::game::rng::GameRng;
-use crate::hero::{HeroAbilities, Tier};
+use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
 use crate::rules::{HeroTemplate, PickType, Rules, UnitId};
 
 /// How many heroes a wizard may have at once (`NUM_HERO_SLOTS`).
@@ -20,31 +15,6 @@ pub const MAX_HEROES: usize = 6;
 pub const HEROES: usize = 24;
 pub const CHAMPIONS: usize = 10;
 
-/// Whether a hero can be hired now (the original keeps this in the hero's level: 0 or more
-/// free, `-20` gone, other negatives dead).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Availability {
-    /// Not in anybody's service here: offered by `pick`, summoned, or hired.
-    Free,
-    /// Has a unit in the wizard's army.
-    Serving,
-    /// Fell in battle: Resurrection brings it back.
-    Dead,
-    /// Gone for good (Disintegrate, Banish and the like).
-    Gone,
-}
-
-/// Why a hero left the army.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Fate {
-    /// Killed in a fight or by a spell: Dead, and Resurrection can bring it back.
-    Slain,
-    /// Dismissed or let go (no gold to pay it): Free again, with its experience.
-    Released,
-    /// Destroyed so that nothing can bring it back.
-    Gone,
-}
-
 /// Which heroes `pick` draws from (`hero_type_class`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Class {
@@ -54,65 +24,6 @@ pub enum Class {
     Hero,
     /// One of the 10 champions; if none is available, any.
     Champion,
-}
-
-/// One hero type in one wizard's game.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HeroRecord {
-    pub state: Availability,
-    pub abilities: HeroAbilities,
-    pub casting_skill: u8,
-    /// The innate spells (ids in `spells.ron`).
-    pub spells: Vec<String>,
-    /// The hero's name in this wizard's game; the player renames a hired hero (task 143).
-    pub name: String,
-    /// Experience points kept while the hero is free or dead.
-    pub xp: u32,
-}
-
-/// On a player: the records of its wizard's heroes, in the order of `Rules::hero_templates`.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Roster(pub Vec<HeroRecord>);
-
-impl Roster {
-    pub fn get(&self, kind: usize) -> Option<&HeroRecord> {
-        self.0.get(kind)
-    }
-
-    pub fn get_mut(&mut self, kind: usize) -> Option<&mut HeroRecord> {
-        self.0.get_mut(kind)
-    }
-
-    /// The hero types with this state, in order.
-    pub fn with_state(&self, state: Availability) -> Vec<usize> {
-        (0..self.0.len())
-            .filter(|&k| self.0[k].state == state)
-            .collect()
-    }
-
-    /// Heroes that fell and can be resurrected (`Player_Dead_Hero_Count` counts them).
-    pub fn dead(&self) -> Vec<usize> {
-        self.with_state(Availability::Dead)
-    }
-
-    /// A hero joined the army.
-    pub fn on_hired(&mut self, kind: usize) {
-        if let Some(r) = self.get_mut(kind) {
-            r.state = Availability::Serving;
-        }
-    }
-
-    /// A hero left the army with `xp` experience points, which it keeps unless it is gone.
-    pub fn on_dead(&mut self, kind: usize, xp: u32, fate: Fate) {
-        if let Some(r) = self.get_mut(kind) {
-            r.xp = xp;
-            r.state = match fate {
-                Fate::Slain => Availability::Dead,
-                Fate::Released => Availability::Free,
-                Fate::Gone => Availability::Gone,
-            };
-        }
-    }
 }
 
 /// The hero type of a unit: its index among `Rules::hero_templates`.
@@ -163,21 +74,20 @@ pub fn hire_cost(cost: i32, level: usize, charismatic: bool) -> i32 {
     }
 }
 
-/// The record of every hero type for the wizard `player` (0-based among the wizards), as
-/// `Init_Heroes` makes it: the template's fixed abilities, then the template's picks, one
+/// The 35 heroes of the game, as `Init_Heroes` makes them (once for the game, not for each
+/// wizard: a hero is one individual that any wizard may hire): the template's fixed abilities, then the template's picks, one
 /// `Random(14)` draw at a time. The draws are made in the original's order (hero type by hero
 /// type), so a seed gives the same result whatever else the game rolls.
-pub fn roll(rng: &mut GameRng, rules: &Rules, player: usize) -> Roster {
-    Roster(
-        rules
-            .hero_templates
-            .iter()
-            .map(|t| roll_one(rng, rules, t, player))
-            .collect(),
-    )
+pub fn roll(rng: &mut GameRng, rules: &Rules) -> Vec<Hero> {
+    rules
+        .hero_templates
+        .iter()
+        .enumerate()
+        .map(|(kind, t)| roll_one(rng, rules, kind, t))
+        .collect()
 }
 
-fn roll_one(rng: &mut GameRng, rules: &Rules, t: &HeroTemplate, player: usize) -> HeroRecord {
+fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> Hero {
     let def = rules.units.id_of(&t.unit).map(|id| rules.units.get(id));
     let has = |ability: &str| def.is_some_and(|d| d.abilities.iter().any(|a| a == ability));
     let mut abilities = HeroAbilities::from_names(&t.abilities);
@@ -269,19 +179,20 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, t: &HeroTemplate, player: usize) -
             mage -= 1;
         }
     }
+    // The original gives a hero a name for each of the five wizards' games; there is one hero
+    // here, so it has the first.
     let name = t
         .names
-        .get(player % t.names.len().max(1))
+        .first()
         .cloned()
         .or_else(|| def.map(|d| d.name.clone()))
         .unwrap_or_else(|| t.unit.clone());
-    HeroRecord {
-        state: Availability::Free,
+    Hero {
+        kind,
+        name,
         abilities,
         casting_skill: skill.clamp(0, i32::from(u8::MAX)) as u8,
         spells: t.spells.clone(),
-        name,
-        xp: 0,
     }
 }
 
@@ -293,14 +204,15 @@ pub struct Standing {
     pub death_books: i32,
 }
 
-/// Whether the hero type `kind` can be offered to the wizard now: free, within its fame, and
+/// Whether the hero type `kind` can be offered to the wizard now (`states` is the state of each
+/// type, in order): free, within its fame, and
 /// the books it needs (the priestess and paladin a life book, the black knight and the
 /// necromancer a death book).
-pub fn can_offer(rules: &Rules, roster: &Roster, kind: usize, standing: &Standing) -> bool {
-    let (Some(record), Some(unit)) = (roster.get(kind), unit_of(rules, kind)) else {
+pub fn can_offer(rules: &Rules, states: &[HeroState], kind: usize, standing: &Standing) -> bool {
+    let (Some(state), Some(unit)) = (states.get(kind), unit_of(rules, kind)) else {
         return false;
     };
-    if record.state != Availability::Free {
+    if *state != HeroState::Free {
         return false;
     }
     let def = rules.units.get(unit);
@@ -320,7 +232,7 @@ pub fn can_offer(rules: &Rules, roster: &Roster, kind: usize, standing: &Standin
 pub fn pick(
     rng: &mut GameRng,
     rules: &Rules,
-    roster: &Roster,
+    states: &[HeroState],
     standing: &Standing,
     zero_cost: bool,
     class: Class,
@@ -342,7 +254,7 @@ pub fn pick(
                 Class::Hero => rng.roll(HEROES as u32) - 1,
                 Class::Champion => HEROES as u32 - 1 + rng.roll(CHAMPIONS as u32),
             } as usize;
-            if can_offer(rules, roster, kind, standing) {
+            if can_offer(rules, states, kind, standing) {
                 return Some(kind);
             }
             if attempts >= max_attempts {
@@ -367,31 +279,5 @@ mod tests {
         assert_eq!(hire_cost(100, 4, false), 200);
         assert_eq!(hire_cost(300, 2, false), 450);
         assert_eq!(hire_cost(300, 2, true), 225);
-    }
-
-    #[test]
-    fn leaving_the_army_sets_the_state_and_keeps_the_experience() {
-        let rec = |state| HeroRecord {
-            state,
-            abilities: HeroAbilities::default(),
-            casting_skill: 0,
-            spells: Vec::new(),
-            name: "H".into(),
-            xp: 0,
-        };
-        let mut r = Roster(vec![rec(Availability::Free); 4]);
-        r.on_hired(0);
-        r.on_hired(1);
-        r.on_hired(2);
-        assert_eq!(r.get(0).unwrap().state, Availability::Serving);
-        r.on_dead(0, 120, Fate::Slain);
-        r.on_dead(1, 80, Fate::Released);
-        r.on_dead(2, 60, Fate::Gone);
-        assert_eq!(r.dead(), vec![0]);
-        assert_eq!(r.get(0).unwrap().xp, 120);
-        assert_eq!(r.get(1).unwrap().state, Availability::Free);
-        assert_eq!(r.get(1).unwrap().xp, 80);
-        assert_eq!(r.get(2).unwrap().state, Availability::Gone);
-        assert_eq!(r.with_state(Availability::Free), vec![1, 3]);
     }
 }

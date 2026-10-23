@@ -302,7 +302,7 @@ impl Game {
         if self.units().hero_kind(unit).is_some() {
             events.push(Event::HeroLeft { player, hero: kind });
             let items = self.hero_slot_items(unit);
-            self.remove_unit(unit, crate::hero::roster::Fate::Released);
+            self.remove_unit(unit, crate::hero::Fate::Released);
             for (_, item) in items {
                 let mana = item.anvil_mana();
                 if self.give_item(player, item) == crate::item::armory::Placed::Lost {
@@ -328,7 +328,7 @@ impl Game {
                 let _ = self.world.remove_one::<Aboard>(p);
             }
         }
-        self.remove_unit(unit, crate::hero::roster::Fate::Released);
+        self.remove_unit(unit, crate::hero::Fate::Released);
         events
     }
 }

@@ -150,10 +150,10 @@ and not worked around, and names are singular.
 
 | Entity | Module | Components | Built in |
 |---|---|---|---|
-| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Armory` and `Roster` (until tasks 328 and 327 replace them), `Serial` | 311, 313, 314, 317 |
+| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Armory`, `Serial` | 311, 313, 314, 317, 327 |
 | **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` | 312, 315, 316 |
 | **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
-| **Hero** | `hero/` | `Hero` (name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroSlots` of items, `Serial`; the unit components while serving | 326 to 328 |
+| **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroItems` (until 333), `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
 | **Terrain feature** | `feature/` | `TerrainFeature(FeatureId)`, `Position`, `Serial`; `Node`, `Site`, `Volcano` by kind; `Owner` where owned | 329 to 332, 338 |
@@ -232,15 +232,32 @@ work and leaves no entity.
 
 ### 3.5 Hero
 
-A hero is an entity that outlives its body. The roster of 35 records goes; a hero type nobody has
-hired is a definition, and a hero that has been hired is an entity.
+A hero is an individual, and an entity that outlives its body. There is **one hero of each of the 35
+types in the whole game**, made when the game starts with the abilities and casting skill that
+`Init_Heroes` rolled for it (rolled once for the game, not for each wizard). No wizard owns a hero
+until it is hired; the roster of per-wizard records is gone.
 
-- `HeroState`: `Serving`, `Dead` (can be resurrected or recalled), `Gone` (lost for good).
-- While serving, the hero carries the unit components (`Unit`, `Position`, `MovesLeft`...) and is
-  found by any unit query. When the body dies the unit components are removed and the state becomes
-  `Dead`; abilities, experience, name and spells stay on the entity. `hero::game::remove_unit`
-  stays the one exit path.
-- A wizard has at most six heroes; the count is a query over the player's hero entities.
+- `HeroState`: `Free` (no one's: it may be offered, summoned or hired; also a hero that was let go,
+  with the experience it has), `Serving` (one wizard's: no other wizard can hire, be offered or
+  summon it), `Dead` (no one's; any wizard may raise it with Resurrection), `Gone` (lost for good).
+- The entity is `Serial`, `Hero`, `HeroState`, `Experience`. Serving, it also has `Owner` (the
+  wizard's player) and the unit components (`Unit`, `Position`, `MovesLeft`, `Hurt`...), and is found
+  by any unit query. When the body leaves, `remove_unit` takes the owner and the unit components off
+  (the entity keeps its handle and serial) and sets the state by the way it left (`Fate`): `Dead`,
+  `Free` or `Gone`. The spells on the body go with it. `hero::game::remove_unit` stays the one exit.
+- **A hero is named by its type number** (`Hero.kind`, the index in `Rules::hero_templates`): it is
+  unique in the game, so offers, events, `Command::ResurrectHero` and the save use that number and
+  the log needs no serial for a hero. (This replaces the rule in 3.9 for heroes.) A cast of
+  Resurrection holds the hero entity (`Raising(Entity)`); if another wizard raises the hero first,
+  the cast finds nobody and fails like any summoning that finds nobody.
+- Hiring a hero takes it off every wizard's offers. An offer that is answered after the hero was
+  taken is refused.
+- A wizard has at most six heroes serving; `open_hero_slots` counts the entities with a body.
+- A wizard that is defeated lets its heroes go: they are `Free` again with their experience (their
+  items go with the wizard).
+- The hero's own spell list stays a list of spell ids on `Hero`: a hero's casts happen in a battle
+  (`Battle`, 3.4), and nothing it knows lasts on the map, so there is no spell instance to make.
+  The armory is a component of the player entity already (task 313).
 
 ### 3.6 Terrain feature
 

@@ -1,5 +1,10 @@
 # Heroes and items: design
 
+> Since the entity rework (tasks 326 to 328) the per-wizard roster of records is gone: the game has
+> one hero entity of each type, an individual that any wizard may hire while it is free
+> (`hero/kind.rs` for the rules, `hero/game.rs` for the entities); see `ecs-structure.md` 3.5. Where
+> this document says a wizard's roster, read the game's heroes and which of them the wizard serves.
+
 Plan for tasks 47 to 51 and the parts of 72, 127, 128, 138 to 143, 174 and 175 that wait for them.
 Built so far: the data (task 218), the item rules and armory (task 49: `item/mod.rs`, `item/armory.rs`),
 crafting (task 50: `item/crafting.rs`) and the roster and hero component (task 219: `hero/roster.rs`, `hero/mod.rs`,

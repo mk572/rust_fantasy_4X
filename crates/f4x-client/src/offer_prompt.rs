@@ -59,11 +59,9 @@ impl App {
         };
         if self.offer_ui.shown.as_ref() != Some(&offer) {
             self.offer_ui.name = match &offer {
-                Offer::Hero { kind, .. } => self
-                    .game
-                    .roster(HUMAN)
-                    .and_then(|r| r.get(*kind).map(|r| r.name.clone()))
-                    .unwrap_or_default(),
+                Offer::Hero { kind, .. } => {
+                    self.game.units().hero_type_name(*kind).unwrap_or_default()
+                }
                 _ => String::new(),
             };
             self.offer_ui.naming = false;
@@ -159,15 +157,8 @@ impl App {
                     .hero_templates
                     .get(*kind)
                     .and_then(|t| rules.units.by_name(&t.unit));
-                let level = self
-                    .game
-                    .roster(HUMAN)
-                    .zip(f4x_core::hero::roster::unit_of(&rules, *kind))
-                    .and_then(|(r, u)| {
-                        r.get(*kind)
-                            .map(|rec| f4x_core::hero::roster::level_of(&rules, u, rec.xp))
-                    });
-                (unit, level)
+                let level = self.game.units().hero_kept_level(*kind);
+                (unit, Some(level))
             }
             Offer::Mercenaries { unit, level, .. } => {
                 (rules.units.by_name(unit), Some(usize::from(*level)))

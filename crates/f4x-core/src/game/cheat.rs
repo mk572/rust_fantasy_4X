@@ -16,7 +16,7 @@ impl Game {
     /// Remove a unit from the game.
     pub fn cheat_remove_unit(&mut self, unit: hecs::Entity) -> bool {
         let there = self.world.contains(unit);
-        self.remove_unit(unit, crate::hero::roster::Fate::Released);
+        self.remove_unit(unit, crate::hero::Fate::Released);
         there
     }
 

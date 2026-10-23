@@ -190,7 +190,7 @@ impl Game {
             grid.set_volcano(at.x, at.y, Some(owner));
         }
         for ship in ships {
-            self.remove_unit(ship, crate::hero::roster::Fate::Slain);
+            self.remove_unit(ship, crate::hero::Fate::Slain);
         }
         for unit in self.units().units_at(at) {
             let _ = self
@@ -247,7 +247,7 @@ impl Game {
         let mut units_lost = 0;
         for unit in self.units().units_at(at) {
             if rng.next_u32() % 100 < ARMAGEDDON_CITY_PERCENT {
-                self.remove_unit(unit, crate::hero::roster::Fate::Slain);
+                self.remove_unit(unit, crate::hero::Fate::Slain);
                 units_lost += 1;
             }
         }

@@ -69,7 +69,7 @@ short, the entities of the game are:
 | **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters | tasks 311, 313, 314, 317 (the `Player` struct is gone; `Armory` and `Roster` are components until tasks 327 and 328) |
 | **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment | tasks 312, 315, 316. The casting, crafting, raising and global-spell lists stay in a transitional `Magic` component until tasks 319 to 322 |
 | **Unit** | definition id, owner, position, damage, experience, moves, orders, temporary state | exists |
-| **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328. Today a unit with a `Hero` component and a roster record |
+| **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328, done: one hero entity of each of the 35 types in the whole game, with a state (free, serving one wizard, dead, gone) |
 | **City** | name, owner, position, population, buildings, race, production | exists |
 | **Spell instance** | spell definition, caster (a wizard), target (global, wizard, city, unit, feature, square, battlefield), duration | tasks 318 to 325. Today bare spell ids in eight containers |
 | **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner | tasks 329 to 332 and 338. Today `Grid.features`, `Map.nodes`, `Map.lairs`, `tower_owners`, `volcanoes` |

@@ -260,8 +260,11 @@ Where the item rules differ from the original's code or are read from ReMoM with
   ability drawn on its own.
 - **Noble, Charmed and Lucky are general.** As in the original they ignore the warrior and mage
   budgets (any hero type can draw them); Torin never draws Noble.
-- **Which wizards roll.** Every wizard gets a roster, in player order; the original rolls its
-  five wizard slots. Independent cities' players have none. The roll comes last in `new_game`,
+- **One set of heroes for the game.** The original keeps a roster for each of its five wizard slots,
+  so two wizards can both have the same hero. Here a hero is an individual: the 35 heroes are rolled
+  once for the game, a hired hero serves one wizard and no other can hire it, a hero let go is free
+  for anyone with the experience it has, and a dead one can be raised by any wizard with
+  Resurrection. A hero's name is the first of the original's five. The roll comes last in `new_game`,
   after the map and the starting cities, so those stay as they were; every later draw of a seed
   moves once, and the soak numbers in `ai-design.md` were not regenerated.
 - **A hero that flees and is lost, or is killed by a spell, is `Dead`** and can be resurrected
@@ -507,7 +510,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   cheapest units, loaded ships and heroes last). Independent cities pay upkeep like everyone and
   are settled by the turn change as they were.
 - Food comes before gold, and a unit let go for food no longer counts for gold.
-- Heroes can be let go (the original never does): they return to the roster and may be hired again,
+- Heroes can be let go (the original never does): they are free again, for any wizard to hire,
   and their items come home to the armory. Items that do not fit are the owner's to disband for
   mana (the AI: the cheapest). Task 293 (a bigger armory) and 294 (selling items) follow.
 - A ship let go with passengers aboard turns neutral and sails, a turn's worth at a time, for the

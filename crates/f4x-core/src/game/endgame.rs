@@ -223,9 +223,10 @@ impl Game {
     /// nodes are freed, and the conqueror takes half their gold.
     pub(crate) fn aftermath(&mut self, loser: PlayerId, winner: PlayerId) {
         // A defeated wizard has no city left, so none of their units is garrisoned: they are
-        // all dismissed (the original turns garrisoned normal units neutral first).
+        // all dismissed (the original turns garrisoned normal units neutral first). A hero that
+        // served them is free again, with its experience, for the others to hire.
         for u in self.units().player_units(loser) {
-            self.remove_unit(u, crate::hero::roster::Fate::Gone);
+            self.remove_unit(u, crate::hero::Fate::Released);
         }
         if let Some(map) = self.map.as_mut() {
             for i in 0..map.nodes().len() {

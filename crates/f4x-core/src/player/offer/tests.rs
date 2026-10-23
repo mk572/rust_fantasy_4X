@@ -208,7 +208,7 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
     assert_eq!(g.units().units_at(at(1, 1)).len(), before + count as usize);
     let xp = g.world.get::<&Experience>(units[0]).unwrap().0;
     assert_eq!(
-        crate::hero::roster::level_of(
+        crate::hero::kind::level_of(
             &g.content.rules,
             g.content.rules.units.id_of(&unit).unwrap(),
             xp
@@ -241,13 +241,7 @@ fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
     let events = g.accept_offer(P0, i, Some("Rex".into())).unwrap();
     assert!(matches!(events[..], [Event::HeroJoined { kind: k, .. }] if k == kind));
     assert_eq!(g.tr(0).gold, gold - price);
-    assert_eq!(
-        g.pl::<crate::hero::roster::Roster>(0)
-            .get(kind)
-            .unwrap()
-            .name,
-        "Rex"
-    );
+    assert_eq!(g.units().hero_type_name(kind).as_deref(), Some("Rex"));
     assert_eq!(g.units().hero_units(P0).len(), 1);
 }
 

@@ -749,11 +749,11 @@ impl App {
                     "{} is ready: choose its target (M)",
                     self.game.content().rules.spells.get(spell).name
                 )),
-                Event::HeroJoined { player, kind, .. } => {
+                Event::HeroJoined { kind, .. } => {
                     let name = self
                         .game
-                        .roster(player)
-                        .and_then(|r| r.get(kind).map(|r| r.name.clone()))
+                        .units()
+                        .hero_type_name(kind)
                         .unwrap_or_else(|| "A hero".to_string());
                     Some(format!("{name} joins your army"))
                 }

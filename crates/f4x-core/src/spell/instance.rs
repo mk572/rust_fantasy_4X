@@ -62,7 +62,7 @@ pub struct Crafting(pub crate::item::Item);
 
 /// On a cast in progress: the dead hero (a roster index) Resurrection is bringing back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Raising(pub usize);
+pub struct Raising(pub hecs::Entity);
 
 /// A read handle on the spell instances of a world.
 #[derive(Clone, Copy)]
@@ -343,12 +343,18 @@ impl Game {
     /// Remove an entity, and with it every spell instance that is on it. Every unit, city and
     /// feature goes through here, so that no instance has a target that is gone.
     pub(crate) fn despawn_with_spells(&mut self, entity: hecs::Entity) {
+        self.despawn_spells_on(entity);
+        let _ = self.world.despawn(entity);
+    }
+
+    /// Remove every spell instance that is on `entity` (a hero's body that died keeps the hero's
+    /// entity, but not the spells that were on the body).
+    pub(crate) fn despawn_spells_on(&mut self, entity: hecs::Entity) {
         for instance in self.spells().all() {
             if self.spells().target(instance).and_then(SpellTarget::entity) == Some(entity) {
                 self.despawn_spell(instance);
             }
         }
-        let _ = self.world.despawn(entity);
     }
 
     /// Remove every instance a wizard cast (the wizard is defeated).

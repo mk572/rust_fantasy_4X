@@ -43,16 +43,15 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() {
     g.give_item(P0, item("Sword", 100));
     let events = g.release_troops(P0, &[a], &[]).unwrap();
     assert!(g.treasury_shortfall(P0).is_none());
-    assert!(!g.world.contains(a) && g.world.contains(b));
+    assert!(g.world.get::<&crate::unit::Unit>(a).is_err() && g.world.contains(b));
     assert!(events.iter().any(|e| matches!(e, Event::HeroLeft { .. })));
     assert!(events.contains(&Event::Shortage {
         player: P0,
         what: Shortage::Gold
     }));
-    use crate::hero::roster::Availability;
     assert_eq!(
-        g.pl::<crate::hero::roster::Roster>(0).get(0).unwrap().state,
-        Availability::Free
+        crate::hero::game::tests::state(&g, 0),
+        crate::hero::HeroState::Free
     );
 }
 

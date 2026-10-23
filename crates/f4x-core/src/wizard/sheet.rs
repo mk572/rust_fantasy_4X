@@ -203,8 +203,8 @@ impl<'a> Wizard<'a> {
         Some(self.world().get::<&Crafting>(cast).ok()?.0.clone())
     }
 
-    /// The dead hero (a roster index) Resurrection is bringing back while its cost is paid.
-    pub fn raising(&self) -> Option<usize> {
+    /// The dead hero Resurrection is bringing back while its cost is paid.
+    pub fn raising(&self) -> Option<hecs::Entity> {
         let cast = Spells::new(self.world()).cast_of(self.entity())?;
         Some(self.world().get::<&Raising>(cast).ok()?.0)
     }
@@ -788,9 +788,9 @@ impl<'a> WizardMut<'a> {
     }
 
     /// The dead hero being brought back is kept with the cast until it is paid.
-    pub fn set_raising(&mut self, kind: usize) {
+    pub fn set_raising(&mut self, hero: hecs::Entity) {
         if let Some(cast) = self.cast() {
-            let _ = self.world.insert_one(cast, Raising(kind));
+            let _ = self.world.insert_one(cast, Raising(hero));
         }
     }
 
@@ -801,7 +801,7 @@ impl<'a> WizardMut<'a> {
     }
 
     /// The dead hero the cast was bringing back.
-    pub fn take_raising(&mut self) -> Option<usize> {
+    pub fn take_raising(&mut self) -> Option<hecs::Entity> {
         let cast = self.cast()?;
         self.world.remove_one::<Raising>(cast).ok().map(|r| r.0)
     }

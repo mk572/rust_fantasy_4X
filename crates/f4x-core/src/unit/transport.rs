@@ -202,16 +202,16 @@ impl Game {
             let (Some(mut at), Some(&first)) =
                 (self.units().unit_position(ship), passengers.first())
             else {
-                self.remove_unit(ship, crate::hero::roster::Fate::Released);
+                self.remove_unit(ship, crate::hero::Fate::Released);
                 continue;
             };
             let owner = self.units().unit_owner(first).unwrap_or(MONSTERS);
             let Some((path, landing)) = self.nearest_landing(ship, at, owner, &passengers) else {
                 let lost = passengers.len() as u32;
                 for p in passengers {
-                    self.remove_unit(p, crate::hero::roster::Fate::Slain);
+                    self.remove_unit(p, crate::hero::Fate::Slain);
                 }
-                self.remove_unit(ship, crate::hero::roster::Fate::Released);
+                self.remove_unit(ship, crate::hero::Fate::Released);
                 events.push(Event::UnitsDrowned {
                     player: owner,
                     units: lost,
@@ -240,7 +240,7 @@ impl Game {
                     let _ = self.world.remove_one::<Aboard>(p);
                     let _ = self.world.insert_one(p, landing);
                 }
-                self.remove_unit(ship, crate::hero::roster::Fate::Released);
+                self.remove_unit(ship, crate::hero::Fate::Released);
                 events.push(Event::ShipLanded {
                     player: owner,
                     units: passengers.len() as u32,
@@ -318,7 +318,7 @@ impl Game {
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         for (owner, unit) in self.economy().stranded() {
-            self.remove_unit(unit, crate::hero::roster::Fate::Slain);
+            self.remove_unit(unit, crate::hero::Fate::Slain);
             events.push(Event::UnitsDrowned {
                 player: owner,
                 units: 1,

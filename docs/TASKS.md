@@ -69,9 +69,6 @@ neighbours.
 
 | # | Area | Summary |
 |---|---|---|
-| 326 | Hero | Hero entity that outlives its unit body |
-| 327 | Hero | Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
-| 328 | Hero | Hero spells as spell instances; the armory moves to the player |
 | 329 | Feature | Terrain feature entity: position index, mapgen as a placement list, minerals and encounter markers |
 | 330 | Feature | Node entity |
 | 331 | Feature | Lair and site entity, tower on both planes, loot |
@@ -87,21 +84,6 @@ neighbours.
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 
 ## Descriptions
-
-### D. Hero
-
-**326. Hero entity.** A `Hero` entity with `HeroState`, abilities, experience, casting skill and
-spells, linked to its unit body while it serves (`Unit` and `Position` only then). Replaces the
-`Hero` component copied from the roster record at hiring. *Needs:* 317.
-
-**327. Hero slots, hiring, recall and resurrection over hero entities.** The six slots, hire, recall,
-resurrect and `Offer::Hero` work on hero entities. `Roster`, `HeroRecord`, `Availability` and the
-roster index in `Magic.raising` go away. `hero::game::remove_unit` stays the single exit path for a
-hero's body. *Needs:* 326.
-
-**328. Hero spells and the armory.** The hero's own spells (a hero's casting skill and its spell
-list) cast as spell instances; the armory (vault slots and awards) moves from `Player` to the player
-entity's components. The items themselves stay plain structs until 333. *Needs:* 327 and 318.
 
 ### E. Terrain feature
 

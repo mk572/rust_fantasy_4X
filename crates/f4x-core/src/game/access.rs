@@ -201,7 +201,7 @@ impl Game {
 
     /// Remove a unit from the game.
     pub fn scenario_remove_unit(&mut self, unit: hecs::Entity) {
-        self.remove_unit(unit, crate::hero::roster::Fate::Released);
+        self.remove_unit(unit, crate::hero::Fate::Released);
     }
 
     /// Put a building in a city, or take it out, as a scenario sets it up (no cost, no

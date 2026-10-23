@@ -227,6 +227,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 323 | Spell | ~~Map-square spells and lasting world events~~ (done) |
 | 324 | Spell | ~~Battlefield enchantments in the battle's own world~~ (done: decided to stay as they are) |
 | 325 | Spell | ~~Dispel, upkeep and removal in one place~~ (done) |
+| 326 | Hero | (done) Hero entity that outlives its unit body |
+| 327 | Hero | (done) Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
+| 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 
 ## Descriptions
@@ -553,6 +556,38 @@ them. Revisit when battles are saved (task 99).
 **325. (done) Dispel, upkeep and removal in one place.** `dispel.rs`, the mana upkeep and "caster banished or
 defeated" become queries over spell instances. Remove the old containers and the transitional
 component. *Needs:* 319 to 324.
+
+**326. (done) Hero entity.** A `Hero` entity with `HeroState`, abilities, experience, casting skill and
+spells, linked to its unit body while it serves (`Unit` and `Position` only then). Replaces the
+`Hero` component copied from the roster record at hiring. *Needs:* 317.
+
+*Done:* one hero entity of each of the 35 types in the whole game, made at its start and rolled once
+(a hero is an individual: the design had a roster per wizard, which was wrong). `Hero` has its type
+number, `HeroState` its state (`Free`, `Serving`, `Dead`, `Gone`); only a serving hero has `Owner` and
+the unit components, added at hiring and taken off by `remove_unit`, which keeps the entity.
+
+**327. (done) Hero slots, hiring, recall and resurrection over hero entities.** The six slots, hire, recall,
+resurrect and `Offer::Hero` work on hero entities. `Roster`, `HeroRecord`, `Availability` and the
+roster index in `Magic.raising` go away. `hero::game::remove_unit` stays the single exit path for a
+hero's body. *Needs:* 326.
+
+*Done:* `Roster`, `HeroRecord` and `Availability` are gone (`hero/roster.rs` is `hero/kind.rs`, the
+rules without the records). Hiring, summoning, offers and Resurrection look the hero entity up by its
+type number (`UnitView::hero_entity`); a hero is named by that number in offers, events and
+`Command::ResurrectHero`, which keeps the replay format (design 3.5 says why). Hiring takes a hero off
+all offers; a hero let go or whose wizard was defeated is free for any wizard; any wizard can raise a
+dead one. A cast of Resurrection holds the hero entity (`Raising(Entity)`). The save keeps its layout
+otherwise: a top-level `heroes` list with serials replaces the per-player roster, and a serving
+hero's `UnitSave` has the same serial and says whose it is.
+
+**328. (done) Hero spells and the armory.** The hero's own spells (a hero's casting skill and its spell
+list) cast as spell instances; the armory (vault slots and awards) moves from `Player` to the player
+entity's components. The items themselves stay plain structs until 333. *Needs:* 327 and 318.
+
+*Done, with two points where the design wins:* the armory was made a component of the player entity in
+task 313 already; and a hero's spell list stays a list of ids on `Hero`, because a hero casts only in
+a battle (whose enchantments stay in `Battle`, task 324) and nothing it knows lasts on the map, so there
+is no spell instance to make.
 
 **340. (done) One art folder per spell.** The extracted art is one folder per source `.lbx` in
 `assets-local/art/` (`specfx` 503 files, `cmbtfx` 312, `spellscr` 255, `special` 107, `special2` 44,

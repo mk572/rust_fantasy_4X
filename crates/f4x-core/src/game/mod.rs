@@ -369,12 +369,6 @@ impl Game {
     }
 
     #[cfg(test)]
-    pub(crate) fn pl_mut<C: hecs::Component>(&mut self, i: usize) -> &mut C {
-        let id = self.player_ids()[i];
-        self.player_component_mut(id).unwrap()
-    }
-
-    #[cfg(test)]
     pub(crate) fn wiz_mut(&mut self, i: usize) -> wizard::sheet::WizardMut<'_> {
         let id = self.player_ids()[i];
         self.wizard_mut(id).unwrap()

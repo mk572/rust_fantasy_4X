@@ -520,7 +520,7 @@ impl Game {
         {
             return Vec::new();
         }
-        self.remove_unit(unit, crate::hero::roster::Fate::Released);
+        self.remove_unit(unit, crate::hero::Fate::Released);
         vec![Event::UnitsDisbanded {
             player: owner,
             units: 1,

@@ -304,7 +304,7 @@ impl Game {
             // An independent city's player goes with its city: the garrison is gone or
             // dismissed, and the treasury stays behind.
             for u in self.units().player_units(loser) {
-                self.remove_unit(u, crate::hero::roster::Fate::Released);
+                self.remove_unit(u, crate::hero::Fate::Released);
             }
             self.remove_player(loser);
         } else if self.economy().city_count(loser) == 0 {
@@ -403,7 +403,7 @@ impl Game {
             if normal {
                 self.set_owner(u, neutral);
             } else {
-                self.remove_unit(u, crate::hero::roster::Fate::Gone);
+                self.remove_unit(u, crate::hero::Fate::Gone);
             }
         }
         self.set_owner(city, neutral);

@@ -732,7 +732,7 @@ impl Game {
         loot.items = items;
         // A prisoner is a hero offered for nothing, when the wizard has a slot for one.
         if lair.prisoner && self.units().open_hero_slots(player) > 0 {
-            if let Some(kind) = self.pick_hero(player, true, crate::hero::roster::Class::Any) {
+            if let Some(kind) = self.pick_hero(player, true, crate::hero::kind::Class::Any) {
                 if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
                     o.0.insert(0, crate::player::offer::Offer::Hero { kind, price: 0 });
                     loot.prisoner = true;

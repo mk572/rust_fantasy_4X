@@ -303,8 +303,8 @@ pub fn event(game: &Game, e: &Event) -> String {
         }
         Event::HeroJoined { player: p, kind, .. } => {
             let name = game
-                .roster(*p)
-                .and_then(|r| r.get(*kind).map(|r| r.name.clone()))
+                .units()
+                .hero_type_name(*kind)
                 .unwrap_or_else(|| "A hero".to_string());
             format!("{name} joins {}", player(game, *p))
         }

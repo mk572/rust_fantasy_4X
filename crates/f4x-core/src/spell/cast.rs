@@ -275,7 +275,7 @@ impl EffectHost for GameHost<'_> {
         let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
         let _ = self.game.world.insert_one(u, Hurt(hurt + dealt as u32));
         if dealt as u32 >= left {
-            self.game.remove_unit(u, crate::hero::roster::Fate::Slain);
+            self.game.remove_unit(u, crate::hero::Fate::Slain);
         }
         dealt
     }
@@ -897,7 +897,7 @@ impl Game {
                     unit,
                     cause: crate::game::LossCause::Mana,
                 });
-                self.remove_unit(u, crate::hero::roster::Fate::Released);
+                self.remove_unit(u, crate::hero::Fate::Released);
                 lost.into_iter()
                     .chain([Event::UnitsDisbanded { player, units: 1 }])
                     .collect()

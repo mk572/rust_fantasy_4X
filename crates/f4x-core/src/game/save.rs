@@ -68,6 +68,8 @@ pub struct Snapshot {
     pub map: Option<MapSave>,
     pub fog: FogSave,
     pub players: Vec<PlayerSave>,
+    /// The game's heroes, one of each type.
+    pub heroes: Vec<HeroSave>,
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
 }
@@ -135,8 +137,6 @@ pub struct PlayerSave {
     pub magic: MagicSave,
     /// The vault and the award list.
     pub armory: crate::item::armory::Armory,
-    /// The hero records.
-    pub roster: crate::hero::roster::Roster,
     /// The offers waiting for an answer.
     pub offers: Vec<crate::player::offer::Offer>,
     pub fortress: Option<Position>,
@@ -235,7 +235,12 @@ impl MagicSave {
                 Some((name(&c.spell), c.remaining, serial.0))
             }),
             crafting: w.crafting(),
-            raising: w.raising(),
+            raising: w.raising().and_then(|hero| {
+                w.world()
+                    .get::<&crate::hero::Hero>(hero)
+                    .ok()
+                    .map(|h| h.kind)
+            }),
             global: w
                 .global_instances()
                 .iter()
@@ -320,6 +325,17 @@ impl MagicSave {
         };
         Ok(pending)
     }
+}
+
+/// One of the game's heroes. A hero that serves also has a `UnitSave` with the same serial, which
+/// says whose it is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeroSave {
+    pub serial: u64,
+    pub state: crate::hero::HeroState,
+    pub hero: crate::hero::Hero,
+    /// Experience kept while the hero is free or dead.
+    pub xp: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -635,10 +651,6 @@ impl Game {
                     .player_component::<crate::item::armory::Armory>(*id)
                     .map(|a| crate::item::armory::Armory::clone(&a))
                     .unwrap_or_default(),
-                roster: self
-                    .player_component::<crate::hero::roster::Roster>(*id)
-                    .map(|r| crate::hero::roster::Roster::clone(&r))
-                    .unwrap_or_default(),
                 offers: self.offers(*id),
                 fortress: self.wizard(*id).and_then(|w| w.fortress()),
                 summon_at: self.wizard(*id).and_then(|w| w.summon_at()),
@@ -805,6 +817,19 @@ impl Game {
             map,
             fog,
             players,
+            heroes: self
+                .units()
+                .all_heroes()
+                .into_iter()
+                .filter_map(|h| {
+                    Some(HeroSave {
+                        serial: self.serial_of(h).0,
+                        state: self.units().hero_state(h)?,
+                        hero: (*self.world.get::<&crate::hero::Hero>(h).ok()?).clone(),
+                        xp: self.units().hero_xp(h),
+                    })
+                })
+                .collect(),
             units,
             cities,
         }
@@ -895,7 +920,7 @@ impl Snapshot {
             let (history, offers) = (p.history, p.offers);
             let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
             let (fame, magic) = (p.fame, p.magic);
-            let (armory, roster) = (p.armory, p.roster);
+            let armory = p.armory;
             let (fortress, summon_at) = (p.fortress, p.summon_at);
             let banishment = p.banished.then(|| Banishment {
                 by: p.banished_by.map(PlayerId),
@@ -913,7 +938,6 @@ impl Snapshot {
                     History(history),
                     Offers(offers),
                     armory,
-                    roster,
                 ),
             );
             if !neutral {
@@ -940,14 +964,27 @@ impl Snapshot {
         game.set_human(self.human.map(PlayerId));
 
         let mut serials = std::collections::BTreeSet::new();
+        let next_serial = game.next_serial;
         let mut take = |serial: u64, what: &str| -> Result<Serial, LoadError> {
-            if serial == 0 || serial >= game.next_serial || !serials.insert(serial) {
+            if serial == 0 || serial >= next_serial || !serials.insert(serial) {
                 return Err(LoadError::Inconsistent(format!(
                     "{what} has a bad or repeated creation number {serial}"
                 )));
             }
             Ok(Serial(serial))
         };
+        for h in self.heroes {
+            let serial = take(h.serial, "a hero")?;
+            if h.hero.kind >= game.content.rules.hero_templates.len()
+                || game.units().hero_entity(h.hero.kind).is_some()
+            {
+                return Err(LoadError::Inconsistent(format!(
+                    "a hero of type {} is missing or twice",
+                    h.hero.kind
+                )));
+            }
+            game.make_hero_with(serial, h.hero, h.state, h.xp);
+        }
         for (caster, p) in pending {
             let serial = take(p.serial, "a spell of a wizard")?;
             let target = match p.cast {
@@ -970,9 +1007,12 @@ impl Snapshot {
                         .insert_one(instance, crate::spell::instance::Crafting(item));
                 }
                 if let Some(kind) = raising {
+                    let hero = game.units().hero_entity(kind).ok_or_else(|| {
+                        LoadError::Inconsistent("a cast raises a hero that is not there".into())
+                    })?;
                     let _ = game
                         .world
-                        .insert_one(instance, crate::spell::instance::Raising(kind));
+                        .insert_one(instance, crate::spell::instance::Raising(hero));
                 }
             }
         }
@@ -984,7 +1024,20 @@ impl Snapshot {
         let mut units = self.units;
         units.sort_by_key(|u| u.serial);
         for u in units {
-            let serial = take(u.serial, "a unit")?;
+            // A hero's body is its own entity already, made with its serial.
+            let hero_entity = match &u.hero {
+                Some(h) => Some(
+                    game.units()
+                        .hero_entity(h.kind)
+                        .filter(|&e| game.serial_of(e).0 == u.serial)
+                        .ok_or_else(|| LoadError::Inconsistent("a hero unit has no hero".into()))?,
+                ),
+                None => None,
+            };
+            let serial = match hero_entity {
+                Some(_) => Serial(u.serial),
+                None => take(u.serial, "a unit")?,
+            };
             let id = game
                 .content
                 .rules
@@ -1000,15 +1053,31 @@ impl Snapshot {
             let owner = game.player_entity(PlayerId(u.owner)).ok_or_else(|| {
                 LoadError::Inconsistent(format!("a unit belongs to the missing player {}", u.owner))
             })?;
-            let entity = game.world.spawn((
-                Unit(id),
-                Owner(owner),
-                u.pos,
-                Hurt(u.hurt),
-                Experience(u.xp),
-                MovesLeft(u.moves),
-                serial,
-            ));
+            let entity = match hero_entity {
+                Some(hero) => {
+                    let _ = game.world.insert(
+                        hero,
+                        (
+                            Owner(owner),
+                            Unit(id),
+                            u.pos,
+                            Hurt(u.hurt),
+                            Experience(u.xp),
+                            MovesLeft(u.moves),
+                        ),
+                    );
+                    hero
+                }
+                None => game.world.spawn((
+                    Unit(id),
+                    Owner(owner),
+                    u.pos,
+                    Hurt(u.hurt),
+                    Experience(u.xp),
+                    MovesLeft(u.moves),
+                    serial,
+                )),
+            };
             if u.weapon > 0 {
                 let _ = game
                     .world
@@ -1022,9 +1091,6 @@ impl Snapshot {
             effects_load(&mut game.world, entity, u.effects);
             if let Some(items) = u.items {
                 let _ = game.world.insert_one(entity, items);
-            }
-            if let Some(hero) = u.hero {
-                let _ = game.world.insert_one(entity, hero);
             }
             if let Some(standby) = u.standby {
                 let _ = game.world.insert_one(entity, standby);
@@ -1079,6 +1145,15 @@ impl Snapshot {
                     crate::spell::instance::Caster(wizard),
                     crate::spell::instance::SpellTarget::Unit(entity),
                     serial,
+                ));
+            }
+        }
+        // A hero serves exactly when it has its body.
+        for hero in game.units().all_heroes() {
+            let serving = game.units().hero_state(hero) == Some(crate::hero::HeroState::Serving);
+            if serving != game.world.get::<&Unit>(hero).is_ok() {
+                return Err(LoadError::Inconsistent(
+                    "a hero's state and its unit do not agree".into(),
                 ));
             }
         }

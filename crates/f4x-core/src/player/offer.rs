@@ -14,7 +14,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::game::{Event, Game};
-use crate::hero::roster::{Class, Roster};
+use crate::hero::kind::Class;
 use crate::hero::HeroError;
 use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
@@ -38,7 +38,7 @@ const AI_BONUS: i32 = 10;
 /// What is offered.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Offer {
-    /// A hero of the wizard's roster (`kind`) asks to be hired.
+    /// The wizard's hero of type `kind` asks to be hired.
     Hero { kind: usize, price: i32 },
     /// A company of `count` units of `unit` (an id of `units.ron`), each of `level` (0-based
     /// experience level), for `price` in all.
@@ -378,14 +378,18 @@ impl Game {
         if self.treasury(player).map_or(0, |t| t.gold) < offer.price() {
             return Err(OfferError::NoGold);
         }
+        let taken = offer.clone();
         let events = match offer {
             Offer::Hero { kind, price } => {
+                // Another wizard may have hired the hero meanwhile.
+                let hero = self
+                    .units()
+                    .hero_entity(kind)
+                    .filter(|&h| self.units().hero_state(h) == Some(crate::hero::HeroState::Free))
+                    .ok_or(OfferError::Hero(crate::hero::HeroError::NotAvailable))?;
                 if let Some(name) = name.filter(|n| !n.trim().is_empty()) {
-                    if let Some(r) = self
-                        .player_component_mut::<Roster>(player)
-                        .and_then(|r| r.get_mut(kind))
-                    {
-                        r.name = name;
+                    if let Ok(mut h) = self.world.get::<&mut crate::hero::Hero>(hero) {
+                        h.name = name;
                     }
                 }
                 // A prisoner freed in a lair costs nothing.
@@ -453,8 +457,11 @@ impl Game {
                 }]
             }
         };
+        // A hero's offers (this one too) were taken off when it was hired.
         if let Some(o) = self.player_component_mut::<Offers>(player) {
-            o.0.remove(index);
+            if let Some(at) = o.0.iter().position(|x| *x == taken) {
+                o.0.remove(at);
+            }
         }
         Ok(events)
     }
