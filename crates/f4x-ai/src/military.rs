@@ -458,6 +458,15 @@ fn best_enemy_city(
     cities
         .into_iter()
         .filter(|(_, owner, p)| !skip.contains(p) && focus.is_none_or(|f| *owner == f))
+        // A wizard it has a pact or an alliance with is not attacked: the attack would break the
+        // treaty.
+        .filter(|&(_, owner, _)| {
+            !view.is_rival_wizard(owner)
+                || !matches!(
+                    view.treaty_with(owner),
+                    f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
+                )
+        })
         .filter_map(|(_, _, p)| {
             let d = distance(view, from, p)? as f32;
             let held = memory.get(&p).map_or(GUESS_DEFENDERS, |m| m.0 / average);
@@ -598,6 +607,27 @@ mod tests {
         spawn(&mut g, P0, at(6, 3), "high_men_swordsmen", 6);
         let defenders = spawn(&mut g, P1, at(7, 3), "high_men_spearmen", 1);
         (g, defenders)
+    }
+
+    #[test]
+    fn a_wizard_with_a_pact_is_not_marched_on_but_one_at_war_is() {
+        use f4x_core::diplomacy::Treaty;
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let east = at(
+            crate::testworld::ENEMY_CITY.0,
+            crate::testworld::ENEMY_CITY.1,
+        );
+        g.explore(P0, east, 3);
+        let here = at(COAST_CITY.0, COAST_CITY.1);
+        let pick =
+            |g: &Game| best_enemy_city(&PlayerView::new(g, P0), here, &[], &HashMap::new(), None);
+        assert_eq!(pick(&g), Some(east), "at peace the city is a target");
+        g.start_treaty(P0, P1, Treaty::Pact);
+        assert_eq!(pick(&g), None, "a pact partner is left alone");
+        g.start_treaty(P0, P1, Treaty::None);
+        g.declare_war(P0, P1);
+        assert_eq!(pick(&g), Some(east));
     }
 
     #[test]

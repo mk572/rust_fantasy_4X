@@ -639,6 +639,44 @@ impl Game {
     }
 
     /// Write a finished battle back: wounds, deaths, and who won.
+    /// A wizard whose units fell or fled holds it against the attacker (`End_Of_Combat`): a
+    /// hero counts 20, another unit up to 20, and a settler up to 10 more. The units of the
+    /// field that were summoned in the fight do not count.
+    fn battle_loss_relations(&mut self, battle: &Battle, sources: &[hecs::Entity]) {
+        let (attacker, defender) = (
+            battle.player_of(Side::Attacker),
+            battle.player_of(Side::Defender),
+        );
+        let lost: Vec<(bool, bool)> = battle
+            .units
+            .iter()
+            .filter(|u| u.side == Side::Defender && u.source.is_some())
+            .filter(|u| matches!(u.status, Status::Dead | Status::Fled))
+            .map(|u| {
+                let hero = u
+                    .source
+                    .and_then(|i| sources.get(i).copied())
+                    .and_then(|e| self.units().unit_def(e))
+                    .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
+                (hero, u.has("create_outpost"))
+            })
+            .collect();
+        let mut value = 0;
+        for (hero, settler) in lost {
+            value += if hero { 20 } else { self.roll(20) as i32 };
+            if settler {
+                value += self.roll(10) as i32;
+            }
+        }
+        self.change_relations(
+            -value,
+            attacker,
+            defender,
+            crate::diplomacy::Action::BattleLosses,
+            None,
+        );
+    }
+
     pub(crate) fn finish_battle(&mut self) -> Vec<Event> {
         let Some(active) = self.battle.take() else {
             return Vec::new();
@@ -663,6 +701,7 @@ impl Game {
         }
         let mut events = Vec::new();
         let spoils = self.battle_spoils(&battle, &sources);
+        self.battle_loss_relations(&battle, &sources);
         let survivors: Vec<hecs::Entity> = battle
             .units
             .iter()

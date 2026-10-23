@@ -559,6 +559,24 @@ fn peace_ends_a_war_and_the_human_is_left_alone_a_while() {
 }
 
 #[test]
+fn peace_takes_off_the_spells_each_cast_on_the_other_s_cities_but_not_the_owners_own() {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    let mine = g.spawn_city(P0, at(5, 5), "A".into(), None, 3);
+    let theirs = g.spawn_city(P1, at(20, 5), "B".into(), None, 3);
+    let curse = g.content.rules.spells.id_of("famine").unwrap();
+    let ward = g.content.rules.spells.id_of("wall_of_fire").unwrap();
+    g.add_city_enchantment(mine, curse, P1);
+    g.add_city_enchantment(mine, ward, P0);
+    g.add_city_enchantment(theirs, curse, P0);
+    g.declare_war(P1, P0);
+    g.drain_diplomacy_events();
+    g.declare_peace(P0, P1);
+    assert_eq!(g.spells().city_enchantments(mine), vec![(ward, P0)]);
+    assert!(g.spells().city_enchantments(theirs).is_empty());
+}
+
+#[test]
 fn a_war_on_a_third_wizard_is_declared_by_the_one_asked() {
     let mut g = world();
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
@@ -1068,6 +1086,37 @@ fn a_battle_against_a_partner_breaks_the_pact() {
         Event::Diplomacy(DiplomacyEvent::TreatyBroken { breaker, victim, treaty: Treaty::Pact })
             if *breaker == P1 && *victim == P2
     )));
+}
+
+#[test]
+fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
+    use crate::battle::{Side, Status};
+    let mut g = world();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let a = g.spawn_unit(P2, at(5, 5), walker);
+    let d: Vec<_> = (0..3).map(|_| g.spawn_unit(P1, at(6, 5), walker)).collect();
+    met(&mut g, P1, P2);
+    g.apply(Command::BeginBattle {
+        attackers: vec![a],
+        defenders: d,
+    });
+    let before = g.relation(P1, P2);
+    {
+        let b = &mut g.battle.as_mut().unwrap().battle;
+        for u in b.units.iter_mut().filter(|u| u.side == Side::Defender) {
+            u.status = Status::Dead;
+        }
+        b.winner = Some(Side::Attacker);
+    }
+    g.finish_battle();
+    // Three units are worth 1 to 20 each; the relation falls by at least that, twice over when
+    // it was positive.
+    assert!(
+        g.relation(P1, P2) < before,
+        "{} {}",
+        before,
+        g.relation(P1, P2)
+    );
 }
 
 #[test]

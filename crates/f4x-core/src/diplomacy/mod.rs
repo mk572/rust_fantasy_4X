@@ -385,6 +385,9 @@ pub enum Outcome {
     },
     /// The wizard learns the spell, as if it had researched it.
     Spell { player: PlayerId, spell: SpellId },
+    /// Peace ends the spells each of the two cast on the other's cities
+    /// (`Cancel_Players_City_Enchantments`).
+    DropCityCurses { a: PlayerId, b: PlayerId },
 }
 
 /// Every wizard still in the game, in player order.
@@ -788,6 +791,7 @@ impl Diplomacy {
                 self.stance_mut(other, human).peace_duration = turns;
             }
         }
+        ctx.out.push(Outcome::DropCityCurses { a, b });
     }
 
     // ---- proposals and the talk ------------------------------------------------
@@ -1462,9 +1466,32 @@ impl Game {
                     }
                 }
                 Outcome::Spell { player, spell } => self.learn_spell(player, spell),
+                Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
             }
         }
         result
+    }
+
+    /// Take off every city the spells that `a` and `b` cast on each other's cities.
+    fn drop_city_curses(&mut self, a: PlayerId, b: PlayerId) {
+        for (city, info, _) in self.economy().cities() {
+            let other = if info.owner == a {
+                b
+            } else if info.owner == b {
+                a
+            } else {
+                continue;
+            };
+            let cast: Vec<_> = self
+                .spells()
+                .city_enchantments(city)
+                .into_iter()
+                .filter(|&(_, caster)| caster == other)
+                .collect();
+            for (spell, caster) in cast {
+                self.remove_city_enchantment(city, spell, caster);
+            }
+        }
     }
 
     /// Every wizard still in the game, in player order.

@@ -115,6 +115,11 @@ impl<'a> PlayerView<'a> {
         other != self.me && self.game.is_wizard(other)
     }
 
+    /// The treaty the player has with another wizard (a player knows its own treaties).
+    pub fn treaty_with(&self, other: PlayerId) -> crate::diplomacy::Treaty {
+        self.game.treaty(self.me, other)
+    }
+
     /// What the player's power makes this turn: the split, the research and the mana upkeep.
     pub fn income(&self) -> crate::wizard::magic_income::Income {
         self.game.income(self.me)
