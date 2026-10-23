@@ -25,7 +25,8 @@ pub fn content() -> Content {
         },
         food: match class {
             TerrainClass::Grassland => 3,
-            TerrainClass::SorceryNode | TerrainClass::NatureNode => 4,
+            TerrainClass::SorceryNode => 4,
+            TerrainClass::NatureNode => 5,
             TerrainClass::Forest | TerrainClass::Hills | TerrainClass::Swamp => 1,
             _ => 0,
         },

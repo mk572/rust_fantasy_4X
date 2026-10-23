@@ -88,6 +88,31 @@ fn the_corruption_spell_spoils_land_but_not_water() {
 }
 
 #[test]
+fn magic_nodes_cannot_be_corrupted() {
+    let mut g = world();
+    for (x, class) in [
+        (4, TerrainClass::SorceryNode),
+        (6, TerrainClass::NatureNode),
+        (8, TerrainClass::ChaosNode),
+    ] {
+        let node = g
+            .content
+            .terrains
+            .first_of_class(class, Plane::Arcanus)
+            .unwrap();
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set(x, 5, node);
+        assert_eq!(g.check_corrupt(at(x, 5)), Err(TargetError::CorruptNode));
+        let events = cast(&mut g, "corruption", at(x, 5));
+        assert!(events.iter().any(|e| matches!(e, Event::Rejected(_))));
+        assert!(!g.is_corrupted(at(x, 5)));
+    }
+}
+
+#[test]
 fn corrupted_squares_give_a_city_nothing() {
     let mut g = world();
     let gold = g.content.features.id_of("gold").unwrap();

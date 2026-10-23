@@ -607,11 +607,11 @@ In the original a magic node is two things: the base terrain of its square (`tt_
 `tt_NatureNode`, `tt_ChaosNode`) and the node record. Ours has both too: the node is a feature and
 the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain under it
 (`content/terrain.ron`). Food, production and movement are the original's (`Square_Food_x2`,
-`Square_Production_Bonus`, `TERRSTAT.LBX`): sorcery 4 / 0 / 1, nature 4 / 3 / 2, chaos 0 / 5 / 3.
+`Square_Production_Bonus`, `TERRSTAT.LBX`): sorcery 4 / 0 / 1, nature 5 / 3 / 2, chaos 0 / 5 / 3.
 
-- **Nature node food is 4**, as before (`B16` in `help-vs-implementation-conflicts.md`). The
-  original's in-game `Square_Food_x2` gives 5 and its new-game code (`MAPGEN.c`, also marked there as
-  a bug) 4; we keep 4.
+- **Nature node food is 5** (decided by the user, 23 October 2026): the original's in-game
+  `Square_Food_x2` gives 5, while its new-game code (`MAPGEN.c`, also marked there as a bug) gives 4.
+  Until task 338 ours gave 4 (`B16`).
 - **A river is cleared under a node**, since the original's node replaces the river tile.
 - **A nature node is a forest and a chaos node a mountain** wherever the original asks
   (`Square_Is_Forest`, `Square_Is_Mountain`): Forester and Mountaineer movement, Gaia's Blessing and the
@@ -620,5 +620,5 @@ the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain un
 - **A chaos node is not a volcano.** Both are drawn with similar art, but a volcano raised by a
   spell is a mountain square with an owner (a power point a turn for the owner, a 2% chance to cool
   each turn); a chaos node never changes and has no owner of its own.
-- Change Terrain and Raise Volcano refuse a node square, as the original does. Corruption on a node
-  square is refused by the original (message 41) and not yet by ours (task 350).
+- Change Terrain, Raise Volcano and Corruption refuse a node square, as the original does
+  (Corruption with its own message 41; Change Terrain with the fixed-terrain words, task 350).

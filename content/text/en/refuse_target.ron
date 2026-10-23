@@ -24,6 +24,7 @@
     "refuse_target.volcano_on_hill": "Volcanoes cannot be raised in hills.",
     "refuse_target.volcano_on_site": "Volcanoes cannot be raised on nodes, towers and other sites.",
     "refuse_target.corrupt_water": "Water cannot be corrupted.",
+    "refuse_target.corrupt_node": "Magical nodes may not be corrupted.",
     "refuse_target.already_corrupted": "That area has already been corrupted.",
     "refuse_target.no_node": "There is no node on that square.",
     "refuse_target.node_unowned": "Only a node that another wizard controls can be warped.",
