@@ -87,6 +87,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 93 | Client | Spell-book view of the magic screen (done) |
 | 94 | Client | Settings screen (done) |
 | 96 | Client | City screen: enchantments list (done) |
+| 99 | Combat | Saving during a battle (done) |
 | 100 | Map | Draw the original's edge variants for mountains, hills and tundra (done) |
 | 101 | Magic | Eleven-book realms and the full starting-spell rule (done) |
 | 102 | Map | Road-building path selection in the client (done) |
@@ -309,6 +310,15 @@ Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and build
 screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
 The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
 screen, the hero sheet and the diplomacy screen.
+
+**99. Saving during a battle (done).** A battle in progress is not part of a save today (`Game::battle`
+is skipped, so saving mid-fight would lose it, and the client should block saving). Make
+`Battle` serialisable: units with their statistics, cells, turn, active side, and the random
+generator state (seed plus draw count, as for the game), plus the list of overland units the
+fighters were copied from (by creation number). Restore it on load, check it for consistency
+(units on the map, sources still alive), and test that a save in the
+middle of a battle continues exactly like the unsaved one.
+**Done:** `Snapshot.battle` (`battle/save.rs`) holds the `Battle` and the creation numbers of its sources, left-out units and lair; the battle's random stream is a `GameRng` (seed and draws); spells are written by id with a name table and mapped on load; item charges (`ItemCharge`) link to the item entity by creation number. A load refuses a battle whose units, players or items disagree with the world. The client and the console save in a battle, a loaded battle opens the battle screen, and a replay can start in a battle (replay commands name spells by id too). Tests: a save mid-battle and mid-lair-fight continues exactly like the unsaved game.
 
 **104. Ship tiers by building and ship movement estimates (done).** **Tiers verified (17 October 2026)** against help 725 to 727 (small, medium and large ships) and the original's unit table (`UNITTYPE.h`): trireme needs the ship wrights guild, galley the shipyard, warship the maritime guild and barracks; moves 2/3/4 and capacity 2/5/3 match the data. **Capacity shown:** the unit sheet (map, and the city's production offers) lists "Carries N" for a ship. **Estimates:** `path_turns` takes the allowance and step costs from the units that move; land units aboard a ship of the stack, or boarding it as it sails out, cost nothing, so the ship's speed decides (test in `transport.rs`). The function has no caller yet; the path display will use it.
 

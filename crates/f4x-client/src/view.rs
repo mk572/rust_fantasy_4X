@@ -942,6 +942,8 @@ impl App {
         self.game.set_undo(true);
         self.ais = self.rival_wizards();
         self.defences.clear();
+        // A game saved in a battle comes back in it: the frame loop opens the battle screen.
+        self.battle_ui = crate::battle_screen::BattleUi::default();
         self.turn_events = None;
         self.game_over_seen = false;
         self.screen = Screen::Map;

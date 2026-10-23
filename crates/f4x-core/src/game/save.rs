@@ -76,6 +76,10 @@ pub struct Snapshot {
     pub items: Vec<MagicItemSave>,
     /// The towers, nodes, encounter sites and volcanoes, oldest first.
     pub features: Vec<FeatureSave>,
+    /// The battle being fought, if the game was saved in one. The world above is the world the
+    /// battle is fought in.
+    #[serde(default)]
+    pub battle: Option<crate::battle::save::ActiveBattleSave>,
 }
 
 /// An item entity: its creation number, what it is and who holds it.
@@ -899,6 +903,7 @@ impl Game {
                 .collect(),
             units,
             cities,
+            battle: self.battle_save(),
         }
     }
 }
@@ -1442,6 +1447,9 @@ impl Snapshot {
                 .ok_or_else(|| LoadError::Inconsistent("an unknown event".into()))?;
         game.diplomacy_from_save(self.diplomacy);
         game.apply_wizard_settings();
+        if let Some(battle) = self.battle {
+            game.restore_battle(battle)?;
+        }
         Ok(game)
     }
 }

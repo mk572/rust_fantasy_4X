@@ -16,8 +16,8 @@ use crate::battle::{BattleUnit, UnitCasting};
 /// Where a unit's cast comes from, which decides what it uses up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpellSource {
-    /// A charge of the item in this slot.
-    Item(usize),
+    /// A charge of this item.
+    Item(hecs::Entity),
     /// A spell its ability casts: once a battle.
     Ability,
     /// Its mana.
@@ -53,9 +53,9 @@ impl Game {
                 out.push((spell, source));
             }
         };
-        for &(slot, spell, charges) in item_charges {
-            if charges > 0 {
-                add(spell, SpellSource::Item(slot));
+        for c in item_charges {
+            if c.charges > 0 {
+                add(c.spell, SpellSource::Item(c.item));
             }
         }
         for &spell in abilities {
@@ -323,9 +323,9 @@ impl Game {
                     u.ammo = u.ammo.min(u.mana / super::super::SHOT_MANA);
                 }
             }
-            SpellSource::Item(slot) => {
-                if let Some(i) = u.casting.item_charges.iter().position(|c| c.0 == slot) {
-                    u.casting.item_charges[i].2 -= 1;
+            SpellSource::Item(item) => {
+                if let Some(i) = u.casting.item_charges.iter().position(|c| c.item == item) {
+                    u.casting.item_charges[i].charges -= 1;
                 }
             }
             SpellSource::Ability => u.casting.abilities.retain(|s| *s != spell),

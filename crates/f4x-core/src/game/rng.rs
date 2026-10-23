@@ -8,8 +8,32 @@
 
 use rand::{Error, RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// What is written of a generator: where it started and how far it has gone.
+#[derive(Serialize, Deserialize)]
+struct RngState {
+    seed: u64,
+    draws: u64,
+}
+
+impl From<GameRng> for RngState {
+    fn from(rng: GameRng) -> Self {
+        Self {
+            seed: rng.seed,
+            draws: rng.draws,
+        }
+    }
+}
+
+impl From<RngState> for GameRng {
+    fn from(state: RngState) -> Self {
+        Self::resume(state.seed, state.draws)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(into = "RngState", from = "RngState")]
 pub struct GameRng {
     seed: u64,
     /// Values drawn so far.

@@ -1036,3 +1036,37 @@ fn lair_checksum() -> u64 {
 fn generated_lairs_for_a_seed_stay_the_same() {
     assert_eq!(lair_checksum(), 6_659_293_770_976_314_851);
 }
+
+#[test]
+fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() {
+    let mut g = world(5);
+    let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    assert!(g.in_battle());
+    let text = g.snapshot().to_text().unwrap();
+    let mut loaded = crate::game::save::Snapshot::from_text(&text)
+        .unwrap()
+        .restore(g.content.clone())
+        .unwrap();
+    assert!(loaded.in_battle());
+    assert_eq!(
+        loaded
+            .battle
+            .as_ref()
+            .and_then(|a| a.lair)
+            .map(|l| loaded.serial_of(l)),
+        Some(g.serial_of(site)),
+        "the fight is still the assault on the same lair"
+    );
+    fight_to_the_end(&mut g);
+    fight_to_the_end(&mut loaded);
+    assert_eq!(
+        g.snapshot().to_text().unwrap(),
+        loaded.snapshot().to_text().unwrap()
+    );
+}

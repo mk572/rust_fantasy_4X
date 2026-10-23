@@ -298,6 +298,21 @@ impl<'a> ItemView<'a> {
         out
     }
 
+    /// The items a unit carries as entities, in slot order (only heroes carry any).
+    pub fn carried_entities(&self, unit: hecs::Entity) -> Vec<(hecs::Entity, Item)> {
+        let mut out: Vec<(u8, hecs::Entity, Item)> = self
+            .world
+            .query::<(&Item, &entity::HeldBy)>()
+            .iter()
+            .filter_map(|(e, (item, by))| match by {
+                entity::HeldBy::Hero(u, slot) if *u == unit => Some((*slot, e, item.clone())),
+                _ => None,
+            })
+            .collect();
+        out.sort_by_key(|(slot, ..)| *slot);
+        out.into_iter().map(|(_, e, item)| (e, item)).collect()
+    }
+
     /// The lasting spells the unit's items put on it (see [`Item::granted_spells`]).
     pub fn spells(&self, unit: hecs::Entity) -> Vec<SpellId> {
         let mut out = Vec::new();

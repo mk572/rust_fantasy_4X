@@ -27,7 +27,7 @@ const BOLT_STRENGTH: i32 = 5;
 /// City damage for each move over the city area.
 const CITY_DAMAGE: u32 = 5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Vortex {
     pub cell: Pos,
     pub owner: Side,

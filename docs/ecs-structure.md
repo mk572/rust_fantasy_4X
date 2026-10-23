@@ -42,7 +42,8 @@ Game                                   (lib.rs; the owner and the orchestrator)
 │                                      items, level paths
 ├── diplomacy: Diplomacy               contact, relations, treaties, proposals (diplomacy/mod.rs)
 ├── battle: Option<ActiveBattle>       the fight in progress: a `Battle` plus the overland units it
-│                                      was copied from (battle/); not saved
+│                                      was copied from (battle/); saved with the
+│                                      world (`Snapshot.battle`, battle/save.rs)
 ├── rng: GameRng                       the one source of randomness, with its draw count (game/rng.rs)
 ├── turn, magic_strength, difficulty   the game's counters and settings
 ├── human: Option<PlayerId>            the human wizard

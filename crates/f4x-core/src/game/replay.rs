@@ -31,8 +31,6 @@ pub struct Replay {
 /// Why a replay could not be written or played.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplayError {
-    /// A battle is in progress, which a snapshot cannot hold.
-    BattleInProgress,
     /// Not recording.
     NotRecording,
     /// The text is not a replay, or is of another version.
@@ -47,6 +45,9 @@ struct Context {
     to_serial: HashMap<hecs::Entity, u64>,
     /// Reading: creation number to entity.
     to_entity: HashMap<u64, hecs::Entity>,
+    /// Spells by id, both ways: a command names a spell, not its number in the rules.
+    spell_names: HashMap<crate::rules::SpellId, String>,
+    spell_ids: HashMap<String, crate::rules::SpellId>,
 }
 
 thread_local! {
@@ -76,6 +77,34 @@ pub mod stable_ref {
                 .copied()
                 .ok_or_else(|| E::custom(format!("no unit or city numbered {n}")))
         })
+    }
+
+    /// A spell, written as its id (`fire_bolt`), so a replay still reads after `spells.ron`
+    /// changes order.
+    pub mod spell {
+        use super::*;
+        use crate::rules::SpellId;
+
+        pub fn serialize<S: Serializer>(id: &SpellId, s: S) -> Result<S::Ok, S::Error> {
+            CONTEXT.with(|c| {
+                c.borrow()
+                    .spell_names
+                    .get(id)
+                    .ok_or_else(|| serde::ser::Error::custom("unknown spell"))
+                    .and_then(|name| name.serialize(s))
+            })
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<SpellId, D::Error> {
+            let name = String::deserialize(d)?;
+            CONTEXT.with(|c| {
+                c.borrow()
+                    .spell_ids
+                    .get(&name)
+                    .copied()
+                    .ok_or_else(|| serde::de::Error::custom(format!("no spell called {name}")))
+            })
+        }
     }
 
     pub mod one {
@@ -122,6 +151,15 @@ impl Game {
             let mut c = c.borrow_mut();
             c.to_serial.clear();
             c.to_entity.clear();
+            c.spell_names.clear();
+            c.spell_ids.clear();
+            let spells = &self.content.rules.spells;
+            for def in spells.defs() {
+                if let Some(id) = spells.id_of(&def.id) {
+                    c.spell_names.insert(id, def.id.clone());
+                    c.spell_ids.insert(def.id.clone(), id);
+                }
+            }
             for (e, s) in self.world.query::<&Serial>().iter() {
                 c.to_serial.insert(e, s.0);
                 c.to_entity.insert(s.0, e);
@@ -131,9 +169,6 @@ impl Game {
 
     /// Start recording from the game as it is now.
     pub fn start_recording(&mut self) -> Result<(), ReplayError> {
-        if self.battle.is_some() {
-            return Err(ReplayError::BattleInProgress);
-        }
         self.recording = Some(Recording {
             start: self.snapshot(),
             commands: Vec::new(),

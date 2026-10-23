@@ -114,7 +114,7 @@ fn a_replay_can_stop_part_way() {
 }
 
 #[test]
-fn recording_needs_no_battle_and_stops_when_asked() {
+fn recording_stops_when_asked() {
     let (mut g, _) = world();
     assert_eq!(g.replay_so_far().unwrap_err(), ReplayError::NotRecording);
     assert!(g.stop_recording().is_none());
@@ -135,4 +135,23 @@ fn a_command_naming_nothing_is_reported() {
         replay.play(g.content.clone(), usize::MAX).err(),
         Some(ReplayError::Unresolved(0))
     );
+}
+
+#[test]
+fn a_spell_in_a_command_is_written_by_its_id_and_read_back() {
+    let (mut g, _) = world();
+    g.content.rules.spells = crate::rules::Registry::new(crate::game::testutil::real_spells());
+    let spells = &g.content.rules.spells;
+    let first = spells.defs().first().expect("the test content has spells");
+    let spell = spells.id_of(&first.id).unwrap();
+    let id = spells.get(spell).id.clone();
+    let cast = Command::Battle(crate::battle::BattleCommand::Cast {
+        spell,
+        aim: crate::battle::SpellAim::None,
+        mana: 0,
+    });
+    g.load_context();
+    let text = ron::ser::to_string(&cast).unwrap();
+    assert!(text.contains(&format!("\"{id}\"")), "{text}");
+    assert_eq!(ron::from_str::<Command>(&text).unwrap(), cast);
 }

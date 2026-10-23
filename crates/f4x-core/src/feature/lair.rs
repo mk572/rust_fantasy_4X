@@ -701,7 +701,7 @@ impl Game {
                     }
                 }
                 if let Some(active) = self.battle.as_mut() {
-                    active.site = Some(site);
+                    active.lair = Some(site);
                 }
                 Ok(events)
             }

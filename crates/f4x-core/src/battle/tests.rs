@@ -2,11 +2,14 @@ use super::game::BattleStartError;
 use super::map::{distance, Cell, GRID_H, GRID_W};
 use super::spell::SpellSource;
 use super::*;
+use crate::game::save::Snapshot;
 use crate::game::testutil::content_with_units;
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
 
 const A: PlayerId = PlayerId(0);
 const D: PlayerId = PlayerId(1);
@@ -2684,7 +2687,8 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     assert_eq!(b.unit(0).unwrap().casting.spell_save, 2);
     let list = g.battle_unit_spells(0);
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].source, SpellSource::Item(1));
+    let wand_entity = g.items().hero_item_entity(hero, 1).unwrap();
+    assert_eq!(list[0].source, SpellSource::Item(wand_entity));
     assert!(list[0].castable);
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
@@ -2693,10 +2697,13 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
         mana: 0,
     })
     .unwrap();
+    let left = &g.battle().unwrap().unit(0).unwrap().casting.item_charges;
+    assert_eq!(left.len(), 1);
     assert_eq!(
-        g.battle().unwrap().unit(0).unwrap().casting.item_charges,
-        vec![(1, zap, 1)]
+        (left[0].item, left[0].spell, left[0].charges),
+        (wand_entity, zap, 1)
     );
+    assert_eq!(left[0].serial, g.serial_of(wand_entity));
     // The battle ends with the defender's flight; one charge is left on the item.
     g.battle_command(BattleCommand::EndTurn).unwrap();
     g.battle_command(BattleCommand::Flee).unwrap();
@@ -4128,4 +4135,171 @@ fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() {
     let unit = g.battle().unwrap().unit(0).unwrap();
     let has = unit.enchantments.iter().any(|e| e == "heroism");
     assert_eq!(unit.melee, melee + i32::from(has));
+}
+
+#[test]
+fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
+    use crate::item::{Item, ItemBonus};
+    use crate::rules::ItemKind;
+    let mut g = casting_game();
+    let hero = hero_unit(&mut g, &[], 0);
+    let wand = Item {
+        name: "Wand".into(),
+        kind: ItemKind::Wand,
+        cost: 100,
+        icon: 0,
+        bonus: ItemBonus::default(),
+        powers: Vec::new(),
+        charges: Some(("fire_bolt".into(), 2)),
+        prefab: None,
+        made: None,
+    };
+    g.arm_hero(hero, [Some(wand), None, None]);
+    begin(&mut g, hero);
+    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: zap,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    })
+    .unwrap();
+    let rules = &g.content.rules;
+    let battle = g.battle().unwrap();
+    let text = ron::ser::to_string(&battle.to_save(rules)).unwrap();
+    let save: save::BattleSave = ron::from_str(&text).unwrap();
+    let mut back = Battle::from_save(save, rules).unwrap();
+    let wand_entity = g.items().hero_item_entity(hero, 0).unwrap();
+    assert_eq!(
+        back.units[0].casting.item_charges[0].item,
+        hecs::Entity::DANGLING,
+        "the entity is not saved"
+    );
+    back.bind_items(|s| (s == g.serial_of(wand_entity)).then_some(wand_entity))
+        .unwrap();
+    assert_eq!(back.units, battle.units);
+    assert_eq!(back.units[0].casting.item_charges[0].charges, 1);
+    // The random stream continues where it stopped.
+    assert_eq!(back.rng, battle.rng);
+    // A save that names a spell the rules lack is refused.
+    let mut save = battle.to_save(rules);
+    let name = &mut save.spells[zap.index()];
+    *name = "no_such_spell".into();
+    assert_eq!(
+        Battle::from_save(save, rules).err(),
+        Some(save::BattleLoadError::UnknownSpell("no_such_spell".into()))
+    );
+}
+
+/// A battle between a hero with a charged wand and a spear, the hero's first spell cast.
+fn battle_in_the_middle() -> (Game, hecs::Entity) {
+    use crate::item::{Item, ItemBonus};
+    use crate::rules::ItemKind;
+    let mut g = casting_game();
+    let hero = hero_unit(&mut g, &[], 0);
+    let wand = Item {
+        name: "Wand".into(),
+        kind: ItemKind::Wand,
+        cost: 100,
+        icon: 0,
+        bonus: ItemBonus::default(),
+        powers: Vec::new(),
+        charges: Some(("fire_bolt".into(), 2)),
+        prefab: None,
+        made: None,
+    };
+    g.arm_hero(hero, [Some(wand), None, None]);
+    begin(&mut g, hero);
+    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    g.battle_command(BattleCommand::UnitCast {
+        unit: 0,
+        spell: zap,
+        aim: SpellAim::Unit(1),
+        mana: 0,
+    })
+    .unwrap();
+    (g, hero)
+}
+
+/// Play the battle to its end with the battle AI on both sides.
+fn finish_with_the_ai(g: &mut Game) -> Vec<Event> {
+    let mut events = Vec::new();
+    for _ in 0..5_000 {
+        let Some(command) = g.next_battle_command() else {
+            break;
+        };
+        match g.battle_command(command) {
+            Ok(e) => events.extend(e),
+            Err(_) => break,
+        }
+    }
+    events
+}
+
+#[test]
+fn a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one() {
+    let (mut g, hero) = battle_in_the_middle();
+    let text = g.snapshot().to_text().unwrap();
+    let mut loaded = Snapshot::from_text(&text)
+        .unwrap()
+        .restore(g.content.clone())
+        .unwrap();
+    assert!(loaded.in_battle(), "the battle comes back with the world");
+    assert_eq!(loaded.snapshot().to_text().unwrap(), text);
+    // The wand's charges are bound to the loaded world's own item entity.
+    let loaded_hero = loaded.units().entity_of_serial(g.serial_of(hero)).unwrap();
+    let wand = loaded.items().hero_item_entity(loaded_hero, 0).unwrap();
+    let charges = &loaded
+        .battle()
+        .unwrap()
+        .unit(0)
+        .unwrap()
+        .casting
+        .item_charges;
+    assert_eq!(charges.len(), 1);
+    assert_eq!((charges[0].item, charges[0].charges), (wand, 1));
+    let (a, b) = (finish_with_the_ai(&mut g), finish_with_the_ai(&mut loaded));
+    assert!(!g.in_battle() && !loaded.in_battle());
+    assert_eq!(a, b);
+    assert_eq!(
+        g.snapshot().to_text().unwrap(),
+        loaded.snapshot().to_text().unwrap()
+    );
+}
+
+#[test]
+fn a_game_saved_outside_a_battle_holds_no_battle() {
+    let (mut g, _) = battle_in_the_middle();
+    finish_with_the_ai(&mut g);
+    assert!(g.snapshot().battle.is_none());
+}
+
+#[test]
+fn a_save_whose_battle_names_a_unit_that_is_gone_is_refused() {
+    let (g, _) = battle_in_the_middle();
+    let mut snap = g.snapshot();
+    let battle = snap.battle.as_mut().unwrap();
+    let gone = battle.sources[0];
+    snap.units.retain(|u| u.serial != gone.0);
+    snap.heroes.retain(|h| h.serial != gone.0);
+    assert!(snap.restore(g.content.clone()).is_err());
+}
+
+#[test]
+fn a_replay_can_start_in_a_battle() {
+    let (mut g, _) = battle_in_the_middle();
+    g.start_recording().unwrap();
+    while let Some(command) = g.next_battle_command() {
+        let events = g.apply(Command::Battle(command));
+        if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+            break;
+        }
+    }
+    assert!(!g.in_battle());
+    let replay = g.stop_recording().unwrap();
+    let (played, _) = replay.play(g.content.clone(), usize::MAX).unwrap();
+    assert_eq!(
+        played.snapshot().to_text().unwrap(),
+        g.snapshot().to_text().unwrap()
+    );
 }

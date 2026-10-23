@@ -62,7 +62,7 @@ pub(crate) fn damage_unit_with_spell(
 }
 
 /// A wizard casting in a battle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleCaster {
     /// Casting skill left to spend this battle.
     pub skill_left: i32,

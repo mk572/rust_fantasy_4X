@@ -809,7 +809,12 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             _ => "no target",
         };
         let from = match s.source {
-            SpellSource::Item(slot) => format!("item charge (slot {})", slot + 1),
+            SpellSource::Item(item) => match ctx.game.items().held_by(item) {
+                Some(f4x_core::item::entity::HeldBy::Hero(_, slot)) => {
+                    format!("item charge (slot {})", slot + 1)
+                }
+                _ => "item charge".to_string(),
+            },
             SpellSource::Ability => "ability, once".to_string(),
             SpellSource::Mana => format!(
                 "costs {}{} mana",

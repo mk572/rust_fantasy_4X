@@ -22,8 +22,9 @@ pub struct ActiveBattle {
     /// Units that stayed out of a fight on the sea (land units aboard a ship): they share the
     /// fate of their side.
     pub left_out: Vec<(Side, hecs::Entity)>,
-    /// The lair being assaulted, if this is a fight against a site's guards.
-    pub site: Option<hecs::Entity>,
+    /// The lair being assaulted, if this is a fight against a site's guards (`Battle::site` is
+    /// the square the fight is on).
+    pub lair: Option<hecs::Entity>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,11 +151,16 @@ impl Game {
                 casting.innate = hero.spells.iter().filter_map(|s| spells.id_of(s)).collect();
             }
         }
-        for (slot, item) in self.items().carried(unit) {
+        for (entity, item) in self.items().carried_entities(unit) {
             casting.spell_save += item.bonus.spell_save;
             if let Some((spell, charges)) = &item.charges {
                 if let (Some(id), true) = (spells.id_of(spell), *charges > 0) {
-                    casting.item_charges.push((slot as usize, id, *charges));
+                    casting.item_charges.push(super::ItemCharge {
+                        item: entity,
+                        serial: self.serial_of(entity),
+                        spell: id,
+                        charges: *charges,
+                    });
                 }
             }
         }
@@ -481,7 +487,7 @@ impl Game {
         self.battle = Some(ActiveBattle {
             battle,
             sources,
-            site: None,
+            lair: None,
             left_out,
         });
         self.attack_relations(a_owner, d_owner);
@@ -627,7 +633,7 @@ impl Game {
         let ActiveBattle {
             battle,
             sources,
-            site,
+            lair,
             left_out,
         } = active;
         // The units that sat the fight out go down with a side that lost it.
@@ -661,12 +667,10 @@ impl Game {
             };
             // The charges an item's spell has left stay on the item.
             if !u.casting.item_charges.is_empty() {
-                for &(slot, _, left) in &u.casting.item_charges {
-                    if let Some(item) = self.items().hero_item_entity(entity, slot) {
-                        if let Ok(mut item) = self.world.get::<&mut crate::item::Item>(item) {
-                            if let Some((_, charges)) = item.charges.as_mut() {
-                                *charges = left;
-                            }
+                for c in &u.casting.item_charges {
+                    if let Ok(mut item) = self.world.get::<&mut crate::item::Item>(c.item) {
+                        if let Some((_, charges)) = item.charges.as_mut() {
+                            *charges = c.charges;
                         }
                     }
                 }
@@ -708,7 +712,7 @@ impl Game {
             });
         }
         events.extend(self.give_spoils(&battle, &spoils, &survivors));
-        if site.is_none() {
+        if lair.is_none() {
             // A city that held against a wizard's attack costs the attacker its owner's goodwill.
             if let (Some(Side::Defender), Some(pos)) = (battle.winner, battle.site) {
                 if let Some(city) = self.economy().city_at(pos) {
@@ -730,7 +734,7 @@ impl Game {
             // They stand on the site when the winner's survivors move in.
             events.extend(self.raise_drained(&battle, drained));
         }
-        if let Some(index) = site {
+        if let Some(index) = lair {
             let attackers: Vec<hecs::Entity> = battle
                 .units
                 .iter()

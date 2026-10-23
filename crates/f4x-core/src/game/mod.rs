@@ -55,7 +55,7 @@ pub struct Game {
     /// What the game is played with (difficulty, node strength, ...). Chosen when the game is
     /// made and fixed after that; read through [`Game::settings`].
     pub(crate) settings: game::setting::GameSettings,
-    /// The battle being fought, if any. Saves do not hold a battle in progress.
+    /// The battle being fought, if any. A save taken in a battle holds it too (`battle/save.rs`).
     pub battle: Option<battle::game::ActiveBattle>,
     /// Set once the game has ended; every later command is refused.
     pub game_over: Option<game::endgame::GameOver>,

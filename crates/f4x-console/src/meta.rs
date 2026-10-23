@@ -215,11 +215,6 @@ fn named_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 }
 
 fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    if ctx.game.in_battle() {
-        return Err(ConsoleError::Refused(
-            "finish or flee the battle first: battles are not saved".into(),
-        ));
-    }
     let path = save_path(a)?;
     f4x_data::save::save_game(&path, ctx.game).map_err(|e| ConsoleError::Failed(e.to_string()))?;
     ctx.say(format!("saved to {}", path.display()));

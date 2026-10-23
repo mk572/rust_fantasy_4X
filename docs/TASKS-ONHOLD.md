@@ -19,7 +19,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
 | 97 | Client | Sound effects |
-| 99 | Combat | Saving during a battle |
 | 106 | Combat | Battle views for the AI and for tools |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
@@ -153,14 +152,6 @@ researching and casting, with a way to skip or switch it off.
 hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the
 same audio layer as the music (76) with its own volume, from locally extracted files. Events
 (`Event` values from `Game::apply`) are the trigger points, so the game core stays free of audio.
-
-**99. Saving during a battle.** A battle in progress is not part of a save today (`Game::battle`
-is skipped, so saving mid-fight would lose it, and the client should block saving). Make
-`Battle` serialisable: units with their statistics, cells, turn, active side, and the random
-generator state (seed plus draw count, as for the game), plus the list of overland units the
-fighters were copied from (by creation number). Restore it on load, check it for consistency
-(units on the map, sources still alive), and test that a save in the
-middle of a battle continues exactly like the unsaved one.
 
 **106. Battle views for the AI and for tools.** Task 33's model has no read-only summary an AI can search over: add cheap clone and undo of a `Battle`, a list of legal commands for a unit, and an evaluation helper (remaining hit points and strength per side), tested against random play. Prerequisite for the battle AI (46) and for auto-resolve (39).
 

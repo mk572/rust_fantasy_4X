@@ -367,7 +367,7 @@ impl App {
         let selected = self.menu.selected;
         let selected_slot = selected.and_then(|n| self.menu.slots.get(n).cloned());
         let can_load = selected_slot.as_ref().is_some_and(Slot::loadable);
-        let in_game = !self.menu.from_menu && !self.game.in_battle();
+        let in_game = !self.menu.from_menu;
         let can_save = in_game && selected.is_some() && self.game.game_over.is_none();
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
@@ -484,7 +484,7 @@ impl App {
                 self.open_main_menu();
             } else {
                 // Leaving the game keeps it as the one Continue offers.
-                if self.game.game_over.is_none() && !self.game.in_battle() {
+                if self.game.game_over.is_none() {
                     self.save_to(Path::new(AUTOSAVE));
                 }
                 self.open_main_menu();

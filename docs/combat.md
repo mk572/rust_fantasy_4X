@@ -24,8 +24,11 @@ an AI alone.
   units are despawned, survivors keep their wounds as `Hurt`, `Event::BattleEnded` names the
   winner. The overland `AttackRequested` event is what a client or AI turns into
   `BeginBattle`.
-- A battle in progress is **not saved**: finish or flee before saving (the client should
-  block saving during a fight).
+- A battle in progress **is saved**, with the world it is fought in: `Snapshot.battle` holds the
+  `Battle` (units, map, fields, casters, the random stream as seed and draws) and the creation
+  numbers of the overland units, items and lair it refers to (`battle/save.rs`). A save outside a
+  battle holds no battle. Spells in a saved battle are written by id, not by number; a load
+  refuses a battle that disagrees with its world (a unit gone, a unit of the wrong owner).
 
 Not yet written back (task 42): experience, fleeing losses, loot, fame, summoned units
 vanishing, moving the winner onto the square.

@@ -102,6 +102,7 @@ pub enum Command {
         player: player::PlayerId,
         #[serde(with = "game::replay::stable_ref::one")]
         unit: hecs::Entity,
+        #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
     },
     /// The item screen: move an item between the vault, the award list and a hero's slots.
@@ -224,11 +225,13 @@ pub enum Command {
     },
     SetResearch {
         player: player::PlayerId,
+        #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
     },
     /// Start casting a spell overland; the target is needed only if it is paid in full now.
     CastSpell {
         player: player::PlayerId,
+        #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
         target: Option<rules::exec::Target>,
     },
@@ -244,6 +247,7 @@ pub enum Command {
     /// enchantment): it ends and stops costing upkeep.
     TurnOffSpell {
         player: player::PlayerId,
+        #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
     },
     /// Turn off one of the wizard's own spells on a city.
@@ -251,6 +255,7 @@ pub enum Command {
         player: player::PlayerId,
         #[serde(with = "game::replay::stable_ref::one")]
         city: hecs::Entity,
+        #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
     },
     /// Trade gold and mana (two for one, one for one with the alchemy retort).

@@ -25,7 +25,7 @@ use rand::{Rng, RngCore};
 use super::attack::Mode;
 
 /// The realms an attack or spell can belong to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Realm {
     Nature,
     Sorcery,

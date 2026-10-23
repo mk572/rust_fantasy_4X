@@ -62,7 +62,7 @@ pub fn screen_of(cgx: i32, cgy: i32, sub_x: i32, sub_y: i32) -> (i32, i32) {
 }
 
 /// The original's combat terrain sets (`cts_*`) that have ground to fight on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Set {
     Plains,
     Hills,
@@ -75,7 +75,7 @@ pub enum Set {
 }
 
 /// What stands in the middle of the field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Site {
     Open,
     Outpost,
@@ -85,7 +85,7 @@ pub enum Site {
 /// What stands on the structure square of a field with a [`Site::Outpost`] (`CS_*` of the
 /// original): an outpost, or the building of a lair, tower or node; or, at a [`Site::City`], the
 /// wizard's fortress.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Structure {
     Outpost,
     /// The wizard's fortress city: a city with the fortress on its structure square.
@@ -170,7 +170,7 @@ impl Spec {
 }
 
 /// A house in the city, which is only for show.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct House {
     pub cell: (i32, i32),
     /// Which of the fifteen house pictures (`cmbtcity` entry `2 + variant`).
@@ -178,7 +178,7 @@ pub struct House {
 }
 
 /// A tree or a rock: the cell, the offset inside it (0 to 5) and which of the five pictures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Prop {
     pub cell: (i32, i32),
     pub sub: (u8, u8),
@@ -186,7 +186,7 @@ pub struct Prop {
 }
 
 /// What the battle screen draws, in the original's frame.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Look {
     pub set: Set,
     pub site: Site,

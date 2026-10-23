@@ -19,13 +19,15 @@ pub mod immunity;
 pub mod info;
 pub mod legal;
 pub mod map;
+pub mod save;
 pub mod special;
 pub mod spell;
 pub mod spoils;
 pub mod vortex;
 
-use rand::{RngCore, SeedableRng};
-use rand_pcg::Pcg64Mcg;
+use crate::game::rng::GameRng;
+use crate::game::serial::Serial;
+use rand::RngCore;
 
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -49,7 +51,7 @@ pub const NODE_COUNTER_STRENGTH: u32 = 50;
 /// What a node's aura adds to its realm's creatures: attack, defence and resistance.
 pub const NODE_AURA_BONUS: i32 = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Side {
     Attacker,
     Defender,
@@ -72,7 +74,7 @@ impl Side {
 }
 
 /// How a unit's ranged attack works.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum RangedKind {
     None,
     /// Arrows, slings and boulders: fired at a distance with a penalty, using ammunition.
@@ -83,7 +85,7 @@ pub enum RangedKind {
     Short,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     Active,
     Dead,
@@ -121,7 +123,7 @@ pub enum Confusion {
 }
 
 /// One unit in a battle, with the statistics it fights with.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleUnit {
     pub id: usize,
     pub side: Side,
@@ -220,13 +222,13 @@ pub struct BattleUnit {
 }
 
 /// What a unit casts with its own mana rather than the wizard's skill (task 265).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UnitCasting {
     /// A hero's innate spells: they cost the unit's mana.
     pub innate: Vec<SpellId>,
-    /// The spells of a hero's items, with the slot of the item and the charges left: they cost
-    /// no mana.
-    pub item_charges: Vec<(usize, SpellId, u32)>,
+    /// The spells of a hero's items, with the item (the entity it was copied from) and the
+    /// charges left: they cost no mana.
+    pub item_charges: Vec<ItemCharge>,
     /// The spells its abilities cast (`casts_healing`, `casts_fireball`, ...): once a battle
     /// each, for no mana.
     pub abilities: Vec<SpellId>,
@@ -234,6 +236,22 @@ pub struct UnitCasting {
     pub spell_save: i32,
     /// Demons it can still summon this battle (`summon_demon`: three for a Demon Lord).
     pub demons: u32,
+}
+
+/// A spell of a hero's item and the charges it has left in this battle.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ItemCharge {
+    /// The item entity the charges are written back to when the battle ends. A save keeps the
+    /// item's creation number only, and a load puts the entity back (`Battle::bind_items`).
+    #[serde(skip, default = "dangling")]
+    pub item: hecs::Entity,
+    pub serial: Serial,
+    pub spell: SpellId,
+    pub charges: u32,
+}
+
+fn dangling() -> hecs::Entity {
+    hecs::Entity::DANGLING
 }
 
 impl BattleUnit {
@@ -537,6 +555,7 @@ pub enum BattleCommand {
     /// The wizard casts a spell (once a turn). `mana` is the total put into a spell that takes
     /// extra mana (a bolt, a dispel, Counter Magic); other spells take their cost whatever it is.
     Cast {
+        #[serde(with = "crate::game::replay::stable_ref::spell")]
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
@@ -546,6 +565,7 @@ pub enum BattleCommand {
     /// unit's mana. The unit ends its turn.
     UnitCast {
         unit: usize,
+        #[serde(with = "crate::game::replay::stable_ref::spell")]
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
@@ -791,7 +811,7 @@ pub enum BattleEvent {
 }
 
 /// The state of one battle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Battle {
     pub attacker: PlayerId,
     pub defender: PlayerId,
@@ -834,7 +854,7 @@ pub struct Battle {
     pub(super) save_penalty: i32,
     /// The battle unit that is casting, if a unit and not the wizard: Life Drain heals it.
     pub(super) spell_caster: Option<usize>,
-    rng: Pcg64Mcg,
+    rng: GameRng,
 }
 
 impl Battle {
@@ -898,7 +918,7 @@ impl Battle {
             vortices: Vec::new(),
             save_penalty: 0,
             spell_caster: None,
-            rng: Pcg64Mcg::seed_from_u64(seed),
+            rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();
         b.check_winner();

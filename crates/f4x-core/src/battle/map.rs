@@ -28,7 +28,7 @@ pub const ROUGH_COST: u32 = 4;
 /// Half-moves to enter mud (Earth to Mud): the original's 12, which is more than any unit has.
 pub const MUD_COST: u32 = 12;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Cell {
     Open,
     /// Forest, swamp, rubble: slows walkers.
@@ -80,7 +80,7 @@ pub fn is_wall_corner(pos: Pos) -> bool {
 }
 
 /// What stands on a wall site.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Wall {
     None,
     Standing,
@@ -108,7 +108,7 @@ impl Mover {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleMap {
     cells: Vec<Cell>,
     /// Half-moves to enter each square on foot (`layout::INF` for none).

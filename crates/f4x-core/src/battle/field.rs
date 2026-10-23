@@ -34,7 +34,7 @@ pub const MANA_LEAK_DRAIN: i32 = 5;
 pub const CALL_LIGHTNING_STRENGTH: i32 = 8;
 
 /// The battlefield enchantments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Field {
     TrueLight,
     Darkness,
@@ -77,7 +77,7 @@ impl Field {
 
 /// What the battlefield spells have changed about a unit's numbers; kept so it can be taken off
 /// again (`BattleUnit::field`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FieldBonus {
     pub melee: i32,
     pub ranged: i32,
