@@ -287,7 +287,7 @@ that has identity and state is an entity.
 ### 3.7 Item
 
 An item instance is an entity (`item/entity.rs`, task 333). Its data is one component, `Item` (name,
-kind, cost, icon, `ItemBonus`, power ids, charges, optional prefab id), next to `Serial` and
+kind, cost, icon, `ItemBonus`, power ids, charges, optional prefab id, and `made`, the parts of a default name), next to `Serial` and
 `HeldBy`: `Hero(entity, slot)`, `Vault(player, slot)`, `Award(player)`, `Crafting(player)` or
 `Offered(player)`. (The design listed the data as several components; they are always read
 together, so they stay one.) Moving an item changes `HeldBy`; an item with no holder is despawned.

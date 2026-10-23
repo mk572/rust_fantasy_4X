@@ -2354,6 +2354,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         powers: powers.iter().map(|p| p.to_string()).collect(),
         charges: None,
         prefab: None,
+        made: None,
     };
     let sword = item(
         ItemKind::Sword,
@@ -2420,6 +2421,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
         powers: Vec::new(),
         charges: None,
         prefab: None,
+        made: None,
     };
     g.arm_hero(unit, [Some(staff), None, None]);
     let mut armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
@@ -2671,6 +2673,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
         powers: Vec::new(),
         charges: Some(("fire_bolt".into(), 2)),
         prefab: None,
+        made: None,
     };
     // The spell is in the second slot: any slot works, not only the first.
     g.arm_hero(hero, [None, Some(wand("Wand")), None]);

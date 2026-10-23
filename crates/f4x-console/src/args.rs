@@ -250,6 +250,37 @@ pub fn resolve<T: Def>(
     }
 }
 
+/// A place for an item: `vault:3`, `award:1` (slots count from 1) or `hero:12:2` (the hero's
+/// unit number and its slot).
+pub fn parse_item_spot(
+    game: &Game,
+    text: &str,
+) -> Result<f4x_core::item::armory::ItemSpot, ConsoleError> {
+    use f4x_core::item::armory::ItemSpot;
+    let bad = || {
+        ConsoleError::Parse(format!(
+            "{text:?} is not an item place (vault:N, award:N, hero:UNIT:SLOT)"
+        ))
+    };
+    let number = |s: &str| -> Result<usize, ConsoleError> {
+        s.parse::<usize>()
+            .ok()
+            .filter(|n| *n >= 1)
+            .map(|n| n - 1)
+            .ok_or_else(bad)
+    };
+    let parts: Vec<&str> = text.split(':').collect();
+    match parts.as_slice() {
+        ["vault", n] => Ok(ItemSpot::Vault(number(n)?)),
+        ["award", n] => Ok(ItemSpot::Award(number(n)?)),
+        ["hero", unit, slot] => {
+            let serial: u64 = unit.parse().map_err(|_| bad())?;
+            Ok(ItemSpot::Hero(unit_by_serial(game, serial)?, number(slot)?))
+        }
+        _ => Err(bad()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

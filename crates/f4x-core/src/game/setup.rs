@@ -134,8 +134,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.set_generated(map);
     for k in 0..wizards {
         let name = match (k, spec.all_ai) {
-            (0, false) => "You".to_string(),
-            _ => format!("Wizard {}", k + 1),
+            (0, false) => content.texts.get("setup.you", &crate::text::Args::new()),
+            _ => content.texts.get(
+                "setup.wizard_number",
+                &crate::text::Args::new().count("n", k as i32 + 1),
+            ),
         };
         game.add_player(PlayerId(k), name);
     }
@@ -399,6 +402,7 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
 /// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
 fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Result<(), String> {
     let rules = &game.content.rules;
+    let rules_texts = &game.content.texts;
     let race_def = rules
         .races
         .by_name(race)
@@ -408,7 +412,7 @@ fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Res
         .city_names
         .first()
         .cloned()
-        .unwrap_or_else(|| "Capital".into());
+        .unwrap_or_else(|| rules_texts.get("setup.capital", &crate::text::Args::new()));
     let named = |what: &str| {
         race_def
             .units

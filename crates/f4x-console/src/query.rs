@@ -80,6 +80,13 @@ pub const TABLE: &[CommandDef] = &[
         run: offers,
     },
     CommandDef {
+        name: "items",
+        kind: Kind::Query,
+        usage: "items",
+        help: "Your heroes with what they carry, the vault, the award list and an item being made; `equip` and `scrap` use the places listed here.",
+        run: items,
+    },
+    CommandDef {
         name: "spells",
         kind: Kind::Query,
         usage: "spells",
@@ -944,6 +951,52 @@ fn offers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .collect();
     if lines.is_empty() {
         lines.push("no offers".into());
+    }
+    for line in lines {
+        ctx.say(line);
+    }
+    Ok(())
+}
+
+fn items(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::item::armory::ItemWorld;
+    let me = ctx.session.player;
+    let mut lines = Vec::new();
+    for hero in ctx.game.units().hero_units(me) {
+        let name = ctx.game.units().hero_name(hero).unwrap_or_default();
+        let serial = ctx.game.serial_of(hero).0;
+        lines.push(format!("hero {serial} {name}"));
+        let kinds = ctx
+            .game
+            .items()
+            .hero_slots(me, hero)
+            .unwrap_or([f4x_core::rules::SlotKind::Misc; 3]);
+        for (slot, kind) in kinds.iter().enumerate() {
+            let held = match ctx.game.items().hero_item(hero, slot) {
+                Some(item) => describe::magic_item(ctx.game, &item),
+                None => "empty".to_string(),
+            };
+            lines.push(format!("  hero:{serial}:{} ({kind:?}) {held}", slot + 1));
+        }
+    }
+    let armory = ctx.game.items().armory(me);
+    lines.push("vault".into());
+    for (i, item) in armory.vault.iter().enumerate() {
+        if let Some(item) = item {
+            lines.push(format!(
+                "  vault:{} {}",
+                i + 1,
+                describe::magic_item(ctx.game, item)
+            ));
+        }
+    }
+    lines.push("awards".into());
+    for (i, item) in armory.awards.iter().enumerate() {
+        lines.push(format!(
+            "  award:{} {}",
+            i + 1,
+            describe::magic_item(ctx.game, item)
+        ));
     }
     for line in lines {
         ctx.say(line);

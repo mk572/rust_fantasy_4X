@@ -20,6 +20,13 @@ impl Game {
         there
     }
 
+    /// Kill a unit as a battle would: a hero is then dead and can be raised.
+    pub fn cheat_slay_unit(&mut self, unit: hecs::Entity) -> bool {
+        let there = self.world.contains(unit);
+        self.remove_unit(unit, crate::hero::Fate::Slain);
+        there
+    }
+
     /// Put a unit on a square, wherever it stands and whatever is there.
     pub fn cheat_move_unit(&mut self, unit: hecs::Entity, to: Position) {
         let _ = self.world.insert_one(unit, to);

@@ -82,6 +82,8 @@ pub enum Screen {
     HallOfFame,
     /// The heroes' items and the vault (`item_screen.rs`).
     Items,
+    /// Designing an item for Enchant Item or Create Artifact (`craft_screen.rs`).
+    Craft,
 }
 
 pub struct App {
@@ -206,6 +208,7 @@ pub struct App {
     pub(crate) test_sea: bool,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
+    pub(crate) craft_ui: Option<crate::craft_screen::CraftUi>,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     /// The player has seen the game-over screen and chose to look at the map.
@@ -334,6 +337,7 @@ impl App {
             unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
+            craft_ui: None,
             game_over_seen: false,
             menu: Default::default(),
             console: Default::default(),
@@ -509,7 +513,11 @@ impl App {
                     {
                         self.item_pool_pending = true;
                     }
-                    let line = f4x_core::world_event::compose(&self.event_texts, &notice);
+                    let line = f4x_core::world_event::compose(
+                        &self.event_texts,
+                        &self.game.content().texts,
+                        &notice,
+                    );
                     self.event_notices.push_back(notice);
                     line
                 }
@@ -1314,6 +1322,7 @@ impl App {
             Screen::EnemyCity(city) => self.enemy_city_screen(city),
             Screen::HallOfFame => self.hall_of_fame_screen(),
             Screen::Items => self.item_screen(),
+            Screen::Craft => self.craft_screen(),
             Screen::Diplomacy => self.diplomacy_screen(),
             Screen::Spellbook => self.spellbook_screen(),
             Screen::Apprentice => self.apprentice_screen(),

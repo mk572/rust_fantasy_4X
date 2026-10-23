@@ -85,7 +85,7 @@ impl App {
         let Some(notice) = self.event_notices.front().cloned() else {
             return false;
         };
-        let Some(text) = compose(&self.event_texts, &notice) else {
+        let Some(text) = compose(&self.event_texts, &self.game.content().texts, &notice) else {
             self.event_notices.pop_front();
             return true;
         };

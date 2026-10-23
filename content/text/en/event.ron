@@ -4,4 +4,19 @@
     "event.bad_moon": "Bad Moon",
     "event.good_moon": "Good Moon",
     "event.mana_short": "Mana Short",
+    // The words the random events' sentences are filled with.
+    "event.none": "no",
+    "event.number": "{n}",
+    "event.thousand": "{n} thousand",
+    "event.plural_ending": (count: "n", one: "", other: "s"),
+    // What follows the article in "a{ore} deposit".
+    "event.ore_iron_ore": "n iron",
+    "event.ore_coal": " coal",
+    "event.ore_silver_ore": " silver",
+    "event.ore_gold_ore": " gold",
+    "event.ore_gem": " gem",
+    "event.ore_mithril_ore": " mithril",
+    "event.ore_adamantium_ore": "n adamantium",
+    "event.ore_quork_crystal": " quork",
+    "event.ore_crysx_crystal": " crysx",
 }

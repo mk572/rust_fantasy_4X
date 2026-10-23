@@ -19,6 +19,7 @@ mod city_screen;
 mod cityscape;
 mod combat_result;
 mod console_screen;
+mod craft_screen;
 mod create_screen;
 mod cycle;
 mod diplomacy_screen;

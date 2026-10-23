@@ -124,9 +124,10 @@ impl App {
             let r = lay.rect((x, y, 312.0, 161.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
+        let name = item.display_name(self.game.content());
         let text = self.text_with(
             "offer.merchant",
-            &Args::new().text("item", &item.name).count("price", price),
+            &Args::new().text("item", &name).count("price", price),
         );
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let mut at = y + 9.0;
@@ -249,7 +250,8 @@ impl App {
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x + 9.0, y + 6.0);
-        self.bm_text(view, 4, gold, &item.name, x + 31.0, y + 12.0, Align::Left);
+        let name = item.display_name(self.game.content());
+        self.bm_text(view, 4, gold, &name, x + 31.0, y + 12.0, Align::Left);
         let rules = self.game.content().rules.clone();
         let b = item.bonus;
         let mut lines: Vec<String> = Vec::new();

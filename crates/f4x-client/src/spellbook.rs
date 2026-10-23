@@ -155,6 +155,12 @@ impl App {
     /// Start casting `spell`: one that needs a target and is paid for at once is aimed on the
     /// map, any other is started and paid for over the turns.
     pub(crate) fn begin_cast(&mut self, spell: SpellId) {
+        // The two spells that make items are designed first.
+        let id = self.game.content().rules.spells.get(spell).id.clone();
+        if let Some(craft) = f4x_core::item::crafting::Craft::from_spell(&id) {
+            self.open_craft(craft);
+            return;
+        }
         let needs = self.game.spell_needs_target(HUMAN, spell);
         let cost = self.game.casting_cost(HUMAN, spell, false);
         let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());

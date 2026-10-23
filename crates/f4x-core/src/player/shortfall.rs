@@ -10,6 +10,7 @@
 //! choice (`Game::item_overflow`). A ship let go with passengers aboard turns neutral and sails
 //! for the nearest free shore (`transport::Marooned`).
 
+use crate::content::Content;
 use crate::item::armory::{ItemError, ItemSpot};
 use crate::item::Item;
 use crate::player::finance::{gold_after_income, settle};
@@ -145,24 +146,24 @@ impl Game {
     ) -> Option<ItemOverflow> {
         let armory = self.items().armory(player);
         let mut lines = Vec::new();
-        fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item) {
+        fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item, content: &Content) {
             lines.push(ItemLine {
                 spot,
-                label: item.name.clone(),
+                label: item.display_name(content),
                 mana: item.anvil_mana(),
             })
         }
         for (i, item) in armory.vault.iter().enumerate() {
             if let Some(item) = item {
-                line(&mut lines, ItemSpot::Vault(i), item);
+                line(&mut lines, ItemSpot::Vault(i), item, &self.content);
             }
         }
         for (i, item) in armory.awards.iter().enumerate() {
-            line(&mut lines, ItemSpot::Award(i), item);
+            line(&mut lines, ItemSpot::Award(i), item, &self.content);
         }
         for &hero in released {
             for (slot, item) in self.hero_slot_items(hero) {
-                line(&mut lines, ItemSpot::Hero(hero, slot), &item);
+                line(&mut lines, ItemSpot::Hero(hero, slot), &item, &self.content);
             }
         }
         // The vault has no limit, so releasing heroes never leaves items without a place.

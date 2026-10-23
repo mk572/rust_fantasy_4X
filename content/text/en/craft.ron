@@ -1,0 +1,8 @@
+// Player-facing messages of the item crafting screen. One key is in one file only (docs/text.md).
+{
+    "craft.cost": "Cost:",
+    "craft.too_many": "Only four powers may be enchanted into an item.",
+    "craft.give_up": "This item has no power. Give up making it?",
+    "craft.choose_spell": "Choose a spell to embed in this item",
+    "craft.charges": "Charges",
+}

@@ -64,6 +64,10 @@ pub struct Item {
     pub charges: Option<(String, u32)>,
     /// The id of the prefab item this is a copy of; `None` for one made by a wizard or at random.
     pub prefab: Option<String>,
+    /// The parts of the default name of an item made without one (task 347): a language puts
+    /// them in its own order. `name` is empty then.
+    #[serde(default)]
+    pub made: Option<crafting::MadeName>,
 }
 
 impl Item {
@@ -100,6 +104,16 @@ impl Item {
             powers: def.powers.clone(),
             charges: def.charges.clone(),
             prefab: Some(def.id.clone()),
+            made: None,
+        }
+    }
+
+    /// What the item is called to the player: the name it was given, or the default name made
+    /// from its parts in the language of the texts.
+    pub fn display_name(&self, content: &Content) -> String {
+        match &self.made {
+            Some(made) if self.name.is_empty() => made.compose(content),
+            _ => self.name.clone(),
         }
     }
 
@@ -359,6 +373,7 @@ mod tests {
             powers: Vec::new(),
             charges: None,
             prefab: None,
+            made: None,
         }
     }
 

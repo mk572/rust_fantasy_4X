@@ -90,7 +90,10 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
                 .map_or(unit.as_str(), |u| u.name.as_str());
             format!("{count} {name} of level {} for {price} gold", level + 1)
         }
-        Offer::Item { item, price } => format!("the item {} for {price} gold", item.name),
+        Offer::Item { item, price } => format!(
+            "the item {} for {price} gold",
+            item.display_name(game.content())
+        ),
     }
 }
 
@@ -565,4 +568,47 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             spell(game, *s)
         ),
     }
+}
+
+/// An item in a line: its name, kind, bonuses, powers and charges.
+pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
+    let rules = &game.content().rules;
+    let b = item.bonus;
+    let mut parts: Vec<String> = [
+        ("attack", b.attack),
+        ("to hit", b.to_hit),
+        ("defense", b.defense),
+        ("half-moves", b.moves),
+        ("resistance", b.resistance),
+        ("spell skill", b.spell_skill),
+        ("spell save", b.spell_save),
+    ]
+    .into_iter()
+    .filter(|(_, v)| *v != 0)
+    .map(|(n, v)| format!("{v:+} {n}"))
+    .collect();
+    parts.extend(item.powers.iter().map(|p| {
+        rules
+            .item_powers
+            .by_name(p)
+            .map_or(p.clone(), |d| d.name.clone())
+    }));
+    if let Some((spell, n)) = &item.charges {
+        let name = rules
+            .spells
+            .by_name(spell)
+            .map_or(spell.as_str(), |s| s.name.as_str());
+        parts.push(format!("{name} x{n}"));
+    }
+    format!(
+        "{} ({:?}, worth {}): {}",
+        item.display_name(game.content()),
+        item.kind,
+        item.cost,
+        if parts.is_empty() {
+            "no powers".to_string()
+        } else {
+            parts.join(", ")
+        }
+    )
 }

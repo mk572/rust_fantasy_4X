@@ -10,8 +10,8 @@ use f4x_core::player::view::PlayerView;
 use crate::Ai;
 
 /// Put the items in the vault and on the award list on the heroes at the fortress that have a
-/// free slot for them (moving an item to a hero elsewhere costs mana, so those wait). The first
-/// fit is taken; a better choice by the item's worth is task 222.
+/// free slot for them (moving an item to a hero elsewhere costs mana, so those wait). The one worth
+/// most of those that fit is taken.
 pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (heroes, fortress) = {
         let view = PlayerView::new(game, ai.player);
@@ -29,18 +29,22 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let from = {
                 let view = PlayerView::new(game, ai.player);
                 let armory = view.armory();
+                // The fitting item worth most.
                 let vault = armory
                     .vault
                     .iter()
-                    .position(|i| i.as_ref().is_some_and(|i| kind.fits(i.kind)))
-                    .map(ItemSpot::Vault);
-                vault.or_else(|| {
-                    armory
-                        .awards
-                        .iter()
-                        .position(|i| kind.fits(i.kind))
-                        .map(ItemSpot::Award)
-                })
+                    .enumerate()
+                    .filter_map(|(i, item)| Some((ItemSpot::Vault(i), item.as_ref()?)));
+                let awards = armory
+                    .awards
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| (ItemSpot::Award(i), item));
+                vault
+                    .chain(awards)
+                    .filter(|(_, item)| kind.fits(item.kind))
+                    .max_by_key(|(_, item)| item.cost)
+                    .map(|(spot, _)| spot)
             };
             if let Some(from) = from {
                 ai.send(

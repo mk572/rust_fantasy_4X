@@ -180,7 +180,8 @@ impl App {
             (my - lay.origin.y) / lay.scale - 5.0,
         );
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x, y);
-        self.bm_text_outlined(view, 1, &item.name, x + 20.0, y + 4.0, Align::Left);
+        let name = item.display_name(self.game.content());
+        self.bm_text_outlined(view, 1, &name, x + 20.0, y + 4.0, Align::Left);
     }
 
     pub(crate) fn item_screen(&mut self) {

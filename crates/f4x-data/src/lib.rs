@@ -822,7 +822,7 @@ mod tests {
         let mut ids = Vec::new();
         for _ in 0..2000 {
             let item = make_item(&mut rng, rules, Grade::Any, 0, &mut taken);
-            assert!(item.cost > 0 && !item.name.is_empty());
+            assert!(item.cost > 0 && (!item.name.is_empty() || item.made.is_some()));
             if let Some(id) = item.prefab {
                 assert!(!ids.contains(&id), "{id} given twice");
                 ids.push(id);
@@ -878,7 +878,10 @@ mod tests {
                 "{item:?}"
             );
             let item = random_item(&mut rng, rules, Grade::Artifact, 0);
-            assert!(item.powers.is_empty() && !item.name.is_empty(), "{item:?}");
+            assert!(
+                item.powers.is_empty() && (!item.name.is_empty() || item.made.is_some()),
+                "{item:?}"
+            );
         }
     }
 

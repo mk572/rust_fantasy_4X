@@ -514,6 +514,7 @@ pub(crate) mod tests {
             powers: Vec::new(),
             charges: None,
             prefab: None,
+            made: None,
         };
         g.arm_hero(h, [Some(staff), None, None]);
         assert_eq!(g.units().hero_mana(h), before + 7);
@@ -785,6 +786,7 @@ pub(crate) mod tests {
             powers: Vec::new(),
             charges: None,
             prefab: None,
+            made: None,
         }
     }
 

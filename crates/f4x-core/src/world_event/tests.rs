@@ -187,13 +187,13 @@ fn a_message_fills_in_the_names_and_counts() {
     n.lost_units = 1;
     n.lost_buildings = 0;
     assert_eq!(
-        compose(&texts, &n).unwrap(),
+        compose(&texts, &words(), &n).unwrap(),
         "Hit Rome killing 3 thousand townsfolk and 1 unit, destroying no buildings."
     );
     n.lost_units = 4;
     n.lost_buildings = 1;
     assert_eq!(
-        compose(&texts, &n).unwrap(),
+        compose(&texts, &words(), &n).unwrap(),
         "Hit Rome killing 3 thousand townsfolk and 4 units, destroying 1 building."
     );
 }
@@ -207,12 +207,12 @@ fn the_message_is_the_one_of_the_events_voice() {
     ];
     let mut n = EventNotice::new(EventKind::Plague, Voice::Ended);
     n.city_name = "Oslo".into();
-    assert_eq!(compose(&texts, &n).unwrap(), "over in Oslo");
+    assert_eq!(compose(&texts, &words(), &n).unwrap(), "over in Oslo");
     n.voice = Voice::Elsewhere;
     n.player_name = "Rjak".into();
-    assert_eq!(compose(&texts, &n).unwrap(), "Rjak's");
+    assert_eq!(compose(&texts, &words(), &n).unwrap(), "Rjak's");
     n.voice = Voice::Happened;
-    assert_eq!(compose(&texts, &n), None);
+    assert_eq!(compose(&texts, &words(), &n), None);
 }
 
 #[test]
@@ -222,4 +222,18 @@ fn the_frequency_halves_or_doubles_the_pressure() {
     assert_eq!(scaled_pressure(40, 75, EventFrequency::Double), 60);
     // About 1.5 percent a turn after ten quiet turns on Average, as the design says.
     assert_eq!(scaled_pressure(10, 75, EventFrequency::Normal), 7);
+}
+
+/// The words the messages are filled with, as `content/text/en/event.ron` has them.
+fn words() -> crate::text::Texts {
+    let entries: std::collections::HashMap<String, crate::text::Entry> = ron::from_str(
+        r#"{
+            "event.none": "no",
+            "event.number": "{n}",
+            "event.thousand": "{n} thousand",
+            "event.plural_ending": (count: "n", one: "", other: "s"),
+        }"#,
+    )
+    .unwrap();
+    crate::text::Texts::new("en", entries, "en", Default::default())
 }

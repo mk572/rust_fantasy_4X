@@ -400,8 +400,52 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
     income.split.mana - income.mana_upkeep - def.upkeep as i32 >= 0
 }
 
+/// Resurrection: the original weighs it highest when the wizard has a free place for a hero and
+/// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`), through
+/// `Command::ResurrectHero` since the spell needs a hero chosen. Returns whether it began.
+fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
+    let me = ai.player;
+    let kind = {
+        let spell = game
+            .content()
+            .rules
+            .spells
+            .id_of(f4x_core::spell::hero::RESURRECTION);
+        let Some(spell) = spell else {
+            return false;
+        };
+        let knows = game
+            .wizard(me)
+            .is_some_and(|m| m.casting().is_none() && m.knows(spell));
+        if !knows
+            || game
+                .units()
+                .hero_spell_blocked(me, f4x_core::spell::hero::RESURRECTION)
+                .is_some()
+        {
+            return false;
+        }
+        let mana = game.treasury(me).map_or(0, |t| t.mana);
+        let cost = game.casting_cost(me, spell, false);
+        // The same gate as the other spells: paid from the reserve, not more than fifty turns.
+        let per_turn = mana / 10 + game.income(me).split.mana;
+        if cost * 3 / 2 > mana || cost / 50 > per_turn {
+            return false;
+        }
+        game.units().ai_resurrection_pick()
+    };
+    let Some(kind) = kind else {
+        return false;
+    };
+    ai.send(game, Command::ResurrectHero { player: me, kind }, events);
+    true
+}
+
 fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
+    if resurrect(ai, game, events) {
+        return;
+    }
     let choice: Option<(SpellId, Option<Target>)> = {
         let view = PlayerView::new(game, me);
         let Some(magic) = view.wizard() else {
@@ -508,5 +552,44 @@ mod tests {
         assert_eq!(kind_of("fire_bolt"), Kind::Other);
         assert_eq!(kind_of("suppress_magic"), Kind::Other);
         assert_eq!(kind_of("earth_to_mud"), Kind::Other);
+    }
+
+    #[test]
+    fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() {
+        use f4x_core::game::setup::{new_game, NewGame};
+        use f4x_core::player::PlayerId;
+        const P1: PlayerId = PlayerId(1);
+        let content = crate::testworld::content();
+        let mut g = new_game(
+            &content,
+            &NewGame {
+                seed: 7,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game");
+        let ai = Ai::new(P1);
+        let spell = g
+            .content()
+            .rules
+            .spells
+            .id_of(f4x_core::spell::hero::RESURRECTION)
+            .unwrap();
+        g.treasury_mut(P1).unwrap().gold = 50_000;
+        g.treasury_mut(P1).unwrap().mana = 5_000;
+        for k in [1, 4] {
+            let hero = g.hire_hero(P1, k).unwrap();
+            g.cheat_slay_unit(hero);
+        }
+        // Not known: nothing happens. Known: the spell is begun for the last dead hero.
+        let mut events = Vec::new();
+        assert!(!resurrect(&ai, &mut g, &mut events));
+        g.cheat_learn_spell(P1, spell);
+        assert!(resurrect(&ai, &mut g, &mut events), "{events:?}");
+        let hero = g.units().hero_entity(4);
+        let raising = g.wizard(P1).unwrap().raising();
+        let started =
+            raising == hero || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
+        assert!(started, "{events:?}");
     }
 }

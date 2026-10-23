@@ -213,11 +213,12 @@ impl App {
                     },
                 );
             }
+            let name = self.text(item.key);
             self.bm_text(
                 view,
                 TEXT_STYLE,
                 TEXT,
-                item.name,
+                &name,
                 x + 20.0,
                 y + 5.0,
                 Align::Left,

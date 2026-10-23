@@ -17,6 +17,7 @@ fn item(name: &str, cost: u32) -> Item {
         powers: Vec::new(),
         charges: None,
         prefab: None,
+        made: None,
     }
 }
 

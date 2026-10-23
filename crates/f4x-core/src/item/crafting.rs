@@ -56,7 +56,7 @@ impl Craft {
 /// What the wizard asks for (the item screen's choices).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemDesign {
-    /// The name; empty takes [`default_name`].
+    /// The name; empty takes the default one ([`made_name`]).
     pub name: String,
     pub kind: ItemKind,
     /// The picture, one of the kind's range (see [`ItemKind::icon_range`]); one outside it
@@ -280,10 +280,10 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
         ItemKind::Platemail => bonus.defense += 2,
         _ => {}
     }
-    let name = if design.name.trim().is_empty() {
-        default_name(design, rules)
+    let (name, made) = if design.name.trim().is_empty() {
+        (String::new(), Some(made_name(design, rules)))
     } else {
-        design.name.clone()
+        (design.name.clone(), None)
     };
     Item {
         name,
@@ -294,32 +294,161 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
         powers,
         charges: design.charges.clone(),
         prefab: None,
+        made,
     }
 }
 
-/// What the original calls an item with no name given (`Get_Item_Name`): "+3 Sword of Wizardry",
-/// from the kind, the attack bonus of a weapon and the power highest in the table.
-pub fn default_name(design: &ItemDesign, rules: &Rules) -> String {
-    let kind_name = match design.kind {
-        ItemKind::Sword => "Sword",
-        ItemKind::Mace => "Mace",
-        ItemKind::Axe => "Axe",
-        ItemKind::Bow => "Bow",
-        ItemKind::Staff => "Staff",
-        ItemKind::Wand => "Wand",
-        // A miscellaneous item is told apart by its picture (`Get_Item_Type_Name`).
-        ItemKind::Misc => match design.picture() {
-            ..=77 => "Amulet",
-            78..=83 => "Ring",
-            84..=89 => "Cloak",
-            90..=93 => "Gauntlet",
-            94..=100 => "Helm",
-            _ => "Orb",
-        },
-        ItemKind::Shield => "Shield",
-        ItemKind::Chainmail => "Chain Mail",
-        ItemKind::Platemail => "Plate Mail",
-    };
+/// The kind of thing an item is called (`Get_Item_Type_Name`): the base kinds, and for a
+/// miscellaneous item the one its picture shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TypeName {
+    Sword,
+    Mace,
+    Axe,
+    Bow,
+    Staff,
+    Wand,
+    Shield,
+    ChainMail,
+    PlateMail,
+    Amulet,
+    Ring,
+    Cloak,
+    Gauntlet,
+    Helm,
+    Orb,
+}
+
+impl TypeName {
+    /// Its word in `content/text/*/item.ron`.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Sword => "item.type_sword",
+            Self::Mace => "item.type_mace",
+            Self::Axe => "item.type_axe",
+            Self::Bow => "item.type_bow",
+            Self::Staff => "item.type_staff",
+            Self::Wand => "item.type_wand",
+            Self::Shield => "item.type_shield",
+            Self::ChainMail => "item.type_chain_mail",
+            Self::PlateMail => "item.type_plate_mail",
+            Self::Amulet => "item.type_amulet",
+            Self::Ring => "item.type_ring",
+            Self::Cloak => "item.type_cloak",
+            Self::Gauntlet => "item.type_gauntlet",
+            Self::Helm => "item.type_helm",
+            Self::Orb => "item.type_orb",
+        }
+    }
+
+    /// The name of a design's kind and picture.
+    pub fn of(kind: ItemKind, icon: u16) -> TypeName {
+        match kind {
+            ItemKind::Sword => Self::Sword,
+            ItemKind::Mace => Self::Mace,
+            ItemKind::Axe => Self::Axe,
+            ItemKind::Bow => Self::Bow,
+            ItemKind::Staff => Self::Staff,
+            ItemKind::Wand => Self::Wand,
+            // A miscellaneous item is told apart by its picture.
+            ItemKind::Misc => match icon {
+                ..=77 => Self::Amulet,
+                78..=83 => Self::Ring,
+                84..=89 => Self::Cloak,
+                90..=93 => Self::Gauntlet,
+                94..=100 => Self::Helm,
+                _ => Self::Orb,
+            },
+            ItemKind::Shield => Self::Shield,
+            ItemKind::Chainmail => Self::ChainMail,
+            ItemKind::Platemail => Self::PlateMail,
+        }
+    }
+}
+
+/// What follows "of" in a default name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Suffix {
+    Strength,
+    Accuracy,
+    Defense,
+    Wizardry,
+    Power,
+    Speed,
+    Protection,
+    /// A special power, by its id in `item_powers.ron` (the name is the content's).
+    Special(String),
+    /// The embedded spell, by its id, and the charges.
+    Spell(String, u32),
+}
+
+impl Suffix {
+    fn key(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::Strength => "item.suffix_strength",
+            Self::Accuracy => "item.suffix_accuracy",
+            Self::Defense => "item.suffix_defense",
+            Self::Wizardry => "item.suffix_wizardry",
+            Self::Power => "item.suffix_power",
+            Self::Speed => "item.suffix_speed",
+            Self::Protection => "item.suffix_protection",
+            Self::Special(_) | Self::Spell(..) => return None,
+        })
+    }
+}
+
+/// The parts of what the original calls an item with no name given (`Get_Item_Name`): "+3
+/// Sword of Wizardry", from the kind, the attack bonus of a weapon and the power highest in
+/// the table.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MadeName {
+    pub kind: TypeName,
+    /// The attack bonus of a weapon, "+3".
+    pub bonus: Option<i32>,
+    pub suffix: Option<Suffix>,
+}
+
+impl MadeName {
+    /// The name in the language of the texts, at most thirty letters (the original's buffer).
+    pub fn compose(&self, content: &crate::content::Content) -> String {
+        use crate::text::Args;
+        let texts = &content.texts;
+        let kind = texts.get(self.kind.key(), &Args::new());
+        let mut name = match self.bonus {
+            Some(n) => texts.get(
+                "item.name_bonus",
+                &Args::new().count("n", n).text("type", &kind),
+            ),
+            None => kind,
+        };
+        let suffix = match &self.suffix {
+            None => None,
+            Some(Suffix::Special(id)) => content
+                .rules
+                .item_powers
+                .by_name(id)
+                .map(|p| p.name.clone()),
+            Some(Suffix::Spell(id, n)) => content.rules.spells.by_name(id).map(|s| {
+                texts.get(
+                    "item.name_charges",
+                    &Args::new().text("spell", &s.name).count("n", *n as i32),
+                )
+            }),
+            Some(other) => other.key().map(|k| texts.get(k, &Args::new())),
+        };
+        if let Some(suffix) = suffix {
+            name = texts.get(
+                "item.name_of",
+                &Args::new().text("item", &name).text("suffix", &suffix),
+            );
+        }
+        name.chars().take(30).collect()
+    }
+}
+
+/// The parts of the default name of a design.
+pub fn made_name(design: &ItemDesign, rules: &Rules) -> MadeName {
+    let kind = TypeName::of(design.kind, design.picture());
     let weapon = matches!(
         design.kind,
         ItemKind::Sword
@@ -329,47 +458,49 @@ pub fn default_name(design: &ItemDesign, rules: &Rules) -> String {
             | ItemKind::Staff
             | ItemKind::Wand
     );
-    let mut name = kind_name.to_string();
     let mut left: Vec<(usize, &ItemPowerDef)> = design
         .powers
         .iter()
         .filter_map(|id| {
-            let at = rules.item_powers.id_of(id)?.index();
-            Some((at, rules.item_powers.get(rules.item_powers.id_of(id)?)))
+            let at = rules.item_powers.id_of(id)?;
+            Some((at.index(), rules.item_powers.get(at)))
         })
         .collect();
+    let mut bonus = None;
     if weapon {
         if let Some(i) = left
             .iter()
             .position(|(_, p)| matches!(p.bonus, Some((PowerBonus::Attack, _))))
         {
             if let Some((PowerBonus::Attack, v)) = left[i].1.bonus {
-                name = format!("+{v} {kind_name}");
+                bonus = Some(v);
             }
             left.remove(i);
         }
     }
     let highest = left.iter().max_by_key(|(at, _)| *at).map(|(_, p)| *p);
-    if let Some(power) = highest {
-        let suffix = match power.bonus {
-            Some((PowerBonus::Attack, _)) => "Strength",
-            Some((PowerBonus::ToHit, _)) => "Accuracy",
-            Some((PowerBonus::Defense, _)) => "Defense",
-            Some((PowerBonus::SpellSkill, _)) => "Wizardry",
-            Some((PowerBonus::SpellSave, _)) => "Power",
-            Some((PowerBonus::Moves, _)) => "Speed",
-            Some((PowerBonus::Resistance, _)) => "Protection",
-            None => power.name.as_str(),
-        };
-        name = format!("{name} of {suffix}");
-    } else if let Some((spell, count)) = &design.charges {
-        let spell = rules
-            .spells
-            .by_name(spell)
-            .map_or(spell.as_str(), |s| s.name.as_str());
-        name = format!("{name} of {spell} x{count}");
+    let suffix = if let Some(power) = highest {
+        Some(match power.bonus {
+            Some((PowerBonus::Attack, _)) => Suffix::Strength,
+            Some((PowerBonus::ToHit, _)) => Suffix::Accuracy,
+            Some((PowerBonus::Defense, _)) => Suffix::Defense,
+            Some((PowerBonus::SpellSkill, _)) => Suffix::Wizardry,
+            Some((PowerBonus::SpellSave, _)) => Suffix::Power,
+            Some((PowerBonus::Moves, _)) => Suffix::Speed,
+            Some((PowerBonus::Resistance, _)) => Suffix::Protection,
+            None => Suffix::Special(power.id.clone()),
+        })
+    } else {
+        design
+            .charges
+            .as_ref()
+            .map(|(spell, count)| Suffix::Spell(spell.clone(), *count))
+    };
+    MadeName {
+        kind,
+        bonus,
+        suffix,
     }
-    name.chars().take(30).collect()
 }
 
 /// Why an item could not be started.
@@ -454,7 +585,7 @@ impl crate::game::Game {
         spell: crate::rules::SpellId,
         item: Item,
     ) -> Vec<crate::game::Event> {
-        let name = item.name.clone();
+        let name = item.display_name(&self.content);
         let placed = self.give_item(player, item);
         vec![
             crate::game::Event::SpellCast { player, spell },
@@ -475,7 +606,7 @@ impl crate::game::Game {
         let Some((entity, item)) = crate::item::entity::crafting_of(&self.world, player) else {
             return Vec::new();
         };
-        let name = item.name.clone();
+        let name = item.display_name(&self.content);
         let placed = self.place_item(player, entity);
         vec![crate::game::Event::ItemMade {
             player,
@@ -754,7 +885,15 @@ mod tests {
         assert_eq!(sword.bonus.attack, 2);
         assert_eq!(sword.powers, ["cloak"]);
         assert_eq!(sword.cost, 100 + 100 + 150);
-        assert_eq!(sword.name, "+2 Sword of cloak");
+        assert_eq!(sword.name, "");
+        assert_eq!(
+            sword.made,
+            Some(MadeName {
+                kind: TypeName::Sword,
+                bonus: Some(2),
+                suffix: Some(Suffix::Special("cloak".into())),
+            })
+        );
         // Chain mail gains a defence of its own, and a movement power is whole moves in half-moves.
         let mail = build(
             &design(ItemKind::Chainmail, &["defense_2", "movement_2"]),
@@ -762,7 +901,14 @@ mod tests {
         );
         assert_eq!(mail.bonus.defense, 3);
         assert_eq!(mail.bonus.moves, 4);
-        assert_eq!(mail.name, "Chain Mail of Speed");
+        assert_eq!(
+            mail.made,
+            Some(MadeName {
+                kind: TypeName::ChainMail,
+                bonus: None,
+                suffix: Some(Suffix::Speed),
+            })
+        );
         // The picture is one of the kind's range, or the first of it.
         let pick = |icon| {
             build(
@@ -781,12 +927,12 @@ mod tests {
             icon,
             ..design(ItemKind::Misc, &[])
         };
-        assert_eq!(default_name(&misc(0), rules), "Amulet");
-        assert_eq!(default_name(&misc(80), rules), "Ring");
-        assert_eq!(default_name(&misc(86), rules), "Cloak");
-        assert_eq!(default_name(&misc(92), rules), "Gauntlet");
-        assert_eq!(default_name(&misc(100), rules), "Helm");
-        assert_eq!(default_name(&misc(101), rules), "Orb");
+        assert_eq!(made_name(&misc(0), rules).kind, TypeName::Amulet);
+        assert_eq!(made_name(&misc(80), rules).kind, TypeName::Ring);
+        assert_eq!(made_name(&misc(86), rules).kind, TypeName::Cloak);
+        assert_eq!(made_name(&misc(92), rules).kind, TypeName::Gauntlet);
+        assert_eq!(made_name(&misc(100), rules).kind, TypeName::Helm);
+        assert_eq!(made_name(&misc(101), rules).kind, TypeName::Orb);
         let named = ItemDesign {
             name: "Sting".into(),
             ..design(ItemKind::Sword, &["attack_1"])
@@ -795,7 +941,10 @@ mod tests {
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some(("giant_strength".into(), 2));
         let staff = build(&staff, rules);
-        assert_eq!(staff.name, "Staff of Giant Strength x2");
+        assert_eq!(
+            staff.made.map(|m| m.suffix),
+            Some(Some(Suffix::Spell("giant_strength".into(), 2)))
+        );
         assert_eq!(staff.charges, Some(("giant_strength".into(), 2)));
     }
 

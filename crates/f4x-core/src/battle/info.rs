@@ -21,8 +21,8 @@ use crate::player::PlayerId;
 /// One line of the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InfoItem {
-    /// The name the window prints.
-    pub name: &'static str,
+    /// The key of the name the window prints, in `content/text`.
+    pub key: &'static str,
     /// The original's picture: the offset of the entry from `compix.lbx` 42, or none for an
     /// effect the original does not list.
     pub icon: Option<u8>,
@@ -55,26 +55,26 @@ impl BattleInfo {
     }
 }
 
-const fn item(name: &'static str, icon: Option<u8>, help: u16) -> InfoItem {
-    InfoItem { name, icon, help }
+const fn item(key: &'static str, icon: Option<u8>, help: u16) -> InfoItem {
+    InfoItem { key, icon, help }
 }
 
-pub const CRUSADE: InfoItem = item("Crusade", Some(0), 622);
-pub const HOLY_ARMS: InfoItem = item("Holy Arms", Some(1), 623);
-pub const CHARM_OF_LIFE: InfoItem = item("Charm Of Life", Some(3), 624);
-pub const ZOMBIE_MASTERY: InfoItem = item("Zombie Mastery", Some(9), 625);
-pub const DISPELS_NON_SORCERY: InfoItem = item("Dispels Non-Sorcery", Some(12), 612);
-pub const DISPELS_NON_CHAOS: InfoItem = item("Dispels Non-Chaos", Some(5), 613);
-pub const DISPELS_NON_NATURE: InfoItem = item("Dispels Non-Nature", Some(10), 614);
-pub const SORCERY_AURA: InfoItem = item("Sorcery Node Aura", Some(13), 615);
-pub const CHAOS_AURA: InfoItem = item("Chaos Node Aura", Some(6), 616);
-pub const NATURE_AURA: InfoItem = item("Nature Node Aura", Some(11), 617);
-pub const CLOUD_OF_DARKNESS: InfoItem = item("Cloud Of Darkness", Some(8), 618);
-pub const HOLY_LIGHT: InfoItem = item("Holy Light", Some(2), 619);
-pub const CHAOS_SURGE: InfoItem = item("Chaos Surge", Some(4), 620);
-pub const ETERNAL_NIGHT: InfoItem = item("Eternal Night", Some(7), 621);
+pub const CRUSADE: InfoItem = item("battle_info.crusade", Some(0), 622);
+pub const HOLY_ARMS: InfoItem = item("battle_info.holy_arms", Some(1), 623);
+pub const CHARM_OF_LIFE: InfoItem = item("battle_info.charm_of_life", Some(3), 624);
+pub const ZOMBIE_MASTERY: InfoItem = item("battle_info.zombie_mastery", Some(9), 625);
+pub const DISPELS_NON_SORCERY: InfoItem = item("battle_info.dispels_non_sorcery", Some(12), 612);
+pub const DISPELS_NON_CHAOS: InfoItem = item("battle_info.dispels_non_chaos", Some(5), 613);
+pub const DISPELS_NON_NATURE: InfoItem = item("battle_info.dispels_non_nature", Some(10), 614);
+pub const SORCERY_AURA: InfoItem = item("battle_info.sorcery_node_aura", Some(13), 615);
+pub const CHAOS_AURA: InfoItem = item("battle_info.chaos_node_aura", Some(6), 616);
+pub const NATURE_AURA: InfoItem = item("battle_info.nature_node_aura", Some(11), 617);
+pub const CLOUD_OF_DARKNESS: InfoItem = item("battle_info.cloud_of_darkness", Some(8), 618);
+pub const HOLY_LIGHT: InfoItem = item("battle_info.holy_light", Some(2), 619);
+pub const CHAOS_SURGE: InfoItem = item("battle_info.chaos_surge", Some(4), 620);
+pub const ETERNAL_NIGHT: InfoItem = item("battle_info.eternal_night", Some(7), 621);
 /// Not in the original's window; the help is the spell's own topic (198).
-pub const EVIL_OMENS: InfoItem = item("Evil Omens", None, 198);
+pub const EVIL_OMENS: InfoItem = item("battle_info.evil_omens", None, 198);
 
 /// The wizard spells the window lists for one side, in the original's order.
 #[derive(Debug, Clone, Copy, Default)]
@@ -247,17 +247,17 @@ mod tests {
             evil_omens: true,
             ..Default::default()
         });
-        let names: Vec<_> = info.common.iter().map(|i| i.name).collect();
+        let names: Vec<_> = info.common.iter().map(|i| i.key).collect();
         assert_eq!(
             names,
             [
-                "Dispels Non-Chaos",
-                "Chaos Node Aura",
-                "Cloud Of Darkness",
-                "Holy Light",
-                "Chaos Surge",
-                "Eternal Night",
-                "Evil Omens",
+                "battle_info.dispels_non_chaos",
+                "battle_info.chaos_node_aura",
+                "battle_info.cloud_of_darkness",
+                "battle_info.holy_light",
+                "battle_info.chaos_surge",
+                "battle_info.eternal_night",
+                "battle_info.evil_omens",
             ]
         );
         assert_eq!(info.common[0].icon, Some(5));

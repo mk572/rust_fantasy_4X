@@ -1,0 +1,6 @@
+// Names the game gives when nobody chose one. One key is in one file only (docs/text.md).
+{
+    "setup.you": "You",
+    "setup.wizard_number": "Wizard {n}",
+    "setup.capital": "Capital",
+}

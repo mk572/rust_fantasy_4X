@@ -479,7 +479,7 @@ impl Game {
                 if let Some(t) = self.treasury_mut(player) {
                     t.gold -= price;
                 }
-                let name = item.name.clone();
+                let name = item.display_name(&self.content);
                 let placed: Placed = match self.offered_item(player, &item) {
                     Some(entity) => self.place_item(player, entity),
                     None => self.give_item(player, item),

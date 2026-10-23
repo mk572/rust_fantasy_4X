@@ -2,7 +2,7 @@
 
 Everything not yet implemented.
 
-Next open task number: 347 (increase when a task is created)
+Next open task number: 359 (increase when a task is created)
 Keep the table in ascending order by number.
 Add a summary to the table, then details under Descriptions.
 
@@ -76,7 +76,7 @@ neighbours.
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 | 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` |
-| 347 | Text | Text the core builds as game data: made item names, random event texts, default names, battle info names; translated names in the rules files |
+| 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures |
@@ -210,16 +210,13 @@ sources; they are not fixtures.
 
 *Needs:* nothing.
 
-**347. Text the core builds as game data.** Not yet on keys: the names `item/crafting.rs` makes for items ("+2 Sword of
-Strength"; stored in the item, so the name must become parts a language can order: kind, bonus, power); the random events'
-texts (`world_event::compose`, from the local `event_texts.ron`, with its own placeholders; the city size names list
-`CITY_SIZE_NAMES` there); the default names ("You", "Wizard N", "Capital" in `game/setup.rs`); the names of the battle info
-items (`battle/info.rs`); `describe.rs` of the console (English, a developer tool: decide whether it stays); the validation
-errors of `settings.ron` and `setup.rs` (messages for the content author; decide the same). The names in the rules files
-(units, spells, buildings, races, realms, abilities) are content: decide whether a language gets its own copy of those
-files or a table of names in `content/text/<lang>/`, and how the plural of a race is then kept.
+**358. Names in the rules files per language.** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`,
+`realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read
+`def.name`). Decide and build how a language gets its own: a table of names by id in `content/text/<lang>/` that the
+display sites read first (falling back to the file's name), or a copy of each file per language. Then every place that
+prints a `def.name` goes through it, and the plural of a race (the original keeps it apart) needs its own form.
 
-*Needs:* 345 (done), and 333 for the item names.
+*Needs:* 347.
 
 **350. Refusals and notices the original has and ours lacks.** From the table of task 348: the "continue casting?" prompts (lines 12 to 16, including the second cast of a global enchantment, task 349 leaves it here); the settler refusal for a fortress's last citizens (11); too many units on the square when a spell summons or a city builds (21, 50, 66); Disenchant Area with nothing to dispel (28); Spell Blast without the mana (68); Change Terrain on a node with line 34's own words (ours refuses it as a fixed terrain; Corruption on a node, 41, is done); Volcano on a river (86; check first whether the map has rivers); Web and Sorcery immunity refused at the aim, where ours casts and the unit resists (71, 73); Lycanthropy on a mutated unit; the mass battle spells with nothing to hit (79, 80, 81, 83); wizard targets without contact (27); the notices of dispelled enchantments (18, 19, 20, 45, 46) and the monsters' rampage (10), whose triggers must be found first. Decide for each: add it, or record in `docs/divergences.md` that it is not wanted. The new texts are keys in `content/text/`.
 

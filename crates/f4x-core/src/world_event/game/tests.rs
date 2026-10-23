@@ -206,7 +206,7 @@ fn the_gift_is_an_artifact_in_the_armory() {
         .iter()
         .flatten()
         .chain(&armory.awards)
-        .any(|i| i.name == told[0].item));
+        .any(|i| i.display_name(&g.content) == told[0].item));
 }
 
 #[test]

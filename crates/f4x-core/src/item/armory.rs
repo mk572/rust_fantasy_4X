@@ -390,6 +390,7 @@ mod tests {
             powers: Vec::new(),
             charges: None,
             prefab: None,
+            made: None,
         }
     }
 

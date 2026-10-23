@@ -48,7 +48,16 @@ Debug output of the console and test messages are not player-facing and stay in 
 ## What stays outside
 
 - Names in the rules files (`units.ron`, `spells.ron`, `races.ron`, ...) are content, not messages.
-  A translation of them is a separate decision (task 347).
-- Text the core builds as game data (the names of made items, the random events' texts, the default
-  names of wizards and cities) is task 347.
-- The console prints English from the core and from its own words; it is a developer tool.
+  A translation of them is task 358.
+- Text the core builds as game data is on keys when a language must order or inflect it: the
+  default name of a made item is kept as parts (`Item.made`: kind, bonus, suffix) and put together
+  by `Item::display_name` from `item.name_*`, `item.type_*` and `item.suffix_*`; the words that fill
+  the random events (`event.none`, `event.thousand`, `event.plural_ending`, `event.ore_*`, the city
+  size names `city.size_*`); the default names of wizards and cities (`setup.*`); the lines of the
+  battle Info window (`battle_info.*`, `InfoItem.key`). The sentences of the random events
+  (`EVENTMSG.LBX`, `event_texts.ron`) are the original's text, local data like the help: a language
+  brings its own file with the same placeholders, they are not keys. A name a player typed (a hero,
+  a made item) is kept as typed.
+- The console prints English from the core and from its own words; it is a developer tool, and
+  so are the validation errors of `settings.ron` and `setup.rs` (they are written for the content
+  author). Decided with task 347.

@@ -2768,3 +2768,85 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
     assert_eq!(known(1.0, 0, false), 9);
     assert_eq!(known(2.5, 0, false), 25);
 }
+
+fn a_ring() -> f4x_core::item::Item {
+    f4x_core::item::Item {
+        name: "Test Ring".into(),
+        kind: f4x_core::rules::ItemKind::Misc,
+        cost: 100,
+        icon: 80,
+        bonus: f4x_core::item::ItemBonus {
+            defense: 1,
+            ..Default::default()
+        },
+        powers: Vec::new(),
+        charges: None,
+        prefab: None,
+        made: None,
+    }
+}
+
+#[test]
+fn items_are_listed_equipped_and_scrapped_by_place() {
+    let (mut g, mut c) = (game(), console());
+    g.add_fame(HUMAN, 100);
+    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
+        .unwrap();
+    assert!(c.execute(&mut g, "accept 1 Rex").ok);
+    let hero = g.units().hero_units(HUMAN)[0];
+    let serial = g.serial_of(hero).0;
+    g.give_item(HUMAN, a_ring());
+    let listed = c.execute(&mut g, "items");
+    assert!(
+        listed.text().contains("vault:1 Test Ring"),
+        "{}",
+        listed.text()
+    );
+    assert!(listed.text().contains(&format!("hero:{serial}:3")));
+    // Every hero's last slot takes a miscellaneous item.
+    let put = c.execute(&mut g, &format!("equip vault:1 hero:{serial}:3"));
+    assert!(put.ok, "{}", put.text());
+    let listed = c.execute(&mut g, "items");
+    assert!(
+        listed
+            .text()
+            .contains(&format!("hero:{serial}:3 (Misc) Test Ring")),
+        "{}",
+        listed.text()
+    );
+    // A hero's item is not scrapped from there, a bad place is refused.
+    assert!(c
+        .execute(&mut g, &format!("scrap hero:{serial}:3"))
+        .error
+        .is_some());
+    assert!(c.execute(&mut g, "equip vault:x hero:1:1").error.is_some());
+    assert!(
+        c.execute(&mut g, &format!("equip hero:{serial}:3 vault:2"))
+            .ok
+    );
+    let mana = g.treasury(HUMAN).unwrap().mana;
+    assert!(c.execute(&mut g, "scrap vault:2").ok);
+    assert_eq!(g.treasury(HUMAN).unwrap().mana, mana + 50, "half its value");
+}
+
+#[test]
+fn an_item_is_designed_and_cast_from_the_console() {
+    let (mut g, mut c) = (game(), console());
+    let spell = g.content().rules.spells.id_of("enchant_item").unwrap();
+    g.cheat_learn_spell(HUMAN, spell);
+    g.treasury_mut(HUMAN).unwrap().mana += 5000;
+    // No power, a power the kind cannot have, and the wrong spell name are refused.
+    assert!(!c.execute(&mut g, "craft enchant misc -").ok);
+    assert!(!c.execute(&mut g, "craft enchant misc attack_6").ok);
+    assert!(c
+        .execute(&mut g, "craft hammer misc defense_1")
+        .error
+        .is_some());
+    let made = c.execute(&mut g, "craft enchant misc defense_1 Ring of Test");
+    assert!(made.ok, "{}", made.text());
+    assert!(
+        g.wizard(HUMAN).unwrap().casting().is_some() || !g.items().armory(HUMAN).vault.is_empty(),
+        "the spell is being cast or the item is made"
+    );
+}

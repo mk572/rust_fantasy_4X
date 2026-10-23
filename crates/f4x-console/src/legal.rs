@@ -44,6 +44,9 @@ pub const TABLE: &[CommandDef] = &[
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
     legal!("accept", "accept <offer> [name]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one.", accept),
+    legal!("equip", "equip <from> <to> [pay]", "Move an item between the vault, the award list and a hero's slots (vault:N, award:N, hero:UNIT:SLOT; see `items`); `pay` agrees to the mana a far-off hero costs.", equip),
+    legal!("scrap", "scrap <vault:N|award:N>", "Destroy a vault or award item for half its value in mana.", scrap),
+    legal!("craft", "craft <enchant|artifact> <kind> <power,power|-> [charges:<spell>:<n>] [name...]", "Design an item and start casting Enchant Item or Create Artifact (kinds: sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail; powers are ids of `item_powers.ron`).", craft),
     legal!("reject", "reject <offer>", "Turn an offer down.", reject),
     legal!(
         "autobuild",
@@ -573,4 +576,92 @@ fn reject(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let index = offer_index(a)?;
     let player = ctx.session.player;
     ctx.apply(Command::RejectOffer { player, index })
+}
+
+fn equip(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let from = crate::args::parse_item_spot(ctx.game, a.need(0, "from")?)?;
+    let to = crate::args::parse_item_spot(ctx.game, a.need(1, "to")?)?;
+    let pay = a.get(2) == Some("pay");
+    let player = ctx.session.player;
+    ctx.apply(Command::MoveItem {
+        player,
+        from,
+        to,
+        pay,
+    })
+}
+
+fn scrap(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::item::armory::{ItemSpot, Spot};
+    let from = match crate::args::parse_item_spot(ctx.game, a.need(0, "place")?)? {
+        ItemSpot::Vault(i) => Spot::Vault(i),
+        ItemSpot::Award(i) => Spot::Award(i),
+        ItemSpot::Hero(..) => {
+            return Err(ConsoleError::Parse(
+                "only the vault and the award list can be scrapped".into(),
+            ))
+        }
+    };
+    let player = ctx.session.player;
+    ctx.apply(Command::ScrapItem { player, from })
+}
+
+fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::item::crafting::{Craft, ItemDesign};
+    use f4x_core::rules::ItemKind;
+    let craft = match a.need(0, "enchant or artifact")? {
+        "enchant" | "enchant_item" => Craft::EnchantItem,
+        "artifact" | "create_artifact" => Craft::CreateArtifact,
+        other => {
+            return Err(ConsoleError::Parse(format!(
+                "{other:?} is not enchant or artifact"
+            )))
+        }
+    };
+    let kind = match a.need(1, "kind")? {
+        "sword" => ItemKind::Sword,
+        "mace" => ItemKind::Mace,
+        "axe" => ItemKind::Axe,
+        "bow" => ItemKind::Bow,
+        "staff" => ItemKind::Staff,
+        "wand" => ItemKind::Wand,
+        "misc" => ItemKind::Misc,
+        "shield" => ItemKind::Shield,
+        "chainmail" => ItemKind::Chainmail,
+        "platemail" => ItemKind::Platemail,
+        other => {
+            return Err(ConsoleError::Parse(format!(
+                "{other:?} is not an item kind"
+            )))
+        }
+    };
+    let powers: Vec<String> = match a.need(2, "powers")? {
+        "-" => Vec::new(),
+        list => list.split(',').map(str::to_string).collect(),
+    };
+    let mut charges = None;
+    let mut name_from = 3;
+    if let Some(spec) = a.get(3).and_then(|w| w.strip_prefix("charges:")) {
+        let (spell, n) = spec
+            .split_once(':')
+            .ok_or_else(|| ConsoleError::Parse("charges:<spell>:<n>".into()))?;
+        let n: u32 = n
+            .parse()
+            .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a number of charges")))?;
+        charges = Some((spell.to_string(), n));
+        name_from = 4;
+    }
+    let design = ItemDesign {
+        name: a.rest(name_from),
+        kind,
+        icon: kind.icon_range().0,
+        powers,
+        charges,
+    };
+    let player = ctx.session.player;
+    ctx.apply(Command::CraftItem {
+        player,
+        craft,
+        design,
+    })
 }

@@ -17,7 +17,7 @@ use crate::game::{Event, Game};
 use crate::rules::UnitKind;
 use crate::world_event::{
     donation, fires, flat_end, pick_victim, pirates_take, victim_weights, world_end, EventKind,
-    EventNotice, Voice, CITY_SIZE_NAMES, ORES,
+    EventNotice, Voice, CITY_SIZE_KEYS, ORES,
 };
 
 /// A mineral square an event works on: the city whose area holds it, the square and the mineral.
@@ -350,7 +350,7 @@ impl Game {
                     0,
                     &mut self.prefab_taken,
                 );
-                notice.item = item.name.clone();
+                notice.item = item.display_name(&self.content);
                 self.give_item(victim, item);
             }
             EventKind::Disjunction => {
@@ -423,7 +423,9 @@ impl Game {
                 notice.ore = ORES
                     .iter()
                     .find(|(f, _)| *f == id)
-                    .map_or(String::new(), |(_, w)| w.to_string());
+                    .map_or(String::new(), |(_, key)| {
+                        self.content.texts.get(key, &crate::text::Args::new())
+                    });
                 notice.city = Some(d.city);
             }
             EventKind::PopulationBoom => {
@@ -486,7 +488,10 @@ impl Game {
             notice.city = Some(c);
             notice.city_name = self.city_name(c).unwrap_or_default();
             let people = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
-            notice.city_size = CITY_SIZE_NAMES[city_size_class(people) as usize].to_string();
+            notice.city_size = self.content.texts.get(
+                CITY_SIZE_KEYS[city_size_class(people) as usize],
+                &crate::text::Args::new(),
+            );
         }
         out.push(Event::RandomEvent(notice));
     }

@@ -1,0 +1,18 @@
+// Player-facing names of the lines in the battle Info window. One key is in one file only (docs/text.md).
+{
+    "battle_info.crusade": "Crusade",
+    "battle_info.holy_arms": "Holy Arms",
+    "battle_info.charm_of_life": "Charm Of Life",
+    "battle_info.zombie_mastery": "Zombie Mastery",
+    "battle_info.dispels_non_sorcery": "Dispels Non-Sorcery",
+    "battle_info.dispels_non_chaos": "Dispels Non-Chaos",
+    "battle_info.dispels_non_nature": "Dispels Non-Nature",
+    "battle_info.sorcery_node_aura": "Sorcery Node Aura",
+    "battle_info.chaos_node_aura": "Chaos Node Aura",
+    "battle_info.nature_node_aura": "Nature Node Aura",
+    "battle_info.cloud_of_darkness": "Cloud Of Darkness",
+    "battle_info.holy_light": "Holy Light",
+    "battle_info.chaos_surge": "Chaos Surge",
+    "battle_info.eternal_night": "Eternal Night",
+    "battle_info.evil_omens": "Evil Omens",
+}

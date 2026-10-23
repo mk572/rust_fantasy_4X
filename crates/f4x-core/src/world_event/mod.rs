@@ -466,21 +466,28 @@ impl EventNotice {
     }
 }
 
-/// The names of the city size classes, outpost to capital (`_city_size_names`).
-pub const CITY_SIZE_NAMES: [&str; 6] = ["Outpost", "Hamlet", "Village", "Town", "City", "Capital"];
+/// The keys of the names of the city size classes, outpost to capital (`_city_size_names`).
+pub const CITY_SIZE_KEYS: [&str; 6] = [
+    "city.size_outpost",
+    "city.size_hamlet",
+    "city.size_village",
+    "city.size_town",
+    "city.size_city",
+    "city.size_capital",
+];
 
-/// The words for the minerals, as the messages join them to "a" and "deposit": the feature id
-/// and the text after the article.
+/// The minerals an event can put on the map: the feature id and the key of the word for it,
+/// what follows the article in "a{ore} deposit".
 pub const ORES: [(&str, &str); 9] = [
-    ("iron_ore", "n iron"),
-    ("coal", " coal"),
-    ("silver_ore", " silver"),
-    ("gold_ore", " gold"),
-    ("gem", " gem"),
-    ("mithril_ore", " mithril"),
-    ("adamantium_ore", "n adamantium"),
-    ("quork_crystal", " quork"),
-    ("crysx_crystal", " crysx"),
+    ("iron_ore", "event.ore_iron_ore"),
+    ("coal", "event.ore_coal"),
+    ("silver_ore", "event.ore_silver_ore"),
+    ("gold_ore", "event.ore_gold_ore"),
+    ("gem", "event.ore_gem"),
+    ("mithril_ore", "event.ore_mithril_ore"),
+    ("adamantium_ore", "event.ore_adamantium_ore"),
+    ("quork_crystal", "event.ore_quork_crystal"),
+    ("crysx_crystal", "event.ore_crysx_crystal"),
 ];
 
 /// One line of `EVENTMSG.LBX`, as the importer writes it to `event_texts.ron`: the event, its
@@ -497,18 +504,23 @@ pub struct EventText {
 /// The message of a notice, if the texts have one for it (`Get_Event_Message`). A count of
 /// nothing reads "no", the people lost are given in thousands, and the plural ending is
 /// dropped for exactly one.
-pub fn compose(texts: &[EventText], notice: &EventNotice) -> Option<String> {
-    let line = texts
+pub fn compose(
+    lines: &[EventText],
+    words: &crate::text::Texts,
+    notice: &EventNotice,
+) -> Option<String> {
+    use crate::text::Args;
+    let line = lines
         .iter()
         .find(|t| t.event == notice.kind.number() && t.voice == notice.voice as u32)?;
-    let count = |n: u32, unit: &str| {
+    let count = |n: u32, key: &str| {
         if n == 0 {
-            "no".to_string()
+            words.get("event.none", &Args::new())
         } else {
-            format!("{n}{unit}")
+            words.get(key, &Args::new().count("n", n as i32))
         }
     };
-    let plural = |n: u32| if n == 1 { "" } else { "s" };
+    let plural = |n: u32| words.get("event.plural_ending", &Args::new().count("n", n as i32));
     Some(
         line.text
             .replace("{city}", &notice.city_name)
@@ -517,11 +529,11 @@ pub fn compose(texts: &[EventText], notice: &EventNotice) -> Option<String> {
             .replace("{number}", &notice.number.to_string())
             .replace("{ore}", &notice.ore)
             .replace("{item}", &notice.item)
-            .replace("{units}", &count(notice.lost_units, ""))
-            .replace("{people}", &count(notice.lost_population, " thousand"))
-            .replace("{buildings}", &count(notice.lost_buildings, ""))
-            .replace("{units_s}", plural(notice.lost_units))
-            .replace("{buildings_s}", plural(notice.lost_buildings)),
+            .replace("{units}", &count(notice.lost_units, "event.number"))
+            .replace("{people}", &count(notice.lost_population, "event.thousand"))
+            .replace("{buildings}", &count(notice.lost_buildings, "event.number"))
+            .replace("{units_s}", &plural(notice.lost_units))
+            .replace("{buildings_s}", &plural(notice.lost_buildings)),
     )
 }
 
