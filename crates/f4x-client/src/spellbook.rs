@@ -111,6 +111,9 @@ impl App {
     }
 
     pub fn open_spellbook(&mut self) {
+        if self.refuse_banished_spells() {
+            return;
+        }
         // A spell that is paid for and waits for its target: choose that first.
         if let Some(spell) = self.game.wizard(HUMAN).and_then(|m| m.casting_paid()) {
             if self.game.spell_needs_target(HUMAN, spell) {

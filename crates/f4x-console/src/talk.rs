@@ -78,6 +78,7 @@ pub fn error_word(e: DiplomacyError) -> &'static str {
         DiplomacyError::NothingPending => "they have proposed nothing",
         DiplomacyError::NotEnoughGold => "not enough gold",
         DiplomacyError::SpellUnavailable => "the spell is not yours or they know it",
+        DiplomacyError::Banished => "you are banished",
     }
 }
 

@@ -14,6 +14,8 @@
     "refuse_wizard.magic_error_nothing_to_resolve": "There is no spell to finish casting.",
     "refuse_wizard.magic_error_not_enough_gold": "You do not have enough gold.",
     "refuse_wizard.magic_error_not_enough_mana": "You do not have enough mana.",
+    "refuse_wizard.magic_error_banished": "You may not throw any spells while you are banished.",
+    "refuse_wizard.diplomacy_error_banished": "You may not contact other wizards while you are banished.",
     "refuse_wizard.diplomacy_error_not_wizards": "Both sides must be wizards in the game.",
     "refuse_wizard.diplomacy_error_same_wizard": "A wizard cannot treat with themselves.",
     "refuse_wizard.diplomacy_error_not_contacted": "You have not met that wizard.",

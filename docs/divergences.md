@@ -560,10 +560,25 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
 
 ## 25. Banished wizards that resign (task 82)
 
-- **Resignation** follows `Banish_Wizard`/`Resolve_Wizard_Conquest`: a computer wizard banished with
+- **Resignation** follows `Banish_Wizard`/`Resolve_Wizard_Conquest`: a wizard banished with
   cities left, whose casting skill with heroes is under 40 or whose mana is gone, is defeated at
-  once (no -20 relations hit, only the final -40). The human is asked at the moment of banishment
+  once (no -20 relations hit, only the final -40). This holds for the human too (task 341, the
+  project owner's choice "as ReMoM"); a human who can pay is asked at the moment of banishment
   (`Command::Resign`, console `resign`; the client box shows the turns the spell needs).
+- **The Spell of Return is paid with mana by every banished wizard** (task 341). The original lets a
+  banished computer wizard pay its nominal skill every turn whether or not the reserve covers it, and
+  floors the reserve at 0; ours does not. With no mana the spell cannot advance and the wizard can
+  only resign. The computer wizard's script converts gold into mana to cover the payment (the
+  original does it inside the rules, `AI_Update_Gold_And_Mana_Reserves`), with the AI work of task 339.
+- **Conquest spells** are taken as in `Conquest_Spells`, including its quirk that a banished human
+  keeps their spells (the original calls it only in the computer-wizard branch of `Banish_Wizard`).
+- **Banished wizards and talk.** The original refuses the diplomacy screen to a banished human and
+  has the computer wizards make no overtures to them. Ours refuses any banished wizard to start a
+  proposal, a war, a treaty break or a gift (`DiplomacyError::Banished`), human or computer; an
+  offer can still be answered. It does not copy the early return in `NPC_To_NPC_Treaty_Negotiations`
+  (ReMoM marks it an `OGBUG`).
+- **A defeat takes all the spell instances the wizard cast** (the original stores no caster for unit
+  enchantments and so cannot end the loser's enchantments on other wizards' units; ours does).
 - A resigned wizard's cities turn neutral, one neutral player each as the independent cities are;
   garrisoned normal units go with the city, heroes and conjured creatures are dismissed, all other
   units are dismissed, as in the original. The original halves the human's mana twice when they

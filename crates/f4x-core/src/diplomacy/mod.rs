@@ -181,6 +181,8 @@ pub enum DiplomacyError {
     NotEnoughGold,
     /// The spell is not the giver's, or the receiver cannot learn it.
     SpellUnavailable,
+    /// A banished wizard may not contact the others.
+    Banished,
 }
 
 impl DiplomacyError {
@@ -195,6 +197,7 @@ impl DiplomacyError {
             Self::NothingPending => "refuse_wizard.diplomacy_error_nothing_pending",
             Self::NotEnoughGold => "refuse_wizard.diplomacy_error_not_enough_gold",
             Self::SpellUnavailable => "refuse_wizard.diplomacy_error_spell_unavailable",
+            Self::Banished => "refuse_wizard.diplomacy_error_banished",
         }
     }
 }
@@ -1111,6 +1114,20 @@ impl Diplomacy {
         ctx: &mut DiplomacyCtx<'_>,
         command: DiplomacyCommand,
     ) -> Vec<Event> {
+        // A banished wizard starts nothing with the others; it may still answer an offer.
+        let actor = match command {
+            DiplomacyCommand::Greeted { .. } | DiplomacyCommand::Answer { .. } => None,
+            DiplomacyCommand::BreakTreaty { player, .. }
+            | DiplomacyCommand::DeclareWar { player, .. } => Some(player),
+            DiplomacyCommand::Propose { from, .. }
+            | DiplomacyCommand::GiveGold { from, .. }
+            | DiplomacyCommand::GiveSpell { from, .. } => Some(from),
+        };
+        if actor.is_some_and(|a| ctx.view.wizard(a).is_some_and(|w| w.is_banished())) {
+            return vec![Event::Rejected(crate::game::Rejection::Diplomacy(
+                DiplomacyError::Banished,
+            ))];
+        }
         let result = match command {
             DiplomacyCommand::Greeted { player, with } => {
                 if self.have_met(player, with) {

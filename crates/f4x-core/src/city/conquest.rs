@@ -215,12 +215,7 @@ impl Game {
             fame_gained,
         }];
         events.extend(self.capture_city(city, winner));
-        // The old owner's spells on the city end, and the new owner starts afresh.
-        for (spell, caster) in self.spells().city_enchantments(city) {
-            if caster == loser {
-                self.remove_city_enchantment(city, spell, caster);
-            }
-        }
+        // The new owner starts afresh (the old owner's spells ended in `capture_city`).
         let _ = self.world.insert_one(
             city,
             Production {

@@ -64,7 +64,7 @@ unit/stasis.rs 3
 unit/transport.rs 4
 unit/undead.rs 1
 wizard/astrology.rs 3
-wizard/fortress.rs 12
+wizard/fortress.rs 14
 wizard/magic_game.rs 16
 wizard/magic_income.rs 1
 wizard/mod.rs 3

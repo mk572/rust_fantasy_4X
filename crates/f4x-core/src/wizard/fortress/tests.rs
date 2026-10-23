@@ -232,6 +232,7 @@ fn taking_an_ordinary_city_changes_its_owner_only() {
 fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back() {
     let mut g = world();
     g.set_human(Some(P0));
+    set_skill(&mut g, P0, 40);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let w_fame = g.wizard(P1).unwrap().fame();
@@ -338,6 +339,7 @@ fn a_fortress_city_cannot_be_destroyed() {
 fn saves_keep_the_fortress_and_reject_a_misplaced_one() {
     let mut g = world();
     g.set_human(Some(P0));
+    set_skill(&mut g, P0, 40);
     let capital = place(&mut g, P0, at(5, 5));
     city(&mut g, P0, at(15, 5));
     g.capture_city(capital, P1);
@@ -620,12 +622,16 @@ fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() 
 
 /// A world where P0 holds a fortress city and a town, with a spearman in each and one in the
 /// field, and P1 is the conqueror. P0 is a computer wizard of the given casting skill.
-fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
-    let mut g = world();
-    g.wizard_mut(P0)
+fn set_skill(g: &mut Game, player: PlayerId, skill: i32) {
+    g.wizard_mut(player)
         .unwrap()
         .get_mut::<crate::wizard::sheet::Skill>()
         .points = crate::wizard::magic::skill_points_for(skill, false);
+}
+
+fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
+    let mut g = world();
+    set_skill(&mut g, P0, skill);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
     let spear = g.content.rules.units.id_of("spear").unwrap();
@@ -688,7 +694,7 @@ fn a_strong_computer_wizard_is_banished_and_keeps_its_cities() {
 
 #[test]
 fn a_banished_human_may_resign() {
-    let (mut g, capital, town) = banish_world(10);
+    let (mut g, capital, town) = banish_world(40);
     g.set_human(Some(P0));
     // Not while the fortress stands.
     assert_eq!(
@@ -721,4 +727,186 @@ fn the_banisher_is_remembered_across_a_save() {
         .restore(content_with_magic())
         .unwrap();
     assert_eq!(loaded.wizard(P0).unwrap().banished_by(), Some(P1));
+}
+
+// ---- banishment and defeat as in the original (task 341) -------------------------------------
+
+/// P0 and P1 are wizards, P0 with a fortress and a town; P0 knows exactly `leave` spells that P1
+/// does not (P1 is taught the rest). Returns those spells.
+fn spell_world(leave: usize) -> (Game, hecs::Entity, Vec<crate::rules::SpellId>) {
+    let mut g = world();
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    set_skill(&mut g, P0, 40);
+    let capital = place(&mut g, P0, at(5, 5));
+    city(&mut g, P0, at(15, 5));
+    let known = |g: &Game, p| g.wizard(p).unwrap().known();
+    let mut pool: Vec<_> = known(&g, P0).difference(&known(&g, P1)).copied().collect();
+    // The test content offers the wizard more spells to learn than it starts with.
+    let more: Vec<_> = g
+        .content
+        .rules
+        .spells
+        .defs()
+        .iter()
+        .filter_map(|d| g.content.rules.spells.id_of(&d.id))
+        .filter(|s| !known(&g, P0).contains(s) && !known(&g, P1).contains(s))
+        .collect();
+    while pool.len() < leave {
+        let s = more[pool.len()];
+        g.learn_spell(P0, s);
+        pool.push(s);
+    }
+    for s in pool.split_off(leave) {
+        g.learn_spell(P1, s);
+    }
+    assert_eq!(
+        known(&g, P0).difference(&known(&g, P1)).count(),
+        leave,
+        "the setup leaves exactly {leave} to take"
+    );
+    (g, capital, pool)
+}
+
+fn spells_taken(events: &[Event]) -> Option<Vec<crate::rules::SpellId>> {
+    events.iter().find_map(|e| match e {
+        Event::ConquestSpells { spells, .. } => Some(spells.clone()),
+        _ => None,
+    })
+}
+
+#[test]
+fn a_human_who_cannot_pay_for_the_return_is_defeated_at_once() {
+    let (mut g, capital, _) = banish_world(10);
+    g.set_human(Some(P0));
+    let events = g.capture_city(capital, P1);
+    assert!(
+        events.contains(&Event::WizardDefeated { player: P0 }),
+        "{events:?}"
+    );
+    assert!(!events.contains(&Event::WizardBanished { player: P0, by: P1 }));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::GameOver { winner, .. } if *winner == P1)));
+}
+
+#[test]
+fn the_last_city_taken_without_the_fortress_still_pays_the_prize() {
+    let (mut g, capital, town) = banish_world(40);
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    g.capture_city(capital, P1);
+    assert!(g.wizard(P0).unwrap().is_banished());
+    let fame = g.wizard(P1).unwrap().fame();
+    let mana = g.player(P1).unwrap().treasury().mana;
+    let theirs = g.player(P0).unwrap().treasury().mana;
+    let events = g.capture_city(town, P1);
+    assert!(
+        events.contains(&Event::WizardDefeated { player: P0 }),
+        "{events:?}"
+    );
+    assert_eq!(g.wizard(P1).unwrap().fame(), fame + FORTRESS_PRIZE_FAME);
+    assert_eq!(g.player(P1).unwrap().treasury().mana, mana + theirs / 2);
+}
+
+#[test]
+fn a_defeat_gives_the_winner_two_of_the_spells_the_loser_knew() {
+    let (mut g, capital, taught) = spell_world(3);
+    g.capture_city(g.economy().city_at(at(15, 5)).unwrap(), P1);
+    // With the town gone the fortress is the last city: losing it defeats the wizard.
+    let events = g.capture_city(capital, P1);
+    let taken = spells_taken(&events).expect("a conquest event");
+    assert_eq!(taken.len(), 2, "{events:?}");
+    assert!(taken.iter().all(|s| taught.contains(s)));
+    for s in &taken {
+        assert!(g.wizard(P1).unwrap().knows(*s));
+    }
+}
+
+#[test]
+fn a_defeat_with_nothing_new_to_take_still_reports_it_for_the_box() {
+    let (mut g, capital, taught) = spell_world(0);
+    assert!(taught.is_empty());
+    g.capture_city(g.economy().city_at(at(15, 5)).unwrap(), P1);
+    let events = g.capture_city(capital, P1);
+    assert_eq!(spells_taken(&events), Some(Vec::new()), "{events:?}");
+}
+
+#[test]
+fn one_new_spell_is_all_that_there_is_to_take() {
+    let (mut g, capital, taught) = spell_world(1);
+    g.capture_city(g.economy().city_at(at(15, 5)).unwrap(), P1);
+    let events = g.capture_city(capital, P1);
+    assert_eq!(spells_taken(&events), Some(taught), "{events:?}");
+}
+
+#[test]
+fn a_banished_computer_wizard_loses_spells_but_a_banished_human_keeps_them() {
+    let (mut g, capital, _) = spell_world(2);
+    let events = g.capture_city(capital, P1);
+    assert!(events.contains(&Event::WizardBanished { player: P0, by: P1 }));
+    assert_eq!(spells_taken(&events).map(|s| s.len()), Some(2));
+
+    let (mut g, capital, _) = spell_world(2);
+    g.set_human(Some(P0));
+    let events = g.capture_city(capital, P1);
+    assert!(events.contains(&Event::WizardBanished { player: P0, by: P1 }));
+    assert_eq!(spells_taken(&events), None);
+}
+
+#[test]
+fn an_independent_city_taken_gives_no_spells() {
+    let mut g = world();
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    let town = city(&mut g, P0, at(15, 5));
+    let neutral = g.new_city_player();
+    g.set_owner(town, neutral);
+    let events = g.capture_city(town, P1);
+    assert_eq!(spells_taken(&events), None, "{events:?}");
+}
+
+#[test]
+fn a_city_that_changes_hands_loses_the_old_owners_enchantments() {
+    let mut g = world();
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    place(&mut g, P0, at(5, 5));
+    let town = city(&mut g, P0, at(15, 5));
+    let ward = spell(&g, "move_fortress");
+    g.add_city_enchantment(town, ward, P0);
+    g.add_city_enchantment(town, ward, P1);
+    g.capture_city(town, P1);
+    let casters: Vec<_> = g
+        .spells()
+        .city_enchantments(town)
+        .into_iter()
+        .map(|(_, c)| c)
+        .collect();
+    assert_eq!(casters, vec![P1]);
+}
+
+#[test]
+fn a_banished_wizard_may_throw_no_spell_and_start_no_talk() {
+    let mut g = world();
+    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
+    set_skill(&mut g, P0, 40);
+    let capital = place(&mut g, P0, at(5, 5));
+    city(&mut g, P0, at(15, 5));
+    g.make_contact(P0, P1);
+    g.capture_city(capital, P1);
+    let first = *g.wizard(P0).unwrap().known().iter().next().unwrap();
+    assert_eq!(
+        g.wizard(P0).unwrap().check_can_cast(first),
+        Err(crate::wizard::magic::MagicError::Banished)
+    );
+    let events = g.apply(Command::Diplomacy(
+        crate::diplomacy::DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind: crate::diplomacy::ProposalKind::Pact,
+        },
+    ));
+    assert!(
+        events.contains(&Event::Rejected(Rejection::Diplomacy(
+            crate::diplomacy::DiplomacyError::Banished
+        ))),
+        "{events:?}"
+    );
 }

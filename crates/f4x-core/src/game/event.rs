@@ -101,6 +101,13 @@ pub enum Event {
         player: player::PlayerId,
         pos: map::Position,
     },
+    /// `winner` takes up to two spells from the wizard it banished or defeated (`Conquest_Spells`);
+    /// `spells` is empty when the loser knew none that the winner lacked.
+    ConquestSpells {
+        winner: player::PlayerId,
+        loser: player::PlayerId,
+        spells: Vec<rules::SpellId>,
+    },
     /// The wizard lost their last city.
     WizardDefeated {
         player: player::PlayerId,

@@ -249,6 +249,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 337 | Docs | Update the docs; guard tests; knowledge-base entry (done) |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
+| 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) (done) |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
 | 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` (done) |
 | 347 | Text | Text the core builds as game data: made item names, random event words, default names, battle info names (done) |
@@ -790,6 +791,66 @@ lightning stroke read it; `Art::spell_picture` and `shared_picture`; `extract-ar
 A picture used by several spells is `_shared` by rule, not by listing. The overland square
 animations, the summon scene and the city scroll (tasks 285, 287, 306) are in the table already; they
 read it when built. `manifest.tsv` has no paths (`index.tsv` has); it was left as it is.
+
+**341. Banishment and defeat as in the original (done).** Read from ReMoM (`CONQUEST.c`: `Resolve_Wizard_Conquest`,
+`Banish_Wizard`, `CP_Is_Dead`; `City_ovr55.c`: `Change_City_Ownership`; `Spells128.c`: `Conquest_Spells`;
+`NEXTTURN.c`: `All_Players_Apply_Spell_Casting`; `CITYCALC.c`; `AIDUDES.c`; `DIPLOMAC.c`; `MagicScr.c`;
+`MainScr.c`) and compared with `wizard/fortress.rs`, `game/endgame.rs` (`aftermath`) and
+`city/conquest.rs`. The trigger is the same as ours (the fortress city falls, or the last city). Already
+as in the original: the fortress and circle go, the winner gets 5 fame and half the loser's mana, the
+other wizards' relations drop by 20 (banished) or 40 (defeated), the Spell of Return starts at once, a
+banished wizard gets no income of any kind and no casting skill in battle, offers stop, the loser's
+units and heroes are dismissed, the enchantments it cast on cities and its global spells end, its
+nodes are freed, the winner takes half its gold, its cities turn neutral, diplomacy with it is reset.
+What differs or is missing:
+- **The auto-defeat test applies to everyone.** In `Banish_Wizard` the test (base casting skill plus
+  hero skill under 40, or mana under 1: defeated on the spot, no banishment) runs for every loser that
+  is not the player whose turn it is, which in practice is every wizard whose fortress is taken by an
+  attack, the human included. Ours exempts the human. (The original asks "Do you wish to resign?" only
+  when a wizard loses its fortress on its own turn, which cannot happen to us; `Command::Resign` stays
+  as the way to give up.) This is the rule the project owner chose ("as ReMoM"). It is turn-based, not
+  AI-only, and it also covers the wiki's "zero mana: defeated" (which leaves out the skill part).
+- **Paying the Spell of Return: one rule for every wizard.** The game's rules do not decide for the AI.
+  Every banished wizard, human or AI, pays with mana from its reserve, as ours does now. With no mana
+  the spell cannot advance; the wizard can only resign. The original's special case (a banished AI pays
+  its nominal skill every turn whether or not the reserve covers it, and the reserve floors at 0) is not
+  copied; record it in `divergences.md`.
+- **The AI covers the payment in its script.** In `f4x-ai` (`wizardry`), a wizard that is casting the
+  Spell of Return checks whether its mana reserve covers this turn's payment; if not, it converts as much
+  gold as it needs, and no more, into mana with the existing `Command::Alchemy` (2 gold for 1 mana, 1 for 1
+  with the Alchemy retort). The original does this inside the rules (`AI_Update_Gold_And_Mana_Reserves`
+  turns all of a returning AI's gold into mana each turn, overwriting the reserve; ReMoM marks the `=` as
+  a bug); ours is a choice of the script, not a rule. Done with the AI work of 339 if that comes first.
+- **Conquest spells.** `Conquest_Spells`: the winner takes up to two spells, picked at random from those
+  the loser knows and the winner does not (`Get_Differential_Spell_List`), when an AI wizard is banished and
+  again when a wizard is defeated. A human winner gets a box: "You find no new spells in the ruins." or
+  "You found a X spell [, a Y spell] in the ruins." Ours has nothing like it. Needs a new event and the box.
+- **Defeat without banishment.** When the last city falls and it is not the fortress, the original still
+  gives the winner 5 fame and half the loser's mana (`Resolve_Wizard_Conquest`); ours gives them only in
+  the banishment path, so that case loses them.
+- **No diplomacy while banished.** The client refuses the diplomacy screen ("You may not contact other
+  wizards while you are banished", `MagicScr.c`); the AI makes no overtures and no delayed orders to a
+  banished human (`NPC_To_Human_Diplomacy`, `Resolve_Delayed_Diplomacy_Orders`). Do not copy the early return
+  in `NPC_To_NPC_Treaty_Negotiations`: ReMoM marks it `OGBUG` (it tests the human's casting in AI-to-AI
+  talks). Word of Recall and Recall Hero are refused while banished (ours: refused through the one cast at a
+  time rule; add the explicit check and its message). The spell button says "You may not throw any spells
+  while you are banished. There are at least N turns remaining until you may return."
+- **Ownership change.** `Change_City_Ownership` ends the previous owner's enchantments on any city that
+  changes hands; ours does it on the post-battle path (`city/conquest.rs`) only. Do it in `capture_city`.
+- **A difference we keep.** The original cannot remove a unit enchantment by its caster (it stores none);
+  ours removes the loser's enchantments on other wizards' units too (`aftermath`). With spell instances (325)
+  this is "all the spell instances the wizard cast"; record it in `divergences.md`.
+- **Screens and animations (client, low priority):** moved to task 360.
+Each rule gets a test; `magic.md` section 12 and `divergences.md` section 25 are brought up to date.
+*Needs:* 315, 317 and 325.
+
+**Done:** auto-defeat for every loser (the human too); the prize (5 fame, half the mana) also when the
+last city falls and it is not the fortress; `Conquest_Spells` (`Event::ConquestSpells`, the client box
+and its texts); `MagicError::Banished` (no spell while banished, Word of Recall and Recall Hero among
+them) and `DiplomacyError::Banished` (no proposals, war, treaty breaks or gifts from a banished
+wizard), with the client messages and the turns left; the old owner's enchantments end in
+`capture_city`; tests for each; `magic.md` section 12 and `divergences.md` section 25 updated. Left to
+other tasks: the AI paying the Spell of Return with gold (339) and the scenes (360).
 
 **345. One text flow for player-facing messages (done).** Messages are hardcoded in `.rs` files today (about 390 string literals in
 the client, and `format!` all over core, client and console), which blocks localization. Build one flow and move every

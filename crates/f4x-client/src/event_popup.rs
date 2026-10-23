@@ -242,6 +242,33 @@ impl App {
         });
     }
 
+    /// The human has taken `spells` (none, one or two) from a wizard it banished or defeated
+    /// (`Conquest_Spells`): the green box with the learn-spell picture.
+    pub(crate) fn announce_conquest_spells(&mut self, spells: &[f4x_core::rules::SpellId]) {
+        let name = |app: &Self, spell| app.game.content().rules.spells.get(spell).name.clone();
+        let text = match spells {
+            [] => self.text("spell.conquest_none"),
+            [one] => {
+                let args = Args::new().text("first", name(self, *one));
+                self.text_with("spell.conquest_one", &args)
+            }
+            [first, second, ..] => {
+                let args = Args::new()
+                    .text("first", name(self, *first))
+                    .text("second", name(self, *second));
+                self.text_with("spell.conquest_two", &args)
+            }
+        };
+        self.spell_notices.push_back(SpellNotice {
+            text,
+            strip: GREEN,
+            top: 40.0,
+            picture: Role::Learned,
+            shift: 0.0,
+            drop: 9.0,
+        });
+    }
+
     /// Announce that `counter`'s spell made `caster`'s `spell` fizzle, when the human is one of
     /// them (the original says nothing of what two rivals do to each other).
     pub(crate) fn announce_fizzle(

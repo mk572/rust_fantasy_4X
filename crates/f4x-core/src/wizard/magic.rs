@@ -131,6 +131,8 @@ pub enum MagicError {
     NothingToResolve,
     NotEnoughGold,
     NotEnoughMana,
+    /// A banished wizard casts nothing but the Spell of Return.
+    Banished,
 }
 
 impl MagicError {
@@ -151,6 +153,7 @@ impl MagicError {
             Self::NothingToResolve => "refuse_wizard.magic_error_nothing_to_resolve",
             Self::NotEnoughGold => "refuse_wizard.magic_error_not_enough_gold",
             Self::NotEnoughMana => "refuse_wizard.magic_error_not_enough_mana",
+            Self::Banished => "refuse_wizard.magic_error_banished",
         }
     }
 }

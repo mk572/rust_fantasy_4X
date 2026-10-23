@@ -45,8 +45,8 @@ impl FortressError {
     }
 }
 
-/// A computer wizard whose casting skill (with heroes) is below this resigns when banished
-/// rather than casting the Spell of Return.
+/// A wizard whose casting skill (with heroes) is below this is defeated when banished rather
+/// than casting the Spell of Return.
 const RESIGN_BELOW_SKILL: i32 = 40;
 
 /// Hook names used by spell data for the fortress spells.
@@ -298,6 +298,12 @@ impl Game {
         let was_fortress = self.economy().is_fortress_city(city);
         let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
         self.set_owner(city, winner);
+        // Whoever takes a city ends the old owner's enchantments on it (`Change_City_Ownership`).
+        for (spell, caster) in self.spells().city_enchantments(city) {
+            if caster == loser {
+                self.remove_city_enchantment(city, spell, caster);
+            }
+        }
         if self.is_neutral_player(loser) {
             // The plan the independent city's AI set was its own; the new owner plans anew.
             let _ = self
@@ -322,31 +328,66 @@ impl Game {
             }
             self.remove_player(loser);
         } else if self.economy().city_count(loser) == 0 {
+            // The last city fell, and it was not the fortress: the prize is the same
+            // (`Resolve_Wizard_Conquest`).
+            self.take_fortress_prize(loser, winner);
             events.extend(self.defeat(loser, winner));
         }
         events
     }
 
-    /// The fortress falls: the wizard loses it and starts casting the Spell of Return; the
-    /// winner gains 5 fame and half the loser's mana. With no cities left, they are defeated.
-    /// A computer wizard who could not pay for the spell (casting skill under 40, or no mana)
-    /// resigns on the spot, as in the original (`Banish_Wizard`).
-    fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
-        let skill =
-            self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
-        let mana = self.player(loser).map_or(0, |p| p.treasury().mana);
+    /// What the winner gets from a wizard who loses the fortress or the last city: 5 fame and
+    /// half the loser's mana.
+    fn take_fortress_prize(&mut self, loser: PlayerId, winner: PlayerId) {
         let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
-        if let Some(mut w) = self.wizard_mut(loser) {
-            fortress_falls(&mut w);
-        }
         self.add_fame(winner, FORTRESS_PRIZE_FAME);
         if let Some(t) = self.treasury_mut(winner) {
             t.mana += half;
         }
-        if self.economy().city_count(loser) == 0 {
-            return self.defeat(loser, winner);
+    }
+
+    /// `Conquest_Spells`: the winner takes up to two spells chosen at random from those the loser
+    /// knows and it does not. Nothing happens unless both are wizards. The event is made even when
+    /// nothing is found, for the human winner's box.
+    fn conquest_spells(&mut self, winner: PlayerId, loser: PlayerId) -> Vec<Event> {
+        if winner == loser || self.wizard(winner).is_none() || self.wizard(loser).is_none() {
+            return Vec::new();
         }
-        if self.human() != Some(loser) && (skill < RESIGN_BELOW_SKILL || mana < 1) {
+        let mine = self.wizard(winner).map(|w| w.known()).unwrap_or_default();
+        let mut pool: Vec<_> = self
+            .wizard(loser)
+            .map(|w| w.known())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| !mine.contains(s))
+            .collect();
+        let mut found = Vec::new();
+        while found.len() < 2 && !pool.is_empty() {
+            let pick = self.rng.roll(pool.len() as u32) as usize - 1;
+            let spell = pool.remove(pick);
+            self.learn_spell(winner, spell);
+            found.push(spell);
+        }
+        vec![Event::ConquestSpells {
+            winner,
+            loser,
+            spells: found,
+        }]
+    }
+
+    /// The fortress falls: the wizard loses it and starts casting the Spell of Return; the
+    /// winner gains 5 fame and half the loser's mana. With no cities left, they are defeated.
+    /// A wizard who could not pay for the spell (casting skill under 40, or no mana) is
+    /// defeated on the spot, the human too (`Banish_Wizard`).
+    fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+        let skill =
+            self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
+        let mana = self.player(loser).map_or(0, |p| p.treasury().mana);
+        if let Some(mut w) = self.wizard_mut(loser) {
+            fortress_falls(&mut w);
+        }
+        self.take_fortress_prize(loser, winner);
+        if self.economy().city_count(loser) == 0 || skill < RESIGN_BELOW_SKILL || mana < 1 {
             return self.defeat(loser, winner);
         }
         self.conquest_relations(winner, loser, false);
@@ -358,10 +399,16 @@ impl Game {
         if let Some((spell, cost)) = spell.zip(cost) {
             self.begin_casting(loser, spell, cost);
         }
-        vec![Event::WizardBanished {
+        let mut events = vec![Event::WizardBanished {
             player: loser,
             by: winner,
-        }]
+        }];
+        // As in the original, a banished human's spells stay with them: the winner takes spells
+        // only from a computer wizard (the human is asked whether to resign instead).
+        if self.human() != Some(loser) {
+            events.extend(self.conquest_spells(winner, loser));
+        }
+        events
     }
 
     /// A banished wizard gives up (the original asks the human at the moment of banishment,
@@ -437,6 +484,7 @@ impl Game {
         self.aftermath(loser, winner);
         self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];
+        events.extend(self.conquest_spells(winner, loser));
         events.extend(self.check_conquest(winner));
         events
     }

@@ -2,7 +2,7 @@
 
 Everything not yet implemented.
 
-Next open task number: 360 (increase when a task is created)
+Next open task number: 362 (increase when a task is created)
 Keep the table in ascending order by number.
 Add a summary to the table, then details under Descriptions.
 
@@ -70,13 +70,14 @@ neighbours.
 | # | Area | Summary |
 |---|---|---|
 | 339 | AI | Scripted and trained AI on the new framework |
-| 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 | 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures |
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
+| 360 | Client | Conquest, banishment and defeat scenes |
+| 361 | AI | The AI makes diplomacy proposals, to the human and to each other |
 
 ## Descriptions
 
@@ -106,6 +107,9 @@ everything else.
   movement) run the mirror tests and the battle behaviour tests. Slow runs only when asked:
   `cargo test -p f4x-ai --test behaviour -- --ignored`,
   `cargo test -p f4x-learn --test mirror -- --ignored`, `f4x-tools soak`.
+- **Banished wizard (from 341):** a computer wizard casting the Spell of Return converts the gold it needs
+  into mana with `Command::Alchemy` when its reserve does not cover the turn's payment (see task 341's text
+  in `TASKS-DONE.md`); it starts no talk while banished.
 - **Docs:** `ai-design.md`, `ai-objectives.md`, `learning-ai.md` and `auto-builder.md` describe the
   new entities. The tournament and training scripts (`scripts/tournament.sh`, `train_battle.sh`) still
   work, and `docs/scripts.md` says so.
@@ -113,59 +117,6 @@ everything else.
 *Needs:* 336, 337 and 338.
 
 ### H. Gaps found during the rework
-
-**341. Banishment and defeat as in the original.** Read from ReMoM (`CONQUEST.c`: `Resolve_Wizard_Conquest`,
-`Banish_Wizard`, `CP_Is_Dead`; `City_ovr55.c`: `Change_City_Ownership`; `Spells128.c`: `Conquest_Spells`;
-`NEXTTURN.c`: `All_Players_Apply_Spell_Casting`; `CITYCALC.c`; `AIDUDES.c`; `DIPLOMAC.c`; `MagicScr.c`;
-`MainScr.c`) and compared with `wizard/fortress.rs`, `game/endgame.rs` (`aftermath`) and
-`city/conquest.rs`. The trigger is the same as ours (the fortress city falls, or the last city). Already
-as in the original: the fortress and circle go, the winner gets 5 fame and half the loser's mana, the
-other wizards' relations drop by 20 (banished) or 40 (defeated), the Spell of Return starts at once, a
-banished wizard gets no income of any kind and no casting skill in battle, offers stop, the loser's
-units and heroes are dismissed, the enchantments it cast on cities and its global spells end, its
-nodes are freed, the winner takes half its gold, its cities turn neutral, diplomacy with it is reset.
-What differs or is missing:
-- **The auto-defeat test applies to everyone.** In `Banish_Wizard` the test (base casting skill plus
-  hero skill under 40, or mana under 1: defeated on the spot, no banishment) runs for every loser that
-  is not the player whose turn it is, which in practice is every wizard whose fortress is taken by an
-  attack, the human included. Ours exempts the human. (The original asks "Do you wish to resign?" only
-  when a wizard loses its fortress on its own turn, which cannot happen to us; `Command::Resign` stays
-  as the way to give up.) This is the rule the project owner chose ("as ReMoM"). It is turn-based, not
-  AI-only, and it also covers the wiki's "zero mana: defeated" (which leaves out the skill part).
-- **Paying the Spell of Return: one rule for every wizard.** The game's rules do not decide for the AI.
-  Every banished wizard, human or AI, pays with mana from its reserve, as ours does now. With no mana
-  the spell cannot advance; the wizard can only resign. The original's special case (a banished AI pays
-  its nominal skill every turn whether or not the reserve covers it, and the reserve floors at 0) is not
-  copied; record it in `divergences.md`.
-- **The AI covers the payment in its script.** In `f4x-ai` (`wizardry`), a wizard that is casting the
-  Spell of Return checks whether its mana reserve covers this turn's payment; if not, it converts as much
-  gold as it needs, and no more, into mana with the existing `Command::Alchemy` (2 gold for 1 mana, 1 for 1
-  with the Alchemy retort). The original does this inside the rules (`AI_Update_Gold_And_Mana_Reserves`
-  turns all of a returning AI's gold into mana each turn, overwriting the reserve; ReMoM marks the `=` as
-  a bug); ours is a choice of the script, not a rule. Done with the AI work of 339 if that comes first.
-- **Conquest spells.** `Conquest_Spells`: the winner takes up to two spells, picked at random from those
-  the loser knows and the winner does not (`Get_Differential_Spell_List`), when an AI wizard is banished and
-  again when a wizard is defeated. A human winner gets a box: "You find no new spells in the ruins." or
-  "You found a X spell [, a Y spell] in the ruins." Ours has nothing like it. Needs a new event and the box.
-- **Defeat without banishment.** When the last city falls and it is not the fortress, the original still
-  gives the winner 5 fame and half the loser's mana (`Resolve_Wizard_Conquest`); ours gives them only in
-  the banishment path, so that case loses them.
-- **No diplomacy while banished.** The client refuses the diplomacy screen ("You may not contact other
-  wizards while you are banished", `MagicScr.c`); the AI makes no overtures and no delayed orders to a
-  banished human (`NPC_To_Human_Diplomacy`, `Resolve_Delayed_Diplomacy_Orders`). Do not copy the early return
-  in `NPC_To_NPC_Treaty_Negotiations`: ReMoM marks it `OGBUG` (it tests the human's casting in AI-to-AI
-  talks). Word of Recall and Recall Hero are refused while banished (ours: refused through the one cast at a
-  time rule; add the explicit check and its message). The spell button says "You may not throw any spells
-  while you are banished. There are at least N turns remaining until you may return."
-- **Ownership change.** `Change_City_Ownership` ends the previous owner's enchantments on any city that
-  changes hands; ours does it on the post-battle path (`city/conquest.rs`) only. Do it in `capture_city`.
-- **A difference we keep.** The original cannot remove a unit enchantment by its caster (it stores none);
-  ours removes the loser's enchantments on other wizards' units too (`aftermath`). With spell instances (325)
-  this is "all the spell instances the wizard cast"; record it in `divergences.md`.
-- **Screens and animations (client, low priority):** the conquest animation, the "begins casting the Spell
-  of Return" scene for a banished AI, the defeat and victory scenes, the banished wizard's portrait.
-Each rule gets a test; `magic.md` section 12 and `divergences.md` section 25 are brought up to date.
-*Needs:* 315, 317 and 325.
 
 **342. Clean up `f4x-core/src/content.rs`.** The file is a grab-bag: terrain definitions and classes,
 feature definitions and spawn rules, city bonuses and the `Content` bundle sit side by side, and parts of
@@ -184,6 +135,36 @@ display sites read first (falling back to the file's name), or a copy of each fi
 prints a `def.name` goes through it, and the plural of a race (the original keeps it apart) needs its own form.
 
 *Needs:* 347.
+
+**360. Conquest, banishment and defeat scenes (client).** From task 341: the original's conquest
+animation, the "begins casting the Spell of Return" scene for a banished computer wizard, the defeat
+and victory scenes and the banished wizard's portrait. Read `Conquest_Animation`, `Return_Animation`,
+`Lose_Animation` and `Win_Animation` (ReMoM `CONQUEST.c`) first. *Needs:* 341 (done).
+
+**361. The AI makes diplomacy proposals.** Today the AI only answers (`f4x-ai/src/diplomacy.rs`: `answer` rates
+each proposal with `Game::rate_proposal`); it never proposes, threatens, declares war or makes peace, so the
+human is never approached and AI wizards never treat with each other. The rules and numbers are in
+`docs/diplomacy.md` sections 6 to 8 (`NPC_To_Human_Diplomacy`, `NPC_To_NPC_Treaty_Negotiations`,
+`DIPL_HumanWarOrPeace`, `G_DIPL_NeedForWar`, `DIPL_GetOffMyLawn`, `NPC_Required_Alliances`); read those and ReMoM
+(`DIPLOMAC.c`) first. As always the rules do not decide for the AI: the script sends the same
+`Command::Diplomacy(..)` a human has (`Propose`, `DeclareWar`, `BreakTreaty`, `GiveGold`, `GiveSpell`), and the
+core only checks that they are legal.
+- **Towards the human**, once a turn for each AI wizard with a fortress: greet a wizard newly met; otherwise the
+  score test, the war-or-peace decision (warnings, breaking a treaty, declaring war, offering peace), demands,
+  the required-alliance request and the need-for-war rolls (chaotic, militarist, superiority war, joining an
+  ally's war), and "get off my lawn". The human sees each as a message or a talk screen, and the client needs
+  to show a proposal the AI makes (`Event::Diplomacy`; check what `diplomacy_screen.rs` does with a
+  proposal that is waiting for the human, and add the answer path if it is missing).
+- **Towards each other**, for each ordered pair of living AI wizards that have met, with chance
+  `1 / (15 - 2 * difficulty)`: the score, pact or alliance, spell exchange, peace between wizards at war,
+  allies joining wars. Do not copy the early return in `NPC_To_NPC_Treaty_Negotiations` that `ReMoM` marks
+  `OGBUG`.
+- **Not while banished** (task 341): a banished wizard starts nothing (`DiplomacyError::Banished`), and no AI
+  makes overtures to a banished human or sends it delayed orders.
+- **Tests** for each decision with fixed rolls on a real game; an AI-only game test (soak, run only when
+  asked) shows treaties and wars forming; `diplomacy.md`, `ai-design.md` and `divergences.md` are updated.
+*Needs:* nothing in the core; do it with or after task 339 (the AI on the new framework), since both touch the
+scripts' structure.
 
 **350. Refusals and notices the original has and ours lacks.** From the table of task 348: the "continue casting?" prompts (lines 12 to 16, including the second cast of a global enchantment, task 349 leaves it here); the settler refusal for a fortress's last citizens (11); too many units on the square when a spell summons or a city builds (21, 50, 66); Disenchant Area with nothing to dispel (28); Spell Blast without the mana (68); Change Terrain on a node with line 34's own words (ours refuses it as a fixed terrain; Corruption on a node, 41, is done); Volcano on a river (86; check first whether the map has rivers); Web and Sorcery immunity refused at the aim, where ours casts and the unit resists (71, 73); Lycanthropy on a mutated unit; the mass battle spells with nothing to hit (79, 80, 81, 83); wizard targets without contact (27); the notices of dispelled enchantments (18, 19, 20, 45, 46) and the monsters' rampage (10), whose triggers must be found first. Decide for each: add it, or record in `docs/divergences.md` that it is not wanted. The new texts are keys in `content/text/`.
 

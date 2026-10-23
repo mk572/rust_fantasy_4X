@@ -654,6 +654,12 @@ impl App {
                     let args = self.wizard_arg(Args::new(), "wizard", player);
                     Some(self.text_with("log.wizard_defeated", &args))
                 }
+                Event::ConquestSpells { winner, spells, .. } => {
+                    if winner == HUMAN {
+                        self.announce_conquest_spells(&spells);
+                    }
+                    None
+                }
                 Event::FortressMoved { .. } => Some(self.text("log.fortress_moved")),
                 Event::UnitsDrowned { units, .. } => {
                     Some(self.text_with("log.units_drowned", &Args::new().count("n", units)))
@@ -1578,6 +1584,29 @@ impl App {
         true
     }
 
+    /// How many turns the Spell of Return still needs at the human's casting skill.
+    fn turns_to_return(&self, remaining: i32) -> i32 {
+        let skill = self
+            .game
+            .wizard(HUMAN)
+            .map_or(1, |m| m.casting_skill())
+            .max(1);
+        (remaining + skill - 1) / skill
+    }
+
+    /// A banished human may not throw spells: say so, with the turns left until the return
+    /// (`MagicScr.c`). Returns whether the human is banished.
+    pub(crate) fn refuse_banished_spells(&mut self) -> bool {
+        let Some(wizard) = self.game.wizard(HUMAN).filter(|w| w.is_banished()) else {
+            return false;
+        };
+        let remaining = wizard.casting().map_or(0, |c| c.remaining);
+        let turns = self.turns_to_return(remaining);
+        let line = self.text_with("log.banished_spells", &Args::new().count("turns", turns));
+        self.log.push(line);
+        true
+    }
+
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
     fn resign_prompt_frame(&mut self) -> bool {
@@ -1608,12 +1637,7 @@ impl App {
             Color::new(0.08, 0.06, 0.04, 0.95),
         );
         draw_rectangle_lines(w / 2.0 - 300.0, h / 2.0 - 60.0, 600.0, 120.0, 3.0, GOLD);
-        let skill = self
-            .game
-            .wizard(HUMAN)
-            .map_or(1, |m| m.casting_skill())
-            .max(1);
-        let turns = (casting.remaining + skill - 1) / skill;
+        let turns = self.turns_to_return(casting.remaining);
         crate::frame::text_centered(
             &self.text_with("log.resign_question", &Args::new().count("turns", turns)),
             w / 2.0,

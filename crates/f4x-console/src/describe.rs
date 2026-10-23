@@ -146,6 +146,26 @@ pub fn event(game: &Game, e: &Event) -> String {
             format!("{} is banished by {}", player(game, *p), player(game, *by))
         }
         Event::WizardReturned { player: p, .. } => format!("{} has returned", player(game, *p)),
+        Event::ConquestSpells {
+            winner,
+            loser,
+            spells,
+        } => {
+            let names: Vec<_> = spells
+                .iter()
+                .map(|&s| game.content().rules.spells.get(s).name.clone())
+                .collect();
+            format!(
+                "{} takes {} from {}",
+                player(game, *winner),
+                if names.is_empty() {
+                    "no spells".to_string()
+                } else {
+                    names.join(" and ")
+                },
+                player(game, *loser)
+            )
+        }
         Event::WizardDefeated { player: p } => format!("{} is defeated", player(game, *p)),
         Event::GameOver { winner, kind, turn } => format!(
             "GAME OVER: {} wins by {kind:?} on turn {turn}",

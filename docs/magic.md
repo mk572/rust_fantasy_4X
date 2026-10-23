@@ -209,7 +209,20 @@ cities) and, while banished, `Banishment`; a defeated one has no fortress and th
   owner. Taking the fortress city **banishes** the wizard: fortress and circle are gone, the
   winner gets 5 fame and half the loser's mana, and the loser starts casting the **Spell of
   Return** (cost from the spell data). While casting it the wizard gets no power, mana, research
-  or skill, and cannot cancel. Taking the last city **defeats** the wizard.
+  or skill, and cannot cancel. Taking the last city **defeats** the wizard; the winner gets the
+  same 5 fame and half the mana then too, even when the last city was not the fortress.
+- **Cannot pay for the Return** (`Banish_Wizard`): a wizard whose casting skill with heroes is under
+  40, or whose mana is gone, is defeated on the spot instead of banished, the human included.
+- **Conquest spells** (`Conquest_Spells`): when a wizard is defeated, and when a computer wizard is
+  banished (not a human: the original gives the spells only then), the winner takes up to two spells
+  chosen at random from those the loser knows and it does not. `Event::ConquestSpells` reports them
+  (an empty list when there are none); the client shows the green box "You found a X spell, a Y spell
+  in the ruins." or "You find no new spells in the ruins." to a human winner.
+- **While banished** a wizard throws no spells (`MagicError::Banished`; the client says so with the
+  turns left) and starts no talk with the others (`DiplomacyError::Banished`; it may still answer an
+  offer). Word of Recall and Recall Hero are among the spells refused.
+- **Ownership:** whenever a city changes hands (`capture_city`), the enchantments its old owner cast
+  on it end.
 - **Return:** when the spell is paid it asks for one of the wizard's cities; that city becomes the
   fortress and circle and its race the capital race (`return_to_fortress`). It cannot be cast any
   other way.

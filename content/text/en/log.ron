@@ -95,6 +95,8 @@
     "log.map_failed": "Map generation failed: {why}",
     "log.cast_cancelled": "Cast cancelled",
     "log.resign_question": "There are at least {turns} turns remaining until you may return. Do you wish to resign?",
+    "log.banished_spells": "You may not throw any spells while you are banished. There are at least {turns} turns remaining until you may return.",
+    "log.banished_diplomacy": "You may not contact other wizards while you are banished.",
     "log.resign_keys": "Y: resign      Enter: keep casting",
     "log.playing_as": "Playing as {race}",
     "log.farmers_balanced": "Farmers balanced to feed the army",

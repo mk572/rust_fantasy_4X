@@ -145,6 +145,10 @@ impl App {
         if !self.game.have_met(HUMAN, with) {
             return;
         }
+        if self.game.wizard(HUMAN).is_some_and(|w| w.is_banished()) {
+            self.log.push(self.text("log.banished_diplomacy"));
+            return;
+        }
         let level = relation_level(self.game.relation(HUMAN, with));
         let first = self
             .game

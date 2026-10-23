@@ -395,6 +395,9 @@ impl<'a> Wizard<'a> {
         if !self.knows(spell) {
             return Err(MagicError::NotAvailable);
         }
+        if self.is_banished() {
+            return Err(MagicError::Banished);
+        }
         if self.casting().is_some() {
             return Err(MagicError::AlreadyCasting);
         }
