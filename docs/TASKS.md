@@ -85,7 +85,6 @@ neighbours.
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
-| 372 | Map | Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
 
 ## Descriptions
 
@@ -278,6 +277,3 @@ before turn 300, no wizard ends with more than a third of its mana or a hundred 
 objective plays worse than the Pragmatist. A part that does not move these numbers is reverted. Do not
 tune by giving the AI information a player lacks. *Needs:* 361; tasks 366, 367, 369 and 370 are its parts
 and may be done on their own.
-
-
-**372. Decide the overland terrain move costs.** The original's `TERRSTAT.LBX` charges 3 moves for hills, 3 for swamp and 4 for mountains (a chaos node 4); ours charge 2, 2 and 3 (`content/terrain.ron`, `divergences.md` section 34). Parity with the original is the project's default, so the proposal is to take the original's costs for hills, swamp, mountains and the chaos node; the choice moves the map's rough ground, the AI's path costs and the learned battle and strategic numbers, so it is the user's decision. If adopted: change the four rows, keep the Forester and Mountaineer minimums (1 move), update the movement tests and `design.md`, and run the soak for a baseline (`ai-design.md` 12.2). The Mountaineer's 3 moves on grassland is the original's bug and stays out.

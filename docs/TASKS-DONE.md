@@ -277,6 +277,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 355 | (done) Lair | Guard and treasure tables as `.ron` data (`content/lairs.ron`), checked against the original |
 | 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
 | 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
+| 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
 
 ## Descriptions
 
@@ -1155,3 +1156,5 @@ original sample rates) if installed; else `ffmpeg` with libvorbis; else ffmpeg's
 Homebrew's ffmpeg has no libvorbis, hence `brew install vorbis-tools`.
 
 *Needs:* nothing.
+
+**372. (done) Decide the overland terrain move costs.** **Done 24 October 2026:** the user chose the original's costs; `content/terrain.ron` has them (swamp food stays half a food). Was: The original's `TERRSTAT.LBX` charges 3 moves for hills, 3 for swamp and 4 for mountains (a chaos node 4); ours charge 2, 2 and 3 (`content/terrain.ron`, `divergences.md` section 34). Parity with the original is the project's default, so the proposal is to take the original's costs for hills, swamp, mountains and the chaos node; the choice moves the map's rough ground, the AI's path costs and the learned battle and strategic numbers, so it is the user's decision. If adopted: change the four rows, keep the Forester and Mountaineer minimums (1 move), update the movement tests and `design.md`, and run the soak for a baseline (`ai-design.md` 12.2). The Mountaineer's 3 moves on grassland is the original's bug and stays out.

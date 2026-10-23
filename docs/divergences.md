@@ -670,21 +670,23 @@ for the unused mode, walking, Forester, Mountaineer, swimming and sailing (255 i
 |---|---|---|
 | Grassland (162, 172 to 176) | 1 | 1 |
 | Forest (163, 183, 184) | 2 | 2 |
-| Mountains (164, 259 to 274) | **4** | **3** |
-| Hills (171, 275 to 291) | **3** | **2** |
+| Mountains (164, 259 to 274) | 4 | 4 (changed 24 October 2026) |
+| Hills (171, 275 to 291) | 3 | 3 (changed) |
 | Desert (292 to 451) | 1 | 1 |
-| Swamp (166, 177, 178) | **3** | **2** |
+| Swamp (166, 177, 178) | 3 | 3 (changed) |
 | Tundra (602 to 761) | 2 | 2 |
 | River squares (233 to 258) | 2 | (the terrain's own) |
-| Sorcery node / nature node / chaos node (168 to 170) | 1 / 2 / 4 | 1 / 2 / 3 |
+| Sorcery node / nature node / chaos node (168 to 170) | 1 / 2 / 4 | 1 / 2 / 4 (changed) |
 
 So hills, swamp and mountains cost one more move in the original than in the game, and a chaos node
 (a mountain) 4. The Forester column makes forests cost 1, the Mountaineer column hills and
 mountains 1 (as ours does), and the Mountaineer column puts 3 on grassland and 2 on forest: a
 slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) is the 14 by 14 racial unrest
 table (`TBL_Unrest`), which `rules.ron` (`racial_unrest`) already holds, identical (the Klackon's -2 is
-the byte 254); `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Not changed:** the
-costs are a balance question; the follow-up is task 372.
+the byte 254); `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Changed on 24 October 2026**
+(decided by the user, task 372): hills, swamp and mountains and the chaos node now cost the original's 3, 3,
+4 and 4. **Swamp food** is half a food (`food: 1`), which the original's code gets wrong (`Square_Food_x2`
+returns 0, `OGBUG`) and a later patch corrects; ours follows the patch.
 
 ## 35. Immunity fixes (task 263)
 
