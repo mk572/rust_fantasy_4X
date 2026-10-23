@@ -17,6 +17,7 @@ mod neutral;
 mod objective;
 mod offer;
 mod race;
+mod raze;
 mod scout;
 mod shortfall;
 mod site;
@@ -224,6 +225,7 @@ impl Ai {
             military::army(self, game, &mut events);
             naval::run(self, game, &mut events);
         }
+        raze::run(self, game, &mut events);
         economy::cities(self, game, &mut events);
         shortfall::run(self, game, &mut events);
         events
