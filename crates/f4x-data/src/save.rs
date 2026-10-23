@@ -98,7 +98,8 @@ mod tests {
     }
 
     fn content() -> Content {
-        crate::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
+        crate::load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
+            .unwrap()
     }
 
     /// A real generated map with the shipped content, a city, units and a few turns.
@@ -127,7 +128,7 @@ mod tests {
             })
             .find(|&p| g.can_found_city(p).is_ok())
             .unwrap();
-        let race = g.content().rules.races.id_of("sunfolk");
+        let race = g.content().rules.races.id_of("barbarian");
         g.apply(Command::FoundCity {
             owner: PlayerId(0),
             pos,
@@ -135,7 +136,7 @@ mod tests {
             race,
             population: 3,
         });
-        let spear = g.content().rules.units.id_of("spearman").unwrap();
+        let spear = g.content().rules.units.id_of("barbarian_spearmen").unwrap();
         g.apply(Command::CreateUnit {
             owner: PlayerId(0),
             pos,

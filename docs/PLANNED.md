@@ -49,6 +49,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 36 | Meta | Multiplayer: scope and design (to be discussed) |
 | 37 | AI | Record the battle AI's orders for replays |
 | 38 | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
+| 39 | Client | Resolution setting x1, x2 or x4: imported images are upscaled to match |
 
 ## Descriptions
 
@@ -517,3 +518,35 @@ books (`HELP_CORRECTIONS` for each, since the help states the original's figures
 real data for each change (the cost at 0, 5, 10, 15, 20 and 25 squares, the creation screen's
 pick count with the Channeler, Lo Pan's books and picks), and an entry in `divergences.md` for
 each change.
+
+**39. Resolution setting: x1, x2 and x4.** A client setting (`--resolution` and an entry in the options screen, kept
+with the other client preferences) with three values: **x1** the original's 320 by 200 art as now, **x2** and **x4**
+art at twice and four times the width and height. The layout stays the original's (item 11 is the separate work of
+new layouts); what changes is the sharpness of everything the client draws from the art folder. Parts:
+- **Upscale at import.** `extract-art` (and the other `f4x-tools` passes that write pictures: the map sprites, the
+  banner recolours, the palette swaps, the fonts) takes `--scale 2|4` and writes the result next to the x1 set, in
+  `assets-local/art-x2/` and `assets-local/art-x4/` with the same file names and the same folder layout, so the loader
+  only swaps the root. The scaling is done once on the decoded, palette-resolved picture, never on the indexed bytes,
+  with an algorithm that keeps pixel art crisp (a documented choice between scale2x / scale3x-style edge rules and a
+  user-run model, as in item 6; the repository ships the tool, not the output). Transparent edges stay transparent, and
+  the palette-cycling and recoloured pictures (banners, shields, cycling water) are scaled after the recolour, or
+  recoloured at the new size from a scaled mask, so they match the plain ones.
+- **Tables in the art's own pixels.** Anything that holds pixel coordinates or sizes of the art (`metrics.tsv` of the
+  fonts, the map sprites' anchors and offsets, `index.tsv`, hit areas the client reads from a picture) is written in x1
+  units with the factor applied by the loader, or written per scale; one rule, stated in `docs/extract-art.md`, and a
+  test that loads every picture of each scale and checks its size is the x1 size times the factor.
+- **Client.** The art loader reads the folder for the chosen scale and falls back to x1 for a file that is missing at
+  that scale (a partly upscaled set still runs). The layout's whole-number zoom divides by the factor, so a picture of
+  x2 art drawn at zoom 2 lands on exactly the same screen rectangle as the x1 art at zoom 1. Text drawn from the
+  bitmap fonts uses the matching font atlas; text in a vector font (items 10 and task 359) is not affected. Textures
+  are filtered with nearest-neighbour at whole-number zoom and with linear filtering only at x2 and x4 art when the
+  window scale is not a whole multiple. Memory and start-up time are measured: x4 of the map and unit sprites is large,
+  so the atlases are built lazily and the setting says what it costs.
+- **Check.** A screenshot of the main map, the city screen and a battle at x1, x2 and x4 in the same window size:
+  same layout, no seams between terrain tiles, no off-by-one shifts of overlays (cities, units, roads, fog edges),
+  banners still the player colours.
+
+Needs: the importer's picture passes (`docs/extract-art.md`), the upscaling choice of item 6 (this item is item 6's
+setting and its tests), and the layout code (`frame::Layout`, the city screen's `Layout`); it should come before item 11,
+which builds on art that holds up at the new sizes.
+

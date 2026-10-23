@@ -789,7 +789,7 @@ mod tests {
     }
 
     fn content_dir() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
     }
 
     fn features() -> Features {
@@ -797,39 +797,80 @@ mod tests {
         crate::parse_features(&src).unwrap()
     }
 
-    /// Parse the shipped files after applying `(file, from, to)` text replacements.
+    /// The shipped files after applying `(file, from, to)` text replacements (for the files the
+    /// tests edit as text: the lair table).
     fn rules_with(edits: &[(&str, &str, &str)]) -> Rules {
         let src = |name: &str| {
-            // The lair table is only in the real content (task 346 moves the rest there too).
-            let dir = if name == "lairs.ron" {
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
-            } else {
-                content_dir()
-            };
-            let mut s = std::fs::read_to_string(dir.join(name)).unwrap();
+            let mut s = std::fs::read_to_string(content_dir().join(name)).unwrap();
             for (f, from, to) in edits.iter().filter(|(f, ..)| *f == name) {
                 assert!(s.contains(from), "{f} does not contain {from:?}");
                 s = s.replace(from, to);
             }
             s
         };
-        let list = src;
         Rules {
-            config: ron::from_str(&list("rules.ron")).unwrap(),
-            races: Registry::new(ron::from_str(&list("races.ron")).unwrap()),
-            units: Registry::new(ron::from_str(&list("units.ron")).unwrap()),
-            abilities: Registry::new(ron::from_str(&list("abilities.ron")).unwrap()),
-            buildings: Registry::new(ron::from_str(&list("buildings.ron")).unwrap()),
-            realms: Registry::new(ron::from_str(&list("realms.ron")).unwrap()),
-            spells: Registry::new(ron::from_str(&list("spells.ron")).unwrap()),
-            items: Registry::new(ron::from_str(&list("items.ron")).unwrap()),
-            item_powers: Registry::new(ron::from_str(&list("item_powers.ron")).unwrap()),
-            level_paths: Registry::new(ron::from_str(&list("level_paths.ron")).unwrap()),
+            config: ron::from_str(&src("rules.ron")).unwrap(),
+            races: Registry::new(ron::from_str(&src("races.ron")).unwrap()),
+            units: Registry::new(ron::from_str(&src("units.ron")).unwrap()),
+            abilities: Registry::new(ron::from_str(&src("abilities.ron")).unwrap()),
+            buildings: Registry::new(ron::from_str(&src("buildings.ron")).unwrap()),
+            realms: Registry::new(ron::from_str(&src("realms.ron")).unwrap()),
+            spells: Registry::new(ron::from_str(&src("spells.ron")).unwrap()),
+            items: Registry::new(ron::from_str(&src("items.ron")).unwrap()),
+            item_powers: Registry::new(ron::from_str(&src("item_powers.ron")).unwrap()),
+            level_paths: Registry::new(ron::from_str(&src("level_paths.ron")).unwrap()),
             wizards: Registry::new(Vec::new()),
             hero_templates: Vec::new(),
             wizard_names: Vec::new(),
-            lairs: ron::from_str(&list("lairs.ron")).unwrap(),
+            lairs: ron::from_str(&src("lairs.ron")).unwrap(),
         }
+    }
+
+    /// The shipped definitions, to change one by one.
+    struct Lists {
+        races: Vec<f4x_core::rules::RaceDef>,
+        units: Vec<f4x_core::rules::UnitDef>,
+        abilities: Vec<f4x_core::rules::AbilityDef>,
+        buildings: Vec<f4x_core::rules::BuildingDef>,
+        spells: Vec<f4x_core::rules::SpellDef>,
+        items: Vec<f4x_core::rules::ItemDef>,
+        item_powers: Vec<f4x_core::rules::ItemPowerDef>,
+        level_paths: Vec<f4x_core::rules::LevelPathDef>,
+    }
+
+    /// Find a definition by its id, to change it.
+    fn find<'a, T>(list: &'a mut [T], id: &str, id_of: fn(&T) -> &str) -> &'a mut T {
+        list.iter_mut()
+            .find(|d| id_of(d) == id)
+            .unwrap_or_else(|| panic!("the shipped content has no {id:?}"))
+    }
+
+    /// What the validation says about the shipped definitions once `change` has altered them.
+    fn problems_after(change: impl FnOnce(&mut Lists)) -> Vec<String> {
+        let shipped = rules_with(&[]);
+        let mut lists = Lists {
+            races: shipped.races.defs().to_vec(),
+            units: shipped.units.defs().to_vec(),
+            abilities: shipped.abilities.defs().to_vec(),
+            buildings: shipped.buildings.defs().to_vec(),
+            spells: shipped.spells.defs().to_vec(),
+            items: shipped.items.defs().to_vec(),
+            item_powers: shipped.item_powers.defs().to_vec(),
+            level_paths: shipped.level_paths.defs().to_vec(),
+        };
+        change(&mut lists);
+        let rules = Rules {
+            races: Registry::new(lists.races),
+            units: Registry::new(lists.units),
+            abilities: Registry::new(lists.abilities),
+            buildings: Registry::new(lists.buildings),
+            spells: Registry::new(lists.spells),
+            items: Registry::new(lists.items),
+            item_powers: Registry::new(lists.item_powers),
+            level_paths: Registry::new(lists.level_paths),
+            ..shipped
+        };
+        validate_rules(&rules, &features())
     }
 
     fn problems(edits: &[(&str, &str, &str)]) -> Vec<String> {
@@ -872,28 +913,29 @@ mod tests {
     fn shipped_rules_are_valid() {
         assert_eq!(problems(&[]), Vec::<String>::new());
         let rules = load_rules(&[&content_dir()], &features()).unwrap();
-        assert_eq!(rules.realms.len(), 5);
-        assert!(rules.units.by_name("captain_mira").unwrap().hero.is_some());
+        for realm in ["life", "death", "chaos", "nature", "sorcery"] {
+            assert!(rules.realms.by_name(realm).is_some(), "{realm}");
+        }
+        assert!(rules.units.by_name("dwarf").unwrap().hero.is_some());
     }
 
     #[test]
     fn typed_ids_round_trip() {
         let rules = load_rules(&[&content_dir()], &features()).unwrap();
-        let id = rules.units.id_of("archer").unwrap();
-        assert_eq!(rules.units.get(id).name, "Archer");
+        let id = rules.units.id_of("barbarian_spearmen").unwrap();
+        assert_eq!(rules.units.get(id).name, "Spearmen");
         assert!(rules.units.id_of("nope").is_none());
     }
 
     #[test]
     fn catches_item_problems() {
-        let p = problems(&[
-            (
-                "items.ron",
-                "slot: Weapon, kind: Sword, cost: 100,",
-                "slot: Armor, kind: Sword, cost: 100, powers: [\"nope\"], charges: Some((\"nowhere\", 0)),",
-            ),
-            ("item_powers.ron", "realm: Some(\"chaos\")", "realm: Some(\"void\")"),
-        ]);
+        let p = problems_after(|l| {
+            let item = find(&mut l.items, "black_asp", |i| &i.id);
+            item.slot = f4x_core::rules::ItemSlot::Armor;
+            item.powers = vec!["nope".into()];
+            item.charges = Some(("nowhere".into(), 0));
+            find(&mut l.item_powers, "flaming", |i| &i.id).realm = Some("void".into());
+        });
         assert!(has(&p, "a Sword does not go in the Armor slot"), "{p:?}");
         assert!(has(&p, "unknown power \"nope\""), "{p:?}");
         assert!(has(&p, "unknown spell \"nowhere\""), "{p:?}");
@@ -903,29 +945,21 @@ mod tests {
 
     #[test]
     fn catches_unknown_references() {
-        let p = problems(&[
-            (
-                "units.ron",
-                "abilities: [\"armoured\"]",
-                "abilities: [\"nope\"]",
-            ),
-            (
-                "spells.ron",
-                "realm: \"chaos\", rarity: Common",
-                "realm: \"void\", rarity: Common",
-            ),
-            (
-                "races.ron",
-                "units: [\"axeman\", \"marksman\"]",
-                "units: [\"axeman\", \"ghost\"]",
-            ),
-        ]);
+        let p = problems_after(|l| {
+            find(&mut l.units, "dwarf", |u| &u.id)
+                .abilities
+                .push("nope".into());
+            find(&mut l.spells, "web", |s| &s.id).realm = "void".into();
+            let race = find(&mut l.races, "barbarian", |r| &r.id);
+            let bowmen = race.units.iter_mut().find(|u| *u == "barbarian_bowmen");
+            *bowmen.unwrap() = "ghost".into();
+        });
         assert!(has(&p, "unknown ability \"nope\""), "{p:?}");
         assert!(has(&p, "unknown realm \"void\""), "{p:?}");
         assert!(has(&p, "unknown unit \"ghost\""), "{p:?}");
         assert!(
-            has(&p, "marksman"),
-            "marksman is no longer buildable by anyone: {p:?}"
+            has(&p, "barbarian_bowmen"),
+            "barbarian_bowmen is no longer buildable by anyone: {p:?}"
         );
     }
 
@@ -944,27 +978,31 @@ mod tests {
             gender: Default::default(),
         };
         // A hero without a template, once there are templates at all.
-        rules.hero_templates = vec![template("archer"), template("nobody")];
+        rules.hero_templates = vec![template("barbarian_spearmen"), template("nobody")];
         rules.hero_templates[0].abilities.push("flying".into());
         rules.hero_templates[0].spells.push("nowhere".into());
         let p = validate_rules(&rules, &features());
-        assert!(has(&p, "\"archer\" is not a Hero unit"), "{p:?}");
+        assert!(
+            has(&p, "\"barbarian_spearmen\" is not a Hero unit"),
+            "{p:?}"
+        );
         assert!(has(&p, "names an unknown unit"), "{p:?}");
         assert!(has(&p, "unknown hero ability \"flying\""), "{p:?}");
         assert!(has(&p, "unknown spell \"nowhere\""), "{p:?}");
-        assert!(has(&p, "captain_mira\" has no hero template"), "{p:?}");
+        assert!(has(&p, "dwarf\" has no hero template"), "{p:?}");
     }
 
     #[test]
     fn catches_unit_rule_violations() {
-        let p = problems(&[
+        let p = problems_after(|l| {
             // hero without hero data, summoned unit without a realm
-            ("units.ron", "hero: Some((kind: Warrior, portrait: 0, hire_cost: 150))", "hero: None"),
-            ("units.ron", "kind: Summoned, realm: Some(\"chaos\")", "kind: Summoned"),
+            find(&mut l.units, "dwarf", |u| &u.id).hero = None;
+            find(&mut l.units, "hell_hounds", |u| &u.id).realm = None;
             // ranged unit without ammo
-            ("units.ron", "Ranged: 2, Ammo: 4", "Ranged: 2"),
-            ("units.ron", "Figures: 4, Moves: 1, Sight: 1},\n     movement: Walking, abilities: [\"armoured\"]", "Figures: 0, Moves: 1, Sight: 1},\n     movement: Walking, abilities: [\"armoured\"]"),
-        ]);
+            let spearmen = find(&mut l.units, "barbarian_spearmen", |u| &u.id);
+            spearmen.stats.remove(&Stat::Ammo);
+            spearmen.stats.insert(Stat::Figures, 0);
+        });
         assert!(has(&p, "needs hero data"), "{p:?}");
         assert!(has(&p, "Summoned and needs a realm"), "{p:?}");
         assert!(has(&p, "ranged attack but no ammo"), "{p:?}");
@@ -973,46 +1011,55 @@ mod tests {
 
     #[test]
     fn catches_a_building_replacing_nothing() {
-        let p = problems(&[(
-            "buildings.ron",
-            "id: \"armoury\",  name: \"Armoury\",  cost: 80, upkeep_gold: 1,",
-            "id: \"armoury\",  name: \"Armoury\",  cost: 80, upkeep_gold: 1, replaces: Some(\"ghost\"),",
-        )]);
+        let p = problems_after(|l| {
+            find(&mut l.buildings, "armory", |b| &b.id).replaces = Some("ghost".into());
+        });
         assert!(has(&p, "replaces unknown building \"ghost\""), "{p:?}");
     }
 
     #[test]
     fn catches_building_problems() {
-        let p = problems(&[
-            ("buildings.ron", "requires: [\"barracks\"], effects: [\n        (target: City, effect: Modify(stat: UnitCostPercent", "requires: [\"forge\"], effects: [\n        (target: City, effect: Modify(stat: UnitCostPercent"),
-            ("buildings.ron", "requires: [\"barracks\"], races: [\"ironclans\"]", "requires: [\"armoury\"], races: [\"ironclans\"]"),
-        ]);
+        // The armory needs the barracks; make the barracks need the armory.
+        let p = problems_after(|l| {
+            find(&mut l.buildings, "barracks", |b| &b.id).requires = vec!["armory".into()];
+        });
         assert!(has(&p, "requirement cycle"), "{p:?}");
-        // axeman needs barracks; remove its availability to a race's building list
-        let q = problems(&[(
-            "units.ron",
-            "requires: [\"barracks\"], level_path: Some(\"standard_xp\")),\n    (id: \"marksman\"",
-            "requires: [\"granary\"], level_path: Some(\"standard_xp\")),\n    (id: \"marksman\"",
-        )]);
+        // A unit that needs a building its race cannot build.
+        let q = problems_after(|l| {
+            let walls = find(&mut l.buildings, "armorers_guild", |b| &b.id);
+            assert!(!walls.races.contains(&"gnoll".to_string()));
+            let unit = l
+                .units
+                .iter_mut()
+                .find(|u| u.race.as_deref() == Some("gnoll"))
+                .unwrap();
+            unit.requires = vec!["armorers_guild".into()];
+        });
         assert!(has(&q, "which its race cannot build"), "{q:?}");
     }
 
     #[test]
     fn catches_spell_and_effect_problems() {
-        let p = problems(&[
-            (
-                "spells.ron",
-                "duration: Permanent,\n     effects: [(effect: Modify(stat: Defense",
-                "duration: Instant,\n     effects: [(effect: Modify(stat: Defense",
-            ),
-            (
-                "spells.ron",
-                "Summon(unit: \"fire_sprite\", count: 1)",
-                "Summon(unit: \"fire_sprite\", count: 0)",
-            ),
-            ("spells.ron", "Heal(8)", "Custom(\"mystery\")"),
-            ("abilities.ron", "Heal(2)", "ApplyEnchantment(\"fireball\")"),
-        ]);
+        use f4x_core::rules::effects::Effect;
+        use f4x_core::rules::Duration;
+        let p = problems_after(|l| {
+            // a passive modifier on an instant spell
+            find(&mut l.spells, "giant_strength", |s| &s.id).duration = Duration::Instant;
+            // a summon of nothing
+            let sprites = find(&mut l.spells, "sprites", |s| &s.id);
+            for rule in &mut sprites.effects {
+                if let Effect::Summon { count, .. } = &mut rule.effect {
+                    *count = 0;
+                }
+            }
+            // a custom hook that does not exist
+            let healing = find(&mut l.spells, "healing", |s| &s.id);
+            healing.effects[0].effect = Effect::Custom("mystery".into());
+            // an ability that applies an instant spell as an enchantment
+            let mut rule = healing.effects[0].clone();
+            rule.effect = Effect::ApplyEnchantment("fireball".into());
+            l.abilities[0].effects = vec![rule];
+        });
         assert!(has(&p, "instant but has Passive"), "{p:?}");
         assert!(has(&p, "summon count"), "{p:?}");
         assert!(has(&p, "unknown custom hook"), "{p:?}");
@@ -1021,36 +1068,58 @@ mod tests {
 
     #[test]
     fn catches_bad_level_paths() {
-        let p = problems(&[(
-            "level_paths.ron",
-            "xp: 20, effects: [(effect",
-            "xp: 0, effects: [(effect",
-        )]);
+        let p = problems_after(|l| {
+            find(&mut l.level_paths, "standard_xp", |p| &p.id).levels[1].xp = 0;
+        });
         assert!(has(&p, "strictly increase"), "{p:?}");
     }
 
     #[test]
-    fn veteran_spearman_stats_come_from_def_plus_level_modifiers() {
+    fn veteran_stats_come_from_def_plus_level_modifiers() {
+        use f4x_core::rules::effects::Effect;
+        use f4x_core::rules::ModOp;
+        // What a list of effects adds to a stat.
+        let added = |effects: &[f4x_core::rules::effects::EffectRule], stat: Stat| -> i32 {
+            effects
+                .iter()
+                .map(|r| match r.effect {
+                    Effect::Modify {
+                        stat: s,
+                        op: ModOp::Add,
+                        value,
+                    } if s == stat => value,
+                    _ => 0,
+                })
+                .sum()
+        };
         let rules = load_rules(&[&content_dir()], &features()).unwrap();
-        let unit = rules.units.by_name("spearman").unwrap();
+        let unit = rules.units.by_name("barbarian_spearmen").unwrap();
         let path = rules
             .level_paths
             .by_name(unit.level_path.as_deref().unwrap())
             .unwrap();
-        let elite = &path.levels[2];
-        let mods = passive_modifiers(&elite.effects, Source::Level(2));
-        assert_eq!(compute(Stat::Melee, unit.stats[&Stat::Melee], &mods), 4);
-        assert_eq!(compute(Stat::Defense, unit.stats[&Stat::Defense], &mods), 4);
-        assert_eq!(
-            compute(Stat::Resistance, unit.stats[&Stat::Resistance], &mods),
-            4
-        );
-        // A spell enchantment stacks with it: stoneskin adds +2 defense.
-        let spell = rules.spells.by_name("stoneskin").unwrap();
-        let id = rules.spells.id_of("stoneskin").unwrap();
+        let level = &path.levels[2];
+        let mods = passive_modifiers(&level.effects, Source::Level(2));
+        for stat in [Stat::Melee, Stat::Defense, Stat::Resistance] {
+            assert_eq!(
+                compute(stat, unit.stats[&stat], &mods),
+                unit.stats[&stat] + added(&level.effects, stat),
+                "{stat:?}"
+            );
+        }
+        // The level gives something, or the loop above proves nothing.
+        assert!(added(&level.effects, Stat::Defense) > 0);
+        // A spell enchantment stacks with it.
+        let spell = rules.spells.by_name("stone_skin").unwrap();
+        let id = rules.spells.id_of("stone_skin").unwrap();
         let mut all = mods.clone();
         all.extend(passive_modifiers(&spell.effects, Source::Spell(id)));
-        assert_eq!(compute(Stat::Defense, unit.stats[&Stat::Defense], &all), 6);
+        assert_eq!(
+            compute(Stat::Defense, unit.stats[&Stat::Defense], &all),
+            unit.stats[&Stat::Defense]
+                + added(&level.effects, Stat::Defense)
+                + added(&spell.effects, Stat::Defense)
+        );
     }
 
     #[test]
@@ -1060,17 +1129,25 @@ mod tests {
         std::fs::create_dir_all(&over).unwrap();
         std::fs::write(
             over.join("city_names.ron"),
-            r#"[(race: "sunfolk", names: ["Alpha", "Beta"])]"#,
+            r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,
         )
         .unwrap();
         let features = features();
+        let shipped = load_rules(&[&content_dir()], &features).unwrap();
         let rules = load_rules(&[&over, &content_dir()], &features).unwrap();
-        let sunfolk = rules.races.by_name("sunfolk").unwrap();
-        assert_eq!(sunfolk.city_names, ["Alpha", "Beta"]);
-        // Another race keeps the names of its table (none, in this fixture).
+        let barbarian = rules.races.by_name("barbarian").unwrap();
+        assert_eq!(barbarian.city_names, ["Alpha", "Beta"]);
+        // The file is read whole from the first directory: the shipped table has names for
+        // another race, the overriding one has none.
+        assert!(!shipped
+            .races
+            .by_name("beastmen")
+            .unwrap()
+            .city_names
+            .is_empty());
         assert!(rules
             .races
-            .by_name("ironclans")
+            .by_name("beastmen")
             .unwrap()
             .city_names
             .is_empty());

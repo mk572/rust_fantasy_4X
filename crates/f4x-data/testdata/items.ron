@@ -1,8 +1,0 @@
-[
-    (id: "iron_sword", name: "Iron Sword", slot: Weapon, kind: Sword, cost: 100,
-     effects: [(effect: Modify(stat: Melee, op: Add, value: 2))]),
-    (id: "plate_armour", name: "Plate Armour", slot: Armor, kind: Platemail, cost: 120,
-     effects: [(effect: Modify(stat: Defense, op: Add, value: 2))]),
-    (id: "amulet_of_warding", name: "Amulet of Warding", slot: Misc, kind: Misc, cost: 90,
-     effects: [(effect: Modify(stat: Resistance, op: Add, value: 3))]),
-]

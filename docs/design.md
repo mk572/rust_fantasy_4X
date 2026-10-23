@@ -96,7 +96,7 @@ apart. Layers, rules, generation and differences from the original are in
 - Definitions refer to each other by string id in files; loading turns them into typed ids into registries, so the simulation never meets a dangling reference.
 - Abilities and spell effects are composed from a small set of effect primitives and conditions (modify stat, grant ability, damage, heal, summon, change terrain, enchant, dispel, custom hook). Stats are a closed enum; content cannot invent stats.
 - A rule the engine cannot express yet uses the `unimplemented` custom hook. Imported content uses it for 134 of 214 spells; the count of uses is the to-do list for new primitives.
-- Two content directories, layered: `content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `content/` for every file it lacks). The loader's tests use a small invented rule set in `crates/f4x-data/testdata/`.
+- Two content directories, layered: `content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `content/` for every file it lacks). The loader's tests read `content/` alone (never `content-local/`), so they run on the data the game has.
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems

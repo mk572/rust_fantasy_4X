@@ -1,7 +1,0 @@
-[
-    (id: "life",    name: "Life",    color: (235, 235, 200)),
-    (id: "death",   name: "Death",   color: (90, 40, 110)),
-    (id: "chaos",   name: "Chaos",   color: (200, 60, 40)),
-    (id: "nature",  name: "Nature",  color: (60, 160, 70)),
-    (id: "sorcery", name: "Sorcery", color: (60, 110, 200)),
-]

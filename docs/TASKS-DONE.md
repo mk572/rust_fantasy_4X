@@ -248,6 +248,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
+| 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` (done) |
 | 347 | Text | Text the core builds as game data: made item names, random event words, default names, battle info names (done) |
 | 348 | Text | Every refusal in words: a text key for each `Rejection` error variant, the reason a target is refused, checked against the original's 89 `MESSAGE.LBX` cases (done) |
 | 349 | Magic | Spells that cannot be combined: duplicates, non-cumulative pairs, abilities a unit has by nature, Holy Weapon with Holy Arms (done) |
@@ -793,6 +794,25 @@ lists) and `f4x-data::load_texts`; `settings.ron` has `language`. The client's m
 the name step of a custom wizard); `crates/f4x-data/tests/text.rs` is the guard. `Focus`, `Mix`, `Treaty`, `Personality`,
 `Objective`, retorts and the relation words give a key instead of a name. Races have a `plural` in `races.ron`. What stays
 is task 347.
+
+**346. Replace the loader's test data with the real content (done).** `crates/f4x-data/testdata/` holds 12 `.ron` files (abilities,
+buildings, features, item_powers, items, level_paths, races, realms, rules, spells, terrain, units) with the same names as
+files in `content/`, loaded by the tests in `f4x-data` (`lib.rs`, `rules.rs`, `save.rs`). A copy goes stale when a rule or a
+schema changes, and the tests then pass on data the game no longer has. Make those tests load `content/` (through
+`load_content_layers` with `content/` alone, so a local `content-local/` never changes a result), fix the assertions that
+depended on the fixture's numbers so they read the value from the loaded data or check structure, delete `testdata/`, and
+fix `docs/local-assets.md` (line 63). A test that needs a situation `content/` cannot give builds it in the test from the
+loaded rules, as the other crates' tests do. Error-handling tests (a broken file is refused) keep their small inline
+sources; they are not fixtures.
+
+*Needs:* nothing.
+
+*Done:* the tests in `lib.rs`, `rules.rs` and `save.rs` load `content/`, and `testdata/` is deleted. The rule-violation
+tests in `rules.rs` no longer patch fixture text: `problems_after` loads the shipped definitions, a test changes the ones
+it needs (`find(&mut l.units, "dwarf", ...)`) and the validation is run on the result, so a rename in `content/` fails
+the test at once with the missing id. The veteran-stats test reads its expected values from the loaded level path and
+spell. The settings test builds its "no settings file" case from an empty directory. The save tests use the real
+barbarian race and spearmen.
 
 **347. Text the core builds as game data. (done)** Not yet on keys: the names `item/crafting.rs` makes for items ("+2 Sword of
 Strength"; stored in the item, so the name must become parts a language can order: kind, bonus, power); the random events'

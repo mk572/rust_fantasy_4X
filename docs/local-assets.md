@@ -59,8 +59,8 @@ or preset wizards. The importer also cross-checks costs, upkeep and race build b
 help text (`[check]` lines in the report). What the help describes that is not implemented yet
 is in `docs/mechanics-gaps.md`.
 
-The small invented sample rule set (sunfolk, ironclans, spearman, fireball) that `content/` used
-to hold is now `crates/f4x-data/testdata/`, the fixture for the data loader's tests.
+The data loader's tests read `content/` alone (never `content-local/`); there is no separate
+test rule set, so a test cannot pass on data the game no longer has.
 
 ## Local Mac app
 

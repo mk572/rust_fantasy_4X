@@ -1,4 +1,0 @@
-[
-    (id: "attack_1", name: "+1 Attack", group: 0, cost: 50, kinds: [Sword, Mace, Axe, Misc], bonus: Some((Attack, 1))),
-    (id: "flaming", name: "Flaming", group: 9, cost: 300, kinds: [Sword, Mace, Axe], realm: Some("chaos"), books: 2),
-]

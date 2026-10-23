@@ -373,10 +373,6 @@ mod tests {
         load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
     }
 
-    fn shipped_content() -> Content {
-        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata")).unwrap()
-    }
-
     /// The bonus a level path gives in all up to `level`, for a stat (task 174).
     fn level_total(
         content: &Content,
@@ -887,7 +883,7 @@ mod tests {
 
     #[test]
     fn generated_maps_obey_placement_rules() {
-        let c = shipped_content();
+        let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
         for seed in 0..5 {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
@@ -950,7 +946,7 @@ mod tests {
 
     #[test]
     fn myrror_has_its_own_minerals_and_more_of_them() {
-        let c = shipped_content();
+        let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
         let (mut arc_minerals, mut myr_minerals) = (0, 0);
         for seed in 0..10 {
@@ -977,7 +973,7 @@ mod tests {
 
     #[test]
     fn myrror_only_minerals_appear_across_many_seeds() {
-        let c = shipped_content();
+        let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
         let found = (0..10).any(|seed| {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
@@ -1023,7 +1019,9 @@ mod tests {
 
     #[test]
     fn content_without_settings_leaves_them_empty_and_a_local_file_wins() {
-        assert_eq!(shipped_content().settings, SettingsDef::default());
+        let none = std::env::temp_dir().join("f4x-settings-none");
+        std::fs::create_dir_all(&none).unwrap();
+        assert_eq!(load_settings(&[&none]).unwrap(), SettingsDef::default());
         let over = std::env::temp_dir().join("f4x-settings-layer");
         std::fs::create_dir_all(&over).unwrap();
         std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))").unwrap();

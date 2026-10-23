@@ -2,7 +2,7 @@
 
 Everything not yet implemented.
 
-Next open task number: 359 (increase when a task is created)
+Next open task number: 360 (increase when a task is created)
 Keep the table in ascending order by number.
 Add a summary to the table, then details under Descriptions.
 
@@ -74,11 +74,11 @@ neighbours.
 | 339 | AI | Scripted and trained AI on the new framework |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
-| 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` |
 | 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures |
+| 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 
 ## Descriptions
 
@@ -190,18 +190,6 @@ docs that name the file (`ecs-structure.md`, `scripts.md` if any).
 
 *Needs:* 337 (the structure is final). Best after 330 to 332, which reshape the feature types.
 
-**346. Replace the loader's test data with the real content.** `crates/f4x-data/testdata/` holds 12 `.ron` files (abilities,
-buildings, features, item_powers, items, level_paths, races, realms, rules, spells, terrain, units) with the same names as
-files in `content/`, loaded by the tests in `f4x-data` (`lib.rs`, `rules.rs`, `save.rs`). A copy goes stale when a rule or a
-schema changes, and the tests then pass on data the game no longer has. Make those tests load `content/` (through
-`load_content_layers` with `content/` alone, so a local `content-local/` never changes a result), fix the assertions that
-depended on the fixture's numbers so they read the value from the loaded data or check structure, delete `testdata/`, and
-fix `docs/local-assets.md` (line 63). A test that needs a situation `content/` cannot give builds it in the test from the
-loaded rules, as the other crates' tests do. Error-handling tests (a broken file is refused) keep their small inline
-sources; they are not fixtures.
-
-*Needs:* nothing.
-
 **358. Names in the rules files per language.** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`,
 `realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read
 `def.name`). Decide and build how a language gets its own: a table of names by id in `content/text/<lang>/` that the
@@ -224,6 +212,32 @@ finds a site and slides the colours of a node's picture (`docs/lairs.md`, "Missi
 `content/text/en/site.ron`.
 
 *Needs:* nothing.
+
+**359. Pictures with text baked in become plain pictures plus font text.** Many of the original's pictures carry
+words in the bitmap itself: button faces ("Done", "Patrol", "Buy", "OK"), screen titles and headings, the labels on the
+magic, city, army, diplomacy and load screens, and the unit and spell names on cards. The client draws these as they
+are, so a language other than English would still show English words on them (and the original's font cannot draw
+every script). Make every such picture text-free and draw its words from `content/text/<lang>/` in a font, as the rest
+of the player text already is (`docs/text.md`):
+1. **Find them.** List the pictures that contain text, per screen: start from `crates/f4x-tools/screens.tsv` and the
+   labelled files in `assets-local/art` (`main_screen/button_done_00.png` and the like), look at each, and write the
+   list (file, screen, the words, where the client draws it) into a table in `docs/extract-art.md`. Say which of them
+   the original itself draws as text over a plain picture (those need nothing) and which are baked.
+2. **Make them plain.** For each baked picture, a text-free version: a tool in `f4x-tools` that blanks the text area
+   of the extracted picture (the plain button face, banner or plaque), or a redraw where a blank cannot be cut out.
+   The extractor writes the plain version; the baked one is not used by the client any more. Log the tool in
+   `docs/scripts.md` with `--help` as the project rules say.
+3. **Draw the words.** The client draws the text on the plain picture, centred in the area the old words filled, with
+   a key in `content/text/en/*.ron` for each (count, plural and gender forms where the language needs them). Button
+   labels shrink or wrap to fit; a test fails when a key is missing, as for other text.
+4. **Fonts.** The original's bitmap fonts (`FONTS.LBX`, `docs/extract-art.md` section 5) hold only ASCII 32 to 127.
+   Decide and build the font the localized text uses: a vector font loaded by the client (a file in `assets/` with
+   its licence noted) for languages with accents or other scripts, and the bitmap font kept for English where it
+   keeps the look. A language names its font in `content/text/<lang>/`'s settings.
+5. **Check.** A screenshot of each changed screen in English matches the old look closely (position and size of the
+   words); a second language, even a test one with long words, shows no overflow.
+
+*Needs:* nothing for 1 to 3; 358 is the same job for the names in the rules files and can share the fonts of step 4.
 
 Already tracked elsewhere (not repeated): spell and book treasure that matches the wizard's books is on-hold task 305;
 checking the lair data against `MONSTER.LBX` and `EVENTS.LBX` is on-hold task 241; where loot items are made (at
