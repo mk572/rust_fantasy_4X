@@ -212,11 +212,18 @@ impl Ai {
         race::run(self, game, &mut events);
         diplomacy::mastery_scare(self, game, &mut events);
         wizardry::run(self, game, &mut events);
-        expand::settlers(self, game, &mut events);
-        scout::scout(self, game, &mut events);
-        site::run(self, game, &mut events);
-        military::army(self, game, &mut events);
-        naval::run(self, game, &mut events);
+        // While another wizard keeps Time Stop going, none of this wizard's units can act
+        // (`AIMOVE.c`, `AIDUDES.c`): its armies, settlers and ships wait.
+        if !game
+            .time_stopper()
+            .is_some_and(|keeper| keeper != self.player)
+        {
+            expand::settlers(self, game, &mut events);
+            scout::scout(self, game, &mut events);
+            site::run(self, game, &mut events);
+            military::army(self, game, &mut events);
+            naval::run(self, game, &mut events);
+        }
         economy::cities(self, game, &mut events);
         shortfall::run(self, game, &mut events);
         events

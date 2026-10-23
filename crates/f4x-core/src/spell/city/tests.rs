@@ -503,6 +503,13 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
     g.clear_globals(P1);
     g.add_global(P0, a);
     assert_eq!(pacify(&g), calm, "the owner's own changes nothing");
+    // Great Wasting does one, and Armageddon's two are not added to it.
+    g.clear_globals(P0);
+    let wasting = g.content.rules.spells.id_of("great_wasting").unwrap();
+    g.add_global(P1, wasting);
+    assert_eq!(pacify(&g), calm - 1, "an enemy's Great Wasting: one more");
+    g.add_global(P1, a);
+    assert_eq!(pacify(&g), calm - 2);
 }
 
 #[test]
@@ -542,7 +549,9 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
     // Someone else's Great Wasting does not protect it.
     g.clear_globals(P0);
     g.add_global(P1, gw);
-    assert_eq!(eco(&g).food, blighted.food);
+    // (Its unrest is one more, which may cost the city a farmer too.)
+    assert!(eco(&g).food <= blighted.food);
+    assert!(eco(&g).rebels >= blighted.rebels);
     assert_eq!(g.economy().blight_power(P0), 0);
     // And the protection ends with the spell.
     g.clear_globals(P1);

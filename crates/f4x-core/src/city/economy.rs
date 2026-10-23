@@ -213,17 +213,17 @@ impl<'a> Economy<'a> {
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).
-            let armageddon = crate::player::ids(self.world)
-                .into_iter()
-                .filter(|&id| Some(id) != owner)
-                .filter_map(|id| self.wizard(id))
-                .any(|w| {
-                    crate::spell::global_enchantment::magic_has_global(
-                        &w,
-                        self.content,
-                        "armageddon",
-                    )
-                });
+            let others_keep = |spell: &str| {
+                crate::player::ids(self.world)
+                    .into_iter()
+                    .filter(|&id| Some(id) != owner)
+                    .filter_map(|id| self.wizard(id))
+                    .any(|w| {
+                        crate::spell::global_enchantment::magic_has_global(&w, self.content, spell)
+                    })
+            };
+            let armageddon = others_keep("armageddon");
+            let wasting = !armageddon && others_keep("great_wasting");
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
@@ -243,11 +243,13 @@ impl<'a> Economy<'a> {
                 }
                 mods.extend(found);
             }
-            if armageddon {
+            // Great Wasting adds one (the original's code sets the pacifying to minus one, the
+            // same bug as Armageddon's minus two; Armageddon's is the larger).
+            if armageddon || wasting {
                 mods.push(Modifier::new(
                     Stat::CityUnrest,
                     crate::rules::ModOp::Add,
-                    ARMAGEDDON_UNREST,
+                    if armageddon { ARMAGEDDON_UNREST } else { 1 },
                     Source::Other,
                 ));
             }

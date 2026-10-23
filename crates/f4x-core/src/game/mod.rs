@@ -636,6 +636,11 @@ impl Game {
                 city::production::ProductionError::WrongRace,
             ))];
         }
+        if self.time_stopper().is_some_and(|keeper| keeper != owner) {
+            return vec![Event::Rejected(Rejection::FoundCity(
+                city::FoundCityError::TimeStopped,
+            ))];
+        }
         if let Err(e) = self.can_found_city(pos) {
             return vec![Event::Rejected(Rejection::FoundCity(e))];
         }

@@ -1118,6 +1118,38 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
 }
 
 #[test]
+fn under_time_stop_only_its_wizard_can_found_a_city() {
+    let mut g = world();
+    let theirs = unit(&mut g, P1, "settler", at(10, 10));
+    let mine = unit(&mut g, P0, "settler", at(18, 3));
+    keep(&mut g, P0, "time_stop");
+    g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
+    let refused = g.apply(Command::SettleOutpost {
+        unit: theirs,
+        name: "Late".into(),
+    });
+    assert!(
+        refused.iter().any(|e| matches!(
+            e,
+            Event::Rejected(crate::game::Rejection::FoundCity(
+                crate::city::FoundCityError::TimeStopped
+            ))
+        )),
+        "{refused:?}"
+    );
+    let founded = g.apply(Command::SettleOutpost {
+        unit: mine,
+        name: "Now".into(),
+    });
+    assert!(
+        founded
+            .iter()
+            .any(|e| matches!(e, Event::CityFounded { .. })),
+        "{founded:?}"
+    );
+}
+
+#[test]
 fn corrupted_squares_sometimes_heal_by_themselves() {
     let mut g = world();
     let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(9);

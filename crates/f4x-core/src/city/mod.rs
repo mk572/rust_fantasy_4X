@@ -40,6 +40,8 @@ pub enum FoundCityError {
     BlockedByFeature,
     CityAlreadyHere,
     TooCloseToCity,
+    /// Another wizard keeps Time Stop going: only its units may act (`SETTLE.c`).
+    TimeStopped,
 }
 
 impl FoundCityError {
@@ -52,6 +54,7 @@ impl FoundCityError {
             Self::BlockedByFeature => "refuse_map.found_city_error_blocked_by_feature",
             Self::CityAlreadyHere => "refuse_map.found_city_error_city_already_here",
             Self::TooCloseToCity => "refuse_map.found_city_error_too_close_to_city",
+            Self::TimeStopped => "refuse_map.found_city_error_time_stopped",
         }
     }
 }

@@ -21,6 +21,7 @@
     "refuse_map.found_city_error_blocked_by_feature": "A tower, node or site occupies that square.",
     "refuse_map.found_city_error_city_already_here": "There is a city here already.",
     "refuse_map.found_city_error_too_close_to_city": "That square is too close to another city.",
+    "refuse_map.found_city_error_time_stopped": "Time is stopped: only the wizard who stopped it can found a city.",
     "refuse_map.road_error_bad_selection": "Those units are not one stack on one square.",
     "refuse_map.road_error_no_builders": "None of those units can build roads.",
     "refuse_map.road_error_cannot_build_here": "A road cannot be built on that square.",

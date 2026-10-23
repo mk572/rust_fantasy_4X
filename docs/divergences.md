@@ -474,17 +474,25 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   corrupted at one in two.
 - **Nature's Wrath** shakes the cities of the wizard who casts a death or chaos spell (not the
   holder's own).
-- Details and the original's numbers: conflicts B38 to B41. Not done: Great Wasting's unrest in other wizards' cities (task 286).
+- **Great Wasting's unrest:** like Armageddon's, the original's assignment (the pacifying set to minus
+  one) is read as one more unrest in every city that is not the keeper's (24 October 2026); with
+  Armageddon also up, only Armageddon's two count, as in the original, where it overwrites.
+- Details and the original's numbers: conflicts B38 to B41.
 
 ## 18. Time Stop (spell 80)
+
+- **Stasis in a battle** (checked 24 October 2026): the original's combat code never reads the stasis
+  mutation, so a unit in stasis would fight on. We keep the help's reading: it is as if asleep and
+  does nothing.
 
 - While a wizard keeps Time Stop going: only that wizard's units move or heal or gain experience,
   the other wizards' casting makes no progress, and the keeper has no income and pays no gold, food or
   other mana, only the spell's 200 mana a turn (ReMoM's `NEXTTURN.c`; its note says the manual says
   150). When the keeper cannot pay, the spell ends.
 - The others' cities still grow and produce, and their gold and food are still counted, as in the
-  original. Commands other than movement are not blocked (founding a city, production orders): task
-  286. The help's "combat part" does not exist in the original's code and is not done.
+  original. Founding a city is refused to the other wizards (`SETTLE.c`; 24 October 2026) and the
+  AI's armies, settlers and ships wait. Production and casting orders are not refused: they change
+  nothing during the stop (the original skips the human's whole turn instead). The help's "combat part" does not exist in the original's code and is not done.
 
 ## 19. Magic Vortex (spell 105)
 
