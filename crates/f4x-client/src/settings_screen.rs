@@ -3,6 +3,7 @@
 //! Pictures: `load` entries 11 (background), 4 (OK) and 13 to 20 (check boxes). A click on a
 //! row flips its switch; OK, O or Escape leave, and the preferences are written either way.
 
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -38,10 +39,10 @@ const ROWS: [(Pref, f32, f32); 20] = [
 
 /// The group headings: text and place.
 const HEADINGS: [(&str, f32, f32); 4] = [
-    ("Sound and Music", 31.0, 42.0),
-    ("Messages", 31.0, 92.0),
-    ("Combat", 192.0, 42.0),
-    ("Display", 192.0, 92.0),
+    ("settings.sound", 31.0, 42.0),
+    ("settings.messages", 31.0, 92.0),
+    ("settings.combat", 192.0, 42.0),
+    ("settings.display", 192.0, 92.0),
 ];
 
 /// OK's click area: left, top, right, bottom.
@@ -58,7 +59,8 @@ impl App {
         if self.draw_pic(&lay, "load", 11, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
-            self.bm_text(view, 5, GOLD, "Settings", 160.0, 20.0, Align::Center);
+            let title = self.text("options.settings");
+            self.bm_text(view, 5, GOLD, &title, 160.0, 20.0, Align::Center);
         }
         let mouse: Vec2 = mouse_position().into();
         let pressed = is_mouse_button_pressed(MouseButton::Left);
@@ -86,7 +88,8 @@ impl App {
                     );
                 }
             }
-            self.bm_text(view, 2, WHITE, pref.label(), x + 16.0, y + 2.0, Align::Left);
+            let label = self.text(pref.label());
+            self.bm_text(view, 2, WHITE, &label, x + 16.0, y + 2.0, Align::Left);
             if pressed && lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)).contains(mouse) {
                 self.prefs.toggle(pref);
                 // The spell book list starts over on its first page.
@@ -95,8 +98,9 @@ impl App {
                 }
             }
         }
-        for &(text, x, y) in &HEADINGS {
-            self.bm_text(view, 3, GOLD, text, x, y, Align::Left);
+        for &(key, x, y) in &HEADINGS {
+            let text = self.text(key);
+            self.bm_text(view, 3, GOLD, &text, x, y, Align::Left);
         }
 
         let (l, t, r, b) = OK_AREA;
@@ -115,7 +119,7 @@ impl App {
         }
         // The game's own settings (task 94), which the original keeps on the new-game screen.
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
-        if button(game, "Game...", true) {
+        if button(game, &self.text("settings.game"), true) {
             self.save_preferences();
             self.screen = Screen::GameSettings;
             return;
@@ -136,7 +140,8 @@ impl App {
 
     fn save_preferences(&mut self) {
         if let Err(e) = self.prefs.save(std::path::Path::new(FILE)) {
-            self.log.push(format!("Could not save the settings: {e}"));
+            let args = Args::new().text("why", e.to_string());
+            self.log.push(self.text_with("settings.save_failed", &args));
         }
     }
 }

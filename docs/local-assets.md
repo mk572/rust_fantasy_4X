@@ -49,7 +49,7 @@ upkeep values are estimated (see the report).
 ## Help text: `content-local/` (gitignored)
 
 The city names are IP too: `content/city_names.ron` holds invented names in each race's style (20 a race), and the same run writes the original's to `content-local/city_names.ron`, which replaces them per race when present. The run also writes the original help (`help.ron`: 807 topics; `help_screens.ron`: which screen
-areas open which topic), the preset wizards' names and descriptions (`wizard_texts.ron`, built from help topics; the random events' messages in `event_texts.ron`, from `EVENTMSG.LBX`, and the short messages in `messages.ron`, from `MESSAGE.LBX`; their books and retorts are in the committed `content/wizards.ron`) and
+areas open which topic), the preset wizards' names and descriptions (`wizard_texts.ron`, built from help topics; the random events' messages in `event_texts.ron`, from `EVENTMSG.LBX`; their books and retorts are in the committed `content/wizards.ron`) and
 `IMPORT_REPORT.txt` (everything it could not map) to `content-local/`. Old runs also wrote the
 rules files there; the importer now removes those stale copies.
 

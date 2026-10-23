@@ -235,6 +235,7 @@ fn presets_come_from_the_rules() {
         id: "lo_pan".into(),
         name: "Lo Pan".into(),
         description: String::new(),
+        gender: crate::text::Gender::Masculine,
         books: vec![("life".into(), 5), ("chaos".into(), 5)],
         retorts: vec![Retort::Channeler],
     }]);

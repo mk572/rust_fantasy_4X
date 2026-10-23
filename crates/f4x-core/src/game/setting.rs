@@ -249,6 +249,8 @@ pub const MAX_OPPONENTS: u8 = 4;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SettingsDef {
+    /// The language of the messages: a folder of `content/text/` (two letters, `en`).
+    pub language: String,
     /// The new-game choices before the player changes them.
     pub new_game: BasicSettings,
     /// The most computer wizards a new game can have, 1 to [`MAX_OPPONENTS`].
@@ -410,6 +412,7 @@ impl Default for SettingsDef {
             land_percent,
         };
         Self {
+            language: crate::text::FALLBACK_LANGUAGE.into(),
             new_game: BasicSettings::default(),
             max_opponents: MAX_OPPONENTS,
             land_sizes: vec![

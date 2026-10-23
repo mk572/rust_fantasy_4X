@@ -1,0 +1,5 @@
+// Player-facing messages of the armies screen. One key is in one file only (docs/text.md).
+{
+    "army.title": "The Armies of {owner}",
+    "army.upkeep": "Upkeep",
+}

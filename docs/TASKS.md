@@ -2,7 +2,7 @@
 
 Everything not yet implemented.
 
-Next open task number: 342 (increase when a task is created)
+Next open task number: 347 (increase when a task is created)
 Keep the table in ascending order by number.
 Add a summary to the table, then details under Descriptions.
 
@@ -82,6 +82,8 @@ neighbours.
 | 339 | AI | Scripted and trained AI on the new framework |
 | 341 | Wizard | Banishment and defeat as in the original (`Banish_Wizard`, `Resolve_Wizard_Conquest`) |
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
+| 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` |
+| 347 | Text | Text the core builds as game data: made item names, random event texts, default names, battle info names; translated names in the rules files |
 
 ## Descriptions
 
@@ -266,3 +268,26 @@ shim, keep `Content` only if something still needs a bundle, and update the impo
 docs that name the file (`ecs-structure.md`, `scripts.md` if any).
 
 *Needs:* 337 (the structure is final). Best after 330 to 332, which reshape the feature types.
+
+**346. Replace the loader's test data with the real content.** `crates/f4x-data/testdata/` holds 12 `.ron` files (abilities,
+buildings, features, item_powers, items, level_paths, races, realms, rules, spells, terrain, units) with the same names as
+files in `content/`, loaded by the tests in `f4x-data` (`lib.rs`, `rules.rs`, `save.rs`). A copy goes stale when a rule or a
+schema changes, and the tests then pass on data the game no longer has. Make those tests load `content/` (through
+`load_content_layers` with `content/` alone, so a local `content-local/` never changes a result), fix the assertions that
+depended on the fixture's numbers so they read the value from the loaded data or check structure, delete `testdata/`, and
+fix `docs/local-assets.md` (line 63). A test that needs a situation `content/` cannot give builds it in the test from the
+loaded rules, as the other crates' tests do. Error-handling tests (a broken file is refused) keep their small inline
+sources; they are not fixtures.
+
+*Needs:* nothing.
+
+**347. Text the core builds as game data.** Not yet on keys: the names `item/crafting.rs` makes for items ("+2 Sword of
+Strength"; stored in the item, so the name must become parts a language can order: kind, bonus, power); the random events'
+texts (`world_event::compose`, from the local `event_texts.ron`, with its own placeholders; the city size names list
+`CITY_SIZE_NAMES` there); the default names ("You", "Wizard N", "Capital" in `game/setup.rs`); the names of the battle info
+items (`battle/info.rs`); `describe.rs` of the console (English, a developer tool: decide whether it stays); the validation
+errors of `settings.ron` and `setup.rs` (messages for the content author; decide the same). The names in the rules files
+(units, spells, buildings, races, realms, abilities) are content: decide whether a language gets its own copy of those
+files or a table of names in `content/text/<lang>/`, and how the plural of a race is then kept.
+
+*Needs:* 345 (done), and 333 for the item names.

@@ -7,6 +7,7 @@
 use f4x_core::city::FoundCityError;
 use f4x_core::content::{FeatureKind, TerrainClass};
 use f4x_core::map::Position;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -32,12 +33,13 @@ pub(crate) struct SquareText {
 }
 
 /// Half-food units as the original writes them: "1/2 food", "1 1/2 food", "2 food".
-pub(crate) fn food_text(half_units: u8) -> String {
+pub(crate) fn food_text(texts: &Texts, half_units: u8) -> String {
+    let whole = Args::new().count("n", half_units / 2);
     match (half_units / 2, half_units % 2) {
         (0, 0) => String::new(),
-        (0, _) => "1/2 food".into(),
-        (w, 0) => format!("{w} food"),
-        (w, _) => format!("{w} 1/2 food"),
+        (0, _) => texts.get("surveyor.food_half", &whole),
+        (_, 0) => texts.get("surveyor.food", &whole),
+        (_, _) => texts.get("surveyor.food_and_half", &whole),
     }
 }
 
@@ -73,26 +75,38 @@ impl App {
             .game
             .economy()
             .square_food(grid, pos.x as i32, pos.y as i32);
-        text.effects[0] = food_text(food.clamp(0, 255) as u8);
+        text.effects[0] = food_text(self.texts(), food.clamp(0, 255) as u8);
         let production =
             self.game
                 .economy()
                 .square_production(grid, pos.x as i32, pos.y as i32, false);
         if production != 0 {
-            text.effects[1] = format!("+{production}% production");
+            text.effects[1] =
+                self.text_with("surveyor.production", &Args::new().count("n", production));
         }
         if grid.has_river(pos.x as i32, pos.y as i32) && survey.gold_percent >= 20 {
-            let gold = format!("+{}% gold", survey.gold_percent);
+            let gold = self.text_with(
+                "surveyor.gold_percent",
+                &Args::new().count("n", survey.gold_percent),
+            );
             if text.effects[1].is_empty() {
                 text.effects[1] = gold;
             } else {
-                text.effects[0] = format!("{}, {gold}", text.effects[0]);
+                text.effects[0] = self.text_with(
+                    "surveyor.food_and_gold",
+                    &Args::new()
+                        .text("food", &text.effects[0])
+                        .text("gold", gold),
+                );
             }
         } else if survey.gold_percent > 0 && def.class != TerrainClass::Ocean {
-            text.effects[1] = format!("+{}% gold", survey.gold_percent);
+            text.effects[1] = self.text_with(
+                "surveyor.gold_percent",
+                &Args::new().count("n", survey.gold_percent),
+            );
         }
         if spoiled {
-            text.effects = ["Corruption".into(), String::new()];
+            text.effects = [self.text("surveyor.corruption"), String::new()];
         }
 
         let feature = grid
@@ -100,54 +114,48 @@ impl App {
             .and_then(|f| content.features.get(f));
         let city = self.game.economy().city_at(pos);
         if let Some(city) = city {
-            let figures = self
-                .game
-                .economy()
-                .city_economy(city)
-                .map_or(0, |e| e.figures);
-            let size = if figures == 0 {
-                "Outpost"
-            } else {
-                ["Hamlet", "Village", "Town", "City", "Capital"]
-                    [(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
-            };
-            text.special = vec![format!("{size} of"), self.city_name(city)];
+            let size = self.city_size_name(city);
+            text.special = vec![
+                self.text_with("surveyor.size_of", &Args::new().text("size", size)),
+                self.city_name(city),
+            ];
         } else if let Some(f) = feature {
             text.special.push(f.name.clone());
             let b = f.city;
             let mut bits = Vec::new();
             if b.gold > 0 {
-                bits.push(format!("+{} gold", b.gold));
+                bits.push(self.text_with("surveyor.bonus_gold", &Args::new().count("n", b.gold)));
             }
             if b.mana > 0 {
-                bits.push(format!("+{} power", b.mana));
+                bits.push(self.text_with("surveyor.bonus_power", &Args::new().count("n", b.mana)));
             }
             if b.food > 0 {
-                bits.push(format!("+{} food", b.food));
+                bits.push(self.text_with("surveyor.bonus_food", &Args::new().count("n", b.food)));
             }
             if b.unit_cost_percent > 0 {
-                bits.push(format!(
-                    "Reduces normal unit cost by {}%",
-                    b.unit_cost_percent
+                bits.push(self.text_with(
+                    "surveyor.unit_cost",
+                    &Args::new().count("n", b.unit_cost_percent),
                 ));
             }
-            text.detail = bits.join(", ");
+            text.detail = self.texts().join(&bits);
             match f.kind {
                 FeatureKind::Node => {
                     if let Some(i) = map.node_at(pos.plane, pos.x, pos.y) {
                         let n = &map.nodes()[i];
                         let realm = n.realm.clone();
                         let realm = realm[..1].to_uppercase() + &realm[1..];
-                        text.special = vec![format!("{realm} Node")];
+                        text.special = vec![
+                            self.text_with("surveyor.node", &Args::new().text("realm", realm))
+                        ];
                         text.special.push(if n.owner.is_some() {
-                            if n.warped {
-                                "Warped"
+                            self.text(if n.warped {
+                                "surveyor.warped"
                             } else if n.guardian {
-                                "Guardian Spirit"
+                                "surveyor.guardian_spirit"
                             } else {
-                                "Magic Spirit"
-                            }
-                            .to_string()
+                                "surveyor.magic_spirit"
+                            })
                         } else {
                             self.guard_names(pos).first().cloned().unwrap_or_default()
                         });
@@ -163,20 +171,19 @@ impl App {
 
         text.blocked = match survey.blocked {
             Some(FoundCityError::BadTerrain) if def.class == TerrainClass::Ocean => {
-                Some("on water.".into())
+                Some(self.text("surveyor.blocked_water"))
             }
-            Some(FoundCityError::BadTerrain) => Some("on this kind of land.".into()),
-            Some(FoundCityError::BlockedByFeature) => Some(
-                match feature.map(|f| f.kind) {
-                    Some(FeatureKind::Tower) => "on towers.",
-                    Some(FeatureKind::Node) => "on magic nodes.",
-                    _ => "on lairs.",
-                }
-                .into(),
-            ),
-            Some(FoundCityError::TooCloseToCity) => Some(format!(
-                "less than {} squares from any other city.",
-                content.rules.config.min_city_distance
+            Some(FoundCityError::BadTerrain) => Some(self.text("surveyor.blocked_land")),
+            Some(FoundCityError::BlockedByFeature) => {
+                Some(self.text(match feature.map(|f| f.kind) {
+                    Some(FeatureKind::Tower) => "surveyor.blocked_tower",
+                    Some(FeatureKind::Node) => "surveyor.blocked_node",
+                    _ => "surveyor.blocked_lair",
+                }))
+            }
+            Some(FoundCityError::TooCloseToCity) => Some(self.text_with(
+                "surveyor.blocked_close",
+                &Args::new().count("n", content.rules.config.min_city_distance),
             )),
             _ => None,
         };
@@ -209,7 +216,7 @@ impl App {
             return Vec::new();
         };
         if !seen {
-            return vec!["Unexplored".into()];
+            return vec![self.text("ui.unexplored")];
         }
         let rules = &self.game.content().rules;
         lair.guards
@@ -243,11 +250,11 @@ impl App {
             || is_key_pressed(KeyCode::Escape)
             || (is_mouse_button_pressed(MouseButton::Left) && cancel.contains(mouse));
         if !art {
-            self.log
-                .push("The Surveyor needs the extracted pictures".into());
+            self.log.push(self.text("surveyor.needs_pictures"));
             leave = true;
         }
-        self.bm_text_set(view, 4, 1, "Surveyor", 280.0, 80.0, Align::Center);
+        let title = self.text("surveyor.title");
+        self.bm_text_set(view, 4, 1, &title, 280.0, 80.0, Align::Center);
         let text = self
             .tile_under_mouse()
             .and_then(|pos| self.describe_square(pos));
@@ -283,15 +290,23 @@ impl App {
                 }
             }
             if let Some((size, prod, gold)) = t.resources {
-                self.bm_text_set(view, 1, 1, "City Resources", 280.0, 143.0, Align::Center);
-                self.bm_text_set(view, 0, 0, "Maximum Pop", 245.0, 151.0, Align::Left);
+                let (resources, max_pop) = (
+                    self.text("surveyor.city_resources"),
+                    self.text("surveyor.max_pop"),
+                );
+                let (prod_bonus, gold_bonus) = (
+                    self.text("surveyor.prod_bonus"),
+                    self.text("surveyor.gold_bonus"),
+                );
+                self.bm_text_set(view, 1, 1, &resources, 280.0, 143.0, Align::Center);
+                self.bm_text_set(view, 0, 0, &max_pop, 245.0, 151.0, Align::Left);
                 self.bm_text_set(view, 0, 0, &size.to_string(), 306.0, 151.0, Align::Right);
-                self.bm_text_set(view, 0, 0, "Prod Bonus", 245.0, 158.0, Align::Left);
+                self.bm_text_set(view, 0, 0, &prod_bonus, 245.0, 158.0, Align::Left);
                 self.bm_text_set(view, 0, 0, &format!("+{prod}%"), 312.0, 158.0, Align::Right);
-                self.bm_text_set(view, 0, 0, "Gold Bonus", 245.0, 165.0, Align::Left);
+                self.bm_text_set(view, 0, 0, &gold_bonus, 245.0, 165.0, Align::Left);
                 self.bm_text_set(view, 0, 0, &format!("+{gold}%"), 312.0, 165.0, Align::Right);
             } else if let Some(why) = t.blocked {
-                let message = format!("Cities cannot be built {why}");
+                let message = why;
                 for (i, line) in self.bm_wrap(0, &message, 67.0).iter().enumerate() {
                     self.bm_text_set(view, 0, 0, line, 246.0, 143.0 + 7.0 * i as f32, Align::Left);
                 }
@@ -315,10 +330,11 @@ mod tests {
 
     #[test]
     fn food_reads_in_halves() {
-        assert_eq!(food_text(0), "");
-        assert_eq!(food_text(1), "1/2 food");
-        assert_eq!(food_text(2), "1 food");
-        assert_eq!(food_text(3), "1 1/2 food");
-        assert_eq!(food_text(4), "2 food");
+        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        assert_eq!(food_text(&t, 0), "");
+        assert_eq!(food_text(&t, 1), "1/2 food");
+        assert_eq!(food_text(&t, 2), "1 food");
+        assert_eq!(food_text(&t, 3), "1 1/2 food");
+        assert_eq!(food_text(&t, 4), "2 food");
     }
 }

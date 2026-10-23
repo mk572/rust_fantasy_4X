@@ -81,29 +81,29 @@ impl Pref {
         }
     }
 
-    /// The label on the Settings screen.
+    /// The key of the label on the Settings screen.
     pub fn label(self) -> &'static str {
         match self {
-            Pref::SoundEffects => "Sound Effects",
-            Pref::BackgroundMusic => "Background Music",
-            Pref::EventMusic => "Event Music",
-            Pref::CitySpellEvents => "City Spell Events",
-            Pref::OverlandSpellEvents => "Overland Spell Events",
-            Pref::SummoningEvents => "Summoning Events",
-            Pref::EndOfTurnSummary => "End of Turn Summary",
-            Pref::RazeCity => "Raze City",
-            Pref::RandomEvents => "Random Events",
-            Pref::EndOfTurnWait => "End of Turn Wait",
-            Pref::StrategicCombatOnly => "Strategic Combat Only",
-            Pref::AutoUnitInformation => "Auto Unit Information",
-            Pref::EnemyMoves => "Enemy Moves",
-            Pref::EnemySpells => "Enemy Spells",
-            Pref::SpellBookOrdering => "Spell Book Ordering",
-            Pref::SpellAnimations => "Spell Animations",
-            Pref::ShowNodeOwners => "Show Node Owners",
-            Pref::ExpandingHelp => "Expanding Help",
-            Pref::MovementAnimations => "Movement Animations",
-            Pref::LeftClickMoves => "Left Click Moves Units",
+            Pref::SoundEffects => "preferences.sound_effects",
+            Pref::BackgroundMusic => "preferences.background_music",
+            Pref::EventMusic => "preferences.event_music",
+            Pref::CitySpellEvents => "preferences.city_spell_events",
+            Pref::OverlandSpellEvents => "preferences.overland_spell_events",
+            Pref::SummoningEvents => "preferences.summoning_events",
+            Pref::EndOfTurnSummary => "preferences.end_of_turn_summary",
+            Pref::RazeCity => "preferences.raze_city",
+            Pref::RandomEvents => "preferences.random_events",
+            Pref::EndOfTurnWait => "preferences.end_of_turn_wait",
+            Pref::StrategicCombatOnly => "preferences.strategic_combat_only",
+            Pref::AutoUnitInformation => "preferences.auto_unit_information",
+            Pref::EnemyMoves => "preferences.enemy_moves",
+            Pref::EnemySpells => "preferences.enemy_spells",
+            Pref::SpellBookOrdering => "preferences.spell_book_ordering",
+            Pref::SpellAnimations => "preferences.spell_animations",
+            Pref::ShowNodeOwners => "preferences.show_node_owners",
+            Pref::ExpandingHelp => "preferences.expanding_help",
+            Pref::MovementAnimations => "preferences.movement_animations",
+            Pref::LeftClickMoves => "preferences.left_click_moves",
         }
     }
 

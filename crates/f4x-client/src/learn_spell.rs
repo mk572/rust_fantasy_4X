@@ -4,6 +4,7 @@
 //! original shows a box over the map instead: "You have mastered the spell of X".
 
 use f4x_core::rules::SpellId;
+use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -203,7 +204,7 @@ impl App {
         self.draw_map();
         self.draw_bars();
         let lay = Layout::new();
-        let text = format!("You have mastered the spell of {name}");
+        let text = self.text_with("spell.mastered", &Args::new().text("spell", &name));
         let closed = self.notify2_box(&lay, 40.0, GREEN, &text, |app, lay, x| {
             app.draw_shared_pic(lay, &Role::Learned, 0, x, 40.0 + 9.0);
         });

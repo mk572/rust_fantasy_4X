@@ -1,0 +1,23 @@
+// The labels of the switches on the Settings screen. One key is in one file only (docs/text.md).
+{
+    "preferences.sound_effects": "Sound Effects",
+    "preferences.background_music": "Background Music",
+    "preferences.event_music": "Event Music",
+    "preferences.city_spell_events": "City Spell Events",
+    "preferences.overland_spell_events": "Overland Spell Events",
+    "preferences.summoning_events": "Summoning Events",
+    "preferences.end_of_turn_summary": "End of Turn Summary",
+    "preferences.raze_city": "Raze City",
+    "preferences.random_events": "Random Events",
+    "preferences.end_of_turn_wait": "End of Turn Wait",
+    "preferences.strategic_combat_only": "Strategic Combat Only",
+    "preferences.auto_unit_information": "Auto Unit Information",
+    "preferences.enemy_moves": "Enemy Moves",
+    "preferences.enemy_spells": "Enemy Spells",
+    "preferences.spell_book_ordering": "Spell Book Ordering",
+    "preferences.spell_animations": "Spell Animations",
+    "preferences.show_node_owners": "Show Node Owners",
+    "preferences.expanding_help": "Expanding Help",
+    "preferences.movement_animations": "Movement Animations",
+    "preferences.left_click_moves": "Left Click Moves Units",
+}

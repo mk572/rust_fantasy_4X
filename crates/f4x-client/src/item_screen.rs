@@ -12,6 +12,7 @@ use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
 use f4x_core::item::Item;
 use f4x_core::rules::SlotKind;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -56,12 +57,12 @@ pub(crate) fn hero_square(slot: usize) -> (f32, f32) {
     )
 }
 
-/// The text the original prints for a refused move.
+/// The key of the text the original prints for a refused move; empty when it prints none.
 pub(crate) fn refusal(error: ItemError) -> &'static str {
     match error {
-        ItemError::WrongSlot => "That item cannot be carried in that slot.",
-        ItemError::NoMana => "You do not have the mana to send the item there.",
-        ItemError::WouldDrown => "This unit will drown if the item is removed.",
+        ItemError::WrongSlot => "item.wrong_slot",
+        ItemError::NoMana => "item.no_mana",
+        ItemError::WouldDrown => "item.would_drown",
         ItemError::NoSuchPlace | ItemError::Empty | ItemError::Transfer => "",
     }
 }
@@ -145,7 +146,14 @@ impl App {
         });
         match error {
             Some(ItemError::Transfer) => self.item_ui.confirm = Some((from, to)),
-            Some(err) => self.item_ui.message = Some(refusal(err).to_string()),
+            Some(err) => {
+                let key = refusal(err);
+                self.item_ui.message = Some(if key.is_empty() {
+                    String::new()
+                } else {
+                    self.text(key)
+                });
+            }
             None => {
                 // What was in the target slot is now where the item came from: pick it up.
                 self.item_ui.held = before.map(|_| from);
@@ -203,7 +211,7 @@ impl App {
                         view,
                         1,
                         Color::new(0.6, 0.9, 0.5, 1.0),
-                        "Same Location",
+                        &self.text("item.same_location"),
                         x1 + 37.0,
                         y1 + 7.0,
                         Align::Left,
@@ -213,7 +221,7 @@ impl App {
                         view,
                         1,
                         Color::new(0.95, 0.5, 0.4, 1.0),
-                        "Item Teleport",
+                        &self.text("item.teleport"),
                         x1 + 37.0,
                         y1 + 7.0,
                         Align::Left,
@@ -360,7 +368,10 @@ impl App {
         if let Some((from, to)) = self.item_ui.confirm {
             self.draw_pic(lay, "newgame", 44, 0, 67.0, 40.0);
             self.draw_pic(lay, "newgame", 45, 0, 67.0, 152.0);
-            let text = format!("Sending the item to a hero somewhere else costs {TRANSFER_MANA} mana. Press Y to do it, N to leave it.");
+            let text = self.text_with(
+                "item.transfer_ask",
+                &Args::new().count("mana", TRANSFER_MANA),
+            );
             let lines = self.bm_wrap(1, &text, 160.0);
             for (i, line) in lines.iter().enumerate() {
                 self.bm_text(
@@ -412,7 +423,7 @@ mod tests {
 
     #[test]
     fn the_refusals_have_words_and_the_transfer_has_none_here() {
-        assert!(refusal(ItemError::WouldDrown).contains("drown"));
+        assert_eq!(refusal(ItemError::WouldDrown), "item.would_drown");
         assert!(refusal(ItemError::Transfer).is_empty());
     }
 }

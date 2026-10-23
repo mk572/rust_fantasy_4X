@@ -1,0 +1,7 @@
+// Player-facing messages of the Hall of Fame. One key is in one file only (docs/text.md).
+{
+    "hall.title": "Hall Of Fame",
+    "hall.master": "Master",
+    "hall.rank": "{n})",
+    "hall.of_the": "{name} of the {race}",
+}

@@ -3,6 +3,7 @@
 
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::game::Command;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::city_screen::Layout;
@@ -30,14 +31,21 @@ fn primaries() -> Vec<Focus> {
 }
 
 /// What the button on the city screen says.
-pub(crate) fn label(plan: Option<&BuildPlan>) -> String {
+pub(crate) fn label(texts: &Texts, plan: Option<&BuildPlan>) -> String {
+    let focus = |f: Focus| texts.get(f.key(), &Args::new());
     match plan {
-        None => "Auto: off".to_string(),
+        None => texts.get("autobuild.off", &Args::new()),
         Some(p) => match p.secondary {
-            Some(s) if p.primary != Focus::Balanced => {
-                format!("Auto: {} / {}", p.primary.name(), s.name())
-            }
-            _ => format!("Auto: {}", p.primary.name()),
+            Some(s) if p.primary != Focus::Balanced => texts.get(
+                "autobuild.label_two",
+                &Args::new()
+                    .text("primary", focus(p.primary))
+                    .text("secondary", focus(s)),
+            ),
+            _ => texts.get(
+                "autobuild.label",
+                &Args::new().text("primary", focus(p.primary)),
+            ),
         },
     }
 }
@@ -56,7 +64,7 @@ impl App {
         };
         draw_rectangle(r.x, r.y, r.w, r.h, fill);
         draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, GOLD);
-        let text = label(plan.as_ref());
+        let text = label(self.texts(), plan.as_ref());
         let size = (5.0 * lay.scale) as u16;
         let dims = measure_text(&text, None, size, 1.0);
         draw_text(
@@ -97,33 +105,42 @@ impl App {
                 color,
             )
         };
-        text("City auto-builder", 48.0, 36.0, GOLD);
-        text("Left click: next   Right click: previous", 48.0, 44.0, GRAY);
+        text(&self.text("autobuild.title"), 48.0, 36.0, GOLD);
+        text(&self.text("autobuild.help"), 48.0, 44.0, GRAY);
         let pointer: Vec2 = mouse_position().into();
         let left = is_mouse_button_pressed(MouseButton::Left);
         let right = is_mouse_button_pressed(MouseButton::Right);
         let balanced = d.plan.primary == Focus::Balanced;
+        let yes_no = |on: bool| self.text(if on { "autobuild.yes" } else { "autobuild.no" });
         let secondary = match d.plan.secondary {
-            Some(s) if !balanced => s.name(),
-            _ => "none",
+            Some(s) if !balanced => self.text(s.key()),
+            _ => self.text("autobuild.none"),
         };
         let rows: [(String, String, bool); 6] = [
-            ("Builds".into(), d.plan.mix.name().into(), true),
-            ("Primary focus".into(), d.plan.primary.name().into(), true),
-            ("Secondary focus".into(), secondary.into(), !balanced),
             (
-                "Settlers".into(),
-                if d.plan.settlers { "yes" } else { "no" }.into(),
+                self.text("autobuild.builds"),
+                self.text(d.plan.mix.key()),
                 true,
             ),
             (
-                "Settlers from population".into(),
+                self.text("autobuild.primary"),
+                self.text(d.plan.primary.key()),
+                true,
+            ),
+            (self.text("autobuild.secondary"), secondary, !balanced),
+            (
+                self.text("autobuild.settlers"),
+                yes_no(d.plan.settlers),
+                true,
+            ),
+            (
+                self.text("autobuild.settlers_pop"),
                 d.plan.min_settler_pop.to_string(),
                 d.plan.settlers,
             ),
             (
-                "Switch off when threatened".into(),
-                if d.plan.event_prompt { "yes" } else { "no" }.into(),
+                self.text("autobuild.switch_off"),
+                yes_no(d.plan.event_prompt),
                 true,
             ),
         ];
@@ -174,8 +191,17 @@ impl App {
                 _ => d.plan.event_prompt = !d.plan.event_prompt,
             }
         }
-        text(&hint(&d.plan), 48.0, 126.0, Color::new(0.8, 0.8, 0.6, 1.0));
-        let buttons = [("OK", 52.0), ("Switch off", 120.0), ("Cancel", 208.0)];
+        text(
+            &hint(self.texts(), &d.plan),
+            48.0,
+            126.0,
+            Color::new(0.8, 0.8, 0.6, 1.0),
+        );
+        let buttons = [
+            (self.text("ui.ok"), 52.0),
+            (self.text("autobuild.button_off"), 120.0),
+            (self.text("autobuild.button_cancel"), 208.0),
+        ];
         let mut chosen: Option<usize> = None;
         for (k, (name, x)) in buttons.iter().enumerate() {
             let enabled = k != 1 || d.had_plan;
@@ -233,15 +259,13 @@ impl App {
 }
 
 /// One line on what the plan will do.
-fn hint(plan: &BuildPlan) -> String {
-    let what = match plan.mix {
-        Mix::Both => "Spends equal production on units and buildings.",
-        Mix::Buildings => "Builds buildings only.",
-        Mix::Units => "Builds units only.",
-    };
-    if plan.mix == Mix::Buildings {
-        what.to_string()
-    } else {
-        format!("{what} Defenders come first.")
-    }
+fn hint(texts: &Texts, plan: &BuildPlan) -> String {
+    texts.get(
+        match plan.mix {
+            Mix::Both => "autobuild.hint_both",
+            Mix::Buildings => "autobuild.hint_buildings",
+            Mix::Units => "autobuild.hint_units",
+        },
+        &Args::new(),
+    )
 }

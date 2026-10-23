@@ -1,0 +1,22 @@
+// Player-facing messages of the end of the game: the headline and the score sheet.
+// One key is in one file only (docs/text.md).
+{
+    "end.victory": "Victory!",
+    "end.defeat": "Defeat",
+    "end.won_mastery": "You have finished the Spell of Mastery and rule all of Arcanus and Myrror.",
+    "end.won_conquest": "Every rival wizard has been defeated.",
+    "end.lost_mastery": "{winner} has finished the Spell of Mastery.",
+    "end.lost_conquest": "You have lost your last city to {winner}.",
+    "end.log": "{title} {reason}",
+    // The score sheet: how many, and the points they are worth.
+    "end.spells": (count: "n", one: "{n} Spell: {points}", other: "{n} Spells: {points}"),
+    "end.townsfolk": "{n} Townsfolk: {points}",
+    "end.banished": (count: "n",
+        zero: "No Banished Wizards: {points}",
+        one: "1 Banished Wizard: {points}",
+        other: "{n} Banished Wizards: {points}"),
+    "end.fame": "{n} Fame: {points}",
+    "end.year": "Year {year}: {points}",
+    "end.mastery": "Spell Of Mastery: {points}",
+    "end.final_score": "Final Score: {n}",
+}

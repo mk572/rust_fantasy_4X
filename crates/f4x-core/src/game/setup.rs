@@ -65,6 +65,7 @@ pub struct NewGame {
     pub preset: Option<String>,
     /// A custom wizard for player 0 (used when no preset is given).
     pub name: Option<String>,
+    pub gender: crate::text::Gender,
     pub books: BTreeMap<String, u8>,
     pub retorts: BTreeSet<Retort>,
     /// Player 0's race id; the default is the first race with city names.
@@ -93,6 +94,7 @@ impl Default for NewGame {
             all_ai: false,
             preset: None,
             name: None,
+            gender: Default::default(),
             books: BTreeMap::new(),
             retorts: BTreeSet::new(),
             race: None,
@@ -139,6 +141,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     let fixed = |books: &[(&str, u8)], retort| WizardBuild {
         name: String::new(),
+        gender: Default::default(),
         books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
         retorts: [retort].into_iter().collect(),
         spells: Vec::new(),
@@ -172,6 +175,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             } else if !spec.books.is_empty() {
                 WizardBuild {
                     name: spec.name.clone().unwrap_or_else(|| "Wizard".into()),
+                    gender: spec.gender,
                     books: spec.books.clone(),
                     retorts: spec.retorts.clone(),
                     spells: Vec::new(),
@@ -315,8 +319,10 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
     } else {
         (&[("life", 3), ("nature", 2)], Retort::Charismatic)
     };
+    let (name, gender) = fallback_name(content, seed, k);
     WizardBuild {
-        name: fallback_name(content, seed, k),
+        name,
+        gender,
         books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
         retorts: [retort].into_iter().collect(),
         spells: Vec::new(),
@@ -329,13 +335,13 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
 /// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list
 /// (`content/wizard_names.ron`), picked from the seed without touching the game's random stream.
 /// Empty if there is no list, which leaves the plain "Wizard N".
-fn fallback_name(content: &Content, seed: u64, k: usize) -> String {
+fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, crate::text::Gender) {
     let lists = &content.rules.wizard_names;
     let Some(list) = lists.get(k.saturating_sub(1).min(lists.len().saturating_sub(1))) else {
-        return String::new();
+        return Default::default();
     };
     if list.is_empty() {
-        return String::new();
+        return Default::default();
     }
     // splitmix64 of the seed and the slot.
     let mut z = seed

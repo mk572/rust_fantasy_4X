@@ -5,6 +5,7 @@
 //! Picture, Name, Picks, Spells, Race, Banner. Esc goes one step back. Positions are the
 //! original's. The rules behind the choices are the core's (`WizardBuild`).
 
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::{CreateState, Step};
@@ -111,16 +112,15 @@ impl App {
 
     /// The retorts of the build as the original writes them: "Alchemy, Warlord and Famous.".
     pub(crate) fn ng_abilities_text(&self) -> String {
-        let names: Vec<&str> = f4x_core::wizard::ALL_RETORTS
+        let names: Vec<String> = f4x_core::wizard::ALL_RETORTS
             .iter()
             .filter(|r| self.create.build.retorts.contains(r))
-            .map(|&r| f4x_core::wizard::retort_name(r))
+            .map(|&r| self.retort_name(r))
             .collect();
-        match names.len() {
-            0 => String::new(),
-            1 => format!("{}.", names[0]),
-            n => format!("{} and {}.", names[..n - 1].join(", "), names[n - 1]),
+        if names.is_empty() {
+            return String::new();
         }
+        format!("{}{}", self.texts().join(&names), self.text("ui.full_stop"))
     }
 
     /// `Draw_Special_Abilities_String`: the retorts at `(12, 180)`, 138 pixels wide.
@@ -231,12 +231,12 @@ impl App {
         let intro = self.options.difficulty == 0;
         let right_count = if picture || intro { 7 } else { 8 };
         self.draw_pic(lay, "newgame", 39, 0, 165.0, 17.0);
-        let title = if picture {
-            "Select Picture"
+        let title = self.text(if picture {
+            "create.select_picture"
         } else {
-            "Select Wizard"
-        };
-        self.bm_text_outlined(view, 5, title, 242.0, 1.0, Align::Center);
+            "create.select_wizard"
+        });
+        self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
         let mouse: Vec2 = mouse_position().into();
         let clicked = is_mouse_button_pressed(MouseButton::Left) && self.ng_input();
         let mut chosen = None;
@@ -261,7 +261,9 @@ impl App {
             let shift = if hot { 1.0 } else { 0.0 };
             let y = 27.0 + ROW_STEP * row as f32;
             self.draw_pic(lay, "newgame", 9 + i, 0, x0 + shift, y + shift);
-            let name = defs.get(i).map_or("Custom", |d| d.1.as_str()).to_string();
+            let name = defs
+                .get(i)
+                .map_or_else(|| self.text("create.custom"), |d| d.1.clone());
             let cx = x0 + 34.0 + shift;
             self.bm_text(
                 view,
@@ -290,13 +292,13 @@ impl App {
                         .filter(|r| books.get(*r).copied().unwrap_or(0) > 0)
                         .collect();
                     self.ng_shelf(lay, &shelf, &|r| books.get(r).copied().unwrap_or(0));
-                    let names: Vec<&str> = f4x_core::wizard::ALL_RETORTS
+                    let names: Vec<String> = f4x_core::wizard::ALL_RETORTS
                         .iter()
                         .filter(|r| build.retorts.contains(r))
-                        .map(|&r| f4x_core::wizard::retort_name(r))
+                        .map(|&r| self.retort_name(r))
                         .collect();
                     if let Some(first) = names.first() {
-                        let text = format!("{first}.");
+                        let text = format!("{first}{}", self.text("ui.full_stop"));
                         self.bm_text(view, 0, SHADOW, &text, 13.0, 181.0, Align::Left);
                         self.bm_text(view, 0, GOLD_INK, &text, 12.0, 180.0, Align::Left);
                     }
@@ -335,7 +337,8 @@ impl App {
     fn step_name(&mut self, lay: &Layout) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "newgame", 40, 0, 181.0, 17.0);
-        self.bm_text_outlined(view, 5, "Wizard's Name", 242.0, 1.0, Align::Center);
+        let title = self.text("create.wizard_name");
+        self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
         let portrait = self.create.build.portrait.map(usize::from);
         if let Some(p) = portrait {
             self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
@@ -357,6 +360,22 @@ impl App {
             }
         }
         self.create.build.name = typed.clone();
+        if self.create.custom {
+            // Tab turns the wizard's gender: he, she, they.
+            if self.ng_input() && is_key_pressed(KeyCode::Tab) {
+                use f4x_core::text::Gender::*;
+                self.create.build.gender = match self.create.build.gender {
+                    Masculine => Feminine,
+                    Feminine => Neuter,
+                    Neuter => Masculine,
+                };
+            }
+            let hint = self.text_with(
+                "create.gender_hint",
+                &Args::new().named("wizard", &typed, self.create.build.gender),
+            );
+            self.bm_text(view, 0, LIGHT, &hint, 196.0, 52.0, Align::Left);
+        }
         let cursor = if ((get_time() * 2.0) as u32).is_multiple_of(2) {
             "_"
         } else {
@@ -386,7 +405,7 @@ impl App {
                             .get(p)
                             .map(|w| w.name.clone())
                     })
-                    .unwrap_or_else(|| "You".into());
+                    .unwrap_or_else(|| self.text("create.default_name"));
                 self.create.build.name = fallback;
             }
             if self.create.custom {
@@ -425,7 +444,8 @@ impl App {
         self.draw_pic(lay, "newgame", 54, 0, 164.0, 18.0);
         self.draw_pic(lay, "newgame", 55, 0, 208.0, 34.0);
         let portrait = self.create.build.portrait.map(usize::from);
-        self.ng_frame(lay, "Select Race", portrait);
+        let title = self.text("create.select_race");
+        self.ng_frame(lay, &title, portrait);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_build_shelf(lay);
@@ -448,8 +468,10 @@ impl App {
         let bright = Color::new(1.0, 0.95, 0.6, 1.0);
         let mouse: Vec2 = mouse_position().into();
         let clicked = is_mouse_button_pressed(MouseButton::Left) && self.ng_input();
-        self.bm_text(view, 3, title, "Arcanian Races:", 198.0, 25.0, Align::Left);
-        self.bm_text(view, 3, title, "Myrran Races:", 202.0, 134.0, Align::Left);
+        let (arcanian_title, myrran_title) =
+            (self.text("create.arcanian"), self.text("create.myrran"));
+        self.bm_text(view, 3, title, &arcanian_title, 198.0, 25.0, Align::Left);
+        self.bm_text(view, 3, title, &myrran_title, 202.0, 134.0, Align::Left);
         let mut chosen = None;
         let mut refused = false;
         for (list, top, allowed) in [(&arcanian, 38.0, true), (&myrran_list, 147.0, myrran)] {
@@ -484,8 +506,7 @@ impl App {
             }
         }
         if refused {
-            self.create.warn =
-                Some("You can not select a Myrran race unless you have the Myrran special.".into());
+            self.create.warn = Some(self.text("create.need_myrran"));
         }
         if let Some(race) = chosen {
             self.race = race;
@@ -503,7 +524,8 @@ impl App {
     fn step_banner(&mut self, lay: &Layout) {
         self.draw_pic(lay, "newgame", 46, 0, 158.0, 0.0);
         let portrait = self.create.build.portrait.map(usize::from);
-        self.ng_frame(lay, "Select Banner", portrait);
+        let title = self.text("create.select_banner");
+        self.ng_frame(lay, &title, portrait);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_build_shelf(lay);

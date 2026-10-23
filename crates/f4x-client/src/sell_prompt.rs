@@ -6,6 +6,7 @@
 
 use f4x_core::game::Command;
 use f4x_core::rules::BuildingId;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -87,13 +88,15 @@ impl App {
         let name = def.name.clone();
         let eco = self.game.economy();
         let prompt = match eco.first_dependant(city, building) {
-            _ if eco.sold_this_turn(city) => {
-                SellPrompt::Refused("You can only sell back one building each turn.".into())
-            }
-            Some(other) => SellPrompt::Refused(format!(
-                "You cannot sell back the {name} because it is required by the {}.",
-                rules.buildings.get(other).name
-            )),
+            _ if eco.sold_this_turn(city) => SellPrompt::Refused(self.text("sell.one_a_turn")),
+            Some(other) => SellPrompt::Refused(
+                self.text_with(
+                    "sell.required",
+                    &Args::new()
+                        .text("building", &name)
+                        .text("other", &rules.buildings.get(other).name),
+                ),
+            ),
             None => {
                 let Ok(gold) = eco.sale_price(city, building) else {
                     return;
@@ -140,23 +143,21 @@ impl App {
             SellPrompt::Ask {
                 name, gold, stops, ..
             } => {
-                let mut text = format!("Do you wish to sell back the {name} for {gold} gold?");
+                let args = Args::new().text("building", name).count("gold", *gold);
+                let mut text = self.text_with("sell.ask", &args);
                 if let Some(item) = stops {
-                    text += &format!(" This will cease production of your {item}.");
+                    let args = Args::new().text("item", item);
+                    text += &self.text_with("sell.stops", &args);
                 }
                 text
             }
             SellPrompt::Refused(text) => text.clone(),
             SellPrompt::Buy { name, price, .. } => {
-                let article = if name.starts_with(['A', 'E', 'I', 'O', 'U']) {
-                    "an"
-                } else {
-                    "a"
-                };
-                format!("Do you wish to spend {price} Gold by purchasing {article} {name}?")
+                let args = Args::new().count("price", *price).text("building", name);
+                self.text_with("sell.buy", &args)
             }
             SellPrompt::TurnOff { name, .. } => {
-                format!("Do you wish to turn off the {name} spell?")
+                self.text_with("sell.turn_off", &Args::new().text("spell", name))
             }
         };
         match &prompt {

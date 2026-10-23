@@ -1,0 +1,15 @@
+// The personalities and objectives of the computer wizards, as the wizard sheet names them.
+// One key is in one file only (docs/text.md).
+{
+    "personality.maniacal": "Maniacal",
+    "personality.ruthless": "Ruthless",
+    "personality.aggressive": "Aggressive",
+    "personality.chaotic": "Chaotic",
+    "personality.lawful": "Lawful",
+    "personality.peaceful": "Peaceful",
+    "personality.pragmatist": "Pragmatist",
+    "personality.militarist": "Militarist",
+    "personality.theurgist": "Theurgist",
+    "personality.perfectionist": "Perfectionist",
+    "personality.expansionist": "Expansionist",
+}

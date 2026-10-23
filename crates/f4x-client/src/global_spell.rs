@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
+use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -99,13 +100,10 @@ impl App {
             .wizard(cast.player)
             .map_or(0, |w| usize::from(w.portrait()));
         let words = if cast.player == crate::view::HUMAN {
-            "You have completed casting...".to_string()
+            self.text("spell.you_completed")
         } else {
-            let who = self
-                .game
-                .wizard(cast.player)
-                .map_or("A rival wizard".to_string(), |w| w.name());
-            format!("{who} has cast...")
+            let args = self.wizard_arg(Args::new(), "wizard", cast.player);
+            self.text_with("spell.rival_cast", &args)
         };
         let name = self
             .game

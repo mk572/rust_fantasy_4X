@@ -100,7 +100,10 @@ impl App {
         for s in self.game.battle_unit_spells(id) {
             let name = self.game.content().rules.spells.get(s.spell).name.clone();
             let label = if s.cost > 0 {
-                format!("{name} {}", s.cost)
+                self.text_with(
+                    "battle.spell_row",
+                    &Args::new().text("spell", &name).count("cost", s.cost),
+                )
             } else {
                 name
             };
@@ -149,7 +152,7 @@ impl App {
             let (text, colour, icon, usable) = match row {
                 Row::Spell(spell, label) => (label.clone(), gold, None, spell.castable && free),
                 Row::Demon(left) => (
-                    format!("Demon ({left})"),
+                    self.text_with("battle.demon_row", &Args::new().count("n", *left)),
                     gold,
                     None,
                     free && self.game.can_summon_demon(id),

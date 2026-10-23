@@ -242,6 +242,7 @@ pub fn content_with_economy() -> Content {
     let race = |id: &str, units: &[&str], effects: Vec<EffectRule>| RaceDef {
         id: id.into(),
         name: id.into(),
+        plural: String::new(),
         units: units.iter().map(|u| u.to_string()).collect(),
         buildings: vec![],
         home_terrain: vec![],

@@ -1,0 +1,7 @@
+// The names of the treaties between wizards. One key is in one file only (docs/text.md).
+{
+    "treaty.none": "No Treaty",
+    "treaty.pact": "Wizard Pact",
+    "treaty.alliance": "Alliance",
+    "treaty.war": "War",
+}

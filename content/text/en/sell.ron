@@ -1,0 +1,9 @@
+// Player-facing messages of the boxes about selling and buying buildings and turning off spells. One key is in one file only (docs/text.md).
+{
+    "sell.one_a_turn": "You can only sell back one building each turn.",
+    "sell.required": "You cannot sell back the {building} because it is required by the {other}.",
+    "sell.ask": "Do you wish to sell back the {building} for {gold} gold?",
+    "sell.stops": " This will cease production of your {item}.",
+    "sell.buy": "Do you wish to spend {price} Gold by purchasing the {building}?",
+    "sell.turn_off": "Do you wish to turn off the {spell} spell?",
+}

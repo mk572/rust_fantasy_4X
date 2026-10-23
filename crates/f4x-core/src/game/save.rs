@@ -149,6 +149,8 @@ pub struct PlayerSave {
     pub banner: Option<u8>,
     /// The player's picture.
     pub portrait: Option<u8>,
+    #[serde(default)]
+    pub gender: crate::text::Gender,
 }
 
 /// A wizard's books, retorts, spells and casting; spells are saved by id.
@@ -660,6 +662,7 @@ impl Game {
                 defeated_by: self.defeat_by(*id).map(|d| d.0),
                 banner: Some(self.banner(*id)),
                 portrait: Some(self.portrait(*id)),
+                gender: self.wizard(*id).map(|w| w.gender()).unwrap_or_default(),
             })
             .collect();
         let units = self
@@ -959,6 +962,7 @@ impl Snapshot {
             }
             game.wizard_set(id, Banner(banner));
             game.wizard_set(id, Portrait(portrait));
+            game.wizard_set(id, p.gender);
             game.wizard_set(id, CapitalRace(capital_race));
         }
         game.set_human(self.human.map(PlayerId));

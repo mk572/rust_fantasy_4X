@@ -234,6 +234,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 327 | Hero | (done) Hero slots, hiring, recall, resurrection and offers over hero entities; remove `Roster` |
 | 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
+| 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
 
 ## Descriptions
 
@@ -633,3 +634,30 @@ lightning stroke read it; `Art::spell_picture` and `shared_picture`; `extract-ar
 A picture used by several spells is `_shared` by rule, not by listing. The overland square
 animations, the summon scene and the city scroll (tasks 285, 287, 306) are in the table already; they
 read it when built. `manifest.tsv` has no paths (`index.tsv` has); it was left as it is.
+
+**345. One text flow for player-facing messages (done).** Messages are hardcoded in `.rs` files today (about 390 string literals in
+the client, and `format!` all over core, client and console), which blocks localization. Build one flow and move every
+player-facing message to it; none is special.
+- *Keys and files.* `content/text/<lang>/<area>.ron`, one file per screen or domain (`battle`, `city`, `spell`, `event`,
+  `diplomacy`, `hero`, `ui`, ...), each at most about 100 entries. A key is `area.name` (`battle.triumphant`), unique over
+  all files. `settings.ron` names the game language (the client exposes the choice later); a key missing from it falls back to `en`.
+- *Entries.* Plain text with `{name}` placeholders; `Count(by, zero, one, few, many, other)` picks the form of a number
+  by the language's plural rule; `Gender(by, masculine, feminine, neuter)` picks the form by the gender of a named
+  argument (a hero or a wizard). Forms nest (a gendered form can hold a count). `{n}` prints a number, `{hero}` a name.
+- *Gender* is a field of the hero template (`heroes.ron`) and of the wizard (`wizards.ron`, `wizard_names.ron`; a created
+  wizard chooses it).
+- *Lookup.* `Texts::get(key, &args)` in `f4x-core::text`, loaded by `f4x-data`. A missing key prints the key and logs it;
+  a test checks that every key used in code exists and that every key in `en` is used.
+- *Migration.* Client first (screen by screen), then the log lines of core and the console. A guard test fails on a new
+  user-facing literal in the client. Debug output of the console and test messages are not player-facing and stay.
+- Docs: a section in `docs/design.md` or a new `docs/text.md`, and the CLAUDE.md conventions line.
+
+*Needs:* nothing. Best before 336 so the client rework uses it.
+
+*Done:* the flow is in `f4x-core::text` (keys, `{name}`, count and plural by the language's rule, gender, `pick`, joined
+lists) and `f4x-data::load_texts`; `settings.ron` has `language`. The client's messages (about 600 literals) are in
+`content/text/en/*.ron`, 43 files; heroes and wizards have a gender (`heroes.ron`, `wizards.ron`, `wizard_names.ron`; Tab on
+the name step of a custom wizard); `crates/f4x-data/tests/text.rs` is the guard. `Focus`, `Mix`, `Treaty`, `Personality`,
+`Objective`, retorts and the relation words give a key instead of a name. Races have a `plural` in `races.ron`. What stays
+is task 347.
+

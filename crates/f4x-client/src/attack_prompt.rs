@@ -3,6 +3,7 @@
 //! map. Plain box for now; the original's picture is task 143.
 
 use f4x_core::game::Command;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::ui::{button, GOLD};
@@ -40,27 +41,27 @@ impl App {
         let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
         draw_rectangle(x, y, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
         draw_rectangle_lines(x, y, bw, bh, 3.0, GOLD);
-        let title = if attack.defending {
-            "You are attacked!"
+        let title = self.text(if attack.defending {
+            "attack.attacked"
         } else {
-            "Attack?"
-        };
-        crate::frame::text_centered(title, w / 2.0, y + 36.0, 26.0, GOLD);
+            "attack.attack"
+        });
+        crate::frame::text_centered(&title, w / 2.0, y + 36.0, 26.0, GOLD);
         crate::frame::text_centered(&self.attack_line(&attack), w / 2.0, y + 72.0, 20.0, WHITE);
         let fight = button(
             Rect::new(x + 20.0, y + bh - 56.0, 160.0, 38.0),
-            "Fight (Enter)",
+            &self.text("attack.fight"),
             true,
         );
         let auto = button(
             Rect::new(x + 200.0, y + bh - 56.0, 160.0, 38.0),
-            "Auto (A)",
+            &self.text("attack.auto"),
             true,
         );
         let cancel = !attack.defending
             && button(
                 Rect::new(x + 380.0, y + bh - 56.0, 160.0, 38.0),
-                "Cancel (Esc)",
+                &self.text("attack.cancel"),
                 true,
             );
         let fight = fight || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Y);
@@ -98,27 +99,25 @@ impl App {
             .defenders
             .first()
             .and_then(|&u| self.game.units().unit_owner(u));
-        let who = match owner {
-            Some(p) if p != f4x_core::player::MONSTERS => format!("wizard {}'s", p.0 + 1),
-            _ => "monster".to_string(),
+        let counts = |args: Args| {
+            args.count("attackers", attack.attackers.len())
+                .count("defenders", attack.defenders.len())
         };
         if attack.defending {
             let by = attack
                 .attackers
                 .first()
                 .and_then(|&u| self.game.units().unit_owner(u))
-                .and_then(|p| self.game.wizard(p))
-                .map_or("A rival wizard".to_string(), |w| w.name());
-            return format!(
-                "{by} attacks your {} unit(s) with {} units.",
-                attack.defenders.len(),
-                attack.attackers.len()
-            );
+                .unwrap_or(f4x_core::player::MONSTERS);
+            let args = counts(self.wizard_arg(Args::new(), "by", by));
+            return self.text_with("attack.line_defending", &args);
         }
-        format!(
-            "{} of your units attack {} {who} unit(s).",
-            attack.attackers.len(),
-            attack.defenders.len()
-        )
+        match owner {
+            Some(p) if p != f4x_core::player::MONSTERS => {
+                let args = counts(self.wizard_arg(Args::new(), "owner", p));
+                self.text_with("attack.line_wizard", &args)
+            }
+            _ => self.text_with("attack.line_monster", &counts(Args::new())),
+        }
     }
 }

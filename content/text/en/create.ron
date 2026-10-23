@@ -1,0 +1,18 @@
+// Player-facing messages of the wizard creation screens. One key is in one file only (docs/text.md).
+{
+    // On the name step of a custom wizard; Tab turns the gender.
+    "create.gender_hint": (gender: "wizard",
+        masculine: "Tab: he",
+        feminine: "Tab: she",
+        neuter: "Tab: they"),
+    "create.default_name": "You",
+    "create.select_picture": "Select Picture",
+    "create.select_wizard": "Select Wizard",
+    "create.custom": "Custom",
+    "create.wizard_name": "Wizard's Name",
+    "create.select_race": "Select Race",
+    "create.arcanian": "Arcanian Races:",
+    "create.myrran": "Myrran Races:",
+    "create.need_myrran": "You can not select a Myrran race unless you have the Myrran special.",
+    "create.select_banner": "Select Banner",
+}

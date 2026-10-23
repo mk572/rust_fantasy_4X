@@ -5,6 +5,7 @@
 
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -59,8 +60,7 @@ impl App {
             start,
             path: Vec::new(),
         });
-        self.log
-            .push("Road: click where it should end, then OK (Enter)".into());
+        self.log.push(self.text("road.start"));
     }
 
     /// Whether a click at the mouse falls on one of the mode's buttons.
@@ -84,7 +84,7 @@ impl App {
             Some(path) => plan.path = path,
             None => {
                 plan.path.clear();
-                self.log.push("No way there".into());
+                self.log.push(self.text("road.no_way"));
             }
         }
     }
@@ -112,7 +112,7 @@ impl App {
     /// Leave the mode without building.
     pub(crate) fn road_plan_cancel(&mut self) {
         if self.road_plan.take().is_some() {
-            self.log.push("Road cancelled".into());
+            self.log.push(self.text("road.cancelled"));
         }
     }
 
@@ -241,34 +241,34 @@ impl App {
             && self.draw_pic(&lay, "main", 45, 0, 240.0, 76.0).is_some();
         if !art {
             // No pictures extracted: the plain buttons and a line of text.
-            let text = format!(
-                "Road: {} turns{}",
-                sum.turns,
-                if sum.blocked { " (blocked)" } else { "" }
+            let text = self.text_with(
+                if sum.blocked {
+                    "road.summary_blocked"
+                } else {
+                    "road.summary"
+                },
+                &Args::new().count("n", sum.turns),
             );
             draw_text(&text, ok_rect.x - 200.0, 30.0, 22.0, GOLD);
             let (ok, cancel) = (
                 Rect::new(screen_width() / 2.0 - 110.0, 8.0, 100.0, 30.0),
                 Rect::new(screen_width() / 2.0 + 10.0, 8.0, 100.0, 30.0),
             );
-            if button(ok, "OK", can) && can {
+            if button(ok, &self.text("ui.ok"), can) && can {
                 self.road_plan_confirm();
-            } else if button(cancel, "Cancel", true) {
+            } else if button(cancel, &self.text("ui.cancel"), true) {
                 self.road_plan_cancel();
             }
             return;
         }
         self.draw_pic(&lay, "main", 48, 0, 240.0, 173.0);
-        self.bm_text_set(view, 4, 1, "Road", 280.0, 80.0, Align::Center);
-        self.bm_text_set(view, 4, 1, "Building", 280.0, 90.0, Align::Center);
+        let (road, building) = (self.text("road.title"), self.text("road.building"));
+        self.bm_text_set(view, 4, 1, &road, 280.0, 80.0, Align::Center);
+        self.bm_text_set(view, 4, 1, &building, 280.0, 90.0, Align::Center);
         let message = if sum.blocked {
-            "Blocked.  Roads can not be built across large bodies of water.".to_string()
+            self.text("road.blocked")
         } else if sum.turns > 0 {
-            format!(
-                "It will take {} turn{} to complete the construction of this road.",
-                sum.turns,
-                if sum.turns > 1 { "s" } else { "" }
-            )
+            self.text_with("road.takes", &Args::new().count("n", sum.turns))
         } else {
             String::new()
         };

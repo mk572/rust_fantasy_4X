@@ -199,11 +199,17 @@ impl App {
                 .is_none()
             {
                 let names = [
-                    "Game", "Spells", "Armies", "Cities", "Magic", "Info", "Plane",
+                    self.text("ui.menu_game"),
+                    self.text("ui.menu_spells"),
+                    self.text("ui.menu_armies"),
+                    self.text("ui.menu_cities"),
+                    self.text("ui.menu_magic"),
+                    self.text("ui.menu_info"),
+                    self.text("ui.menu_plane"),
                 ];
                 let r = lay.rect((x, spot::MENU_Y, 38.0, 12.0));
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
-                text_centered(names[i], r.x + r.w / 2.0, r.y + r.h * 0.75, 3.2 * s, GOLD);
+                text_centered(&names[i], r.x + r.w / 2.0, r.y + r.h * 0.75, 3.2 * s, GOLD);
                 click.menu = click.menu.or_else(|| (hover && pressed).then_some(i));
             } else if hover && pressed {
                 click.menu = Some(i);
@@ -309,14 +315,14 @@ impl App {
         let (px, py) = spot::PANELS;
         self.draw_pic(lay, "main", 34, 0, px, py);
         for (k, (value, label)) in [
-            (t.net_gold(), "Gold"),
-            (t.food_surplus - t.food_upkeep, "Food"),
-            (net_mana, "Mana"),
+            (t.net_gold(), self.text("ui.gold")),
+            (t.food_surplus - t.food_upkeep, self.text("ui.food")),
+            (net_mana, self.text("ui.mana")),
         ]
         .into_iter()
         .enumerate()
         {
-            self.income_text(view, value, label, 101.0 + 32.0 * k as f32);
+            self.income_text(view, value, &label, 101.0 + 32.0 * k as f32);
         }
 
         // The locked buttons (done, patrol, wait, and build or purify).
@@ -345,7 +351,13 @@ impl App {
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
-            text_centered("Next Turn", r.x + r.w / 2.0, r.y + r.h * 0.7, 5.0 * s, GOLD);
+            text_centered(
+                &self.text("ui.next_turn"),
+                r.x + r.w / 2.0,
+                r.y + r.h * 0.7,
+                5.0 * s,
+                GOLD,
+            );
             click.next_turn = pressed && r.contains(mouse);
         }
     }

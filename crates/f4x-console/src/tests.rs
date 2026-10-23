@@ -2577,7 +2577,10 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
         let got = names(seed);
         assert_eq!(got.len(), 4);
         for (name, list) in got.iter().zip(lists) {
-            assert!(list.contains(name), "{name} is not in its slot's list");
+            assert!(
+                list.iter().any(|(n, _)| n == name),
+                "{name} is not in its slot's list"
+            );
         }
         assert_eq!(got, names(seed), "the same seed draws the same names");
     }

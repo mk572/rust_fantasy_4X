@@ -5,6 +5,7 @@
 
 use std::path::Path;
 
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -70,19 +71,22 @@ pub(crate) fn insert(table: &mut Vec<Entry>, entry: Entry) -> Option<usize> {
     Some(at)
 }
 
-/// "Barbarian" as "Barbarians": the table says "of the Barbarians".
-pub(crate) fn plural(race: &str) -> String {
-    if race.ends_with("Men") {
-        race.to_string()
-    } else if let Some(stem) = race.strip_suffix("man") {
-        format!("{stem}men")
-    } else if let Some(stem) = race.strip_suffix("Elf") {
-        format!("{stem}Elves")
-    } else if let Some(stem) = race.strip_suffix("Dwarf") {
-        format!("{stem}Dwarves")
-    } else {
-        format!("{race}s")
-    }
+/// "Barbarian" as "Barbarians": the table says "of the Barbarians". A race the rules do not know
+/// (a table kept from another set of rules) stays as it is written.
+pub(crate) fn plural(
+    races: &f4x_core::rules::Registry<f4x_core::rules::RaceDef>,
+    race: &str,
+) -> String {
+    races.defs().iter().find(|r| r.name == race).map_or_else(
+        || race.to_string(),
+        |r| {
+            if r.plural.is_empty() {
+                r.name.clone()
+            } else {
+                r.plural.clone()
+            }
+        },
+    )
 }
 
 /// The share of the best possible score, in percent.
@@ -108,16 +112,22 @@ impl App {
         }
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);
-        self.bm_text_outlined(view, 5, "Hall Of Fame", 160.0, 7.0, Align::Center);
+        let title = self.text("hall.title");
+        self.bm_text_outlined(view, 5, &title, 160.0, 7.0, Align::Center);
         let (x, mut y) = (72.0, 42.0);
         for (i, e) in self.hall.clone().iter().enumerate() {
             let rank = if i == 0 {
-                "Master".to_string()
+                self.text("hall.master")
             } else {
-                format!("{})", i + 1)
+                self.text_with("hall.rank", &Args::new().count("n", i + 1))
             };
             self.bm_text(view, 2, gold, &rank, x, y, Align::Right);
-            let who = format!("{} of the {}", e.name, plural(&e.race));
+            let who = self.text_with(
+                "hall.of_the",
+                &Args::new()
+                    .text("name", &e.name)
+                    .text("race", plural(&self.game.content().rules.races, &e.race)),
+            );
             self.bm_text(view, 2, ink, &who, x + 9.0, y, Align::Left);
             self.bm_text(
                 view,
@@ -187,11 +197,13 @@ mod tests {
 
     #[test]
     fn races_are_made_plural_for_the_table() {
-        assert_eq!(plural("Barbarian"), "Barbarians");
-        assert_eq!(plural("High Elf"), "High Elves");
-        assert_eq!(plural("Dwarf"), "Dwarves");
-        assert_eq!(plural("Lizardman"), "Lizardmen");
-        assert_eq!(plural("High Men"), "High Men");
+        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let races = &content.rules.races;
+        assert_eq!(plural(races, "Barbarian"), "Barbarians");
+        assert_eq!(plural(races, "High Elf"), "High Elves");
+        assert_eq!(plural(races, "Lizardman"), "Lizardmen");
+        assert_eq!(plural(races, "High Men"), "High Men");
+        assert_eq!(plural(races, "Unknown"), "Unknown");
     }
 
     #[test]

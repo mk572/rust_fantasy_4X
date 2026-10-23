@@ -1,0 +1,7 @@
+// Names of the world events shown under the minimap. One key is in one file only (docs/text.md).
+{
+    "event.conjunction": "Conjunction",
+    "event.bad_moon": "Bad Moon",
+    "event.good_moon": "Good Moon",
+    "event.mana_short": "Mana Short",
+}

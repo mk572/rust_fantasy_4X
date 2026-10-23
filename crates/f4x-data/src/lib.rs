@@ -4,7 +4,7 @@ pub mod rules;
 pub mod save;
 pub mod spell_art;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 
@@ -211,16 +211,57 @@ pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::world_event::EventTe
     ron::from_str(&text).map_err(|e| ContentError::Parse(format!("event_texts.ron: {e}")))
 }
 
-/// Load the optional short messages (`messages.ron`, from `MESSAGE.LBX`) from a content
-/// directory. A directory without them yields none, and the boxes that would show one do not.
-pub fn load_messages(dir: &Path) -> Result<Vec<f4x_core::help::MessageText>, ContentError> {
-    let path = dir.join("messages.ron");
-    if !path.exists() {
-        return Ok(Vec::new());
+/// One language's messages: every `*.ron` file of `text/<lang>/` in each directory. A key may be
+/// in one file only; a directory earlier in `dirs` wins over a later one for a key both have.
+fn load_language(
+    dirs: &[&Path],
+    lang: &str,
+) -> Result<HashMap<String, f4x_core::text::Entry>, ContentError> {
+    let mut all = HashMap::new();
+    for dir in dirs.iter().rev() {
+        let folder = dir.join("text").join(lang);
+        let Ok(files) = std::fs::read_dir(&folder) else {
+            continue;
+        };
+        let mut paths: Vec<_> = files
+            .filter_map(|f| f.ok().map(|f| f.path()))
+            .filter(|p| p.extension().is_some_and(|e| e == "ron"))
+            .collect();
+        paths.sort();
+        let mut here: HashMap<String, f4x_core::text::Entry> = HashMap::new();
+        let mut problems = Vec::new();
+        for path in paths {
+            let src = std::fs::read_to_string(&path)
+                .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+            let entries: HashMap<String, f4x_core::text::Entry> = ron::from_str(&src)
+                .map_err(|e| ContentError::Parse(format!("{}: {e}", path.display())))?;
+            for (key, entry) in entries {
+                if here.insert(key.clone(), entry).is_some() {
+                    problems.push(format!(
+                        "{}: the key {key} is in two files",
+                        folder.display()
+                    ));
+                }
+            }
+        }
+        if !problems.is_empty() {
+            return Err(ContentError::Invalid(problems));
+        }
+        all.extend(here);
     }
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("messages.ron: {e}")))
+    Ok(all)
+}
+
+/// The messages in `lang`, with those of the fallback language behind them.
+pub fn load_texts(dirs: &[&Path], lang: &str) -> Result<f4x_core::text::Texts, ContentError> {
+    use f4x_core::text::{Texts, FALLBACK_LANGUAGE};
+    let fallback = load_language(dirs, FALLBACK_LANGUAGE)?;
+    let entries = if lang == FALLBACK_LANGUAGE {
+        HashMap::new()
+    } else {
+        load_language(dirs, lang)?
+    };
+    Ok(Texts::new(lang, entries, FALLBACK_LANGUAGE, fallback))
 }
 
 /// Load and validate all content files from a content directory.
@@ -247,11 +288,13 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     if dirs.iter().any(|d| d.join("settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
+    let texts = load_texts(dirs, &settings.language)?;
     Ok(Content {
         terrains,
         features,
         rules,
         settings,
+        texts,
     })
 }
 

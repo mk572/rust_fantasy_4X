@@ -1,0 +1,23 @@
+// Player-facing messages of the picks and spells steps of wizard creation.
+// One key is in one file only (docs/text.md).
+{
+    "picks.in_realm": (count: "n", one: "{n} pick in {realm} Magic", other: "{n} picks in {realm} Magic"),
+    "picks.sage_master": "1 pick in any 2 Realms of Magic",
+    "picks.runemaster": "2 picks in any 3 Realms of Magic",
+    "picks.any_realm": "4 picks in any Realm of Magic",
+    "picks.node_mastery": "{chaos}, {sorcery}, {nature}",
+    "picks.to_select": "To select {retort} you need:   {needs}",
+    "picks.life_and_death": "You can not select both Life and Death magic",
+    "picks.all_made": "You have already made all your picks",
+    "picks.too_many_retorts": "You may not select more than 6 special abilities",
+    "picks.not_enough": "You don't have enough picks left to make this selection. You need {cost} picks",
+    "picks.make_all": "You need to make all your picks before you can continue",
+    "picks.left": (count: "n", one: "{n} pick", other: "{n} picks"),
+    "picks.select_spells": "Select {realm} Spells",
+    "picks.common": "Common",
+    "picks.uncommon": "Uncommon",
+    "picks.rare": "Rare",
+    "picks.very_rare": "Very Rare",
+    "picks.rarity_row": "{rarity}: {n}",
+    "picks.none_left_here": "You have no picks left in this area, to deselect click on a selected item",
+}

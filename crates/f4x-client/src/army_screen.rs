@@ -6,6 +6,7 @@
 //! or OK leaves. Positions are the original's.
 
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -97,15 +98,10 @@ impl App {
             .game
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
-        self.bm_text_outlined(
-            view,
-            4,
-            &format!("The Armies of {owner}"),
-            160.0,
-            7.0,
-            Align::Center,
-        );
-        self.bm_text(view, 1, light, "Upkeep", 30.0, 162.0, Align::Center);
+        let title = self.text_with("army.title", &Args::new().text("owner", owner));
+        self.bm_text_outlined(view, 4, &title, 160.0, 7.0, Align::Center);
+        let upkeep_label = self.text("army.upkeep");
+        self.bm_text(view, 1, light, &upkeep_label, 30.0, 162.0, Align::Center);
         let upkeep = self.army_upkeep();
         for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
             self.bm_text(view, 1, light, &value.to_string(), 45.0, y, Align::Center);

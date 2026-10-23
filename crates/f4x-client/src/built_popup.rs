@@ -5,10 +5,10 @@
 //! Chancellor's scroll.
 
 use f4x_core::rules::BuildingId;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
-use crate::site_prompt::an;
 use crate::view::{App, HUMAN};
 
 /// The top of the box (`Notify2(160, 60, ...)`).
@@ -61,11 +61,12 @@ impl App {
         } else {
             crate::cityscape::sprite_of(3 + building.index() as i16).map(|(entry, _)| entry)
         };
-        let text = format!(
-            "The {} of {} has completed the construction of {} {name}.",
-            self.city_size_name(city),
-            self.city_name(city),
-            an(&name),
+        let text = self.text_with(
+            "city.built",
+            &Args::new()
+                .text("size", self.city_size_name(city))
+                .text("city", self.city_name(city))
+                .text("building", name),
         );
         let closed = self.notify2_box(
             &lay,

@@ -12,6 +12,7 @@
 use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
+use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
@@ -193,7 +194,11 @@ impl App {
         if !modal {
             if hit(alchemy)
                 || (alchemy.is_none()
-                    && button(lay.rect((232.0, 181.0, 58.0, 15.0)), "Alchemy", true))
+                    && button(
+                        lay.rect((232.0, 181.0, 58.0, 15.0)),
+                        &self.text("magic.alchemy"),
+                        true,
+                    ))
             {
                 let gold_to_mana = true;
                 self.magic_ui.alchemy = Some(AlchemyUi {
@@ -201,7 +206,13 @@ impl App {
                     slider: 3,
                 });
             }
-            if hit(ok) || (ok.is_none() && button(lay.rect((291.0, 181.0, 26.0, 15.0)), "OK", true))
+            if hit(ok)
+                || (ok.is_none()
+                    && button(
+                        lay.rect((291.0, 181.0, 26.0, 15.0)),
+                        &self.text("ui.ok"),
+                        true,
+                    ))
             {
                 self.screen = Screen::Map;
             }
@@ -211,7 +222,8 @@ impl App {
         }
         if let Some(spell) = self.magic_ui.turn_off {
             let name = self.game.content().rules.spells.get(spell).name.clone();
-            match self.confirm_box(&format!("Do you wish to cancel your {name} spell?")) {
+            let question = self.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
+            match self.confirm_box(&question) {
                 Some(true) => {
                     self.magic_ui.turn_off = None;
                     let events = self.game.apply(Command::TurnOffSpell {
@@ -312,19 +324,20 @@ impl App {
             view,
             2,
             gold,
-            &format!("{} MP", split.mana),
+            &self.text_with("magic.mp", &Args::new().count("n", split.mana)),
             54.0,
             160.0,
             Align::Right,
         );
         if researching_spell.is_none() {
-            self.bm_text(view, 2, gold, "No Spell", 67.0, 100.0, Align::Left);
+            let none = self.text("magic.no_spell");
+            self.bm_text(view, 2, gold, &none, 67.0, 100.0, Align::Left);
         } else {
             self.bm_text(
                 view,
                 2,
                 gold,
-                &format!("{} RP", income.research),
+                &self.text_with("magic.rp", &Args::new().count("n", income.research)),
                 101.0,
                 160.0,
                 Align::Right,
@@ -334,7 +347,7 @@ impl App {
             view,
             2,
             gold,
-            &format!("{} SP", split.skill),
+            &self.text_with("magic.sp", &Args::new().count("n", split.skill)),
             148.0,
             160.0,
             Align::Right,
@@ -345,34 +358,41 @@ impl App {
         let base = income.power_base;
         let name =
             |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
-        let casting = casting_spell.map_or("None".to_string(), |c| name(&self.game, c.spell));
-        let researching = researching_spell.map_or("None".to_string(), |s| name(&self.game, s));
+        let casting =
+            casting_spell.map_or_else(|| self.text("magic.none"), |c| name(&self.game, c.spell));
+        let researching =
+            researching_spell.map_or_else(|| self.text("magic.none"), |s| name(&self.game, s));
         let summon = self
             .game
             .wizard(HUMAN)
             .and_then(|w| w.summon_at())
             .and_then(|at| self.game.economy().city_at(at))
-            .map_or("None".to_string(), |c| self.city_name(c));
+            .map_or_else(|| self.text("magic.none"), |c| self.city_name(c));
         let rows = [
             (
-                "Casting Skill:",
+                self.text("magic.casting_skill"),
                 format!("{skill}({skill})"),
-                "Casting:",
+                self.text("magic.casting"),
                 casting,
             ),
             (
-                "Magic Reserve:",
+                self.text("magic.reserve"),
                 reserve.to_string(),
-                "Researching:",
+                self.text("magic.researching"),
                 researching,
             ),
-            ("Power Base:", base.to_string(), "Summon To:", summon),
+            (
+                self.text("magic.power_base"),
+                base.to_string(),
+                self.text("magic.summon_to"),
+                summon,
+            ),
         ];
         for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
             let y = 177.0 + 8.0 * i as f32;
-            self.bm_text(view, 1, light, l1, 5.0, y, Align::Left);
+            self.bm_text(view, 1, light, &l1, 5.0, y, Align::Left);
             self.bm_text(view, 1, light, &v1, 90.0, y, Align::Right);
-            self.bm_text(view, 1, light, l2, 100.0, y, Align::Left);
+            self.bm_text(view, 1, light, &l2, 100.0, y, Align::Left);
             self.bm_text(view, 1, light, &v2, 156.0, y, Align::Left);
         }
         let _ = lay;
@@ -419,12 +439,12 @@ impl App {
                 4.0,
             );
             let rel = self.game.relation(HUMAN, id);
-            let word = f4x_core::diplomacy::relation_word(rel);
+            let word = self.text(f4x_core::diplomacy::relation_key(rel));
             self.bm_text_set(
                 view,
                 0,
                 3,
-                word,
+                &word,
                 45.0 + 77.0 * i as f32,
                 53.0,
                 Align::Center,
@@ -508,7 +528,8 @@ impl App {
             }
         }
         if list.len() > 18 {
-            self.bm_text(view, 0, WHITE, "More...", 286.0, 163.0, Align::Left);
+            let more = self.text("magic.more");
+            self.bm_text(view, 0, WHITE, &more, 286.0, 163.0, Align::Left);
             if active
                 && is_mouse_button_pressed(MouseButton::Left)
                 && lay
@@ -666,12 +687,12 @@ impl App {
         crate::frame::text_centered(text, w / 2.0, y + 45.0, 22.0, WHITE);
         let yes = button(
             Rect::new(x + bw / 2.0 - 110.0, y + 70.0, 100.0, 36.0),
-            "Yes",
+            &self.text("ui.yes"),
             true,
         );
         let no = button(
             Rect::new(x + bw / 2.0 + 10.0, y + 70.0, 100.0, 36.0),
-            "No",
+            &self.text("ui.no"),
             true,
         );
         if yes || is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter) {

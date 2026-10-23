@@ -4,6 +4,7 @@
 //! out), its enchantments and its cityscape. A click anywhere or Esc leaves. Positions are the
 //! original's.
 
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::city_screen::Layout;
@@ -52,13 +53,12 @@ impl App {
 
         // The title: the size and the name.
         let eco = self.game.economy().city_economy(city).unwrap_or_default();
-        let size = if eco.figures == 0 {
-            "Outpost"
-        } else {
-            ["Hamlet", "Village", "Town", "City", "Capital"]
-                [(eco.figures.div_ceil(4).clamp(1, 5) - 1) as usize]
-        };
-        let title = format!("{size} of {}", self.city_name(city));
+        let title = self.text_with(
+            "city.title",
+            &Args::new()
+                .text("size", self.city_size_name(city))
+                .text("city", self.city_name(city)),
+        );
         self.bm_text_outlined(view, 5, &title, X + 106.0, 3.0, Align::Center);
         let (race_name, race_index) = self
             .game
@@ -71,7 +71,8 @@ impl App {
             })
             .unwrap_or_default();
         self.bm_text(view, 1, orange, &race_name, X + 6.0, 19.0, Align::Left);
-        self.bm_text(view, 1, orange, "Units", X + 6.0, 43.0, Align::Left);
+        let units = self.text("enemy_city.units");
+        self.bm_text(view, 1, orange, &units, X + 6.0, 43.0, Align::Left);
 
         // The citizens, farmers then workers then rebels.
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
@@ -115,7 +116,8 @@ impl App {
                 }
             }
         } else {
-            self.bm_text(view, 1, orange, "No Report", X + 54.0, 64.0, Align::Left);
+            let none = self.text("enemy_city.no_report");
+            self.bm_text(view, 1, orange, &none, X + 54.0, 64.0, Align::Left);
         }
 
         // The enchantments, in the colour of whoever cast them.

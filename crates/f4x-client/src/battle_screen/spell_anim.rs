@@ -39,14 +39,19 @@ impl App {
             return None;
         }
         let line = match caster {
-            Ok(side) => format!(
-                "{} has cast {name}",
-                self.player_label(before.player_of(side))
+            Ok(side) => self.text_with(
+                "battle.side_cast",
+                &Args::new()
+                    .text("caster", self.player_label(before.player_of(side)))
+                    .text("spell", &name),
             ),
             Err(unit) => {
                 let u = before.unit(unit)?;
-                let verb = if u.figures_start > 1 { "have" } else { "has" };
-                format!("The {} {verb} cast {name}", u.name)
+                let args = Args::new()
+                    .text("unit", &u.name)
+                    .count("figures", u.figures_start)
+                    .text("spell", &name);
+                self.text_with("battle.unit_cast", &args)
             }
         };
         // A wall rises where the wall will stand.

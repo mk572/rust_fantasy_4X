@@ -1,10 +1,10 @@
 // Names for rival wizards when the original's ready-made wizards are not imported
 // (`content-local/wizards.ron`). One list for each rival slot, first rival first; a game draws
-// one name from each list (a game with a fifth wizard uses the fourth list for the last).
+// one name (with its gender) from each list (a game with a fifth wizard uses the fourth list for the last).
 // Invented names, not the original's.
 [
-    ["Aldous Vane", "Brisa Quill", "Corvin Ashgrove", "Delphine Mourne", "Edric Thorne", "Fenwick Grail", "Galadra Stone", "Hestor Blight", "Ilyana Frost", "Jorund Pike"],
-    ["Kestrel Dusk", "Lisander Crow", "Morwen Gale", "Nerezza", "Orsino Black", "Pelagia Reed", "Quillon Marsh", "Rhosyn Hale", "Silvanus Thorn", "Talindra Voss"],
-    ["Ulric Fenn", "Vesperine", "Wystan Cole", "Xanthe Rook", "Yorick Dell", "Zephra Lund", "Ambrose Keld", "Belisarius Moor", "Cassiopeia Wren", "Dagonet Ash"],
-    ["Eluned Marsh", "Fabrizio Nox", "Gwendolen Flint", "Hadrian Veil", "Isolde Crane", "Jasper Holloway", "Kalliope Dross", "Leofric Brandt", "Mirabel Thane", "Nikodemos Hart"],
+    [("Aldous Vane", Masculine), ("Brisa Quill", Feminine), ("Corvin Ashgrove", Masculine), ("Delphine Mourne", Feminine), ("Edric Thorne", Masculine), ("Fenwick Grail", Masculine), ("Galadra Stone", Feminine), ("Hestor Blight", Masculine), ("Ilyana Frost", Feminine), ("Jorund Pike", Masculine)],
+    [("Kestrel Dusk", Masculine), ("Lisander Crow", Masculine), ("Morwen Gale", Feminine), ("Nerezza", Feminine), ("Orsino Black", Masculine), ("Pelagia Reed", Feminine), ("Quillon Marsh", Masculine), ("Rhosyn Hale", Feminine), ("Silvanus Thorn", Masculine), ("Talindra Voss", Feminine)],
+    [("Ulric Fenn", Masculine), ("Vesperine", Feminine), ("Wystan Cole", Masculine), ("Xanthe Rook", Feminine), ("Yorick Dell", Masculine), ("Zephra Lund", Feminine), ("Ambrose Keld", Masculine), ("Belisarius Moor", Masculine), ("Cassiopeia Wren", Feminine), ("Dagonet Ash", Masculine)],
+    [("Eluned Marsh", Feminine), ("Fabrizio Nox", Masculine), ("Gwendolen Flint", Feminine), ("Hadrian Veil", Masculine), ("Isolde Crane", Feminine), ("Jasper Holloway", Masculine), ("Kalliope Dross", Feminine), ("Leofric Brandt", Masculine), ("Mirabel Thane", Feminine), ("Nikodemos Hart", Masculine)],
 ]

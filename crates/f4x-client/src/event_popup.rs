@@ -4,6 +4,7 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 
+use f4x_core::text::Args;
 use f4x_core::world_event::{compose, EventKind};
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
@@ -150,7 +151,8 @@ impl App {
     }
 
     /// The words of a spell that fizzled (`Fizzle_Notification`): the counter spell's caster
-    /// first, then the one whose spell it was, "Your" and "your" for the human wizard.
+    /// and the one whose spell it was; one of them is the human wizard. `counter_spell` is the
+    /// key of the counter spell's name.
     pub(crate) fn fizzle_text(
         &self,
         caster: f4x_core::player::PlayerId,
@@ -158,25 +160,16 @@ impl App {
         spell: &str,
         counter_spell: &str,
     ) -> String {
-        let possessive = |player: f4x_core::player::PlayerId, you: &str| {
-            if player == HUMAN {
-                return you.to_string();
-            }
-            let name = self
-                .game
-                .wizard(player)
-                .map_or("A rival".to_string(), |w| w.name());
-            if name.ends_with('s') {
-                format!("{name}' ")
-            } else {
-                format!("{name}'s ")
-            }
-        };
-        format!(
-            "{}{counter_spell} spell has caused {}{spell} spell to fizzle.",
-            possessive(counter, "Your "),
-            possessive(caster, "your "),
-        )
+        let args = Args::new()
+            .text("spell", spell)
+            .text("counter_spell", self.text(counter_spell));
+        if counter == HUMAN {
+            let args = self.wizard_arg(args, "wizard", caster);
+            self.text_with("spell.fizzled_by_you", &args)
+        } else {
+            let args = self.wizard_arg(args, "wizard", counter);
+            self.text_with("spell.fizzled_yours", &args)
+        }
     }
 
     /// The oldest spell notice not yet shown, in its box over the map. Returns whether the box
@@ -220,17 +213,15 @@ impl App {
         count: &mut u32,
     ) {
         let text = match *count {
-            0..=3 => format!(
-                "{} has been dispelled.",
-                self.game.content().rules.spells.get(spell).name
+            0..=3 => self.text_with(
+                "spell.dispelled",
+                &Args::new().text("spell", &self.game.content().rules.spells.get(spell).name),
             ),
-            4 => {
-                let index = if on_unit { 19 } else { 18 };
-                match self.messages.iter().find(|m| m.index == index) {
-                    Some(m) => m.text.clone(),
-                    None => return,
-                }
-            }
+            4 => self.text(if on_unit {
+                "spell.dispelled_on_unit_more"
+            } else {
+                "spell.dispelled_on_city_more"
+            }),
             _ => return,
         };
         let top = 40.0 + 25.0 * *count as f32;
@@ -301,7 +292,7 @@ impl App {
             .into_iter()
             .find(|&id| id != HUMAN && !self.game.is_neutral_player(id));
         if let Some(rival) = rival {
-            let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "Suppress Magic");
+            let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "spell.suppress_magic");
             self.spell_notices.push_back(SpellNotice {
                 text,
                 strip: RED,
@@ -314,20 +305,14 @@ impl App {
     }
 
     /// The red box that announces the items of fallen heroes before the item screen
-    /// (`Player_Process_Item_Pool`: message 67 of `MESSAGE.LBX`). `None` without the message;
-    /// otherwise whether the box was closed this frame.
-    pub(crate) fn hero_died_warning(&mut self) -> Option<bool> {
-        let text = self
-            .messages
-            .iter()
-            .find(|m| m.index == f4x_core::help::message::HERO_DIED)?
-            .text
-            .clone();
+    /// (`Player_Process_Item_Pool`). True when the box was closed this frame.
+    pub(crate) fn hero_died_warning(&mut self) -> bool {
+        let text = self.text("hero.items_to_share");
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
         self.draw_bars();
         let lay = Layout::new();
-        Some(self.warning_box(&lay, &text))
+        self.warning_box(&lay, &text)
     }
 
     /// The name of the world event that is going on, centred under the minimap
@@ -337,19 +322,20 @@ impl App {
             return;
         };
         let (name, colour, y) = match kind {
-            EventKind::ConjunctionSorcery => ("Conjunction", "event_sorcery", 157.0),
-            EventKind::ConjunctionChaos => ("Conjunction", "event_chaos", 158.0),
-            EventKind::ConjunctionNature => ("Conjunction", "event_nature", 158.0),
-            EventKind::BadMoon => ("Bad Moon", "event_bad_moon", 158.0),
-            EventKind::GoodMoon => ("Good Moon", "event_good_moon", 158.0),
-            _ => ("Mana Short", "event_mana_short", 158.0),
+            EventKind::ConjunctionSorcery => ("event.conjunction", "event_sorcery", 157.0),
+            EventKind::ConjunctionChaos => ("event.conjunction", "event_chaos", 158.0),
+            EventKind::ConjunctionNature => ("event.conjunction", "event_nature", 158.0),
+            EventKind::BadMoon => ("event.bad_moon", "event_bad_moon", 158.0),
+            EventKind::GoodMoon => ("event.good_moon", "event_good_moon", 158.0),
+            _ => ("event.mana_short", "event_mana_short", 158.0),
         };
+        let name = self.text(name);
         let colour = self.art.minimap().named(colour, WHITE);
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let black = Color::new(0.0, 0.0, 0.0, 1.0);
         for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (1.0, 1.0)] {
-            self.bm_text(view, 0, black, name, 280.0 + dx, y + dy, Align::Center);
+            self.bm_text(view, 0, black, &name, 280.0 + dx, y + dy, Align::Center);
         }
-        self.bm_text(view, 0, colour, name, 280.0, y, Align::Center);
+        self.bm_text(view, 0, colour, &name, 280.0, y, Align::Center);
     }
 }

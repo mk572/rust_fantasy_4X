@@ -1,0 +1,5 @@
+// Player-facing messages about heroes. One key is in one file only (docs/text.md).
+{
+    // Before the item screen, when heroes fell and their items go to the armory.
+    "hero.items_to_share": "A hero has fallen. Its items must be shared out again.",
+}

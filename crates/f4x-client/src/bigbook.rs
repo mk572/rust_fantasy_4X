@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -136,7 +137,10 @@ impl App {
                 .take(BIG_PAGE)
                 .collect(),
         };
-        vec![page(0, "Research"), page(1, "Spells")]
+        vec![
+            page(0, &self.text("bigbook.research")),
+            page(1, &self.text("bigbook.spells")),
+        ]
     }
 
     /// The dialog that asks what to research next.
@@ -243,7 +247,7 @@ impl App {
         self.bm_text_outlined(
             view,
             5,
-            "Choose a new spell to research",
+            &self.text("bigbook.choose_research"),
             43.0,
             183.0,
             Align::Left,
@@ -397,9 +401,9 @@ impl App {
             } else {
                 (cost + income - 1) / income
             };
-            format!(
-                "Research Cost: {cost} ({turns} {})",
-                if turns == 1 { "turn" } else { "turns" }
+            self.text_with(
+                "bigbook.research_cost",
+                &Args::new().count("cost", cost).count("turns", turns),
             )
         } else {
             let cost = self.game.casting_cost(HUMAN, spell, false);
@@ -416,9 +420,9 @@ impl App {
             } else {
                 (cost + limit - 1) / limit
             };
-            format!(
-                "Casting Cost: {cost} ({turns} {})",
-                if turns == 1 { "turn" } else { "turns" }
+            self.text_with(
+                "bigbook.casting_cost",
+                &Args::new().count("cost", cost).count("turns", turns),
             )
         };
         self.bm_text(view, 0, color, &line, x, y + 11.0, Align::Left);
@@ -454,16 +458,13 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(Color::new(0.02, 0.0, 0.06, 1.0));
-        let name = self
-            .game
-            .wizard(caster)
-            .map_or("A rival wizard".to_string(), |w| w.name());
+        let args = self.wizard_arg(Args::new(), "wizard", caster);
         let ink = Color::new(0.95, 0.85, 0.6, 1.0);
         self.bm_text(
             view,
             5,
             ink,
-            &format!("{name} has started casting the"),
+            &self.text_with("bigbook.mastery_started", &args),
             160.0,
             90.0,
             Align::Center,
@@ -472,7 +473,7 @@ impl App {
             view,
             5,
             ink,
-            "Spell of Mastery",
+            &self.text("bigbook.mastery_name"),
             160.0,
             110.0,
             Align::Center,

@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use f4x_core::text::{Args, Texts};
 use f4x_data::save::{summarize_save, SaveSummary};
 use macroquad::prelude::*;
 
@@ -56,21 +57,24 @@ impl Slot {
     }
 
     /// The row's text.
-    pub fn label(&self, n: usize) -> String {
+    pub fn label(&self, texts: &Texts, n: usize) -> String {
+        let args = Args::new().count("slot", n + 1);
         match self {
-            Slot::Empty => format!("{}.  (empty)", n + 1),
-            Slot::Damaged => format!("{}.  (damaged save)", n + 1),
+            Slot::Empty => texts.get("menu.slot_empty", &args),
+            Slot::Damaged => texts.get("menu.slot_damaged", &args),
             Slot::Filled { summary, saved_at } => {
                 let when = saved_at.map(format_time).unwrap_or_default();
-                let end = if summary.finished { "  (ended)" } else { "" };
-                format!(
-                    "{}.  {}, turn {}{}  {}",
-                    n + 1,
-                    summary.wizard,
-                    summary.turn,
-                    end,
-                    when
-                )
+                let end = if summary.finished {
+                    texts.get("menu.slot_ended", &Args::new())
+                } else {
+                    String::new()
+                };
+                let args = args
+                    .text("wizard", &summary.wizard)
+                    .count("turn", summary.turn)
+                    .text("end", end)
+                    .text("when", when);
+                texts.get("menu.slot_filled", &args)
             }
         }
     }
@@ -226,7 +230,7 @@ impl App {
                 view,
                 5,
                 GOLD,
-                "Fantasy 4X",
+                &self.text("menu.title"),
                 160.0,
                 60.0,
                 crate::frame::Align::Center,
@@ -243,19 +247,20 @@ impl App {
         };
         for (i, &entry) in rows.iter().enumerate() {
             let (label, vortex, hotkey) = match entry {
-                Entry::Continue => ("Continue", 1, KeyCode::C),
-                Entry::Load => ("Load Game", 5, KeyCode::L),
-                Entry::New => ("New Game", 4, KeyCode::N),
-                Entry::Fame => ("Hall of Fame", 2, KeyCode::H),
-                Entry::Quit => ("Quit", 3, KeyCode::Q),
+                Entry::Continue => ("menu.continue", 1, KeyCode::C),
+                Entry::Load => ("menu.load_game", 5, KeyCode::L),
+                Entry::New => ("menu.new_game", 4, KeyCode::N),
+                Entry::Fame => ("menu.hall_of_fame", 2, KeyCode::H),
+                Entry::Quit => ("menu.quit", 3, KeyCode::Q),
             };
+            let label = self.text(label);
             let y = top + 12.0 * i as f32;
             let enabled = true;
             let clicked = self.menu_button(
                 &lay,
                 (108.0, y - 2.0, 103.0, 12.0),
                 Some(("vortex", vortex, 123.0, y)),
-                label,
+                &label,
                 enabled,
                 true,
                 false,
@@ -285,7 +290,10 @@ impl App {
         match chosen {
             Some(Entry::Continue) => {
                 if let Err(e) = self.load_from(Path::new(AUTOSAVE)) {
-                    self.menu.message = format!("Could not continue: {e}");
+                    self.menu.message = self.text_with(
+                        "menu.could_not_continue",
+                        &Args::new().text("why", e.to_string()),
+                    );
                 }
             }
             Some(Entry::Load) => self.open_slots(true),
@@ -309,7 +317,7 @@ impl App {
                 view,
                 5,
                 GOLD,
-                "Load / Save",
+                &self.text("menu.load_save"),
                 160.0,
                 20.0,
                 crate::frame::Align::Center,
@@ -342,7 +350,7 @@ impl App {
                 view,
                 1,
                 color,
-                &slot.label(n),
+                &slot.label(self.texts(), n),
                 45.0,
                 y + 1.0,
                 crate::frame::Align::Left,
@@ -363,12 +371,16 @@ impl App {
         let can_save = in_game && selected.is_some() && self.game.game_over.is_none();
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
-        let quit_label = if self.menu.from_menu { "Back" } else { "Quit" };
+        let quit_label = self.text(if self.menu.from_menu {
+            "menu.back"
+        } else {
+            "menu.quit"
+        });
         let quit = self.menu_button(
             &lay,
             (43.0, 171.0, 39.0, 13.0),
             (!self.menu.from_menu).then_some(("load", 2, 43.0, 171.0)),
-            quit_label,
+            &quit_label,
             true,
             false,
             true,
@@ -377,7 +389,7 @@ impl App {
             &lay,
             (83.0, 171.0, 38.0, 13.0),
             Some(("load", if can_load { 1 } else { 6 }, 83.0, 171.0)),
-            "Load",
+            &self.text("menu.load"),
             can_load,
             false,
             true,
@@ -386,7 +398,7 @@ impl App {
             &lay,
             (122.0, 171.0, 38.0, 13.0),
             Some(("load", if can_save { 3 } else { 7 }, 122.0, 171.0)),
-            "Save",
+            &self.text("menu.save"),
             can_save,
             false,
             true,
@@ -395,7 +407,7 @@ impl App {
             &lay,
             (172.0, 171.0, 58.0, 13.0),
             Some(("load", 12, 172.0, 171.0)),
-            "Settings",
+            &self.text("menu.settings"),
             true,
             false,
             true,
@@ -404,7 +416,7 @@ impl App {
             &lay,
             (231.0, 171.0, 40.0, 13.0),
             Some(("load", 4, 231.0, 171.0)),
-            "OK",
+            &self.text("ui.ok"),
             true,
             false,
             true,
@@ -415,7 +427,7 @@ impl App {
                 view,
                 1,
                 GOLD,
-                "Click Save again to replace this game",
+                &self.text("menu.confirm_overwrite"),
                 160.0,
                 155.0,
                 crate::frame::Align::Center,
@@ -439,9 +451,16 @@ impl App {
             if let Some(n) = selected {
                 match self.load_from(&slot_path(n)) {
                     Ok(()) => {
-                        self.log.push(format!("Loaded slot {}", n + 1));
+                        self.log.push(
+                            self.text_with("menu.loaded_slot", &Args::new().count("slot", n + 1)),
+                        );
                     }
-                    Err(e) => self.menu.message = format!("Could not load: {e}"),
+                    Err(e) => {
+                        self.menu.message = self.text_with(
+                            "menu.could_not_load",
+                            &Args::new().text("why", e.to_string()),
+                        )
+                    }
                 }
             }
         } else if save {
@@ -454,7 +473,7 @@ impl App {
                     self.save_to(&slot_path(n));
                     self.menu.slots[n] = Slot::read(&slot_path(n));
                     if self.menu.slots[n] == Slot::Empty || self.menu.slots[n] == Slot::Damaged {
-                        self.menu.message = "The game could not be saved".into();
+                        self.menu.message = self.text("menu.could_not_save");
                     } else {
                         self.screen = Screen::Map;
                     }
@@ -510,9 +529,10 @@ mod tests {
             },
             saved_at: Some(0),
         };
-        assert_eq!(filled.label(2), "3.  Merlin, turn 41  1970-01-01 00:00");
-        assert_eq!(Slot::Empty.label(0), "1.  (empty)");
-        assert!(Slot::Damaged.label(7).contains("damaged"));
+        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        assert_eq!(filled.label(&t, 2), "3.  Merlin, turn 41  1970-01-01 00:00");
+        assert_eq!(Slot::Empty.label(&t, 0), "1.  (empty)");
+        assert!(Slot::Damaged.label(&t, 7).contains("damaged"));
         assert!(filled.loadable() && !Slot::Empty.loadable() && !Slot::Damaged.loadable());
     }
 

@@ -23,14 +23,15 @@ pub enum Personality {
 }
 
 impl Personality {
-    pub fn name(self) -> &'static str {
+    /// The key of the personality's name in `content/text/`.
+    pub fn key(self) -> &'static str {
         match self {
-            Personality::Maniacal => "Maniacal",
-            Personality::Ruthless => "Ruthless",
-            Personality::Aggressive => "Aggressive",
-            Personality::Chaotic => "Chaotic",
-            Personality::Lawful => "Lawful",
-            Personality::Peaceful => "Peaceful",
+            Personality::Maniacal => "personality.maniacal",
+            Personality::Ruthless => "personality.ruthless",
+            Personality::Aggressive => "personality.aggressive",
+            Personality::Chaotic => "personality.chaotic",
+            Personality::Lawful => "personality.lawful",
+            Personality::Peaceful => "personality.peaceful",
         }
     }
 
@@ -60,13 +61,14 @@ impl Objective {
         Objective::Expansionist,
     ];
 
-    pub fn name(self) -> &'static str {
+    /// The key of the objective's name in `content/text/`.
+    pub fn key(self) -> &'static str {
         match self {
-            Objective::Pragmatist => "Pragmatist",
-            Objective::Militarist => "Militarist",
-            Objective::Theurgist => "Theurgist",
-            Objective::Perfectionist => "Perfectionist",
-            Objective::Expansionist => "Expansionist",
+            Objective::Pragmatist => "personality.pragmatist",
+            Objective::Militarist => "personality.militarist",
+            Objective::Theurgist => "personality.theurgist",
+            Objective::Perfectionist => "personality.perfectionist",
+            Objective::Expansionist => "personality.expansionist",
         }
     }
 }

@@ -225,15 +225,15 @@ impl App {
         let (skill, mana, range) =
             Self::my_caster(battle).map_or((0, 0, 10), |c| (c.skill_left, c.mana, c.range));
         for (i, (label, value)) in [
-            ("Skill", skill.to_string()),
-            ("Mana", mana.to_string()),
-            ("Range", range_text(range)),
+            (self.text("battle.skill"), skill.to_string()),
+            (self.text("battle.mana"), mana.to_string()),
+            (self.text("battle.range"), range_text(range)),
         ]
         .into_iter()
         .enumerate()
         {
             let y = 172.0 + 9.0 * i as f32;
-            self.bar_text(view, 0, label, (200.0, y), Align::Left);
+            self.bar_text(view, 0, &label, (200.0, y), Align::Left);
             self.bar_text(view, 0, &value, (236.0, y), Align::Right);
         }
 
@@ -308,7 +308,8 @@ impl App {
             self.battle_ui.confirm_flee = true;
         }
         if self.battle_ui.confirm_flee {
-            match self.confirmation_box(&lay, "Do you wish to flee?") {
+            let question = self.text("battle.flee_question");
+            match self.confirmation_box(&lay, &question) {
                 Some(true) => order = Some(BattleCommand::Flee),
                 Some(false) => self.battle_ui.confirm_flee = false,
                 None => {}
@@ -471,7 +472,8 @@ impl App {
             Align::Right,
         );
         self.draw_pic(&lay, "compix", 72 + move_mode(u), 0, x + 11.0, y + 22.0);
-        text(self, "Hits", (x + 3.0, y + 32.0), Align::Left);
+        let hits = self.text("battle.hits_label");
+        text(self, &hits, (x + 3.0, y + 32.0), Align::Left);
         let back = lay.rect((x + 19.0, y + 34.0, 20.0, 2.0));
         draw_rectangle(back.x, back.y, back.w, back.h, dark);
         self.draw_damage_bar(&lay, u, (x + 19.0, y + 34.0));
@@ -504,7 +506,8 @@ impl App {
                 (x + 48.0, y + 24.0),
                 Align::Right,
             );
-            text(self, "Ammo", (x + 51.0, y + 24.0), Align::Left);
+            let ammo = self.text("battle.ammo_label");
+            text(self, &ammo, (x + 51.0, y + 24.0), Align::Left);
         }
     }
 }

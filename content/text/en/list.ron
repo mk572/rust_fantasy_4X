@@ -1,0 +1,10 @@
+// How the lists in messages are joined (CLDR list patterns): "a and b", "a, b and c".
+{
+    "list.two": "{a} and {b}",
+    "list.start": "{a}, {b}",
+    "list.middle": "{a}, {b}",
+    "list.end": "{a} and {b}",
+    // The separators alone, for lists laid out piece by piece: "a, b and c".
+    "list.sep": ", ",
+    "list.sep_last": " and ",
+}

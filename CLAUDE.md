@@ -25,6 +25,8 @@ Follow `~/projects/CODING_GUIDELINES.md`. Project-specific rules:
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
   files (`Rules.units`, `units.ron`).
+- **Player-facing text is never hardcoded**: it is a key in `content/text/en/*.ron` (`docs/text.md`),
+  with count, plural and gender forms. A new message adds its key there in the same change.
 - **Always check what scripts exist** before writing a new one or doing a repetitive job by hand:
   read `docs/scripts.md` (the table of every script in `scripts/`) and list `scripts/`.
 - **Log every script in `docs/scripts.md`**, a table with the script's name and what it does. Add the

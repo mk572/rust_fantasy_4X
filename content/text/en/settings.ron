@@ -1,0 +1,9 @@
+// Player-facing messages of the Settings screen. One key is in one file only (docs/text.md).
+{
+    "settings.sound": "Sound and Music",
+    "settings.messages": "Messages",
+    "settings.combat": "Combat",
+    "settings.display": "Display",
+    "settings.game": "Game...",
+    "settings.save_failed": "Could not save the settings: {why}",
+}

@@ -1,0 +1,14 @@
+// Player-facing messages about items. One key is in one file only (docs/text.md).
+{
+    // A bonus line on an item: "+3 Attack".
+    "item.bonus": "+{n} {stat}",
+    "item.spell_save": "-{n} Spell Save",
+    // A spell charged into an item: "Fire Bolt x 3".
+    "item.charges": "{spell} x {n}",
+    "item.wrong_slot": "That item cannot be carried in that slot.",
+    "item.no_mana": "You do not have the mana to send the item there.",
+    "item.would_drown": "This unit will drown if the item is removed.",
+    "item.same_location": "Same Location",
+    "item.teleport": "Item Teleport",
+    "item.transfer_ask": "Sending the item to a hero somewhere else costs {mana} mana. Press Y to do it, N to leave it.",
+}

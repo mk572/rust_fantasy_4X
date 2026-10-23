@@ -1,0 +1,6 @@
+// Player-facing messages of the list of units on a square. One key is in one file only (docs/text.md).
+{
+    "unit_list.monsters": "Rampaging Monsters",
+    "unit_list.raiders": "Raiders",
+    "unit_list.units_of": "{owner} Units",
+}

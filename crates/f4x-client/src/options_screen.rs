@@ -2,17 +2,36 @@
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
 use f4x_core::game::setting::SettingsDef;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
 use crate::ui::{button, GOLD, PANEL};
 use crate::view::{App, Screen};
 
-pub(crate) const DIFFICULTIES: [&str; 5] = ["Intro", "Easy", "Average", "Hard", "Impossible"];
+/// The message keys of the difficulty names, easiest first.
+pub(crate) const DIFFICULTIES: [&str; 5] = [
+    "options.intro",
+    "options.easy",
+    "options.average",
+    "options.hard",
+    "options.impossible",
+];
 /// The names on the original's options buttons.
-const OPTION_DIFFICULTIES: [&str; 5] = ["Intro", "Easy", "Normal", "Hard", "Impossible"];
-const OPPONENT_NAMES: [&str; 4] = ["One", "Two", "Three", "Four"];
-pub(crate) const MAGIC_LEVELS: [&str; 3] = ["Weak", "Normal", "Powerful"];
+const OPTION_DIFFICULTIES: [&str; 5] = [
+    "options.intro",
+    "options.easy",
+    "options.normal",
+    "options.hard",
+    "options.impossible",
+];
+const OPPONENT_NAMES: [&str; 4] = [
+    "options.one",
+    "options.two",
+    "options.three",
+    "options.four",
+];
+pub(crate) const MAGIC_LEVELS: [&str; 3] = ["options.weak", "options.normal", "options.powerful"];
 
 /// The choices made on the options step; they start as `settings.ron` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,10 +94,10 @@ impl App {
             .name
             .clone();
         let labels = [
-            OPTION_DIFFICULTIES[usize::from(o.difficulty).min(4)],
-            OPPONENT_NAMES[usize::from(o.opponents.clamp(1, most)) - 1],
-            land.as_str(),
-            MAGIC_LEVELS[usize::from(o.magic).min(2)],
+            self.text(OPTION_DIFFICULTIES[usize::from(o.difficulty).min(4)]),
+            self.text(OPPONENT_NAMES[usize::from(o.opponents.clamp(1, most)) - 1]),
+            land,
+            self.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
         ];
         let mouse: Vec2 = mouse_position().into();
         let clicked = is_mouse_button_pressed(MouseButton::Left);
@@ -93,7 +112,7 @@ impl App {
                 view,
                 3,
                 shadow,
-                label,
+                &label,
                 283.0 + shift,
                 text_y + 1.0 + shift,
                 Align::Center,
@@ -102,7 +121,7 @@ impl App {
                 view,
                 3,
                 font,
-                label,
+                &label,
                 282.0 + shift,
                 text_y + shift,
                 Align::Center,
@@ -150,42 +169,55 @@ impl App {
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, w, h, PANEL);
         let x = (w / 2.0 - 260.0).max(30.0);
-        draw_text("Settings", x, 80.0, 36.0, GOLD);
+        draw_text(self.text("options.settings"), x, 80.0, 36.0, GOLD);
         let mut y = 130.0;
         let back = if self.menu.from_menu {
-            draw_text("For the next game", x, y - 6.0, 20.0, GRAY);
+            draw_text(self.text("options.next_game"), x, y - 6.0, 20.0, GRAY);
             y += 16.0;
+            let difficulties = DIFFICULTIES.map(|k| self.text(k));
+            let magic_levels = MAGIC_LEVELS.map(|k| self.text(k));
+            let (difficulty, opponents_label, land_label, magic_label, back_label) = (
+                self.text("options.difficulty"),
+                self.text("options.opponents"),
+                self.text("options.land_size"),
+                self.text("options.magic_power"),
+                self.text("options.back"),
+            );
             let o = &mut self.options;
             let settings = &self.game.content().settings;
-            o.difficulty = choose(x, &mut y, "Difficulty", &DIFFICULTIES, o.difficulty);
+            o.difficulty = choose(x, &mut y, &difficulty, &difficulties, o.difficulty);
             let opponents: Vec<String> = (1..=settings.max_opponents)
                 .map(|n| n.to_string())
                 .collect();
-            let opponents: Vec<&str> = opponents.iter().map(String::as_str).collect();
             o.opponents = 1 + choose(
                 x,
                 &mut y,
-                "Opponents",
+                &opponents_label,
                 &opponents,
                 o.opponents.clamp(1, settings.max_opponents) - 1,
             );
-            let lands: Vec<&str> = settings
-                .land_sizes
-                .iter()
-                .map(|s| s.name.as_str())
-                .collect();
-            o.land = choose(x, &mut y, "Land size", &lands, o.land);
-            o.magic = choose(x, &mut y, "Magic power", &MAGIC_LEVELS, o.magic);
-            button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
+            let lands: Vec<String> = settings.land_sizes.iter().map(|s| s.name.clone()).collect();
+            o.land = choose(x, &mut y, &land_label, &lands, o.land);
+            o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic);
+            button(Rect::new(x, y + 20.0, 150.0, 40.0), &back_label, true)
         } else {
-            draw_text("This game (cannot be changed)", x, y - 6.0, 20.0, GRAY);
+            draw_text(self.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
             y += 16.0;
-            for line in settings_lines(self.game.settings(), &self.game.content().settings) {
+            let lines = settings_lines(
+                self.texts(),
+                self.game.settings(),
+                &self.game.content().settings,
+            );
+            for line in lines {
                 draw_text(&line, x, y + 20.0, 22.0, WHITE);
                 y += 30.0;
             }
             y += 10.0;
-            button(Rect::new(x, y + 20.0, 150.0, 40.0), "Back", true)
+            button(
+                Rect::new(x, y + 20.0, 150.0, 40.0),
+                &self.text("options.back"),
+                true,
+            )
         };
         if back || is_key_pressed(KeyCode::Escape) {
             self.screen = Screen::Settings;
@@ -195,39 +227,64 @@ impl App {
 
 /// What a game was made with, one line each (the Settings screen of a running game).
 pub(crate) fn settings_lines(
+    texts: &Texts,
     s: &f4x_core::game::setting::GameSettings,
     def: &f4x_core::game::setting::SettingsDef,
 ) -> Vec<String> {
     let b = &s.basic;
-    fn name<'a>(names: &[&'a str], i: u8) -> &'a str {
-        names.get(usize::from(i)).copied().unwrap_or("?")
-    }
+    let name = |names: &[&str], i: u8| {
+        names
+            .get(usize::from(i))
+            .map_or_else(|| "?".to_string(), |k| texts.get(k, &Args::new()))
+    };
+    let custom = if s.is_level(def) {
+        String::new()
+    } else {
+        texts.get("options.custom", &Args::new())
+    };
     let mut lines = vec![
-        format!(
-            "Difficulty: {}{}",
-            name(&DIFFICULTIES, b.difficulty),
-            if s.is_level(def) { "" } else { " (custom)" }
+        texts.get(
+            "options.line_difficulty",
+            &Args::new()
+                .text("name", name(&DIFFICULTIES, b.difficulty))
+                .text("custom", custom),
         ),
-        format!("Opponents: {}", b.opponents),
-        format!("Land: {}% of each plane", b.land_percent),
-        format!("Magic power: {}", name(&MAGIC_LEVELS, b.magic_strength)),
-        format!(
-            "Starting gold: {} for you, {} for the computer wizards",
-            s.wizards.starting_gold.human, s.wizards.starting_gold.ai
+        texts.get(
+            "options.line_opponents",
+            &Args::new().count("n", b.opponents),
+        ),
+        texts.get("options.line_land", &Args::new().count("n", b.land_percent)),
+        texts.get(
+            "options.line_magic",
+            &Args::new().text("name", name(&MAGIC_LEVELS, b.magic_strength)),
+        ),
+        texts.get(
+            "options.line_gold",
+            &Args::new()
+                .count("you", s.wizards.starting_gold.human)
+                .count("ai", s.wizards.starting_gold.ai),
         ),
     ];
     if s.ai.production_percent != 100 || s.ai.gold_percent != 100 {
-        lines.push(format!(
-            "Computer wizards' cities: production {}%, gold {}%, research {}%",
-            s.ai.production_percent, s.ai.gold_percent, s.ai.research_percent
-        ));
+        lines.push(
+            texts.get(
+                "options.line_ai_cities",
+                &Args::new()
+                    .count("production", s.ai.production_percent)
+                    .count("gold", s.ai.gold_percent)
+                    .count("research", s.ai.research_percent),
+            ),
+        );
     }
-    lines.push(format!("Final score: {}%", s.scoring.score_percent));
+    lines.push(texts.get(
+        "options.line_score",
+        &Args::new().count("n", s.scoring.score_percent),
+    ));
     lines
 }
 
 /// A row of radio buttons; returns the chosen index.
-fn choose(x: f32, y: &mut f32, label: &str, names: &[&str], current: u8) -> u8 {
+fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8) -> u8 {
     draw_text(label, x, *y + 22.0, 24.0, WHITE);
     let mut chosen = current;
     for (i, name) in names.iter().enumerate() {
@@ -235,7 +292,7 @@ fn choose(x: f32, y: &mut f32, label: &str, names: &[&str], current: u8) -> u8 {
         let label = if i == usize::from(current) {
             format!("[{name}]")
         } else {
-            (*name).to_string()
+            name.clone()
         };
         if button(r, &label, true) {
             chosen = i as u8;
@@ -259,21 +316,22 @@ mod tests {
         let o = OptionsState::from_settings(&settings);
         assert_eq!(o.opponents, 1);
         assert_eq!(o.land_percent(&settings), f4x_core::game::setup::LAND_LARGE);
-        assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "Average");
+        assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "options.average");
     }
 
     #[test]
     fn a_running_games_settings_read_as_words() {
         let settings = shipped_settings();
         let level = |d| f4x_core::game::setting::GameSettings::for_difficulty(&settings, d);
-        let lines = settings_lines(&level(4), &settings);
+        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        let lines = settings_lines(&texts, &level(4), &settings);
         assert_eq!(lines[0], "Difficulty: Impossible");
         assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
         assert!(lines.iter().any(|l| l.contains("production 400%")));
         let mut custom = level(2);
         custom.wizards.starting_gold.human = 300;
         assert_eq!(
-            settings_lines(&custom, &settings)[0],
+            settings_lines(&texts, &custom, &settings)[0],
             "Difficulty: Average (custom)"
         );
     }

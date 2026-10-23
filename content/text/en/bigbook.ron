@@ -1,0 +1,15 @@
+// Player-facing messages of the big spell book (research) and the Spell of Mastery notice.
+// One key is in one file only (docs/text.md).
+{
+    "bigbook.research": "Research",
+    "bigbook.spells": "Spells",
+    "bigbook.choose_research": "Choose a new spell to research",
+    "bigbook.research_cost": (count: "turns",
+        one: "Research Cost: {cost} (1 turn)",
+        other: "Research Cost: {cost} ({turns} turns)"),
+    "bigbook.casting_cost": (count: "turns",
+        one: "Casting Cost: {cost} (1 turn)",
+        other: "Casting Cost: {cost} ({turns} turns)"),
+    "bigbook.mastery_started": "{wizard} has started casting the",
+    "bigbook.mastery_name": "Spell of Mastery",
+}

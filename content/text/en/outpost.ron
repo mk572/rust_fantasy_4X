@@ -1,0 +1,7 @@
+// Player-facing messages of the outpost screen and the naming of cities. One key is in one file only (docs/text.md).
+{
+    "outpost.founded": "New Outpost Founded",
+    "outpost.of": "Outpost Of {city}",
+    "outpost.name_prompt": "New Outpost",
+    "outpost.name_starting": "Name Starting City",
+}

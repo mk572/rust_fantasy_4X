@@ -18,6 +18,9 @@ macro_rules! impl_def {
 pub struct RaceDef {
     pub id: String,
     pub name: String,
+    /// The name for more than one ("Barbarians"); empty uses the name.
+    #[serde(default)]
+    pub plural: String,
     /// Units cities of this race can build.
     pub units: Vec<String>,
     /// Buildings cities of this race can build (besides race-neutral ones).
@@ -208,6 +211,9 @@ pub struct HeroTemplate {
     /// `NAMES.LBX`, local only, from `hero_names.ron`); empty uses the unit's own name.
     #[serde(default)]
     pub names: Vec<String>,
+    /// For the messages that name the hero (`docs/text.md`).
+    #[serde(default)]
+    pub gender: crate::text::Gender,
 }
 
 /// The hero abilities, by the name `heroes.ron` uses (`super_` is the doubled version of the
@@ -327,6 +333,8 @@ pub struct WizardDef {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub gender: crate::text::Gender,
     /// Spell books as `(realm id, count)`.
     pub books: Vec<(String, u8)>,
     pub retorts: Vec<crate::wizard::magic::Retort>,
@@ -632,7 +640,7 @@ pub struct Rules {
     /// The starting record of each hero type, in the order of the hero units (optional).
     pub hero_templates: Vec<HeroTemplate>,
     /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.
-    pub wizard_names: Vec<Vec<String>>,
+    pub wizard_names: Vec<Vec<(String, crate::text::Gender)>>,
 }
 
 #[cfg(test)]

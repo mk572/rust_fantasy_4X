@@ -598,16 +598,6 @@ def import_event_texts(game: Path) -> list[str]:
     return lines
 
 
-def import_messages(game: Path) -> list[str]:
-    """The game's short messages (`MESSAGE.LBX`, 100 lines of 150 bytes) as RON lines."""
-    (entry,) = read_lbx(game / "MESSAGE.LBX")
-    return [
-        f"    (index: {index}, text: {ron_str(cstr(record))}),"
-        for index, record in enumerate(read_records(entry))
-        if cstr(record)
-    ]
-
-
 def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
@@ -657,14 +647,13 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     ])
     write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
     write_list(out / "event_texts.ron", local_header, import_event_texts(game))
-    write_list(out / "messages.ron", local_header, import_messages(game))
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])
     write_list(out / "help_screens.ron", local_header, import_help_screens(game, remom))
     # Older runs wrote the rules files (and copies of terrain and features) here; the
     # committed ones in `rules_out` now apply, and a stale copy would shadow them.
-    for stale in (*RULES_FILES, "terrain", "features", "wizards"):
+    for stale in (*RULES_FILES, "terrain", "features", "wizards", "messages"):
         old = out / f"{stale}.ron"
         if old.exists() and old.resolve() != (rules_out / f"{stale}.ron").resolve():
             old.unlink()

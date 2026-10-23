@@ -1,0 +1,13 @@
+// Player-facing messages of the list of cities. One key is in one file only (docs/text.md).
+{
+    "cities.title": "The Cities Of {owner}",
+    "cities.name": "Name",
+    "cities.race": "Race",
+    "cities.pop": "Pop",
+    "cities.gold": "Gold",
+    "cities.prd": "Prd",
+    "cities.producing": "Producing",
+    "cities.time": "Time",
+    "cities.reserve_gold": "{n}GP",
+    "cities.reserve_mana": "{n}MP",
+}

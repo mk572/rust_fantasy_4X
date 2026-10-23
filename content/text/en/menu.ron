@@ -1,0 +1,24 @@
+// Player-facing messages of the main menu and the load and save screen.
+// One key is in one file only (docs/text.md).
+{
+    "menu.title": "Fantasy 4X",
+    "menu.continue": "Continue",
+    "menu.load_game": "Load Game",
+    "menu.new_game": "New Game",
+    "menu.hall_of_fame": "Hall of Fame",
+    "menu.quit": "Quit",
+    "menu.load_save": "Load / Save",
+    "menu.back": "Back",
+    "menu.load": "Load",
+    "menu.save": "Save",
+    "menu.settings": "Settings",
+    "menu.slot_empty": "{slot}.  (empty)",
+    "menu.slot_damaged": "{slot}.  (damaged save)",
+    "menu.slot_ended": "  (ended)",
+    "menu.slot_filled": "{slot}.  {wizard}, turn {turn}{end}  {when}",
+    "menu.confirm_overwrite": "Click Save again to replace this game",
+    "menu.loaded_slot": "Loaded slot {slot}",
+    "menu.could_not_continue": "Could not continue: {why}",
+    "menu.could_not_load": "Could not load: {why}",
+    "menu.could_not_save": "The game could not be saved",
+}

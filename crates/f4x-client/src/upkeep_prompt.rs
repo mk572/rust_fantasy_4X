@@ -7,6 +7,7 @@ use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -66,18 +67,16 @@ impl UpkeepPrompt {
     fn lines(&self) -> Vec<Line> {
         let mut out = Vec::new();
         if let Some(items) = &self.items {
-            out.push(Line::Header(
-                "Too many items for the armory: mark what to disband for mana",
-            ));
+            out.push(Line::Header("upkeep.too_many_items"));
             out.extend((0..items.lines.len()).map(Line::Item));
             return out;
         }
         if let Some(m) = &self.mana {
-            out.push(Line::Header("Mana"));
+            out.push(Line::Header("upkeep.mana"));
             out.extend((0..m.lines.len()).map(Line::Mana));
         }
         if let Some(t) = &self.troops {
-            out.push(Line::Header("Gold and food"));
+            out.push(Line::Header("upkeep.gold_and_food"));
             out.extend((0..t.troops.len()).map(Line::Troop));
         }
         out
@@ -143,41 +142,42 @@ impl UpkeepPrompt {
     }
 
     /// What the line says, and its price on the right.
-    fn text(&self, line: Line) -> (String, String) {
+    fn text(&self, texts: &Texts, line: Line) -> (String, String) {
+        let count = |key: &str, n: i32| texts.get(key, &Args::new().count("n", n));
         match line {
             Line::Mana(i) => {
                 let l = &self.mana.as_ref().unwrap().lines[i];
-                (l.label.clone(), format!("{} mana", l.mana))
+                (l.label.clone(), count("upkeep.price_mana", l.mana))
             }
             Line::Troop(i) => {
                 let l = &self.troops.as_ref().unwrap().troops[i];
                 let mut label = l.label.clone();
                 if l.hero {
-                    label.push_str(" (hero: its items come home)");
+                    label.push_str(&texts.get("upkeep.hero_note", &Args::new()));
                 } else if l.ship && l.aboard > 0 {
-                    label.push_str(&format!(" ({} aboard: sails for the shore)", l.aboard));
+                    label.push_str(&count("upkeep.ship_note", l.aboard as i32));
                 }
-                (label, format!("{} gold  {} food", l.gold, l.food))
+                let price = Args::new().count("gold", l.gold).count("food", l.food);
+                (label, texts.get("upkeep.price_gold_food", &price))
             }
             Line::Item(i) => {
                 let l = &self.items.as_ref().unwrap().lines[i];
-                (l.label.clone(), format!("+{} mana", l.mana))
+                (l.label.clone(), count("upkeep.price_item", l.mana))
             }
-            Line::Header(h) => (h.to_string(), String::new()),
+            Line::Header(key) => (texts.get(key, &Args::new()), String::new()),
         }
     }
 
     /// The line under the list: what is still missing after the marked ones go.
-    fn status(&self) -> (String, bool) {
+    fn status(&self, texts: &Texts) -> (String, bool) {
+        let none = Args::new();
         if let Some(o) = &self.items {
             let n = self.item_marked.iter().filter(|&&m| m).count();
             return if n >= o.excess {
-                ("Enough items marked.".to_string(), true)
+                (texts.get("upkeep.enough_items", &none), true)
             } else {
-                (
-                    format!("Mark {} more, or the game picks.", o.excess - n),
-                    false,
-                )
+                let more = Args::new().count("n", o.excess - n);
+                (texts.get("upkeep.mark_more", &more), false)
             };
         }
         let mut missing = Vec::new();
@@ -191,25 +191,23 @@ impl UpkeepPrompt {
                 .sum();
             let short = (m.owed - freed - m.reserve).max(0);
             if short > 0 {
-                missing.push(format!("{short} mana"));
+                missing.push(texts.get("upkeep.short_mana", &Args::new().count("n", short)));
             }
         }
         if let Some(t) = &self.troops {
             let (food, gold) = t.missing(&self.released_units());
             if food > 0 {
-                missing.push(format!("{food} food"));
+                missing.push(texts.get("upkeep.short_food", &Args::new().count("n", food)));
             }
             if gold > 0 {
-                missing.push(format!("{gold} gold"));
+                missing.push(texts.get("upkeep.short_gold", &Args::new().count("n", gold)));
             }
         }
         if missing.is_empty() {
-            ("Enough: the rest is paid.".to_string(), true)
+            (texts.get("upkeep.enough", &none), true)
         } else {
-            (
-                format!("Short by {}: the newest go.", missing.join(", ")),
-                false,
-            )
+            let args = Args::new().list("missing", missing);
+            (texts.get("upkeep.short_by", &args), false)
         }
     }
 }
@@ -436,7 +434,7 @@ impl App {
         say(
             self,
             light,
-            "Reserves cannot pay everything.",
+            &self.text("upkeep.reserves_short"),
             middle,
             by + 4.0,
             Align::Center,
@@ -444,14 +442,14 @@ impl App {
         say(
             self,
             gold,
-            "Click to mark who goes.",
+            &self.text("upkeep.click_to_mark"),
             middle,
             by + 14.0,
             Align::Center,
         );
         for (i, &line) in lines.iter().enumerate().skip(first).take(rows) {
             let y = by + 24.0 + (i - first) as f32 * ROW;
-            let (label, price) = prompt.text(line);
+            let (label, price) = prompt.text(&self.game.content().texts, line);
             if let Line::Header(_) = line {
                 say(self, gold, &label, bx + 8.0, y + 1.0, Align::Left);
                 continue;
@@ -489,7 +487,7 @@ impl App {
                 Align::Right,
             );
         }
-        let (status, fine) = prompt.status();
+        let (status, fine) = prompt.status(&self.game.content().texts);
         let ok_colour = if fine {
             Color::new(0.55, 0.9, 0.5, 1.0)
         } else {
@@ -507,7 +505,7 @@ impl App {
             say(
                 self,
                 gold,
-                "More below",
+                &self.text("upkeep.more_below"),
                 bx + 8.0,
                 by + bh - 15.0,
                 Align::Left,

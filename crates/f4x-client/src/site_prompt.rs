@@ -8,25 +8,58 @@
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
 use crate::view::{App, Screen};
 
-/// What a site is called, its picture in `reload` (`9 +` the type) and how it is introduced, in
-/// the order of the original's table `TBL_EZ_Names`.
+/// The sites by the id of `lairs`, in the order of the original's table `TBL_EZ_Names` (the
+/// picture in `reload` is `9 +` the place): the message that announces the site, and its name.
 const SITES: [(&str, &str, &str); 11] = [
-    ("tower", "tower", "a"),
-    ("chaos_node", "chaos node", "a"),
-    ("nature_node", "nature node", "a"),
-    ("sorcery_node", "sorcery node", "a"),
-    ("mysterious_cave", "mysterious cave", "a"),
-    ("dungeon", "dungeon", "a"),
-    ("ancient_temple", "ancient temple", "an"),
-    ("abandoned_keep", "abandoned keep", "an"),
-    ("monster_lair", "monster lair", "a"),
-    ("ruins", "ruins", "some"),
-    ("fallen_temple", "fallen temple", "a"),
+    ("tower", "site.tower.found", "site.tower.name"),
+    (
+        "chaos_node",
+        "site.chaos_node.found",
+        "site.chaos_node.name",
+    ),
+    (
+        "nature_node",
+        "site.nature_node.found",
+        "site.nature_node.name",
+    ),
+    (
+        "sorcery_node",
+        "site.sorcery_node.found",
+        "site.sorcery_node.name",
+    ),
+    (
+        "mysterious_cave",
+        "site.mysterious_cave.found",
+        "site.mysterious_cave.name",
+    ),
+    ("dungeon", "site.dungeon.found", "site.dungeon.name"),
+    (
+        "ancient_temple",
+        "site.ancient_temple.found",
+        "site.ancient_temple.name",
+    ),
+    (
+        "abandoned_keep",
+        "site.abandoned_keep.found",
+        "site.abandoned_keep.name",
+    ),
+    (
+        "monster_lair",
+        "site.monster_lair.found",
+        "site.monster_lair.name",
+    ),
+    ("ruins", "site.ruins.found", "site.ruins.name"),
+    (
+        "fallen_temple",
+        "site.fallen_temple.found",
+        "site.fallen_temple.name",
+    ),
 ];
 
 /// The site's place in the original's table; a site it does not know is a lair.
@@ -50,50 +83,62 @@ pub enum SiteNotice {
     Treasure { text: String },
 }
 
-/// The first line of the question: "You have found a mysterious cave." and, for a guarded site,
-/// what the scouts saw.
-pub(crate) fn found_text(site: usize, guards: Option<(&str, u32)>) -> String {
-    let (_, name, article) = SITES[site];
-    let mut text = format!("You have found {article} {name}.");
-    if let Some((unit, figures)) = guards {
-        text.push_str("  Scouts have spotted ");
-        if figures == 1 {
-            text.push_str(&format!("{} ", an(unit)));
-        }
-        text.push_str(&format!("{unit} within the {name}.  Do you wish to enter?"));
-    }
-    text
+/// The question of the box: "You have found a mysterious cave." and, for a guarded site, what the
+/// scouts saw and "Do you wish to enter?".
+pub(crate) fn found_text(texts: &Texts, site: usize, guards: Option<(&str, u32)>) -> String {
+    let (_, found, name) = SITES[site];
+    let found = texts.get(found, &Args::new());
+    let Some((unit, figures)) = guards else {
+        return found;
+    };
+    let args = Args::new()
+        .text("found", found)
+        .text("unit", unit)
+        .text("site", texts.get(name, &Args::new()))
+        .count("figures", figures);
+    texts.get("site.ask", &args)
 }
 
-/// "a" or "an" for a word, by its first letter (`An`).
-pub(crate) fn an(word: &str) -> &'static str {
-    match word.chars().next().map(|c| c.to_ascii_lowercase()) {
-        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
-        _ => "a",
+/// The words for an item kind in the treasure box.
+fn kind_key(kind: f4x_core::rules::ItemKind) -> &'static str {
+    use f4x_core::rules::ItemKind as K;
+    match kind {
+        K::Sword => "site.item.sword",
+        K::Mace => "site.item.mace",
+        K::Axe => "site.item.axe",
+        K::Bow => "site.item.bow",
+        K::Staff => "site.item.staff",
+        K::Wand => "site.item.wand",
+        K::Misc => "site.item.jewelry",
+        K::Shield => "site.item.shield",
+        K::Chainmail => "site.item.chainmail",
+        K::Platemail => "site.item.platemail",
     }
 }
 
-/// What the treasure box says (`Lair_Treasure_Popup`): the things found, joined by commas and
-/// an "and" before the last, or "absolutely nothing". A single gold piece or mana crystal is not
-/// mentioned (the original's test is "more than one").
+/// What the treasure box says (`Lair_Treasure_Popup`): the things found as a list, or "absolutely
+/// nothing". A single gold piece or mana crystal is not mentioned (the original's test is "more
+/// than one").
 pub(crate) fn treasure_text(
+    texts: &Texts,
     loot: &Loot,
     spell: Option<&str>,
-    retorts: &[&str],
-    item_kinds: &[&str],
+    retorts: &[String],
+    item_kinds: &[f4x_core::rules::ItemKind],
 ) -> String {
+    let none = Args::new();
     let mut parts: Vec<String> = Vec::new();
     if loot.gold > 1 {
-        parts.push(format!("{} gold", loot.gold));
+        parts.push(texts.get("site.gold", &Args::new().count("n", loot.gold)));
     }
     if loot.mana > 1 {
-        parts.push(format!("{} mana crystals", loot.mana));
+        parts.push(texts.get("site.mana", &Args::new().count("n", loot.mana)));
     }
     if loot.prisoner {
-        parts.push("a prisoner".to_string());
+        parts.push(texts.get("site.prisoner", &none));
     }
     if let Some(spell) = spell {
-        parts.push(format!("{} {spell} spell", an(spell)));
+        parts.push(texts.get("site.spell", &Args::new().text("spell", spell)));
     }
     let mut realms: Vec<&String> = Vec::new();
     for realm in &loot.books {
@@ -103,44 +148,21 @@ pub(crate) fn treasure_text(
     }
     for realm in realms {
         let n = loot.books.iter().filter(|r| *r == realm).count();
-        let name = crate::bigbook::capitalise(realm);
-        parts.push(format!(
-            "{n} {name} spell book{}",
-            if n > 1 { "s" } else { "" }
-        ));
+        let args = Args::new()
+            .count("n", n)
+            .text("realm", crate::bigbook::capitalise(realm));
+        parts.push(texts.get("site.books", &args));
     }
     for retort in retorts {
-        parts.push(format!("a retort of {retort}"));
+        parts.push(texts.get("site.retort", &Args::new().text("retort", retort)));
     }
-    for kind in item_kinds {
-        parts.push(format!("{} {kind}", an(kind)));
+    for &kind in item_kinds {
+        parts.push(texts.get(kind_key(kind), &none));
     }
-    let list = match parts.len() {
-        0 => "absolutely nothing".to_string(),
-        1 => parts.remove(0),
-        _ => {
-            let last = parts.pop().unwrap_or_default();
-            format!("{} and {last}", parts.join(", "))
-        }
-    };
-    format!("Inside you find {list}.")
-}
-
-/// The name an item's kind goes by in the box.
-fn kind_name(kind: f4x_core::rules::ItemKind) -> &'static str {
-    use f4x_core::rules::ItemKind as K;
-    match kind {
-        K::Sword => "Sword",
-        K::Mace => "Mace",
-        K::Axe => "Axe",
-        K::Bow => "Bow",
-        K::Staff => "Staff",
-        K::Wand => "Wand",
-        K::Misc => "Jewelry",
-        K::Shield => "Shield",
-        K::Chainmail => "Chainmail",
-        K::Platemail => "Platemail",
+    if parts.is_empty() {
+        return texts.get("site.nothing", &none);
     }
+    texts.get("site.treasure", &Args::new().list("things", parts))
 }
 
 /// Where the box sits and how the text runs round the picture in its corner.
@@ -161,7 +183,11 @@ impl App {
             let figures = unit.stats.get(&f4x_core::rules::Stat::Figures).copied();
             Some((unit.name.clone(), figures.unwrap_or(1) as u32))
         });
-        let text = found_text(site, first.as_ref().map(|(name, f)| (name.as_str(), *f)));
+        let text = found_text(
+            &self.game.content().texts,
+            site,
+            first.as_ref().map(|(name, f)| (name.as_str(), *f)),
+        );
         self.site_notices.push_back(SiteNotice::Ask {
             units,
             to,
@@ -175,20 +201,22 @@ impl App {
         let kind = site_type(site);
         if !guarded {
             self.site_notices.push_back(SiteNotice::Found {
-                text: found_text(kind, None),
+                text: found_text(&self.game.content().texts, kind, None),
                 site: kind,
             });
         }
         let spell = loot
             .spell
             .map(|s| self.game.content().rules.spells.get(s).name.clone());
-        let retorts: Vec<&str> = loot
-            .retorts
-            .iter()
-            .map(|&r| f4x_core::wizard::retort_name(r))
-            .collect();
-        let kinds: Vec<&str> = loot.items.iter().map(|i| kind_name(i.kind)).collect();
-        let text = treasure_text(loot, spell.as_deref(), &retorts, &kinds);
+        let retorts: Vec<String> = loot.retorts.iter().map(|&r| self.retort_name(r)).collect();
+        let kinds: Vec<_> = loot.items.iter().map(|i| i.kind).collect();
+        let text = treasure_text(
+            &self.game.content().texts,
+            loot,
+            spell.as_deref(),
+            &retorts,
+            &kinds,
+        );
         self.site_notices.push_back(SiteNotice::Treasure { text });
         if !loot.items.is_empty() {
             self.item_pool_pending = true;
@@ -223,7 +251,11 @@ impl App {
                     let unit = self.game.content().rules.units.by_name(id)?;
                     Some((unit.name.clone(), 1))
                 });
-                let text = found_text(site, first.as_ref().map(|(n, f)| (n.as_str(), *f)));
+                let text = found_text(
+                    &self.game.content().texts,
+                    site,
+                    first.as_ref().map(|(n, f)| (n.as_str(), *f)),
+                );
                 self.site_notices.push_back(SiteNotice::Ask {
                     units: Vec::new(),
                     to,
@@ -232,7 +264,7 @@ impl App {
                 });
             }
             "found" => self.site_notices.push_back(SiteNotice::Found {
-                text: found_text(site, None),
+                text: found_text(&self.game.content().texts, site, None),
                 site,
             }),
             _ => {
@@ -261,13 +293,10 @@ impl App {
                 && self.game.offers(crate::view::HUMAN).is_empty()
             {
                 if self.item_pool_warning {
-                    if let Some(closed) = self.hero_died_warning() {
-                        if closed {
-                            self.item_pool_warning = false;
-                        }
-                        return true;
+                    if self.hero_died_warning() {
+                        self.item_pool_warning = false;
                     }
-                    self.item_pool_warning = false;
+                    return true;
                 }
                 self.item_pool_pending = false;
                 self.open_item_screen();
@@ -460,55 +489,62 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::rules::ItemKind;
 
     fn loot() -> Loot {
         Loot::default()
     }
 
+    fn texts() -> Texts {
+        f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap()
+    }
+
     #[test]
     fn the_question_names_the_site_and_the_scouts_report() {
+        let t = texts();
         assert_eq!(
-            found_text(site_type("mysterious_cave"), Some(("Efreet", 1))),
-            "You have found a mysterious cave.  Scouts have spotted an Efreet within the mysterious cave.  Do you wish to enter?"
+            found_text(&t, site_type("mysterious_cave"), Some(("Efreet", 1))),
+            "You have found a mysterious cave.  Scouts have spotted a single Efreet within the mysterious cave.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(site_type("dungeon"), Some(("Skeletons", 6))),
+            found_text(&t, site_type("dungeon"), Some(("Skeletons", 6))),
             "You have found a dungeon.  Scouts have spotted Skeletons within the dungeon.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(site_type("ruins"), None),
+            found_text(&t, site_type("ruins"), None),
             "You have found some ruins."
         );
         assert_eq!(
-            found_text(site_type("ancient_temple"), None),
+            found_text(&t, site_type("ancient_temple"), None),
             "You have found an ancient temple."
         );
     }
 
     #[test]
     fn the_treasure_lists_what_was_found() {
+        let t = texts();
         let mut l = loot();
         assert_eq!(
-            treasure_text(&l, None, &[], &[]),
+            treasure_text(&t, &l, None, &[], &[]),
             "Inside you find absolutely nothing."
         );
         l.gold = 120;
         assert_eq!(
-            treasure_text(&l, None, &[], &[]),
+            treasure_text(&t, &l, None, &[], &[]),
             "Inside you find 120 gold."
         );
         l.mana = 30;
         l.prisoner = true;
         assert_eq!(
-            treasure_text(&l, Some("Earth Lore"), &[], &["Sword"]),
-            "Inside you find 120 gold, 30 mana crystals, a prisoner, an Earth Lore spell and a Sword."
+            treasure_text(&t, &l, Some("Earth Lore"), &[], &[ItemKind::Sword]),
+            "Inside you find 120 gold, 30 mana crystals, a prisoner, the spell Earth Lore and a Sword."
         );
         l.gold = 1;
         l.mana = 0;
         l.prisoner = false;
         l.books = vec!["nature".into(), "nature".into()];
         assert_eq!(
-            treasure_text(&l, None, &["Sage Master"], &[]),
+            treasure_text(&t, &l, None, &["Sage Master".to_string()], &[]),
             "Inside you find 2 Nature spell books and a retort of Sage Master."
         );
     }

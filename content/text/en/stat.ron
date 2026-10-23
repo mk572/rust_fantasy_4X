@@ -1,0 +1,9 @@
+// Names of unit and item statistics. One key is in one file only (docs/text.md).
+{
+    "stat.attack": "Attack",
+    "stat.to_hit": "To Hit",
+    "stat.defense": "Defense",
+    "stat.movement": "Movement",
+    "stat.resistance": "Resistance",
+    "stat.spell_skill": "Spell Skill",
+}

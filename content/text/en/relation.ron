@@ -1,0 +1,14 @@
+// The words of the relation scale between wizards. One key is in one file only (docs/text.md).
+{
+    "relation.hate": "Hate",
+    "relation.troubled": "Troubled",
+    "relation.tense": "Tense",
+    "relation.restless": "Restless",
+    "relation.unease": "Unease",
+    "relation.neutral": "Neutral",
+    "relation.relaxed": "Relaxed",
+    "relation.calm": "Calm",
+    "relation.peaceful": "Peaceful",
+    "relation.friendly": "Friendly",
+    "relation.harmony": "Harmony",
+}

@@ -6,6 +6,7 @@
 
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -123,9 +124,9 @@ impl App {
             let r = lay.rect((x, y, 312.0, 161.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
-        let text = format!(
-            "A merchant arrives and offers a magic {} for sale.  The price is only {price} gold pieces.",
-            item.name
+        let text = self.text_with(
+            "offer.merchant",
+            &Args::new().text("item", &item.name).count("price", price),
         );
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let mut at = y + 9.0;
@@ -134,8 +135,9 @@ impl App {
             at += self.art.text_height(4) + 2.0;
         }
         self.draw_item_card(lay, item, x + 14.0, y + 65.0);
-        let buy = self.red_button(lay, "Buy", x + 252.0, y + 121.0);
-        let reject = self.red_button(lay, "Reject", x + 252.0, y + 140.0);
+        let (buy_label, reject_label) = (self.text("ui.buy"), self.text("ui.reject"));
+        let buy = self.red_button(lay, &buy_label, x + 252.0, y + 121.0);
+        let reject = self.red_button(lay, &reject_label, x + 252.0, y + 140.0);
         let buy =
             (buy || is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter)) && affordable;
         let reject = reject || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape);
@@ -173,13 +175,11 @@ impl App {
         self.draw_pic(lay, "hire", 0, 0, 0.0, 0.0);
         let price = offer.price();
         let title = match offer {
-            Offer::Hero { .. } => format!("Hero for Hire: {price} gold"),
-            Offer::Mercenaries { count, .. } if *count == 1 => {
-                format!("Mercenary for Hire: {price} gold")
-            }
-            Offer::Mercenaries { count, .. } => {
-                format!("{count} Mercenaries for Hire: {price} gold")
-            }
+            Offer::Hero { .. } => self.text_with("offer.hero", &Args::new().count("price", price)),
+            Offer::Mercenaries { count, .. } => self.text_with(
+                "offer.mercenaries",
+                &Args::new().count("n", *count).count("price", price),
+            ),
             Offer::Item { .. } => String::new(),
         };
         self.bm_text(view, 4, gold, &title, wx + 103.0, wy - 14.0, Align::Center);
@@ -192,7 +192,7 @@ impl App {
                 view,
                 4,
                 gold,
-                "Name Your Hero",
+                &self.text("offer.name_hero"),
                 wx + 104.0,
                 wy + 58.0,
                 Align::Center,
@@ -213,19 +213,20 @@ impl App {
                 view,
                 1,
                 Color::new(1.0, 0.4, 0.3, 1.0),
-                "Not enough gold",
+                &self.text("offer.not_enough_gold"),
                 wx + 221.0,
                 wy + 128.0,
                 Align::Left,
             );
         }
-        let label = if matches!(offer, Offer::Hero { .. }) && naming {
-            "Accept"
+        let label = self.text(if matches!(offer, Offer::Hero { .. }) && naming {
+            "ui.accept"
         } else {
-            "Hire"
-        };
-        let hire = self.red_button(lay, label, wx + 221.0, wy + 143.0);
-        let reject = self.red_button(lay, "Reject", wx + 221.0, wy + 162.0);
+            "ui.hire"
+        });
+        let reject_label = self.text("ui.reject");
+        let hire = self.red_button(lay, &label, wx + 221.0, wy + 143.0);
+        let reject = self.red_button(lay, &reject_label, wx + 221.0, wy + 162.0);
         // H hires (the original's hotkey); while naming Enter ends the name.
         let key = is_key_pressed(KeyCode::Enter) || (!naming && is_key_pressed(KeyCode::H));
         let hire = (hire || key) && affordable;
@@ -253,26 +254,29 @@ impl App {
         let b = item.bonus;
         let mut lines: Vec<String> = Vec::new();
         for (v, what) in [
-            (b.attack, "Attack"),
-            (b.to_hit, "To Hit"),
-            (b.defense, "Defense"),
-            (b.moves / 2, "Movement"),
-            (b.resistance, "Resistance"),
-            (b.spell_skill, "Spell Skill"),
+            (b.attack, "stat.attack"),
+            (b.to_hit, "stat.to_hit"),
+            (b.defense, "stat.defense"),
+            (b.moves / 2, "stat.movement"),
+            (b.resistance, "stat.resistance"),
+            (b.spell_skill, "stat.spell_skill"),
         ] {
             if v > 0 {
-                lines.push(format!("+{v} {what}"));
+                let args = Args::new().count("n", v).text("stat", self.text(what));
+                lines.push(self.text_with("item.bonus", &args));
             }
         }
         if b.spell_save > 0 {
-            lines.push(format!("-{} Spell Save", b.spell_save));
+            let args = Args::new().count("n", b.spell_save);
+            lines.push(self.text_with("item.spell_save", &args));
         }
         if let Some((spell, count)) = &item.charges {
             let name = rules
                 .spells
                 .by_name(spell)
                 .map_or(spell.as_str(), |d| d.name.as_str());
-            lines.push(format!("{name} x {count}"));
+            let args = Args::new().text("spell", name).count("n", *count);
+            lines.push(self.text_with("item.charges", &args));
         }
         for id in &item.powers {
             lines.push(

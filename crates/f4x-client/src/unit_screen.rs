@@ -8,6 +8,7 @@
 
 use f4x_core::battle::Battle;
 use f4x_core::game::Command;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -123,13 +124,14 @@ impl App {
         // Buttons and leaving.
         let mut leave = is_key_pressed(KeyCode::Escape);
         if !in_battle {
-            let ok = self.red_button(&lay, "OK", px + 222.0, py + 162.0);
+            let (ok_label, dismiss_label) = (self.text("ui.ok"), self.text("unit.dismiss"));
+            let ok = self.red_button(&lay, &ok_label, px + 222.0, py + 162.0);
             let dismiss = sheet.can_dismiss
-                && self.red_button(&lay, "Dismiss", px + 222.0, py + 143.0)
+                && self.red_button(&lay, &dismiss_label, px + 222.0, py + 143.0)
                 && !self.sheet_ui.confirm
                 && self.sheet_ui.turn_off.is_none();
             if !sheet.can_dismiss {
-                self.red_button_face(&lay, "Dismiss", px + 222.0, py + 143.0, false);
+                self.red_button_face(&lay, &dismiss_label, px + 222.0, py + 143.0, false);
             }
             let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
             if ok || (is_key_pressed(KeyCode::Enter) && !asking) {
@@ -213,7 +215,8 @@ impl App {
         }
 
         // Moves, and upkeep or damage.
-        self.bm_text(view, 1, light, "Moves", name_x, py + 27.0, Align::Left);
+        let moves = self.text("unit.moves");
+        self.bm_text(view, 1, light, &moves, name_x, py + 27.0, Align::Left);
         for i in 0..sheet.moves {
             self.draw_stat_icon(
                 lay,
@@ -224,7 +227,8 @@ impl App {
             );
         }
         if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
-            self.bm_text(view, 1, light, "Upkeep", name_x, py + 34.0, Align::Left);
+            let word = self.text("army.upkeep");
+            self.bm_text(view, 1, light, &word, name_x, py + 34.0, Align::Left);
             let (mut x, y) = (px + 85.0, py + 33.0);
             // Gold, then mana, then food, each a small icon from `backgrnd`.
             for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
@@ -234,7 +238,8 @@ impl App {
                 }
             }
         } else if let Some(damage) = sheet.damage {
-            self.bm_text(view, 1, light, "Damage", name_x, py + 34.0, Align::Left);
+            let word = self.text("unit.damage");
+            self.bm_text(view, 1, light, &word, name_x, py + 34.0, Align::Left);
             self.bm_text(
                 view,
                 1,
@@ -247,21 +252,22 @@ impl App {
         }
 
         // The five rows.
-        let rows: [(&str, f32, Option<Row>); 4] = [
-            ("Melee", 47.0, Some(sheet.melee)),
-            ("Range", 58.0, sheet.ranged),
-            ("Armor", 68.0, Some(sheet.defense)),
-            ("Resist", 79.0, Some(sheet.resist)),
+        let rows: [(String, f32, Option<Row>); 4] = [
+            (self.text("unit.melee"), 47.0, Some(sheet.melee)),
+            (self.text("unit.range"), 58.0, sheet.ranged),
+            (self.text("unit.armor"), 68.0, Some(sheet.defense)),
+            (self.text("unit.resist"), 79.0, Some(sheet.resist)),
         ];
         for (label, y, row) in rows {
-            self.bm_text(view, 4, gold, label, px + 8.0, py + y, Align::Left);
+            self.bm_text(view, 4, gold, &label, px + 8.0, py + y, Align::Left);
             if let Some(row) = row {
                 for cell in stat_cells(row, ROW) {
                     self.draw_cell(lay, row.icon, cell, px + 49.0, py + y);
                 }
             }
         }
-        self.bm_text(view, 4, gold, "Hits", px + 8.0, py + 90.0, Align::Left);
+        let hits = self.text("unit.hits");
+        self.bm_text(view, 4, gold, &hits, px + 8.0, py + 90.0, Align::Left);
         let bonus = sheet.hits.gold;
         for cell in hit_cells(sheet.hits.value, bonus, sheet.hurt, ROW) {
             self.draw_cell(lay, sheet.hits.icon, cell, px + 49.0, py + 90.0);
@@ -323,7 +329,7 @@ impl App {
     /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
     /// command and leaves.
     fn dismiss_confirmation(&mut self, lay: &Layout, sheet: &Sheet) {
-        let text = format!("Do you wish to disband the unit of {}?", sheet.name);
+        let text = self.text_with("unit.disband", &Args::new().text("unit", &sheet.name));
         match self.confirmation_box(lay, &text) {
             Some(true) => {
                 if let Source::Overland(unit) = sheet.source {
@@ -347,11 +353,11 @@ impl App {
             self.sheet_ui.turn_off = None;
             return;
         };
-        let mut text = format!("Do you wish to turn off the {} spell?", ask.name);
+        let mut text = self.text_with("sell.turn_off", &Args::new().text("spell", &ask.name));
         match ask.drowned {
             0 => {}
-            1 => text.push_str("  This unit will die if the spell is removed!"),
-            _ => text.push_str("  This unit and other units will die if the spell is removed!"),
+            1 => text.push_str(&self.text("unit.dies_one")),
+            _ => text.push_str(&self.text("unit.dies_many")),
         }
         match self.confirmation_box(lay, &text) {
             Some(true) => {

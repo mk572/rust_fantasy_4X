@@ -1,0 +1,31 @@
+// Player-facing messages about spells. One key is in one file only (docs/text.md).
+{
+    // The first dispels are announced one by one, the rest in one line.
+    "spell.dispelled": "{spell} has been dispelled.",
+    "spell.dispelled_on_city_more": "The city's other enchantments have been dispelled.",
+    "spell.dispelled_on_unit_more": "The unit's other spells have been dispelled.",
+
+    // The counter spells named in a fizzle notice.
+    "spell.suppress_magic": "Suppress Magic",
+    "spell.spell_blast": "Spell Blast",
+    "spell.disjunction": "Disjunction",
+    // One of the two wizards is you. The wizard is the other one.
+    "spell.fizzled_by_you": "Your {counter_spell} spell has caused the {spell} spell of {wizard} to fizzle.",
+    "spell.fizzled_yours": "The {counter_spell} spell of {wizard} has caused your {spell} spell to fizzle.",
+
+    "spell.ward_select": "Select a Spell Ward for {city}",
+    "spell.no_target": "There are no targets for {spell}. Do you wish to continue casting it?",
+    "spell.global_row": "{wizard}: {spell} ({cost} MP)",
+    "spell.choose_global": "{spell}: choose a global enchantment",
+    "spell.global_keys": "Up/Down and Enter, or click; Esc: cancel",
+    "spell.you_completed": "You have completed casting...",
+    "spell.rival_cast": "{wizard} has cast...",
+    "spell.mastered": "You have mastered the spell of {spell}",
+    "spell.no_globals_waits": "No other wizard keeps a global enchantment going; the spell waits",
+    "spell.no_globals": "No other wizard keeps a global enchantment going",
+    "spell.abort": "Do you wish to abort the {spell} spell?",
+    "spell.instant": "Instant Cast",
+    "spell.special": "Special",
+    "spell.choose_unwarded": "Choose one of your cities that is not warded against every realm",
+    "spell.no_valid_target": "No valid target there",
+}

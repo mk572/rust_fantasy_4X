@@ -5,6 +5,7 @@
 
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use f4x_core::unit::Standby;
 use macroquad::prelude::*;
 
@@ -246,11 +247,15 @@ impl App {
             .min()
             .unwrap_or(0);
         if moves > 0 {
-            let text = if moves % 2 == 1 {
-                format!("Moves: {}.5", moves / 2)
-            } else {
-                format!("Moves: {}", moves / 2)
-            };
+            let args = Args::new().count("n", moves / 2);
+            let text = self.text_with(
+                if moves % 2 == 1 {
+                    "unit.moves_half"
+                } else {
+                    "unit.moves_whole"
+                },
+                &args,
+            );
             self.bm_text_outlined(view, 1, &text, 246.0, 167.0, Align::Left);
         }
     }

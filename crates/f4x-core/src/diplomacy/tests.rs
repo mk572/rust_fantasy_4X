@@ -342,13 +342,13 @@ fn rejected(events: &[Event]) -> Option<DiplomacyError> {
 
 #[test]
 fn the_scale_runs_from_hate_to_harmony() {
-    assert_eq!(relation_word(-100), "Hate");
-    assert_eq!(relation_word(-81), "Hate");
-    assert_eq!(relation_word(-80), "Troubled");
-    assert_eq!(relation_word(-60), "Tense");
-    assert_eq!(relation_word(0), "Neutral");
-    assert_eq!(relation_word(99), "Friendly");
-    assert_eq!(relation_word(100), "Harmony");
+    assert_eq!(relation_key(-100), "relation.hate");
+    assert_eq!(relation_key(-81), "relation.hate");
+    assert_eq!(relation_key(-80), "relation.troubled");
+    assert_eq!(relation_key(-60), "relation.tense");
+    assert_eq!(relation_key(0), "relation.neutral");
+    assert_eq!(relation_key(99), "relation.friendly");
+    assert_eq!(relation_key(100), "relation.harmony");
     assert_eq!(relation_level(0), 5);
 }
 

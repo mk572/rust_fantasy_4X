@@ -1,0 +1,21 @@
+// The names of the retorts. One key is in one file only (docs/text.md).
+{
+    "retort.alchemy": "Alchemy",
+    "retort.warlord": "Warlord",
+    "retort.chaos_mastery": "Chaos Mastery",
+    "retort.nature_mastery": "Nature Mastery",
+    "retort.sorcery_mastery": "Sorcery Mastery",
+    "retort.channeler": "Channeler",
+    "retort.archmage": "Archmage",
+    "retort.artificer": "Artificer",
+    "retort.conjurer": "Conjurer",
+    "retort.sage_master": "Sage Master",
+    "retort.myrran": "Myrran",
+    "retort.divine_power": "Divine Power",
+    "retort.infernal_power": "Infernal Power",
+    "retort.famous": "Famous",
+    "retort.runemaster": "Runemaster",
+    "retort.charismatic": "Charismatic",
+    "retort.mana_focusing": "Mana Focusing",
+    "retort.node_mastery": "Node Mastery",
+}

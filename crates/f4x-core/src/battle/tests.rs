@@ -2476,6 +2476,7 @@ fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
             casting_skill: 0,
             spells: Vec::new(),
             names: vec!["Ann".into()],
+            gender: Default::default(),
         }];
     }
     g.make_hero(

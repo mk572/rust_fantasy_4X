@@ -5,6 +5,7 @@
 //! or Esc goes on: the score is entered in the Hall of Fame (task 88) and the table is shown.
 
 use f4x_core::game::endgame::EndKind;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -12,25 +13,14 @@ use crate::hall_of_fame::{self, Entry};
 use crate::view::{App, Screen, HUMAN};
 
 /// The headline and the reason, for the human player's point of view.
-pub fn headline(won: bool, kind: EndKind, winner: &str) -> (String, String) {
-    match (won, kind) {
-        (true, EndKind::SpellOfMastery) => (
-            "Victory!".into(),
-            "You have finished the Spell of Mastery and rule all of Arcanus and Myrror.".into(),
-        ),
-        (true, EndKind::Conquest) => (
-            "Victory!".into(),
-            "Every rival wizard has been defeated.".into(),
-        ),
-        (false, EndKind::SpellOfMastery) => (
-            "Defeat".into(),
-            format!("{winner} has finished the Spell of Mastery."),
-        ),
-        (false, EndKind::Conquest) => (
-            "Defeat".into(),
-            format!("You have lost your last city to {winner}."),
-        ),
-    }
+pub fn headline(texts: &Texts, won: bool, kind: EndKind, winner: Args) -> (String, String) {
+    let (title, reason) = match (won, kind) {
+        (true, EndKind::SpellOfMastery) => ("end.victory", "end.won_mastery"),
+        (true, EndKind::Conquest) => ("end.victory", "end.won_conquest"),
+        (false, EndKind::SpellOfMastery) => ("end.defeat", "end.lost_mastery"),
+        (false, EndKind::Conquest) => ("end.defeat", "end.lost_conquest"),
+    };
+    (texts.get(title, &Args::new()), texts.get(reason, &winner))
 }
 
 /// Where the left edge of the rows is.
@@ -78,7 +68,12 @@ impl App {
             view,
             2,
             ink,
-            &format!("{} Spells: {}", score.spells, score.spells),
+            &self.text_with(
+                "end.spells",
+                &Args::new()
+                    .count("n", score.spells)
+                    .count("points", score.spells),
+            ),
             X,
             15.0,
             Align::Left,
@@ -96,7 +91,12 @@ impl App {
             view,
             2,
             ink,
-            &format!("{} Townsfolk: {}", score.people, score.townsfolk),
+            &self.text_with(
+                "end.townsfolk",
+                &Args::new()
+                    .count("n", score.people)
+                    .count("points", score.townsfolk),
+            ),
             X,
             37.0,
             Align::Left,
@@ -117,16 +117,14 @@ impl App {
         // Fifty points for each wizard banished.
         let banished = self.game.banished_wizards(HUMAN);
         let count = banished.len();
-        let label = if count == 0 {
-            "No".to_string()
-        } else {
-            count.to_string()
-        };
+        let args = Args::new()
+            .count("n", count)
+            .count("points", score.conquests);
         self.bm_text(
             view,
             2,
             ink,
-            &format!("{label} Banished Wizards: {}", score.conquests),
+            &self.text_with("end.banished", &args),
             X,
             78.0,
             Align::Left,
@@ -145,28 +143,29 @@ impl App {
             view,
             2,
             ink,
-            &format!("{fame} Fame: {}", score.fame),
+            &self.text_with(
+                "end.fame",
+                &Args::new().count("n", fame).count("points", score.fame),
+            ),
             X + 18.0,
             128.0,
             Align::Left,
         );
         self.draw_pic(&lay, "halofam", 29, 0, X, 142.0);
         let sign = if score.time >= 0 { "+" } else { "" };
-        self.bm_text(
-            view,
-            2,
-            ink,
-            &format!("Year {}: {sign}{}", over.turn / 12 + 1400, score.time),
-            X + 18.0,
-            147.0,
-            Align::Left,
+        let time = self.text_with(
+            "end.year",
+            &Args::new()
+                .count("year", over.turn / 12 + 1400)
+                .text("points", format!("{sign}{}", score.time)),
         );
+        self.bm_text(view, 2, ink, &time, X + 18.0, 147.0, Align::Left);
         self.draw_pic(&lay, "halofam", 32, 0, X, 161.0);
         self.bm_text(
             view,
             2,
             ink,
-            &format!("Spell Of Mastery: {}", score.mastery),
+            &self.text_with("end.mastery", &Args::new().count("points", score.mastery)),
             X + 18.0,
             166.0,
             Align::Left,
@@ -176,7 +175,7 @@ impl App {
             view,
             2,
             ink,
-            &format!("Final Score: {total}"),
+            &self.text_with("end.final_score", &Args::new().count("n", total)),
             X,
             180.0,
             Align::Left,
@@ -222,12 +221,12 @@ impl App {
                 let _ = hall_of_fame::save(std::path::Path::new(hall_of_fame::FILE), &table);
             }
             // Until the win and lose animations exist, the log says who won and how.
-            let winner = self
-                .game
-                .wizard(over.winner)
-                .map_or("A rival".to_string(), |w| w.name());
-            let (title, reason) = headline(over.winner == HUMAN, over.kind, &winner);
-            self.log.push(format!("{title} {reason}"));
+            let winner = self.wizard_arg(Args::new(), "winner", over.winner);
+            let (title, reason) = headline(self.texts(), over.winner == HUMAN, over.kind, winner);
+            self.log.push(self.text_with(
+                "end.log",
+                &Args::new().text("title", title).text("reason", reason),
+            ));
             self.game_over_seen = true;
             self.open_hall_of_fame();
         }
@@ -248,10 +247,12 @@ mod tests {
 
     #[test]
     fn the_headline_says_who_won_and_how() {
-        let (t, r) = headline(true, EndKind::SpellOfMastery, "Rival");
+        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        let rival = || Args::new().text("winner", "Rival");
+        let (t, r) = headline(&texts, true, EndKind::SpellOfMastery, rival());
         assert_eq!(t, "Victory!");
         assert!(r.contains("Spell of Mastery"));
-        let (t, r) = headline(false, EndKind::Conquest, "Rival");
+        let (t, r) = headline(&texts, false, EndKind::Conquest, rival());
         assert_eq!(t, "Defeat");
         assert!(r.contains("Rival"));
     }

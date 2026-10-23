@@ -2,6 +2,7 @@
 //! `AdvsrScr.c`. Both are full pictures from `reload.lbx` (entry 0 and 1) with the wizards'
 //! figures drawn over them; Esc or a click leaves.
 
+use f4x_core::text::Args;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
 use macroquad::prelude::*;
 
@@ -9,18 +10,18 @@ use crate::frame::{Align, Layout};
 use crate::view::{App, Screen, HUMAN};
 
 const MONTHS: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "advisor.january",
+    "advisor.february",
+    "advisor.march",
+    "advisor.april",
+    "advisor.may",
+    "advisor.june",
+    "advisor.july",
+    "advisor.august",
+    "advisor.september",
+    "advisor.october",
+    "advisor.november",
+    "advisor.december",
 ];
 
 /// Where the Astrologer's picture is drawn.
@@ -59,13 +60,18 @@ impl App {
             view,
             4,
             gold,
-            "History Of Wizards Power",
+            &self.text("advisor.history_title"),
             160.0,
             10.0,
             Align::Center,
         );
         let turn = self.game.turn as usize;
-        let date = format!("{} {}", MONTHS[turn % 12], 1400 + turn / 12);
+        let date = self.text_with(
+            "advisor.date",
+            &Args::new()
+                .text("month", self.text(MONTHS[turn % 12]))
+                .count("year", 1400 + turn / 12),
+        );
         self.bm_text(view, 2, WHITE, &date, 309.0, 11.0, Align::Right);
 
         // The time line, with a tick every year and the year written every fifth.
@@ -152,15 +158,17 @@ impl App {
             view,
             4,
             gold,
-            "Current Status Of Wizards",
+            &self.text("advisor.status_title"),
             sx + 138.0,
             sy + 10.0,
             Align::Center,
         );
-        for (i, text) in ["Army Strength", "Magic Power", "Spell Research"]
-            .iter()
-            .enumerate()
-        {
+        let rows = [
+            self.text("advisor.army_strength"),
+            self.text("advisor.magic_power"),
+            self.text("advisor.spell_research"),
+        ];
+        for (i, text) in rows.iter().enumerate() {
             self.bm_text(
                 view,
                 2,
@@ -310,14 +318,11 @@ impl App {
             self.bm_text(view, 0, WHITE, &name, sx + 2.0, sy - 6.0, Align::Center);
         }
 
-        let title = format!(
-            "{} Plane",
-            if plane == Plane::Arcanus {
-                "Arcanus"
-            } else {
-                "Myrror"
-            }
-        );
+        let title = self.text(if plane == Plane::Arcanus {
+            "advisor.arcanus_plane"
+        } else {
+            "advisor.myrror_plane"
+        });
         self.bm_text(
             view,
             5,
@@ -357,7 +362,7 @@ impl App {
             view,
             1,
             Color::new(0.2, 0.1, 0.05, 1.0),
-            "Neutral",
+            &self.text("advisor.neutral"),
             269.0,
             82.0 + row * 9.0,
             Align::Left,

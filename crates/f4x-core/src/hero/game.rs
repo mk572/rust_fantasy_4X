@@ -110,6 +110,13 @@ impl UnitView<'_> {
         self.world.get::<&Hero>(unit).ok().map(|h| h.name.clone())
     }
 
+    /// The gender of a hero, from its type (`heroes.ron`).
+    pub fn hero_gender(&self, unit: hecs::Entity) -> crate::text::Gender {
+        self.hero_kind(unit)
+            .and_then(|k| self.content.rules.hero_templates.get(k))
+            .map_or_else(Default::default, |t| t.gender)
+    }
+
     /// How many more heroes the wizard may have (`Hero_Slot_Open`).
     pub fn open_hero_slots(&self, player: PlayerId) -> usize {
         MAX_HEROES.saturating_sub(self.hero_units(player).len())
@@ -372,6 +379,7 @@ pub(crate) mod tests {
             casting_skill: 1,
             spells: vec!["healing".into()],
             names: vec!["Ann".into(), "Bob".into()],
+            gender: Default::default(),
         }
     }
 

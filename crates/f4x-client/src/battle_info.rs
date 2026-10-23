@@ -3,6 +3,7 @@
 //! click closes it.
 
 use f4x_core::battle::info::{BattleInfo, InfoItem};
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Align;
@@ -152,7 +153,7 @@ impl App {
                     view,
                     TEXT_STYLE,
                     TEXT,
-                    &format!("{name} Spells"),
+                    &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 54.0,
                     lay.top + heading,
                     Align::Center,
@@ -163,7 +164,7 @@ impl App {
                     view,
                     TEXT_STYLE,
                     TEXT,
-                    &format!("{name} Spells"),
+                    &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 170.0,
                     lay.top + heading,
                     Align::Center,

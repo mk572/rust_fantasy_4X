@@ -1,0 +1,105 @@
+// What the other wizards say, by situation and mood, and the words of the diplomacy screen.
+// A `pick` entry has several ways to say it; the wizard's salt chooses one.
+// One key is in one file only (docs/text.md).
+{
+    "diplomacy.greeting_cold": (pick: "salt", lines: [
+        "So. You dare to stand before me. Say what you came for, and be brief.",
+        "I had hoped never to look on your face again. Speak.",
+        "My patience with you is thin. Do not waste it.",
+    ]),
+    "diplomacy.greeting_wary": (pick: "salt", lines: [
+        "Greetings. I will hear what you have to say.",
+        "We meet at last. What is it you want of me?",
+        "I have been expecting you. Speak, and we shall see.",
+    ]),
+    "diplomacy.greeting_warm": (pick: "salt", lines: [
+        "Welcome, friend! It is always a pleasure to speak with you.",
+        "Ah, you honour me with your company. What may I do for you?",
+        "A fine day for a visit! Tell me what is on your mind.",
+    ]),
+    "diplomacy.greeting_maniacal": "You will not live to regret this visit! Speak, while you still can.",
+    "diplomacy.greeting_peaceful": "I would rather we were not enemies. Say what you will.",
+
+    "diplomacy.menu_prompt": "How may I serve you:",
+    "diplomacy.propose_prompt": "You propose a treaty:",
+    "diplomacy.threaten_prompt": "Your actions:",
+    "diplomacy.tribute_prompt": "What do you offer as tribute?",
+    "diplomacy.exchange_prompt": "What type of spell interests you?",
+    "diplomacy.exchange_give_prompt": "What will you trade for it?",
+    "diplomacy.third_war": "Against which wizard?",
+    "diplomacy.third_break": "Whose alliance should be broken?",
+
+    "diplomacy.cold_shoulder": (pick: "salt", lines: [
+        "I have nothing more to say to you. Leave me.",
+        "No. We have spoken enough. Begone.",
+        "Do not trouble me again, not until you have learned some manners.",
+    ]),
+
+    "diplomacy.accepted_pact": (pick: "salt", lines: [
+        "Very well. A pact between us shall stand.",
+        "Agreed. Let our two houses keep the peace.",
+    ]),
+    "diplomacy.accepted_alliance": (pick: "salt", lines: [
+        "An alliance it is! Together we shall be hard to stop.",
+        "Agreed. Your enemies are mine, and mine are yours.",
+    ]),
+    "diplomacy.accepted_peace": (pick: "salt", lines: [
+        "Enough blood has been spilled. Peace, then.",
+        "I accept. The fighting is over, for now.",
+    ]),
+    "diplomacy.accepted_war": "So be it. Our armies will march against them.",
+    "diplomacy.accepted_break": "You have persuaded me. That alliance is ended.",
+    "diplomacy.accepted_exchange": "A fair trade. Here is what I promised.",
+
+    "diplomacy.refused_treaty_cold": (pick: "salt", lines: [
+        "A treaty with you? You are mad to ask.",
+        "Never. I would sooner trust a viper.",
+    ]),
+    "diplomacy.refused_treaty": (pick: "salt", lines: [
+        "I am not ready for such a bond. Perhaps another time.",
+        "No. I do not know you well enough for that.",
+    ]),
+    "diplomacy.refused_peace_cold": "There will be no peace until you have paid for what you did.",
+    "diplomacy.refused_peace": "Not yet. I am not done with you.",
+    "diplomacy.refused_war": "That war is not mine to fight. I decline.",
+    "diplomacy.refused_break": "I keep my word to my allies. I will not break it.",
+    "diplomacy.refused_exchange": "I do not care for that trade.",
+
+    "diplomacy.lapsed": "I will think on it.",
+    "diplomacy.gold_thanks": (pick: "salt", lines: [
+        "Your generosity is noted, and will not be forgotten.",
+        "Gold is always welcome. You are wiser than I thought.",
+    ]),
+    "diplomacy.spell_thanks": (pick: "salt", lines: [
+        "A gift of knowledge! I am in your debt.",
+        "You share your secrets freely. I shall remember it.",
+    ]),
+    "diplomacy.treaty_broken": "So our agreement is at an end. Do not expect me to forget it.",
+    "diplomacy.nothing_to_trade": "We have nothing to trade: you have no spell that I lack, or I none that you lack.",
+
+    // The menus.
+    "diplomacy.forget_it": "Forget It",
+    "diplomacy.propose_treaty": "Propose Treaty",
+    "diplomacy.threaten_break": "Threaten/Break Treaty",
+    "diplomacy.offer_tribute": "Offer Tribute",
+    "diplomacy.exchange_spells": "Exchange Spells",
+    "diplomacy.good_bye": "Good Bye",
+    "diplomacy.wizard_pact": "Wizard Pact",
+    "diplomacy.alliance": "Alliance",
+    "diplomacy.peace_treaty": "Peace Treaty",
+    "diplomacy.declare_war": "Declaration of War on Another Wizard",
+    "diplomacy.break_alliance_with": "Break Alliance With Another Wizard",
+    "diplomacy.break_pact": "Break Wizard Pact",
+    "diplomacy.break_alliance": "Break Alliance",
+    "diplomacy.threaten_attack": "Threaten To Attack",
+    "diplomacy.spells": "Spells",
+    "diplomacy.gold_amount": "{n} gold",
+
+    // Lines of the message log.
+    "diplomacy.met": "You have met {wizard}",
+    "diplomacy.at_war_with_you": "{wizard} is at war with you",
+    "diplomacy.declares_war": "{attacker} declares war on {defender}",
+    "diplomacy.breaks_treaty": "{breaker} breaks a treaty with {victim}",
+    "diplomacy.have_pact": "You have a wizard pact with {wizard}",
+    "diplomacy.have_alliance": "You have an alliance with {wizard}",
+}

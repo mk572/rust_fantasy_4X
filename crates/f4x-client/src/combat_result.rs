@@ -9,18 +9,13 @@
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
 use crate::preferences::Pref;
 use crate::sell_prompt::RAZE_OR_SPARE;
 use crate::view::{App, HUMAN};
-
-/// `message.lbx` entries of the headings.
-const TRIUMPHANT: u16 = 5;
-const DEFEATED: u16 = 6;
-const RETREATED: u16 = 7;
-const OPPONENT_FLED: u16 = 9;
 
 /// The left of the paper, and of the paragraph text on it.
 const PAPER_X: f32 = 54.0;
@@ -201,30 +196,29 @@ impl App {
     /// The heading and the lines under it, each with its style, alignment, x and y, and the
     /// height of it all (`Combat_Results_Scroll_Text`).
     fn results_text(&self, r: &CombatResults, top: f32) -> (Vec<Line>, f32) {
-        let message = |index: u16| {
-            self.messages
-                .iter()
-                .find(|m| u32::from(index) == m.index)
-                .map(|m| m.text.clone())
-                .unwrap_or_default()
-        };
         let mut out = Vec::new();
         let mut y = FIRST_LINE;
         let heading = match r.outcome {
-            Outcome::Won => message(TRIUMPHANT),
-            Outcome::Lost => message(DEFEATED),
-            Outcome::Fled => message(RETREATED),
-            Outcome::OpponentFled => message(OPPONENT_FLED),
-            Outcome::CityLost => format!("{} has been conquered", r.city_name),
+            Outcome::Won => self.text("battle.triumphant"),
+            Outcome::Lost => self.text("battle.defeated"),
+            Outcome::Fled => self.text("battle.retreated"),
+            Outcome::OpponentFled => self.text("battle.opponent_fled"),
+            Outcome::CityLost => {
+                self.text_with("combat.conquered", &Args::new().text("city", &r.city_name))
+            }
         };
         out.push(Line::centered(4, HEADING, top + 25.0, heading));
         if r.fame != 0 {
-            let verb = if r.fame < 0 { "lost" } else { "gained" };
+            let key = if r.fame < 0 {
+                "combat.fame_lost"
+            } else {
+                "combat.fame_gained"
+            };
             out.push(Line::centered(
                 1,
                 LINES,
                 top + y,
-                format!("You have {verb} {} fame.", r.fame.abs()),
+                self.text_with(key, &Args::new().count("n", r.fame.abs())),
             ));
             y += 9.0;
         }
@@ -233,17 +227,12 @@ impl App {
                 1,
                 LINES,
                 top + y,
-                format!("{} gold pieces were looted.", r.gold),
+                self.text_with("combat.looted", &Args::new().count("n", r.gold)),
             ));
             y += 9.0;
         }
         if r.razed {
-            out.push(Line::centered(
-                1,
-                LINES,
-                top + y,
-                "The city has been completly destroyed.".into(),
-            ));
+            out.push(Line::centered(1, LINES, top + y, self.text("combat.razed")));
             y += 9.0;
         } else {
             if r.killed > 0 {
@@ -251,7 +240,7 @@ impl App {
                     1,
                     LINES,
                     top + y,
-                    format!("{} thousand inhabitants killed.", r.killed),
+                    self.text_with("combat.killed", &Args::new().count("n", r.killed)),
                 ));
                 y += 9.0;
             }
@@ -260,7 +249,7 @@ impl App {
                     4,
                     HEADING,
                     top + y,
-                    "Destroyed Buildings".into(),
+                    self.text("combat.destroyed_buildings"),
                 ));
                 y += 11.0;
                 for (i, name) in r.buildings.iter().enumerate() {
@@ -353,8 +342,8 @@ impl App {
         }
         let waited = r.asking;
         if r.asking {
-            let text = "Do you wish to completely destroy this city?";
-            match self.question_box(&lay, text, &RAZE_OR_SPARE) {
+            let text = self.text("combat.raze_question");
+            match self.question_box(&lay, &text, &RAZE_OR_SPARE) {
                 Some(true) => r.asking = false,
                 Some(false) => {
                     r.asking = false;

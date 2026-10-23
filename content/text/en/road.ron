@@ -1,0 +1,14 @@
+// Player-facing messages of the road planner. One key is in one file only (docs/text.md).
+{
+    "road.start": "Road: click where it should end, then OK (Enter)",
+    "road.no_way": "No way there",
+    "road.cancelled": "Road cancelled",
+    "road.summary": (count: "n", one: "Road: 1 turn", other: "Road: {n} turns"),
+    "road.summary_blocked": (count: "n", one: "Road: 1 turn (blocked)", other: "Road: {n} turns (blocked)"),
+    "road.title": "Road",
+    "road.building": "Building",
+    "road.blocked": "Blocked.  Roads can not be built across large bodies of water.",
+    "road.takes": (count: "n",
+        one: "It will take 1 turn to complete the construction of this road.",
+        other: "It will take {n} turns to complete the construction of this road."),
+}

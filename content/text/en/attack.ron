@@ -1,0 +1,17 @@
+// Player-facing messages of the box that asks whether to fight. One key is in one file only (docs/text.md).
+{
+    "attack.attacked": "You are attacked!",
+    "attack.attack": "Attack?",
+    "attack.fight": "Fight (Enter)",
+    "attack.auto": "Auto (A)",
+    "attack.cancel": "Cancel (Esc)",
+    "attack.line_defending": (count: "defenders",
+        one: "{by} attacks your 1 unit with {attackers} units.",
+        other: "{by} attacks your {defenders} units with {attackers} units."),
+    "attack.line_wizard": (count: "defenders",
+        one: "{attackers} of your units attack 1 unit of {owner}.",
+        other: "{attackers} of your units attack {defenders} units of {owner}."),
+    "attack.line_monster": (count: "defenders",
+        one: "{attackers} of your units attack 1 monster unit.",
+        other: "{attackers} of your units attack {defenders} monster units."),
+}

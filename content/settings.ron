@@ -6,6 +6,9 @@
 // so on) is added here when each setting is implemented.
 
 (
+    // The language of the messages: a folder of `content/text/`.
+    language: "en",
+
     // The choices on the new-game options step and the Game settings screen, as they stand
     // before the player changes anything.
     new_game: (

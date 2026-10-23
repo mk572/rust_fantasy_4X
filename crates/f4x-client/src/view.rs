@@ -9,6 +9,7 @@ use f4x_core::game::setup::{self, NewGame};
 use f4x_core::map::mapgen::GenParams;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_core::text::Args;
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::WizardBuild;
@@ -153,8 +154,6 @@ pub struct App {
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
     pub(crate) event_texts: Vec<f4x_core::world_event::EventText>,
-    /// The original's short messages (`messages.ron`).
-    pub(crate) messages: Vec<f4x_core::help::MessageText>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
     /// The events the player has yet to be told of, oldest first.
@@ -235,6 +234,26 @@ pub struct App {
 }
 
 impl App {
+    /// The name of a retort.
+    pub(crate) fn retort_name(&self, retort: f4x_core::wizard::magic::Retort) -> String {
+        self.text(f4x_core::wizard::retort_key(retort))
+    }
+
+    /// All the messages, for the code that picks among several.
+    pub(crate) fn texts(&self) -> &f4x_core::text::Texts {
+        &self.game.content().texts
+    }
+
+    /// A message without values (`content/text/`).
+    pub(crate) fn text(&self, key: &str) -> String {
+        self.text_with(key, &Args::new())
+    }
+
+    /// A message with its values put in.
+    pub(crate) fn text_with(&self, key: &str, args: &Args) -> String {
+        self.game.content().texts.get(key, args)
+    }
+
     pub fn new(content: Content, art: Art, seed: u64) -> Result<Self, String> {
         let params = GenParams::default();
         // Start as the first race that has city names, else the first race.
@@ -289,7 +308,6 @@ impl App {
             big_ui: Default::default(),
             help: Default::default(),
             event_texts: Vec::new(),
-            messages: Vec::new(),
             item_pool_warning: false,
             event_notices: Default::default(),
             built_notices: Default::default(),
@@ -442,7 +460,7 @@ impl App {
         race.city_names
             .get(used % race.city_names.len().max(1))
             .cloned()
-            .unwrap_or_else(|| format!("City {}", used + 1))
+            .unwrap_or_else(|| self.text_with("log.city_number", &Args::new().count("n", used + 1)))
     }
 
     /// Turn events into log lines; returns whether a city was founded.
@@ -463,10 +481,14 @@ impl App {
                 }
                 Event::CityFounded { city, .. } => {
                     founded = true;
-                    let name = self.city_name(city);
-                    Some(format!("Founded {name}"))
+                    Some(self.text_with(
+                        "log.founded",
+                        &Args::new().text("city", self.city_name(city)),
+                    ))
                 }
-                Event::Rejected(why) => Some(format!("Cannot: {why:?}")),
+                Event::Rejected(why) => {
+                    Some(self.text_with("log.cannot", &Args::new().text("why", format!("{why:?}"))))
+                }
                 Event::ItemMade { player, .. } => {
                     self.item_pool_pending |= player == HUMAN;
                     None
@@ -480,12 +502,8 @@ impl App {
                         self.item_pool_pending = true;
                         self.item_pool_warning = true;
                     }
-                    let lost = if lost > 0 {
-                        format!(" ({lost} did not fit the armory and are lost)")
-                    } else {
-                        String::new()
-                    };
-                    Some(format!("Items fall to the victor: {}{lost}", items.join(", ")))
+                    let args = Args::new().list("items", items).count("lost", lost);
+                    Some(self.text_with("log.items_awarded", &args))
                 }
                 Event::RandomEvent(notice) => {
                     if notice.kind == f4x_core::world_event::EventKind::Gift
@@ -501,32 +519,46 @@ impl App {
                     if let f4x_core::city::production::ProductionItem::Building(b) = item {
                         self.announce_built(city, b);
                     }
-                    let what = self.item_name(item);
-                    Some(format!("{}: {what} complete", self.city_name(city)))
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .text("item", self.item_name(item));
+                    Some(self.text_with("log.production_complete", &args))
                 }
                 Event::ChaosRiftStrikes {
                     city,
                     units_lost,
                     building,
                 } => {
-                    let mut line = format!("The chaos rift over {} strikes", self.city_name(city));
-                    if units_lost > 0 {
-                        line += &format!(": {units_lost} unit(s) destroyed");
-                    }
-                    if let Some(b) = building {
-                        let name = &self.game.content().rules.buildings.get(b).name;
-                        line += &format!(", {name} falls");
-                    }
-                    Some(line)
+                    let building =
+                        building.map(|b| self.game.content().rules.buildings.get(b).name.clone());
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .count("units", units_lost)
+                        .text("building", building.clone().unwrap_or_default());
+                    Some(self.text_with(
+                        match (units_lost > 0, building.is_some()) {
+                            (false, false) => "log.rift",
+                            (true, false) => "log.rift_units",
+                            (false, true) => "log.rift_building",
+                            (true, true) => "log.rift_units_building",
+                        },
+                        &args,
+                    ))
                 }
                 Event::CityGrew { city, figures } => {
-                    Some(format!("{} grows to {figures}", self.city_name(city)))
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .count("figures", figures);
+                    Some(self.text_with("log.city_grew", &args))
                 }
                 Event::CityShrank { city, figures } => {
-                    Some(format!("{} shrinks to {figures}", self.city_name(city)))
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .count("figures", figures);
+                    Some(self.text_with("log.city_shrank", &args))
                 }
                 Event::UnitsDisbanded { units, .. } => {
-                    Some(format!("{units} unit(s) disbanded: unpaid or unfed"))
+                    Some(self.text_with("log.units_disbanded", &Args::new().count("n", units)))
                 }
                 Event::AttackRequested {
                     attackers,
@@ -565,7 +597,7 @@ impl App {
                     if player == HUMAN {
                         self.site_cleared(&site, guarded, &loot);
                     }
-                    Some(loot_line(&loot))
+                    Some(self.loot_line(&loot))
                 }
                 Event::CityLooted {
                     city,
@@ -575,11 +607,18 @@ impl App {
                     ..
                 } => {
                     let mine = self.game.economy().city_owner(city) == Some(HUMAN);
-                    Some(format!(
-                        "{} {}: {gold} gold looted, {citizens_lost} citizens and {} buildings lost",
-                        self.city_name(city),
-                        if mine { "is yours" } else { "falls" },
-                        buildings_lost.len(),
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .count("gold", gold)
+                        .count("citizens", citizens_lost)
+                        .count("buildings", buildings_lost.len());
+                    Some(self.text_with(
+                        if mine {
+                            "log.city_looted_yours"
+                        } else {
+                            "log.city_looted"
+                        },
+                        &args,
                     ))
                 }
                 Event::BattleStarted {
@@ -591,49 +630,40 @@ impl App {
                     None
                 }
                 Event::CityRazed { gold, .. } => {
-                    Some(format!("The city is razed: {gold} gold looted"))
+                    Some(self.text_with("log.city_razed", &Args::new().count("gold", gold)))
                 }
-                Event::CityDestroyed { .. } => Some("A city is destroyed".to_string()),
+                Event::CityDestroyed { .. } => Some(self.text("log.city_destroyed")),
                 Event::WizardBanished { player, .. } if player == HUMAN => {
                     self.resign_prompt = true;
-                    Some(
-                        "Your fortress has fallen! You are banished and cast the Spell of Return"
-                            .to_string(),
-                    )
+                    Some(self.text("log.banished_you"))
                 }
-                Event::WizardBanished { .. } => Some("A rival wizard is banished".to_string()),
+                Event::WizardBanished { .. } => Some(self.text("log.banished_rival")),
                 Event::WizardReturned { player, .. } if player == HUMAN => {
-                    Some("You have returned to your fortress".to_string())
+                    Some(self.text("log.returned"))
                 }
                 Event::WizardDefeated { player } => {
-                    Some(format!("Wizard {} is defeated", player.0))
+                    let args = self.wizard_arg(Args::new(), "wizard", player);
+                    Some(self.text_with("log.wizard_defeated", &args))
                 }
-                Event::FortressMoved { .. } => Some("The fortress has moved".to_string()),
+                Event::FortressMoved { .. } => Some(self.text("log.fortress_moved")),
                 Event::UnitsDrowned { units, .. } => {
-                    Some(format!("{units} units drown without a ship"))
+                    Some(self.text_with("log.units_drowned", &Args::new().count("n", units)))
                 }
-                Event::RoadBuilt { .. } => Some("A road square is finished".to_string()),
-                Event::RoadsEnchanted { .. } => Some("The roads are enchanted".to_string()),
-                Event::VolcanoRaised { .. } => Some("A volcano rises".to_string()),
-                Event::NodeMelded { .. } => Some("The spirit melds with the node".to_string()),
-                Event::MeldFailed { .. } => {
-                    Some("The Guardian Spirit in this node kills your spirit".to_string())
-                }
+                Event::RoadBuilt { .. } => Some(self.text("log.road_built")),
+                Event::RoadsEnchanted { .. } => Some(self.text("log.roads_enchanted")),
+                Event::VolcanoRaised { .. } => Some(self.text("log.volcano_raised")),
+                Event::NodeMelded { .. } => Some(self.text("log.node_melded")),
+                Event::MeldFailed { .. } => Some(self.text("log.meld_failed")),
                 Event::BuildingsCollapsed { count, .. } => {
-                    Some(format!("{count} buildings collapse"))
+                    Some(self.text_with("log.buildings_collapsed", &Args::new().count("n", count)))
                 }
-                Event::TerrainChanged { .. } => Some("The land changes".to_string()),
-                Event::SummoningCircleMoved { .. } => {
-                    Some("The summoning circle has moved".to_string())
-                }
+                Event::TerrainChanged { .. } => Some(self.text("log.terrain_changed")),
+                Event::SummoningCircleMoved { .. } => Some(self.text("log.circle_moved")),
                 Event::SpellLearned { player, spell } => {
                     if player == HUMAN {
                         self.big_ui.learned.push_back(spell);
                     }
-                    Some(format!(
-                        "Learned {}",
-                        self.game.content().rules.spells.get(spell).name
-                    ))
+                    Some(self.text_with("log.learned", &self.spell_arg(Args::new(), spell)))
                 }
                 Event::Diplomacy(d) => self.diplomacy_line(d),
                 Event::TurnStarted { .. } => {
@@ -643,115 +673,106 @@ impl App {
                 }
                 Event::SpellCast { player, spell } => {
                     self.announce_global_cast(player, spell);
-                    Some(format!(
-                        "Cast {}",
-                        self.game.content().rules.spells.get(spell).name
-                    ))
+                    Some(self.text_with("log.cast", &self.spell_arg(Args::new(), spell)))
                 }
-                Event::SpellFizzled { spell, city, .. } => Some(format!(
-                    "{} fizzles: nightshade protects {}",
-                    self.game.content().rules.spells.get(spell).name,
-                    self.city_name(city)
-                )),
+                Event::SpellFizzled { spell, city, .. } => {
+                    let args = self
+                        .spell_arg(Args::new(), spell)
+                        .text("city", self.city_name(city));
+                    Some(self.text_with("log.fizzled_nightshade", &args))
+                }
                 Event::SpellSuppressed { spell, by, player } => {
-                    self.announce_fizzle(player, by, spell, "Suppress Magic");
-                    Some(format!(
-                    "{} is stopped by {}'s Suppress Magic",
-                    self.game.content().rules.spells.get(spell).name,
-                    self.game.wizard(by).map_or("a rival".to_string(), |w| w.name())
-                    ))
+                    self.announce_fizzle(player, by, spell, "spell.suppress_magic");
+                    let args = self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", by);
+                    Some(self.text_with("log.suppressed", &args))
                 }
-                Event::PowerDrained { victim, amount, .. } => Some(format!(
-                    "Drain Power takes {amount} mana from {}",
-                    self.game
-                        .wizard(victim)
-                        .map_or("a rival".to_string(), |w| w.name())
-                )),
-                Event::SkillDestroyed { victim, amount, .. } => Some(format!(
-                    "{} loses {amount} points of casting skill for good",
-                    self.game
-                        .wizard(victim)
-                        .map_or("A rival".to_string(), |w| w.name())
-                )),
-                Event::UnitsSlain { spell, count, .. } => Some(format!(
-                    "{} slays {count} units",
-                    self.game.content().rules.spells.get(spell).name
-                )),
-                Event::UnitTransformed { from, to, .. } => Some(format!(
-                    "{} becomes {}",
-                    self.game.content().rules.units.get(from).name,
-                    self.game.content().rules.units.get(to).name
-                )),
+                Event::PowerDrained { victim, amount, .. } => {
+                    let args = self
+                        .wizard_arg(Args::new(), "wizard", victim)
+                        .count("amount", amount);
+                    Some(self.text_with("log.power_drained", &args))
+                }
+                Event::SkillDestroyed { victim, amount, .. } => {
+                    let args = self
+                        .wizard_arg(Args::new(), "wizard", victim)
+                        .count("amount", amount);
+                    Some(self.text_with("log.skill_destroyed", &args))
+                }
+                Event::UnitsSlain { spell, count, .. } => {
+                    let args = self.spell_arg(Args::new(), spell).count("n", count);
+                    Some(self.text_with("log.units_slain", &args))
+                }
+                Event::UnitTransformed { from, to, .. } => {
+                    let units = &self.game.content().rules.units;
+                    let args = Args::new()
+                        .text("from", &units.get(from).name)
+                        .text("to", &units.get(to).name);
+                    Some(self.text_with("log.unit_transformed", &args))
+                }
                 Event::EarthquakeStruck {
                     units_lost,
                     buildings_lost,
                     ..
-                } => Some(format!(
-                    "The earthquake kills {units_lost} units and destroys {buildings_lost} buildings"
-                )),
+                } => {
+                    let args = Args::new()
+                        .count("units", units_lost)
+                        .count("buildings", buildings_lost);
+                    Some(self.text_with("log.earthquake", &args))
+                }
                 Event::MasteryStarted { caster } => {
                     self.mastery_notice.push_back(caster);
-                    Some(format!(
-                        "{} has started casting the Spell of Mastery",
-                        self.game.wizard(caster).map_or("A rival".to_string(), |w| w.name())
-                    ))
+                    let args = self.wizard_arg(Args::new(), "wizard", caster);
+                    Some(self.text_with("log.mastery_started", &args))
                 }
-                Event::StasisEnded { .. } => Some("A unit breaks free of stasis".to_string()),
-                Event::UnitMutated { .. } => Some("The unit is mutated by chaos".to_string()),
+                Event::StasisEnded { .. } => Some(self.text("log.stasis_ended")),
+                Event::UnitMutated { .. } => Some(self.text("log.unit_mutated")),
                 Event::WorldSpellStruck {
                     spell,
                     units_lost,
                     buildings_lost,
                     population_lost,
                     ..
-                } => Some(format!(
-                    "{} kills {units_lost} units and {population_lost} citizens and destroys {buildings_lost} buildings",
-                    self.game.content().rules.spells.get(spell).name
-                )),
+                } => {
+                    let args = self
+                        .spell_arg(Args::new(), spell)
+                        .count("units", units_lost)
+                        .count("citizens", population_lost)
+                        .count("buildings", buildings_lost);
+                    Some(self.text_with("log.world_spell_struck", &args))
+                }
                 Event::SpellBlasted {
                     spell,
                     victim,
                     mana,
                     player,
                 } => {
-                    self.announce_fizzle(victim, player, spell, "Spell Blast");
-                    Some(format!(
-                    "Spell Blast ends {}'s {} ({mana} mana)",
-                    self.game
-                        .wizard(victim)
-                        .map_or("a rival".to_string(), |w| w.name()),
-                    self.game.content().rules.spells.get(spell).name
-                    ))
+                    self.announce_fizzle(victim, player, spell, "spell.spell_blast");
+                    let args = self
+                        .wizard_arg(self.spell_arg(Args::new(), spell), "wizard", victim)
+                        .count("mana", mana);
+                    Some(self.text_with("log.spell_blasted", &args))
                 }
                 Event::GlobalSpellRemoved {
                     victim,
                     spell,
                     player,
                 } => {
-                    self.announce_fizzle(victim, player, spell, "Disjunction");
-                    Some(format!(
-                    "{}'s {} is ended",
-                    self.game
-                        .wizard(victim)
-                        .map_or("a rival".to_string(), |w| w.name()),
-                    self.game.content().rules.spells.get(spell).name
-                    ))
+                    self.announce_fizzle(victim, player, spell, "spell.disjunction");
+                    let args =
+                        self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", victim);
+                    Some(self.text_with("log.global_removed", &args))
                 }
-                Event::GlobalSpellTaken { victim, spell, .. } => Some(format!(
-                    "Took {}'s {}",
-                    self.game
-                        .wizard(victim)
-                        .map_or("a rival".to_string(), |w| w.name()),
-                    self.game.content().rules.spells.get(spell).name
-                )),
-                Event::DispelFailed { spell, .. } => Some(format!(
-                    "The dispel of {} fails",
-                    self.game.content().rules.spells.get(spell).name
-                )),
-                Event::Dispelled { removed, .. } => Some(format!(
-                    "{removed} enchantment{} dispelled",
-                    if removed == 1 { "" } else { "s" }
-                )),
+                Event::GlobalSpellTaken { victim, spell, .. } => {
+                    let args =
+                        self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", victim);
+                    Some(self.text_with("log.global_taken", &args))
+                }
+                Event::DispelFailed { spell, .. } => {
+                    Some(self.text_with("log.dispel_failed", &self.spell_arg(Args::new(), spell)))
+                }
+                Event::Dispelled { removed, .. } => {
+                    Some(self.text_with("log.dispelled", &Args::new().count("n", removed)))
+                }
                 Event::NoTargetForCast { player, spell } => {
                     if player == HUMAN {
                         self.no_target_prompt = Some(spell);
@@ -762,31 +783,31 @@ impl App {
                     if player == HUMAN {
                         self.aim_paid_spell(spell);
                     }
-                    Some(format!(
-                        "{} is ready: choose its target (S reopens the choice)",
-                        self.game.content().rules.spells.get(spell).name
-                    ))
+                    Some(self.text_with("log.spell_ready", &self.spell_arg(Args::new(), spell)))
                 }
                 Event::HeroJoined { kind, .. } => {
-                    let name = self
-                        .game
-                        .units()
-                        .hero_type_name(kind)
-                        .unwrap_or_else(|| "A hero".to_string());
-                    Some(format!("{name} joins your army"))
+                    let hero = self.game.units().hero_entity(kind);
+                    let args = match hero.and_then(|h| self.game.units().hero_name(h)) {
+                        Some(name) => Args::new().named(
+                            "hero",
+                            name,
+                            hero.map_or_else(Default::default, |h| {
+                                self.game.units().hero_gender(h)
+                            }),
+                        ),
+                        None => Args::new().text("hero", self.text("log.a_hero")),
+                    };
+                    Some(self.text_with("log.hero_joined", &args))
                 }
-                Event::HeroSpellFailed { spell, .. } => Some(format!(
-                    "{} finds no hero to bring",
-                    self.game.content().rules.spells.get(spell).name
-                )),
-                Event::SpellHasNoEffectYet { spell } => Some(format!(
-                    "{} has no effect yet (not implemented)",
-                    self.game.content().rules.spells.get(spell).name
-                )),
-                Event::EnchantmentLapsed { spell, .. } => Some(format!(
-                    "{} ended: not enough mana for its upkeep",
-                    self.game.content().rules.spells.get(spell).name
-                )),
+                Event::HeroSpellFailed { spell, .. } => Some(
+                    self.text_with("log.hero_spell_failed", &self.spell_arg(Args::new(), spell)),
+                ),
+                Event::SpellHasNoEffectYet { spell } => {
+                    Some(self.text_with("log.no_effect_yet", &self.spell_arg(Args::new(), spell)))
+                }
+                Event::EnchantmentLapsed { spell, .. } => {
+                    Some(self.text_with("log.lapsed", &self.spell_arg(Args::new(), spell)))
+                }
                 _ => None,
             };
             if let Some(line) = line {
@@ -799,6 +820,52 @@ impl App {
         founded
     }
 
+    /// `args` with the wizard's name, which carries the wizard's gender; a rival the game has no
+    /// record of is "a rival".
+    pub(crate) fn wizard_arg(&self, args: Args, name: &'static str, player: PlayerId) -> Args {
+        match self.game.wizard(player) {
+            Some(w) => args.named(name, w.name(), w.gender()),
+            None => args.text(name, self.text("log.a_rival")),
+        }
+    }
+
+    /// `args` with the name of a spell.
+    pub(crate) fn spell_arg(&self, args: Args, spell: f4x_core::rules::SpellId) -> Args {
+        args.text("spell", &self.game.content().rules.spells.get(spell).name)
+    }
+
+    /// One log line for the treasure a cleared site gave.
+    fn loot_line(&self, loot: &f4x_core::feature::lair::Loot) -> String {
+        let none = Args::new();
+        let mut parts = Vec::new();
+        if loot.gold > 0 {
+            parts.push(self.text_with("log.loot_gold", &Args::new().count("n", loot.gold)));
+        }
+        if loot.mana > 0 {
+            parts.push(self.text_with("log.loot_mana", &Args::new().count("n", loot.mana)));
+        }
+        if !loot.items.is_empty() {
+            parts.push(self.text_with("log.loot_items", &Args::new().count("n", loot.items.len())));
+        }
+        if loot.prisoner {
+            parts.push(self.text_with("log.loot_prisoner", &none));
+        }
+        if loot.spell.is_some() {
+            parts.push(self.text_with("log.loot_spell", &none));
+        }
+        for book in &loot.books {
+            parts.push(self.text_with("log.loot_book", &Args::new().text("realm", book)));
+        }
+        for _ in &loot.retorts {
+            parts.push(self.text_with("log.loot_retort", &none));
+        }
+        if parts.is_empty() {
+            self.text_with("log.site_cleared_empty", &none)
+        } else {
+            self.text_with("log.site_cleared", &Args::new().list("things", parts))
+        }
+    }
+
     pub(crate) fn city_name(&self, city: hecs::Entity) -> String {
         self.game.city_name(city).unwrap_or_else(|| "?".to_string())
     }
@@ -809,8 +876,8 @@ impl App {
         match item {
             Building(b) => rules.buildings.get(b).name.clone(),
             Unit(u) => rules.units.get(u).name.clone(),
-            TradeGoods => "Trade Goods".into(),
-            Housing => "Housing".into(),
+            TradeGoods => self.text("city.trade_goods"),
+            Housing => self.text("city.housing"),
         }
     }
 
@@ -839,12 +906,16 @@ impl App {
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
         match f4x_data::save::save_game(path, &self.game) {
-            Ok(()) => self.log.push(format!(
-                "Saved turn {} to {}",
-                self.game.turn,
-                path.display()
-            )),
-            Err(e) => self.log.push(format!("Save failed: {e}")),
+            Ok(()) => {
+                let args = Args::new()
+                    .count("turn", self.game.turn)
+                    .text("path", path.display().to_string());
+                self.log.push(self.text_with("log.saved", &args));
+            }
+            Err(e) => {
+                let args = Args::new().text("why", e.to_string());
+                self.log.push(self.text_with("log.save_failed", &args));
+            }
         }
     }
 
@@ -877,11 +948,10 @@ impl App {
         if let Some(pos) = home {
             self.center_on(pos);
         }
-        self.log.push(format!(
-            "Loaded turn {} from {}",
-            self.game.turn,
-            path.display()
-        ));
+        let args = Args::new()
+            .count("turn", self.game.turn)
+            .text("path", path.display().to_string());
+        self.log.push(self.text_with("log.loaded", &args));
         Ok(())
     }
 
@@ -900,11 +970,10 @@ impl App {
                     .filter_map(|s| self.game.units().entity_of_serial(s))
                     .collect();
                 self.targeting = None;
-                self.log.push(format!("Undid {label}"));
+                self.log
+                    .push(self.text_with("log.undid", &Args::new().text("what", label)));
             }
-            Err(_) => self.log.push(
-                "Nothing to undo (ending a turn, discoveries and dice cannot be undone)".into(),
-            ),
+            Err(_) => self.log.push(self.text("log.nothing_to_undo")),
         }
     }
 
@@ -971,7 +1040,8 @@ impl App {
         self.last_news = news.clone();
         self.note(events);
         self.open_chancellor(news);
-        self.log.push(format!("Turn {turn}"));
+        self.log
+            .push(self.text_with("log.turn", &Args::new().count("turn", turn)));
     }
 
     /// Whether the human sees this event of a rival's turn: their refusals, the founding of a
@@ -1066,9 +1136,13 @@ impl App {
                 self.log.clear();
                 self.start_game();
                 self.offer_capital_naming();
-                self.log.push(format!("New map, seed {seed}"));
+                self.log
+                    .push(self.text_with("log.new_map", &Args::new().count("seed", seed)));
             }
-            Err(e) => self.log.push(format!("Map generation failed: {e}")),
+            Err(e) => {
+                let args = Args::new().text("why", e.to_string());
+                self.log.push(self.text_with("log.map_failed", &args));
+            }
         }
     }
 
@@ -1259,7 +1333,7 @@ impl App {
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {
-                        self.log.push("Cast cancelled".into());
+                        self.log.push(self.text("log.cast_cancelled"));
                     } else if self.road_plan.is_some() {
                         self.road_plan_cancel();
                     } else if self.surveyor {
@@ -1298,7 +1372,7 @@ impl App {
             .collect();
         if is_key_pressed(KeyCode::Escape) || open.is_empty() {
             self.ward_prompt = None;
-            self.log.push("Cast cancelled".into());
+            self.log.push(self.text("log.cast_cancelled"));
         } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| is_key_pressed(*k)) {
             self.ward_prompt = None;
             if let Some(realm) = self.game.content().rules.realms.id_of(realm) {
@@ -1333,7 +1407,7 @@ impl App {
         draw_rectangle_lines(w / 2.0 - 260.0, h / 2.0 - 70.0, 520.0, 140.0, 3.0, GOLD);
         let name = self.city_name(city);
         crate::frame::text_centered(
-            &format!("Select a Spell Ward for {name}"),
+            &self.text_with("spell.ward_select", &Args::new().text("city", &name)),
             w / 2.0,
             h / 2.0 - 25.0,
             22.0,
@@ -1348,7 +1422,13 @@ impl App {
             })
             .collect();
         crate::frame::text_centered(&choices.join("   "), w / 2.0, h / 2.0 + 15.0, 22.0, GOLD);
-        crate::frame::text_centered("Esc: cancel", w / 2.0, h / 2.0 + 50.0, 18.0, WHITE);
+        crate::frame::text_centered(
+            &self.text("ui.esc_cancel"),
+            w / 2.0,
+            h / 2.0 + 50.0,
+            18.0,
+            WHITE,
+        );
         true
     }
 
@@ -1366,7 +1446,7 @@ impl App {
         self.draw_bars();
         let lay = crate::frame::Layout::new();
         let name = self.game.content().rules.spells.get(spell).name.clone();
-        let text = format!("There are no targets for {name}. Do you wish to continue casting it?");
+        let text = self.text_with("spell.no_target", &Args::new().text("spell", &name));
         match self.confirmation_box(&lay, &text) {
             Some(true) => self.no_target_prompt = None,
             Some(false) => {
@@ -1394,7 +1474,11 @@ impl App {
             .filter_map(|&i| {
                 let def = self.game.content().rules.spells.get(spells.def(i)?);
                 let who = self.game.player_name(spells.caster_player(i)?);
-                Some(format!("{who}: {} ({} MP)", def.name, def.cost))
+                let args = Args::new()
+                    .text("wizard", who)
+                    .text("spell", &def.name)
+                    .count("cost", def.cost);
+                Some(self.text_with("spell.global_row", &args))
             })
             .collect();
         let (w, h) = (screen_width(), screen_height());
@@ -1418,7 +1502,7 @@ impl App {
         }
         if is_key_pressed(KeyCode::Escape) || rows.is_empty() {
             self.global_prompt = None;
-            self.log.push("Cast cancelled".into());
+            self.log.push(self.text("log.cast_cancelled"));
         } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
             self.global_prompt = None;
             let target = f4x_core::rules::exec::Target::Spell(rows[pick]);
@@ -1453,7 +1537,7 @@ impl App {
         draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
         let name = self.game.content().rules.spells.get(spell).name.clone();
         crate::frame::text_centered(
-            &format!("{name}: choose a global enchantment"),
+            &self.text_with("spell.choose_global", &Args::new().text("spell", &name)),
             w / 2.0,
             h / 2.0 - 45.0,
             22.0,
@@ -1464,7 +1548,7 @@ impl App {
             crate::frame::text_centered(line, w / 2.0, top + step * n as f32, 22.0, color);
         }
         crate::frame::text_centered(
-            "Up/Down and Enter, or click; Esc: cancel",
+            &self.text("spell.global_keys"),
             w / 2.0,
             top + step * lines.len() as f32 + 10.0,
             18.0,
@@ -1510,16 +1594,14 @@ impl App {
             .max(1);
         let turns = (casting.remaining + skill - 1) / skill;
         crate::frame::text_centered(
-            &format!(
-                "There are at least {turns} turns remaining until you may return. Do you wish to resign?"
-            ),
+            &self.text_with("log.resign_question", &Args::new().count("turns", turns)),
             w / 2.0,
             h / 2.0 - 15.0,
             20.0,
             WHITE,
         );
         crate::frame::text_centered(
-            "Y: resign      Enter: keep casting",
+            &self.text("log.resign_keys"),
             w / 2.0,
             h / 2.0 + 30.0,
             22.0,
@@ -1650,7 +1732,9 @@ impl App {
         }
         if command_key && is_key_pressed(KeyCode::L) {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
-                self.log.push(format!("Load failed: {e}"));
+                self.log.push(
+                    self.text_with("log.load_failed", &Args::new().text("why", e.to_string())),
+                );
             }
         }
         if !command_key && is_key_pressed(KeyCode::M) {
@@ -1690,7 +1774,8 @@ impl App {
             self.race = (self.race + 1) % self.game.content().rules.races.len().max(1);
             self.new_map(self.seed);
             let name = self.race_name(self.race).to_string();
-            self.log.push(format!("Playing as {name}"));
+            self.log
+                .push(self.text_with("log.playing_as", &Args::new().text("race", name)));
         }
         self.road_plan_keys();
         if is_key_pressed(KeyCode::B) && self.road_plan.is_some() {
@@ -1724,7 +1809,7 @@ impl App {
         self.stack_keys();
         if is_key_pressed(KeyCode::T) {
             self.game.balance_farmers(HUMAN);
-            self.log.push("Farmers balanced to feed the army".into());
+            self.log.push(self.text("log.farmers_balanced"));
         }
         if is_key_pressed(KeyCode::W) && !self.selection.is_empty() {
             self.select_next_idle(true);
@@ -1872,7 +1957,7 @@ impl App {
             .copied()
             .find(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
         let Some(unit) = settler else {
-            self.log.push("Select settlers first".into());
+            self.log.push(self.text("log.select_settlers"));
             return;
         };
         let name = self.next_city_name();
@@ -2108,7 +2193,7 @@ impl App {
                     Plane::Arcanus
                 };
             }
-            Some(_) => self.log.push("Not in the game yet".into()),
+            Some(_) => self.log.push(self.text("log.not_in_game")),
             None => {}
         }
         if click.next_turn {
@@ -2117,22 +2202,23 @@ impl App {
 
         // Information laid over the map: turn, selection, what is under the mouse, messages.
         let lay = crate::frame::Layout::new();
-        let plane = if self.plane == Plane::Arcanus {
-            "Arcanus"
+        let plane = self.text(if self.plane == Plane::Arcanus {
+            "ui.arcanus"
         } else {
-            "Myrror"
-        };
+            "ui.myrror"
+        });
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let mut y = 2.0;
-        let turn = format!(
-            "Turn {}   {}   {}",
-            self.game.turn,
-            plane,
-            self.race_name(self.race)
+        let turn = self.text_with(
+            "ui.status_line",
+            &Args::new()
+                .count("turn", self.game.turn)
+                .text("plane", plane)
+                .text("race", self.race_name(self.race)),
         );
         self.overlay_line(view, &mut y, &turn, GOLD);
         if !self.art.available() {
-            self.overlay_line(view, &mut y, "(no art: run extract-art)", RED);
+            self.overlay_line(view, &mut y, &self.text("ui.no_art"), RED);
         }
         self.draw_selection(view, &mut y);
         self.draw_hover(view, &mut y);
@@ -2145,12 +2231,12 @@ impl App {
             let at = bottom - line * (i + 1) as f32;
             self.bm_text_shadowed(view, 1, text, spot::MAP.0 + 4.0, at, messages, Align::Left);
         }
-        let hint = "F1 keys";
+        let hint = self.text("ui.keys_hint");
         let hint_x = spot::MAP.0 + spot::MAP.2 - 4.0;
         self.bm_text_shadowed(
             view,
             1,
-            hint,
+            &hint,
             hint_x,
             bottom - line,
             LIGHTGRAY,
@@ -2158,10 +2244,10 @@ impl App {
         );
         if self.show_keys || is_key_down(KeyCode::F1) {
             let keys = [
-                "click select      right-click go      B settle / road / meld      Q or U unselect      D done",
-                "C centre      P plane      numpad / arrows move the stack      T balance farmers      M magic      S spells      F3 apprentice      F9 your wizard      G game menu",
-                "Tab other plane      +/- zoom      arrows pan (nothing selected, or with Shift)      N or Enter end turn",
-                "Ctrl-Z undo      F10 quick-save      Ctrl-L quick-load      F8 Grand Vizier      Ctrl-N new map      Ctrl-R next race      ` console      Esc game menu",
+                self.text("ui.keys_1"),
+                self.text("ui.keys_2"),
+                self.text("ui.keys_3"),
+                self.text("ui.keys_4"),
             ];
             let width = spot::MAP.2 * 0.9 - 8.0;
             let rows: Vec<String> = keys
@@ -2187,7 +2273,7 @@ impl App {
 
     fn draw_selection(&mut self, view: (f32, f32, f32), y: &mut f32) {
         if self.selection.is_empty() {
-            self.overlay_line(view, y, "No units selected", GRAY);
+            self.overlay_line(view, y, &self.text("ui.no_units_selected"), GRAY);
         }
     }
 
@@ -2207,14 +2293,18 @@ impl App {
             y: pos.y,
         };
         if !self.game.is_explored(HUMAN, at) {
-            return vec![("Unexplored".into(), GRAY)];
+            return vec![(self.text("ui.unexplored"), GRAY)];
         }
-        let mut lines = vec![(format!("Tile {}, {}", pos.x, pos.y), GOLD)];
+        let tile = Args::new().count("x", pos.x).count("y", pos.y);
+        let mut lines = vec![(self.text_with("ui.tile", &tile), GOLD)];
         if let Some(def) = grid
             .get(pos.x as i32, pos.y as i32)
             .and_then(|id| content.terrains.get(id))
         {
-            lines.push((format!("{}  (move {})", def.name, def.move_cost), WHITE));
+            let args = Args::new()
+                .text("terrain", &def.name)
+                .count("cost", def.move_cost);
+            lines.push((self.text_with("ui.terrain_move", &args), WHITE));
         }
         if let Some(f) = grid
             .feature(pos.x as i32, pos.y as i32)
@@ -2225,7 +2315,8 @@ impl App {
         if let Some(city) = self.game.economy().city_at(pos) {
             let name = self.city_name(city);
             let pop = self.game.city_population(city).figures;
-            lines.push((format!("{name} (size {pop})"), GOLD));
+            let args = Args::new().text("city", name).count("size", pop);
+            lines.push((self.text_with("ui.city_size", &args), GOLD));
         }
         let foreign = self
             .game
@@ -2235,7 +2326,8 @@ impl App {
             .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN));
         for u in foreign.take(4) {
             if let Some(def) = self.game.units().unit_def(u) {
-                lines.push((format!("Foreign {}", def.name), RED));
+                let args = Args::new().text("unit", &def.name);
+                lines.push((self.text_with("ui.foreign_unit", &args), RED));
             }
         }
         lines
@@ -2245,36 +2337,5 @@ impl App {
         for (text, color) in self.hover_lines() {
             self.overlay_line(view, y, &text, color);
         }
-    }
-}
-
-/// One log line for the treasure a cleared site gave.
-fn loot_line(loot: &f4x_core::feature::lair::Loot) -> String {
-    let mut parts = Vec::new();
-    if loot.gold > 0 {
-        parts.push(format!("{} gold", loot.gold));
-    }
-    if loot.mana > 0 {
-        parts.push(format!("{} mana", loot.mana));
-    }
-    if !loot.items.is_empty() {
-        parts.push(format!("{} magic item(s)", loot.items.len()));
-    }
-    if loot.prisoner {
-        parts.push("a prisoner".to_string());
-    }
-    if loot.spell.is_some() {
-        parts.push("a spell".to_string());
-    }
-    for book in &loot.books {
-        parts.push(format!("a {book} book"));
-    }
-    for _ in &loot.retorts {
-        parts.push("a retort".to_string());
-    }
-    if parts.is_empty() {
-        "The site is cleared".to_string()
-    } else {
-        format!("The site is cleared: {}", parts.join(", "))
     }
 }

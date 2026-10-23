@@ -1,0 +1,10 @@
+// Player-facing messages of the wizard sheet. One key is in one file only (docs/text.md).
+{
+    "wizard.relations": "Relations:",
+    "wizard.treaties": "Treaties:",
+    "wizard.personality": "Personality:",
+    "wizard.objective": "Objective:",
+    "wizard.row": "{label} {value}",
+    "wizard.fame": "Fame",
+    "wizard.heroes": "Heroes",
+}

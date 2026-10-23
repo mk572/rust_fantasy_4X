@@ -38,13 +38,13 @@ pub enum Treaty {
 }
 
 impl Treaty {
-    /// The words of the wizard sheet.
-    pub fn name(self) -> &'static str {
+    /// The key of the words of the wizard sheet.
+    pub fn key(self) -> &'static str {
         match self {
-            Treaty::None => "No Treaty",
-            Treaty::Pact => "Wizard Pact",
-            Treaty::Alliance => "Alliance",
-            Treaty::War => "War",
+            Treaty::None => "treaty.none",
+            Treaty::Pact => "treaty.pact",
+            Treaty::Alliance => "treaty.alliance",
+            Treaty::War => "treaty.war",
         }
     }
 }
@@ -284,10 +284,19 @@ fn key(a: PlayerId, b: PlayerId) -> (u8, u8) {
     (a.0.min(b.0), a.0.max(b.0))
 }
 
-/// The words of the relation scale, `Hate` to `Harmony`.
-pub const RELATION_WORDS: [&str; 11] = [
-    "Hate", "Troubled", "Tense", "Restless", "Unease", "Neutral", "Relaxed", "Calm", "Peaceful",
-    "Friendly", "Harmony",
+/// The keys of the words of the relation scale, `Hate` to `Harmony`.
+pub const RELATION_KEYS: [&str; 11] = [
+    "relation.hate",
+    "relation.troubled",
+    "relation.tense",
+    "relation.restless",
+    "relation.unease",
+    "relation.neutral",
+    "relation.relaxed",
+    "relation.calm",
+    "relation.peaceful",
+    "relation.friendly",
+    "relation.harmony",
 ];
 
 /// Where a relation sits on the scale: 0 (hate) to 10 (harmony).
@@ -295,8 +304,9 @@ pub fn relation_level(relation: i32) -> usize {
     ((100 + relation.clamp(-100, 100)) / 20) as usize
 }
 
-pub fn relation_word(relation: i32) -> &'static str {
-    RELATION_WORDS[relation_level(relation)]
+/// The key of the word for a relation.
+pub fn relation_key(relation: i32) -> &'static str {
+    RELATION_KEYS[relation_level(relation)]
 }
 
 /// A pact needs a relation above this, an alliance above `ALLIANCE_RELATION`.

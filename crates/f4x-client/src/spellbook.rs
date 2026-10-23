@@ -7,6 +7,7 @@
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, SpellId, SpellTarget};
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -139,9 +140,7 @@ impl App {
         self.screen = Screen::Map;
         if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
             if self.game.rival_globals(HUMAN).is_empty() {
-                self.log.push(
-                    "No other wizard keeps a global enchantment going; the spell waits".into(),
-                );
+                self.log.push(self.text("spell.no_globals_waits"));
             } else {
                 self.global_prompt = Some((spell, true, 0));
             }
@@ -165,8 +164,7 @@ impl App {
             if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
             {
                 if self.game.rival_globals(HUMAN).is_empty() {
-                    self.log
-                        .push("No other wizard keeps a global enchantment going".into());
+                    self.log.push(self.text("spell.no_globals"));
                 } else {
                     self.global_prompt = Some((spell, false, 0));
                 }
@@ -202,7 +200,8 @@ impl App {
                 .and_then(|m| m.casting())
                 .map(|c| self.game.content().rules.spells.get(c.spell).name.clone())
                 .unwrap_or_default();
-            match self.confirm_box(&format!("Do you wish to abort the {casting} spell?")) {
+            let question = self.text_with("spell.abort", &Args::new().text("spell", &casting));
+            match self.confirm_box(&question) {
                 Some(true) => {
                     self.book_ui.replace = None;
                     let events = self.game.apply(Command::CancelCast { player: HUMAN });
@@ -436,9 +435,11 @@ impl App {
                 >= cost;
             let crafting = matches!(def.id.as_str(), "enchant_item" | "create_artifact");
             if instant && !crafting {
-                self.bm_text(view, 1, ink, "Instant Cast", x + 9.0, y + 7.0, Align::Left);
+                let word = self.text("spell.instant");
+                self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);
             } else if instant {
-                self.bm_text(view, 1, ink, "Special", x + 9.0, y + 7.0, Align::Left);
+                let word = self.text("spell.special");
+                self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);
             } else {
                 self.draw_pic(lay, "spells", realm_symbol, 0, x + 1.0, y + 7.0);
             }
@@ -547,16 +548,14 @@ impl App {
                     self.ward_prompt = Some((t.spell, city, t.resolve));
                 }
                 _ => {
-                    self.log.push(
-                        "Choose one of your cities that is not warded against every realm".into(),
-                    );
+                    self.log.push(self.text("spell.choose_unwarded"));
                     self.targeting = Some(t);
                 }
             }
             return;
         }
         let Some(target) = target else {
-            self.log.push("No valid target there".into());
+            self.log.push(self.text("spell.no_valid_target"));
             self.targeting = Some(t);
             return;
         };

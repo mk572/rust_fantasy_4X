@@ -1,0 +1,32 @@
+// Player-facing messages of the city screen and the boxes about cities.
+// One key is in one file only (docs/text.md).
+{
+    "city.title": "{size} of {city}",
+    "city.size_outpost": "Outpost",
+    "city.size_hamlet": "Hamlet",
+    "city.size_village": "Village",
+    "city.size_town": "Town",
+    "city.size_city": "City",
+    "city.size_capital": "Capital",
+    "city.built": "The {size} of {city} has completed the construction of the {building}.",
+    "city.name_prompt": "Name City",
+    // Marks after the race on the title line.
+    "city.plague": " (Plague)",
+    "city.pop_boom": " (Pop. Boom)",
+    "city.population": "Population: {people} ({growth})",
+    // A Spell Ward lists the realms it keeps out.
+    "city.spell_ward": "{spell} ({wards})",
+    "city.fortress": "Fortress",
+    "city.summoning_circle": "Summoning Circle",
+    "city.turns": (count: "n", one: "Turn", other: "Turns"),
+    "city.converts_to_gold": "Converts production to gold.",
+    "city.increases_growth": "Increases population growth rate.",
+    "city.nothing": "Nothing",
+    "city.choose_build": "Choose what to build   (wheel scrolls, right-click cancels)",
+    "city.detail_gold": "gold",
+    "city.detail_growth": "growth",
+    // Cost and turns in the build list; `turns` is a number of turns, or - when none is made.
+    "city.cost_turns": "{cost}  {turns}t",
+    "city.trade_goods": "Trade Goods",
+    "city.housing": "Housing",
+}

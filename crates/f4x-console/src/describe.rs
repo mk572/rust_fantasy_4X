@@ -491,7 +491,7 @@ pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String 
 }
 
 fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
-    use f4x_core::diplomacy::relation_word;
+    use f4x_core::diplomacy::relation_key;
     use f4x_core::diplomacy::DiplomacyEvent as D;
     match d {
         D::ContactMade { a, b } => format!("{} and {} meet", player(game, *a), player(game, *b)),
@@ -506,7 +506,9 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
                 "relations of {} with {} change by {change:+}: now {} ({now})",
                 player(game, *defender),
                 player(game, *attacker),
-                relation_word(now)
+                game.content()
+                    .texts
+                    .get(relation_key(now), &f4x_core::text::Args::new())
             )
         }
         D::TreatyChanged { a, b, treaty } => format!(

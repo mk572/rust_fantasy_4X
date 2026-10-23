@@ -1,0 +1,11 @@
+// Player-facing messages of the battle result scroll. One key is in one file only (docs/text.md).
+{
+    "combat.conquered": "{city} has been conquered",
+    "combat.fame_lost": "You have lost {n} fame.",
+    "combat.fame_gained": "You have gained {n} fame.",
+    "combat.looted": "{n} gold pieces were looted.",
+    "combat.razed": "The city has been completely destroyed.",
+    "combat.killed": "{n} thousand inhabitants killed.",
+    "combat.destroyed_buildings": "Destroyed Buildings",
+    "combat.raze_question": "Do you wish to completely destroy this city?",
+}

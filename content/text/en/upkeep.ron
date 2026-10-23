@@ -1,0 +1,22 @@
+// Player-facing messages of the box that appears when mana, gold or food runs short, or the
+// armory overflows. One key is in one file only (docs/text.md).
+{
+    "upkeep.too_many_items": "Too many items for the armory: mark what to disband for mana",
+    "upkeep.mana": "Mana",
+    "upkeep.gold_and_food": "Gold and food",
+    "upkeep.price_mana": "{n} mana",
+    "upkeep.price_item": "+{n} mana",
+    "upkeep.price_gold_food": "{gold} gold  {food} food",
+    "upkeep.hero_note": " (hero: its items come home)",
+    "upkeep.ship_note": " ({n} aboard: sails for the shore)",
+    "upkeep.enough_items": "Enough items marked.",
+    "upkeep.mark_more": "Mark {n} more, or the game picks.",
+    "upkeep.short_mana": "{n} mana",
+    "upkeep.short_food": "{n} food",
+    "upkeep.short_gold": "{n} gold",
+    "upkeep.enough": "Enough: the rest is paid.",
+    "upkeep.short_by": "Short by {missing}: the newest go.",
+    "upkeep.reserves_short": "Reserves cannot pay everything.",
+    "upkeep.click_to_mark": "Click to mark who goes.",
+    "upkeep.more_below": "More below",
+}

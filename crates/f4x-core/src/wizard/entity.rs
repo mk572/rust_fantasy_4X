@@ -103,6 +103,12 @@ impl<'a> Wizard<'a> {
             .unwrap_or_default()
     }
 
+    pub fn gender(&self) -> crate::text::Gender {
+        self.world
+            .get::<&crate::text::Gender>(self.entity)
+            .map_or_else(|_| crate::text::Gender::default(), |g| *g)
+    }
+
     pub fn portrait(&self) -> u8 {
         self.world.get::<&Portrait>(self.entity).map_or(0, |p| p.0)
     }

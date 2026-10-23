@@ -69,6 +69,21 @@ impl Focus {
         Focus::Gold,
     ];
 
+    /// The key of the focus's name in `content/text/` (the console uses [`Focus::name`]).
+    pub fn key(self) -> &'static str {
+        match self {
+            Focus::Magic => "autobuild.focus_magic",
+            Focus::Population => "autobuild.focus_population",
+            Focus::Production => "autobuild.focus_production",
+            Focus::Defense => "autobuild.focus_defense",
+            Focus::Offense => "autobuild.focus_offense",
+            Focus::Exploration => "autobuild.focus_exploration",
+            Focus::Gold => "autobuild.focus_gold",
+            Focus::Balanced => "autobuild.focus_balanced",
+        }
+    }
+
+    /// The word the console takes for the focus.
     pub fn name(self) -> &'static str {
         match self {
             Focus::Magic => "Magic",
@@ -111,6 +126,16 @@ impl Mix {
         }
     }
 
+    /// The key of the mix's name in `content/text/` (the console uses [`Mix::name`]).
+    pub fn key(self) -> &'static str {
+        match self {
+            Mix::Buildings => "autobuild.mix_buildings",
+            Mix::Units => "autobuild.mix_units",
+            Mix::Both => "autobuild.mix_both",
+        }
+    }
+
+    /// The word the console takes for the mix.
     pub fn name(self) -> &'static str {
         match self {
             Mix::Buildings => "Buildings",

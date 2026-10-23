@@ -4,6 +4,7 @@
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
@@ -221,7 +222,12 @@ impl App {
             return;
         };
         let lay = crate::frame::Layout::new();
-        if self.name_box(&lay, (60.0, 60.0), "Name City", &mut name) {
+        if self.name_box(
+            &lay,
+            (60.0, 60.0),
+            &self.text("city.name_prompt"),
+            &mut name,
+        ) {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
         } else {
@@ -246,7 +252,12 @@ impl App {
         };
         let pop = self.game.city_population(city);
         // The title names the size: Outpost, Hamlet, Village, Town, City, Capital.
-        let title = format!("{} of {name}", self.city_size_name(city));
+        let title = self.text_with(
+            "city.title",
+            &Args::new()
+                .text("size", self.city_size_name(city))
+                .text("city", &name),
+        );
         let view = Self::view(lay);
         self.bm_text(
             view,
@@ -270,14 +281,14 @@ impl App {
         let mut race_name = race_name;
         let serial = self.game.serial_of(city);
         for (kind, mark) in [
-            (f4x_core::world_event::EventKind::Plague, " (Plague)"),
+            (f4x_core::world_event::EventKind::Plague, "city.plague"),
             (
                 f4x_core::world_event::EventKind::PopulationBoom,
-                " (Pop. Boom)",
+                "city.pop_boom",
             ),
         ] {
             if self.game.events().on_city(kind, serial) {
-                race_name += mark;
+                race_name += &self.text(mark);
             }
         }
         self.bm_text(view, 3, orange, &race_name, 6.0, 19.0, Align::Left);
@@ -287,7 +298,12 @@ impl App {
             view,
             3,
             orange,
-            &format!("Population: {} ({:+})", thousands(people), grow),
+            &self.text_with(
+                "city.population",
+                &Args::new()
+                    .text("people", thousands(people))
+                    .text("growth", format!("{grow:+}")),
+            ),
             207.0,
             19.0,
             Align::Right,
@@ -458,9 +474,11 @@ impl App {
             let def = self.game.content().rules.spells.get(spell).clone();
             let mut name = def.name.clone();
             if def.id == "spell_ward" {
-                name = format!(
-                    "{name} ({})",
-                    self.game.economy().city_wards(city).join(", ")
+                name = self.text_with(
+                    "city.spell_ward",
+                    &Args::new()
+                        .text("spell", &name)
+                        .text("wards", self.game.economy().city_wards(city).join(", ")),
                 );
             }
             let color = self.banner_color(caster.0);
@@ -488,20 +506,26 @@ impl App {
 
     /// The title's size word: Outpost, Hamlet, Village, Town, City, or Capital for the
     /// wizard's fortress.
-    pub(crate) fn city_size_name(&self, city: hecs::Entity) -> &'static str {
+    pub(crate) fn city_size_name(&self, city: hecs::Entity) -> String {
         let figures = self
             .game
             .economy()
             .city_economy(city)
             .map_or(0, |e| e.figures);
-        if figures == 0 {
-            "Outpost"
+        let key = if figures == 0 {
+            "city.size_outpost"
         } else if self.game.economy().is_fortress_city(city) {
-            "Capital"
+            "city.size_capital"
         } else {
-            ["Hamlet", "Village", "Town", "City", "Capital"]
-                [(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
-        }
+            [
+                "city.size_hamlet",
+                "city.size_village",
+                "city.size_town",
+                "city.size_city",
+                "city.size_capital",
+            ][(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
+        };
+        self.text(key)
     }
 
     /// What the cityscape layout needs from a city.
@@ -714,8 +738,8 @@ impl App {
 
         // The name of the building under the mouse.
         let name = match mouse_over {
-            Some(cs::FORTRESS) => Some("Fortress".to_string()),
-            Some(cs::SUMMONING_CIRCLE) => Some("Summoning Circle".to_string()),
+            Some(cs::FORTRESS) => Some(self.text("city.fortress")),
+            Some(cs::SUMMONING_CIRCLE) => Some(self.text("city.summoning_circle")),
             Some(i) if (3..=35).contains(&i) => self
                 .game
                 .content()
@@ -1064,8 +1088,8 @@ impl App {
                             140.0,
                             Align::Right,
                         );
-                        let word = if turns == 1 { "Turn" } else { "Turns" };
-                        self.bm_text(view, 1, gold, word, 291.0, 140.0, Align::Left);
+                        let word = self.text_with("city.turns", &Args::new().count("n", turns));
+                        self.bm_text(view, 1, gold, &word, 291.0, 140.0, Align::Left);
                     }
                     self.draw_production_coins(lay, prod.progress, cost);
                 } else {
@@ -1073,11 +1097,11 @@ impl App {
                     // (`proddescr_tradegoods`, `proddescr_housing`).
                     self.city_pic(lay, "backgrnd", 13, 0, 260.0, 149.0);
                     let text = if item == ProductionItem::TradeGoods {
-                        "Converts production to gold."
+                        self.text("city.converts_to_gold")
                     } else {
-                        "Increases population growth rate."
+                        self.text("city.increases_growth")
                     };
-                    for (i, line) in self.bm_wrap(1, text, 50.0).iter().enumerate() {
+                    for (i, line) in self.bm_wrap(1, &text, 50.0).iter().enumerate() {
                         self.bm_text(
                             view,
                             1,
@@ -1092,7 +1116,15 @@ impl App {
                 self.draw_product_picture(lay, city, item);
             }
             None => {
-                self.bm_text(view, 3, GRAY, "Nothing", 246.0, 177.0, Align::Center);
+                self.bm_text(
+                    view,
+                    3,
+                    GRAY,
+                    &self.text("city.nothing"),
+                    246.0,
+                    177.0,
+                    Align::Center,
+                );
             }
         }
         let gold = self.game.treasury(crate::view::HUMAN).map_or(0, |p| p.gold);
@@ -1154,13 +1186,7 @@ impl App {
             Color::new(0.1, 0.08, 0.05, 0.97),
         );
         draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 3.0, GOLD);
-        lay.text(
-            "Choose what to build   (wheel scrolls, right-click cancels)",
-            26.0,
-            24.0,
-            6.0,
-            GOLD,
-        );
+        lay.text(&self.text("city.choose_build"), 26.0, 24.0, 6.0, GOLD);
         let items = self.buildable_items(city);
         let per_page = 18usize;
         let columns = 2usize;
@@ -1185,15 +1211,18 @@ impl App {
             }
             let cost = self.game.economy().item_cost(city, *item);
             let detail = match item {
-                ProductionItem::TradeGoods => "gold".to_string(),
-                ProductionItem::Housing => "growth".to_string(),
+                ProductionItem::TradeGoods => self.text("city.detail_gold"),
+                ProductionItem::Housing => self.text("city.detail_growth"),
                 _ => {
                     let turns = if eco.production > 0 {
                         cost.div_ceil(eco.production as u32).to_string()
                     } else {
                         "-".into()
                     };
-                    format!("{cost}  {turns}t")
+                    self.text_with(
+                        "city.cost_turns",
+                        &Args::new().count("cost", cost).text("turns", turns),
+                    )
                 }
             };
             lay.text(

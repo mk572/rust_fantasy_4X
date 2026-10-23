@@ -6,6 +6,7 @@
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
 use f4x_core::game::Command;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -134,9 +135,12 @@ impl App {
 
         // The header and the race.
         let title = if ui.new {
-            "New Outpost Founded".to_string()
+            self.text("outpost.founded")
         } else {
-            format!("Outpost Of {}", self.city_name(city))
+            self.text_with(
+                "outpost.of",
+                &Args::new().text("city", self.city_name(city)),
+            )
         };
         self.bm_text_outlined(view, 5, &title, wx + 124.0, wy + 6.0, Align::Center);
         let race = self
@@ -258,7 +262,8 @@ impl App {
     /// keeps what is typed (an empty name keeps the one the game chose).
     fn outpost_name_box(&mut self, lay: &Layout, city: hecs::Entity) {
         let mut name = std::mem::take(&mut self.outpost_ui.name);
-        let done = self.name_box(lay, NAME_BOX, "New Outpost", &mut name);
+        let prompt = self.text("outpost.name_prompt");
+        let done = self.name_box(lay, NAME_BOX, &prompt, &mut name);
         self.outpost_ui.name = name;
         if done {
             let name = std::mem::take(&mut self.outpost_ui.name);
@@ -312,7 +317,8 @@ impl App {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
         self.draw_bars();
-        if self.name_box(&lay, (60.0, 30.0), "Name Starting City", &mut name) {
+        let prompt = self.text("outpost.name_starting");
+        if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name) {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
         } else {

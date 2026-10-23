@@ -5,6 +5,7 @@
 //! Collector. History and Astrologer are screens of their own here.
 
 use f4x_core::game::Command;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -53,15 +54,15 @@ const RIGHT_WIDTH: f32 = 18.0;
 
 /// The advisors in the original's order, with the F key of each.
 const ADVISORS: [&str; 9] = [
-    "Surveyor",
-    "Cartographer",
-    "Apprentice",
-    "History",
-    "Astrologer",
-    "Chancellor",
-    "Tax Collector",
-    "Grand Vizier",
-    "Mirror",
+    "advisor.surveyor",
+    "advisor.cartographer",
+    "advisor.apprentice",
+    "advisor.history",
+    "advisor.astrologer",
+    "advisor.chancellor",
+    "advisor.tax_collector",
+    "advisor.grand_vizier",
+    "advisor.mirror",
 ];
 
 impl App {
@@ -71,18 +72,21 @@ impl App {
         let rows = ADVISORS
             .iter()
             .enumerate()
-            .map(|(i, name)| Row {
-                left: if i == 7 && vizier {
-                    format!("{name}*")
-                } else {
-                    (*name).to_string()
-                },
-                tab: 81.0,
-                right: format!(" (F{})", i + 1),
+            .map(|(i, key)| {
+                let name = self.text(key);
+                Row {
+                    left: if i == 7 && vizier {
+                        self.text_with("advisor.starred", &Args::new().text("name", name))
+                    } else {
+                        name
+                    },
+                    tab: 81.0,
+                    right: self.text_with("advisor.key", &Args::new().count("n", i + 1)),
+                }
             })
             .collect();
         self.list_box = Some(SelectionBox {
-            title: "Select An Advisor".into(),
+            title: self.text("advisor.select"),
             rows,
             purpose: Purpose::Advisors,
         });
@@ -103,9 +107,10 @@ impl App {
             6 => self.open_tax_collector(),
             7 => self.toggle_grand_vizier(),
             8 => self.open_wizard(HUMAN),
-            _ => self
-                .log
-                .push(format!("The {} is not in the game yet", ADVISORS[which])),
+            _ => {
+                let args = Args::new().text("advisor", self.text(ADVISORS[which]));
+                self.log.push(self.text_with("advisor.not_yet", &args));
+            }
         }
     }
 
@@ -126,7 +131,7 @@ impl App {
                     r => (r / 2).to_string(),
                 };
                 Row {
-                    left: format!("{gold} gold,"),
+                    left: self.text_with("advisor.tax_gold", &Args::new().text("gold", gold)),
                     tab: if rate == 0 {
                         59.0
                     } else if rate == 1 {
@@ -134,15 +139,19 @@ impl App {
                     } else {
                         52.0
                     },
-                    right: format!(
-                        "{percent}% unrest{}",
-                        if rate == current { "*" } else { "" }
+                    right: self.text_with(
+                        if rate == current {
+                            "advisor.tax_unrest_current"
+                        } else {
+                            "advisor.tax_unrest"
+                        },
+                        &Args::new().count("n", *percent),
                     ),
                 }
             })
             .collect();
         self.list_box = Some(SelectionBox {
-            title: " Tax Per Population ".into(),
+            title: self.text("advisor.tax_title"),
             rows,
             purpose: Purpose::Tax,
         });
@@ -156,7 +165,7 @@ impl App {
                 player: HUMAN,
                 on: false,
             });
-            self.log.push("Grand Vizier off".into());
+            self.log.push(self.text("advisor.vizier_off"));
         } else {
             self.vizier_ask = true;
         }
@@ -187,14 +196,14 @@ impl App {
             crate::ui::GOLD,
         );
         crate::frame::text_centered(
-            "Do you wish to allow the Grand Vizier to select what buildings your cities create?",
+            &self.text("advisor.vizier_question"),
             w / 2.0,
             h / 2.0 - 15.0,
             20.0,
             WHITE,
         );
         crate::frame::text_centered(
-            "Y: yes      N: no",
+            &self.text("advisor.vizier_keys"),
             w / 2.0,
             h / 2.0 + 30.0,
             22.0,
@@ -206,8 +215,7 @@ impl App {
                 player: HUMAN,
                 on: true,
             });
-            self.log
-                .push("Grand Vizier on: your cities choose their next building".into());
+            self.log.push(self.text("advisor.vizier_on"));
         } else if is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
             self.vizier_ask = false;
         }

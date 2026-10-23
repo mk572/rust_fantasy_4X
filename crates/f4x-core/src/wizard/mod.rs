@@ -36,6 +36,8 @@ pub const MAX_BOOKS: u8 = 11;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WizardBuild {
     pub name: String,
+    /// For the messages that name the wizard (`docs/text.md`).
+    pub gender: crate::text::Gender,
     /// Books by realm id.
     pub books: BTreeMap<String, u8>,
     pub retorts: BTreeSet<Retort>,
@@ -107,27 +109,27 @@ pub const ALL_RETORTS: [Retort; 18] = [
     Retort::NodeMastery,
 ];
 
-/// Display name of a retort.
-pub fn retort_name(retort: Retort) -> &'static str {
+/// The key of the retort's name in `content/text/` (`retort.sage_master`).
+pub fn retort_key(retort: Retort) -> &'static str {
     match retort {
-        Retort::Alchemy => "Alchemy",
-        Retort::Warlord => "Warlord",
-        Retort::ChaosMastery => "Chaos Mastery",
-        Retort::NatureMastery => "Nature Mastery",
-        Retort::SorceryMastery => "Sorcery Mastery",
-        Retort::Channeler => "Channeler",
-        Retort::Archmage => "Archmage",
-        Retort::Artificer => "Artificer",
-        Retort::Conjurer => "Conjurer",
-        Retort::SageMaster => "Sage Master",
-        Retort::Myrran => "Myrran",
-        Retort::DivinePower => "Divine Power",
-        Retort::InfernalPower => "Infernal Power",
-        Retort::Famous => "Famous",
-        Retort::Runemaster => "Runemaster",
-        Retort::Charismatic => "Charismatic",
-        Retort::ManaFocusing => "Mana Focusing",
-        Retort::NodeMastery => "Node Mastery",
+        Retort::Alchemy => "retort.alchemy",
+        Retort::Warlord => "retort.warlord",
+        Retort::ChaosMastery => "retort.chaos_mastery",
+        Retort::NatureMastery => "retort.nature_mastery",
+        Retort::SorceryMastery => "retort.sorcery_mastery",
+        Retort::Channeler => "retort.channeler",
+        Retort::Archmage => "retort.archmage",
+        Retort::Artificer => "retort.artificer",
+        Retort::Conjurer => "retort.conjurer",
+        Retort::SageMaster => "retort.sage_master",
+        Retort::Myrran => "retort.myrran",
+        Retort::DivinePower => "retort.divine_power",
+        Retort::InfernalPower => "retort.infernal_power",
+        Retort::Famous => "retort.famous",
+        Retort::Runemaster => "retort.runemaster",
+        Retort::Charismatic => "retort.charismatic",
+        Retort::ManaFocusing => "retort.mana_focusing",
+        Retort::NodeMastery => "retort.node_mastery",
     }
 }
 
@@ -256,6 +258,7 @@ impl Game {
         if !build.name.is_empty() {
             self.wizard_set(player, entity::Name(build.name.clone()));
         }
+        self.wizard_set(player, build.gender);
         if let Some(b) = build.banner {
             self.wizard_set(
                 player,
@@ -283,6 +286,7 @@ impl Game {
         let def = &self.content.rules.wizards.defs()[place];
         Some(WizardBuild {
             name: def.name.clone(),
+            gender: def.gender,
             books: def.books.iter().cloned().collect(),
             retorts: def.retorts.iter().copied().collect(),
             spells: Vec::new(),

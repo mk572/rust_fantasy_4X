@@ -1,0 +1,17 @@
+// Player-facing messages of the magic screen. One key is in one file only (docs/text.md).
+{
+    "magic.mp": "{n} MP",
+    "magic.rp": "{n} RP",
+    "magic.sp": "{n} SP",
+    "magic.no_spell": "No Spell",
+    "magic.none": "None",
+    "magic.casting_skill": "Casting Skill:",
+    "magic.casting": "Casting:",
+    "magic.reserve": "Magic Reserve:",
+    "magic.researching": "Researching:",
+    "magic.power_base": "Power Base:",
+    "magic.summon_to": "Summon To:",
+    "magic.alchemy": "Alchemy",
+    "magic.cancel_spell": "Do you wish to cancel your {spell} spell?",
+    "magic.more": "More...",
+}

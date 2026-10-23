@@ -6,6 +6,7 @@
 
 use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -15,7 +16,7 @@ use crate::view::{App, HUMAN};
 /// One heading and its lines.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Section {
-    pub title: &'static str,
+    pub title: String,
     pub lines: Vec<String>,
 }
 
@@ -76,6 +77,7 @@ impl App {
                 .then(|| self.game.wizard(*player).map(|w| w.name()))
                 .flatten()
         };
+        let say = |key: &str, args: Args| self.text_with(key, &args);
         let (mut unit_spells, mut city_spells, mut global_spells) =
             (Vec::new(), Vec::new(), Vec::new());
         for event in events {
@@ -85,58 +87,71 @@ impl App {
                     unit,
                     cause,
                 } if *player == HUMAN => {
-                    let name = &rules.units.get(*unit).name;
-                    disbanded.push(match cause {
-                        LossCause::Food => format!("{name} - deserted: lack of food."),
-                        LossCause::Gold => format!("{name} - deserted: lack of gold."),
-                        LossCause::Mana => format!("{name} - dispelled: lack of mana."),
-                    });
+                    let args = Args::new().text("unit", &rules.units.get(*unit).name);
+                    disbanded.push(say(
+                        match cause {
+                            LossCause::Food => "chancellor.lost_food",
+                            LossCause::Gold => "chancellor.lost_gold",
+                            LossCause::Mana => "chancellor.lost_mana",
+                        },
+                        args,
+                    ));
                 }
                 Event::Shortage { player, what } if rival_name(player).is_some() => {
-                    let what = match what {
-                        f4x_core::game::Shortage::Mana => "mana",
-                        f4x_core::game::Shortage::Gold => "gold",
-                        f4x_core::game::Shortage::Food => "food",
-                    };
-                    rivals.push(format!(
-                        "{} has run short of {what}.",
-                        rival_name(player).unwrap_or_default()
-                    ));
+                    let what = self.text(match what {
+                        f4x_core::game::Shortage::Mana => "chancellor.mana",
+                        f4x_core::game::Shortage::Gold => "chancellor.gold",
+                        f4x_core::game::Shortage::Food => "chancellor.food",
+                    });
+                    let args = self
+                        .wizard_arg(Args::new(), "wizard", *player)
+                        .text("what", what);
+                    rivals.push(say("chancellor.rival_short", args));
                 }
                 Event::HeroLeft { player, hero } if rival_name(player).is_some() => {
-                    rivals.push(format!(
-                        "{} has lost a hero, {}, who walked out.",
-                        rival_name(player).unwrap_or_default(),
-                        rules.units.get(*hero).name
-                    ));
+                    let args = self
+                        .wizard_arg(Args::new(), "wizard", *player)
+                        .text("hero", &rules.units.get(*hero).name);
+                    rivals.push(say("chancellor.rival_hero_left", args));
                 }
-                Event::ShipLanded { player, units, at } if *player == HUMAN => ships.push(format!(
-                    "A ship that could not be paid for has landed {units} of your units at {}, {}.",
-                    at.x, at.y
+                Event::ShipLanded { player, units, at } if *player == HUMAN => ships.push(say(
+                    "chancellor.ship_landed",
+                    Args::new()
+                        .count("units", *units)
+                        .count("x", at.x)
+                        .count("y", at.y),
                 )),
-                Event::UnitsDrowned { player, units } if *player == HUMAN => disbanded.push(
-                    format!("{units} drowned because the unit carrying them was destroyed."),
-                ),
-                Event::CityGrew { city, figures } if mine(*city) => growth.push(format!(
-                    "{} has grown to a population of {figures}",
-                    self.city_name(*city)
+                Event::UnitsDrowned { player, units } if *player == HUMAN => {
+                    disbanded.push(say("chancellor.drowned", Args::new().count("n", *units)))
+                }
+                Event::CityGrew { city, figures } if mine(*city) => growth.push(say(
+                    "chancellor.grew",
+                    Args::new()
+                        .text("city", self.city_name(*city))
+                        .count("figures", *figures),
                 )),
-                Event::CityShrank { city, figures } if mine(*city) => deaths.push(format!(
-                    "{} now has a population of {figures}",
-                    self.city_name(*city)
+                Event::CityShrank { city, figures } if mine(*city) => deaths.push(say(
+                    "chancellor.shrank",
+                    Args::new()
+                        .text("city", self.city_name(*city))
+                        .count("figures", *figures),
                 )),
                 Event::ChaosRiftStrikes {
                     city,
                     building: Some(b),
                     ..
-                } if mine(*city) => buildings.push(format!(
-                    "{} has lost its {}",
-                    self.city_name(*city),
-                    rules.buildings.get(*b).name
+                } if mine(*city) => buildings.push(say(
+                    "chancellor.lost_building",
+                    Args::new()
+                        .text("city", self.city_name(*city))
+                        .text("building", &rules.buildings.get(*b).name),
                 )),
-                Event::BuildingsCollapsed { city, count } if mine(*city) => buildings.push(
-                    format!("{} has lost {count} buildings", self.city_name(*city)),
-                ),
+                Event::BuildingsCollapsed { city, count } if mine(*city) => buildings.push(say(
+                    "chancellor.lost_buildings",
+                    Args::new()
+                        .text("city", self.city_name(*city))
+                        .count("n", *count),
+                )),
                 Event::EnchantmentLapsed { player, spell } if *player == HUMAN => {
                     let def = rules.spells.get(*spell);
                     let list = match def.target {
@@ -152,19 +167,22 @@ impl App {
             }
         }
         [
-            ("UNITS DISBANDED", disbanded),
-            ("CITY GROWTH", growth),
-            ("CITY DEATHS", deaths),
-            ("Destroyed Buildings", buildings),
-            ("WIZARDS", rivals),
-            ("SHIPS", ships),
-            ("UNIT SPELLS DISSIPATED", unit_spells),
-            ("CITY SPELLS DISSIPATED", city_spells),
-            ("GLOBAL SPELLS DISSIPATED", global_spells),
+            ("chancellor.disbanded", disbanded),
+            ("chancellor.growth", growth),
+            ("chancellor.deaths", deaths),
+            ("chancellor.buildings", buildings),
+            ("chancellor.wizards", rivals),
+            ("chancellor.ships", ships),
+            ("chancellor.unit_spells", unit_spells),
+            ("chancellor.city_spells", city_spells),
+            ("chancellor.global_spells", global_spells),
         ]
         .into_iter()
         .filter(|(_, lines)| !lines.is_empty())
-        .map(|(title, lines)| Section { title, lines })
+        .map(|(title, lines)| Section {
+            title: self.text(title),
+            lines,
+        })
         .collect()
     }
 
@@ -197,46 +215,58 @@ impl App {
     fn shortfall_forecast(&self) -> Option<Section> {
         let mut lines = Vec::new();
         if let Some(m) = self.game.upkeep_shortfall(HUMAN) {
-            lines.push(format!(
-                "Mana: {} needed, {} in the reserve. Spells or summons will be lost.",
-                m.owed, m.reserve
-            ));
+            let args = Args::new()
+                .count("needed", m.owed)
+                .count("reserve", m.reserve);
+            lines.push(self.text_with("chancellor.forecast_mana", &args));
         }
         if let Some(t) = self.game.treasury_shortfall(HUMAN) {
             let (food, gold) = t.missing(&[]);
             if food > 0 {
-                lines.push(format!("Food: {food} short. Troops will desert."));
+                lines.push(
+                    self.text_with("chancellor.forecast_food", &Args::new().count("n", food)),
+                );
             }
             if gold > 0 {
-                lines.push(format!("Gold: {gold} short. Troops will desert."));
+                lines.push(
+                    self.text_with("chancellor.forecast_gold", &Args::new().count("n", gold)),
+                );
             }
-            lines.push(
-                "Sell a building or change taxes, or choose who goes when you end the turn."
-                    .to_string(),
-            );
+            lines.push(self.text("chancellor.forecast_advice"));
         }
         (!lines.is_empty()).then_some(Section {
-            title: "NEXT TURN",
+            title: self.text("chancellor.next_turn"),
             lines,
         })
     }
 
     /// A made-up report, for `--shot ... --scroll`.
     pub(crate) fn open_test_chancellor(&mut self, long: bool) {
-        let mut growth: Vec<String> = vec!["Waldheim has grown to a population of 6".into()];
+        let grew = |city: &str, figures: u32| {
+            self.text_with(
+                "chancellor.grew",
+                &Args::new().text("city", city).count("figures", figures),
+            )
+        };
+        let mut growth: Vec<String> = vec![grew("Waldheim", 6)];
         if long {
-            growth.extend((0..14).map(|i| format!("Test city {i} has grown to a population of 4")));
+            growth.extend((0..14).map(|i| grew(&format!("Test city {i}"), 4)));
         }
-        self.open_chancellor(vec![
+        let lost = self.text_with(
+            "chancellor.lost_food",
+            &Args::new().text("unit", "Spearmen"),
+        );
+        let sections = vec![
             Section {
-                title: "UNITS DISBANDED",
-                lines: vec!["Spearmen - deserted: lack of food.".into()],
+                title: self.text("chancellor.disbanded"),
+                lines: vec![lost],
             },
             Section {
-                title: "CITY GROWTH",
+                title: self.text("chancellor.growth"),
                 lines: growth,
             },
-        ]);
+        ];
+        self.open_chancellor(sections);
         // Already unrolled, so a screenshot shows the text.
         if let Some(c) = self.chancellor.as_mut() {
             c.opened = get_time() - 5.0;
@@ -271,7 +301,7 @@ impl App {
                         view,
                         4,
                         Color::new(0.4, 0.05, 0.02, 1.0),
-                        "NO EVENTS THIS MONTH",
+                        &app.text("chancellor.nothing"),
                         158.0,
                         y,
                         Align::Center,
@@ -282,7 +312,7 @@ impl App {
                         view,
                         4,
                         Color::new(0.4, 0.05, 0.02, 1.0),
-                        s.title,
+                        &s.title,
                         165.0,
                         y,
                         Align::Center,
@@ -361,7 +391,7 @@ mod tests {
     #[test]
     fn a_long_report_scrolls_and_a_short_one_does_not() {
         let section = |n: usize| Section {
-            title: "X",
+            title: "X".to_string(),
             lines: vec!["line".into(); n],
         };
         let short = Chancellor {

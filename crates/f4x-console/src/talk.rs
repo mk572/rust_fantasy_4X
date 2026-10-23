@@ -1,6 +1,6 @@
 //! Talking to the other wizards: what is known of them, proposals, answers, gifts, treaties.
 
-use f4x_core::diplomacy::{relation_word, DiplomacyCommand, DiplomacyError, ProposalKind, Treaty};
+use f4x_core::diplomacy::{relation_key, DiplomacyCommand, DiplomacyError, ProposalKind, Treaty};
 use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 
@@ -119,7 +119,10 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!(
             "{} {name}: {} ({rel}), {}",
             w.0,
-            relation_word(rel),
+            ctx.game
+                .content()
+                .texts
+                .get(relation_key(rel), &f4x_core::text::Args::new()),
             treaty_word(ctx.game.treaty(me, w))
         ));
         if a.get(0).is_some() {

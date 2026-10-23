@@ -2,19 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-/// One of the original's short messages (`MESSAGE.LBX`), by its number there.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct MessageText {
-    pub index: u32,
-    pub text: String,
-}
-
-/// The message numbers the game uses.
-pub mod message {
-    /// "At least one hero has died.  Magic items must be re-distributed".
-    pub const HERO_DIED: u32 = 67;
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelpTopic {
     pub index: u16,

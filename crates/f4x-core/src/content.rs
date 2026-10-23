@@ -203,4 +203,6 @@ pub struct Content {
     pub rules: crate::rules::Rules,
     /// Difficulty levels and the defaults of the settings screens (`settings.ron`).
     pub settings: crate::game::setting::SettingsDef,
+    /// Every player-facing message, in the language of `settings.language`.
+    pub texts: crate::text::Texts,
 }

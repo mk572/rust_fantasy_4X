@@ -8,6 +8,7 @@
 
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
 use f4x_core::rules::{MovementType, Stat, UnitKind};
+use f4x_core::text::{Args, Texts};
 
 use crate::view::App;
 
@@ -139,22 +140,21 @@ pub(crate) fn ranged_icon(abilities: &[String]) -> usize {
 }
 
 /// The quiver line ("Arrows x8", "Spells x3") for a ranged unit that is not a spell caster.
-pub(crate) fn quiver_name(abilities: &[String], ammo: i32) -> Option<String> {
+pub(crate) fn quiver_name(texts: &Texts, abilities: &[String], ammo: i32) -> Option<String> {
     let has = |a: &str| abilities.iter().any(|x| x == a);
     let caster = has("spellcaster") || has("spellcaster_major");
-    let kind = if has("rock_throwing") {
-        "Rock"
+    let key = if has("rock_throwing") {
+        "unit.quiver_rock"
     } else if has("bow") {
-        "Arrow"
+        "unit.quiver_arrow"
     } else if has("sling") {
-        "Bullet"
+        "unit.quiver_bullet"
     } else if !caster && ranged_icon(abilities) == 1 {
-        "Spell"
+        "unit.quiver_spell"
     } else {
         return None;
     };
-    let plural = if ammo > 1 { "s" } else { "" };
-    Some(format!("{kind}{plural} x{ammo}"))
+    Some(texts.get(key, &Args::new().count("n", ammo)))
 }
 
 /// Abilities the list shows, in the original's order, with their picture.
@@ -287,6 +287,7 @@ pub(crate) struct SpecialsInput<'a> {
     pub transport: i32,
     /// Display name of an ability id.
     pub ability_name: &'a dyn Fn(&str) -> String,
+    pub texts: &'a Texts,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
     pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool)>,
 }
@@ -302,27 +303,37 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         removable: false,
     };
     if let Some((name, xp, level)) = input.level {
-        out.push(plain(format!("{name} ({xp} ep)"), Some(102 + level.min(5))));
+        let args = Args::new().text("name", name).count("xp", xp);
+        out.push(plain(
+            input.texts.get("unit.level", &args),
+            Some(102 + level.min(5)),
+        ));
     }
-    if let Some(name) = quiver_name(input.abilities, input.ammo) {
+    if let Some(name) = quiver_name(input.texts, input.abilities, input.ammo) {
         out.push(plain(name, Some(136)));
     }
     if input.to_hit != 0 {
-        let (icon, sign) = if input.to_hit > 0 {
-            (125, "+")
+        let (icon, key) = if input.to_hit > 0 {
+            (125, "unit.to_hit_plus")
         } else {
-            (126, "")
+            (126, "unit.to_hit_minus")
         };
-        out.push(plain(format!("{sign}{} To Hit", input.to_hit), Some(icon)));
+        let args = Args::new().count("n", input.to_hit);
+        out.push(plain(input.texts.get(key, &args), Some(icon)));
     }
     if input.construction {
-        out.push(plain("Construction".to_string(), Some(36)));
+        out.push(plain(
+            input.texts.get("unit.construction", &Args::new()),
+            Some(36),
+        ));
     }
     if input.scouting > 1 {
-        out.push(plain(format!("Scouting {}", input.scouting), Some(37)));
+        let args = Args::new().count("n", input.scouting);
+        out.push(plain(input.texts.get("unit.scouting", &args), Some(37)));
     }
     if input.transport > 0 {
-        out.push(plain(format!("Carries {}", input.transport), None));
+        let args = Args::new().count("n", input.transport);
+        out.push(plain(input.texts.get("unit.carries", &args), None));
     }
     let has = |a: &str| input.abilities.iter().any(|x| x == a);
     for &(id, icon) in LISTED {
@@ -335,12 +346,17 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         }
         let mut name = (input.ability_name)(id);
         if matches!(id, "spellcaster" | "spellcaster_major") && input.mana > 0 {
-            name = format!("Caster {} mp", input.mana);
+            name = input
+                .texts
+                .get("unit.caster", &Args::new().count("n", input.mana));
         }
         out.push(plain(name, Some(icon)));
     }
     if input.undead {
-        out.push(plain("Undead".to_string(), Some(120)));
+        out.push(plain(
+            input.texts.get("unit.undead", &Args::new()),
+            Some(120),
+        ));
     }
     for (spell, id, name, removable) in &input.enchantments {
         out.push(Special {
@@ -518,6 +534,7 @@ impl App {
             undead: units.unit_is_undead(unit),
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
+            texts: self.texts(),
             enchantments,
         });
         let art = def.art.clone();
@@ -622,6 +639,7 @@ impl App {
             undead: abilities.iter().any(|a| a == "undead"),
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
+            texts: self.texts(),
             enchantments: Vec::new(),
         });
         let ranged = stat(Stat::Ranged);
@@ -718,6 +736,7 @@ impl App {
             undead: u.undead,
             transport: 0,
             ability_name: &ability_name,
+            texts: self.texts(),
             enchantments,
         });
         let owner = battle.player_of(u.side).0;
@@ -759,6 +778,14 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The English messages of the shipped content.
+    fn en() -> &'static Texts {
+        static TEXTS: std::sync::OnceLock<Texts> = std::sync::OnceLock::new();
+        TEXTS.get_or_init(|| {
+            f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap()
+        })
+    }
 
     fn names(list: &[Special]) -> Vec<&str> {
         list.iter().map(|s| s.name.as_str()).collect()
@@ -816,6 +843,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            texts: en(),
             enchantments: Vec::new(),
         });
         assert_eq!(
@@ -849,6 +877,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            texts: en(),
             enchantments: Vec::new(),
         });
         assert_eq!(names(&list), ["pathfinding"]);
@@ -872,6 +901,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            texts: en(),
             enchantments: Vec::new(),
         });
         assert_eq!(names(&list), ["Caster 20 mp"]);
@@ -891,6 +921,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            texts: en(),
             enchantments: Vec::new(),
         };
         assert!(specials(&input(1)).is_empty());

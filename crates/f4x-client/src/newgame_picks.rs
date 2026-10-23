@@ -5,9 +5,11 @@
 //! rare). The pick rules are the core's (`WizardBuild`, `retort_available`, `retort_cost`);
 //! this file is the pictures and the clicks. Positions are the original's.
 
+use f4x_core::content::Content;
 use f4x_core::rules::Rarity;
+use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{retort_available, retort_cost, retort_name, ALL_RETORTS, MAX_RETORTS};
+use f4x_core::wizard::{retort_available, retort_cost, ALL_RETORTS, MAX_RETORTS};
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
@@ -29,25 +31,38 @@ fn realm_ink(realm: &str) -> Color {
 }
 
 /// What a retort needs, in the words of the original's refusal ("To select X you need: ...").
-pub(crate) fn prerequisite_text(retort: Retort) -> String {
-    let pick =
-        |n: u8, realm: &str| format!("{n} pick{} in {realm} Magic", if n > 1 { "s" } else { "" });
-    match retort {
-        Retort::SageMaster => "1 pick in any 2 Realms of Magic".into(),
-        Retort::Runemaster => "2 picks in any 3 Realms of Magic".into(),
-        Retort::Archmage | Retort::ManaFocusing => "4 picks in any Realm of Magic".into(),
-        Retort::ChaosMastery => pick(4, "Chaos"),
-        Retort::NatureMastery => pick(4, "Nature"),
-        Retort::SorceryMastery => pick(4, "Sorcery"),
-        Retort::InfernalPower => pick(4, "Death"),
-        Retort::DivinePower => pick(4, "Life"),
-        Retort::NodeMastery => format!(
-            "{}, {}, {}",
-            pick(1, "Chaos"),
-            pick(1, "Sorcery"),
-            pick(1, "Nature")
-        ),
-        _ => String::new(),
+pub(crate) fn prerequisite_text(content: &Content, retort: Retort) -> String {
+    let texts = &content.texts;
+    let pick = |n: u8, realm: &str| {
+        let name = content
+            .rules
+            .realms
+            .by_name(realm)
+            .map_or_else(|| realm.to_string(), |r| r.name.clone());
+        texts.get(
+            "picks.in_realm",
+            &Args::new().count("n", n).text("realm", name),
+        )
+    };
+    {
+        match retort {
+            Retort::SageMaster => texts.get("picks.sage_master", &Args::new()),
+            Retort::Runemaster => texts.get("picks.runemaster", &Args::new()),
+            Retort::Archmage | Retort::ManaFocusing => texts.get("picks.any_realm", &Args::new()),
+            Retort::ChaosMastery => pick(4, "chaos"),
+            Retort::NatureMastery => pick(4, "nature"),
+            Retort::SorceryMastery => pick(4, "sorcery"),
+            Retort::InfernalPower => pick(4, "death"),
+            Retort::DivinePower => pick(4, "life"),
+            Retort::NodeMastery => texts.get(
+                "picks.node_mastery",
+                &Args::new()
+                    .text("chaos", pick(1, "chaos"))
+                    .text("sorcery", pick(1, "sorcery"))
+                    .text("nature", pick(1, "nature")),
+            ),
+            _ => String::new(),
+        }
     }
 }
 
@@ -70,7 +85,7 @@ impl App {
             _ => "",
         };
         if n > 0 && !rival.is_empty() && self.books_of(rival) > 0 {
-            self.create.warn = Some("You can not select both Life and Death magic".into());
+            self.create.warn = Some(self.text("picks.life_and_death"));
             return;
         }
         if n == 0 {
@@ -90,11 +105,10 @@ impl App {
             .collect();
         for r in lost {
             self.create.build.retorts.remove(&r);
-            self.create.warn = Some(format!(
-                "To select {} you need:   {}",
-                retort_name(r),
-                prerequisite_text(r)
-            ));
+            let args = Args::new()
+                .text("retort", self.retort_name(r))
+                .text("needs", prerequisite_text(self.game.content(), r));
+            self.create.warn = Some(self.text_with("picks.to_select", &args));
         }
     }
 
@@ -106,19 +120,16 @@ impl App {
         let left = i32::from(self.create.build.picks_left());
         let cost = i32::from(retort_cost(retort));
         let message = if left <= 0 {
-            Some("You have already made all your picks".to_string())
+            Some(self.text("picks.all_made"))
         } else if self.create.build.retorts.len() >= MAX_RETORTS {
-            Some("You may not select more than 6 special abilities".to_string())
+            Some(self.text("picks.too_many_retorts"))
         } else if !retort_available(retort, &self.create.build.books) {
-            Some(format!(
-                "To select {} you need:   {}",
-                retort_name(retort),
-                prerequisite_text(retort)
-            ))
+            let args = Args::new()
+                .text("retort", self.retort_name(retort))
+                .text("needs", prerequisite_text(self.game.content(), retort));
+            Some(self.text_with("picks.to_select", &args))
         } else if cost > left {
-            Some(format!(
-                "You don't have enough picks left to make this selection. You need {cost} picks"
-            ))
+            Some(self.text_with("picks.not_enough", &Args::new().count("cost", cost)))
         } else {
             None
         };
@@ -190,9 +201,9 @@ impl App {
             } else {
                 GREY_INK
             };
-            let name = retort_name(retort);
-            self.bm_text(view, 0, SHADOW, name, x + 1.0, y + 1.0, Align::Left);
-            self.bm_text(view, 0, ink, name, x, y, Align::Left);
+            let name = self.retort_name(retort);
+            self.bm_text(view, 0, SHADOW, &name, x + 1.0, y + 1.0, Align::Left);
+            self.bm_text(view, 0, ink, &name, x, y, Align::Left);
             if known {
                 let mark = [165.0, 204.0, 254.0][col];
                 self.draw_pic(lay, "newgame", 52, 0, mark, y + 1.0);
@@ -208,7 +219,7 @@ impl App {
 
         // The picks left, the abilities, the name and the OK button.
         let left = self.create.build.picks_left();
-        let count = format!("{left} picks");
+        let count = self.text_with("picks.left", &Args::new().count("n", left));
         // ReMoM prints the light text first and the shadow over it, which buries the words;
         // the shadow goes underneath.
         self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
@@ -225,8 +236,7 @@ impl App {
             if ok {
                 self.next_spells(0);
             } else {
-                self.create.warn =
-                    Some("You need to make all your picks before you can continue".into());
+                self.create.warn = Some(self.text("picks.make_all"));
             }
         } else if input && is_key_pressed(KeyCode::Escape) {
             self.create.step = Step::Name;
@@ -302,24 +312,12 @@ impl App {
             .by_name(realm)
             .map_or_else(|| realm.to_string(), |r| r.name.clone());
         let ink = realm_ink(realm);
-        self.bm_text(
-            view,
-            4,
-            SHADOW,
-            &format!("Select {realm_name} Spells"),
-            242.0,
-            7.0,
-            Align::Center,
+        let title = self.text_with(
+            "picks.select_spells",
+            &Args::new().text("realm", &realm_name),
         );
-        self.bm_text(
-            view,
-            4,
-            ink,
-            &format!("Select {realm_name} Spells"),
-            241.0,
-            6.0,
-            Align::Center,
-        );
+        self.bm_text(view, 4, SHADOW, &title, 242.0, 7.0, Align::Center);
+        self.bm_text(view, 4, ink, &title, 241.0, 6.0, Align::Center);
         let books = self.create.build.books.clone();
         self.ng_shelf(lay, &REALM_ORDER, &|r| books.get(r).copied().unwrap_or(0));
         let mouse: Vec2 = mouse_position().into();
@@ -331,17 +329,20 @@ impl App {
         for (s, &(rarity, want)) in sections.iter().enumerate() {
             let top = 39.0 + 51.0 * s as f32;
             self.draw_pic(lay, "newgame", 48 + s, 0, 167.0, 37.0 + 51.0 * s as f32);
-            let label = match rarity {
-                Rarity::Common => "Common",
-                Rarity::Uncommon => "Uncommon",
-                Rarity::Rare => "Rare",
-                Rarity::VeryRare => "Very Rare",
-            };
+            let label = self.text(match rarity {
+                Rarity::Common => "picks.common",
+                Rarity::Uncommon => "picks.uncommon",
+                Rarity::Rare => "picks.rare",
+                Rarity::VeryRare => "picks.very_rare",
+            });
             self.bm_text(
                 view,
                 3,
                 ink,
-                &format!("{label}: {want}"),
+                &self.text_with(
+                    "picks.rarity_row",
+                    &Args::new().text("rarity", label).count("n", want),
+                ),
                 167.0,
                 26.0 + 51.0 * s as f32,
                 Align::Left,
@@ -402,11 +403,9 @@ impl App {
             }
         }
         if refused {
-            self.create.warn = Some(
-                "You have no picks left in this area, to deselect click on a selected item".into(),
-            );
+            self.create.warn = Some(self.text("picks.none_left_here"));
         }
-        let count = format!("{remaining} picks");
+        let count = self.text_with("picks.left", &Args::new().count("n", remaining));
         // ReMoM prints the light text first and the shadow over it, which buries the words;
         // the shadow goes underneath.
         self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
@@ -423,8 +422,7 @@ impl App {
             if ok {
                 self.next_spells(index + 1);
             } else {
-                self.create.warn =
-                    Some("You need to make all your picks before you can continue".into());
+                self.create.warn = Some(self.text("picks.make_all"));
             }
         } else if input && is_key_pressed(KeyCode::Escape) {
             self.create.step = Step::Picks;
@@ -439,15 +437,18 @@ mod tests {
 
     #[test]
     fn a_retort_that_is_refused_names_what_it_needs() {
+        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
         assert_eq!(
-            prerequisite_text(Retort::ChaosMastery),
+            prerequisite_text(&content, Retort::ChaosMastery),
             "4 picks in Chaos Magic"
         );
         assert_eq!(
-            prerequisite_text(Retort::SageMaster),
+            prerequisite_text(&content, Retort::SageMaster),
             "1 pick in any 2 Realms of Magic"
         );
-        assert!(prerequisite_text(Retort::NodeMastery).contains("1 pick in Sorcery Magic"));
-        assert!(prerequisite_text(Retort::Alchemy).is_empty());
+        assert!(
+            prerequisite_text(&content, Retort::NodeMastery).contains("1 pick in Sorcery Magic")
+        );
+        assert!(prerequisite_text(&content, Retort::Alchemy).is_empty());
     }
 }

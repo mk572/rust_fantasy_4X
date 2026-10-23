@@ -18,6 +18,7 @@ use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
 use f4x_core::rules::defs::SpellTarget;
 use f4x_core::rules::SpellId;
+use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::art::FigureEffect;
@@ -144,16 +145,19 @@ pub(crate) fn cell_at(x: f32, y: f32) -> Option<Pos> {
     found
 }
 
-/// The original's picture file for the ground of a fight on this terrain.
 /// Tell what a battle event did, in one line.
 pub(crate) fn describe(
+    texts: &Texts,
     names: &[String],
     spell: &dyn Fn(SpellId) -> String,
     event: &BattleEvent,
 ) -> Option<String> {
-    let name = |i: usize| names.get(i).map_or("?", String::as_str);
-    Some(match event {
-        BattleEvent::Moved { .. } | BattleEvent::ChaosCalled { .. } => return None,
+    let name = |i: usize| names.get(i).map_or("?", String::as_str).to_string();
+    let say = |key: &str, args: Args| Some(texts.get(key, &args));
+    let unit = |i: usize| Args::new().text("unit", name(i));
+    let spell_of = |s: SpellId| Args::new().text("spell", spell(s));
+    match event {
+        BattleEvent::Moved { .. } | BattleEvent::ChaosCalled { .. } => None,
         BattleEvent::Attacked {
             attacker,
             defender,
@@ -161,110 +165,122 @@ pub(crate) fn describe(
             dealt_kills,
             taken,
             ..
-        } => format!(
-            "{} hits {}: {dealt} damage{}{}",
-            name(*attacker),
-            name(*defender),
-            kills(*dealt_kills),
-            if *taken > 0 {
-                format!(", takes {taken}")
+        } => {
+            let taken = if *taken > 0 {
+                texts.get("battle.takes_back", &Args::new().count("n", *taken))
             } else {
                 String::new()
-            }
-        ),
+            };
+            let args = Args::new()
+                .text("attacker", name(*attacker))
+                .text("defender", name(*defender))
+                .count("dealt", *dealt)
+                .text("kills", kills(texts, *dealt_kills))
+                .text("taken", taken);
+            say("battle.hits", args)
+        }
         BattleEvent::Shot {
             attacker,
             defender,
             dealt,
             kills: k,
-        } => format!(
-            "{} shoots {}: {dealt} damage{}",
-            name(*attacker),
-            name(*defender),
-            kills(*k)
-        ),
+        } => {
+            let args = Args::new()
+                .text("attacker", name(*attacker))
+                .text("defender", name(*defender))
+                .count("dealt", *dealt)
+                .text("kills", kills(texts, *k));
+            say("battle.shoots", args)
+        }
         BattleEvent::WallAttacked {
-            unit, destroyed, ..
-        } => format!(
-            "{} strikes the wall{}",
-            name(*unit),
-            if *destroyed { " and it falls" } else { "" }
+            unit: u, destroyed, ..
+        } => say(
+            if *destroyed {
+                "battle.strikes_wall_falls"
+            } else {
+                "battle.strikes_wall"
+            },
+            unit(*u),
         ),
-        BattleEvent::UnitDied { unit } => format!("{} is destroyed", name(*unit)),
-        BattleEvent::SpellCast { spell: s, .. } => format!("{} is cast", spell(*s)),
-        BattleEvent::UnitSpellCast { unit, spell: s, .. } => {
-            format!("{} casts {}", name(*unit), spell(*s))
+        BattleEvent::UnitDied { unit: u } => say("battle.unit_died", unit(*u)),
+        BattleEvent::SpellCast { spell: s, .. } => say("battle.spell_cast", spell_of(*s)),
+        BattleEvent::UnitSpellCast {
+            unit: u, spell: s, ..
+        } => {
+            let args = unit(*u).text("spell", spell(*s));
+            say("battle.unit_casts", args)
         }
-        BattleEvent::WallDestroyed { .. } => "A section of the wall is destroyed".to_string(),
-        BattleEvent::MudMade { .. } => "The ground turns to mud".to_string(),
-        BattleEvent::FissureOpened { .. } => "The earth cracks open".to_string(),
-        BattleEvent::VortexMade { .. } => "A magic vortex appears".to_string(),
-        BattleEvent::VortexMoved { .. } => return None,
-        BattleEvent::LifeDrained { unit, points } => {
-            format!("{} loses {points} life", name(*unit))
+        BattleEvent::WallDestroyed { .. } => say("battle.wall_destroyed", Args::new()),
+        BattleEvent::MudMade { .. } => say("battle.mud", Args::new()),
+        BattleEvent::FissureOpened { .. } => say("battle.fissure", Args::new()),
+        BattleEvent::VortexMade { .. } => say("battle.vortex", Args::new()),
+        BattleEvent::VortexMoved { .. } => None,
+        BattleEvent::LifeDrained { unit: u, points } => {
+            say("battle.life_drained", unit(*u).count("points", *points))
         }
-        BattleEvent::SpellCountered { spell: s, .. } => {
-            format!("Counter Magic stops {}", spell(*s))
+        BattleEvent::SpellCountered { spell: s, .. } => say("battle.countered", spell_of(*s)),
+        BattleEvent::SpellDamaged {
+            unit: u,
+            dealt,
+            kills: k,
         }
-        BattleEvent::SpellDamaged { unit, dealt, kills } => {
-            format!(
-                "{} takes {dealt} damage{}",
-                name(*unit),
-                self::kills(*kills)
-            )
+        | BattleEvent::FieldStruck {
+            unit: u,
+            dealt,
+            kills: k,
+        } => {
+            let args = unit(*u)
+                .count("dealt", *dealt)
+                .text("kills", kills(texts, *k));
+            say("battle.takes_damage", args)
         }
-        BattleEvent::SpellImmune { unit } => format!("{} is unharmed", name(*unit)),
-        BattleEvent::SpellHealed { unit, healed } => {
-            format!("{} heals {healed}", name(*unit))
+        BattleEvent::SpellImmune { unit: u } => say("battle.unharmed", unit(*u)),
+        BattleEvent::SpellHealed { unit: u, healed } => {
+            say("battle.healed", unit(*u).count("healed", *healed))
         }
-        BattleEvent::SpellEnchanted { unit, spell: s } => {
-            format!("{} is under {}", name(*unit), spell(*s))
+        BattleEvent::SpellEnchanted { unit: u, spell: s } => {
+            say("battle.enchanted", unit(*u).text("spell", spell(*s)))
         }
-        BattleEvent::SpellDispelled { unit, removed } => {
-            format!("Dispel on {}: {removed} removed", name(*unit))
+        BattleEvent::SpellDispelled { unit: u, removed } => {
+            say("battle.dispelled", unit(*u).count("removed", *removed))
         }
-        BattleEvent::Summoned { unit } => format!("{} appears", name(*unit)),
-        BattleEvent::Raised { unit } => format!("{} rises again as undead", name(*unit)),
-        BattleEvent::FieldDispelled { spell: s, .. } => {
-            format!("{} is dispelled from the field", spell(*s))
+        BattleEvent::Summoned { unit: u } => say("battle.summoned", unit(*u)),
+        BattleEvent::Raised { unit: u } => say("battle.raised", unit(*u)),
+        BattleEvent::FieldDispelled { spell: s, .. } => say("battle.field_dispelled", spell_of(*s)),
+        BattleEvent::FieldRaised { spell: s, .. } => say("battle.field_raised", spell_of(*s)),
+        BattleEvent::SpellResisted { unit: u } => say("battle.resists", unit(*u)),
+        BattleEvent::SpellSlew { unit: u, kills: k } => {
+            say("battle.spell_slew", unit(*u).count("kills", *k))
         }
-        BattleEvent::FieldRaised { spell: s, .. } => format!("{} covers the field", spell(*s)),
-        BattleEvent::SpellResisted { unit } => format!("{} resists", name(*unit)),
-        BattleEvent::SpellSlew { unit, kills } => {
-            format!("{} loses {kills} figures to the spell", name(*unit))
+        BattleEvent::Terrified { unit: u } => say("battle.terrified", unit(*u)),
+        BattleEvent::Confused { unit: u, act } => say(
+            match act {
+                Confusion::Idle => "battle.confused_idle",
+                Confusion::Wandered => "battle.confused_wandered",
+                Confusion::Seized => "battle.confused_seized",
+            },
+            unit(*u),
+        ),
+        BattleEvent::ManaLeaked { .. } => say("battle.mana_leaked", Args::new()),
+        BattleEvent::CounterMagicRaised { strength, .. } => say(
+            "battle.counter_magic",
+            Args::new().count("strength", *strength),
+        ),
+        BattleEvent::TurnStarted { turn, .. } => {
+            say("battle.turn", Args::new().count("turn", *turn))
         }
-        BattleEvent::FieldStruck { unit, dealt, kills } => {
-            format!(
-                "{} takes {dealt} damage{}",
-                name(*unit),
-                self::kills(*kills)
-            )
-        }
-        BattleEvent::Terrified { unit } => format!("{} cowers in terror", name(*unit)),
-        BattleEvent::Confused { unit, act } => match act {
-            Confusion::Idle => format!("{} stands about, confused", name(*unit)),
-            Confusion::Wandered => format!("{} wanders off, confused", name(*unit)),
-            Confusion::Seized => format!("{} falls under the enemy's orders", name(*unit)),
-        },
-        BattleEvent::ManaLeaked { .. } => "Mana drains away".to_string(),
-        BattleEvent::CounterMagicRaised { strength, .. } => {
-            format!("Counter Magic {strength} stands against spells")
-        }
-        BattleEvent::TurnStarted { turn, .. } => format!("Turn {turn}"),
-        BattleEvent::Fled { .. } => "The army flees".to_string(),
-        BattleEvent::HeroRecalled { unit } => {
-            format!("{} is recalled to the summoning circle", name(*unit))
-        }
-        BattleEvent::Ended { .. } => return None,
-    })
+        BattleEvent::Fled { .. } => say("battle.fled", Args::new()),
+        BattleEvent::HeroRecalled { unit: u } => say("battle.recalled", unit(*u)),
+        BattleEvent::Ended { .. } => None,
+    }
 }
 
-fn kills(count: u32) -> String {
-    match count {
-        0 => String::new(),
-        1 => ", 1 figure lost".to_string(),
-        n => format!(", {n} figures lost"),
+/// ", 2 figures lost", or nothing when none was.
+fn kills(texts: &Texts, count: u32) -> String {
+    if count == 0 {
+        return String::new();
     }
+    texts.get("battle.figures_lost", &Args::new().count("n", count))
 }
 
 /// Can the unit still do something this turn?
@@ -413,8 +429,12 @@ impl App {
             _ => None,
         });
         if let Some(won) = won {
-            self.log
-                .push(if won { "Victory!" } else { "Defeat" }.to_string());
+            let line = self.text(if won {
+                "battle.victory"
+            } else {
+                "battle.defeat"
+            });
+            self.log.push(line);
         }
         let rest: Vec<Event> = events
             .into_iter()
@@ -729,7 +749,8 @@ impl App {
                 Event::Battle(e) => {
                     let spell_name =
                         |id: SpellId| self.game.content().rules.spells.get(id).name.clone();
-                    if let Some(line) = describe(&names, &spell_name, e) {
+                    if let Some(line) = describe(&self.game.content().texts, &names, &spell_name, e)
+                    {
                         self.battle_ui.log.push(line);
                     }
                     if let Some(b) = &before {
@@ -737,15 +758,19 @@ impl App {
                     }
                 }
                 Event::BattleEnded { winner, .. } => {
-                    let line = if *winner == HUMAN {
-                        "Victory!"
+                    let line = self.text(if *winner == HUMAN {
+                        "battle.victory"
                     } else {
-                        "Defeat"
-                    };
-                    self.battle_ui.log.push(line.to_string());
-                    self.log.push(line.to_string());
+                        "battle.defeat"
+                    });
+                    self.battle_ui.log.push(line.clone());
+                    self.log.push(line);
                 }
-                Event::Rejected(why) => self.battle_ui.log.push(format!("Cannot: {why:?}")),
+                Event::Rejected(why) => {
+                    let args = Args::new().text("why", format!("{why:?}"));
+                    let line = self.text_with("log.cannot", &args);
+                    self.battle_ui.log.push(line);
+                }
                 _ => {}
             }
         }
@@ -1372,7 +1397,7 @@ impl App {
                 view,
                 1,
                 Color::new(0.2, 0.12, 0.05, 1.0),
-                "No spell to cast here",
+                &self.text("battle.no_spell"),
                 60.0,
                 80.0,
                 Align::Left,
@@ -1399,7 +1424,7 @@ impl App {
             .map_or(0, |u| u.casting.demons);
         if let (Some(u), true) = (unit, demons > 0) {
             let r = lay.rect((100.0, 170.0, 70.0, 16.0));
-            let label = format!("Summon Demon ({demons})");
+            let label = self.text_with("battle.summon_demon", &Args::new().count("n", demons));
             if button(r, &label, self.game.can_summon_demon(u)) {
                 self.battle_ui.spell_list = false;
                 self.battle_ui.spell_unit = None;
@@ -1433,7 +1458,7 @@ impl App {
         draw_rectangle(x, y, width, height, PANEL);
         draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
         draw_text(
-            format!("{name}: raise which unit?   Esc closes"),
+            self.text_with("battle.raise_which", &Args::new().text("spell", &name)),
             x + 10.0,
             y + 22.0,
             18.0,
@@ -1441,7 +1466,7 @@ impl App {
         );
         if fallen.is_empty() {
             draw_text(
-                "No fallen unit to raise",
+                self.text("battle.no_fallen"),
                 x + 10.0,
                 y + 50.0,
                 18.0,
@@ -1453,11 +1478,15 @@ impl App {
             let Some(u) = battle.unit(id) else {
                 continue;
             };
-            let how = match u.fate() {
-                Fate::Drained => "drained",
-                _ => "slain",
-            };
-            let label = format!("{}   {} figures   {how}", u.name, u.figures_start);
+            let how = self.text(match u.fate() {
+                Fate::Drained => "battle.fate_drained",
+                _ => "battle.fate_slain",
+            });
+            let args = Args::new()
+                .text("unit", &u.name)
+                .count("figures", u.figures_start)
+                .text("how", how);
+            let label = self.text_with("battle.fallen_row", &args);
             let rect = Rect::new(
                 x + 8.0,
                 y + 30.0 + i as f32 * row_h,
@@ -1499,18 +1528,19 @@ impl App {
         }
         let name = self.game.content().rules.spells.get(aim.spell).name.clone();
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
-        let mut text = format!(
-            "{name}: {}",
+        let mut text = self.text_with(
             if aimless {
-                "Enter casts"
+                "battle.aim_enter"
             } else {
-                "click a target"
-            }
+                "battle.aim_click"
+            },
+            &Args::new().text("spell", &name),
         );
         if aim.takes_extra_mana {
-            text += &format!("   mana {} (Up/Down, most {})", aim.mana, aim.most);
+            let args = Args::new().count("mana", aim.mana).count("most", aim.most);
+            text += &self.text_with("battle.aim_mana", &args);
         }
-        text += "   Esc cancels";
+        text += &self.text("battle.aim_cancel");
         draw_rectangle(8.0, 6.0, text.len() as f32 * 8.5 + 16.0, 26.0, PANEL);
         draw_text(&text, 16.0, 25.0, 20.0, GOLD);
     }
@@ -1945,7 +1975,7 @@ impl App {
 
     fn player_label(&self, player: f4x_core::player::PlayerId) -> String {
         if player == f4x_core::player::MONSTERS {
-            return "Monsters".to_string();
+            return self.text("battle.monsters");
         }
         self.game
             .wizard(player)
@@ -2061,7 +2091,9 @@ mod tests {
     fn events_are_told_with_unit_names() {
         let names = vec!["Spearmen".to_string(), "Orc".to_string()];
         let spell = |_: SpellId| "Fire Bolt".to_string();
+        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
         let line = describe(
+            &texts,
             &names,
             &spell,
             &BattleEvent::Attacked {
@@ -2076,6 +2108,7 @@ mod tests {
         .unwrap();
         assert_eq!(line, "Spearmen hits Orc: 4 damage, 1 figure lost");
         assert!(describe(
+            &texts,
             &names,
             &spell,
             &BattleEvent::Moved {

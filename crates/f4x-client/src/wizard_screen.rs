@@ -4,8 +4,9 @@
 //! F9 shows your own; a right-click on a rival's gem on the magic screen shows theirs. Esc or a
 //! click leaves. Positions are the original's, measured from the panel's top-left.
 
-use f4x_core::diplomacy::relation_word;
+use f4x_core::diplomacy::relation_key;
 use f4x_core::player::PlayerId;
+use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
@@ -45,17 +46,18 @@ impl Default for WizardUi {
 /// "Warlord and " and "Famous", each followed by a pixel, and a piece that would pass `limit`
 /// starts the next line.
 pub(crate) fn retort_pieces(
-    names: &[&str],
+    names: &[String],
+    separators: (&str, &str, &str),
     limit: f32,
     width: impl Fn(&str) -> f32,
 ) -> Vec<(String, f32, usize)> {
+    let (comma, and, stop) = separators;
     let mut out = Vec::new();
     let (mut x, mut line) = (0.0, 0);
     for (i, name) in names.iter().enumerate() {
-        let mut piece = (*name).to_string();
+        let mut piece = name.clone();
         if i + 1 != names.len() {
-            piece.push_str(if i + 2 == names.len() { " and" } else { "," });
-            piece.push(' ');
+            piece.push_str(if i + 2 == names.len() { and } else { comma });
         }
         let w = width(&piece);
         if x + w > limit {
@@ -66,7 +68,7 @@ pub(crate) fn retort_pieces(
         x += w + 1.0;
     }
     if !names.is_empty() {
-        out.push((".".to_string(), x, line));
+        out.push((stop.to_string(), x, line));
     }
     out
 }
@@ -153,23 +155,24 @@ impl App {
         );
 
         if ui.who != HUMAN {
-            let relation = relation_word(self.game.relation(HUMAN, ui.who));
-            let treaty = self.game.treaty(HUMAN, ui.who).name();
-            let personality = self
-                .game
-                .wizard(ui.who)
-                .map_or_else(Default::default, |w| w.personality())
-                .name();
+            let relation = self.text(relation_key(self.game.relation(HUMAN, ui.who)));
+            let treaty = self.text(self.game.treaty(HUMAN, ui.who).key());
+            let personality = self.text(
+                self.game
+                    .wizard(ui.who)
+                    .map_or_else(Default::default, |w| w.personality())
+                    .key(),
+            );
             let objective = self
                 .game
                 .wizard(ui.who)
                 .and_then(|w| w.objective())
-                .map_or("", |o| o.name());
+                .map_or_else(String::new, |o| self.text(o.key()));
             for (i, (label, value)) in [
-                ("Relations:", relation),
-                ("Treaties:", treaty),
-                ("Personality:", personality),
-                ("Objective:", objective),
+                (self.text("wizard.relations"), relation),
+                (self.text("wizard.treaties"), treaty),
+                (self.text("wizard.personality"), personality),
+                (self.text("wizard.objective"), objective),
             ]
             .into_iter()
             .enumerate()
@@ -179,7 +182,10 @@ impl App {
                     view,
                     1,
                     light,
-                    &format!("{label} {value}"),
+                    &self.text_with(
+                        "wizard.row",
+                        &Args::new().text("label", label).text("value", value),
+                    ),
                     px + 59.0,
                     y,
                     Align::Left,
@@ -231,25 +237,41 @@ impl App {
                 py + 96.0,
                 Align::Right,
             );
-            self.bm_text(view, 2, light, "Fame", px + 85.0, py + 96.0, Align::Left);
+            let fame_word = self.text("wizard.fame");
+            self.bm_text(
+                view,
+                2,
+                light,
+                &fame_word,
+                px + 85.0,
+                py + 96.0,
+                Align::Left,
+            );
         }
 
         // The retorts as one sentence, then the heroes.
-        let retorts: Vec<&str> = Retort::LISTED
+        let retorts: Vec<String> = Retort::LISTED
             .into_iter()
             .filter(|r| owned_retorts.contains(r))
-            .map(f4x_core::wizard::retort_name)
+            .map(|r| self.retort_name(r))
             .collect();
         let start_y = py + 111.0 - if retorts.len() > 5 { 2.0 } else { 0.0 };
+        let (comma, and, stop) = (
+            self.text("list.sep"),
+            self.text("list.sep_last"),
+            self.text("ui.full_stop"),
+        );
+        let separators = (comma.as_str(), and.as_str(), stop.as_str());
         let pieces = {
             let art = &self.art;
-            retort_pieces(&retorts, RETORT_WIDTH, |t| art.text_width(1, t))
+            retort_pieces(&retorts, separators, RETORT_WIDTH, |t| art.text_width(1, t))
         };
         for (text, x, line) in pieces {
             let y = start_y + RETORT_LINE * line as f32;
             self.bm_text(view, 1, light, &text, px + 13.0 + x, y, Align::Left);
         }
-        self.bm_text(view, 2, gold, "Heroes", px + 74.0, py + 131.0, Align::Left);
+        let heroes = self.text("wizard.heroes");
+        self.bm_text(view, 2, gold, &heroes, px + 74.0, py + 131.0, Align::Left);
         for (i, hero) in self.game.wizard_heroes(ui.who).iter().enumerate() {
             self.bm_text(
                 view,
@@ -268,6 +290,12 @@ impl App {
 mod tests {
     use super::*;
 
+    const SEP: (&str, &str, &str) = (", ", " and ", ".");
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
     /// Five pixels a letter.
     fn width(t: &str) -> f32 {
         t.chars().count() as f32 * 5.0
@@ -275,7 +303,12 @@ mod tests {
 
     #[test]
     fn the_retorts_read_as_a_sentence() {
-        let p = retort_pieces(&["Alchemy", "Warlord", "Famous"], 1000.0, width);
+        let p = retort_pieces(
+            &names(&["Alchemy", "Warlord", "Famous"]),
+            SEP,
+            1000.0,
+            width,
+        );
         let words: Vec<_> = p.iter().map(|(t, _, _)| t.as_str()).collect();
         assert_eq!(words, ["Alchemy, ", "Warlord and ", "Famous", "."]);
         assert!(p.iter().all(|&(_, _, line)| line == 0));
@@ -284,15 +317,15 @@ mod tests {
 
     #[test]
     fn one_retort_is_a_word_and_a_stop() {
-        let p = retort_pieces(&["Archmage"], 1000.0, width);
+        let p = retort_pieces(&names(&["Archmage"]), SEP, 1000.0, width);
         assert_eq!(p[0].0, "Archmage");
         assert_eq!(p[1].0, ".");
-        assert!(retort_pieces(&[], 1000.0, width).is_empty());
+        assert!(retort_pieces(&[], SEP, 1000.0, width).is_empty());
     }
 
     #[test]
     fn a_long_sentence_wraps() {
-        let p = retort_pieces(&["Alchemy", "Warlord", "Famous"], 60.0, width);
+        let p = retort_pieces(&names(&["Alchemy", "Warlord", "Famous"]), SEP, 60.0, width);
         // "Alchemy, " is 45 wide, "Warlord and " 60: it does not fit after the first.
         assert_eq!((p[0].2, p[1].2), (0, 1));
         assert_eq!(p[1].1, 0.0);

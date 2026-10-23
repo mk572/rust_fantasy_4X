@@ -1,0 +1,41 @@
+// Player-facing messages of the Chancellor's scroll, the report of what happened at the turn
+// change. One key is in one file only (docs/text.md).
+{
+    // The headings of the sections.
+    "chancellor.disbanded": "UNITS DISBANDED",
+    "chancellor.growth": "CITY GROWTH",
+    "chancellor.deaths": "CITY DEATHS",
+    "chancellor.buildings": "Destroyed Buildings",
+    "chancellor.wizards": "WIZARDS",
+    "chancellor.ships": "SHIPS",
+    "chancellor.unit_spells": "UNIT SPELLS DISSIPATED",
+    "chancellor.city_spells": "CITY SPELLS DISSIPATED",
+    "chancellor.global_spells": "GLOBAL SPELLS DISSIPATED",
+    "chancellor.next_turn": "NEXT TURN",
+    "chancellor.nothing": "NO EVENTS THIS MONTH",
+
+    "chancellor.lost_food": "{unit} - deserted: lack of food.",
+    "chancellor.lost_gold": "{unit} - deserted: lack of gold.",
+    "chancellor.lost_mana": "{unit} - dispelled: lack of mana.",
+    "chancellor.mana": "mana",
+    "chancellor.gold": "gold",
+    "chancellor.food": "food",
+    "chancellor.rival_short": "{wizard} has run short of {what}.",
+    "chancellor.rival_hero_left": "{wizard} has lost a hero, {hero}, who walked out.",
+    "chancellor.ship_landed": "A ship that could not be paid for has landed {units} of your units at {x}, {y}.",
+    "chancellor.drowned": (count: "n",
+        one: "1 drowned because the unit carrying them was destroyed.",
+        other: "{n} drowned because the unit carrying them was destroyed."),
+    "chancellor.grew": "{city} has grown to a population of {figures}",
+    "chancellor.shrank": "{city} now has a population of {figures}",
+    "chancellor.lost_building": "{city} has lost its {building}",
+    "chancellor.lost_buildings": (count: "n",
+        one: "{city} has lost 1 building",
+        other: "{city} has lost {n} buildings"),
+
+    // The warning before the turn ends.
+    "chancellor.forecast_mana": "Mana: {needed} needed, {reserve} in the reserve. Spells or summons will be lost.",
+    "chancellor.forecast_food": "Food: {n} short. Troops will desert.",
+    "chancellor.forecast_gold": "Gold: {n} short. Troops will desert.",
+    "chancellor.forecast_advice": "Sell a building or change taxes, or choose who goes when you end the turn.",
+}

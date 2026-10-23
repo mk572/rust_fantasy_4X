@@ -4,6 +4,7 @@
 //! the enchantments of the city under the mouse. A left-click opens the city (an outpost has its own screen), a right-click its production menu. U and D (or the arrows, or the wheel)
 //! scroll five rows, Esc or OK leaves. Positions are the original's.
 
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -16,13 +17,13 @@ const SCROLL: usize = 5;
 const MAP: (f32, f32, f32, f32) = (42.0, 162.0, 49.0, 33.0);
 /// Where the columns start: name, race, pop, gold, prd, producing, time.
 const HEADS: [(&str, f32); 7] = [
-    ("Name", 32.0),
-    ("Race", 88.0),
-    ("Pop", 136.0),
-    ("Gold", 154.0),
-    ("Prd", 176.0),
-    ("Producing", 197.0),
-    ("Time", 272.0),
+    ("cities.name", 32.0),
+    ("cities.race", 88.0),
+    ("cities.pop", 136.0),
+    ("cities.gold", 154.0),
+    ("cities.prd", 176.0),
+    ("cities.producing", 197.0),
+    ("cities.time", 272.0),
 ];
 /// The right edges of the number columns (pop, gold, prd, time).
 const RIGHTS: [f32; 4] = [148.0, 168.0, 188.0, 287.0];
@@ -135,13 +136,14 @@ impl App {
         self.bm_text_outlined(
             view,
             4,
-            &format!("The Cities Of {owner}"),
+            &self.text_with("cities.title", &Args::new().text("owner", owner)),
             160.0,
             3.0,
             Align::Center,
         );
         for (head, x) in HEADS {
-            self.bm_text(view, 1, gold, head, x, 17.0, Align::Left);
+            let head = self.text(head);
+            self.bm_text(view, 1, gold, &head, x, 17.0, Align::Left);
         }
         let (reserve_gold, reserve_mana) = self
             .game
@@ -151,7 +153,7 @@ impl App {
             view,
             1,
             light,
-            &format!("{reserve_gold}GP"),
+            &self.text_with("cities.reserve_gold", &Args::new().count("n", reserve_gold)),
             242.0,
             172.0,
             Align::Center,
@@ -160,7 +162,7 @@ impl App {
             view,
             1,
             light,
-            &format!("{reserve_mana}MP"),
+            &self.text_with("cities.reserve_mana", &Args::new().count("n", reserve_mana)),
             276.0,
             172.0,
             Align::Center,

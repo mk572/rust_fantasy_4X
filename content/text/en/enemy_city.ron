@@ -1,0 +1,5 @@
+// Player-facing messages of the enemy city screen. One key is in one file only (docs/text.md).
+{
+    "enemy_city.units": "Units",
+    "enemy_city.no_report": "No Report",
+}

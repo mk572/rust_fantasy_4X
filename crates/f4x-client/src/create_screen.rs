@@ -122,7 +122,7 @@ impl App {
     pub(crate) fn begin_game(&mut self) {
         let mut build = self.create.build.clone();
         build.name = if build.name.trim().is_empty() {
-            "You".into()
+            self.text("create.default_name")
         } else {
             build.name.trim().to_string()
         };

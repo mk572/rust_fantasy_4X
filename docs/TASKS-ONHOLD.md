@@ -59,7 +59,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 238 | AI | Wizard objectives steering the scripted AI (design: `ai-objectives.md`) |
 | 240 | Content | Check the original's terrain tables (`TERRSTAT.LBX`, `TERRTYPE.LBX`) against `terrain.ron` |
 | 241 | Content | Check the lair and monster data (`MONSTER.LBX`) and the event tables (`EVENTS.LBX`) against `lairs.rs` and the event code |
-| 242 | Content | Check the other text and list tables the importer skips (`DESC`, `BUILDESC`, `LISTDAT`, `RESOURCE`, `EVENTMSG`, `DIPLOMSG`, `MESSAGE`) |
+| 242 | Content | Check the other text and list tables the importer skips (`DESC`, `BUILDESC`, `LISTDAT`, `RESOURCE`, `EVENTMSG`, `DIPLOMSG`) |
 | 243 | Content | Find out what `WIZARDS.LBX`, `SPECIAL.LBX`, `SPLMASTR.LBX` and the other unread data files hold |
 | 248 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
 | 249 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
@@ -262,7 +262,7 @@ Parity task, low priority.
 
 **241. Lairs, monsters and events.** `MONSTER.LBX` (checked 17 October 2026: it holds the creatures' pictures, `MONSTER1` to `MONSTER4`, not guard tables; the guards come from `Create_Lair` over the unit table, which `lairs.rs` follows, see `docs/lairs.md`) and `EVENTS.LBX` (18 entries of 41 records of 43 bytes) are not read. Decode them, compare the guard sets, treasures and event chances with `lairs.rs` and the event code, and fix the data or record the difference.
 
-**242. Other text and list tables.** `DESC.LBX` (241 descriptions of 110 bytes), `BUILDESC.LBX` (36 of 200), `LISTDAT.LBX` (75 of 200), `RESOURCE.LBX`, `EVENTMSG.LBX`, `DIPLOMSG.LBX` and `MESSAGE.LBX` are text; the original's prose stays in `content-local/` like the help text. Decide for each whether the game or the client needs it (screens, event and diplomacy messages), check that no rule hides in the numbers beside the text, and import what is used.
+**242. Other text and list tables.** `DESC.LBX` (241 descriptions of 110 bytes), `BUILDESC.LBX` (36 of 200), `LISTDAT.LBX` (75 of 200), `RESOURCE.LBX`, `EVENTMSG.LBX` and `DIPLOMSG.LBX` are text; the original's prose stays in `content-local/` like the help text. The short messages (`MESSAGE.LBX`) are no longer imported: the game has its own in `content/messages.ron`. Decide for each whether the game or the client needs it (screens, event and diplomacy messages), check that no rule hides in the numbers beside the text, and import what is used.
 
 **243. Unread data files.** Find out what `WIZARDS.LBX` (14 entries of 109 records of 104 bytes), `SPECIAL.LBX` and `SPECIAL2.LBX`, `SPLMASTR.LBX` (32 entries of about 94 KB) and the remaining files the importer does not open hold (most of the 98 `.LBX` files are art, sound and music). List them in `docs/` with what each is, and add a task for each one that carries rules or text.
 

@@ -154,7 +154,7 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         hero_templates,
         // Fallback names for rival wizards, also optional.
         wizard_names: if find(dir, "wizard_names.ron").is_some() {
-            parse::<Vec<Vec<String>>>(dir, "wizard_names.ron")?
+            parse::<Vec<Vec<(String, f4x_core::text::Gender)>>>(dir, "wizard_names.ron")?
         } else {
             Vec::new()
         },
@@ -836,6 +836,7 @@ mod tests {
             casting_skill: 0,
             spells: Vec::new(),
             names: Vec::new(),
+            gender: Default::default(),
         };
         // A hero without a template, once there are templates at all.
         rules.hero_templates = vec![template("archer"), template("nobody")];

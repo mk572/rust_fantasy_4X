@@ -1,0 +1,34 @@
+// Player-facing messages of the Surveyor panel (F1), which describes the square under the mouse.
+// One key is in one file only (docs/text.md).
+{
+    "surveyor.title": "Surveyor",
+    "surveyor.needs_pictures": "The Surveyor needs the extracted pictures",
+    // Half-food units: "1/2 food", "1 food", "1 1/2 food". `n` is the whole units.
+    "surveyor.food_half": "1/2 food",
+    "surveyor.food": "{n} food",
+    "surveyor.food_and_half": "{n} 1/2 food",
+    "surveyor.production": "+{n}% production",
+    "surveyor.gold_percent": "+{n}% gold",
+    "surveyor.food_and_gold": "{food}, {gold}",
+    "surveyor.corruption": "Corruption",
+    "surveyor.size_of": "{size} of",
+    "surveyor.bonus_gold": "+{n} gold",
+    "surveyor.bonus_power": "+{n} power",
+    "surveyor.bonus_food": "+{n} food",
+    "surveyor.unit_cost": "Reduces normal unit cost by {n}%",
+    "surveyor.node": "{realm} Node",
+    "surveyor.warped": "Warped",
+    "surveyor.guardian_spirit": "Guardian Spirit",
+    "surveyor.magic_spirit": "Magic Spirit",
+    // Why no city can be founded there.
+    "surveyor.blocked_water": "Cities cannot be built on water.",
+    "surveyor.blocked_land": "Cities cannot be built on this kind of land.",
+    "surveyor.blocked_tower": "Cities cannot be built on towers.",
+    "surveyor.blocked_node": "Cities cannot be built on magic nodes.",
+    "surveyor.blocked_lair": "Cities cannot be built on lairs.",
+    "surveyor.blocked_close": "Cities cannot be built less than {n} squares from any other city.",
+    "surveyor.city_resources": "City Resources",
+    "surveyor.max_pop": "Maximum Pop",
+    "surveyor.prod_bonus": "Prod Bonus",
+    "surveyor.gold_bonus": "Gold Bonus",
+}

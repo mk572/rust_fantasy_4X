@@ -5,6 +5,7 @@
 //! read only: a click or Escape closes it.
 
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -102,15 +103,15 @@ impl App {
                 .unit_def(units[0])
                 .is_some_and(|d| d.kind == f4x_core::rules::UnitKind::Fantastic);
             if fantastic {
-                "Rampaging Monsters".to_string()
+                self.text("unit_list.monsters")
             } else {
-                "Raiders".to_string()
+                self.text("unit_list.raiders")
             }
         } else {
             let name = owner
                 .and_then(|o| self.game.wizard(o))
                 .map_or_else(String::new, |w| w.name());
-            format!("{name} Units")
+            self.text_with("unit_list.units_of", &Args::new().text("owner", name))
         };
         let banner = self.banner_color(owner.map_or(f4x_core::player::MONSTERS.0, |o| o.0));
         self.bm_text(
