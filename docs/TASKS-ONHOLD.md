@@ -50,8 +50,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 235 | Units | A ship lost in battle or by a spell: what happens to its passengers |
 | 236 | Units | The nine-unit stack limit and ships: passengers and capacity |
 | 238 | AI | Wizard objectives steering the scripted AI (design: `ai-objectives.md`) |
-| 242 | Content | Check the other text and list tables the importer skips (`DESC`, `BUILDESC`, `LISTDAT`, `RESOURCE`, `EVENTMSG`, `DIPLOMSG`) |
-| 243 | Content | Find out what `WIZARDS.LBX`, `SPECIAL.LBX`, `SPLMASTR.LBX` and the other unread data files hold |
 | 248 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
 | 249 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
 | 253 | Map | Lakes with an inflow and the original's rewriting of extra river inflows |
@@ -218,10 +216,6 @@ Parity task, low priority.
 **236. The stack limit and ships.** A tile holds nine units (`MAX_STACK`); a galley carries five, so a loaded galley and its passengers take six places, and a port or sea square with several ships fills fast. Check how passengers count towards the limit when boarding, sailing into a city and landing, whether a landing stack can be refused for lack of room, and make the AI's gathering (chunks of nine in `military.rs`, loads of two to five in `naval.rs`) agree with it. Test with a full galley and a crowded square.
 
 **238. Wizard objectives steering the AI.** Task 64 draws an objective for every AI wizard but nothing reads it. Design in [`ai-objectives.md`](ai-objectives.md): an objective table in `f4x-ai` read through the AI's own view; step 1 the plumbing (no change in play), step 2 the small hooks (cities wanted, strike size, research share, research score), step 3 weighted building and casting choices (a redesign, decided after step 2), step 4 war declarations by Militarist and Expansionist wizards. Each step that changes play gets a soak, only when asked.
-
-**242. Other text and list tables.** `DESC.LBX` (241 descriptions of 110 bytes), `BUILDESC.LBX` (36 of 200), `LISTDAT.LBX` (75 of 200), `RESOURCE.LBX`, `EVENTMSG.LBX` and `DIPLOMSG.LBX` are text; the original's prose stays in `content-local/` like the help text. The short messages (`MESSAGE.LBX`) are no longer imported: the game has its own in `content/text/<lang>/*.ron`. Decide for each whether the game or the client needs it (screens, event and diplomacy messages), check that no rule hides in the numbers beside the text, and import what is used.
-
-**243. Unread data files.** Find out what `WIZARDS.LBX` (14 entries of 109 records of 104 bytes), `SPECIAL.LBX` and `SPECIAL2.LBX`, `SPLMASTR.LBX` (32 entries of about 94 KB) and the remaining files the importer does not open hold (most of the 98 `.LBX` files are art, sound and music). List them in `docs/` with what each is, and add a task for each one that carries rules or text.
 
 **248. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs 247. (Hardcore is stage 4, task 249.)
 
