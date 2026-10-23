@@ -235,6 +235,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 328 | Hero | (done) Hero spells as spell instances; the armory moves to the player |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
+| 348 | Text | Every refusal in words: a text key for each `Rejection` error variant, the reason a target is refused, checked against the original's 89 `MESSAGE.LBX` cases (done) |
 | 349 | Magic | Spells that cannot be combined: duplicates, non-cumulative pairs, abilities a unit has by nature, Holy Weapon with Holy Arms (done) |
 
 ## Descriptions
@@ -661,6 +662,65 @@ lists) and `f4x-data::load_texts`; `settings.ron` has `language`. The client's m
 the name step of a custom wizard); `crates/f4x-data/tests/text.rs` is the guard. `Focus`, `Mix`, `Treaty`, `Personality`,
 `Objective`, retorts and the relation words give a key instead of a name. Races have a `plural` in `races.ron`. What stays
 is task 347.
+
+**348. Every refusal in words (done).** Every variant of `Rejection` and of the errors inside it has a sentence in `content/text/en/refuse_map.ron`, `refuse_wizard.ron`, `refuse_battle.ron` and `refuse_target.ron`, and `Rejection::key()` (with a `key()` on each error enum) maps the error to its key. The client's log and the battle log show that sentence; `log.cannot` with the Debug name is gone. The errors carry no data, so the sentences take no arguments. The console keeps the Debug form (a developer tool, `docs/text.md`). `MagicError::Target` and `SpellError::Target` carry a `TargetError` (`spell/target_error.rs`), one reason for each target refusal. Raise Volcano may rise in the sea (`docs/divergences.md` section 32).
+
+**Done: the original's 89 `MESSAGE.LBX` lines against our rules.** "Refused" means our rule refuses it with a sentence of its own; "refused, general" means it is refused but the sentence is the general one of the error; "no refusal" means our game lets it happen; "no such rule" means the spell or flow is not in the game. The gaps are task 350.
+
+| Lines | Case | Ours |
+|---|---|---|
+| 0 | Only four powers in an item | Refused (`CraftError::TooManyPowers`) |
+| 1, 2 | Item with no powers: abort? / choose a spell to embed | Refused for no powers (`NoPowers`); the two prompts are screen flow, none in ours |
+| 3, 88 | Invisible units cannot be aimed at (from range / in that square) | Refused (`BattleError::Unseen`, `TargetError::Unseen` for spells) |
+| 4 | Fire through a Wall of Darkness | Refused (`BattleError::WallOfDarkness`) |
+| 5, 6, 7, 9 | Triumphant, defeated, retreated, opponent fled | Result texts, already keys (`battle.*`) |
+| 8 | All units retreat exhausted | Not traced: no key or rule found for it |
+| 10 | Monsters rampage through the city | No such event found |
+| 11 | Last citizens maintain the fortress: no settlers | No refusal found (task 350) |
+| 12, 13, 14, 15, 16 | "Continue casting?" prompts (Planar Seal, hero limit, no global enchantments, no contact, already cast) | No such prompts (task 350) |
+| 17 | Holy Weapon while Holy Arms is up | Refused (`MagicError::NotCumulative`, task 349) |
+| 18, 19, 20, 45, 46 | Notices that other enchantments were dispelled | Not found what triggers them in our game; no such notices (task 350) |
+| 21, 50, 66 | Too many units: summon fails / production fails | No refusal: `spawn_unit` does not check the square (task 350) |
+| 22, 23, 24 | Stone Skin / Resist Elements / Resist Magic not cumulative | Refused (task 349), also in battle |
+| 25, 33 | Summoning circle / fortress already in this city | Refused (`TargetError::CircleHere`, `FortressHere`) |
+| 26 | Evil Presence on a city of a death wizard | Refused (`EvilPresenceWasted`) |
+| 27 | No contact with any other wizard | No refusal: wizard targets do not need contact (task 350) |
+| 28 | Nothing to dispel in that area | No refusal: Disenchant Area casts on any square (task 350) |
+| 29 | Chaos Channels on a unit that is not normal | Refused (`NotNormalUnit`, `Undead`, `AlreadyMutated`) |
+| 30, 31, 32 | Node already warped / not controlled / own node | Refused (`NodeWarped`, `NodeUnowned`, `NodeOwn`; `NoNode` for no node) |
+| 34, 41 | Nodes may not be changed / corrupted | No refusal (task 350) |
+| 35 | Terrain may not be changed | Refused (`TerrainFixed`: sea and tundra) |
+| 36 | Volcano in water | Different on purpose: allowed (section 32) |
+| 37, 38, 39 | Volcano on mountains / hills / nodes | Refused (`VolcanoOnMountain`, `VolcanoOnHill`, `VolcanoOnSite`) |
+| 86 | Volcano on rivers | No refusal (task 350) |
+| 40 | Nothing to transmute | Refused (`NothingToTransmute`) |
+| 42, 43 | Already corrupted / water | Refused (`AlreadyCorrupted`, `CorruptWater`) |
+| 44 | City completely warded | Refused (`Warded` for the realm chosen; the picker also hides a fully warded city) |
+| 47, 49, 53 | Six heroes at most (Summon Hero, Incarnation, Resurrection) | Refused (`HeroError::NoRoom`) |
+| 48, 51, 52 | No hero answers / one Incarnation / no dead heroes | Refused, general (`HeroError::NotAvailable`) |
+| 54 | Planar Seal blocks Plane Shift | Refused (`PlanarSeal`) |
+| 55, 56, 57 | Plane Shift: cannot enter / starts combat / no room | Refused (`CannotStandThere`, `EnemyOnOtherPlane`, `OtherPlaneFull`) |
+| 58, 59, 60 | Floating Island: must be summoned in water / no enemy units / not too many units there | No refusal: the spell (`floating_island`) takes any square on the map (task 350) |
+| 61 | Guise on a hero | Not traced: no spell of that name in `spells.ron`; I have not found which of ours it is |
+| 62, 63, 64 | Lycanthropy on a hero / summoned unit / chaos channeled or undead | Refused (`Hero`, `Summoned`, `Undead`; a mutated unit is not refused, task 350) |
+| 65 | Wall around the city already | Refused (`Walled`) |
+| 67 | A hero died: redistribute items | Already wired (the item screen) |
+| 68 | Not enough mana to blast the spell | No refusal: Spell Blast silently fails (task 350) |
+| 69, 70 | Normal units / only Death or Chaos creatures not affected | Refused (`NotAffected`) |
+| 71, 73 | Web on non-corporeal; Sorcery-immune unit | No refusal: the cast is made and the unit resists (task 350) |
+| 72 | Warp Wood needs a bow or sling | Refused (`NeedsMissile`) |
+| 74 | Death creatures cannot be healed | Refused (`Deathly`) |
+| 75, 87 | Unit already has the ability | Refused (`AlreadyAble`, task 349) |
+| 76 | Ten vortexes in an area | Refused (`NoVortexRoom`) |
+| 77, 78 | Recall Hero: needs a circle / heroes left | Refused for no circle (`NoCircle`) and for a unit that is not a hero (`RecallOnlyHeroes`) |
+| 79, 80, 81, 83 | No Chaos/Death, dead, raisable or normal units to throw the spell on | Raise / Animate Dead refused (`NothingToRaise`, `NothingToAnimate`); the mass spells cast with no effect (task 350) |
+| 82 | Combat enchantment already in effect | Refused (`SpellError::AlreadyUp`) |
+| 84 | Nine units at most in battle | Refused (`SpellError::NoRoom`) |
+| 85 | Word of Recall while banished | Refused, general (`NoCircle`) |
+
+Lines 27, 66 and 69 are joined with a name in the original; ours are whole sentences.
+
+*Needs:* 345 (done).
 
 **349. Spells that cannot be combined (done).** The original refuses a spell that cannot be combined with what is
 already there (`OverSpel.c`, `SBookScr.c`, `Combat.c`: messages 22 to 24, 87, 17, and "already has X cast on it"); ours

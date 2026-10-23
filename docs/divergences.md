@@ -591,7 +591,7 @@ Skin may still be cast on a unit with Stone Skin and replaces its bonus, and tak
 Iron Skin is dispelled. The original asks the player to confirm a second cast of a global
 enchantment (message 16) and refuses Holy Weapon while Holy Arms is up (message 17); ours refuses
 Holy Weapon alike, for the AI too, and leaves the global's confirmation to the "continue casting?"
-prompts (task 348).
+prompts (task 350).
 
 ## 32. Raise Volcano in the sea (task 348)
 

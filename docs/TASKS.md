@@ -84,7 +84,8 @@ neighbours.
 | 342 | Core | Clean up `f4x-core/src/content.rs`: move its contents to the concepts they belong to |
 | 346 | Core | Replace the loader's test data (`crates/f4x-data/testdata/`) with the real `content/` |
 | 347 | Text | Text the core builds as game data: made item names, random event texts, default names, battle info names; translated names in the rules files |
-| 348 | Text | Every refusal in words: a text key for each `Rejection` error variant (done), split the target refusals (done), check against the original's 89 `MESSAGE.LBX` cases |
+| 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
+| 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 
 ## Descriptions
 
@@ -293,20 +294,10 @@ files or a table of names in `content/text/<lang>/`, and how the plural of a rac
 
 *Needs:* 345 (done), and 333 for the item names.
 
-**348. Every refusal in words.** *First part done:* every variant of `Rejection` and of the errors inside it has a
-sentence in `content/text/en/refuse_map.ron`, `refuse_wizard.ron` and `refuse_battle.ron`, and `Rejection::key()` (with a
-`key()` on each error enum) maps the error to its key. The client's log and the battle log show that sentence; `log.cannot`
-with the Debug name is gone. The errors carry no data, so the sentences take no arguments. The console keeps the Debug
-form (a developer tool, `docs/text.md`).
+**350. Refusals and notices the original has and ours lacks.** From the table of task 348: the "continue casting?" prompts (lines 12 to 16, including the second cast of a global enchantment, task 349 leaves it here); the settler refusal for a fortress's last citizens (11); too many units on the square when a spell summons or a city builds (21, 50, 66); Disenchant Area with nothing to dispel (28); Spell Blast without the mana (68); Change Terrain and Corruption on a node (34, 41); Volcano on a river (86; check first whether the map has rivers); Floating Island on land, among enemies or on a full square (58, 59, 60); Web and Sorcery immunity refused at the aim, where ours casts and the unit resists (71, 73); Lycanthropy on a mutated unit; the mass battle spells with nothing to hit (79, 80, 81, 83); wizard targets without contact (27); the notices of dispelled enchantments (18, 19, 20, 45, 46) and the monsters' rampage (10), whose triggers must be found first. Decide for each: add it, or record in `docs/divergences.md` that it is not wanted. The new texts are keys in `content/text/`.
 
-*Second part done:* `MagicError::Target` and `SpellError::Target` carry a `TargetError` (`spell/target_error.rs`, sentences in `refuse_target.ron`), one reason for each target refusal: volcano on a mountain, hill or site, corruption, warp node, road, terrain, transmute, Lycanthropy, Chaos Channels, Word of Recall, Plane Shift, walls, wards, Evil Presence, and in battle the unseen, the death-realm, the bind, the wall and the vortex cases.
+*Needs:* 348 (done).
 
-*Left:* The checklist: the original's `MESSAGE.LBX` (89 lines, 0 to 88; only 5
-were ever used) is a checklist, not a source. For each line say in the task's "Done" paragraph: our rule refuses it and the
-key says so; our rule does not exist (add a task or decide it is not wanted, in `docs/divergences.md`); or the rule works
-differently. The cases: spell-target refusals, hero limits (Summon Hero, Incarnation, Resurrection), battle refusals
-(9 units, spell already up, invisible units, Wall of Darkness, mana) and the "continue casting?" prompts (12 to 16). The
-stacking refusals are task 349 (done) and have their words now. The original's wording is not copied; fragments 27, 66
-and 69 are joined with a name there, so write whole sentences.
+**351. Research the untraced `MESSAGE.LBX` lines.** Task 348 (done) could not say what rule stands behind these lines of the original: 8 ("All units retreat exhausted"), 10 (monsters rampage through the city), 18, 19, 20, 45, 46 (notices that other city, unit, Stasis or combat enchantments were dispelled) and 61 (Guise on a hero; no spell of that name in `spells.ron`). For each: find the original code that shows the message (ReMoM) and what triggers it, check whether our game has the rule, and write the answer in this task's "Done" paragraph as in the table of task 348: refused, no refusal, different on purpose, or no such rule. A missing rule goes to task 350 or a task of its own; the text is a key in `content/text/`.
 
-*Needs:* 345 (done).
+*Needs:* 348 (done).
