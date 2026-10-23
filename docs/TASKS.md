@@ -84,6 +84,7 @@ neighbours.
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) |
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
+| 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 
 ## Descriptions
 
@@ -249,3 +250,31 @@ in the treasury while units are short). Measure with the soak (`ai-design.md` 12
 city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the
 attacker is weak at the gate, and a better guess of a lair's guards (what the wizard has seen of them).
 Check with `examples/situations.rs` and the mirror test. *Needs:* nothing.
+
+**371. The AI plays to win.** The umbrella over tasks 361, 366, 367, 369 and 370 and planned item 21: today
+a two-wizard game of 300 turns ends in a win once in eight (`ai-design.md` section 12.2), wizards stop at 5
+to 7 cities, the treasury and the mana sit unspent and wars are rare. The aim is games that end, by
+conquest or by the Spell of Mastery, because the AI goes for it. The parts, each a function of what the AI
+sees (design.md section 8), each with a test and a soak line:
+- **Wars and fights** (369, 361): march when ahead and at a measured edge, keep a war going until it is
+  won or ended by an offer, attack the weakest neighbour first, take lairs and nodes for their treasure,
+  defend what is worth defending (370).
+- **Expansion** (369, planned 21): settle until the land is full, outposts grow (Housing, a better rate),
+  settlers by sea and to the other plane, found cities on good ground first (food, minerals, nodes).
+- **Magic cast** (367, 366): spend the mana each turn (the reserve should not climb past a few turns of
+  upkeep), cast curses and attacks on enemy cities and stacks, protect the own cities, keep a spell in
+  the making at all times, use the nodes; research toward the Spell of Mastery once the army is safe.
+- **Item crafting** (367): Enchant Item and Create Artifact when the mana allows, items to the hero that
+  uses them best, scrap what no hero can use.
+- **Heroes** (367): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
+  raise the dead, give them the best items, send them to lairs and into battles they win, level them.
+- **Gold** (369): spend it (buy production, hire, buy items) instead of holding 50 to 100.
+
+Measure with the soak before and after each part: 2 wizards, seeds 1 to 8, 300 turns; 4 wizards, seeds 1
+to 4; the numbers of `ai-design.md` section 12.2 (games won, battles, cities taken, wars, cities and
+outposts at the end, mana and gold unspent). Target to start with: at least half the two-wizard games end
+before turn 300, no wizard ends with more than a third of its mana or a hundred gold unspent, and no
+objective plays worse than the Pragmatist. A part that does not move these numbers is reverted. Do not
+tune by giving the AI information a player lacks. *Needs:* 361; tasks 366, 367, 369 and 370 are its parts
+and may be done on their own.
+
