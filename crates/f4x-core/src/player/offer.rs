@@ -238,7 +238,7 @@ impl Game {
                 .map(|o| std::mem::take(&mut o.0))
                 .unwrap_or_default();
             for offer in &old {
-                self.release_offer(offer);
+                self.release_offer(id, offer);
             }
         }
         for id in ids {
@@ -252,13 +252,32 @@ impl Game {
         events
     }
 
-    /// The prefab item of an offer that was not taken can be offered again.
-    fn release_offer(&mut self, offer: &Offer) {
+    /// An offer that was not taken is withdrawn: its item is gone from the game and a prefab one
+    /// can be offered again.
+    fn release_offer(&mut self, player: PlayerId, offer: &Offer) {
         if let Offer::Item { item, .. } = offer {
-            if let Some(id) = &item.prefab {
-                self.prefab_taken.retain(|t| t != id);
+            if let Some(entity) = self.offered_item(player, item) {
+                self.despawn_item(entity);
             }
+            self.release_prefab(item);
         }
+    }
+
+    /// A prefab item that was not bought can be offered again.
+    fn release_prefab(&mut self, item: &Item) {
+        if let Some(id) = &item.prefab {
+            self.prefab_taken.retain(|t| t != id);
+        }
+    }
+
+    /// The item entity of an offer to `player` (offers carry the item's description; the entity
+    /// is held as `Offered`).
+    fn offered_item(&self, player: PlayerId, item: &Item) -> Option<hecs::Entity> {
+        self.items()
+            .held(|h| h == crate::item::entity::HeldBy::Offered(player))
+            .into_iter()
+            .find(|(_, i)| i == item)
+            .map(|(e, _)| e)
     }
 
     /// One wizard's offers this turn, in the original's order: item, mercenaries, hero.
@@ -309,11 +328,11 @@ impl Game {
             &mut self.prefab_taken,
         );
         let price = item_price(item.cost, self.charismatic(player));
-        let offer = Offer::Item { item, price };
         if price <= self.treasury(player).map_or(0, |p| p.gold) {
-            Some(offer)
+            self.spawn_item(item.clone(), crate::item::entity::HeldBy::Offered(player));
+            Some(Offer::Item { item, price })
         } else {
-            self.release_offer(&offer);
+            self.release_prefab(&item);
             None
         }
     }
@@ -461,7 +480,10 @@ impl Game {
                     t.gold -= price;
                 }
                 let name = item.name.clone();
-                let placed: Placed = self.give_item(player, item);
+                let placed: Placed = match self.offered_item(player, &item) {
+                    Some(entity) => self.place_item(player, entity),
+                    None => self.give_item(player, item),
+                };
                 vec![Event::ItemMade {
                     player,
                     name,
@@ -485,7 +507,7 @@ impl Game {
             .filter(|o| index < o.0.len())
             .map(|o| o.0.remove(index))
             .ok_or(OfferError::NoOffer)?;
-        self.release_offer(&offer);
+        self.release_offer(player, &offer);
         Ok(())
     }
 }

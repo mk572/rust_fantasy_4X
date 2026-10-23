@@ -94,6 +94,8 @@ pub struct LairInfo {
     pub items: Vec<u32>,
     pub prisoner: bool,
     pub special: u8,
+    /// The players who have fought for this site once.
+    pub fought_by: Vec<PlayerId>,
 }
 
 impl LairInfo {
@@ -169,6 +171,7 @@ impl<'a> Economy<'a> {
             items: lair.items.clone(),
             prisoner: lair.prisoner,
             special: lair.special,
+            fought_by: lair.fought_by.clone(),
         })
     }
 
@@ -223,6 +226,46 @@ impl<'a> Economy<'a> {
     pub fn lair_at(&self, at: Position) -> Option<LairInfo> {
         let e = self.feature_entity_at(at)?;
         self.lair_info(e).filter(|l| l.intact)
+    }
+
+    /// What guards the site on a square, if `player` knows: they have fought for it once, or a
+    /// spell shows them the units there (Nature Awareness shows the whole map, Nature's Eye
+    /// the squares round the city it is on). `None` when they do not know.
+    pub fn lair_guards_known_to(
+        &self,
+        at: Position,
+        player: PlayerId,
+    ) -> Option<Vec<(String, u32)>> {
+        let lair = self.lair_at(at)?;
+        (lair.fought_by.contains(&player) || self.spell_shows_units(at, player))
+            .then_some(lair.guards)
+    }
+
+    /// Does a spell of `player` show them the units on a square? Nature Awareness shows the
+    /// whole world; Nature's Eye widens the sight of its city, and the units in it show.
+    fn spell_shows_units(&self, at: Position, player: PlayerId) -> bool {
+        if self.units().has_global(player, "nature_awareness") {
+            return true;
+        }
+        let Some(map) = self.map else {
+            return false;
+        };
+        let grid = map.plane(at.plane);
+        self.cities().into_iter().any(|(city, info, pos)| {
+            if info.owner != player
+                || pos.plane != at.plane
+                || !self.city_has_enchantment(city, "natures_eye")
+            {
+                return false;
+            }
+            let w = grid.width() as i32;
+            let mut dx = (at.x as i32 - pos.x as i32).rem_euclid(w);
+            if dx > w / 2 {
+                dx -= w;
+            }
+            let dy = at.y as i32 - pos.y as i32;
+            crate::map::fog::in_sight(dx, dy, self.city_sight(city), self.diagonal_extra)
+        })
     }
 
     /// A guarded site by its entity.

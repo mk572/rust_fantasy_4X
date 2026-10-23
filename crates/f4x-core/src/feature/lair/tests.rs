@@ -81,6 +81,7 @@ fn info(site: &str) -> LairInfo {
         items: Vec::new(),
         prisoner: false,
         special: 0,
+        fought_by: Vec::new(),
     }
 }
 
@@ -96,6 +97,7 @@ fn lair(guards: Vec<(&str, u32)>) -> Lair {
         items: vec![400],
         prisoner: true,
         special: 0,
+        fought_by: Vec::new(),
     }
 }
 
@@ -135,36 +137,51 @@ fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() {
 #[test]
 fn guards_fit_the_budget_and_the_stack() {
     let list = candidates(&content(), "death");
+    let rules = LairRules::default();
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     for budget in [0, 20, 60, 200, 700, 1500, 4000] {
         for _ in 0..50 {
-            let (guards, first, second) = pick_guards(&mut rng, &list, budget);
+            let (guards, first, second) = pick_guards(&mut rng, &rules, &list, budget);
             let total: u32 = guards.iter().map(|g| g.1).sum();
-            assert!(total <= MAX_GUARDS, "{total} guards for {budget}");
+            assert!(total <= rules.max_guards, "{total} guards for {budget}");
             assert!(first + second <= budget, "{first}+{second} over {budget}");
             if guards.len() == 2 {
                 assert_ne!(guards[0].0, guards[1].0, "two different kinds");
-                assert!(guards[0].1 <= MAX_FIRST_GUARDS as u32);
+                assert!(guards[0].1 <= rules.max_first_guards as u32);
             }
         }
     }
     // A budget below the cheapest unit buys nothing.
-    let (guards, ..) = pick_guards(&mut rng, &list, 20);
+    let (guards, ..) = pick_guards(&mut rng, &rules, &list, 20);
     assert!(guards.is_empty());
 }
 
 #[test]
 fn a_site_type_decides_the_guards_realm() {
+    let rules = LairRules::default();
     let mut rng = Pcg64Mcg::seed_from_u64(2);
     for _ in 0..100 {
-        assert_eq!(guard_realm(&mut rng, SiteType::Node("sorcery")), "sorcery");
-        assert_eq!(guard_realm(&mut rng, SiteType::Node("nature")), "nature");
-        assert_eq!(guard_realm(&mut rng, SiteType::Node("chaos")), "chaos");
-        assert!(["death", "life"].contains(&guard_realm(&mut rng, SiteType::Holy)));
-        assert!(["death", "chaos", "nature"].contains(&guard_realm(&mut rng, SiteType::Wild)));
+        assert_eq!(
+            guard_realm(&mut rng, SiteType::Node("sorcery"), &rules),
+            "sorcery"
+        );
+        assert_eq!(
+            guard_realm(&mut rng, SiteType::Node("nature"), &rules),
+            "nature"
+        );
+        assert_eq!(
+            guard_realm(&mut rng, SiteType::Node("chaos"), &rules),
+            "chaos"
+        );
+        assert!(["death", "life"].contains(&guard_realm(&mut rng, SiteType::Holy, &rules)));
+        assert!(["death", "chaos", "nature"].contains(&guard_realm(
+            &mut rng,
+            SiteType::Wild,
+            &rules
+        )));
     }
     let seen: std::collections::BTreeSet<_> = (0..300)
-        .map(|_| guard_realm(&mut rng, SiteType::Tower))
+        .map(|_| guard_realm(&mut rng, SiteType::Tower, &rules))
         .collect();
     assert_eq!(seen.len(), 5, "towers draw on every realm");
     assert_eq!(
@@ -302,13 +319,7 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     assert_eq!(*player, P0);
     assert_eq!((loot.gold, loot.mana), (120, 30));
     assert_eq!(loot.items.len(), 1, "the 400 hoard is made into an item");
-    assert_eq!(
-        g.player_component::<crate::item::armory::Armory>(P0)
-            .unwrap()
-            .items()
-            .count(),
-        1
-    );
+    assert_eq!(g.items().armory(P0).items().count(), 1);
     // The test rules have no heroes to free.
     assert!(!loot.prisoner);
     assert_eq!(
@@ -334,7 +345,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     l.mana = 0;
     l.items.clear();
     l.prisoner = false;
-    // A spell: from a realm the wizard has no books in, newly known.
+    // A spell: from a realm the wizard has books in (or arcane), newly known.
     l.special = 2;
     let site = g.put_lair(at(5, 5), "lair", l);
     let known_before = g.wizard(P0).unwrap().known().len();
@@ -345,10 +356,12 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let spell = loot.spell.expect("a spell");
     assert!(g.wizard(P0).unwrap().knows(spell));
     assert_eq!(g.wizard(P0).unwrap().known().len(), known_before + 1);
-    assert_ne!(
-        g.content.rules.spells.get(spell).realm,
-        "life",
-        "a realm without books"
+    assert!(
+        matches!(
+            g.content.rules.spells.get(spell).realm.as_str(),
+            "life" | "arcane"
+        ),
+        "a realm with books, or arcane"
     );
     assert!(events
         .iter()
@@ -796,14 +809,33 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
 }
 
 #[test]
-fn a_spell_award_teaches_a_spell_from_a_realm_without_books() {
+fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
     let c = content();
     let (mut world, e) = sheet(&[("life", 2)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
     let spell = award_spell(&mut magic, &c, &mut rng, 1).expect("a spell");
     assert!(magic.view().knows(spell));
-    assert_ne!(c.rules.spells.get(spell).realm, "life");
+    let def = c.rules.spells.get(spell);
+    assert!(
+        matches!(def.realm.as_str(), "life" | "arcane"),
+        "{}",
+        def.realm
+    );
+    // One book gives up to uncommon spells, arcane up to rare, even from the dearest hoard.
+    for seed in 0..30 {
+        let (mut world, e) = sheet(&[("life", 1)], &[]);
+        let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
+        let mut rng = crate::game::rng::GameRng::new(seed);
+        let spell = award_spell(&mut magic, &c, &mut rng, 4).expect("a spell");
+        let def = c.rules.spells.get(spell);
+        let cap = if def.realm == "arcane" {
+            Rarity::Rare
+        } else {
+            Rarity::Uncommon
+        };
+        assert!(def.rarity <= cap, "{} {:?}", def.id, def.rarity);
+    }
 }
 
 /// A hoard with a spell, a book and an item, and a prisoner, on Arcanus.
@@ -816,6 +848,7 @@ fn rich_lair() -> Lair {
         items: vec![600],
         prisoner: true,
         special: 2,
+        fought_by: Vec::new(),
     }
 }
 
@@ -920,4 +953,86 @@ fn rerolled_value_never_exceeds_the_value() {
             assert!(gold + mana + items.iter().sum::<u32>() > 0);
         }
     }
+}
+
+#[test]
+fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() {
+    let mut g = world(6);
+    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    assert_eq!(g.economy().lair_guards_known_to(at(5, 5), P0), None);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    g.apply(Command::Battle(BattleCommand::Flee));
+    assert_eq!(
+        g.economy().lair_guards_known_to(at(5, 5), P0),
+        Some(vec![("skeletons".to_string(), 3)])
+    );
+    // Only the one who fought knows.
+    assert_eq!(
+        g.economy().lair_guards_known_to(at(5, 5), PlayerId(1)),
+        None
+    );
+    // And it is remembered in a save.
+    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    assert!(back.economy().lair_guards_known_to(at(5, 5), P0).is_some());
+}
+
+/// Every lair of a busy map, for a few seeds, as one number: the lair tables moved to data
+/// (task 355) without changing a generated world.
+fn lair_checksum() -> u64 {
+    let g = world(1);
+    let mut placed = Placed::new(24, 14);
+    let id = |name: &str| g.content.features.id_of(name).unwrap();
+    for (i, plane) in Plane::ALL.into_iter().enumerate() {
+        for k in 0..10u32 {
+            placed.set(plane, 1 + k, 1 + 4 * i as u32, id("lair"));
+        }
+    }
+    placed.set(Plane::Arcanus, 3, 9, id("tower"));
+    placed.set(Plane::Myrror, 3, 9, id("tower"));
+    placed.set(Plane::Arcanus, 20, 9, id("tower"));
+    placed.set(Plane::Myrror, 20, 9, id("tower"));
+    let nodes: Vec<(Position, Node)> = ["sorcery", "nature", "chaos"]
+        .iter()
+        .enumerate()
+        .map(|(i, realm)| {
+            (
+                Position {
+                    plane: Plane::ALL[i % 2],
+                    x: 10 + i as u32,
+                    y: 12,
+                },
+                Node {
+                    realm: realm.to_string(),
+                    power: 5 + i as u8,
+                    aura: Vec::new(),
+                    guardian: false,
+                    warped: false,
+                },
+            )
+        })
+        .collect();
+    let map = g.map.as_ref().unwrap();
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for seed in 1..6 {
+        let params = GenParams {
+            strong_sites: 8,
+            weak_sites: 12,
+            ..GenParams::default()
+        };
+        let lairs = generate_lairs(seed, &params, map, &placed, &nodes, &g.content);
+        for byte in format!("{lairs:?}").bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    hash
+}
+
+#[test]
+fn generated_lairs_for_a_seed_stay_the_same() {
+    assert_eq!(lair_checksum(), 6_659_293_770_976_314_851);
 }

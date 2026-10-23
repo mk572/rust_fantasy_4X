@@ -21,6 +21,8 @@
     "ui.terrain_move": "{terrain}  (move {cost})",
     "ui.city_size": "{city} (size {size})",
     "ui.foreign_unit": "Foreign {unit}",
+    // A guarded site you have fought for once: what stands guard there.
+    "ui.lair_guard": "Guard: {unit} (x{n})",
     "ui.ok": "OK",
     "ui.full_stop": ".",
     "ui.menu_game": "Game",

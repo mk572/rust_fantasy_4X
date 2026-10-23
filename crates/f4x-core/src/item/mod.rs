@@ -2,7 +2,7 @@
 //! carries it.
 //!
 //! An [`Item`] is an instance, not an id of the content: a crafted item (task 50) is not in any
-//! file, so the vault, a hero's slots and the loot all hold the same type. A prefab item is a copy
+//! file. Each one is an entity (`entity.rs`: the `Item` component and `HeldBy`). A prefab item is a copy
 //! of its [`ItemDef`] ([`Item::from_def`]). Its effects reach the rules through the stat engine
 //! ([`modifiers`]) and the unit's abilities and lasting spells ([`Item::granted_spells`],
 //! [`Item::granted_abilities`]), so no rule needs a special case for items.
@@ -16,15 +16,14 @@
 
 pub mod armory;
 pub mod crafting;
+pub mod entity;
 pub mod make;
 
 use serde::{Deserialize, Serialize};
 
-use self::armory::Armory;
 use crate::battle::game::ranged_kind_of;
 use crate::battle::RangedKind;
 use crate::content::Content;
-use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::effects::Effect;
@@ -184,7 +183,8 @@ pub fn slot_of(kind: ItemKind) -> SlotKind {
     }
 }
 
-/// The items a hero carries, one per slot (the slot kinds are the hero's `HeroKind::slots`).
+/// The items a hero carries, one per slot (the slot kinds are the hero's `HeroKind::slots`), as
+/// one value: `ItemView::hero_items` reads it, the save writes it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeroItems(pub [Option<Item>; 3]);
 
@@ -271,15 +271,17 @@ impl<'a> ItemView<'a> {
 
     /// The items a unit carries with the slot each is in (only heroes carry any).
     pub fn carried(&self, unit: hecs::Entity) -> Vec<(u8, Item)> {
-        let Ok(items) = self.world.get::<&HeroItems>(unit) else {
-            return Vec::new();
-        };
-        items
-            .0
+        let mut out: Vec<(u8, Item)> = self
+            .world
+            .query::<(&Item, &entity::HeldBy)>()
             .iter()
-            .enumerate()
-            .filter_map(|(i, item)| Some((i as u8, item.clone()?)))
-            .collect()
+            .filter_map(|(_, (item, by))| match by {
+                entity::HeldBy::Hero(u, slot) if *u == unit => Some((*slot, item.clone())),
+                _ => None,
+            })
+            .collect();
+        out.sort_by_key(|(slot, _)| *slot);
+        out
     }
 
     /// The lasting spells the unit's items put on it (see [`Item::granted_spells`]).
@@ -326,11 +328,6 @@ impl<'a> ItemView<'a> {
             .iter()
             .flat_map(|(slot, item)| modifiers(item, *slot, &abilities, has_ranged))
             .collect()
-    }
-
-    /// A wizard's vault and award list.
-    pub fn armory(&self, player: PlayerId) -> Option<hecs::Ref<'a, Armory>> {
-        crate::player::component::<Armory>(self.world, player)
     }
 }
 

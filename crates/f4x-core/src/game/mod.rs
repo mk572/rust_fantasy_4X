@@ -351,12 +351,6 @@ impl Game {
         self.player_component::<player::Defeat>(id).is_some()
     }
 
-    /// A component of the player that was added `i`th (tests index players by their order).
-    #[cfg(test)]
-    pub(crate) fn pl<C: hecs::Component>(&self, i: usize) -> hecs::Ref<'_, C> {
-        self.player_component(self.player_ids()[i]).unwrap()
-    }
-
     #[cfg(test)]
     pub(crate) fn tr(&self, i: usize) -> player::Treasury {
         self.treasury(self.player_ids()[i]).unwrap()

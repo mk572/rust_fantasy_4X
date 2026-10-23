@@ -20,6 +20,8 @@
     "surveyor.warped": "Warped",
     "surveyor.guardian_spirit": "Guardian Spirit",
     "surveyor.magic_spirit": "Magic Spirit",
+    // A site nobody of yours has fought for: its guards are not known.
+    "surveyor.guards_unknown": "Guards unknown",
     // Why no city can be founded there.
     "surveyor.blocked_water": "Cities cannot be built on water.",
     "surveyor.blocked_land": "Cities cannot be built on this kind of land.",

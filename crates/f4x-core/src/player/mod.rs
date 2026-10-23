@@ -8,8 +8,6 @@ pub mod view;
 
 use serde::{Deserialize, Serialize};
 
-use crate::item::armory::Armory;
-
 /// Who a player is outside the world (fog, diplomacy, map owners, saves, commands). A component of
 /// the player entity; never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -157,10 +155,9 @@ pub const BANNER_CHOICES: u8 = 5;
 
 /// A new player: the components every player starts with. A wizard's player gets its `Control`
 /// and `WizardLink` when the game adds it.
-pub fn bundle(id: PlayerId) -> (PlayerId, Armory, Treasury, Tax, Bonus, History, Offers) {
+pub fn bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
     (
         id,
-        Armory::default(),
         Treasury::default(),
         Tax::default(),
         Bonus::default(),

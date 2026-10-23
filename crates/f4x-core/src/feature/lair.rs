@@ -21,6 +21,7 @@ use crate::item::make::{make_item, Grade};
 use crate::map::mapgen::GenParams;
 use crate::map::{Map, Plane, Position};
 use crate::player::{PlayerId, MONSTERS};
+use crate::rules::lair::{HoardKind, LairRules};
 
 use crate::rules::{Rarity, SpellId, Stat, UnitKind};
 use crate::unit::movement::MoveError;
@@ -28,10 +29,6 @@ use crate::unit::movement::MoveError;
 use crate::game::{Event, Game};
 use crate::wizard::{retort_available, retort_cost, ALL_RETORTS};
 
-/// Most guards a site holds in total.
-const MAX_GUARDS: u32 = 9;
-/// Most guards of the first kind.
-const MAX_FIRST_GUARDS: i32 = 8;
 /// What kind of site a lair guards, for choosing its guards' realm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SiteType<'a> {
@@ -58,32 +55,26 @@ fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
 }
 
 /// The realm of a site's guards.
-fn guard_realm(rng: &mut Pcg64Mcg, site: SiteType) -> &'static str {
+fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, rules: &'a LairRules) -> &'a str {
+    let table = |rng: &mut Pcg64Mcg, weights| {
+        LairRules::realm_for(
+            weights,
+            random(rng, LairRules::total(weights) as i32) as u32,
+        )
+    };
     match site {
-        SiteType::Node("sorcery") => "sorcery",
-        SiteType::Node("nature") => "nature",
-        SiteType::Node(_) => "chaos",
-        SiteType::Tower => match random(rng, 6) {
-            1 | 2 => "death",
-            3 => "chaos",
-            4 => "life",
-            5 => "nature",
-            _ => "sorcery",
-        },
-        SiteType::Holy => {
-            if random(rng, 4) <= 3 {
-                "death"
+        SiteType::Node(realm) => {
+            if rules.node_own_realms.iter().any(|r| r == realm) {
+                rules.node_own_realms.iter().find(|r| *r == realm).unwrap()
             } else {
-                "life"
+                &rules.node_other
             }
         }
+        SiteType::Tower => table(rng, &rules.tower_realms),
+        SiteType::Holy => table(rng, &rules.holy_realms),
         // The original's switch falls through to nature in every case; the intended split
         // (ReMoM marks it a bug) is two parts death, two chaos, one nature.
-        SiteType::Wild => match random(rng, 5) {
-            1 | 2 => "death",
-            3 | 4 => "chaos",
-            _ => "nature",
-        },
+        SiteType::Wild => table(rng, &rules.wild_realms),
     }
 }
 
@@ -126,6 +117,7 @@ fn dearest_under<'a>(
 /// a second kind from what is left, nine units at most. Returns the guards and their value.
 fn pick_guards(
     rng: &mut Pcg64Mcg,
+    rules: &LairRules,
     list: &[(String, i32)],
     mut budget: i32,
 ) -> (Vec<(String, u32)>, i32, i32) {
@@ -142,12 +134,12 @@ fn pick_guards(
     let mut first_value = 0;
     let mut second_value = 0;
     let mut first_count = 0;
-    if let Some((id, cost)) = draw(rng, budget, 4, None) {
+    if let Some((id, cost)) = draw(rng, budget, rules.first_spread, None) {
         let mut count = budget / cost;
         if count > 1 && random(rng, 2) == 1 {
             count -= 1;
         }
-        count = count.min(MAX_FIRST_GUARDS);
+        count = count.min(rules.max_first_guards);
         budget -= cost * count;
         first_count = count;
         first_value = cost * count;
@@ -155,8 +147,13 @@ fn pick_guards(
     }
     if first_count > 0 {
         let first_id = guards[0].0.clone();
-        if let Some((id, cost)) = draw(rng, budget, 10 - first_count, Some(&first_id)) {
-            let count = (budget / cost).min(MAX_GUARDS as i32 - first_count);
+        if let Some((id, cost)) = draw(
+            rng,
+            budget,
+            rules.second_spread - first_count,
+            Some(&first_id),
+        ) {
+            let count = (budget / cost).min(rules.max_guards as i32 - first_count);
             if count > 0 {
                 second_value = cost * count;
                 guards.push((id, count as u32));
@@ -167,8 +164,10 @@ fn pick_guards(
 }
 
 /// Fill a lair's hoard from its guards' value (`Create_Lair` after the guards are chosen).
+#[allow(clippy::too_many_arguments)]
 fn fill_hoard(
     rng: &mut Pcg64Mcg,
+    rules: &LairRules,
     lair: &mut Lair,
     site: SiteType,
     plane: Plane,
@@ -176,67 +175,84 @@ fn fill_hoard(
     second_value: i32,
     treasure_percent: i32,
 ) {
-    let mut loot = guard_value + second_value / 2;
+    let mut loot = guard_value + second_value * rules.second_share / 100;
     loot = loot * treasure_percent / 100;
-    loot = match plane {
-        Plane::Arcanus => loot * (49 + random(rng, 76)) / 100,
-        Plane::Myrror => loot * (75 + random(rng, 100)) / 100,
-    };
-    loot = loot.max(50);
+    let plane_loot = rules.plane_loot[plane.index()];
+    loot = loot * (plane_loot.base + random(rng, plane_loot.rolls)) / 100;
+    loot = loot.max(rules.min_loot);
     let mut special = 0i32;
     if site == SiteType::Tower {
         // A tower always holds a spell, and pays for it out of the rest.
-        let rarity = random(rng, 4);
-        loot -= rarity * rarity * 50 - 100;
+        let rarity = random(rng, rules.spell_rarities);
+        loot -= rarity * rarity * rules.spell_cost - rules.tower_spell_refund;
         special = rarity;
     }
+    let total: i32 = rules.hoard.iter().map(|(_, w)| *w as i32).sum();
+    let coin = |rng: &mut Pcg64Mcg, loot: i32| {
+        (random(rng, rules.coin_rolls) * rules.coin_step).min(loot) / 10 * 10
+    };
     let mut guard = 0;
-    while loot >= 50 && guard < 2000 {
+    while loot >= rules.min_loot && guard < 2000 {
         guard += 1;
-        match random(rng, 15) - 1 {
-            0 | 1 => {
-                let price = (random(rng, 20) * 10).min(loot) / 10 * 10;
-                loot -= 200;
+        let mut slot = random(rng, total);
+        let kind = rules
+            .hoard
+            .iter()
+            .find(|(_, w)| {
+                slot -= *w as i32;
+                slot <= 0
+            })
+            .map(|(k, _)| *k);
+        match kind {
+            Some(HoardKind::Gold) => {
+                let price = coin(rng, loot);
+                loot -= rules.coin_cost;
                 lair.gold += price as u32;
             }
-            2 | 3 => {
-                let price = (random(rng, 20) * 10).min(loot) / 10 * 10;
-                loot -= 200;
+            Some(HoardKind::Mana) => {
+                let price = coin(rng, loot);
+                loot -= rules.coin_cost;
                 lair.mana += price as u32;
             }
-            4..=8 => {
-                if lair.items.len() < 3 && loot >= 300 {
-                    let price = (300 + random(rng, 27) * 100).min(loot) / 10 * 10;
+            Some(HoardKind::Item) => {
+                if lair.items.len() < rules.max_items && loot >= rules.item_min {
+                    let price = (rules.item_base + random(rng, rules.item_rolls) * rules.item_step)
+                        .min(loot)
+                        / 10
+                        * 10;
                     loot -= price;
                     lair.items.push(price as u32);
                 }
             }
-            9 => {
-                if loot >= 400 && !lair.prisoner {
+            Some(HoardKind::Prisoner) => {
+                if loot >= rules.prisoner_min && !lair.prisoner {
                     lair.prisoner = true;
-                    loot -= 1000;
+                    loot -= rules.prisoner_cost;
                 }
             }
-            10..=12 => {
-                let rarity = random(rng, 4);
-                if rarity * rarity * 50 <= loot && special < 4 {
-                    loot -= rarity * rarity * 50;
-                    special = (special + rarity).min(4);
+            Some(HoardKind::Spell) => {
+                let rarity = random(rng, rules.spell_rarities);
+                if rarity * rarity * rules.spell_cost <= loot && special < rules.spell_total {
+                    loot -= rarity * rarity * rules.spell_cost;
+                    special = (special + rarity).min(rules.spell_total);
                 }
             }
-            _ => {
+            Some(HoardKind::Special) => {
                 // A spell book or retort: two picks' worth when the budget allows.
-                if random(rng, 4) == 1 && loot >= 3000 || loot >= 2000 {
+                if random(rng, rules.double_chance) == 1 && loot >= rules.special_double_min
+                    || loot >= rules.special_double_sure
+                {
                     special = 6;
-                    loot -= 3000;
-                } else if loot >= 1000 {
+                    loot -= rules.special_cost;
+                } else if loot >= rules.special_min {
                     special = 5;
-                    loot -= 3000;
+                    loot -= rules.special_cost;
                 }
             }
+            None => {}
         }
     }
-    if special > 4 {
+    if special > rules.spell_total {
         lair.gold = 0;
         lair.mana = 0;
         lair.items.clear();
@@ -294,10 +310,11 @@ fn make_lair(
     guard_percent: i32,
     treasure_percent: i32,
 ) -> Lair {
+    let rules = &content.rules.lairs;
     let budget = budget * guard_percent / 100;
-    let realm = guard_realm(rng, site);
+    let realm = guard_realm(rng, site, rules);
     let list = candidates(content, realm);
-    let (guards, first, second) = pick_guards(rng, &list, budget);
+    let (guards, first, second) = pick_guards(rng, rules, &list, budget);
     let mut lair = Lair {
         intact: true,
         guards,
@@ -306,8 +323,18 @@ fn make_lair(
         items: Vec::new(),
         prisoner: false,
         special: 0,
+        fought_by: Vec::new(),
     };
-    fill_hoard(rng, &mut lair, site, plane, first, second, treasure_percent);
+    fill_hoard(
+        rng,
+        rules,
+        &mut lair,
+        site,
+        plane,
+        first,
+        second,
+        treasure_percent,
+    );
     lair
 }
 
@@ -328,6 +355,9 @@ pub struct Lair {
     /// 0 nothing, 1 to 4 a spell of that rarity (1 common), 5 a spell book or a retort,
     /// 6 a spell book or retort worth two picks.
     pub special: u8,
+    /// The players who have fought for this site once: they know what guards it.
+    #[serde(default)]
+    pub fought_by: Vec<PlayerId>,
 }
 
 /// Give every tower, node and encounter site on the map its guards and treasure, each with the
@@ -360,7 +390,9 @@ pub fn generate_lairs(
                     continue;
                 }
                 seen_towers.push((x, y));
-                let budget = 650 + 50 * random(&mut rng, 11);
+                let budget = content.rules.lairs.tower_budget.base
+                    + content.rules.lairs.tower_budget.step
+                        * random(&mut rng, content.rules.lairs.tower_budget.rolls);
                 let lair = make_lair(
                     &mut rng,
                     content,
@@ -383,7 +415,11 @@ pub fn generate_lairs(
     }
     for (pos, node) in nodes {
         let power = i32::from(node.power);
-        let budget = (power * power * (4 + random(&mut rng, 11)) * (magic + 1) / 2).min(32767);
+        let rules = &content.rules.lairs;
+        let budget =
+            (power * power * (rules.node_base + random(&mut rng, rules.node_rolls)) * (magic + 1)
+                / 2)
+            .min(rules.node_cap);
         let lair = make_lair(
             &mut rng,
             content,
@@ -426,12 +462,13 @@ pub fn generate_lairs(
         flags
     };
     for (i, &(plane, x, y, def)) in sites.iter().enumerate() {
-        let budget = match (strong[i], plane) {
-            (true, Plane::Arcanus) => 50 + random(&mut rng, 29) * 50,
-            (true, Plane::Myrror) => 100 + random(&mut rng, 24) * 100,
-            (false, Plane::Arcanus) => random(&mut rng, 10) * 10,
-            (false, Plane::Myrror) => random(&mut rng, 20) * 10,
+        let rules = &content.rules.lairs;
+        let roll = if strong[i] {
+            rules.strong_budget[plane.index()]
+        } else {
+            rules.weak_budget[plane.index()]
         };
+        let budget = roll.base + random(&mut rng, roll.rolls) * roll.step;
         let lair = make_lair(
             &mut rng,
             content,
@@ -489,10 +526,12 @@ impl SiteError {
     }
 }
 
-/// A random spell of about `rarity` from a realm the wizard has no books in (arcane counts as
-/// such a realm), trying dearer rarities when the first has nothing new; the wizard learns it.
-/// The original's selection is muddled (ReMoM calls its index arithmetic wrong); this follows
-/// its intent.
+/// A random spell of about `rarity` from a realm the wizard has books in, or arcane, that the
+/// wizard does not know yet; the wizard learns it. A realm with one book gives up to uncommon
+/// spells, two books up to rare, more up to very rare; arcane up to rare (ReMoM
+/// `WIZ_RollSpellReward`, whose realm test is inverted and whose index arithmetic is muddled:
+/// task 305 follows its rarity caps and gives only spells the wizard can use). Dearer
+/// rarities are tried when the first has nothing new; none at all gives `None`.
 pub(crate) fn award_spell(
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     content: &Content,
@@ -501,15 +540,21 @@ pub(crate) fn award_spell(
 ) -> Option<SpellId> {
     let mut realms: Vec<String> = ["nature", "sorcery", "chaos", "life", "death"]
         .iter()
-        .filter(|r| wizard.view().books_in(r) == 0)
+        .filter(|r| wizard.view().books_in(r) > 0)
         .map(|r| r.to_string())
         .collect();
     realms.push("arcane".to_string());
     while !realms.is_empty() {
         let r = rng.roll(realms.len() as u32) as usize - 1;
         let realm = realms.remove(r);
+        let cap = match (realm.as_str(), wizard.view().books_in(&realm)) {
+            ("arcane", _) => 3,
+            (_, 1) => 2,
+            (_, 2) => 3,
+            _ => 4,
+        };
         for step in 0..4 {
-            let level = match (rarity + step).min(4) {
+            let level = match (rarity + step).min(cap) {
                 1 => Rarity::Common,
                 2 => Rarity::Uncommon,
                 3 => Rarity::Rare,
@@ -647,6 +692,14 @@ impl Game {
         }
         match self.start_battle(units, &defenders) {
             Ok(events) => {
+                // Whoever fights for a site, win or lose, knows what guards it from then on.
+                if let Some(player) = units.first().and_then(|&u| self.units().unit_owner(u)) {
+                    if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+                        if !l.fought_by.contains(&player) {
+                            l.fought_by.push(player);
+                        }
+                    }
+                }
                 if let Some(active) = self.battle.as_mut() {
                     active.site = Some(site);
                 }
@@ -743,6 +796,15 @@ impl Game {
             };
             lair.special = 0;
         }
+        // A wizard's spell comes first: a hoard with no spell the wizard can use pays its value.
+        let mut spell = None;
+        if wizard && matches!(lair.special, 1..=4) {
+            spell = self.award_lair_spell(player, lair.special);
+            if spell.is_none() {
+                unused += i32::from(lair.special) * i32::from(lair.special) * 50;
+            }
+            lair.special = 0;
+        }
         let has_hero = wizard
             || matches!(prisoner, Some(Prisoner::Join(_)))
             || !self.units().hero_units(player).is_empty();
@@ -764,6 +826,7 @@ impl Game {
         let mut loot = Loot {
             gold: lair.gold,
             mana: lair.mana,
+            spell,
             ..Loot::default()
         };
         let mut items: Vec<crate::item::Item> = Vec::new();
@@ -787,14 +850,6 @@ impl Game {
             .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
         {
             match lair.special {
-                1..=4 => {
-                    loot.spell = award_spell(
-                        &mut w,
-                        &self.content,
-                        &mut self.rng,
-                        i32::from(lair.special),
-                    )
-                }
                 5 | 6 => {
                     let picks = i32::from(lair.special) - 4;
                     award_special(&mut w, &mut self.rng, &lair, picks, &mut loot);
@@ -860,6 +915,14 @@ impl Game {
             }
         }
         events
+    }
+
+    /// A spell for the wizard `player` from a hoard of `rarity` (`award_spell`).
+    fn award_lair_spell(&mut self, player: PlayerId, rarity: u8) -> Option<SpellId> {
+        let entity = self.player_index.get(&player).copied()?;
+        let wizard = crate::wizard::entity::of_player(&self.world, entity)?;
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, wizard);
+        award_spell(&mut w, &self.content, &mut self.rng, i32::from(rarity))
     }
 
     /// After a battle at a site: the guards go, and a win clears the site.

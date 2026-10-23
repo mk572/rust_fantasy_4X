@@ -209,14 +209,18 @@ impl App {
             .get((pos.y * width + pos.x) as usize)
             .copied()
             .unwrap_or(false);
-        let Some(lair) = self.game.economy().lair_at(pos) else {
+        if self.game.economy().lair_at(pos).is_none() {
             return Vec::new();
-        };
+        }
         if !seen {
             return vec![self.text("ui.unexplored")];
         }
+        // The guards are known to whoever has fought for the site once.
+        let Some(guards) = self.game.economy().lair_guards_known_to(pos, HUMAN) else {
+            return vec![self.text("surveyor.guards_unknown")];
+        };
         let rules = &self.game.content().rules;
-        lair.guards
+        guards
             .iter()
             .take(2)
             .filter_map(|(id, _)| {

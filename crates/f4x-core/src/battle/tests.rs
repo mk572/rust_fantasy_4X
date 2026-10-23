@@ -2335,7 +2335,7 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
 
 #[test]
 fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
-    use crate::item::{HeroItems, Item, ItemBonus};
+    use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
     g.content.rules.item_powers = crate::rules::Registry::new(vec![
@@ -2373,9 +2373,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         },
         &[],
     );
-    let _ = g
-        .world
-        .insert_one(unit, HeroItems([Some(sword), Some(shield), None]));
+    g.arm_hero(unit, [Some(sword), Some(shield), None]);
     let armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     assert_eq!(armed.melee, plain.melee + 2 + 3, "attack and Flaming");
     assert_eq!(armed.melee_plus, 1);
@@ -2395,7 +2393,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
 #[test]
 fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     use crate::hero::Hero;
-    use crate::item::{HeroItems, Item, ItemBonus};
+    use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
     let walker = g.content.rules.units.id_of("walker").unwrap();
@@ -2423,9 +2421,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
         charges: None,
         prefab: None,
     };
-    let _ = g
-        .world
-        .insert_one(unit, HeroItems([Some(staff), None, None]));
+    g.arm_hero(unit, [Some(staff), None, None]);
     let mut armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     assert_eq!(armed.mana, 12);
     // A magic shot costs the hero three mana, and its shots follow its mana.
@@ -2659,7 +2655,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
 
 #[test]
 fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
-    use crate::item::{HeroItems, Item, ItemBonus};
+    use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = casting_game();
     let hero = hero_unit(&mut g, &[], 0);
@@ -2677,9 +2673,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
         prefab: None,
     };
     // The spell is in the second slot: any slot works, not only the first.
-    let _ = g
-        .world
-        .insert_one(hero, HeroItems([None, Some(wand("Wand")), None]));
+    g.arm_hero(hero, [None, Some(wand("Wand")), None]);
     begin(&mut g, hero);
     let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
     let b = g.battle().unwrap();
@@ -2704,7 +2698,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     g.battle_command(BattleCommand::EndTurn).unwrap();
     g.battle_command(BattleCommand::Flee).unwrap();
     assert!(!g.in_battle());
-    let items = g.world.get::<&HeroItems>(hero).unwrap();
+    let items = g.items().hero_items(hero);
     assert_eq!(
         items.0[1].as_ref().unwrap().charges,
         Some(("fire_bolt".into(), 1))

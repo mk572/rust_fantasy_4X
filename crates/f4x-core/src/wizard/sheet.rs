@@ -13,7 +13,7 @@ use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
 use crate::rules::{Rarity, SpellDef, SpellId};
-use crate::spell::instance::{Crafting, Owed, Raising, Spells};
+use crate::spell::instance::{Owed, Raising, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
     base_casting_skill, default_spells, is_crafting, is_summoning, pick_spells, skill_points_for,
@@ -199,8 +199,8 @@ impl<'a> Wizard<'a> {
 
     /// The item Enchant Item or Create Artifact is making while its cost is paid.
     pub fn crafting(&self) -> Option<crate::item::Item> {
-        let cast = Spells::new(self.world()).cast_of(self.entity())?;
-        Some(self.world().get::<&Crafting>(cast).ok()?.0.clone())
+        let player = crate::wizard::entity::player_id_of(self.world(), self.entity())?;
+        crate::item::entity::crafting_of(self.world(), player).map(|(_, item)| item)
     }
 
     /// The dead hero Resurrection is bringing back while its cost is paid.
@@ -768,10 +768,16 @@ impl<'a> WizardMut<'a> {
         }
     }
 
-    /// The spell being cast is cast or given up (the item and the hero stay).
+    /// The spell being cast is cast or given up (the hero stays; an item being made that was not
+    /// handed over is lost).
     pub fn clear_casting(&mut self) {
         if let Some(cast) = self.cast() {
             let _ = self.world.despawn(cast);
+        }
+        if let Some(player) = crate::wizard::entity::player_id_of(self.world, self.entity) {
+            if let Some((item, _)) = crate::item::entity::crafting_of(self.world, player) {
+                let _ = self.world.despawn(item);
+            }
         }
     }
 
@@ -780,24 +786,11 @@ impl<'a> WizardMut<'a> {
         Spells::new(self.world).cast_of(self.entity)
     }
 
-    /// The item being made is kept with the cast until it is paid.
-    pub fn set_crafting(&mut self, item: crate::item::Item) {
-        if let Some(cast) = self.cast() {
-            let _ = self.world.insert_one(cast, Crafting(item));
-        }
-    }
-
     /// The dead hero being brought back is kept with the cast until it is paid.
     pub fn set_raising(&mut self, hero: hecs::Entity) {
         if let Some(cast) = self.cast() {
             let _ = self.world.insert_one(cast, Raising(hero));
         }
-    }
-
-    /// The item the cast was making.
-    pub fn take_crafting(&mut self) -> Option<crate::item::Item> {
-        let cast = self.cast()?;
-        self.world.remove_one::<Crafting>(cast).ok().map(|c| c.0)
     }
 
     /// The dead hero the cast was bringing back.

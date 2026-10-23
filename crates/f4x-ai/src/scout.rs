@@ -142,7 +142,10 @@ fn recruit(ai: &Ai, game: &Game) -> Option<hecs::Entity> {
     let view = PlayerView::new(game, ai.player);
     let mut best: Option<(i32, std::cmp::Reverse<Serial>, hecs::Entity)> = None;
     for u in view.my_units() {
-        if !is_fighter(&view, u) || ai.scouts.contains(&view.serial_of(u)) {
+        if !is_fighter(&view, u)
+            || ai.scouts.contains(&view.serial_of(u))
+            || ai.raiders.contains(&view.serial_of(u))
+        {
             continue;
         }
         let Some(at) = view.unit_position(u) else {

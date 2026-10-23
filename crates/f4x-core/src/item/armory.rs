@@ -3,28 +3,33 @@
 //! of the item screen for moving one between them (`ItemScrn.c`, design in
 //! `docs/heroes-items-design.md` section 3.4).
 //!
-//! Nothing here is a method of the rules; [`Armory`] is plain data on the player and
-//! `Game::move_item` and `Game::give_item` are what the commands call.
+//! The items are entities held by [`HeldBy`] (task 333, `item/entity.rs`); [`Armory`] is the
+//! vault and the award list read as one value (`ItemView::armory`), which the move rules look at,
+//! and `Game::move_item` and `Game::give_item` are what the commands call.
 
 use serde::{Deserialize, Serialize};
 
 use crate::game::Game;
-use crate::item::{HeroItems, Item, ItemView};
+use crate::item::entity::HeldBy;
+use crate::item::{Item, ItemView};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::SlotKind;
 
-/// The slots of the fortress vault.
+/// The vault slots the item screen shows at a time. The vault itself has no limit (the original's
+/// four are a screen size here): the screen scrolls through the rest.
 pub const VAULT_SLOTS: usize = 4;
-/// The most items that wait after a reward (`Process_Item_Pool`).
+/// The most items that wait on the award list. Nothing is put there since the vault has room for
+/// all; the list remains for the item screen's "held" item of a reward.
 pub const MAX_AWARDS: usize = 6;
 /// What moving an item to a hero somewhere else costs, in mana (the original asks first).
 pub const TRANSFER_MANA: i32 = 20;
 
-/// On a player: the wizard's items that are not on a hero.
+/// The wizard's items that are not on a hero, as one value (`ItemView::armory`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Armory {
-    pub vault: [Option<Item>; VAULT_SLOTS],
+    /// The slots up to the last one with an item in it.
+    pub vault: Vec<Option<Item>>,
     /// Items won or made that wait for a place (up to [`MAX_AWARDS`]).
     pub awards: Vec<Item>,
 }
@@ -40,34 +45,6 @@ pub enum Placed {
 }
 
 impl Armory {
-    /// Put an item in the first free vault slot, else on the award list, else lose it.
-    pub fn place(&mut self, item: Item) -> Placed {
-        if let Some(i) = self.vault.iter().position(Option::is_none) {
-            self.vault[i] = Some(item);
-            Placed::Vault(i)
-        } else if self.awards.len() < MAX_AWARDS {
-            self.awards.push(item);
-            Placed::Awards
-        } else {
-            Placed::Lost
-        }
-    }
-
-    /// The anvil: destroy the item in a vault slot or on the award list and return the mana it
-    /// gives (half its value). `None` if there is no item there.
-    pub fn scrap(&mut self, from: Spot) -> Option<i32> {
-        let item = match from {
-            Spot::Vault(i) => self.vault.get_mut(i)?.take()?,
-            Spot::Award(i) => {
-                if i >= self.awards.len() {
-                    return None;
-                }
-                self.awards.remove(i)
-            }
-        };
-        Some(item.anvil_mana())
-    }
-
     /// Every item the armory holds.
     pub fn items(&self) -> impl Iterator<Item = &Item> {
         self.vault.iter().flatten().chain(self.awards.iter())
@@ -156,7 +133,7 @@ fn item_at(
     spot: ItemSpot,
 ) -> Result<Option<Item>, ItemError> {
     match spot {
-        ItemSpot::Vault(i) => armory.vault.get(i).cloned().ok_or(ItemError::NoSuchPlace),
+        ItemSpot::Vault(i) => Ok(armory.vault.get(i).cloned().flatten()),
         ItemSpot::Award(i) => Ok(armory.awards.get(i).cloned()),
         ItemSpot::Hero(unit, i) => {
             world
@@ -258,10 +235,7 @@ impl ItemWorld for ItemView<'_> {
     }
 
     fn hero_item(&self, unit: hecs::Entity, slot: usize) -> Option<Item> {
-        self.world
-            .get::<&HeroItems>(unit)
-            .ok()
-            .and_then(|items| items.0[slot].clone())
+        self.hero_item_entity(unit, slot).and_then(|e| self.item(e))
     }
 
     fn hero_position(&self, unit: hecs::Entity) -> Option<Position> {
@@ -274,33 +248,31 @@ impl ItemWorld for ItemView<'_> {
 }
 
 impl Game {
-    /// Put an item (or nothing) in a spot, which has been checked to exist.
-    pub(crate) fn set_item_at(&mut self, player: PlayerId, spot: ItemSpot, item: Option<Item>) {
-        let Some(armory) = self.player_component_mut::<Armory>(player) else {
-            return;
-        };
+    /// Who holds a spot of the player's.
+    fn holder_of(player: PlayerId, spot: ItemSpot) -> HeldBy {
         match spot {
-            ItemSpot::Vault(i) => armory.vault[i] = item,
-            ItemSpot::Award(i) => {
-                let awards = &mut armory.awards;
-                match item {
-                    Some(item) if i < awards.len() => awards[i] = item,
-                    Some(item) => awards.push(item),
-                    None if i < awards.len() => {
-                        awards.remove(i);
-                    }
-                    None => {}
-                }
-            }
-            ItemSpot::Hero(unit, i) => {
-                if self.world.get::<&HeroItems>(unit).is_err() {
-                    let _ = self.world.insert_one(unit, HeroItems::default());
-                }
-                if let Ok(mut items) = self.world.get::<&mut HeroItems>(unit) {
-                    items.0[i] = item;
-                }
-            }
+            ItemSpot::Vault(i) => HeldBy::Vault(player, i as u16),
+            ItemSpot::Award(_) => HeldBy::Award(player),
+            ItemSpot::Hero(unit, i) => HeldBy::Hero(unit, i as u8),
         }
+    }
+
+    /// The item entity at a spot.
+    pub(crate) fn item_entity_at(&self, player: PlayerId, spot: ItemSpot) -> Option<hecs::Entity> {
+        let items = self.items();
+        match spot {
+            ItemSpot::Vault(i) => items.vault_item_entity(player, i),
+            ItemSpot::Award(i) => items.award_entities(player).get(i).copied(),
+            ItemSpot::Hero(unit, i) => items.hero_item_entity(unit, i),
+        }
+    }
+
+    /// Take the item at a spot out of the game (scrapped, or released with its hero).
+    pub(crate) fn remove_item_at(&mut self, player: PlayerId, spot: ItemSpot) -> Option<Item> {
+        let entity = self.item_entity_at(player, spot)?;
+        let item = self.items().item(entity);
+        self.despawn_item(entity);
+        item
     }
 
     /// The item screen: move the item at `from` to `to` by the rules of [`plan_move`], then
@@ -317,9 +289,7 @@ impl Game {
             return Ok(());
         }
         let plan = {
-            let armory = self
-                .player_component::<Armory>(player)
-                .ok_or(ItemError::NoSuchPlace)?;
+            let armory = self.items().armory(player);
             let mana = self.treasury(player).map_or(0, |t| t.mana);
             plan_move(&self.items(), &armory, mana, player, from, to, pay)?
         };
@@ -339,11 +309,12 @@ impl Game {
                 .collect()
         };
         let before = stranded(self);
-        self.set_item_at(player, from, plan.other.clone());
-        self.set_item_at(player, to, Some(plan.moving.clone()));
+        let moving = self.item_entity_at(player, from).ok_or(ItemError::Empty)?;
+        let other = self.item_entity_at(player, to);
+        let (from_by, to_by) = (Self::holder_of(player, from), Self::holder_of(player, to));
+        self.swap_holders(moving, other, from_by, to_by);
         if stranded(self).iter().any(|unit| !before.contains(unit)) {
-            self.set_item_at(player, to, plan.other);
-            self.set_item_at(player, from, Some(plan.moving));
+            self.swap_holders(moving, other, to_by, from_by);
             return Err(ItemError::WouldDrown);
         }
         if let Some(t) = self.treasury_mut(player) {
@@ -352,18 +323,38 @@ impl Game {
         Ok(())
     }
 
+    /// `moving` goes from the holder `from_by` to `to_by`, and `other`, if any, comes back.
+    fn swap_holders(
+        &mut self,
+        moving: hecs::Entity,
+        other: Option<hecs::Entity>,
+        from_by: HeldBy,
+        to_by: HeldBy,
+    ) {
+        if let Some(other) = other {
+            self.hold_item(other, from_by);
+        }
+        self.hold_item(moving, to_by);
+    }
+
     /// Hand a wizard an item (a reward, a made item): the vault, else the award list.
     pub fn give_item(&mut self, player: PlayerId, item: Item) -> Placed {
-        match self.player_component_mut::<Armory>(player) {
-            Some(armory) => armory.place(item),
-            None => Placed::Lost,
+        if self.player_entity(player).is_none() {
+            return Placed::Lost;
         }
+        let entity = self.spawn_item(item, HeldBy::Award(player));
+        self.place_item(player, entity)
     }
 
     /// The anvil: destroy the item in a vault slot or on the award list for half its value in
     /// mana. Returns the mana gained.
     pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Option<i32> {
-        let mana = self.player_component_mut::<Armory>(player)?.scrap(from)?;
+        let spot = match from {
+            Spot::Vault(i) => ItemSpot::Vault(i),
+            Spot::Award(i) => ItemSpot::Award(i),
+        };
+        let item = self.remove_item_at(player, spot)?;
+        let mana = item.anvil_mana();
         self.treasury_mut(player)?.mana += mana;
         Some(mana)
     }
@@ -464,16 +455,29 @@ mod tests {
     }
 
     #[test]
-    fn items_go_to_the_vault_then_the_award_list_then_are_lost() {
-        let mut a = Armory::default();
-        for i in 0..VAULT_SLOTS {
-            assert_eq!(a.place(item("v", ItemKind::Misc)), Placed::Vault(i));
+    fn the_vault_has_no_limit_and_items_fill_the_first_free_slot() {
+        let mut g = world();
+        for i in 0..10 {
+            assert_eq!(
+                g.give_item(P0, item("v", ItemKind::Misc)),
+                Placed::Vault(i),
+                "item {i}"
+            );
         }
-        for _ in 0..MAX_AWARDS {
-            assert_eq!(a.place(item("a", ItemKind::Misc)), Placed::Awards);
-        }
-        assert_eq!(a.place(item("x", ItemKind::Misc)), Placed::Lost);
-        assert_eq!(a.items().count(), VAULT_SLOTS + MAX_AWARDS);
+        let armory = g.items().armory(P0);
+        assert_eq!(armory.items().count(), 10);
+        assert!(armory.awards.is_empty());
+        // A slot that is emptied is filled first.
+        assert!(g.scrap_item(P0, Spot::Vault(3)).is_some());
+        assert_eq!(
+            g.give_item(P0, item("again", ItemKind::Misc)),
+            Placed::Vault(3)
+        );
+        // A player that does not exist loses the item.
+        assert_eq!(
+            g.give_item(PlayerId(77), item("x", ItemKind::Misc)),
+            Placed::Lost
+        );
     }
 
     #[test]
@@ -507,7 +511,7 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 1), false),
             Ok(())
         );
-        assert_eq!(g.pl::<crate::item::armory::Armory>(0).vault[1], None);
+        assert_eq!(g.items().armory(P0).vault.get(1).cloned().flatten(), None);
         assert_eq!(g.items().carried(w).len(), 2);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 1), false),
@@ -548,7 +552,12 @@ mod tests {
         g.move_item(P0, ItemSpot::Vault(1), ItemSpot::Hero(w, 0), false)
             .unwrap();
         assert_eq!(
-            g.pl::<crate::item::armory::Armory>(0).vault[1]
+            g.items()
+                .armory(P0)
+                .vault
+                .get(1)
+                .cloned()
+                .flatten()
                 .as_ref()
                 .unwrap()
                 .name,
@@ -562,7 +571,12 @@ mod tests {
         );
         assert_eq!(g.items().carried(w)[0].1.name, "Axe");
         assert_eq!(
-            g.pl::<crate::item::armory::Armory>(0).vault[2]
+            g.items()
+                .armory(P0)
+                .vault
+                .get(2)
+                .cloned()
+                .flatten()
                 .as_ref()
                 .unwrap()
                 .name,
@@ -647,7 +661,7 @@ mod tests {
             Err(ItemError::WouldDrown)
         );
         assert_eq!(g.items().carried(m).len(), 1);
-        assert_eq!(g.pl::<crate::item::armory::Armory>(0).vault[0], None);
+        assert_eq!(g.items().armory(P0).vault.first().cloned().flatten(), None);
     }
 
     #[test]
@@ -664,17 +678,24 @@ mod tests {
         for _ in 0..VAULT_SLOTS + 1 {
             g.give_item(P0, item("Filler", ItemKind::Misc));
         }
+        g.spawn_item(
+            item("Offered", ItemKind::Misc),
+            crate::item::entity::HeldBy::Offered(P1),
+        );
         g.wiz_mut(0).put::<crate::wizard::fortress::Fortress>(None);
         let text = g.snapshot().to_text().unwrap();
         let back = crate::game::save::Snapshot::from_text(&text)
             .unwrap()
             .restore(g.content.clone())
             .unwrap();
+        assert_eq!(back.items().armory(P0), g.items().armory(P0));
         assert_eq!(
-            *back.pl::<crate::item::armory::Armory>(0),
-            *g.pl::<crate::item::armory::Armory>(0)
+            back.items()
+                .held(|h| h == crate::item::entity::HeldBy::Offered(P1))
+                .len(),
+            1
         );
-        assert!(!back.pl::<crate::item::armory::Armory>(0).awards.is_empty());
+        assert!(back.items().armory(P0).vault.len() > VAULT_SLOTS);
         let carried = back.units().all_units();
         let hero = carried
             .iter()
@@ -740,6 +761,9 @@ mod tests {
     fn vault_with(items: &[(usize, ItemKind)]) -> Armory {
         let mut a = Armory::default();
         for &(i, kind) in items {
+            if a.vault.len() <= i {
+                a.vault.resize(i + 1, None);
+            }
             a.vault[i] = Some(item("V", kind));
         }
         a

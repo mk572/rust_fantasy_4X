@@ -442,6 +442,59 @@ mod tests {
     }
 
     #[test]
+    fn nature_awareness_and_natures_eye_show_who_guards_a_site() {
+        let mut g = world();
+        let guards = vec![("walker".to_string(), 2)];
+        let lair = crate::feature::lair::Lair {
+            intact: true,
+            guards: guards.clone(),
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by: Vec::new(),
+        };
+        g.put_lair(at(20, 10), "lair", lair);
+        let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
+        assert_eq!(known(&g), None, "never fought, nothing shown");
+        // Nature's Eye on a city nearby: sight 9 reaches four squares and a half.
+        let elf = g.content.rules.races.id_of("elf");
+        g.apply(crate::game::Command::FoundCity {
+            owner: P0,
+            pos: at(17, 10),
+            name: "Near".into(),
+            race: elf,
+            population: 3,
+        });
+        let city = g.economy().city_at(at(17, 10)).unwrap();
+        assert_eq!(known(&g), None, "three squares away is outside plain sight");
+        let eye = spell(&g, "natures_eye");
+        g.attach_enchantment(crate::rules::exec::Target::City(city), eye, P0);
+        assert_eq!(known(&g), Some(guards.clone()));
+        // Another wizard's eye does not show it to P0.
+        assert_eq!(g.economy().lair_guards_known_to(at(20, 10), P1), None);
+        // Nature Awareness shows every site.
+        g.put_lair(
+            at(2, 2),
+            "lair",
+            crate::feature::lair::Lair {
+                intact: true,
+                guards: guards.clone(),
+                gold: 0,
+                mana: 0,
+                items: Vec::new(),
+                prisoner: false,
+                special: 0,
+                fought_by: Vec::new(),
+            },
+        );
+        assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), None);
+        grant(&mut g, P0, "nature_awareness");
+        assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), Some(guards));
+    }
+
+    #[test]
     fn awareness_shows_cities_and_nature_awareness_the_whole_map() {
         let mut g = world();
         let elf = g.content.rules.races.id_of("elf");

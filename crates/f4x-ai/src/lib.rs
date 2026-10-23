@@ -18,6 +18,7 @@ mod offer;
 mod race;
 mod scout;
 mod shortfall;
+mod site;
 #[cfg(test)]
 mod testworld;
 mod view;
@@ -95,6 +96,8 @@ pub struct Ai {
     war_on: Option<PlayerId>,
     record_refusals: bool,
     refusals: RefCell<Vec<Refusal>>,
+    /// The units out on a raid of a tower, node or encounter site (`site.rs`).
+    raiders: Vec<Serial>,
     /// Players who fight their own defence (a human): an attack on them is kept for
     /// [`Ai::take_attacks`] instead of being resolved.
     defended_by: Vec<PlayerId>,
@@ -139,6 +142,7 @@ impl Ai {
             war_on: None,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
+            raiders: Vec::new(),
             defended_by: Vec::new(),
             attacks: Vec::new(),
         }
@@ -204,6 +208,7 @@ impl Ai {
         wizardry::run(self, game, &mut events);
         expand::settlers(self, game, &mut events);
         scout::scout(self, game, &mut events);
+        site::run(self, game, &mut events);
         military::army(self, game, &mut events);
         naval::run(self, game, &mut events);
         economy::cities(self, game, &mut events);

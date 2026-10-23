@@ -150,14 +150,11 @@ impl Game {
                 casting.innate = hero.spells.iter().filter_map(|s| spells.id_of(s)).collect();
             }
         }
-        if let Ok(items) = self.world.get::<&crate::item::HeroItems>(unit) {
-            for (slot, item) in items.0.iter().enumerate() {
-                let Some(item) = item else { continue };
-                casting.spell_save += item.bonus.spell_save;
-                if let Some((spell, charges)) = &item.charges {
-                    if let (Some(id), true) = (spells.id_of(spell), *charges > 0) {
-                        casting.item_charges.push((slot, id, *charges));
-                    }
+        for (slot, item) in self.items().carried(unit) {
+            casting.spell_save += item.bonus.spell_save;
+            if let Some((spell, charges)) = &item.charges {
+                if let (Some(id), true) = (spells.id_of(spell), *charges > 0) {
+                    casting.item_charges.push((slot as usize, id, *charges));
                 }
             }
         }
@@ -664,12 +661,12 @@ impl Game {
             };
             // The charges an item's spell has left stay on the item.
             if !u.casting.item_charges.is_empty() {
-                if let Ok(mut items) = self.world.get::<&mut crate::item::HeroItems>(entity) {
-                    for &(slot, _, left) in &u.casting.item_charges {
-                        if let Some((_, charges)) =
-                            items.0[slot].as_mut().and_then(|i| i.charges.as_mut())
-                        {
-                            *charges = left;
+                for &(slot, _, left) in &u.casting.item_charges {
+                    if let Some(item) = self.items().hero_item_entity(entity, slot) {
+                        if let Ok(mut item) = self.world.get::<&mut crate::item::Item>(item) {
+                            if let Some((_, charges)) = item.charges.as_mut() {
+                                *charges = left;
+                            }
                         }
                     }
                 }

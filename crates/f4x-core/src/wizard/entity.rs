@@ -31,6 +31,12 @@ pub struct CapitalRace(pub Option<RaceId>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerLink(pub hecs::Entity);
 
+/// The id of the player a wizard entity plays as.
+pub(crate) fn player_id_of(world: &hecs::World, wizard: hecs::Entity) -> Option<PlayerId> {
+    let player = world.get::<&PlayerLink>(wizard).ok()?.0;
+    world.get::<&PlayerId>(player).ok().map(|p| *p)
+}
+
 /// The components of a new wizard.
 pub(crate) type WizardBundle = (
     Name,

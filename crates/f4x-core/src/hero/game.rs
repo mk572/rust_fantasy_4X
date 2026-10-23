@@ -99,9 +99,11 @@ impl UnitView<'_> {
         let x = self.unit_level(unit) as i32 + 1;
         let base = (i32::from(hero.casting_skill) + 1) * x * 5 / 2;
         let items: i32 = self
-            .world
-            .get::<&crate::item::HeroItems>(unit)
-            .map_or(0, |i| i.iter().map(|i| i.bonus.spell_skill).sum());
+            .items()
+            .carried(unit)
+            .iter()
+            .map(|(_, i)| i.bonus.spell_skill)
+            .sum();
         base + items
     }
 
@@ -296,23 +298,22 @@ impl Game {
             return;
         }
         if let (Fate::Slain, Some(owner)) = (fate, owner) {
-            let items: Vec<_> = self
-                .world
-                .get::<&crate::item::HeroItems>(unit)
-                .map(|h| h.iter().cloned().collect())
-                .unwrap_or_default();
+            let items = self
+                .items()
+                .held(|h| matches!(h, crate::item::entity::HeldBy::Hero(u, _) if u == unit));
             let takes = heir.unwrap_or(owner);
             if !self.is_neutral_player(takes) {
                 let winner = self.player_entity(takes);
-                for item in items {
-                    let name = item.name.clone();
-                    let placed = self.give_item(takes, item);
+                for (item, data) in items {
+                    let placed = self.place_item(takes, item);
                     let kept = placed != crate::item::armory::Placed::Lost;
                     self.item_awards
-                        .extend(winner.map(|winner| (winner, name, kept)));
+                        .extend(winner.map(|winner| (winner, data.name.clone(), kept)));
                 }
             }
         }
+        // What the hero still holds (a neutral winner takes nothing) is gone with it.
+        self.despawn_items_of(unit);
         self.despawn_spells_on(unit);
         self.release_body(unit, fate.state());
     }
@@ -486,7 +487,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress() {
-        use crate::item::{HeroItems, Item, ItemBonus};
+        use crate::item::{Item, ItemBonus};
         use crate::rules::ItemKind;
         let mut g = world();
         g.wiz_mut(0)
@@ -514,7 +515,7 @@ pub(crate) mod tests {
             charges: None,
             prefab: None,
         };
-        let _ = g.world.insert_one(h, HeroItems([Some(staff), None, None]));
+        g.arm_hero(h, [Some(staff), None, None]);
         assert_eq!(g.units().hero_mana(h), before + 7);
         // Away from the fortress the hero adds nothing; another wizard's hero never does.
         assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
@@ -524,7 +525,6 @@ pub(crate) mod tests {
         assert_eq!(g.hero_casting_skill(P1), 0);
         // A hero with no casting skill has no mana, whatever its items.
         g.world.get::<&mut Hero>(away).unwrap().casting_skill = 0;
-        let _ = g.world.insert_one(away, HeroItems::default());
         assert_eq!(g.units().hero_mana(away), 0);
     }
 
@@ -790,16 +790,12 @@ pub(crate) mod tests {
 
     fn armed_hero(g: &mut Game, owner: PlayerId) -> hecs::Entity {
         let h = g.spawn_hero(owner, at(1, 1), 0).unwrap();
-        let mut items = crate::item::HeroItems::default();
-        items.0[0] = Some(sword());
-        g.world.insert_one(h, items).unwrap();
+        g.arm_hero(h, [Some(sword()), None, None]);
         h
     }
 
     fn in_armory(g: &Game, player: PlayerId) -> usize {
-        let a = &g
-            .player_component::<crate::item::armory::Armory>(player)
-            .unwrap();
+        let a = g.items().armory(player);
         a.vault.iter().flatten().count() + a.awards.len()
     }
 
@@ -835,12 +831,18 @@ pub(crate) mod tests {
             "a neutral winner takes nothing"
         );
         assert_eq!(in_armory(&g, neutral), 0);
+        assert_eq!(
+            g.items()
+                .count_held(|h| matches!(h, crate::item::entity::HeldBy::Hero(..))),
+            0,
+            "the items of a fallen hero are not left held by its body"
+        );
     }
 
     #[test]
-    fn an_armory_that_is_full_loses_the_rest_and_the_wizard_is_told_how_many() {
+    fn an_armory_with_many_items_loses_nothing() {
         let mut g = world();
-        let room = crate::item::armory::VAULT_SLOTS + crate::item::armory::MAX_AWARDS;
+        let room = 10;
         for _ in 0..room {
             g.give_item(P1, sword());
         }
@@ -849,9 +851,9 @@ pub(crate) mod tests {
         let events = g.drain_item_awards();
         assert!(matches!(
             events.as_slice(),
-            [Event::ItemsAwarded { lost: 1, .. }]
+            [Event::ItemsAwarded { lost: 0, .. }]
         ));
-        assert_eq!(in_armory(&g, P1), room);
+        assert_eq!(in_armory(&g, P1), room + 1);
     }
 
     #[test]

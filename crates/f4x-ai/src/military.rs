@@ -92,11 +92,13 @@ enum Sortie {
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let ferrying: Vec<Serial> = ai
+    // Units on a ship's errand or a raid on a site are not the army's to command.
+    let mut ferrying: Vec<Serial> = ai
         .ferry
         .as_ref()
         .map(|f| f.group.clone())
         .unwrap_or_default();
+    ferrying.extend(ai.raiders.iter().copied());
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()
@@ -391,7 +393,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-fn average_strength(view: &PlayerView) -> f32 {
+pub(crate) fn average_strength(view: &PlayerView) -> f32 {
     let units: Vec<_> = view
         .my_units()
         .into_iter()

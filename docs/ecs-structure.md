@@ -150,10 +150,10 @@ and not worked around, and names are singular.
 
 | Entity | Module | Components | Built in |
 |---|---|---|---|
-| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Armory`, `Serial` | 311, 313, 314, 317, 327 |
+| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` | 311, 313, 314, 317, 327 |
 | **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` | 312, 315, 316 |
 | **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
-| **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `HeroItems` (until 333), `Serial`; the unit components while serving | 326 to 328 |
+| **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving | 326 to 328 |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting`, `Raising` on a cast in progress | 318 to 325 |
 | **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)` (all but a volcano), `Position`, `Serial`; `Node` and `Lair` (a node and a tower have both), `Volcano`; `Owner` where owned | 329 to 332, 338 (done) |
@@ -286,10 +286,30 @@ that has identity and state is an entity.
 
 ### 3.7 Item
 
-An item instance is an entity with its kind, name, bonus, powers, charges, optional prefab id and
-a `HeldBy`: `Hero(entity, slot)`, `Vault(player, slot)`, `Award(player)`, `Crafting(wizard)`,
-`Offered(player)` or `Loot(feature)`. Moving an item changes `HeldBy`; an item with no holder is
-despawned. The prefabs already made stay a registry on `Game`.
+An item instance is an entity (`item/entity.rs`, task 333). Its data is one component, `Item` (name,
+kind, cost, icon, `ItemBonus`, power ids, charges, optional prefab id), next to `Serial` and
+`HeldBy`: `Hero(entity, slot)`, `Vault(player, slot)`, `Award(player)`, `Crafting(player)` or
+`Offered(player)`. (The design listed the data as several components; they are always read
+together, so they stay one.) Moving an item changes `HeldBy`; an item with no holder is despawned.
+The prefabs already made stay a registry on `Game` (`prefab_taken`).
+
+- **The vault has no limit** (the original's four slots are the size of the item screen, which shows
+  four at a time and scrolls by page). `Game::give_item` and `place_item` fill the first free slot;
+  `Placed::Awards` and `Lost` remain for the cases the vault cannot take (no such player). The award
+  list is kept for the item screen's hand; an item gets a new creation number when it joins the
+  list, so that the list keeps the order of arrival.
+- **Reads** go through `ItemView` (`Game::items()`): `item`, `held_by`, `held`, `carried` (a hero's
+  items with their slots), `hero_items`, `armory` (the vault and the award list as one value for
+  `plan_move`), `crafting`. `Armory` and `HeroItems` are such values, no longer components.
+- **Loot** is not a holder: `claim_lair` makes the items from the hoard's values and hands them to
+  the winner at once (`give_item`); `Event::SiteCleared` carries copies for the message box.
+- **An offer** keeps the item's description (`Offer::Item { item, price }`, what the client shows)
+  and the item itself is an entity held as `Offered(player)`, found by its description; buying it
+  moves it to the vault, turning it down or letting it lapse despawns it.
+- **A hero's items** pass to the heir by changing `HeldBy` when it is slain, and are despawned with a
+  hero that is gone or whose winner is a neutral player (`remove_unit_to`).
+- **The save** lists the item entities (`Snapshot.items`, in `Serial` order, a hero named by its
+  creation number).
 
 ### 3.8 Lifecycles: who is created and removed when
 

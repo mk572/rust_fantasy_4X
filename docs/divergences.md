@@ -243,6 +243,14 @@ Where the item rules differ from the original's code or are read from ReMoM with
 - **A merchant's prefab item not bought goes back** to the pool (declined, lapsed or too dear); the
   original keeps it taken once drawn. Prefab items are otherwise given once a game, as in the
   original.
+- **The vault has no limit** (task 334). The original's fortress vault holds four items and six more wait on the award list, and items beyond that are lost. **Ours:** any number; the item screen shows four slots with an arrow on each side to scroll through them. Releasing heroes can therefore never leave items without a place.
+- **A lair's spell treasure is a spell the wizard can use** (task 305). `WIZ_RollSpellReward` marks a realm
+  valid when the wizard has *no* books in it (inverted: it also looks for a spell the wizard "knows", which
+  only a realm with books has, so it rarely finds one) and its index arithmetic is muddled. **Ours:** a
+  random realm the wizard has books in, or arcane; one book gives up to uncommon spells, two up to rare,
+  more up to very rare (the original's `Max_Rarity`), arcane up to rare; a spell not known yet, never the
+  Spell of Mastery or Return. A hoard with no such spell pays its value (rarity squared times 50) as gold
+  and mana.
 
 ## 11. Heroes (task 219)
 

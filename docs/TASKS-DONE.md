@@ -188,6 +188,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 231 | Combat | Conventional battle AI step 9: a brain with the game, wizard spells | (done)
 | 237 | Units | Ship buildings and the coast: inland cities may build the Ship Wrights Guild and Ship Yard | (done)
 | 239 | Data | Spells owned by the game, not imported (done) |
+| 241 | (done) Content | Check the lair and monster data (`MONSTER.LBX`) and the event tables (`EVENTS.LBX`) against `lairs.rs` and the event code |
 | 244 | Heroes | Work out what the "books" bytes of an item mean (done) |
 | 245 | Housekeeping | Delete the old `~/reference` folder (user) (done) |
 | 246 | Meta | Game settings, stage 1: the record, save, load and default difficulty (done) |
@@ -211,6 +212,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 296 | Magic | Melding on a node you already own and guard (the original forbids it) (done) |
 | 297 | Map | Scout range and the starting reveal as in the original (done) |
 | 301 | Client | The original's mouse pointers on every screen (done) |
+| 305 | Core | (done) Lair spell treasure: research the original's intent, consider a change |
 | 307 | Core | Game version 0.0.2, shown prominently (done) |
 | 308 | Core | Singular names for modules and types (done) |
 | 309 | Core | Lay out `f4x-core` by game concept; move misplaced types; split `lib.rs` (done) |
@@ -237,6 +239,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 330 | Feature | Node entity (done) |
 | 331 | Feature | Lair and site entity, tower on both planes, loot (done) |
 | 332 | Feature | Volcano and tower ownership as feature entities (done) |
+| 333 | (done) Item | Item entity: components, holder, lifecycle |
+| 334 | (done) Item | Hero slots, armory, crafting, offers, awards, spoils and lair loot over item entities |
 | 338 | Feature | Node base terrains (sorcery, nature, chaos) under the node features, with the original's food and production (done) |
 | 340 | Spell | (done) One art folder per spell in `assets-local/art/spells` |
 | 345 | Text | (done) One text flow: every player-facing message comes from `content/text/<lang>/*.ron` by key, with count, plural and gender |
@@ -244,6 +248,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 349 | Magic | Spells that cannot be combined: duplicates, non-cumulative pairs, abilities a unit has by nature, Holy Weapon with Holy Arms (done) |
 | 353 | Lair | A winner takes only the loot it can use; the rest is rerolled (neutral winners, a full hero roster) (done) |
 | 354 | AI | Neutral cities raid nearby lairs and keep what they win (done) |
+| 355 | (done) Lair | Guard and treasure tables as `.ron` data (`content/lairs.ron`), checked against the original |
+| 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
 
 ## Descriptions
 
@@ -392,6 +398,8 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 
 **221. Item loot and loss (done).** Step 7 of [`heroes-items-design.md`](heroes-items-design.md) (sections 4 and 5). `Spoils` gains the loser's fallen heroes' items and hero losses and the winner's armory takes them (`armory::place`: vault, then the award list of six, then lost); dismissed heroes' items are destroyed; Banish, Cracks Call, Disintegrate, Dispel Evil, Holy Word and Unsummon destroy the hero and its items, and Disintegrate and its kin make the hero Gone for good. **Lair loot done (17 October 2026):** items are made and placed in the armory, the prisoner is a free hero offer. Lair loot: `Loot.items` becomes real items made on the claim from the lair's value (`random_item`), and the prisoner a real hero offered for free (hire type 2). Needs tasks 49 and 219; the treasure dialog is task 128. Every hero that leaves goes through `Game::remove_unit(unit, Fate)` (task 219), which today drops the hero's items with the unit: take them there (`Fate::Slain` to the winner, `Gone` destroyed). The unit removals that do not go through it are neutral guards (`lairs.rs`), the copy made for a battle summon (`battle/spells.rs`), settlers that found a city and the engineer that melds with a node, none of which can be heroes. The items that fall to a wizard this way (a hero killed in a battle, by an earthquake, by Call Chaos, Death Wish and the other spells that kill units: `Player_Process_Item_Pool`) are announced to the human by the warning box with `MESSAGE.LBX` entry 67 and then the item screen, as the client already does for a lair's treasure, a gift, an item bought from the merchant and an item made by Enchant Item or Create Artifact (`item_pool_pending` in `view.rs`); the importer does not read `MESSAGE.LBX` yet. **Done (18 October 2026):** `remove_unit_to(unit, fate, heir)` hands the items of a slain hero to the wizard of the battle's winner (a neutral winner takes nothing), or to the hero's own wizard when a spell or an earthquake kills it; released and gone heroes' items are destroyed (`release_one` takes a released hero's items to the armory first); a hero killed by Disintegrate and its kin is Gone for good. `Event::ItemsAwarded` tells the wizard what came and how much did not fit; the client shows the red `MESSAGE.LBX` 67 box and then the item screen for the human. The importer writes `messages.ron`.
 
+**241. (done) Lairs, monsters and events.** `MONSTER.LBX` (checked 17 October 2026: it holds the creatures' pictures, `MONSTER1` to `MONSTER4`, not guard tables; the guards come from `Create_Lair` over the unit table, which `lairs.rs` follows, see `docs/lairs.md`) and `EVENTS.LBX` (18 entries of 41 records of 43 bytes) are not read. Decode them, compare the guard sets, treasures and event chances with `lairs.rs` and the event code, and fix the data or record the difference. *Done (23 October 2026):* `EVENTS.LBX` is no table either: its 18 entries are pictures of 41 x 43 pixels (the header `29 00 2b 00` of each is width and height), one for each event, shown by `EVENTS.c` (`LBX_Reload("EVENTS", event - 1)`). The event chances and effects come from `EVENTS.c` and are written in `docs/events.md` (task 68). The guard and treasure rules were checked against `Create_Lair`, `Lair_Make_Guardians` and `Generate_Lairs` and moved to `content/lairs.ron` (task 355). Nothing was left to decode.
+
 **245. Delete the old `~/reference` folder (done).** The folder outside the project, `~/reference` (the earlier ReMoM clone and the steamcmd home), is superseded by `reference/` inside the project and should go. The user deletes it themselves: the safety hook blocks Claude from deleting outside the project, and nothing in the project reads it. Check first that nothing there is still needed (the project's own `reference/ReMoM` and `reference/mom-classic` hold what the importer reads). This was part of task 80, which was closed without it. **Closed as done by the user, 18 October 2026.**
 
 **254. Battlefield leftovers after the field generator and art (110, 112) (done).** (1) **Water battles** (a fight on a sea square): the original uses its own terrain set (ocean pictures, no land unit may deploy, ships move by the sailing cost map, `Undeployable_Battle_Units_On_Water`, floating islands for fights between ships); ours keeps open ground and draws the water pictures. (2) **Deployment order:** the original puts melee units in front and ranged ones behind, moving the strongest ranged unit forward when there are more than five (`Deploy_Battle_Units`). (3) **Effects drawn on the field:** the mud of Earth to Mud (`cmbtcity` 118, which also costs 12 to cross), the wall of fire and wall of darkness pictures, the wall-rise animation (`wallrise`), the cell effect (`cmbtcity` 120), the Flying Fortress cloud check, and ~~the chaos node and nature node pictures~~ (done with task 111). (4) **A city with walls** and the Myrror wall bank were not looked at on a screenshot; compare them with the original's, including the draw order of the walls against units standing on them. (5) The original's other movement cost maps (`MoveCost_Ground2`, teleport and sailing) are not kept; only the walking one is. (6) The learning AI's networks and bank were made for the old fields (different deployment squares and costs): their checkpoints still load but should be retrained, and `docs/learning-ai.md` should say which runs were on which field. **Done (17 October 2026):** (1) water battles: ocean field, walkers shut out, ships sail (2), swimmers take the cheaper way, only ships, fliers and swimmers fight (land units aboard sit out and go down with a losing side), Floating Island decks and Wind Walking carry land units; Myrror's ocean from `chriver`. (2) melee-first deployment (`deployment_order`). (3) mud (`cmbtcity` 118), the walls of fire and darkness (`citywall` 36 to 63, back and front of the units); the Flying Fortress cloud was already right. The wall-rise animation and the cell effect (`cmbtcity` 120) are spell animations, task 159(6): the original sets them only while a spell is cast. (4) the walled city and fortress were checked on a screenshot. (5) the sailing and teleport cost maps exist (`Mover::sails`, `swims`, fliers); `MoveCost_Ground2` is unreachable in the original. (6) `docs/learning-ai.md` says the old checkpoints are from the old field. The floating island's own picture (`cmbtcity` 117) is blank in the files, so the deck is drawn as grass. `--battle-field river|sea|walls|mud` for screenshots.
@@ -417,6 +425,8 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 **297. Scout range and the starting reveal as in the original (done).** Sight counts a diagonal step as 1.5 and reaches `range + 0.5` (`fog::in_sight`, used by exploring, the visible squares and the AI's scouts): range 1 is the tile and the eight round it, range 2 a 5 by 5 block without its corners, the original's shape. A new city explores with its sight when it is founded, so every wizard, the AI's too, starts with the capital's view and no special start code. Each player's exploration is kept apart, units and cities alike. Awareness (`Cast_Awareness`, range 1) reveals the 3 by 3 block round every city.
 
 **301. The original's mouse pointers on every screen (done).** **Done:** `pointer.rs` draws the pointer from the frame loop (finger; hourglass for a frame before the computer plays the turn change; boot or red cross over the map with a stack selected, by `find_path`; wand while a spell targets); the battle screen keeps its own through the same `draw_pointer_image`. ReMoM sets only the finger and hourglass lists outside combat, so the boot and cross on the overland map are ours. Only the battle screen draws the original's pointers (`cursors/NN.png`, `battle_screen/pointer.rs`); every other screen shows the system pointer. Draw the game's own on all screens: the finger as the default (`mouse_list_default`), the hourglass while the computer plays (`mouse_list_hourglass`), the winged boot over a reachable square and the red cross on the overland map when a click would do nothing, and the casting wand while a spell picks a target. Check `Set_Mouse_List` and the screens' mouse lists in ReMoM for what each one sets, hide the system pointer in one place (the frame loop, not per screen), and keep the system pointer when the art is missing.
+
+**305. (done) Lair spell treasure: research the original's intent, consider a change.** `award_spell` (`lairs.rs`) gives a lair's spell treasure from a realm the wizard has no books in, or arcane, so a wizard can be handed a spell they cannot cast (found by the user in play, 18 October 2026). The code comment says the original's selection is muddled and that ours follows its intent; that intent was not checked against the manual or the help. Research it: (1) read `Lair_Generate_Treasure` (`Lair.c` 448 to 456, the spell part) and what the manual and `content-local/help.ron` say about spells found in a lair, and whether the original really picks realms the wizard lacks or only seems to because of its index arithmetic; (2) find out what a found spell does in the original when the wizard has no book of its realm (learned and listed but not castable, or not given), including how Spell Library, research and `Learn_Spell` treat it; (3) decide with the priorities in `design.md` (play first) whether to keep it, or to give spells from realms the wizard has books in (perhaps with a fallback), and write the outcome into `divergences.md` if we differ; (4) change `award_spell` and its test (`the_hoard_can_hold_a_spell_book_a_retort_or_a_spell`) to match, and the treasure popup text if it names the spell as unusable. Asked for by the user, 18 October 2026.
 
 **307. Game version 0.0.2, shown prominently (done).** `[workspace.package] version` goes from `0.0.1` to
 `0.0.2`: the entity rework changes the save format, so it is a new version. Put a **Version** line at
@@ -645,6 +655,18 @@ the client read the entities. *Needs:* 329 and 313.
 
 **Done:** with task 329.
 
+**333. (done) Item entity.** One entity per item instance with `ItemKind`, `Name`, `Bonus`, `Powers`,
+`Charges`, `Prefab` and `HeldBy` (see `ecs-structure.md` section 3.7). Replaces the `Item` struct that is copied around today
+(`from_def`). Lifecycle: spawned when made (`make_item`, `random_item`, crafting, offer, loot); an
+item with no holder is despawned. `ItemSpot` and the `MoveItem` and `ScrapItem` commands address
+holders. `Game.prefab_taken` stays as a registry. `Game.item_awards` (names only) becomes items
+held as `Award`. *Needs:* 313, 315 and 326.
+
+**334. (done) Items over the holders.** Convert every holder: `HeroItems` (hero slots), the armory vault and
+awards, `Magic.crafting`, `Offer::Item`, the spoils of a battle (an item of a slain hero passes to the
+heir or winner by changing `HeldBy`) and lair loot (`Loot.items`, `claim_lair`). Item charges
+written back after a battle are a component change. *Needs:* 333, 322, 327, 328 and 331. *Done (23 October 2026):* design in `ecs-structure.md` section 3.7. Kept as they were, on purpose: `Game.item_awards` is the queue of names for the "items awarded" message (the items it names are held as vault items), and lair loot is handed over at once (no `Loot` holder). Added at the user's request: the vault has no limit and the item screen scrolls it (`divergences.md`). The save lists the item entities (the full format change is task 335).
+
 **338. Node base terrains (done).** In the original a node is two things: the base terrain of its square
 (`tt_SorceryNode`, `tt_NatureNode`, `tt_ChaosNode`, terrain types 168 to 170) and the node itself
 (`_NODES`). Here the node is a feature on an ordinary terrain, so a node square counts as grassland,
@@ -839,3 +861,26 @@ are the ones inside its own sight (about 2 squares), so raids are rare until neu
 party does not know the guards, so a strong site can kill it; the city builds another party (no memory between turns).
 
 *Needs:* 353.
+
+**355. (done) Guard and treasure tables as data.** The rules of `feature/lair.rs` are Rust: the realm of a site's guards
+(`guard_realm`), the budget formulas for towers, nodes and the strong and weak encounter sites, the share of the
+budget each guard kind gets (`pick_guards`), the 0 to 14 hoard roll with its prices and limits (`fill_hoard`), the
+cap of 9 guards and 3 items, and the strong/weak counts in the generator parameters. Move them to
+`content/lairs.ron` (loaded and validated by `f4x-data`, with the realm splits, budget ranges, hoard entries and
+caps as fields), so a mod can change them, and keep the unit list as it is (the guards come from `units.ron`).
+Check every value against ReMoM (`Create_Lair`, `Lair_Make_Guardians`, `Generate_Lairs`) in the same task and write
+differences into `docs/lairs.md`; the unchanged defaults must reproduce today's maps for a seed (a test compares a
+generated world before and after). This also does the data part of on-hold task 241.
+
+*Needs:* nothing.
+
+**356. (done) The wizards' AI assaults sites.** `f4x-ai` never sends a stack at a tower, node or encounter site, and never
+answers the site prompt, so the AI loses all the treasure and the cleared nodes a human gets. Give the AI the human's
+rules (design.md section 8): it remembers the sites it has explored, estimates the guards it cannot see (as it does for
+cities), sends a stack that is strong enough (`Command::EnterSite`, the battle fought by the battle AI), collects an
+unguarded site, and spends the loot (items equipped, the free hero hired, gold and mana in its plans). Nodes it
+clears can be melded by a spirit (task for the magic AI, if open). Tests: an AI with a strong stack next to an
+encounter site clears it; a weak stack leaves it. Check the learned AI (`f4x-learn`) is not worse (its mirror test is
+`-- --ignored`, run only when asked).
+
+*Needs:* 353 (the shared loot rules).

@@ -10,8 +10,8 @@
 //! choice (`Game::item_overflow`). A ship let go with passengers aboard turns neutral and sails
 //! for the nearest free shore (`transport::Marooned`).
 
-use crate::item::armory::{Armory, ItemError, ItemSpot, MAX_AWARDS, VAULT_SLOTS};
-use crate::item::{HeroItems, Item};
+use crate::item::armory::{ItemError, ItemSpot};
+use crate::item::Item;
 use crate::player::finance::{gold_after_income, settle};
 use crate::player::{PlayerId, MONSTERS};
 use crate::unit::movement::MoveError;
@@ -130,15 +130,11 @@ impl Game {
     }
 
     fn hero_slot_items(&self, hero: hecs::Entity) -> Vec<(usize, Item)> {
-        self.world
-            .get::<&HeroItems>(hero)
-            .map(|h| {
-                h.0.iter()
-                    .enumerate()
-                    .filter_map(|(i, it)| it.clone().map(|it| (i, it)))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.items()
+            .carried(hero)
+            .into_iter()
+            .map(|(slot, item)| (slot as usize, item))
+            .collect()
     }
 
     /// The items that will not fit if `released` go: `None` when they all do.
@@ -147,7 +143,7 @@ impl Game {
         player: PlayerId,
         released: &[hecs::Entity],
     ) -> Option<ItemOverflow> {
-        let armory = self.player_component::<Armory>(player)?;
+        let armory = self.items().armory(player);
         let mut lines = Vec::new();
         fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item) {
             lines.push(ItemLine {
@@ -169,7 +165,8 @@ impl Game {
                 line(&mut lines, ItemSpot::Hero(hero, slot), &item);
             }
         }
-        let room = VAULT_SLOTS + MAX_AWARDS;
+        // The vault has no limit, so releasing heroes never leaves items without a place.
+        let room = usize::MAX;
         let excess = lines.len().saturating_sub(room);
         if excess == 0 {
             return None;
@@ -203,12 +200,9 @@ impl Game {
         let mut spots: Vec<ItemSpot> = Vec::new();
         for &spot in scrap {
             let present = match spot {
-                ItemSpot::Vault(i) => self
-                    .player_component::<Armory>(player)
-                    .is_some_and(|a| a.vault.get(i).is_some_and(Option::is_some)),
-                ItemSpot::Award(i) => self
-                    .player_component::<Armory>(player)
-                    .is_some_and(|a| i < a.awards.len()),
+                ItemSpot::Vault(_) | ItemSpot::Award(_) => {
+                    self.item_entity_at(player, spot).is_some()
+                }
                 ItemSpot::Hero(h, slot) => {
                     self.units().unit_owner(h) == Some(player)
                         && self.hero_slot_items(h).iter().any(|(s, _)| *s == slot)
@@ -243,21 +237,7 @@ impl Game {
             ItemSpot::Hero(..) => (2, 0),
         });
         for spot in spots {
-            let item = match spot {
-                ItemSpot::Hero(h, slot) => self
-                    .hero_slot_items(h)
-                    .into_iter()
-                    .find(|(s, _)| *s == slot)
-                    .map(|(_, it)| it),
-                ItemSpot::Vault(i) => self
-                    .player_component::<Armory>(player)
-                    .and_then(|a| a.vault[i].clone()),
-                ItemSpot::Award(i) => self
-                    .player_component::<Armory>(player)
-                    .and_then(|a| a.awards.get(i).cloned()),
-            };
-            if let Some(item) = item {
-                self.set_item_at(player, spot, None);
+            if let Some(item) = self.remove_item_at(player, spot) {
                 if let Some(t) = self.treasury_mut(player) {
                     t.mana += item.anvil_mana();
                 }

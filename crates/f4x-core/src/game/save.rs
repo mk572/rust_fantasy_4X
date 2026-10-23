@@ -72,8 +72,28 @@ pub struct Snapshot {
     pub heroes: Vec<HeroSave>,
     pub units: Vec<UnitSave>,
     pub cities: Vec<CitySave>,
+    /// The magic items, oldest first, with who holds each.
+    pub items: Vec<MagicItemSave>,
     /// The towers, nodes, encounter sites and volcanoes, oldest first.
     pub features: Vec<FeatureSave>,
+}
+
+/// An item entity: its creation number, what it is and who holds it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MagicItemSave {
+    pub serial: u64,
+    pub item: crate::item::Item,
+    pub held: HeldSave,
+}
+
+/// Who holds an item, with players by id and a hero by the creation number of its entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HeldSave {
+    Hero(u64, u8),
+    Vault(u8, u16),
+    Award(u8),
+    Crafting(u8),
+    Offered(u8),
 }
 
 /// A terrain feature entity: its creation number, what it is, where it stands and what it holds.
@@ -142,8 +162,6 @@ pub struct PlayerSave {
     pub capital_race: Option<String>,
     pub fame: i32,
     pub magic: MagicSave,
-    /// The vault and the award list.
-    pub armory: crate::item::armory::Armory,
     /// The offers waiting for an answer.
     pub offers: Vec<crate::player::offer::Offer>,
     pub fortress: Option<Position>,
@@ -177,8 +195,6 @@ pub struct MagicSave {
     pub research_remaining: i32,
     /// `(spell, mana still to pay, creation number)`.
     pub casting: Option<(String, i32, u64)>,
-    /// The item being made by Enchant Item or Create Artifact.
-    pub crafting: Option<crate::item::Item>,
     /// The dead hero Resurrection is bringing back.
     pub raising: Option<usize>,
     /// `(spell, creation number)` of the lasting spells on the world.
@@ -202,7 +218,6 @@ impl Default for MagicSave {
             researching: None,
             research_remaining: 0,
             casting: None,
-            crafting: None,
             raising: None,
             global: Vec::new(),
             skill_left: 0,
@@ -215,7 +230,7 @@ impl Default for MagicSave {
 struct PendingSpell {
     spell: SpellId,
     serial: u64,
-    cast: Option<(i32, Option<crate::item::Item>, Option<usize>)>,
+    cast: Option<(i32, Option<usize>)>,
 }
 
 impl MagicSave {
@@ -243,7 +258,6 @@ impl MagicSave {
                 let serial = *w.world().get::<&Serial>(cast).ok()?;
                 Some((name(&c.spell), c.remaining, serial.0))
             }),
-            crafting: w.crafting(),
             raising: w.raising().and_then(|hero| {
                 w.world()
                     .get::<&crate::hero::Hero>(hero)
@@ -290,11 +304,11 @@ impl MagicSave {
             Some((s, owed, serial)) => pending.push(PendingSpell {
                 spell: id(&s)?,
                 serial,
-                cast: Some((owed, m.crafting, m.raising)),
+                cast: Some((owed, m.raising)),
             }),
-            None if m.crafting.is_some() || m.raising.is_some() => {
+            None if m.raising.is_some() => {
                 return Err(LoadError::Inconsistent(
-                    "an item or hero is waiting for a spell that is not being cast".into(),
+                    "a hero is waiting for a spell that is not being cast".into(),
                 ));
             }
             None => {}
@@ -373,8 +387,6 @@ pub struct UnitSave {
     pub stasis: u8,
     /// Temporary modifiers and abilities.
     pub effects: Vec<TempSave>,
-    /// A hero's three items.
-    pub items: Option<crate::item::HeroItems>,
     /// A hero's own record; none for other units.
     pub hero: Option<crate::hero::Hero>,
     /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
@@ -536,6 +548,29 @@ fn intern(list: &mut Vec<String>, name: &str) -> u16 {
 }
 
 impl Game {
+    /// The item entities, oldest first.
+    fn item_saves(&self) -> Vec<MagicItemSave> {
+        use crate::item::entity::HeldBy;
+        let mut items: Vec<MagicItemSave> = self
+            .world
+            .query::<(&crate::item::Item, &HeldBy, &Serial)>()
+            .iter()
+            .map(|(_, (item, by, serial))| MagicItemSave {
+                serial: serial.0,
+                item: item.clone(),
+                held: match *by {
+                    HeldBy::Hero(unit, slot) => HeldSave::Hero(self.serial_of(unit).0, slot),
+                    HeldBy::Vault(p, slot) => HeldSave::Vault(p.0, slot),
+                    HeldBy::Award(p) => HeldSave::Award(p.0),
+                    HeldBy::Crafting(p) => HeldSave::Crafting(p.0),
+                    HeldBy::Offered(p) => HeldSave::Offered(p.0),
+                },
+            })
+            .collect();
+        items.sort_by_key(|i| i.serial);
+        items
+    }
+
     /// The feature entities, oldest first.
     fn feature_saves(&self) -> Vec<FeatureSave> {
         let eco = self.economy();
@@ -701,10 +736,6 @@ impl Game {
                     .map(|r| rules.races.get(r).id.clone()),
                 fame: self.wizard(*id).map_or(0, |w| w.fame()),
                 magic: MagicSave::of(self.wizard(*id), rules),
-                armory: self
-                    .player_component::<crate::item::armory::Armory>(*id)
-                    .map(|a| crate::item::armory::Armory::clone(&a))
-                    .unwrap_or_default(),
                 offers: self.offers(*id),
                 fortress: self.wizard(*id).and_then(|w| w.fortress()),
                 summon_at: self.wizard(*id).and_then(|w| w.summon_at()),
@@ -752,12 +783,6 @@ impl Game {
                         .ok()
                         .map(|w| (w.at, w.left, w.rest.clone())),
                     effects: effects_save(self, u),
-                    items: self
-                        .world
-                        .get::<&crate::item::HeroItems>(u)
-                        .ok()
-                        .filter(|i| !i.is_empty())
-                        .map(|i| (*i).clone()),
                     hero: self
                         .world
                         .get::<&crate::hero::Hero>(u)
@@ -872,6 +897,7 @@ impl Game {
             map,
             fog,
             players,
+            items: self.item_saves(),
             features: self.feature_saves(),
             heroes: self
                 .units()
@@ -976,7 +1002,6 @@ impl Snapshot {
             let (history, offers) = (p.history, p.offers);
             let (defeated, defeated_by) = (p.defeated, p.defeated_by.map(PlayerId));
             let (fame, magic) = (p.fame, p.magic);
-            let armory = p.armory;
             let (fortress, summon_at) = (p.fortress, p.summon_at);
             let banishment = p.banished.then(|| Banishment {
                 by: p.banished_by.map(PlayerId),
@@ -993,7 +1018,6 @@ impl Snapshot {
                     Tax(tax_rate),
                     History(history),
                     Offers(offers),
-                    armory,
                 ),
             );
             if !neutral {
@@ -1107,15 +1131,10 @@ impl Snapshot {
                 target,
                 serial,
             ));
-            if let Some((owed, crafting, raising)) = p.cast {
+            if let Some((owed, raising)) = p.cast {
                 let _ = game
                     .world
                     .insert_one(instance, crate::spell::instance::Owed(owed));
-                if let Some(item) = crafting {
-                    let _ = game
-                        .world
-                        .insert_one(instance, crate::spell::instance::Crafting(item));
-                }
                 if let Some(kind) = raising {
                     let hero = game.units().hero_entity(kind).ok_or_else(|| {
                         LoadError::Inconsistent("a cast raises a hero that is not there".into())
@@ -1199,9 +1218,6 @@ impl Snapshot {
                     .insert_one(entity, crate::unit::transport::Aboard(Serial(ship)));
             }
             effects_load(&mut game.world, entity, u.effects);
-            if let Some(items) = u.items {
-                let _ = game.world.insert_one(entity, items);
-            }
             if let Some(standby) = u.standby {
                 let _ = game.world.insert_one(entity, standby);
             }
@@ -1266,6 +1282,45 @@ impl Snapshot {
                     "a hero's state and its unit do not agree".into(),
                 ));
             }
+        }
+        let mut items = self.items;
+        items.sort_by_key(|i| i.serial);
+        for i in items {
+            use crate::item::entity::HeldBy;
+            let serial = take(i.serial, "an item")?;
+            let player = |p: u8| -> Result<PlayerId, LoadError> {
+                game.player_entity(PlayerId(p))
+                    .map(|_| PlayerId(p))
+                    .ok_or_else(|| {
+                        LoadError::Inconsistent(format!(
+                            "an item belongs to the missing player {p}"
+                        ))
+                    })
+            };
+            let held = match i.held {
+                HeldSave::Hero(unit, slot) => {
+                    let found = game
+                        .world
+                        .query::<&Serial>()
+                        .iter()
+                        .find(|(_, s)| s.0 == unit)
+                        .map(|(e, _)| e);
+                    let hero = found
+                        .filter(|&e| game.world.get::<&Unit>(e).is_ok())
+                        .filter(|_| slot < 3)
+                        .ok_or_else(|| {
+                            LoadError::Inconsistent(
+                                "an item is held by something that is no unit".into(),
+                            )
+                        })?;
+                    HeldBy::Hero(hero, slot)
+                }
+                HeldSave::Vault(p, slot) => HeldBy::Vault(player(p)?, slot),
+                HeldSave::Award(p) => HeldBy::Award(player(p)?),
+                HeldSave::Crafting(p) => HeldBy::Crafting(player(p)?),
+                HeldSave::Offered(p) => HeldBy::Offered(player(p)?),
+            };
+            game.spawn_item_with(serial, i.item, held);
         }
         let mut cities = self.cities;
         cities.sort_by_key(|c| c.serial);

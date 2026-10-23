@@ -59,13 +59,12 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() {
 fn a_released_heros_items_return_to_the_armory() {
     let mut g = world();
     let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
-    let mut slots = HeroItems::default();
-    slots.0[0] = Some(item("Axe", 200));
-    let _ = g.world.insert_one(h, slots);
+    g.spawn_item(item("Axe", 200), crate::item::entity::HeldBy::Hero(h, 0));
     g.tr_mut(0).gold = 0;
     g.release_troops(P0, &[h], &[]).unwrap();
     let names: Vec<_> = g
-        .pl::<crate::item::armory::Armory>(0)
+        .items()
+        .armory(P0)
         .items()
         .map(|i| i.name.clone())
         .collect();
@@ -73,32 +72,23 @@ fn a_released_heros_items_return_to_the_armory() {
 }
 
 #[test]
-fn items_that_do_not_fit_are_the_wizards_to_scrap_for_mana() {
+fn the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_choice() {
     let mut g = world();
-    for i in 0..(VAULT_SLOTS + MAX_AWARDS) {
+    for i in 0..12 {
         g.give_item(P0, item(&format!("Junk{i}"), 10 + 10 * i as u32));
     }
     let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
-    let mut slots = HeroItems::default();
-    slots.0[1] = Some(item("Crown", 1000));
-    let _ = g.world.insert_one(h, slots);
+    g.spawn_item(item("Crown", 1000), crate::item::entity::HeldBy::Hero(h, 1));
     assert!(g.item_overflow(P0, &[]).is_none());
-    let over = g.item_overflow(P0, &[h]).expect("eleven items, ten places");
-    assert_eq!(over.excess, 1);
-    assert_eq!(over.lines.len(), 11);
-    assert_eq!(
-        over.default_scrap,
-        vec![ItemSpot::Vault(0)],
-        "the cheapest goes"
+    assert!(
+        g.item_overflow(P0, &[h]).is_none(),
+        "thirteen items, no limit"
     );
-    // The wizard prefers to lose an award-list item.
+    // The wizard may still scrap an item for mana while releasing a hero.
     g.tr_mut(0).mana = 0;
-    g.release_troops(P0, &[h], &[ItemSpot::Award(2)]).unwrap();
+    g.release_troops(P0, &[h], &[ItemSpot::Vault(6)]).unwrap();
     assert_eq!(g.tr(0).mana, 35, "Junk6, worth 70 gold, gives half in mana");
-    assert!(g
-        .pl::<crate::item::armory::Armory>(0)
-        .items()
-        .any(|i| i.name == "Crown"));
+    assert!(g.items().armory(P0).items().any(|i| i.name == "Crown"));
 }
 
 /// A 30x16 map, grass but for a sea from x = 3 to 26 and y = 3 to 13.

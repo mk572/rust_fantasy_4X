@@ -137,6 +137,7 @@ mod tests {
                 items: Vec::new(),
                 prisoner: false,
                 special: 0,
+                fought_by: Vec::new(),
             },
         );
         for id in (0..3).map(PlayerId) {

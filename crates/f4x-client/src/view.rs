@@ -2307,6 +2307,15 @@ impl App {
         if let Some(f) = self.game.economy().feature_at(pos) {
             lines.push((f.name.clone(), Color::new(0.6, 0.9, 1.0, 1.0)));
         }
+        // What guards a site you have fought for once.
+        if let Some(guards) = self.game.economy().lair_guards_known_to(at, HUMAN) {
+            for (id, n) in guards {
+                if let Some(u) = content.rules.units.by_name(&id) {
+                    let args = Args::new().text("unit", &u.name).count("n", n);
+                    lines.push((self.text_with("ui.lair_guard", &args), RED));
+                }
+            }
+        }
         if let Some(city) = self.game.economy().city_at(pos) {
             let name = self.city_name(city);
             let pop = self.game.city_population(city).figures;

@@ -432,9 +432,7 @@ impl crate::game::Game {
             }
         } else {
             self.begin_casting(player, spell, price);
-            if let Some(mut w) = self.wizard_mut(player) {
-                w.set_crafting(item.clone());
-            }
+            self.spawn_item(item.clone(), crate::item::entity::HeldBy::Crafting(player));
         }
         if now {
             if let Some(t) = self.treasury_mut(player) {
@@ -474,11 +472,11 @@ impl crate::game::Game {
         &mut self,
         player: crate::player::PlayerId,
     ) -> Vec<crate::game::Event> {
-        let Some(item) = self.wizard_mut(player).and_then(|mut w| w.take_crafting()) else {
+        let Some((entity, item)) = crate::item::entity::crafting_of(&self.world, player) else {
             return Vec::new();
         };
         let name = item.name.clone();
-        let placed = self.give_item(player, item);
+        let placed = self.place_item(player, entity);
         vec![crate::game::Event::ItemMade {
             player,
             name,
@@ -821,11 +819,7 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(
-            g.pl::<crate::item::armory::Armory>(0).vault[0]
-                .as_ref()
-                .unwrap()
-                .bonus
-                .attack,
+            g.items().armory(P0).vault[0].clone().unwrap().bonus.attack,
             2
         );
         assert_eq!(g.tr(0).mana, 2000 - 200);
@@ -847,13 +841,7 @@ mod tests {
             design: design(ItemKind::Sword, &["attack_2"]),
         });
         assert_eq!(g.tr(0).mana, 2000 - 100);
-        assert_eq!(
-            g.pl::<crate::item::armory::Armory>(0).vault[0]
-                .as_ref()
-                .unwrap()
-                .cost,
-            200
-        );
+        assert_eq!(g.items().armory(P0).vault[0].clone().unwrap().cost, 200);
     }
 
     #[test]
@@ -889,11 +877,7 @@ mod tests {
         }
         assert!(made, "the item should come when the cost is paid");
         assert_eq!(
-            g.pl::<crate::item::armory::Armory>(0).vault[0]
-                .as_ref()
-                .unwrap()
-                .bonus
-                .attack,
+            g.items().armory(P0).vault[0].clone().unwrap().bonus.attack,
             2
         );
         assert!(g.wizard(P0).unwrap().crafting().is_none());
@@ -908,8 +892,10 @@ mod tests {
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &["attack_2"]),
         });
+        assert_eq!(g.items().count_held(|_| true), 1, "the item being made");
         g.wizard_mut(P0).unwrap().cancel_casting();
         assert!(g.wizard(P0).unwrap().crafting().is_none());
+        assert_eq!(g.items().count_held(|_| true), 0, "and it is gone");
     }
 
     #[test]

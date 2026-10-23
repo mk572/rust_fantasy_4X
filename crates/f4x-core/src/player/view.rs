@@ -182,7 +182,7 @@ impl<'a> PlayerView<'a> {
     }
 
     /// The player's vault and the items waiting after a reward.
-    pub fn armory(&self) -> Option<hecs::Ref<'a, crate::item::armory::Armory>> {
+    pub fn armory(&self) -> crate::item::armory::Armory {
         self.game.items().armory(self.me)
     }
 
@@ -379,6 +379,12 @@ impl<'a> PlayerView<'a> {
     /// Is there a guarded site on an explored square?
     pub fn has_lair(&self, at: Position) -> bool {
         self.explored(at) && self.game.economy().lair_at(at).is_some()
+    }
+
+    /// What guards the site on a square, once the player has fought for it (otherwise the
+    /// player does not know).
+    pub fn lair_guards(&self, at: Position) -> Option<Vec<(String, u32)>> {
+        self.game.economy().lair_guards_known_to(at, self.me)
     }
 
     /// Could the player found a city on this explored square?

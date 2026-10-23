@@ -1,0 +1,66 @@
+// The guards and the treasure of towers, magic nodes and encounter sites (`docs/lairs.md`).
+// The values are the original's (ReMoM `Create_Lair`, `Lair_Make_Guardians`, `Generate_Lairs`).
+// A budget `(base, rolls, step)` is `base + step * Random(rolls)`, `Random(n)` being 1 to n.
+// The guards come from the summoned units of `units.ron`; a realm weight list is a roll over
+// the sum of its weights. Leave the file out to use these values.
+(
+    // Guards in all, and of the first kind.
+    max_guards: 9,
+    max_first_guards: 8,
+    // The first kind costs at most the budget over Random(first_spread); the second kind at
+    // most what is left over Random(second_spread - number of the first kind).
+    first_spread: 4,
+    second_spread: 10,
+    // The realm of the guards of a tower, of a temple or ruin, and of any other encounter site.
+    tower_realms: [("death", 2), ("chaos", 1), ("life", 1), ("nature", 1), ("sorcery", 1)],
+    holy_realms: [("death", 3), ("life", 1)],
+    // The original's switch falls through to nature everywhere (ReMoM marks it a bug); this is the
+    // split it meant.
+    wild_realms: [("death", 2), ("chaos", 2), ("nature", 1)],
+    // A node is guarded by its own realm if it is one of these, else by `node_other`.
+    node_own_realms: ["sorcery", "nature"],
+    node_other: "chaos",
+    tower_budget: (base: 650, rolls: 11, step: 50),
+    // A node: power * power * (node_base + Random(node_rolls)) * (magic setting + 1) / 2, at most node_cap.
+    node_base: 4,
+    node_rolls: 11,
+    node_cap: 32767,
+    // Encounter sites, for Arcanus and for Myrror. How many are strong is `strong_sites`/`weak_sites`
+    // of the map generator (25 and 32).
+    strong_budget: ((base: 50, rolls: 29, step: 50), (base: 100, rolls: 24, step: 100)),
+    weak_budget: ((base: 0, rolls: 10, step: 10), (base: 0, rolls: 20, step: 10)),
+    // The hoard's value: the first guards' value plus this percent of the second's, times the
+    // treasure setting, times (base + Random(rolls)) percent for the plane.
+    second_share: 50,
+    plane_loot: ((base: 49, rolls: 76, step: 1), (base: 75, rolls: 100, step: 1)),
+    min_loot: 50,
+    max_items: 3,
+    // The table of one roll of the hoard, by weight (15 in all).
+    hoard: [(Gold, 2), (Mana, 2), (Item, 5), (Prisoner, 1), (Spell, 3), (Special, 2)],
+    // Gold or mana: Random(coin_rolls) * coin_step, at most what is left; each costs coin_cost.
+    coin_rolls: 20,
+    coin_step: 10,
+    coin_cost: 200,
+    // An item needs item_min left and is worth item_base + Random(item_rolls) * item_step.
+    item_min: 300,
+    item_base: 300,
+    item_rolls: 27,
+    item_step: 100,
+    // A prisoner needs prisoner_min left and costs prisoner_cost.
+    prisoner_min: 400,
+    prisoner_cost: 1000,
+    // A spell: rarity Random(spell_rarities), costing rarity squared times spell_cost; a hoard holds
+    // spells to a total rarity of spell_total. A tower rolls one first and pays rarity squared
+    // times spell_cost less tower_spell_refund for it.
+    spell_rarities: 4,
+    spell_cost: 50,
+    spell_total: 4,
+    tower_spell_refund: 100,
+    // A spell book or retort costs special_cost. It takes two picks when Random(double_chance) is 1
+    // and special_double_min is left, or when special_double_sure is left; one pick when special_min is.
+    special_cost: 3000,
+    double_chance: 4,
+    special_double_min: 3000,
+    special_double_sure: 2000,
+    special_min: 1000,
+)

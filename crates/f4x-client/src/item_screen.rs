@@ -34,6 +34,15 @@ pub(crate) struct ItemUi {
     pub card: Option<Item>,
     /// The last refusal, shown until the next click.
     pub message: Option<String>,
+    /// The first vault slot shown: the vault has no limit and the screen shows [`VAULT_SLOTS`]
+    /// of it at a time, a page at a time.
+    pub vault_offset: usize,
+}
+
+/// Pages of the vault for `used` slots up to the last item: one slot more than that is always
+/// there, so an item can be put down after the last one.
+pub(crate) fn vault_pages_for(used: usize) -> usize {
+    (used + 1).div_ceil(VAULT_SLOTS).max(1)
 }
 
 /// The picture of an empty slot: `itemisc` 19 sword, 20 bow, 21 weapon or staff, 22 wand,
@@ -76,12 +85,7 @@ impl App {
 
     /// The next item on the award list comes into the hand (`Process_Item_Pool`).
     fn pick_up_award(&mut self) {
-        if self.item_ui.held.is_none()
-            && self
-                .game
-                .player_component::<f4x_core::item::armory::Armory>(HUMAN)
-                .is_some_and(|a| !a.awards.is_empty())
-        {
+        if self.item_ui.held.is_none() && !self.game.items().armory(HUMAN).awards.is_empty() {
             self.item_ui.held = Some(ItemSpot::Award(0));
         }
     }
@@ -90,20 +94,24 @@ impl App {
     fn item_at(&self, spot: ItemSpot) -> Option<Item> {
         use f4x_core::item::armory::ItemWorld;
         match spot {
-            ItemSpot::Vault(i) => self
-                .game
-                .player_component::<f4x_core::item::armory::Armory>(HUMAN)?
-                .vault
-                .get(i)?
-                .clone(),
-            ItemSpot::Award(i) => self
-                .game
-                .player_component::<f4x_core::item::armory::Armory>(HUMAN)?
-                .awards
-                .get(i)
-                .cloned(),
+            ItemSpot::Vault(i) => self.game.items().armory(HUMAN).vault.get(i)?.clone(),
+            ItemSpot::Award(i) => self.game.items().armory(HUMAN).awards.get(i).cloned(),
             ItemSpot::Hero(unit, slot) => self.game.items().hero_item(unit, slot),
         }
+    }
+
+    /// How many pages of [`VAULT_SLOTS`] the vault has: one more slot than the last item is
+    /// always there, so an item can be put down after the last one.
+    fn vault_pages(&self) -> usize {
+        let used = self
+            .game
+            .items()
+            .armory(HUMAN)
+            .vault
+            .iter()
+            .rposition(Option::is_some)
+            .map_or(0, |last| last + 1);
+        vault_pages_for(used)
     }
 
     /// Whether `hero`'s square is the one the item in the hand comes from.
@@ -259,10 +267,35 @@ impl App {
             }
         }
 
-        // The vault.
+        // The vault: four slots of it at a time, with an arrow on each side to scroll a page.
+        let pages = self.vault_pages();
+        self.item_ui.vault_offset = self.item_ui.vault_offset.min((pages - 1) * VAULT_SLOTS);
+        for (dir, ax) in [(-1i32, wx + 40.0), (1, wx + 139.0)] {
+            let ay = wy + 170.0;
+            let page = self.item_ui.vault_offset / VAULT_SLOTS;
+            let enabled = if dir < 0 { page > 0 } else { page + 1 < pages };
+            let (x, y, scale) = (lay.origin.x, lay.origin.y, lay.scale);
+            let tip = if dir < 0 { ax } else { ax + 9.0 };
+            let base = if dir < 0 { ax + 9.0 } else { ax };
+            let color = if enabled {
+                Color::new(0.95, 0.85, 0.5, 1.0)
+            } else {
+                Color::new(0.4, 0.36, 0.25, 1.0)
+            };
+            draw_triangle(
+                vec2(x + tip * scale, y + (ay + 9.0) * scale),
+                vec2(x + base * scale, y + (ay + 1.0) * scale),
+                vec2(x + base * scale, y + (ay + 17.0) * scale),
+                color,
+            );
+            if enabled && left && lay.rect((ax - 1.0, ay, 11.0, 18.0)).contains(mouse) {
+                let page = if dir < 0 { page - 1 } else { page + 1 };
+                self.item_ui.vault_offset = page * VAULT_SLOTS;
+            }
+        }
         for slot in 0..VAULT_SLOTS {
             let (sx, sy) = (wx + 52.0 + slot as f32 * 21.0, wy + 170.0);
-            let spot = ItemSpot::Vault(slot);
+            let spot = ItemSpot::Vault(self.item_ui.vault_offset + slot);
             if let Some(item) = self.item_at(spot) {
                 self.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
             }
@@ -397,6 +430,19 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_vault_grows_a_page_when_the_last_slot_is_full() {
+        assert_eq!(vault_pages_for(0), 1);
+        assert_eq!(vault_pages_for(3), 1, "slot four is still free");
+        assert_eq!(
+            vault_pages_for(4),
+            2,
+            "four items need a free slot after them"
+        );
+        assert_eq!(vault_pages_for(7), 2);
+        assert_eq!(vault_pages_for(8), 3);
+    }
 
     #[test]
     fn heroes_stand_in_two_columns_of_three() {

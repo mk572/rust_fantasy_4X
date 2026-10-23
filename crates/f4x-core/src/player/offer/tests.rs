@@ -267,6 +267,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
             items: Vec::new(),
             prisoner: true,
             special: 0,
+            fought_by: Vec::new(),
         },
     );
     let events = g.claim_lair(site, P0);
@@ -317,6 +318,28 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
             ..
         }]
     ));
+}
+
+#[test]
+fn an_offered_item_is_an_entity_that_is_kept_bought_or_withdrawn() {
+    use crate::item::entity::HeldBy;
+    let held = |g: &Game, by: HeldBy| g.items().count_held(|h| h == by);
+    let mut g = world();
+    let i = roll_until(&mut g, |o| matches!(o, Offer::Item { .. }));
+    assert_eq!(held(&g, HeldBy::Offered(P0)), 1);
+    // Bought, it is the wizard's.
+    g.accept_offer(P0, i, None).unwrap();
+    assert_eq!(held(&g, HeldBy::Offered(P0)), 0);
+    assert_eq!(g.items().armory(P0).items().count(), 1);
+    let i = roll_until(&mut g, |o| matches!(o, Offer::Item { .. }));
+    // Turned down, the item is gone.
+    g.reject_offer(P0, i).unwrap();
+    assert_eq!(held(&g, HeldBy::Offered(P0)), 0);
+    assert_eq!(
+        g.items().count_held(|_| true),
+        1,
+        "only the bought one is left"
+    );
 }
 
 #[test]

@@ -28,7 +28,7 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         for (slot, kind) in free {
             let from = {
                 let view = PlayerView::new(game, ai.player);
-                let Some(armory) = view.armory() else { return };
+                let armory = view.armory();
                 let vault = armory
                     .vault
                     .iter()
@@ -189,7 +189,7 @@ mod tests {
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
         assert!(g.offers(P1).is_empty());
-        assert!(g.items().armory(P1).unwrap().items().next().is_none());
+        assert!(g.items().armory(P1).items().next().is_none());
         // With one, it is bought and the hero at the fortress takes what fits its slots.
         offer_hero(&mut g);
         answer(&ai, &mut g, &mut events);

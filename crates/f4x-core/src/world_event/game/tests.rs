@@ -200,9 +200,7 @@ fn the_gift_is_an_artifact_in_the_armory() {
     let mut g = world();
     let told = play(&mut g, armed(K::Gift, P0, None));
     assert!(!told[0].item.is_empty());
-    let armory = &g
-        .player_component::<crate::item::armory::Armory>(P0)
-        .unwrap();
+    let armory = g.items().armory(P0);
     assert!(armory
         .vault
         .iter()

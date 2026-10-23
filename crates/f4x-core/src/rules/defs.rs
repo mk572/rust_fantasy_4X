@@ -650,6 +650,8 @@ pub struct Rules {
     pub hero_templates: Vec<HeroTemplate>,
     /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.
     pub wizard_names: Vec<Vec<(String, crate::text::Gender)>>,
+    /// The guard and treasure rules of the sites (`lairs.ron`).
+    pub lairs: super::lair::LairRules,
 }
 
 #[cfg(test)]

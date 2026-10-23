@@ -56,10 +56,6 @@ impl SpellTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Owed(pub i32);
 
-/// On a cast in progress: the item Enchant Item or Create Artifact is making.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Crafting(pub crate::item::Item);
-
 /// On a cast in progress: the dead hero (a roster index) Resurrection is bringing back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Raising(pub hecs::Entity);

@@ -153,6 +153,12 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         // The starting records of the hero types, also optional.
         hero_templates,
         // Fallback names for rival wizards, also optional.
+        // The lair rules, also optional: a rule set without the file uses the original's.
+        lairs: if find(dir, "lairs.ron").is_some() {
+            parse::<f4x_core::rules::lair::LairRules>(dir, "lairs.ron")?
+        } else {
+            f4x_core::rules::lair::LairRules::default()
+        },
         wizard_names: if find(dir, "wizard_names.ron").is_some() {
             parse::<Vec<Vec<(String, f4x_core::text::Gender)>>>(dir, "wizard_names.ron")?
         } else {
@@ -174,6 +180,69 @@ fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Vec<String>) 
         if !seen.insert(d.id()) {
             problems.push(format!("duplicate {kind} id {:?}", d.id()));
         }
+    }
+}
+
+/// The lair rules: real realms, rolls that can be made and a table that is not empty.
+fn check_lairs(r: &Rules, p: &mut Vec<String>) {
+    let l = &r.lairs;
+    let realm = |what: &str, id: &str, p: &mut Vec<String>| {
+        if r.realms.by_name(id).is_none() {
+            p.push(format!("lairs.ron: {what} names unknown realm {id:?}"));
+        }
+    };
+    for (what, list) in [
+        ("tower_realms", &l.tower_realms),
+        ("holy_realms", &l.holy_realms),
+        ("wild_realms", &l.wild_realms),
+    ] {
+        if list.iter().map(|(_, w)| w).sum::<u32>() == 0 {
+            p.push(format!("lairs.ron: {what} has no weight"));
+        }
+        for (id, _) in list {
+            realm(what, id, p);
+        }
+    }
+    for id in l.node_own_realms.iter().chain([&l.node_other]) {
+        realm("the node realms", id, p);
+    }
+    if l.hoard.iter().map(|(_, w)| w).sum::<u32>() == 0 {
+        p.push("lairs.ron: the hoard table has no weight".into());
+    }
+    let rolls = [
+        ("tower_budget", l.tower_budget.rolls),
+        (
+            "strong_budget",
+            l.strong_budget[0].rolls.min(l.strong_budget[1].rolls),
+        ),
+        (
+            "weak_budget",
+            l.weak_budget[0].rolls.min(l.weak_budget[1].rolls),
+        ),
+        (
+            "plane_loot",
+            l.plane_loot[0].rolls.min(l.plane_loot[1].rolls),
+        ),
+        ("node_rolls", l.node_rolls),
+        ("coin_rolls", l.coin_rolls),
+        ("item_rolls", l.item_rolls),
+        ("spell_rarities", l.spell_rarities),
+        ("double_chance", l.double_chance),
+        ("first_spread", l.first_spread),
+    ];
+    for (what, n) in rolls {
+        if n < 1 {
+            p.push(format!("lairs.ron: {what} must roll at least 1"));
+        }
+    }
+    if l.second_spread - l.max_first_guards < 1 {
+        p.push("lairs.ron: second_spread must exceed max_first_guards".into());
+    }
+    if l.max_first_guards > l.max_guards as i32 {
+        p.push("lairs.ron: max_first_guards is over max_guards".into());
+    }
+    if !(1..=4).contains(&l.spell_total) {
+        p.push("lairs.ron: spell_total must be 1 to 4 (a spell's rarity)".into());
     }
 }
 
@@ -264,6 +333,7 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
 /// Returns a human-readable list of problems; empty means valid.
 pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     let mut p = Vec::new();
+    check_lairs(r, &mut p);
     check_ids("race", &r.races, &mut p);
     check_ids("unit", &r.units, &mut p);
     check_ids("ability", &r.abilities, &mut p);
@@ -730,7 +800,13 @@ mod tests {
     /// Parse the shipped files after applying `(file, from, to)` text replacements.
     fn rules_with(edits: &[(&str, &str, &str)]) -> Rules {
         let src = |name: &str| {
-            let mut s = std::fs::read_to_string(content_dir().join(name)).unwrap();
+            // The lair table is only in the real content (task 346 moves the rest there too).
+            let dir = if name == "lairs.ron" {
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
+            } else {
+                content_dir()
+            };
+            let mut s = std::fs::read_to_string(dir.join(name)).unwrap();
             for (f, from, to) in edits.iter().filter(|(f, ..)| *f == name) {
                 assert!(s.contains(from), "{f} does not contain {from:?}");
                 s = s.replace(from, to);
@@ -752,6 +828,7 @@ mod tests {
             wizards: Registry::new(Vec::new()),
             hero_templates: Vec::new(),
             wizard_names: Vec::new(),
+            lairs: ron::from_str(&list("lairs.ron")).unwrap(),
         }
     }
 
@@ -761,6 +838,34 @@ mod tests {
 
     fn has(problems: &[String], needle: &str) -> bool {
         problems.iter().any(|m| m.contains(needle))
+    }
+
+    #[test]
+    fn the_shipped_lair_table_is_the_default_and_bad_ones_are_refused() {
+        assert_eq!(
+            rules_with(&[]).lairs,
+            f4x_core::rules::lair::LairRules::default()
+        );
+        assert!(has(
+            &problems(&[(
+                "lairs.ron",
+                "(\"death\", 3), (\"life\", 1)",
+                "(\"doom\", 3)"
+            )]),
+            "unknown realm"
+        ));
+        assert!(has(
+            &problems(&[(
+                "lairs.ron",
+                "(Gold, 2), (Mana, 2), (Item, 5), (Prisoner, 1), (Spell, 3), (Special, 2)",
+                ""
+            )]),
+            "no weight"
+        ));
+        assert!(has(
+            &problems(&[("lairs.ron", "coin_rolls: 20", "coin_rolls: 0")]),
+            "coin_rolls"
+        ));
     }
 
     #[test]

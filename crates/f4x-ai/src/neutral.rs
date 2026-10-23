@@ -13,8 +13,9 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::rules::Stat;
 
-use crate::view::{distance, is_fighter};
+use crate::view::{distance, is_fighter, stack_strength};
 use crate::Ai;
 
 /// Soldiers wanted per four citizens, as many melee as ranged (the garrison a city starts with).
@@ -48,14 +49,40 @@ pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
     events
 }
 
+/// A party must be this much stronger than guards it knows.
+const RAID_EDGE: f32 = 1.5;
+
+/// How strong the guards of a site are, as `unit_strength` measures units, when the player has
+/// fought for the site once; `None` when it does not know them.
+pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
+    let rules = &view.content().rules;
+    let guards = view.lair_guards(site)?;
+    Some(
+        guards
+            .iter()
+            .filter_map(|(id, n)| {
+                let def = rules.units.get(rules.units.id_of(id)?);
+                let stat = |s: Stat| def.stats.get(&s).copied().unwrap_or(0).max(0) as f32;
+                let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
+                let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
+                Some((attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32)
+            })
+            .sum(),
+    )
+}
+
 /// The squares within [`RAID_RANGE`] of `from` that hold an explored, intact guarded site,
-/// nearest first.
-fn sites_near(view: &PlayerView, from: Position) -> Vec<Position> {
+/// nearest first. With `party` (the strength of the raiders), a site whose guards the city
+/// knows from an earlier fight and which are too strong for them is left out.
+fn sites_near(view: &PlayerView, from: Position, party: Option<f32>) -> Vec<Position> {
     let mut found = Vec::new();
     for dy in -RAID_RANGE..=RAID_RANGE {
         for dx in -RAID_RANGE..=RAID_RANGE {
             if let Some(p) = view.shift(from, dx, dy) {
-                if view.has_lair(p) && !found.contains(&p) {
+                let too_strong = party
+                    .zip(guard_strength(view, p))
+                    .is_some_and(|(mine, theirs)| mine < theirs * RAID_EDGE);
+                if view.has_lair(p) && !too_strong && !found.contains(&p) {
                     found.push(p);
                 }
             }
@@ -66,7 +93,7 @@ fn sites_near(view: &PlayerView, from: Position) -> Vec<Position> {
 }
 
 /// The eight squares round `at`.
-fn around(view: &PlayerView, at: Position) -> Vec<Position> {
+pub(crate) fn around(view: &PlayerView, at: Position) -> Vec<Position> {
     let mut out = Vec::new();
     for dy in -1..=1 {
         for dx in -1..=1 {
@@ -113,10 +140,13 @@ fn raid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u))
                 .collect();
-            if soldiers.len() >= wanted + RAID_PARTY && !sites_near(&view, pos).is_empty() {
+            if soldiers.len() >= wanted + RAID_PARTY {
                 // The weakest stay (the stack is in the order the game lists it).
                 let party = soldiers.split_off(wanted);
-                ready.push((pos, party));
+                let strength = stack_strength(&view, &party);
+                if !sites_near(&view, pos, Some(strength)).is_empty() {
+                    ready.push((pos, party));
+                }
             }
         }
         (home_squares, out, ready)
@@ -125,9 +155,10 @@ fn raid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let (next_to, target, nearest_home) = {
             let view = PlayerView::new(game, me);
             let next_to = around(&view, pos).into_iter().find(|&p| view.has_lair(p));
+            let strength = stack_strength(&view, &units);
             let target = homes
                 .iter()
-                .flat_map(|&h| sites_near(&view, h))
+                .flat_map(|&h| sites_near(&view, h, Some(strength)))
                 .min_by_key(|&p| (distance(&view, pos, p), p.y, p.x));
             let nearest_home = homes
                 .iter()
@@ -146,7 +177,8 @@ fn raid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     for (pos, party) in ready {
         let site = {
             let view = PlayerView::new(game, me);
-            sites_near(&view, pos).into_iter().next()
+            let strength = stack_strength(&view, &party);
+            sites_near(&view, pos, Some(strength)).into_iter().next()
         };
         if let Some(site) = site {
             march(ai, game, &party, site, events);
@@ -155,13 +187,13 @@ fn raid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 /// Send a party to the free square next to `site` that it can reach and is nearest to it.
-fn march(
+pub(crate) fn march(
     ai: &Ai,
     game: &mut Game,
     units: &[hecs::Entity],
     site: Position,
     events: &mut Vec<Event>,
-) {
+) -> bool {
     let spots = {
         let view = PlayerView::new(game, ai.player);
         let from = view.unit_position(units[0]).unwrap_or(site);
@@ -183,13 +215,14 @@ fn march(
             events,
         );
         if moved {
-            return;
+            return true;
         }
     }
+    false
 }
 
 /// Assault the site with the units that still have moves, and fight the battle out.
-fn assault(
+pub(crate) fn assault(
     ai: &Ai,
     game: &mut Game,
     units: &[hecs::Entity],
@@ -267,7 +300,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u))
                 .count();
-            let party = if sites_near(&view, pos).is_empty() {
+            let party = if sites_near(&view, pos, None).is_empty() {
                 0
             } else {
                 RAID_PARTY
@@ -319,7 +352,7 @@ mod tests {
 
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
-    fn raiding_world(guards: Option<Vec<(String, u32)>>) -> Game {
+    fn raiding_world(guards: Option<Vec<(String, u32)>>, known: bool) -> Game {
         let mut g = game(COAST_CITY, "high_men");
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_of("high_men");
@@ -349,6 +382,7 @@ mod tests {
                 items: Vec::new(),
                 prisoner: false,
                 special: 0,
+                fought_by: if known { vec![TOWN] } else { Vec::new() },
             }),
         });
         g
@@ -363,7 +397,7 @@ mod tests {
 
     #[test]
     fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() {
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]));
+        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
         let mut gold = 0;
         let mut cleared = false;
         for _ in 0..12 {
@@ -391,12 +425,26 @@ mod tests {
 
     #[test]
     fn a_city_with_no_site_in_range_sends_nobody_out() {
-        let mut g = raiding_world(None);
+        let mut g = raiding_world(None, false);
         turns(&mut g, 4);
         assert!(g
             .units()
             .player_units(TOWN)
             .iter()
             .all(|&u| g.units().unit_position(u) == Some(at(4, 4))));
+    }
+
+    #[test]
+    fn a_city_that_knows_the_guards_leaves_a_site_too_strong_for_its_party() {
+        // Two great drakes against a party of paladins; a fight the city lost earlier taught it
+        // what stands there.
+        let mut g = raiding_world(Some(vec![("great_drake".into(), 2)]), true);
+        turns(&mut g, 4);
+        assert!(g
+            .units()
+            .player_units(TOWN)
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(at(4, 4))));
+        assert!(g.economy().lair_at(at(6, 4)).is_some());
     }
 }
