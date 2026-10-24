@@ -820,10 +820,12 @@ impl<'a> Economy<'a> {
 
     /// The city standing at `pos`.
     pub fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
-        self.cities()
-            .into_iter()
-            .find(|(_, _, p)| *p == pos)
-            .map(|(e, ..)| e)
+        // One city per square: no need to build and sort the list of all of them.
+        self.world
+            .query::<(&City, &Position)>()
+            .iter()
+            .find(|(_, (_, p))| **p == pos)
+            .map(|(e, _)| e)
     }
 
     /// The player owning a city.

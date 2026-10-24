@@ -19,7 +19,7 @@ use crate::content::Content;
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
-use crate::map::{Plane, Position};
+use crate::map::Position;
 use crate::player::{PlayerId, Treasury};
 
 use crate::player::finance::Budget;
@@ -30,7 +30,7 @@ use crate::rules::{SpellDef, SpellId, Stat, UnitDef};
 pub struct PlayerView<'a> {
     game: &'a Game,
     me: PlayerId,
-    seen: OnceCell<[Vec<bool>; 2]>,
+    seen: [OnceCell<Vec<bool>>; 2],
 }
 
 impl<'a> PlayerView<'a> {
@@ -38,7 +38,7 @@ impl<'a> PlayerView<'a> {
         Self {
             game,
             me,
-            seen: OnceCell::new(),
+            seen: [OnceCell::new(), OnceCell::new()],
         }
     }
 
@@ -315,15 +315,10 @@ impl<'a> PlayerView<'a> {
 
     /// Does the player see the square now?
     pub fn sees(&self, at: Position) -> bool {
-        let seen = self.seen.get_or_init(|| {
-            [
-                self.game.economy().visibility(self.me, Plane::Arcanus),
-                self.game.economy().visibility(self.me, Plane::Myrror),
-            ]
-        });
+        let seen = self.seen[at.plane.index()]
+            .get_or_init(|| self.game.economy().visibility(self.me, at.plane));
         let width = self.game.map().map_or(0, |m| m.width());
-        seen[at.plane.index()]
-            .get((at.y * width + at.x) as usize)
+        seen.get((at.y * width + at.x) as usize)
             .copied()
             .unwrap_or(false)
     }
@@ -459,7 +454,7 @@ mod tests {
     use super::*;
     use crate::game::testutil::content_with_magic;
     use crate::game::Command;
-    use crate::map::{Grid, Map};
+    use crate::map::{Grid, Map, Plane};
 
     const ME: PlayerId = PlayerId(0);
     const THEM: PlayerId = PlayerId(1);

@@ -283,8 +283,20 @@ impl<'a> ItemView<'a> {
         UnitView::new(self.world, self.content)
     }
 
+    /// Is the unit of a kind that carries items?
+    fn is_hero(&self, unit: hecs::Entity) -> bool {
+        self.world
+            .get::<&crate::unit::Unit>(unit)
+            .ok()
+            .is_some_and(|u| self.content.rules.units.get(u.0).hero.is_some())
+    }
+
     /// The items a unit carries with the slot each is in (only heroes carry any).
     pub fn carried(&self, unit: hecs::Entity) -> Vec<(u8, Item)> {
+        // Only heroes carry items: skip the scan of every item for the other units.
+        if !self.is_hero(unit) {
+            return Vec::new();
+        }
         let mut out: Vec<(u8, Item)> = self
             .world
             .query::<(&Item, &entity::HeldBy)>()
@@ -300,6 +312,10 @@ impl<'a> ItemView<'a> {
 
     /// The items a unit carries as entities, in slot order (only heroes carry any).
     pub fn carried_entities(&self, unit: hecs::Entity) -> Vec<(hecs::Entity, Item)> {
+        // Only heroes carry items: skip the scan of every item for the other units.
+        if !self.is_hero(unit) {
+            return Vec::new();
+        }
         let mut out: Vec<(u8, hecs::Entity, Item)> = self
             .world
             .query::<(&Item, &entity::HeldBy)>()

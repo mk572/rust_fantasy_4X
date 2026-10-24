@@ -152,7 +152,10 @@ impl<'a> Spells<'a> {
 
     /// Is the spell on the target (whoever cast it)?
     pub fn has(&self, target: SpellTarget, def: SpellId) -> bool {
-        !self.matching(|d, _, t| d == def && t == target).is_empty()
+        self.world
+            .query::<(&SpellCast, &SpellTarget)>()
+            .iter()
+            .any(|(_, (cast, t))| cast.def == def && *t == target)
     }
 
     /// The spell an instance is of.

@@ -73,12 +73,14 @@ impl Economy<'_> {
         };
         let units = self.units();
         for unit in units.player_units(player) {
-            if let Some(at) = units.unit_position(unit) {
+            // The sight is the dear part (it adds up the unit's items and spells): ask only for
+            // the units on this plane.
+            if let Some(at) = units.unit_position(unit).filter(|at| at.plane == plane) {
                 reveal(at, units.unit_sight(unit));
             }
         }
         for (entity, city, at) in self.cities() {
-            if city.owner == player {
+            if city.owner == player && at.plane == plane {
                 reveal(at, self.city_sight(entity));
             }
         }

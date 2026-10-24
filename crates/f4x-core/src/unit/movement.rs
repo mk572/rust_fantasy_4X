@@ -10,7 +10,7 @@ use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::MovementType;
-use crate::unit::{MovesLeft, MAX_STACK};
+use crate::unit::{MovesLeft, Unit, MAX_STACK};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveError {
@@ -291,6 +291,24 @@ impl Economy<'_> {
             .city_at(pos)
             .is_some_and(|c| self.city_owner(c).is_some_and(|o| o != mover));
         (!defenders.is_empty() || hostile_city).then_some(defenders)
+    }
+
+    /// Every square where [`Self::hostile_at`] would find something for `mover`: one pass over the
+    /// units and cities, for a search that asks about many squares.
+    pub fn hostile_squares(&self, mover: PlayerId) -> std::collections::HashSet<Position> {
+        let mut out: std::collections::HashSet<Position> = self
+            .world
+            .query::<(&Unit, &Position)>()
+            .iter()
+            .filter(|(e, _)| self.units().unit_owner(*e).is_some_and(|o| o != mover))
+            .map(|(_, (_, p))| *p)
+            .collect();
+        for (city, _, at) in self.cities() {
+            if self.city_owner(city).is_some_and(|o| o != mover) {
+                out.insert(at);
+            }
+        }
+        out
     }
 
     pub(crate) fn check_stack(

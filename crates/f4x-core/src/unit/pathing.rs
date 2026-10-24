@@ -57,10 +57,11 @@ impl Game {
         };
         // Which squares stop the walk (hostile units or city, a guarded site), worked out once
         // for every square the search looks at.
+        let hostile = economy.hostile_squares(owner);
         let mut stops: HashMap<Position, bool> = HashMap::new();
         let mut blocked = |next: Position| -> bool {
             *stops.entry(next).or_insert_with(|| {
-                economy.hostile_at(next, owner).is_some()
+                hostile.contains(&next)
                     || (owner != crate::player::MONSTERS
                         && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
             })
@@ -146,10 +147,11 @@ impl Game {
             economy.stack_step_cost(&profiles, from, next, flies)
         };
         // Which squares stop the walk, worked out once for every square the search looks at.
+        let hostile = economy.hostile_squares(owner);
         let mut stops: HashMap<Position, bool> = HashMap::new();
         let mut blocked = |next: Position| -> bool {
             *stops.entry(next).or_insert_with(|| {
-                economy.hostile_at(next, owner).is_some()
+                hostile.contains(&next)
                     || (owner != crate::player::MONSTERS
                         && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
             })

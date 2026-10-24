@@ -2375,6 +2375,16 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
         crate::game::testutil::item_power("flaming", None, None),
     ]);
+    // Only a hero carries items: the walker is made one.
+    let mut units = g.content.rules.units.defs().to_vec();
+    for u in units.iter_mut().filter(|u| u.id == "walker") {
+        u.hero = Some(crate::rules::HeroDef {
+            kind: crate::rules::HeroKind::Warrior,
+            portrait: 0,
+            hire_cost: 100,
+        });
+    }
+    g.content.rules.units = crate::rules::Registry::new(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
