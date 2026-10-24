@@ -149,6 +149,8 @@ pub struct App {
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// An attack the human started and has yet to confirm.
     pub(crate) attack_prompt: Option<crate::attack_prompt::PendingAttack>,
+    /// The second step of an automatic fight: the mana limit.
+    pub(crate) mana_ask: Option<crate::attack_prompt::ManaAsk>,
     /// The rival wizards, who play their turns when the human ends theirs (task 135).
     pub(crate) ais: Vec<f4x_ai::Ai>,
     /// Attacks on the human this turn, waiting to be fought one after the other.
@@ -319,6 +321,7 @@ impl App {
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
             attack_prompt: None,
+            mana_ask: None,
             ais: Vec::new(),
             defences: Default::default(),
             turn_events: None,
@@ -1121,6 +1124,7 @@ impl App {
             while self.turn_events.is_some() {
                 if let Some(attack) = self.attack_prompt.take() {
                     let _ = self.game.apply(Command::AutoResolve {
+                        mana_budget: None,
                         attackers: attack.attackers,
                         defenders: attack.defenders,
                     });
@@ -2134,7 +2138,6 @@ impl App {
                     sy,
                     t,
                     anim,
-                    self.prefs.get(crate::preferences::Pref::ShowNodeOwners),
                 );
                 if corners != 15 {
                     crate::map_draw::draw_unexplored_edge(

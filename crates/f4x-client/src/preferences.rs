@@ -1,5 +1,5 @@
 //! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85). Twenty-one
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85). Nineteen
 //! switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
@@ -25,14 +25,12 @@ pub(crate) enum Pref {
     EnemySpells,
     SpellBookOrdering,
     SpellAnimations,
-    ShowNodeOwners,
     ExpandingHelp,
-    MovementAnimations,
     LeftClickMoves,
     PlayIntro,
 }
 
-pub(crate) const PREFS: [Pref; 21] = [
+pub(crate) const PREFS: [Pref; 19] = [
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -49,9 +47,7 @@ pub(crate) const PREFS: [Pref; 21] = [
     Pref::EnemySpells,
     Pref::SpellBookOrdering,
     Pref::SpellAnimations,
-    Pref::ShowNodeOwners,
     Pref::ExpandingHelp,
-    Pref::MovementAnimations,
     Pref::LeftClickMoves,
     Pref::PlayIntro,
 ];
@@ -76,9 +72,7 @@ impl Pref {
             Pref::EnemySpells => "enemy_spells",
             Pref::SpellBookOrdering => "spell_book_ordering",
             Pref::SpellAnimations => "spell_animations",
-            Pref::ShowNodeOwners => "show_node_owners",
             Pref::ExpandingHelp => "expanding_help",
-            Pref::MovementAnimations => "movement_animations",
             Pref::LeftClickMoves => "left_click_moves",
             Pref::PlayIntro => "play_intro",
         }
@@ -103,9 +97,7 @@ impl Pref {
             Pref::EnemySpells => "preferences.enemy_spells",
             Pref::SpellBookOrdering => "preferences.spell_book_ordering",
             Pref::SpellAnimations => "preferences.spell_animations",
-            Pref::ShowNodeOwners => "preferences.show_node_owners",
             Pref::ExpandingHelp => "preferences.expanding_help",
-            Pref::MovementAnimations => "preferences.movement_animations",
             Pref::LeftClickMoves => "preferences.left_click_moves",
             Pref::PlayIntro => "preferences.play_intro",
         }
@@ -122,7 +114,7 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 21],
+    on: [bool; 19],
     /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
     /// original).
     pub music_volume: u8,
@@ -217,7 +209,7 @@ mod tests {
     #[test]
     fn everything_is_on_but_strategic_combat() {
         let p = Preferences::default();
-        assert!(p.get(Pref::SoundEffects) && p.get(Pref::MovementAnimations));
+        assert!(p.get(Pref::SoundEffects) && p.get(Pref::SpellAnimations));
         assert!(!p.get(Pref::StrategicCombatOnly));
     }
 

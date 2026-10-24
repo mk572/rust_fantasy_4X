@@ -112,6 +112,8 @@ struct Options {
     settings: bool,
     /// With `--shot`, open an advisor: 0 to 8 for the advisors, 9 for the list.
     advisor: Option<usize>,
+    /// With `--shot`, ask how much mana an automatic fight may spend.
+    auto_attack: bool,
     /// With `--shot`, show this scene of the opening movie (0 to 12), at full brightness.
     intro: Option<usize>,
     /// With `--advisor 0`: describe the square at this column and row.
@@ -213,6 +215,7 @@ fn parse_args() -> Result<Options, String> {
         settings: false,
         advisor: None,
         intro: None,
+        auto_attack: false,
         survey_at: None,
         scroll: None,
         reveal: false,
@@ -381,6 +384,7 @@ fn parse_args() -> Result<Options, String> {
                         .map_err(|_| "--advisor must be a number, 0 to 9")?,
                 )
             }
+            "--auto-attack" => o.auto_attack = true,
             "--intro" => {
                 o.intro = Some(
                     value("--intro")?
@@ -646,6 +650,8 @@ async fn main() {
         app.open_slots(true);
     } else if options.settings {
         app.screen = view::Screen::Settings;
+    } else if options.auto_attack {
+        app.open_test_auto_attack();
     } else if let Some(scene) = options.intro {
         app.open_intro_at(scene);
     } else if options.menu {

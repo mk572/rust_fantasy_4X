@@ -196,6 +196,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                             ai.send(
                                 game,
                                 Command::AutoResolve {
+                                    mana_budget: None,
                                     attackers,
                                     defenders,
                                 },

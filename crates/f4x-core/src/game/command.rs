@@ -49,6 +49,10 @@ pub enum Command {
         attackers: Vec<hecs::Entity>,
         #[serde(with = "game::replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
+        /// The most mana one wizard may spend from the reserve in the fight (strategic combat);
+        /// `None` is no limit beyond the wizard's own skill and reserve.
+        #[serde(default)]
+        mana_budget: Option<(player::PlayerId, u32)>,
     },
     /// A stack next to a guarded site (tower, node or encounter site) assaults its guards.
     EnterSite {

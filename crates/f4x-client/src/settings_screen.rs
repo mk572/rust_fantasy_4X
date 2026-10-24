@@ -14,7 +14,7 @@ use crate::view::{App, Screen};
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
 /// Left column x=31, right column x=192; the label starts 16 pixels right of the box and
 /// 2 below its top. The gaps between groups are the original's.
-const ROWS: [(Pref, f32, f32); 21] = [
+const ROWS: [(Pref, f32, f32); 19] = [
     (Pref::SoundEffects, 31.0, 52.0),
     (Pref::BackgroundMusic, 31.0, 63.0),
     (Pref::EventMusic, 31.0, 74.0),
@@ -28,14 +28,12 @@ const ROWS: [(Pref, f32, f32); 21] = [
     (Pref::EndOfTurnWait, 31.0, 174.0),
     (Pref::StrategicCombatOnly, 192.0, 52.0),
     (Pref::AutoUnitInformation, 192.0, 63.0),
-    (Pref::MovementAnimations, 192.0, 74.0),
     (Pref::EnemyMoves, 192.0, 101.0),
     (Pref::EnemySpells, 192.0, 112.0),
     (Pref::SpellBookOrdering, 192.0, 123.0),
     (Pref::SpellAnimations, 192.0, 134.0),
-    (Pref::ShowNodeOwners, 192.0, 145.0),
-    (Pref::ExpandingHelp, 192.0, 156.0),
-    (Pref::LeftClickMoves, 192.0, 167.0),
+    (Pref::ExpandingHelp, 192.0, 145.0),
+    (Pref::LeftClickMoves, 192.0, 156.0),
 ];
 
 /// The group headings: text and place.
@@ -75,13 +73,8 @@ impl App {
 
         for (i, &(pref, x, y)) in ROWS.iter().enumerate() {
             let on = self.prefs.get(pref);
-            // The three box pictures take turns down the page; Movement Animations alone
-            // uses the first, as in the original.
-            let n = if pref == Pref::MovementAnimations {
-                0
-            } else {
-                i % 3
-            };
+            // The three box pictures take turns down the page.
+            let n = i % 3;
             let entry = if on { 13 + n } else { 16 + n };
             if self.draw_pic(&lay, "load", entry, 0, x, y).is_none() {
                 let r = lay.rect((x, y, 9.0, 9.0));

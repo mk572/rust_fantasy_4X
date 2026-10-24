@@ -728,6 +728,7 @@ fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
     let attackers: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let events = g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers: attackers.clone(),
         defenders: vec![defender],
     });
@@ -757,6 +758,7 @@ fn a_battle_won_at_a_city_captures_it() {
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let attackers: Vec<_> = (0..5).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let events = g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers,
         defenders: vec![defender],
     });
@@ -796,6 +798,7 @@ fn a_losing_attacker_stays_where_it_was() {
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers: vec![attacker],
         defenders: defenders.clone(),
     });
@@ -813,6 +816,7 @@ fn auto_resolve_needs_an_adjacent_target() {
     let a = g.spawn_unit(A, at(2, 4), walker);
     let d = g.spawn_unit(D, at(6, 4), walker);
     let events = g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers: vec![a],
         defenders: vec![d],
     });
@@ -3348,6 +3352,7 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.set_battle_brain(A, Some(Box::new(Quitter)));
     let events = g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers: vec![a1],
         defenders: vec![d1],
     });
@@ -3366,6 +3371,7 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d2 = g.spawn_unit(D, at(5, 4), walker);
     let events = g.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers: vec![a2],
         defenders: vec![d2],
     });
@@ -4371,4 +4377,83 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() {
     cast(&mut g, "wall_of_darkness", Side::Defender).unwrap();
     let b = g.battle().unwrap();
     assert!(b.wall_of_fire && b.wall_of_darkness);
+}
+
+/// A fight of player A's wizard (who knows `spells`, with `mana` in the reserve) against a
+/// stack of walkers, left to the battle AI; returns the mana spent.
+fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
+    let mut g = casting_game();
+    g.treasury_mut(A).unwrap().mana = 2000;
+    g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
+        .unwrap();
+    for name in spells {
+        let id = g.content.rules.spells.id_of(name).unwrap();
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&id);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != id);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(id);
+    }
+    g.treasury_mut(A).unwrap().mana = mana;
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.apply(Command::AutoResolve {
+        attackers: ours,
+        defenders: theirs,
+        mana_budget: budget.map(|b| (A, b)),
+    });
+    assert!(!g.in_battle());
+    mana - g.treasury_mut(A).unwrap().mana
+}
+
+#[test]
+fn the_battle_ai_spends_mana_in_a_strategic_fight_and_a_limit_stops_it() {
+    let spells = ["giant_strength", "stone_skin", "bless"];
+    let free = strategic_fight(&spells, 500, None);
+    assert!(free > 3, "the AI casts when it may: spent {free}");
+    let limited = strategic_fight(&spells, 500, Some(3));
+    assert!(limited <= 3, "limited to 3, spent {limited}");
+    assert_eq!(strategic_fight(&spells, 500, Some(0)), 0);
+}
+
+#[test]
+fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() {
+    let mut g = casting_game();
+    g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
+        .unwrap();
+    g.treasury_mut(A).unwrap().mana = 500;
+    // No spell for a battle: nothing to ask.
+    g.wizard_mut(A)
+        .unwrap()
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .clear();
+    assert_eq!(g.strategic_mana_default(A), None);
+    let id = g.content.rules.spells.id_of("giant_strength").unwrap();
+    {
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&id);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != id);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(id);
+    }
+    let skill = g.wizard(A).unwrap().casting_skill() as u32;
+    assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));
+    g.treasury_mut(A).unwrap().mana = 10;
+    assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 5)));
+    g.treasury_mut(A).unwrap().mana = 1;
+    assert_eq!(g.strategic_mana_default(A), Some(1));
+    g.treasury_mut(A).unwrap().mana = 0;
+    assert_eq!(g.strategic_mana_default(A), None);
 }

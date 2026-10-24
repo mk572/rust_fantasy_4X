@@ -56,7 +56,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 277 | Client | Settings: Enemy Moves |
 | 278 | Client | Settings: Enemy Spells |
 | 279 | Client | Settings: Spell Book Ordering |
-| 281 | Client | Settings: Movement Animations |
+| 281 | Client | Movement animations (always on, no switch) |
 | 283 | Client | Settings: Expanding Help |
 | 285 | Client | Spell interface: Stasis, mutations, vortices, Time Stop |
 | 286 | Rules | Leftovers of the last ten spells (unrest, Time Stop, Call the Void) |
@@ -89,7 +89,7 @@ settings record, `serde(default)` and saved with the game where they change rule
 Spell of Return option from `PLANNED.md`), and in a client configuration file where they only
 change presentation. Reachable from the start menu (86) and in game. The rules half is designed in [`game-settings.md`](game-settings.md) (draft); built in tasks 246 to 249.
 Built: the presentation half, as the original's Settings page (19 switches, `preferences.rs`,
-`settings_screen.rs`), saved in `saves/preferences.txt`; wiring them is tasks 266 to 283, one for each switch except Strategic Combat Only (done).
+`settings_screen.rs`), saved in `saves/preferences.txt`; wiring them is tasks 266 to 283, one for each switch except Strategic Combat Only (done). **Strategic combat** is the battle AI playing both sides in the background, with no second rule: the attack prompt's Auto button and the Strategic Combat Only switch both send `AutoResolve`; before it the player is asked for the most reserve mana the wizard may spend (default: the lower of the casting skill and half the reserve; no question when the wizard has no mana or no battle spell), attacking and defending alike (`attack_prompt.rs`, `Command::AutoResolve::mana_budget`, `Game::strategic_mana_default`), and the results scroll follows. **Removed 24 October 2026:** the Movement Animations and Show Node Owners switches (always on; task 281 is the animation itself).
 
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
@@ -195,7 +195,7 @@ Parity task, low priority.
 
 **279. Settings: Spell Book Ordering.** Spells in the spell book listed in categories (the original's help says so) when on, in one long list when off. Check `spellbook.rs` for the current order, add the other layout, and reset the page to the first when the switch changes (the original does; the Settings page already resets `book_ui`). The switch is `Pref::SpellBookOrdering` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
-**281. Settings: Movement Animations.** Animate units stepping from square to square on the map (an eased slide) when on; off jumps. Check what the client does today; it also feeds 277's following of enemy moves. The switch is `Pref::MovementAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+**281. Movement animations.** Animate units stepping from square to square on the map (an eased slide). It is always on: the switch of the original's Settings screen was removed on 24 October 2026 (nobody wants it off), as was Show Node Owners (the owners' auras are always drawn). Check what the client does today; it also feeds 277's following of enemy moves.
 
 **283. Settings: Expanding Help.** The original's help pop-up grows (opens with an expanding animation) when on. Check how the help pop-up works in the client today and whether the animation is wanted; low priority. The switch is `Pref::ExpandingHelp` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 

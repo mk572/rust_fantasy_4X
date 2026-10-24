@@ -411,7 +411,8 @@ impl Game {
             Command::AutoResolve {
                 attackers,
                 defenders,
-            } => self.auto_resolve(&attackers, &defenders),
+                mana_budget,
+            } => self.auto_resolve_with(&attackers, &defenders, mana_budget),
             Command::EnterSite { units, to } => self
                 .enter_site(&units, to)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),

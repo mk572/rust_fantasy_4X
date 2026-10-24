@@ -164,6 +164,19 @@ impl Game {
         }
     }
 
+    /// What a strategic battle (the battle AI playing for `player` in the background) may spend
+    /// of the mana reserve unless the player says otherwise: the lower of the casting skill and
+    /// half the reserve, at least one. `None` when the wizard has no mana or knows no spell
+    /// that can be cast in a battle: there is nothing to ask.
+    pub fn strategic_mana_default(&self, player: PlayerId) -> Option<u32> {
+        let mana = u32::try_from(self.player(player)?.treasury().mana).ok()?;
+        if mana == 0 || self.battle_spells(player).is_empty() {
+            return None;
+        }
+        let skill = self.wizard(player)?.casting_skill().max(0) as u32;
+        Some(skill.min(mana / 2).max(1).min(mana))
+    }
+
     /// The battle in progress.
     pub fn battle(&self) -> Option<&Battle> {
         self.battle.as_ref().map(|b| &b.battle)
@@ -1050,6 +1063,17 @@ impl Game {
         attackers: &[hecs::Entity],
         defenders: &[hecs::Entity],
     ) -> Vec<Event> {
+        self.auto_resolve_with(attackers, defenders, None)
+    }
+
+    /// [`Game::auto_resolve`] with a limit on the mana one wizard may spend from the reserve
+    /// (strategic combat, `Command::AutoResolve::mana_budget`).
+    pub fn auto_resolve_with(
+        &mut self,
+        attackers: &[hecs::Entity],
+        defenders: &[hecs::Entity],
+        mana_budget: Option<(PlayerId, u32)>,
+    ) -> Vec<Event> {
         let near = |game: &Game| -> Option<bool> {
             let a = game.units().unit_position(*attackers.first()?)?;
             let d = game.units().unit_position(*defenders.first()?)?;
@@ -1065,6 +1089,12 @@ impl Game {
             Ok(e) => e,
             Err(e) => return vec![Event::Rejected(crate::game::Rejection::BattleStart(e))],
         };
+        if let Some((player, mana)) = mana_budget {
+            let side = self.battle().and_then(|b| b.side_of(player));
+            if let Some(side) = side {
+                self.set_battle_mana_budget(side, Some(mana));
+            }
+        }
         for _ in 0..20_000 {
             let Some(command) = self.next_battle_command() else {
                 break;

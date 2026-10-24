@@ -38,7 +38,7 @@ Goals:
 
 **The base screen is task 94's screen.** It has two parts: the **game** part (this design, saved
 with the game) and the **presentation** part (volume, animation and message speeds, "show enemy
-moves", end-of-turn summary and wait, strategic-combat-only, node-owner display, spell book
+moves", end-of-turn summary and wait, strategic-combat-only, spell book
 ordering, what the hall of fame records: the original's `Settings_Screen`), which is client
 configuration and **not** saved with a game. Only the game part is designed here. Two entries of the
 original's list change rules and belong to the game part: **random events** (4.5) and the flee rule

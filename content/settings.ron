@@ -337,9 +337,7 @@
         "enemy_spells": true,
         "spell_book_ordering": true,
         "spell_animations": true,
-        "show_node_owners": true,
         "expanding_help": true,
-        "movement_animations": true,
         "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)
         "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
     },

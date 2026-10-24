@@ -144,6 +144,7 @@ fn auto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             ConsoleError::NoSuch(format!("hostile units at {}", crate::describe::pos(at)))
         })?;
     ctx.apply(Command::AutoResolve {
+        mana_budget: None,
         attackers,
         defenders,
     })
