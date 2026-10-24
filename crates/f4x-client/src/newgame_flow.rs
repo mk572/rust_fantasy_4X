@@ -652,7 +652,10 @@ impl App {
             top + 4.0,
             Align::Left,
         );
-        let text = self.text(&format!("create.race.{}", ids[race]));
+        let text = match race_summary_key(&ids[race]) {
+            Some(key) => self.text(key),
+            None => String::new(),
+        };
         for (i, line) in self.bm_wrap(0, &text, w - 8.0).iter().enumerate() {
             self.bm_text(
                 view,
@@ -772,6 +775,28 @@ impl App {
     }
 }
 
+/// The text key of a race's summary on the race step (kept as literals so that the text check can
+/// see that each key is used).
+fn race_summary_key(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "barbarian" => "create.race.barbarian",
+        "beastmen" => "create.race.beastmen",
+        "dark_elf" => "create.race.dark_elf",
+        "draconian" => "create.race.draconian",
+        "dwarven" => "create.race.dwarven",
+        "gnoll" => "create.race.gnoll",
+        "halfling" => "create.race.halfling",
+        "high_elf" => "create.race.high_elf",
+        "high_men" => "create.race.high_men",
+        "klackon" => "create.race.klackon",
+        "lizardman" => "create.race.lizardman",
+        "nomad" => "create.race.nomad",
+        "orc" => "create.race.orc",
+        "troll" => "create.race.troll",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -790,8 +815,9 @@ mod tests {
         let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
         let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
         for race in content.rules.races.defs() {
-            let key = format!("create.race.{}", race.id);
-            assert!(texts.has(&key), "no summary {key}");
+            let key =
+                race_summary_key(&race.id).unwrap_or_else(|| panic!("no key for {}", race.id));
+            assert!(texts.has(key), "no summary {key}");
         }
     }
 

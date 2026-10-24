@@ -242,6 +242,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 272 | Client | Settings: End of Turn Summary (done) |
 | 274 | Rules | Settings: Random Events (done) |
 | 275 | Client | Settings: End of Turn Wait (done) |
+| 279 | Client | Settings: Spell Book Ordering (done) |
 | 280 | Client | Settings: Spell Animations (done) |
 | 282 | Client | Settings: Show Node Owners (done) |
 | 283 | Client | Settings: Expanding Help (done) |
@@ -635,6 +636,8 @@ accident of the original. The AI race limits are task 379.
 **274. Settings: Random Events (done).** Decided with the user: a game setting, and the preferences page's entry is the default for new games (an Intro game keeps events off). The draw also reads `events.frequency` (Half, Normal, Double); its screen waits for task 248.
 
 **275. Settings: End of Turn Wait (done).** Whether the turn waits for the player after the end-of-turn steps (the messages and the computer wizards' turns) before the next turn begins. Read the original's help for exactly what it pauses on, then add the pause and the switch. Needs 135 if it concerns the computer wizards' turns. The switch is `Pref::EndofTurnWait` in `preferences.rs` (stored by task 89); read the original's help for it before building.
+
+**279. Settings: Spell Book Ordering (done).** Closed 24 October 2026 without building it: the switch was removed instead (`Pref::SpellBookOrdering`, its row on the Settings screen, its entry in `settings.ron` and its text; the right column of the screen moved up and the help areas with it). The spell book now has its own filter (all, known, known on the map, known in battle) and sort (name, mana cost) lines at the foot of the book, which make the original's categories-or-one-list switch needless. The original's help topic 689 was removed from `help.ron` with it.
 
 **280. Settings: Spell Animations (done).** Play the animations of spells cast on the map and in battle when on (task 159 lists the spell animation work); off skips them. Needs the animations themselves first. The switch is `Pref::SpellAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building. **Done:** the human's own battle spell animations are skipped when off (`spell_animation` in `battle_screen/spell_anim.rs`). The original gates only the overland animations, not battle ones, and those overland animations (summon, city enchantment, terrain, learn-spell scroll) are not built (task 306); see `divergences.md` 30.
 

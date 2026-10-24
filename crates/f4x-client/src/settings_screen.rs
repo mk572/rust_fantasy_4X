@@ -14,7 +14,7 @@ use crate::view::{App, Screen};
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
 /// Left column x=31, right column x=192; the label starts 16 pixels right of the box and
 /// 2 below its top. The gaps between groups are the original's.
-const ROWS: [(Pref, f32, f32); 19] = [
+const ROWS: [(Pref, f32, f32); 18] = [
     (Pref::SoundEffects, 31.0, 52.0),
     (Pref::BackgroundMusic, 31.0, 63.0),
     (Pref::EventMusic, 31.0, 74.0),
@@ -30,10 +30,9 @@ const ROWS: [(Pref, f32, f32); 19] = [
     (Pref::AutoUnitInformation, 192.0, 63.0),
     (Pref::EnemyMoves, 192.0, 101.0),
     (Pref::EnemySpells, 192.0, 112.0),
-    (Pref::SpellBookOrdering, 192.0, 123.0),
-    (Pref::SpellAnimations, 192.0, 134.0),
-    (Pref::ExpandingHelp, 192.0, 145.0),
-    (Pref::LeftClickMoves, 192.0, 156.0),
+    (Pref::SpellAnimations, 192.0, 123.0),
+    (Pref::ExpandingHelp, 192.0, 134.0),
+    (Pref::LeftClickMoves, 192.0, 145.0),
 ];
 
 /// The group headings: text and place.
@@ -93,10 +92,6 @@ impl App {
             self.bm_text(view, 2, WHITE, &label, x + 16.0, y + 2.0, Align::Left);
             if pressed && lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)).contains(mouse) {
                 self.prefs.toggle(pref);
-                // The spell book list starts over on its first page.
-                if pref == Pref::SpellBookOrdering {
-                    self.book_ui = Default::default();
-                }
             }
         }
         for &(key, x, y) in &HEADINGS {

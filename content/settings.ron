@@ -358,7 +358,6 @@
         "auto_unit_information": true,
         "enemy_moves": true,
         "enemy_spells": true,
-        "spell_book_ordering": true,
         "spell_animations": true,
         "expanding_help": true,
         "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)

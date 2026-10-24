@@ -20,3 +20,17 @@ f4x-data = { path = "crates/f4x-data" }
 f4x-ai = { path = "crates/f4x-ai" }
 f4x-console = { path = "crates/f4x-console" }
 f4x-learn = { path = "crates/f4x-learn" }
+
+# Build profiles (task 382). Release: link-time optimisation across the crates and one code
+# generation unit, slower to build and faster to run (the soak, the client). Debug and tests:
+# the workspace crates at level 1 and the dependencies (hecs, serde, ron, rand, macroquad) at
+# level 2, so that the tests and a debug client run several times faster than at level 0.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

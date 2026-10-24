@@ -23,14 +23,13 @@ pub(crate) enum Pref {
     AutoUnitInformation,
     EnemyMoves,
     EnemySpells,
-    SpellBookOrdering,
     SpellAnimations,
     ExpandingHelp,
     LeftClickMoves,
     PlayIntro,
 }
 
-pub(crate) const PREFS: [Pref; 19] = [
+pub(crate) const PREFS: [Pref; 18] = [
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -45,7 +44,6 @@ pub(crate) const PREFS: [Pref; 19] = [
     Pref::AutoUnitInformation,
     Pref::EnemyMoves,
     Pref::EnemySpells,
-    Pref::SpellBookOrdering,
     Pref::SpellAnimations,
     Pref::ExpandingHelp,
     Pref::LeftClickMoves,
@@ -70,7 +68,6 @@ impl Pref {
             Pref::AutoUnitInformation => "auto_unit_information",
             Pref::EnemyMoves => "enemy_moves",
             Pref::EnemySpells => "enemy_spells",
-            Pref::SpellBookOrdering => "spell_book_ordering",
             Pref::SpellAnimations => "spell_animations",
             Pref::ExpandingHelp => "expanding_help",
             Pref::LeftClickMoves => "left_click_moves",
@@ -95,7 +92,6 @@ impl Pref {
             Pref::AutoUnitInformation => "preferences.auto_unit_information",
             Pref::EnemyMoves => "preferences.enemy_moves",
             Pref::EnemySpells => "preferences.enemy_spells",
-            Pref::SpellBookOrdering => "preferences.spell_book_ordering",
             Pref::SpellAnimations => "preferences.spell_animations",
             Pref::ExpandingHelp => "preferences.expanding_help",
             Pref::LeftClickMoves => "preferences.left_click_moves",
@@ -114,7 +110,7 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 19],
+    on: [bool; 18],
     /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
     /// original).
     pub music_volume: u8,
