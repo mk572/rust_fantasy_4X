@@ -4,6 +4,7 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 
+use f4x_core::game::DispelSite;
 use f4x_core::text::Args;
 use f4x_core::world_event::{compose, EventKind};
 use f4x_data::spell_art::Role;
@@ -182,12 +183,20 @@ impl App {
     /// The oldest spell notice not yet shown, in its box over the map. Returns whether the box
     /// took the frame.
     pub(crate) fn spell_notice_frame(&mut self) -> bool {
-        let Some(notice) = self.spell_notices.front().cloned() else {
+        if self.spell_notices.is_empty() {
             return false;
-        };
+        }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
         self.draw_bars();
+        self.draw_spell_notice()
+    }
+
+    /// The oldest spell notice in its box over whatever is drawn (the map, or a battle).
+    pub(crate) fn draw_spell_notice(&mut self) -> bool {
+        let Some(notice) = self.spell_notices.front().cloned() else {
+            return false;
+        };
         let lay = Layout::new();
         let closed = self.notify2_box(
             &lay,
@@ -216,7 +225,7 @@ impl App {
     pub(crate) fn announce_dispelled(
         &mut self,
         spell: f4x_core::rules::SpellId,
-        on_unit: bool,
+        site: DispelSite,
         count: &mut u32,
     ) {
         let text = match *count {
@@ -224,20 +233,25 @@ impl App {
                 "spell.dispelled",
                 &Args::new().text("spell", &self.game.content().rules.spells.get(spell).name),
             ),
-            4 => self.text(if on_unit {
-                "spell.dispelled_on_unit_more"
-            } else {
-                "spell.dispelled_on_city_more"
+            4 => self.text(match site {
+                DispelSite::Unit | DispelSite::BattleUnit => "spell.dispelled_on_unit_more",
+                DispelSite::City => "spell.dispelled_on_city_more",
+                DispelSite::Field => "spell.dispelled_on_field_more",
             }),
             _ => return,
         };
-        let top = 40.0 + 25.0 * *count as f32;
+        // The boxes of a battle sit higher (`Combat_Dispel`: y 20, not 40).
+        let base = if matches!(site, DispelSite::BattleUnit | DispelSite::Field) {
+            20.0
+        } else {
+            40.0
+        };
+        let top = base + 25.0 * *count as f32;
         *count += 1;
         // The unit picture is a little right of the city's (`pict1_x` 4).
-        let (picture, shift) = if on_unit {
-            (Role::DispelledUnit, 4.0)
-        } else {
-            (Role::DispelledCity, 0.0)
+        let (picture, shift) = match site {
+            DispelSite::Unit | DispelSite::BattleUnit => (Role::DispelledUnit, 4.0),
+            DispelSite::City | DispelSite::Field => (Role::DispelledCity, 0.0),
         };
         self.spell_notices.push_back(SpellNotice {
             text,
@@ -301,7 +315,7 @@ impl App {
     }
 
     /// For screenshots: five of the human's spells dispelled at once.
-    pub fn open_test_dispelled(&mut self, on_unit: bool) {
+    pub fn open_test_dispelled(&mut self, site: DispelSite) {
         let spells: Vec<_> = self
             .game
             .content()
@@ -314,7 +328,7 @@ impl App {
             .collect();
         let mut count = 0;
         for spell in spells {
-            self.announce_dispelled(spell, on_unit, &mut count);
+            self.announce_dispelled(spell, site, &mut count);
         }
     }
 

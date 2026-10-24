@@ -3,6 +3,7 @@
     // The first dispels are announced one by one, the rest in one line.
     "spell.dispelled": "{spell} has been dispelled.",
     "spell.dispelled_on_city_more": "The city's other enchantments have been dispelled.",
+    "spell.dispelled_on_field_more": "The battlefield's other enchantments have been dispelled.",
     "spell.dispelled_on_unit_more": "The unit's other spells have been dispelled.",
 
     // The counter spells named in a fizzle notice.

@@ -25,7 +25,7 @@ use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
 use super::field::{Field, BATTLEFIELD, CALL_CHAOS};
 use super::immunity::{AttackNature, Immunities, Realm};
 use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
-use crate::game::{Event, Game};
+use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget};
@@ -631,7 +631,7 @@ impl Game {
         if let Some(active) = self.battle.as_mut() {
             active.battle.refresh_fields();
         }
-        let mut out: Vec<Event> = events.into_iter().map(Event::Battle).collect();
+        let mut out = self.battle_event_list(events);
         let ended = self
             .battle
             .as_mut()
@@ -1497,6 +1497,39 @@ impl Game {
         events
     }
 
+    /// The events of a cast in a battle, and after each dispel of lasting spells or of a
+    /// battlefield spell the world's `EnchantmentDispelled` for the wizard who lost it.
+    pub(super) fn battle_event_list(&self, events: Vec<BattleEvent>) -> Vec<Event> {
+        let mut out = Vec::new();
+        for event in events {
+            let notices: Vec<Event> = match &event {
+                BattleEvent::SpellDispelled { spells, .. } => spells
+                    .iter()
+                    .map(|&(spell, victim)| Event::EnchantmentDispelled {
+                        victim,
+                        spell,
+                        site: DispelSite::BattleUnit,
+                    })
+                    .collect(),
+                BattleEvent::FieldDispelled { side, spell } => {
+                    let victim = self.battle.as_ref().map(|a| a.battle.player_of(*side));
+                    victim
+                        .map(|victim| Event::EnchantmentDispelled {
+                            victim,
+                            spell: *spell,
+                            site: DispelSite::Field,
+                        })
+                        .into_iter()
+                        .collect()
+                }
+                _ => Vec::new(),
+            };
+            out.push(Event::Battle(event));
+            out.extend(notices);
+        }
+        out
+    }
+
     /// A dispel of `strength` by `by` on the battlefield enchantments the other side has up
     /// (`Combat_Cast_Dispel`): each is tried at its spell's difficulty, with the retorts of the
     /// wizard that cast it, and a success takes it down.
@@ -1549,6 +1582,7 @@ impl Game {
             self.dispel_list(unit.combat_spells.clone(), strength, by, true, &mut rng);
         let mut removed = gone.len() as u32;
         let mut overland_changed = false;
+        let mut overland_gone = Vec::new();
         if let Some(e) = entity {
             let list = self.spells().unit_enchantments(e);
             let (_, gone) = self.dispel_list(list, strength, by, true, &mut rng);
@@ -1558,11 +1592,15 @@ impl Game {
                 }
                 overland_changed = true;
                 removed += gone.len() as u32;
+                overland_gone = gone;
             }
         }
+        let mut spells: Vec<(SpellId, PlayerId)> = gone.clone();
+        spells.extend(overland_gone);
         let event = BattleEvent::SpellDispelled {
             unit: target,
             removed,
+            spells,
         };
         if removed == 0 {
             return vec![event];

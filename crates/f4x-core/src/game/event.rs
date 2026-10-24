@@ -24,6 +24,17 @@ pub enum Shortage {
     Food,
 }
 
+/// What a dispel took an enchantment off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DispelSite {
+    City,
+    Unit,
+    /// A unit in a battle: its spells of the fight.
+    BattleUnit,
+    /// A battlefield spell (a wall, True Light, Darkness and the like).
+    Field,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// A wizard's reserve could not pay the upkeep, so something had to go; announced to the
@@ -169,11 +180,11 @@ pub enum Event {
         player: player::PlayerId,
         removed: u32,
     },
-    /// A dispel removed `victim`'s enchantment `spell` from a unit or a city.
+    /// A dispel removed `victim`'s enchantment `spell` from a unit, a city or a battlefield.
     EnchantmentDispelled {
         victim: player::PlayerId,
         spell: rules::SpellId,
-        on_unit: bool,
+        site: DispelSite,
     },
     /// A dispel against the global enchantment `spell` failed.
     DispelFailed {

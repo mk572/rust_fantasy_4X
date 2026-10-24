@@ -4090,6 +4090,28 @@ fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
 }
 
 #[test]
+fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() {
+    use crate::game::{DispelSite, Event};
+    let mut g = wizard_battle("walker", &["stone_skin"]);
+    cast_on_first(&mut g, "stone_skin").unwrap();
+    let events = g.dispel_battle_unit(0, 10_000, D);
+    let out = g.battle_event_list(events);
+    let named = out
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                Event::EnchantmentDispelled {
+                    site: DispelSite::BattleUnit,
+                    ..
+                }
+            )
+        })
+        .count();
+    assert_eq!(named, 1);
+}
+
+#[test]
 fn a_wizard_cannot_give_a_unit_the_ability_it_has_by_nature() {
     let mut g = wizard_battle("spirit", &["wraith_form", "flight"]);
     assert_eq!(

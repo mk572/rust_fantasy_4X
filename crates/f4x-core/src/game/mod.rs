@@ -25,7 +25,7 @@ use crate::{battle, city, content, diplomacy, game, item, map, player, unit, wiz
 use rand::RngCore;
 
 pub use command::Command;
-pub use event::{Event, LossCause, Rejection, Shortage};
+pub use event::{DispelSite, Event, LossCause, Rejection, Shortage};
 
 fn reject(r: Result<(), wizard::magic::MagicError>) -> Vec<Event> {
     match r {

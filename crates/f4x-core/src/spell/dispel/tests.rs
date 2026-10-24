@@ -158,7 +158,7 @@ fn a_dispel_names_each_spell_it_removes() {
         vec![Event::EnchantmentDispelled {
             victim: P0,
             spell: strength,
-            on_unit: true
+            site: DispelSite::Unit
         }]
     );
 }

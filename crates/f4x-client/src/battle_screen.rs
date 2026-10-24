@@ -241,9 +241,9 @@ pub(crate) fn describe(
         BattleEvent::SpellEnchanted { unit: u, spell: s } => {
             say("battle.enchanted", unit(*u).text("spell", spell(*s)))
         }
-        BattleEvent::SpellDispelled { unit: u, removed } => {
-            say("battle.dispelled", unit(*u).count("removed", *removed))
-        }
+        BattleEvent::SpellDispelled {
+            unit: u, removed, ..
+        } => say("battle.dispelled", unit(*u).count("removed", *removed)),
         BattleEvent::Summoned { unit: u } => say("battle.summoned", unit(*u)),
         BattleEvent::Raised { unit: u } => say("battle.raised", unit(*u)),
         BattleEvent::FieldDispelled { spell: s, .. } => say("battle.field_dispelled", spell_of(*s)),
@@ -1091,6 +1091,12 @@ impl App {
         };
         if self.battle_ui.names.len() != battle.units.len() {
             self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
+        }
+        // A dispel's notices stand over the fight until they are clicked away.
+        if !self.spell_notices.is_empty() {
+            self.draw_battle(&battle, false, None);
+            self.draw_spell_notice();
+            return;
         }
         self.battle_ui.ai_timer -= dt;
 

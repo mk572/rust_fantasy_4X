@@ -15,7 +15,7 @@
 
 use rand::RngCore;
 
-use crate::game::{Event, Game};
+use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::exec::Target;
@@ -213,6 +213,11 @@ impl Game {
         gone: &mut Vec<Event>,
     ) -> u32 {
         let on_unit = matches!(target, SpellTarget::Unit(_));
+        let site = if on_unit {
+            DispelSite::Unit
+        } else {
+            DispelSite::City
+        };
         let list = self.spells().enchantments_on(target);
         let (_, removed) = self.dispel_list(list, strength, by, on_unit, rng);
         for &(spell, victim) in &removed {
@@ -224,7 +229,7 @@ impl Game {
                 .map(|&(spell, victim)| Event::EnchantmentDispelled {
                     victim,
                     spell,
-                    on_unit,
+                    site,
                 }),
         );
         removed.len() as u32

@@ -356,7 +356,7 @@ impl Game {
         if let Some(active) = self.battle.as_mut() {
             active.battle.refresh_fields();
         }
-        let mut out: Vec<Event> = events.into_iter().map(Event::Battle).collect();
+        let mut out = self.battle_event_list(events);
         let ended = self
             .battle
             .as_mut()

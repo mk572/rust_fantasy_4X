@@ -720,6 +720,8 @@ pub enum BattleEvent {
     SpellDispelled {
         unit: usize,
         removed: u32,
+        /// Which spells went, with the wizards that cast them.
+        spells: Vec<(SpellId, PlayerId)>,
     },
     /// A dispel took a battlefield spell down: the side that had put it up.
     FieldDispelled {

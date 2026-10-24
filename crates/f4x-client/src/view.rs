@@ -538,10 +538,10 @@ impl App {
                 Event::EnchantmentDispelled {
                     victim,
                     spell,
-                    on_unit,
+                    site,
                 } => {
                     if victim == HUMAN {
-                        self.announce_dispelled(spell, on_unit, &mut dispelled);
+                        self.announce_dispelled(spell, site, &mut dispelled);
                     }
                     None
                 }
