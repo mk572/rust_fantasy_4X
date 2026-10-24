@@ -78,7 +78,6 @@ neighbours.
 | 365 | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 360 | Client | Conquest, banishment and defeat scenes |
-| 361 | AI | The AI makes diplomacy proposals, to the human and to each other |
 | 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories |
 | 367 | AI | Overland spells, heroes and items the AI never uses |
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) |
@@ -87,6 +86,8 @@ neighbours.
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 375 | Client | Wire the five Settings switches that do nothing yet |
+| 384 | AI | Diplomacy leftovers: threats, demands, greetings, get off my lawn, superiority wars, tuning |
+| 385 | Meta | Diplomacy leftovers of the rules and the client: Threaten to Attack, trespass, map size, picking sides, attack-on-partner box |
 
 ## Descriptions
 
@@ -114,31 +115,6 @@ Spell of Mastery brings (`Spell_Of_Mastery_Lose`, ReMoM `SPLMASTR.c`: `spellose.
 shrunk into the sphere of their colour, the familiar in the corner) before the defeat; the zap of a wizard banished by
 another wizard, which the original does not show (its early return) and which we could add as our own; and a hand check
 of the scenes in a real game (the shots were taken from `--scene`).
-
-**361. The AI makes diplomacy proposals.** Today the AI only answers (`f4x-ai/src/diplomacy.rs`: `answer` rates
-each proposal with `diplomacy::rate`); it never proposes, threatens, declares war or makes peace, so the
-human is never approached and AI wizards never treat with each other. The rules and numbers are in
-`docs/diplomacy.md` sections 6 to 8 (`NPC_To_Human_Diplomacy`, `NPC_To_NPC_Treaty_Negotiations`,
-`DIPL_HumanWarOrPeace`, `G_DIPL_NeedForWar`, `DIPL_GetOffMyLawn`, `NPC_Required_Alliances`); read those and ReMoM
-(`DIPLOMAC.c`) first. As always the rules do not decide for the AI: the script sends the same
-`Command::Diplomacy(..)` a human has (`Propose`, `DeclareWar`, `BreakTreaty`, `GiveGold`, `GiveSpell`), and the
-core only checks that they are legal.
-- **Towards the human**, once a turn for each AI wizard with a fortress: greet a wizard newly met; otherwise the
-  score test, the war-or-peace decision (warnings, breaking a treaty, declaring war, offering peace), demands,
-  the required-alliance request and the need-for-war rolls (chaotic, militarist, superiority war, joining an
-  ally's war), and "get off my lawn". The human sees each as a message or a talk screen, and the client needs
-  to show a proposal the AI makes (`Event::Diplomacy`; check what `diplomacy_screen.rs` does with a
-  proposal that is waiting for the human, and add the answer path if it is missing).
-- **Towards each other**, for each ordered pair of living AI wizards that have met, with chance
-  `1 / (15 - 2 * difficulty)`: the score, pact or alliance, spell exchange, peace between wizards at war,
-  allies joining wars. Do not copy the early return in `NPC_To_NPC_Treaty_Negotiations` that `ReMoM` marks
-  `OGBUG`.
-- **Not while banished** (task 341): a banished wizard starts nothing (`DiplomacyError::Banished`), and no AI
-  makes overtures to a banished human or sends it delayed orders.
-- **Tests** for each decision with fixed rolls on a real game; an AI-only game test (soak, run only when
-  asked) shows treaties and wars forming; `diplomacy.md`, `ai-design.md` and `divergences.md` are updated.
-*Needs:* nothing in the core; do it with or after task 339 (the AI on the new framework), since both touch the
-scripts' structure.
 
 **350. Refusals and notices the original has and ours lacks.** From the table of task 348: the "continue casting?" prompts (lines 12 to 16, including the second cast of a global enchantment, task 349 leaves it here); the settler refusal for a fortress's last citizens (11); too many units on the square when a spell summons or a city builds (21, 50, 66); Disenchant Area with nothing to dispel (28); Spell Blast without the mana (68); Change Terrain on a node with line 34's own words (ours refuses it as a fixed terrain; Corruption on a node, 41, is done); Volcano on a river (86; check first whether the map has rivers); Web and Sorcery immunity refused at the aim, where ours casts and the unit resists (71, 73); Lycanthropy on a mutated unit; the mass battle spells with nothing to hit (79, 80, 81, 83); wizard targets without contact (27); the notices of dispelled enchantments (18, 19, 20, 45, 46) and the monsters' rampage (10), whose triggers must be found first. Decide for each: add it, or record in `docs/divergences.md` that it is not wanted. The new texts are keys in `content/text/`.
 
@@ -300,3 +276,7 @@ spell book has its own sort and filter lines.) Their help (topics 678 to 680, 68
 what each should do, as the original does; make the client do it. Also give Left Click Moves Units and
 Play Intro a help topic and a help area on the Settings screen (they have none, the area list comes
 from the original). *Needs:* nothing.
+
+**384. Diplomacy leftovers of the AI.** Task 361 made the AI propose (to the human at the start of its turn, to the other AI wizards with the chance and score of `NPC_To_NPC_Treaty_Negotiations`) with basic rules. What it leaves out, from `docs/diplomacy.md` sections 4, 6 and 8: (1) the war-or-peace decision with warnings (`DIPL_HumanWarOrPeace`: a counter of warnings, a roll to declare war or break the treaty; today a relation of -75 declares war and -50 breaks a treaty at once); (2) demands for tribute and the AI's reaction to the human's threats (`Threaten to Attack` is not a command yet); (3) the greeting of a wizard newly met, by temper; (4) `DIPL_GetOffMyLawn` (units next to a city, three warnings); (5) the need-for-war rolls (`G_DIPL_NeedForWar`: Chaotic wizards, superiority wars, joining an ally's war against the human, the `Random(15) <= -rel / 10` war); (6) the AI's gifts of gold and spells (`GiveGold`, `GiveSpell`) as tribute or thanks; (7) tuning the chances and weights with the soak (`ai-design.md` 12.2: treaties formed, wars started, who wins), and whether AI wizards in a pact or alliance stay out of each other's way in `race::war_target`.
+
+**385. Diplomacy leftovers of the rules and the client.** What is left of task 167 after the checks of 24 October 2026 (the AI's own talks are task 384; AI-to-AI treaties, the AI's offers to the human and an AI that does not march on a partner are done). (1) **Threaten to Attack** (`docs/diplomacy.md` section 4): the Threaten menu of `diplomacy_screen.rs` has only the two break-treaty rows; add the threat as a `DiplomacyCommand`, the human's loss of `Random(15)` relation, the treaty patience of -120 and the wizard's reaction (below 0 war, 0 to 89 a refusal, 90 to 199 a payment of `25 * (2..9)` gold and a peace of `Random(15)` turns, 200 or more a spell), as AI code in `f4x-ai` over a command the AI answers. (2) **Trespass** (`DIPL_GetOffMyLawn`, section 8): `Action::Trespass` exists and nothing raises it; units of a wizard within two squares of another's city give a mild relation loss and a warning, and on the third step the treaty is broken with -5 (not between wizards at war; the settlers do not count). (3) **The map size** in the "too many cities" reaction: `LAND_SIZE` in `diplomacy/mod.rs` assumes a medium map; keep the game's land and map size and use them. (4) **`G_DIPL_PickSides`**: an alliance breaks when one ally is at war with the other's ally. (5) **Client:** the fade-in and fade-out of the diplomacy room (`diplomac` entries 38 and up); the confirm box "You have a treaty with X. Do you still wish to attack?" before an attack on a pact or alliance partner; the readable colour of disabled menu rows. (The right-click on a wizard's gem already opens the sheet.) *Needs:* nothing; (1) shares the reaction code with 384.

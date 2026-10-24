@@ -214,7 +214,7 @@ impl App {
         })
     }
 
-    fn diplo_name(&self, p: PlayerId) -> String {
+    pub(crate) fn diplo_name(&self, p: PlayerId) -> String {
         self.game
             .wizard(p)
             .map_or_else(|| "?".to_string(), |w| w.name())

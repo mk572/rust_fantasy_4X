@@ -215,6 +215,234 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
+/// A relation at which a wizard declares war on the human whatever the treaty (`DIPL_HumanWarOrPeace`).
+const WAR_RELATION: i32 = -75;
+/// A relation under which a wizard breaks a pact or an alliance it has with the human.
+const BREAK_RELATION: i32 = -50;
+/// The chance, in a hundred, of a turn in which a friendly wizard offers the human a better treaty.
+const OFFER_PERCENT: u32 = 12;
+
+/// What an AI wizard says to the human at the start of the human's turn, as commands a human
+/// could send: it offers peace when at war and in the mood (`DIPL_HumanWarOrPeace`, one turn in
+/// eight), declares war on a hated one, breaks a treaty with a hated partner, offers a pact or an
+/// alliance to a friend, and asks an ally to join its war (`NPC_Required_Alliances`, one turn in
+/// ten). The human answers the proposals in a box; they lapse when the turn ends. The numbers are
+/// the original's where `docs/diplomacy.md` section 8 gives them, and a plain guess elsewhere.
+pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let Some(human) = game.human().filter(|&h| h != me) else {
+        return;
+    };
+    // Nobody makes overtures to a banished human (task 341) or to one who is out of the game.
+    if !game.have_met(me, human)
+        || game.player(human).is_none_or(|p| p.is_defeated())
+        || game.wizard(human).is_none_or(|w| w.is_banished())
+    {
+        return;
+    }
+    let (can_talk, third_parties) = {
+        let view = PlayerView::new(game, me);
+        let thirds: Vec<PlayerId> = game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| p != me && p != human && view.is_rival_wizard(p))
+            .filter(|&p| game.have_met(me, p) && game.have_met(human, p))
+            .collect();
+        (
+            view.wizard().is_some_and(|w| !w.is_banished()) && !view.is_defeated(),
+            thirds,
+        )
+    };
+    if !can_talk {
+        return;
+    }
+    let relation = game.relation(me, human);
+    let mood = crate::objective::temper(game.personality(me), game.difficulty()).modifier();
+    let stance = game
+        .diplomacy
+        .stance(me, human)
+        .cloned()
+        .unwrap_or_default();
+    let propose = |game: &mut Game, events: &mut Vec<Event>, kind| {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::Propose {
+                from: me,
+                to: human,
+                kind,
+            }),
+            events,
+        )
+    };
+    match game.treaty(me, human) {
+        Treaty::War => {
+            let score = stance.hidden + relation + mood + stance.peace_patience;
+            if game.roll(8) == 1 && 30 + game.roll(100) as i32 <= score {
+                propose(game, events, ProposalKind::Peace);
+            }
+        }
+        treaty => {
+            if relation <= WAR_RELATION && treaty == Treaty::None {
+                ai.send(
+                    game,
+                    Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                        player: me,
+                        on: human,
+                    }),
+                    events,
+                );
+                return;
+            }
+            if relation <= BREAK_RELATION && treaty != Treaty::None {
+                ai.send(
+                    game,
+                    Command::Diplomacy(DiplomacyCommand::BreakTreaty {
+                        player: me,
+                        with: human,
+                    }),
+                    events,
+                );
+                return;
+            }
+            // An ally at war asks the human to join it.
+            if treaty == Treaty::Alliance && game.roll(10) == 1 {
+                let enemy = third_parties.iter().copied().find(|&t| {
+                    game.treaty(me, t) == Treaty::War && game.treaty(human, t) != Treaty::War
+                });
+                if let Some(enemy) = enemy {
+                    propose(game, events, ProposalKind::WarOn(enemy));
+                    return;
+                }
+            }
+            let better = match treaty {
+                Treaty::None if relation > PACT_RELATION + 10 => Some(ProposalKind::Pact),
+                Treaty::Pact if relation > ALLIANCE_RELATION + 10 => Some(ProposalKind::Alliance),
+                _ => None,
+            };
+            if let Some(kind) = better {
+                if game.roll(100)
+                    <= OFFER_PERCENT + relation.max(0) as u32 / 10 + (mood / 10) as u32
+                {
+                    propose(game, events, kind);
+                }
+            }
+        }
+    }
+}
+
+/// The AI wizards among themselves (`NPC_To_NPC_Treaty_Negotiations`): for each wizard it has
+/// met, with a chance of one in `15 - 2 * difficulty`, the wizard sizes the other up (relation,
+/// temper, the difficulty and a roll) and offers an alliance or a pact, a swap of spells, or
+/// peace; an ally joins the wars of its friends. The other wizard answers at once with its own
+/// rating of the offer (`rate`).
+pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let human = game.human();
+    let others: Vec<PlayerId> = {
+        let view = PlayerView::new(game, me);
+        if view.wizard().is_none_or(|w| w.is_banished()) || view.is_defeated() {
+            return;
+        }
+        game.player_ids()
+            .into_iter()
+            .filter(|&p| p != me && Some(p) != human && view.is_rival_wizard(p))
+            .filter(|&p| game.have_met(me, p))
+            .filter(|&p| game.player(p).is_some_and(|q| !q.is_defeated()))
+            .collect()
+    };
+    let difficulty = u32::from(game.difficulty());
+    for other in others {
+        if game.roll(15 - 2 * difficulty.min(4)) != 1 {
+            continue;
+        }
+        let treaty = game.treaty(me, other);
+        let relation = game.relation(me, other);
+        let mood = crate::objective::temper(game.personality(me), game.difficulty()).modifier();
+        let stance = game
+            .diplomacy
+            .stance(me, other)
+            .cloned()
+            .unwrap_or_default();
+        let score = stance.hidden
+            + relation
+            + mood
+            + game.roll(100) as i32
+            + (3 + game.roll(5) as i32) * difficulty as i32;
+        let kind = match treaty {
+            Treaty::War => {
+                (stance.peace_patience + game.roll(100) as i32 > 100).then_some(ProposalKind::Peace)
+            }
+            Treaty::None if score > 150 && relation > ALLIANCE_RELATION => {
+                Some(ProposalKind::Alliance)
+            }
+            Treaty::None if score > 110 && relation > PACT_RELATION => Some(ProposalKind::Pact),
+            Treaty::Pact if score > 150 && relation > ALLIANCE_RELATION => {
+                Some(ProposalKind::Alliance)
+            }
+            _ => None,
+        };
+        let kind = kind.or_else(|| {
+            (treaty != Treaty::War && stance.exchange_patience + 80 < score)
+                .then(|| spell_swap(game, me, other))
+                .flatten()
+        });
+        if let Some(kind) = kind {
+            let made = ai.send(
+                game,
+                Command::Diplomacy(DiplomacyCommand::Propose {
+                    from: me,
+                    to: other,
+                    kind,
+                }),
+                events,
+            );
+            if made {
+                events.extend(crate::answer_proposals(game, other));
+            }
+        }
+        // An ally joins the wars of its friend.
+        if game.treaty(me, other) == Treaty::Alliance && game.roll(10) == 1 {
+            let enemy = game.player_ids().into_iter().find(|&t| {
+                t != me
+                    && t != other
+                    && game.treaty(other, t) == Treaty::War
+                    && game.treaty(me, t) != Treaty::War
+                    && game.treaty(me, t) != Treaty::Alliance
+                    && PlayerView::new(game, me).is_rival_wizard(t)
+                    && game.have_met(me, t)
+            });
+            if let Some(enemy) = enemy {
+                ai.send(
+                    game,
+                    Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                        player: me,
+                        on: enemy,
+                    }),
+                    events,
+                );
+            }
+        }
+    }
+}
+
+/// A swap of spells `me` could offer `other`: the cheapest spell each has and the other lacks.
+fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
+    let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
+    let cheapest = |from: &dyn Fn(f4x_core::rules::SpellId) -> bool,
+                    to: &dyn Fn(f4x_core::rules::SpellId) -> bool| {
+        game.content()
+            .rules
+            .spells
+            .iter()
+            .filter(|&(id, _)| from(id) && !to(id))
+            .min_by_key(|&(_, def)| (def.research_cost, def.name.clone()))
+            .map(|(id, _)| id)
+    };
+    let give = cheapest(&|id| mine.knows(id), &|id| theirs.knows(id))?;
+    let get = cheapest(&|id| theirs.knows(id), &|id| mine.knows(id))?;
+    Some(ProposalKind::Exchange { give, get })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,6 +452,12 @@ mod tests {
 
     const HUMAN: PlayerId = PlayerId(0);
     const AI: PlayerId = PlayerId(1);
+
+    impl Ai {
+        fn send_approach(&self, g: &mut Game) {
+            approach_human(self, g, &mut Vec::new());
+        }
+    }
 
     fn game() -> Game {
         let mut g = Game::new(5);
@@ -467,5 +701,74 @@ mod tests {
             "a hostile wizard refuses (relation is below the pact threshold)"
         );
         assert!(yes > 0, "a friendly one sometimes agrees");
+    }
+
+    /// The wizard `AI` likes (or hates) the human by `value`, in steps the original's damping
+    /// lets through.
+    fn feeling(g: &mut Game, value: i32) {
+        use f4x_core::diplomacy::Action;
+        for _ in 0..40 {
+            g.change_relations(value, HUMAN, AI, Action::Friendship, None);
+        }
+    }
+
+    #[test]
+    fn a_friendly_wizard_offers_the_human_a_pact_in_time() {
+        let mut g = game();
+        feeling(&mut g, 30);
+        assert!(g.relation(HUMAN, AI) > PACT_RELATION + 10);
+        let ai = Ai::new(AI);
+        let mut offered = None;
+        for _ in 0..300 {
+            ai.send_approach(&mut g);
+            offered = PlayerView::new(&g, HUMAN)
+                .proposals_to_me()
+                .first()
+                .copied();
+            if offered.is_some() {
+                break;
+            }
+        }
+        let offered = offered.expect("an offer");
+        assert_eq!((offered.from, offered.kind), (AI, ProposalKind::Pact));
+    }
+
+    #[test]
+    fn a_wizard_that_hates_the_human_declares_war_and_a_stranger_does_nothing() {
+        let mut g = game();
+        let ai = Ai::new(AI);
+        for _ in 0..100 {
+            ai.send_approach(&mut g);
+        }
+        assert_eq!(g.treaty(HUMAN, AI), Treaty::None);
+        assert!(g.diplomacy.proposals().is_empty());
+        feeling(&mut g, -30);
+        assert!(g.relation(HUMAN, AI) <= WAR_RELATION);
+        ai.send_approach(&mut g);
+        assert_eq!(g.treaty(HUMAN, AI), Treaty::War);
+    }
+
+    #[test]
+    fn ai_wizards_that_like_each_other_make_a_treaty_in_time() {
+        use crate::testworld::{game, COAST_CITY, P0, P1};
+        use f4x_core::diplomacy::Action;
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        for _ in 0..40 {
+            g.change_relations(30, P0, P1, Action::Friendship, None);
+        }
+        assert!(g.relation(P0, P1) > ALLIANCE_RELATION);
+        let ai = Ai::new(P0);
+        for _ in 0..600 {
+            negotiate(&ai, &mut g, &mut Vec::new());
+            if g.treaty(P0, P1) != Treaty::None {
+                break;
+            }
+        }
+        assert!(matches!(g.treaty(P0, P1), Treaty::Pact | Treaty::Alliance));
+        assert!(
+            g.diplomacy.proposals().is_empty(),
+            "the other wizard answered at once"
+        );
     }
 }

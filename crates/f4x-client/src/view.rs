@@ -1188,6 +1188,13 @@ impl App {
         };
         if self.game.game_over.is_none() {
             events.extend(self.game.apply(Command::EndTurn));
+            // The rivals now say what they have to say to the human: offers, requests, war.
+            let undo = self.game.undo_enabled();
+            self.game.set_undo(false);
+            for ai in &mut self.ais {
+                events.extend(ai.approach_human(&mut self.game));
+            }
+            self.game.set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
         let events: Vec<Event> = events
@@ -1398,6 +1405,9 @@ impl App {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
                 return self.ward_prompt_frame(prompt);
             }
+        }
+        if self.proposal_waits() && self.proposal_frame() {
+            return true;
         }
         if let Some(spell) = self.no_target_prompt {
             if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {

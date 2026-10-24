@@ -23,6 +23,7 @@ mod console_screen;
 mod craft_screen;
 mod create_screen;
 mod cycle;
+mod diplomacy_prompt;
 mod diplomacy_screen;
 mod diplomacy_text;
 mod end_scene;

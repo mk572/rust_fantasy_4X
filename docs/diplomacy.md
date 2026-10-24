@@ -278,6 +278,18 @@ another's city (on its plane, or in a tower) trigger a warning sequence: first a
 loss `-Random(5)` and a warning, a second step of nothing, and a third step the treaty is broken
 with `-5`. Wizards at war ignore it.
 
+**What the AI does today (task 361, basic rules; the rest is task 384).** Towards the human, at the start of
+the human's turn (`Ai::approach_human`, called by the client after the turn change; the proposals wait in a
+yes-or-no box and lapse when that turn ends): a wizard at war offers peace one turn in eight when
+`hidden + visible + personality_mod + peace_patience` beats `30 + Random(100)`; relation -75 or worse with no treaty
+declares war; relation -50 or worse breaks a pact or alliance; an ally at war with a wizard the human is not at war
+with asks the human to join, one turn in ten (`WarOn`); a friendly wizard offers a pact (relation above 20) or an
+alliance (above 60) with a chance that grows with the relation. Between AI wizards (`negotiate`, in `play_turn`):
+for each wizard met, with chance `1 / (15 - 2 * difficulty)`, the score of section 7 step 4 decides an alliance
+(above 150 with relation above 50), a pact (above 110, relation above 10), a spell swap (cheapest spell each lacks,
+when `exchange_patience + 80` is below the score) or, at war, peace (`peace_patience + Random(100) > 100`); the
+other wizard answers at once with `rate`; an ally joins the wars of its friend one turn in ten.
+
 ## 9. Implementation plan
 
 New module `crates/f4x-core/src/diplomacy/mod.rs` (and `diplomacy/` submodules if it grows), data in
