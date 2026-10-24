@@ -120,7 +120,7 @@ fn spell_art() -> Result<f4x_data::spell_art::SpellArt, String> {
 fn validate(dir: Option<&String>) -> Result<(), String> {
     let c = content(dir)?;
     let help_dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
-    let help = f4x_data::load_help(&help_dir).map_err(|e| e.to_string())?;
+    let help = f4x_data::load_help(&[help_dir.as_path()]).map_err(|e| e.to_string())?;
     if !help.topics.is_empty() {
         println!(
             "help: ok ({} topics, {} screens)",

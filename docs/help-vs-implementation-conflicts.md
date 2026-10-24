@@ -59,7 +59,7 @@ Written in our own words; nothing here is copied from either source.
 ReMoM states these were verified one-to-one against the original assembly, so the code and
 data are the original game and the help text is the odd one out. Decision: the game wins.
 The imported help (`content-local/help.ron`) is rewritten to match, and each changed topic
-ends with a note `[Updated from game code: ...]`. 17 topic edits, applied by
+is corrected in the local copy (the reason is in the importer's report only). 17 topic edits, applied by
 `HELP_CORRECTIONS` in `scripts/import_mom.py` (it fails loudly if a text no longer matches).
 
 | # | Game behaviour now in help and content |

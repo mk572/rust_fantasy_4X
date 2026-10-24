@@ -355,7 +355,7 @@ the original's ways. Kept there; listed so this file is a complete index.
   building drops the city back to housing, replaced buildings cost no upkeep, a unit with any
   movement left may always step): check each against the original before relying on it.
 - Saves are snapshots, not command logs.
-- Help text rewritten where it disagrees with the game's code (`[Updated from game code: ...]`).
+- Help text rewritten where it disagrees with the game's code (the importer's `HELP_CORRECTIONS`; the game's own help is `content/help.ron`).
 
 ## 13. Casting in battle (tasks 51, 159 and 265)
 

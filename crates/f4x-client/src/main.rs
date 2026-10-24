@@ -31,6 +31,7 @@ mod frame;
 mod game_over_screen;
 mod global_spell;
 mod hall_of_fame;
+mod help_popup;
 mod intro_screen;
 mod item_screen;
 mod learn_spell;
@@ -114,6 +115,8 @@ struct Options {
     advisor: Option<usize>,
     /// With `--shot`, ask how much mana an automatic fight may spend.
     auto_attack: bool,
+    /// With `--shot`, open the help for this point of the screen (320 by 200 coordinates).
+    help_at: Option<(i32, i32)>,
     /// With `--shot`, show this scene of the opening movie (0 to 12), at full brightness.
     intro: Option<usize>,
     /// With `--advisor 0`: describe the square at this column and row.
@@ -216,6 +219,7 @@ fn parse_args() -> Result<Options, String> {
         advisor: None,
         intro: None,
         auto_attack: false,
+        help_at: None,
         survey_at: None,
         scroll: None,
         reveal: false,
@@ -385,6 +389,14 @@ fn parse_args() -> Result<Options, String> {
                 )
             }
             "--auto-attack" => o.auto_attack = true,
+            "--help-at" => {
+                let v = value("--help-at")?;
+                let (x, y) = v.split_once(',').ok_or("--help-at takes X,Y")?;
+                o.help_at = Some((
+                    x.parse().map_err(|_| "--help-at takes X,Y")?,
+                    y.parse().map_err(|_| "--help-at takes X,Y")?,
+                ));
+            }
             "--intro" => {
                 o.intro = Some(
                     value("--intro")?
@@ -446,7 +458,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let help = f4x_data::load_help(&options.content).unwrap_or_default();
+    let help = f4x_data::load_help(&[Path::new("content"), &options.content]).unwrap_or_default();
     let spell_art = match f4x_data::spell_art::load_spell_art(
         &[&options.content, Path::new("content")],
         &content.rules,
@@ -659,6 +671,7 @@ async fn main() {
     } else if options.shot.is_none() && options.load.is_none() && !options.quick {
         app.open_intro();
     }
+    app.help_ui.probe = options.help_at;
     let mut frames = 0;
     if let Some(key) = options.hear {
         if app.audio.can_play(key) {
@@ -671,6 +684,7 @@ async fn main() {
         if !app.frame() {
             break;
         }
+        app.open_help_after_frame();
         if let Some(key) = options.hear {
             if frames == 5 {
                 app.audio.effects_on = true;

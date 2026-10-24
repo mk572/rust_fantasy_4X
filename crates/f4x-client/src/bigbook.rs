@@ -69,7 +69,7 @@ impl App {
     }
 
     /// Break `text` into lines no wider than `width` of the original's pixels.
-    fn wrap_text(&self, style: usize, text: &str, width: f32) -> Vec<String> {
+    pub(crate) fn wrap_text(&self, style: usize, text: &str, width: f32) -> Vec<String> {
         let mut lines = Vec::new();
         let mut line = String::new();
         for word in text.split_whitespace() {

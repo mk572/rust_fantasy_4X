@@ -15,6 +15,9 @@ pub struct HelpTopic {
     pub include: Option<u16>,
 }
 
+/// Left, top, right and bottom in 320 by 200 screen coordinates.
+pub type Rect = (i32, i32, i32, i32);
+
 /// A clickable area of a screen. `help` is a topic index, or -1 for "no help here".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelpField {
@@ -41,7 +44,52 @@ impl Help {
         self.topics.iter().find(|t| t.index == index)
     }
 
-    /// Cross-reference problems; empty means consistent.
+    /// The areas of `screen` (a [`HelpScreen::id`]).
+    pub fn screen(&self, id: u16) -> Option<&HelpScreen> {
+        self.screens.iter().find(|s| s.id == id)
+    }
+
+    /// The topic a click at `(x, y)` (320 by 200 coordinates) opens on `screen`: the first area
+    /// that holds the point, if it names a topic. An area of -1 holds the point and opens none,
+    /// so a click there is left to the game.
+    pub fn at(&self, screen: u16, x: i32, y: i32) -> Option<(&HelpTopic, Rect)> {
+        self.at_where(screen, x, y, |_| true)
+    }
+
+    /// [`Help::at`], looking only at the areas whose topic number `allowed` accepts: a screen
+    /// that shows one button instead of others (the main screen's Next Turn over Done, Patrol,
+    /// Wait and Build) leaves the covered areas out.
+    pub fn at_where(
+        &self,
+        screen: u16,
+        x: i32,
+        y: i32,
+        allowed: impl Fn(i32) -> bool,
+    ) -> Option<(&HelpTopic, Rect)> {
+        let field = self.screen(screen)?.fields.iter().find(|f| {
+            let (x1, y1, x2, y2) = f.rect;
+            allowed(f.help) && (x1..=x2).contains(&x) && (y1..=y2).contains(&y)
+        })?;
+        let topic = self.topic(u16::try_from(field.help).ok()?)?;
+        Some((topic, field.rect))
+    }
+
+    /// The topics the screens' areas open that have no text yet, in order, once each.
+    pub fn unwritten(&self) -> Vec<u16> {
+        let mut out: Vec<u16> = self
+            .screens
+            .iter()
+            .flat_map(|s| s.fields.iter())
+            .filter_map(|f| u16::try_from(f.help).ok())
+            .filter(|&t| self.topic(t).is_none())
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Cross-reference problems; empty means consistent. An area may open a topic that is not
+    /// written yet (see [`Help::unwritten`]); it then opens nothing.
     pub fn problems(&self) -> Vec<String> {
         let mut p = Vec::new();
         for t in &self.topics {
@@ -50,16 +98,6 @@ impl Help {
                     p.push(format!(
                         "help topic {} includes unknown topic {inc}",
                         t.index
-                    ));
-                }
-            }
-        }
-        for s in &self.screens {
-            for f in &s.fields {
-                if f.help >= 0 && self.topic(f.help as u16).is_none() {
-                    p.push(format!(
-                        "help screen {:?} points at unknown topic {}",
-                        s.name, f.help
                     ));
                 }
             }
@@ -105,7 +143,11 @@ mod tests {
                 ],
             }],
         };
+        // Only the broken include is a problem; the area that opens topic 7 is just unwritten.
         let problems = help.problems();
-        assert_eq!(problems.len(), 2, "{problems:?}");
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(help.unwritten(), vec![7]);
+        assert_eq!(help.at(0, 0, 0).map(|(t, _)| t.index), Some(0));
+        assert!(help.at(0, 5, 5).is_none());
     }
 }

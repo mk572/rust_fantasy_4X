@@ -170,7 +170,7 @@ Rules and data
 Resolving differences between sources (full list in `help-vs-implementation-conflicts.md`)
 1. Anything the ReMoM clone marks as a bug in the original game: use ReMoM's fix.
 2. Anything ReMoM marks as to-do or not implemented: use the original game's behaviour.
-3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten with an appended `[Updated from game code: ...]` note.
+3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten to say what the game does (the reason is in the importer's report, not in the text the player reads); the game's own help is `content/help.ron`.
 4. The importer fails loudly when a source no longer matches, and writes everything it cannot map to `content-local/IMPORT_REPORT.txt`.
 
 Economy and movement

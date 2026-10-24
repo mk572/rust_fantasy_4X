@@ -226,6 +226,7 @@ pub struct App {
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
     pub(crate) intro: crate::intro_screen::IntroState,
+    pub(crate) help_ui: crate::help_popup::HelpUi,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
@@ -360,6 +361,7 @@ impl App {
             game_over_seen: false,
             menu: Default::default(),
             intro: Default::default(),
+            help_ui: Default::default(),
             console: Default::default(),
             combat_results: None,
             battle_site: None,
@@ -1222,6 +1224,9 @@ impl App {
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self) -> bool {
         self.update_audio();
+        if self.help_popup_frame() {
+            return true;
+        }
         if self.turn_pending > 0 {
             self.run_pending_turn();
         }
@@ -1379,6 +1384,7 @@ impl App {
         {
             self.screen = Screen::GameOver;
         }
+        self.watch_for_help();
         match self.screen {
             Screen::GameOver => return self.game_over_screen(),
             Screen::Console => self.console_screen(),

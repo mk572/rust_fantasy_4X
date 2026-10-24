@@ -172,31 +172,44 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     problems
 }
 
-/// Load the optional help files (`help.ron`, `help_screens.ron`) from a content
-/// directory. A directory without them yields an empty [`Help`].
-pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
-    fn optional<T: serde::de::DeserializeOwned>(
-        dir: &Path,
-        name: &str,
-    ) -> Result<Vec<T>, ContentError> {
-        let path = dir.join(name);
-        if !path.exists() {
-            return Ok(Vec::new());
+/// Load the optional help files (`help.ron`, `help_screens.ron`) from content directories. A
+/// topic or a screen comes from the first directory that has it, so the game's own text in
+/// `content/` is overridden by nothing, and the original's text in `content-local/` (listed
+/// after it) only fills the topics not written there. Directories without the files give an
+/// empty [`Help`].
+pub fn load_help(dirs: &[&Path]) -> Result<f4x_core::help::Help, ContentError> {
+    let mut help = f4x_core::help::Help::default();
+    for dir in dirs {
+        for topic in optional::<f4x_core::help::HelpTopic>(dir, "help.ron")? {
+            if help.topic(topic.index).is_none() {
+                help.topics.push(topic);
+            }
         }
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-        ron::from_str(&text).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
+        for screen in optional::<f4x_core::help::HelpScreen>(dir, "help_screens.ron")? {
+            if help.screen(screen.id).is_none() {
+                help.screens.push(screen);
+            }
+        }
     }
-    let help = f4x_core::help::Help {
-        topics: optional(dir, "help.ron")?,
-        screens: optional(dir, "help_screens.ron")?,
-    };
     let problems = help.problems();
     if problems.is_empty() {
         Ok(help)
     } else {
         Err(ContentError::Invalid(problems))
     }
+}
+
+fn optional<T: serde::de::DeserializeOwned>(
+    dir: &Path,
+    name: &str,
+) -> Result<Vec<T>, ContentError> {
+    let path = dir.join(name);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
 }
 
 /// Load the optional event messages (`event_texts.ron`, from `EVENTMSG.LBX`) from a content
@@ -1080,5 +1093,43 @@ mod tests {
         std::fs::write(over.join("settings.ron"), "(spell_library: (known: []))").unwrap();
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("0 rows"), "{err}");
+    }
+
+    #[test]
+    fn the_shipped_help_is_consistent_and_every_topic_is_opened_by_an_area() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let help = load_help(&[dir.as_path()]).unwrap();
+        assert_eq!(help.screens.len(), 41);
+        assert!(!help.topics.is_empty());
+        // The game's own text is written for areas that open it: no orphan topic.
+        let opened: std::collections::HashSet<i32> = help
+            .screens
+            .iter()
+            .flat_map(|s| s.fields.iter().map(|f| f.help))
+            .collect();
+        for t in &help.topics {
+            assert!(
+                opened.contains(&i32::from(t.index)),
+                "topic {} has no area",
+                t.index
+            );
+            assert!(!t.text.trim().is_empty(), "topic {} is empty", t.index);
+        }
+        // The main screen's Done button is first at a point that Next Turn also covers.
+        let (topic, _) = help.at(1, 250, 178).unwrap();
+        assert_eq!(topic.index, 223);
+        let (topic, _) = help.at_where(1, 250, 178, |t| t != 223).unwrap();
+        assert_eq!(topic.index, 229);
+        // An earlier directory wins over a later one for the same topic.
+        let other = std::env::temp_dir().join("f4x-help-layers");
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::write(
+            other.join("help.ron"),
+            r#"[(index: 229, title: "x", text: "y"), (index: 300, title: "extra", text: "z")]"#,
+        )
+        .unwrap();
+        let layered = load_help(&[dir.as_path(), other.as_path()]).unwrap();
+        assert_eq!(layered.topic(229).unwrap().title, "Next turn");
+        assert_eq!(layered.topic(300).unwrap().title, "extra");
     }
 }

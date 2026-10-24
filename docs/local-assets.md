@@ -3,7 +3,7 @@
 Nothing protected by IP may be committed or shared (the repo is CC0): the original's art, music
 and sound, help text and other prose, and code. The game's rules data (names, costs, stats,
 effects and numbers) is not in that class and is committed in `content/`. The two outputs below
-are the local-only ones; both are gitignored and the game runs without them (flat colours, no help).
+are the local-only ones; both are gitignored and the game runs without them (flat colours, and the help of `content/help.ron` only).
 
 ## Where the originals live
 
