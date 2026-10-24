@@ -295,6 +295,11 @@ impl<'a> PlayerView<'a> {
         self.game.economy().garrison(at)
     }
 
+    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
+    pub fn difficulty(&self) -> u8 {
+        self.game.difficulty()
+    }
+
     // ---- what it knows of the world ------------------------------------------------
 
     /// Does a diagonal step cost more than a straight one, in movement and in sight (the setting

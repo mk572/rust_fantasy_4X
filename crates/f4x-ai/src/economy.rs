@@ -155,9 +155,9 @@ fn plan_for(
         .map(|&(_, p)| garrison_wanted(view, p))
         .sum();
     let traits = crate::objective::traits(view);
-    let temper = view
-        .wizard()
-        .map_or(0, |w| crate::objective::army_bias(w.personality()));
+    let temper = view.wizard().map_or(0, |w| {
+        crate::objective::army_bias(w.personality(), view.difficulty())
+    });
     let strike = (crate::knob("STRIKE", traits.strike_base as f32) as i32 + temper).max(1) as usize
         + all / 2;
     let army_short = fighters < home_guard + strike && treasury_ok;

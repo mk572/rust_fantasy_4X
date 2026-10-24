@@ -8,7 +8,7 @@ steer the strategic AI in `crates/f4x-ai`. Part of the scripted AI ([`ai-design.
 Steps 1, 2 and 4 are built in `crates/f4x-ai/src/objective.rs` (the table, `Traits`), read by `economy::plan_for`
 (cities wanted, strike army, the focus of a city), `wizardry::split` and `research_score` (power split and
 research likes) and `diplomacy::quarrel` (war on a weaker neighbour). The personality moves the strike
-army (`army_bias`: Maniacal +2 to Peaceful -1; ours, the original keeps personality in diplomacy). Step 3
+army (`army_bias`: Maniacal +2 to Peaceful -1; ours, the original keeps personality in diplomacy). Difficulty slides every temper towards Maniacal (task 148: Hard one step, Impossible two; `objective::slid`), read by `army_bias`, `quarrel`, the raze score and the diplomacy modifier; steps past Maniacal add fighters to the strike army. Step 3
 (building weights by category, casting as weighted categories) is open: task 366. The `AIK_CITIES`,
 `AIK_STRIKE` knobs still override the table. First soak numbers: `ai-design.md` section 12.
 

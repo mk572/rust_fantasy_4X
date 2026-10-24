@@ -55,6 +55,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 42 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
 | 44 | Client | Build queues in the city production screen: a list of items a city works down in order |
+| 45 | Client | Start a game from a map seed chosen in the UI |
 
 ## Descriptions
 
@@ -654,3 +655,14 @@ the last one is done and no production is wasted on a turn the player was not lo
   the queue exactly as a human does (design.md section 8: it follows the same rules);
 - the Producing panel on the city screen shows the queue's next entries, and the cost, turns and Buy keep to the first.
 Related: the production screen (task 116's neighbours), the auto-builder, and the Chancellor's "completed" lines.
+
+**45. Start games from a seed in the UI.** The map seed is a command-line option today (`--seed N`); the Game settings
+screen only shows it (task 148). Let the player type or paste a seed on the new-game settings, so a map can be shared and
+replayed without the command line:
+- the Game settings screen (`options_screen.rs`, from the start menu) gets a number field for the seed, with a "random"
+  choice that draws a fresh one, and the field is part of the options that start the next game;
+- the same seed with the same settings must give the same map (check `GenParams` and the settings that feed the generator,
+  and say on the screen which settings the map depends on);
+- a running game keeps showing its seed read-only, and the hall of fame and the save slots may list it;
+- the console's `new` command takes `seed=N` as well, if it does not yet.
+Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.

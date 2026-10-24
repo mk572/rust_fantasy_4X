@@ -67,7 +67,7 @@ Difficulty therefore means two things, kept apart in the data:
 | Part | What it is |
 |---|---|
 | **Preset** | The values the original gives each level (section 3.2). Changing the difficulty fills them in. |
-| **Play strength of the AI** | How well the new AI plans and fights (task 148). Read from `basic.difficulty`, not from the numbers. |
+| **Play strength of the AI** | The AI always plays its best; difficulty only adds aggression (task 148): every temper slides towards Maniacal, one step on Hard, two on Impossible (`f4x-ai` `objective::slid`). Read from `basic.difficulty`, not from the numbers. |
 
 ## 3. Data model
 

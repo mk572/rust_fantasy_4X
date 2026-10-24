@@ -101,8 +101,10 @@ pub(crate) fn rate(
         .stance(asker, judge)
         .cloned()
         .unwrap_or_default();
-    let relations =
-        stance.treaty_patience + stance.hidden + relation + game.personality(judge).modifier();
+    let relations = stance.treaty_patience
+        + stance.hidden
+        + relation
+        + crate::objective::temper(game.personality(judge), game.difficulty()).modifier();
     let mut final_value =
         relations + game.roll(100) as i32 - type_modifier + threat_modifier(game, asker, judge);
     if game.treaty(asker, judge) == Treaty::Alliance {
@@ -170,8 +172,11 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             return;
         };
         // A banished wizard starts no talk and no war.
-        let fights =
-            !w.is_banished() && crate::objective::picks_fights(w.objective(), w.personality());
+        let fights = !w.is_banished()
+            && crate::objective::picks_fights(
+                w.objective(),
+                crate::objective::temper(w.personality(), view.difficulty()),
+            );
         let known = view.known_cities();
         let rivals: Vec<(PlayerId, usize)> = game
             .player_ids()

@@ -252,6 +252,12 @@ impl App {
             o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic);
             let maps: Vec<String> = settings.map_sizes.iter().map(|s| s.name.clone()).collect();
             o.map = choose(x, &mut y, &map_label, &maps, o.map);
+            let seed = self.text_with(
+                "options.line_seed",
+                &Args::new().text("seed", self.seed.to_string()),
+            );
+            draw_text(&seed, x, y + 20.0, 22.0, WHITE);
+            y += 30.0;
             button(Rect::new(x, y + 20.0, 150.0, 40.0), &back_label, true)
         } else {
             draw_text(self.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
@@ -265,7 +271,12 @@ impl App {
                 draw_text(&line, x, y + 20.0, 22.0, WHITE);
                 y += 30.0;
             }
-            y += 10.0;
+            let seed = self.texts().get(
+                "options.line_seed",
+                &Args::new().text("seed", self.game.seed().to_string()),
+            );
+            draw_text(&seed, x, y + 20.0, 22.0, WHITE);
+            y += 40.0;
             button(
                 Rect::new(x, y + 20.0, 150.0, 40.0),
                 &self.text("options.back"),

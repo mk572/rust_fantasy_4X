@@ -27,6 +27,7 @@
     "options.line_opponents": "Opponents: {n}",
     "options.line_land": "Land: {n}% of each plane",
     "options.line_map": "Map: {w} by {h} squares",
+    "options.line_seed": "Map seed: {seed}",
     "options.line_magic": "Magic power: {name}",
     "options.line_gold": "Starting gold: {you} for you, {ai} for the computer wizards",
     "options.line_ai_cities": "Computer wizards' cities: production {production}%, gold {gold}%, research {research}%",

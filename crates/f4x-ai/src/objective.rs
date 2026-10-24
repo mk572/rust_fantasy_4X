@@ -116,15 +116,49 @@ pub fn traits(view: &PlayerView) -> Traits {
     traits_of(view.wizard().and_then(|w| w.objective()))
 }
 
+/// The temper in order of aggression, the gentlest first.
+const TEMPERS: [Personality; 6] = [
+    Personality::Peaceful,
+    Personality::Lawful,
+    Personality::Chaotic,
+    Personality::Aggressive,
+    Personality::Ruthless,
+    Personality::Maniacal,
+];
+
+/// How many steps the difficulty slides every AI's temper towards Maniacal (task 148): none up to
+/// Normal, one on Hard, two on Impossible. The AI always plays its best; this only makes it
+/// fiercer. Ours, the original has no such thing.
+pub fn aggression_steps(difficulty: u8) -> i32 {
+    i32::from(difficulty.saturating_sub(2))
+}
+
+/// A temper slid by the difficulty: a peaceful wizard turns lawful or chaotic, a fierce one stays
+/// Maniacal at most. The steps left over past Maniacal go to the army (`army_bias`).
+pub fn slid(personality: Personality, difficulty: u8) -> (Personality, i32) {
+    let rank = TEMPERS.iter().position(|&p| p == personality).unwrap_or(2) as i32;
+    let want = rank + aggression_steps(difficulty);
+    let top = TEMPERS.len() as i32 - 1;
+    (TEMPERS[want.min(top) as usize], (want - top).max(0))
+}
+
+/// The temper the AI acts on: the drawn one, slid by the difficulty.
+pub fn temper(personality: Personality, difficulty: u8) -> Personality {
+    slid(personality, difficulty).0
+}
+
 /// Fighters a temper adds to (or takes from) the strike army: the cruel keep more, the peaceful
-/// fewer. The original uses personality only in diplomacy; this is ours.
-pub fn army_bias(personality: Personality) -> i32 {
-    match personality {
+/// fewer, and a temper already at the top keeps one more per step the difficulty slides it past.
+/// The original uses personality only in diplomacy; this is ours.
+pub fn army_bias(personality: Personality, difficulty: u8) -> i32 {
+    let (shown, over) = slid(personality, difficulty);
+    let base = match shown {
         Personality::Maniacal => 2,
         Personality::Ruthless | Personality::Aggressive => 1,
         Personality::Chaotic | Personality::Lawful => 0,
         Personality::Peaceful => -1,
-    }
+    };
+    base + over
 }
 
 /// Whether this wizard may start a war on a weaker neighbour of its own accord: a militarist or
@@ -163,6 +197,27 @@ mod tests {
     }
 
     #[test]
+    fn the_difficulty_slides_every_temper_up_and_the_top_keeps_a_bigger_army() {
+        // Normal and below change nothing.
+        for d in 0..=2 {
+            for &p in &TEMPERS {
+                assert_eq!(slid(p, d), (p, 0));
+            }
+        }
+        assert_eq!(temper(Personality::Peaceful, 3), Personality::Lawful);
+        assert_eq!(temper(Personality::Peaceful, 4), Personality::Chaotic);
+        assert_eq!(temper(Personality::Ruthless, 4), Personality::Maniacal);
+        assert_eq!(slid(Personality::Maniacal, 4), (Personality::Maniacal, 2));
+        assert_eq!(
+            army_bias(Personality::Maniacal, 4),
+            army_bias(Personality::Maniacal, 2) + 2
+        );
+        for &p in &TEMPERS {
+            assert!(army_bias(p, 4) >= army_bias(p, 2));
+        }
+    }
+
+    #[test]
     fn a_crueller_temper_keeps_a_bigger_army() {
         let temper = [
             Personality::Peaceful,
@@ -172,7 +227,7 @@ mod tests {
             Personality::Ruthless,
             Personality::Maniacal,
         ];
-        let bias: Vec<i32> = temper.iter().map(|&p| army_bias(p)).collect();
+        let bias: Vec<i32> = temper.iter().map(|&p| army_bias(p, 2)).collect();
         assert!(bias.windows(2).all(|w| w[0] <= w[1]), "{bias:?}");
         assert!(bias[0] < 0 && bias[5] > 0);
     }

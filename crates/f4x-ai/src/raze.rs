@@ -19,7 +19,10 @@ const NEAR: u32 = 14;
 
 /// The score of razing `city`, which `from` held until now; the city is the taker's.
 fn score(view: &PlayerView, at: Position, from: PlayerId) -> i32 {
-    let mut score = match view.wizard().map(|w| w.personality()) {
+    let temper = view
+        .wizard()
+        .map(|w| crate::objective::temper(w.personality(), view.difficulty()));
+    let mut score = match temper {
         Some(Personality::Maniacal) => 25,
         Some(Personality::Ruthless) => 10,
         // The original asks whether the hidden relation is not zero, which is a slip for being
@@ -54,10 +57,7 @@ fn score(view: &PlayerView, at: Position, from: PlayerId) -> i32 {
     } else {
         score += mine * 50 / theirs - 50;
     }
-    if matches!(
-        view.wizard().map(|w| w.personality()),
-        Some(Personality::Chaotic)
-    ) {
+    if temper == Some(Personality::Chaotic) {
         score = score.max(10);
     }
     score
