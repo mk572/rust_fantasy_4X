@@ -1,5 +1,5 @@
-//! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and one of
-//! ours (Left Click Moves Units; off: a right click moves). Eighteen
+//! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and two of
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85). Twenty-one
 //! switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
@@ -29,9 +29,10 @@ pub(crate) enum Pref {
     ExpandingHelp,
     MovementAnimations,
     LeftClickMoves,
+    PlayIntro,
 }
 
-pub(crate) const PREFS: [Pref; 20] = [
+pub(crate) const PREFS: [Pref; 21] = [
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -52,6 +53,7 @@ pub(crate) const PREFS: [Pref; 20] = [
     Pref::ExpandingHelp,
     Pref::MovementAnimations,
     Pref::LeftClickMoves,
+    Pref::PlayIntro,
 ];
 
 impl Pref {
@@ -78,6 +80,7 @@ impl Pref {
             Pref::ExpandingHelp => "expanding_help",
             Pref::MovementAnimations => "movement_animations",
             Pref::LeftClickMoves => "left_click_moves",
+            Pref::PlayIntro => "play_intro",
         }
     }
 
@@ -104,6 +107,7 @@ impl Pref {
             Pref::ExpandingHelp => "preferences.expanding_help",
             Pref::MovementAnimations => "preferences.movement_animations",
             Pref::LeftClickMoves => "preferences.left_click_moves",
+            Pref::PlayIntro => "preferences.play_intro",
         }
     }
 
@@ -118,7 +122,7 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 20],
+    on: [bool; 21],
     /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
     /// original).
     pub music_volume: u8,

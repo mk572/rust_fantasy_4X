@@ -409,7 +409,7 @@ impl App {
         self.audio.battle_track = None;
         match self.screen {
             Screen::MainMenu => return Some(Track::looping(music::MAIN_MENU)),
-            Screen::Create | Screen::Options => return None,
+            Screen::Create | Screen::Options | Screen::Intro => return None,
             Screen::Diplomacy => return self.diplomacy_track(),
             Screen::GameOver => return self.game_over_track(),
             _ => {}

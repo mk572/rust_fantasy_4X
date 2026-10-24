@@ -44,7 +44,7 @@ in the program, which ReMoM transcribes (`UNITTYPE.c`, `NewGame.c`, `_wizard_pre
 | Magic and spells | `MAGIC`, `BOOK`, `SPELLS`, `SPELLSCR`, `SPECFX`, `SPLMASTR`, `SPELLOSE`, `WIZLAB`, `SPECIAL`, `SPECIAL2` | the spell book, cast animations, the Spell of Mastery and its loss |
 | Wizards and heroes | `WIZARDS` (14 portraits), `LILWIZ`, `MOODWIZ`, `PORTRAIT`, `HIRE`, `NEWGAME`, `DIPLOMAC` | portraits, moods for the diplomacy screen, the new game screens |
 | Screens and ends | `RESOURCE` (pictures of boxes and lairs), `SCROLL`, `LOAD`, `RELOAD`, `EVENTS`, `HALOFAM`, `CONQUEST`, `WIN`, `LOSE` | |
-| Intro | `INTRO`, `INTROSFX`, `INTROSND` | task 85 |
+| Intro | `INTRO`, `INTROSFX`, `INTROSND` | `INTRO` is played by `intro_screen.rs` (task 85); the intro song waits for task 363 |
 | Fonts | `FONTS` | `extract-art.md` section 5 |
 | Sound and music | `SOUNDFX`, `NEWSOUND`, `CMBTSND`, `MUSIC`, `SNDDRV` | `f4x-tools extract-audio`; `SNDDRV` is the sound driver, not read |
 

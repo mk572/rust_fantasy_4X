@@ -195,6 +195,9 @@ step (1): which timbres of `fat.mt` each song needs;
 (4) keep the dependency out of the shipped game (the extractor only), because of the LGPL; pin a git commit, since
 the crate has no release. The ROM path is an argument and the step fails with a message if a ROM is missing.
 
+The opening movie (task 85, done) plays without its song: `music/112_intro.xmi` (also `introsnd/000.xmi`) starts
+with it in `Draw_Logos`; wire it when this task can play XMI.
+
 *Needs:* 362 (done), the ROMs from the author.
 
 **364. Scenes with their own music.** Three scenes of the original that the client does not have, each with the music

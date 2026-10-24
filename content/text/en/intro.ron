@@ -1,0 +1,5 @@
+// Player-facing text of the opening movie (`intro_screen.rs`).
+// One key is in one file only (docs/text.md).
+{
+    "intro.copyright": "Copyright  Simtex Software, 1995   V1.31",
+}

@@ -14,7 +14,7 @@ use crate::view::{App, Screen};
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
 /// Left column x=31, right column x=192; the label starts 16 pixels right of the box and
 /// 2 below its top. The gaps between groups are the original's.
-const ROWS: [(Pref, f32, f32); 20] = [
+const ROWS: [(Pref, f32, f32); 21] = [
     (Pref::SoundEffects, 31.0, 52.0),
     (Pref::BackgroundMusic, 31.0, 63.0),
     (Pref::EventMusic, 31.0, 74.0),
@@ -23,6 +23,7 @@ const ROWS: [(Pref, f32, f32); 20] = [
     (Pref::SummoningEvents, 31.0, 123.0),
     (Pref::EndOfTurnSummary, 31.0, 134.0),
     (Pref::RazeCity, 31.0, 145.0),
+    (Pref::PlayIntro, 31.0, 154.0),
     (Pref::RandomEvents, 31.0, 163.0),
     (Pref::EndOfTurnWait, 31.0, 174.0),
     (Pref::StrategicCombatOnly, 192.0, 52.0),

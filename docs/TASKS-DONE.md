@@ -80,6 +80,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 82 | Meta | Wizard defeat aftermath and fortress display (done) |
 | 83 | Client | Wizard portraits and banner colours (done) |
 | 84 | Client | Analyse the original's screenshots and adjust the in-game graphics (done) |
+| 85 | Client | Import and play the original's opening movie (done) |
 | 86 | Client | Start menu: new game, load game, settings, quit (done) |
 | 87 | Magic | Remaining global enchantments (low priority) (done) |
 | 88 | Meta | Hall of fame (done) |
@@ -364,6 +365,18 @@ Caster of Magic screens (the Game Options, Score Modifiers, hero sheet and build
 screens): those belong with the expansion content (`PLANNED.md` item 4), not the base game.
 The magic screen, the spell book and the big book follow the original's layouts (`MagicScr.c`, `SBookScr.c`, `Spellbook.c`; checked against a screenshot of the real Magic screen). Still open: the wizard creation screen, the unit and army lists, the battle
 screen, the hero sheet and the diplomacy screen.
+
+**85. Import and play the original's opening movie (done).** Extract the intro from the author's own
+copy of the game (its animation frames and palette from the intro `.lbx` files, and the sound
+and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
+which order and with which timing) into `assets-local/` with a new `f4x-tools` step, and play it
+in the client at start-up, skippable with any key and switchable off in the settings. The
+movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
+for the sound. **Done 24 October 2026:** the pictures were already extracted (`screens/intro/`) and the sound
+effects are `SOUNDFX` entries, so no new tool step was needed; `intro_screen.rs` plays the 13 scenes with
+the original's timing and fades and the sounds at its frames, any key or click skips, and the Play Intro
+switch (`play_intro`, Settings screen) turns it off. The intro song (`music/112_intro.xmi`) is part of
+task 363.
 
 **97. Sound effects (done).** *(Done 2026-10-24: clicks, battle moves, blows, shots, spell casts, the vortex, the conquest scream by the wizard's gender, overland casts, all from the extracted files (`sound.md` "What is wired"); volume sliders on the Settings screen. Left to other tasks: the teleport and tunnel sounds (137), the conquest scene (360), the intro (85), new effects (planned mod 41).)* *(The full list of the original's effects and where they play is `sound.md`; it has no sound for turn end, city growth or unit death, and no voices, so the list below is a superset.)* Short sounds for UI clicks, turn end, city growth, spell casting, combat
 hits and deaths, and the wizard's spoken lines where the original has them (the diplomacy screen's greetings and answers among them), played through the

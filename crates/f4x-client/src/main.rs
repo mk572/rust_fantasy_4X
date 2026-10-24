@@ -31,6 +31,7 @@ mod frame;
 mod game_over_screen;
 mod global_spell;
 mod hall_of_fame;
+mod intro_screen;
 mod item_screen;
 mod learn_spell;
 mod level_up;
@@ -111,6 +112,8 @@ struct Options {
     settings: bool,
     /// With `--shot`, open an advisor: 0 to 8 for the advisors, 9 for the list.
     advisor: Option<usize>,
+    /// With `--shot`, show this scene of the opening movie (0 to 12), at full brightness.
+    intro: Option<usize>,
     /// With `--advisor 0`: describe the square at this column and row.
     survey_at: Option<(u32, u32)>,
     /// With `--shot`, show the Chancellor's scroll with made-up news (`--long` for a tall one).
@@ -209,6 +212,7 @@ fn parse_args() -> Result<Options, String> {
         slots: false,
         settings: false,
         advisor: None,
+        intro: None,
         survey_at: None,
         scroll: None,
         reveal: false,
@@ -375,6 +379,13 @@ fn parse_args() -> Result<Options, String> {
                     value("--advisor")?
                         .parse()
                         .map_err(|_| "--advisor must be a number, 0 to 9")?,
+                )
+            }
+            "--intro" => {
+                o.intro = Some(
+                    value("--intro")?
+                        .parse()
+                        .map_err(|_| "--intro must be a scene number, 0 to 12")?,
                 )
             }
             "--scroll" => o.scroll = Some(false),
@@ -635,8 +646,12 @@ async fn main() {
         app.open_slots(true);
     } else if options.settings {
         app.screen = view::Screen::Settings;
-    } else if options.menu || (options.shot.is_none() && options.load.is_none() && !options.quick) {
+    } else if let Some(scene) = options.intro {
+        app.open_intro_at(scene);
+    } else if options.menu {
         app.open_main_menu();
+    } else if options.shot.is_none() && options.load.is_none() && !options.quick {
+        app.open_intro();
     }
     let mut frames = 0;
     if let Some(key) = options.hear {

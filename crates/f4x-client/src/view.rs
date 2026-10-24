@@ -66,6 +66,8 @@ pub enum Screen {
     Console,
     /// The start menu: Continue, Load Game, New Game, Hall of Fame, Quit.
     MainMenu,
+    /// The original's opening movie (`intro_screen.rs`, task 85).
+    Intro,
     /// The save slots: load, save, and leave the game.
     Slots,
     /// One unit's statistics sheet (`unit_screen.rs`).
@@ -221,6 +223,7 @@ pub struct App {
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
+    pub(crate) intro: crate::intro_screen::IntroState,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
@@ -353,6 +356,7 @@ impl App {
             craft_ui: None,
             game_over_seen: false,
             menu: Default::default(),
+            intro: Default::default(),
             console: Default::default(),
             combat_results: None,
             battle_site: None,
@@ -1400,6 +1404,7 @@ impl App {
             Screen::Settings => self.settings_screen(),
             Screen::GameSettings => self.game_settings_screen(),
             Screen::MainMenu => return self.main_menu_screen(),
+            Screen::Intro => self.intro_screen(),
             Screen::Slots => self.slots_screen(),
             Screen::Map => {
                 if is_key_pressed(KeyCode::Escape) {

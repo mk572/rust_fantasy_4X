@@ -308,8 +308,11 @@ The table is a guide. For anything with an index not listed here read the loader
   `content-local/` (they are IP).
 - **Data and text not read yet:** `HERODATA`, `ITEMPOW`, `LISTDAT`, `DESC`, `BUILDESC`,
   `DIPLOMSG`, `NAMES`, `CONFIG.MOM`.
-- **Videos:** the opening and ending are frame sequences (`intro` has 13 full-screen pictures) with
-  their own timing in `INTRO.c` and `CONQUEST.c`; neither is wired (tasks 85, 134).
+- **Videos:** the opening and ending are frame sequences (`intro` has 13 scenes of full-screen
+  pictures) with their own timing in `INTRO.c` and `CONQUEST.c`. The opening is played by
+  `intro_screen.rs` from the extracted pictures (`assets-local/screens/intro/`) and the `SOUNDFX`
+  entries, with the original's timing (55 ms ticks, three a frame, the fades); the ending is not
+  wired (task 134). `f4x-client --shot FILE --intro SCENE` shows one scene.
 
 ## 11. Adding to the extractor
 
