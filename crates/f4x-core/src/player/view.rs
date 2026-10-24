@@ -115,6 +115,19 @@ impl<'a> PlayerView<'a> {
         other != self.me && self.game.is_wizard(other)
     }
 
+    /// The wizards still in the game that the player is at war with.
+    pub fn rivals_at_war(&self) -> Vec<PlayerId> {
+        self.game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| {
+                self.is_rival_wizard(p)
+                    && self.game.player(p).is_some_and(|q| !q.is_defeated())
+                    && self.treaty_with(p) == crate::diplomacy::Treaty::War
+            })
+            .collect()
+    }
+
     /// The treaty the player has with another wizard (a player knows its own treaties).
     pub fn treaty_with(&self, other: PlayerId) -> crate::diplomacy::Treaty {
         self.game.treaty(self.me, other)

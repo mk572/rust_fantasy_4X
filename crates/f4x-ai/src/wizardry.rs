@@ -7,6 +7,7 @@
 //! Mastery when it is known, a summoning spell, a buff for the strongest units, a buff for a
 //! city, a lasting spell on the whole wizard.
 
+use f4x_core::diplomacy::Treaty;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -33,6 +34,10 @@ pub enum Kind {
     Explore,
     /// Nature's Cures: heals the whole stack on the target unit's square.
     Cure,
+    /// A curse or blow on a city of a wizard the AI is at war with.
+    CityCurse,
+    /// A curse on a wizard the AI is at war with (Drain Power, Subversion, Cruel Unminding).
+    WizardCurse,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -106,6 +111,10 @@ pub fn kind(def: &SpellDef) -> Kind {
             Kind::CityBuff
         }
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
+        SpellTarget::EnemyCity => Kind::CityCurse,
+        SpellTarget::EnemyWizard if !has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
+            Kind::WizardCurse
+        }
         _ => Kind::Other,
     }
 }
@@ -121,7 +130,9 @@ fn priority(k: Kind) -> u8 {
         Kind::UnitBuff => 4,
         Kind::CityBuff => 5,
         Kind::GlobalBuff => 6,
-        Kind::Other => 7,
+        Kind::CityCurse => 7,
+        Kind::WizardCurse => 8,
+        Kind::Other => 9,
     }
 }
 
@@ -417,8 +428,34 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::CityCurse => curse_city(view, spell).map(Target::City),
+        Kind::WizardCurse => view
+            .rivals_at_war()
+            .into_iter()
+            .map(Target::Player)
+            .find(|&t| view.can_aim(spell, Some(t))),
         _ => None,
     }
+}
+
+/// The most populous city of a wizard at war with the AI that the spell can be aimed at and
+/// does not already lie on.
+fn curse_city(view: &PlayerView, spell: SpellId) -> Option<hecs::Entity> {
+    let mut cities: Vec<(u32, hecs::Entity)> = view
+        .known_cities()
+        .into_iter()
+        .filter(|&(c, owner, _)| {
+            view.is_rival_wizard(owner)
+                && view.treaty_with(owner) == Treaty::War
+                && !view.city_enchantments(c).contains(&spell)
+        })
+        .filter_map(|(c, _, _)| view.city_economy(c).map(|e| (e.figures, c)))
+        .collect();
+    cities.sort_by_key(|&(n, c)| (std::cmp::Reverse(n), view.serial_of(c)));
+    cities
+        .into_iter()
+        .map(|(_, c)| c)
+        .find(|&c| view.can_aim(spell, Some(Target::City(c))))
 }
 
 /// The square to aim Earth Lore at: the centre of the block of the map with the most ground the
@@ -588,6 +625,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && !magic.has_global(spell)
                 }
                 Kind::Explore | Kind::Cure => now && target.is_some(),
+                // Blows at an enemy at war, from mana the AI can spare.
+                Kind::CityCurse | Kind::WizardCurse => {
+                    now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
+                }
                 Kind::Other => false,
             };
             // The original's check: not more than fifty turns of what the AI can put towards it.
@@ -635,6 +676,10 @@ mod tests {
         assert_eq!(kind_of("herb_mastery"), Kind::GlobalBuff);
         assert_eq!(kind_of("earth_lore"), Kind::Explore);
         assert_eq!(kind_of("natures_cures"), Kind::Cure);
+        assert_eq!(kind_of("famine"), Kind::CityCurse);
+        assert_eq!(kind_of("earthquake"), Kind::CityCurse);
+        assert_eq!(kind_of("cruel_unminding"), Kind::WizardCurse);
+        assert_eq!(kind_of("spell_blast"), Kind::Other);
     }
 
     #[test]
@@ -761,5 +806,43 @@ mod tests {
         let gold = g.player(P0).unwrap().treasury().gold;
         fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
         assert_eq!(g.player(P0).unwrap().treasury().gold, gold);
+    }
+
+    #[test]
+    fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone() {
+        use crate::testworld::{game, COAST_CITY, ENEMY_CITY, P0, P1};
+        use f4x_core::diplomacy::DiplomacyCommand;
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let famine = g.content().rules.spells.id_of("famine").unwrap();
+        g.cheat_learn_spell(P0, famine);
+        g.treasury_mut(P0).unwrap().mana = 5_000;
+        g.wizard_mut(P0).unwrap().set_split(20, 40, 40).unwrap();
+        let ai = Ai::new(P0);
+        g.explore(P0, crate::testworld::at(ENEMY_CITY.0, ENEMY_CITY.1), 3);
+        let enemy = g
+            .economy()
+            .city_at(crate::testworld::at(ENEMY_CITY.0, ENEMY_CITY.1))
+            .unwrap();
+        let aimed = |g: &Game| {
+            PlayerView::new(g, P0)
+                .known_cities()
+                .iter()
+                .any(|c| c.0 == enemy)
+        };
+        assert!(aimed(&g), "the test world shows the enemy city");
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(
+            g.wizard(P0).unwrap().casting().is_none(),
+            "at peace: no curse"
+        );
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        cast(&ai, &mut g, &mut Vec::new());
+        let began = g.wizard(P0).unwrap().casting().is_some()
+            || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
+        assert!(began, "at war: Famine begun or cast");
     }
 }
