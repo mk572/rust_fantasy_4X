@@ -9,4 +9,4 @@ notice its author asks for.
 <https://opengameart.org/content/lpc-ship>. License: OGA-BY 3.0+ or CC-BY 3.0+ or GPL 2.0+.
 
 Meant for the ships in sea battles (task 233 draws their decks as plain brown squares until then).
-The download is in the session's scratch folder only; nothing of it is committed yet.
+It was tried and does not fit the isometric battle field (flat top-down tiles); see task 373.

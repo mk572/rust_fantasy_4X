@@ -85,6 +85,7 @@ neighbours.
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
+| 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 
 ## Descriptions
 
@@ -269,6 +270,18 @@ sees (design.md section 8), each with a test and a soak line:
 - **Heroes** (367): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
   raise the dead, give them the best items, send them to lairs and into battles they win, level them.
 - **Gold** (369): spend it (buy production, hire, buy items) instead of holding 50 to 100.
+
+**373. Ship graphics for sea battles.** Task 233 draws each ship's deck as plain brown diamonds
+(`battle_ground.rs`, `SHIP_DECK`) with the deck shapes from `ship_shape` (pointed ends; trireme 3 by 7,
+galley 4 by 8, warship 5 by 9, Floating Island 5 by 5, in `units.ron`). Give them real pictures: a
+hull and deck drawn for the isometric diamond grid (the field's cells are 32 by 16 pixels; a deck is
+a rectangle in cell axes, so it looks diagonal on screen), a bow and stern for the pointed ends, a
+rail where the gap is jumped, a sunk hull when a ship dies, and a picture for the Floating Island's
+deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+ or GPL 2.0+, in
+`CREDITS.md`) was tried and does not fit: it is flat top-down 32 by 32 tiles, not isometric. Options to
+settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
+set (check its licence and credit it in `CREDITS.md`). Keep the deck cells as the rules' truth; only
+the drawing changes. *Needs:* nothing.
 
 Measure with the soak before and after each part: 2 wizards, seeds 1 to 8, 300 turns; 4 wizards, seeds 1
 to 4; the numbers of `ai-design.md` section 12.2 (games won, battles, cities taken, wars, cities and
