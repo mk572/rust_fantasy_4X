@@ -84,8 +84,8 @@ fn stacks(
 enum Sortie {
     /// Nothing hostile there.
     Nothing,
-    /// An enemy city with no one in it: walk in.
-    WalkIn,
+    /// An enemy city with no one in it, on this square: walk in.
+    WalkIn(Position),
     /// Defended: fight if this force is enough.
     Fight(Vec<hecs::Entity>, f32),
 }
@@ -110,32 +110,28 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let stack_list = stacks(&PlayerView::new(game, me), &ai.scouts, &ferrying);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
-        let committed = {
+        // One view for the whole stack: nothing changes until a command is sent, and a command
+        // that works ends the stack's turn.
+        let (ratio, mine, sorties) = {
             let view = PlayerView::new(game, me);
-            units
+            if view.game_over() {
+                return;
+            }
+            let committed = units
                 .iter()
-                .any(|&u| ai.marching.contains(&view.serial_of(u)))
-        };
-        let ratio = if at_city {
-            sortie_ratio()
-        } else if committed {
-            committed_ratio()
-        } else {
-            attack_ratio()
-        };
-        let (mine, targets) = {
-            let view = PlayerView::new(game, me);
-            (stack_strength(&view, &units), neighbours(&view, pos))
-        };
-        for target in targets {
-            let sortie = {
-                let view = PlayerView::new(game, me);
-                if view.game_over() {
-                    return;
-                }
-                match view.hostile_at(target) {
+                .any(|&u| ai.marching.contains(&view.serial_of(u)));
+            let ratio = if at_city {
+                sortie_ratio()
+            } else if committed {
+                committed_ratio()
+            } else {
+                attack_ratio()
+            };
+            let sorties: Vec<Sortie> = neighbours(&view, pos)
+                .into_iter()
+                .map(|target| match view.hostile_at(target) {
                     None => Sortie::Nothing,
-                    Some(defenders) if defenders.is_empty() => Sortie::WalkIn,
+                    Some(defenders) if defenders.is_empty() => Sortie::WalkIn(target),
                     Some(defenders) => {
                         // A square we see is a square we know the defence of.
                         let theirs = stack_strength(&view, &defenders)
@@ -146,11 +142,14 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                             };
                         Sortie::Fight(defenders, theirs)
                     }
-                }
-            };
+                })
+                .collect();
+            (ratio, stack_strength(&view, &units), sorties)
+        };
+        for sortie in sorties {
             match sortie {
                 Sortie::Nothing => continue,
-                Sortie::WalkIn => {
+                Sortie::WalkIn(target) => {
                     // An empty enemy city: walk in, with the units that can still move.
                     let walkers: Vec<hecs::Entity> = {
                         let view = PlayerView::new(game, me);

@@ -145,6 +145,14 @@ impl<'a> Spells<'a> {
         self.matching(|_, c, t| c == caster && t == SpellTarget::Global)
     }
 
+    /// Does the wizard keep a global spell going for which `wanted` holds? (No list built, no sort.)
+    pub fn any_global_of(&self, caster: hecs::Entity, wanted: impl Fn(SpellId) -> bool) -> bool {
+        self.world
+            .query::<(&SpellCast, &Caster, &SpellTarget)>()
+            .iter()
+            .any(|(_, (cast, c, t))| c.0 == caster && *t == SpellTarget::Global && wanted(cast.def))
+    }
+
     /// The instances of one spell, oldest first.
     pub fn of_def(&self, def: SpellId) -> Vec<hecs::Entity> {
         self.matching(|d, _, _| d == def)

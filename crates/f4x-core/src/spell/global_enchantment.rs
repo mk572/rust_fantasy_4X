@@ -23,10 +23,7 @@ pub(crate) fn magic_has_global(
     content: &crate::content::Content,
     id: &str,
 ) -> bool {
-    wizard
-        .global()
-        .iter()
-        .any(|&s| content.rules.spells.get(s).id == id)
+    wizard.any_global(|s| content.rules.spells.get(s).id == id)
 }
 
 /// The hook global spells carry when the engine reads them from the wizard's spells instead of
@@ -121,9 +118,7 @@ impl Game {
     /// Is anyone's Evil Omens, the caster's own included, making life and nature spells
     /// dearer?
     pub(crate) fn evil_omens_active(&self) -> bool {
-        self.player_ids()
-            .into_iter()
-            .any(|p| self.has_global(p, "evil_omens"))
+        self.units().any_global("evil_omens")
     }
 
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.

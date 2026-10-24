@@ -162,9 +162,10 @@ impl<'a> UnitView<'a> {
 
     /// Does any wizard keep the global spell with this id going?
     pub(crate) fn any_global(&self, id: &str) -> bool {
-        crate::player::ids(self.world)
-            .into_iter()
-            .any(|p| self.has_global(p, id))
+        self.content.rules.spells.id_of(id).is_some_and(|def| {
+            crate::spell::instance::Spells::new(self.world)
+                .has(crate::spell::instance::SpellTarget::Global, def)
+        })
     }
 
     /// Planar Seal closes every junction between the planes while anyone keeps it up.
@@ -249,6 +250,9 @@ impl<'a> UnitView<'a> {
     /// same level as the map (the original's battle code ignores Warlord, Crusade and xp when
     /// Heroism is on: B9 in `help-vs-implementation-conflicts.md`, we follow the help).
     pub fn unit_level(&self, unit: hecs::Entity) -> usize {
+        if self.unit_level_path(unit).is_none() {
+            return 0;
+        }
         self.level_with(unit, self.unit_has_heroism(unit))
     }
 
@@ -339,12 +343,13 @@ impl<'a> UnitView<'a> {
         }
         let mut mods = Vec::new();
         mods.extend(self.ability_modifiers(unit));
+        let level = self.unit_level(unit);
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
                 == crate::battle::RangedKind::Magic;
-            mods.extend(hero.abilities.modifiers(self.unit_level(unit), magic));
+            mods.extend(hero.abilities.modifiers(level, magic));
         }
-        mods.extend(self.level_modifiers(unit, 0..self.unit_level(unit) + 1));
+        mods.extend(self.level_modifiers(unit, 0..level + 1));
         for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
             if self.unit_spell_superseded(unit, spell) {
                 continue;
@@ -392,10 +397,7 @@ impl<'a> UnitView<'a> {
                 if self.has_global(owner, "wind_mastery") {
                     return moves * 3 / 2;
                 }
-                if crate::player::ids(self.world)
-                    .into_iter()
-                    .any(|p| self.has_global(p, "wind_mastery"))
-                {
+                if self.any_global("wind_mastery") {
                     return moves / 2;
                 }
             }

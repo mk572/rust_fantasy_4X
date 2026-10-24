@@ -501,6 +501,20 @@ impl Game {
         aim: SpellAim,
         mana: u32,
     ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
+        let (def, kind, skill, pool) = self.check_spell(spell, mana)?;
+        let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
+        self.check_aim(battle, battle.active, &def, &kind, aim)
+            .map_err(BattleError::Spell)?;
+        Ok((def, kind, skill, pool))
+    }
+
+    /// Everything in a cast that does not depend on the aim: the caster, the spell, its price and
+    /// the wards.
+    fn check_spell(
+        &self,
+        spell: SpellId,
+        mana: u32,
+    ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
         let err = BattleError::Spell;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
         let caster = battle.check_caster()?;
@@ -523,8 +537,6 @@ impl Game {
         if battle.ward_stops(side, &def.realm) {
             return Err(err(SpellError::Warded));
         }
-        self.check_aim(battle, side, &def, &kind, aim)
-            .map_err(err)?;
         Ok((def, kind, skill, pool))
     }
 
@@ -557,9 +569,16 @@ impl Game {
                     }
                 }
             }
+            // The price and the wards are the same for every aim: asked once.
+            let Ok((def, kind, _, _)) = self.check_spell(s.spell, least_mana) else {
+                continue;
+            };
             let aims: Vec<SpellAim> = candidates
                 .into_iter()
-                .filter(|&aim| self.check_cast(s.spell, aim, least_mana).is_ok())
+                .filter(|&aim| {
+                    self.check_aim(battle, battle.active, &def, &kind, aim)
+                        .is_ok()
+                })
                 .collect();
             if !aims.is_empty() {
                 out.push(LegalCast {

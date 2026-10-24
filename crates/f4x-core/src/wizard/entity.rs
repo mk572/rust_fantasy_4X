@@ -148,6 +148,11 @@ impl<'a> Wizard<'a> {
             .collect()
     }
 
+    /// Whether a lasting spell on the whole world that the wizard keeps going satisfies `wanted`.
+    pub fn any_global(&self, wanted: impl Fn(crate::rules::SpellId) -> bool) -> bool {
+        crate::spell::instance::Spells::new(self.world).any_global_of(self.entity, wanted)
+    }
+
     /// The player this wizard plays as.
     pub fn player(&self) -> Option<hecs::Entity> {
         Some(self.world.get::<&PlayerLink>(self.entity).ok()?.0)
