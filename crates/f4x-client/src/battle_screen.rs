@@ -95,7 +95,7 @@ struct Aiming {
 }
 
 impl BattleUi {
-    fn animating(&self) -> bool {
+    pub(crate) fn animating(&self) -> bool {
         self.shown.is_some()
     }
 }

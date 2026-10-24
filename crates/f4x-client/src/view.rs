@@ -1391,8 +1391,11 @@ impl App {
         if self.hotkeys.pressed("console") {
             self.toggle_console();
         }
+        // The result scroll waits until the last blow of the battle has been played.
+        let still_playing = self.battle_ui.animating() && matches!(self.screen, Screen::Battle);
         if self.combat_results.is_some()
             && !self.game.in_battle()
+            && !still_playing
             && !matches!(self.screen, Screen::Console)
             && self.combat_results_frame()
         {
