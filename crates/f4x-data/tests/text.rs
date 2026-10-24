@@ -110,8 +110,8 @@ fn every_key_that_is_written_is_used() {
 }
 
 /// Files of the client whose literals are not messages: the command line, the picture files, the
-/// developer console.
-const EXEMPT_FILES: [&str; 3] = ["main.rs", "art.rs", "console_screen.rs"];
+/// developer console, the key-name table.
+const EXEMPT_FILES: [&str; 4] = ["main.rs", "art.rs", "console_screen.rs", "hotkeys.rs"];
 
 /// Lines that look like text but are not: number formats, the space between wrapped words, a
 /// screenshot fixture, the debug form of an error, the help parser, an error for the developer.
@@ -132,7 +132,7 @@ const EXEMPT_LINES: [&str; 22] = [
     "unknown event {kind}",
     "\"Fire Bolt\"",
     "{sign}{}",
-    "{skill}({skill})",
+    "({skill})",
     "{typed}{cursor}",
     "\"Zed\"",
     "build.name = \"You\"",

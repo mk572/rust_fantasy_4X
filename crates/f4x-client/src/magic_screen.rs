@@ -371,7 +371,7 @@ impl App {
         let rows = [
             (
                 self.text("magic.casting_skill"),
-                format!("{skill}({skill})"),
+                format!("{}({skill})", skill + self.game.hero_casting_skill(HUMAN)),
                 self.text("magic.casting"),
                 casting,
             ),
