@@ -1268,3 +1268,163 @@ fn the_same_game_replays_the_same_diplomacy() {
     };
     assert_eq!(play(), play());
 }
+
+fn propose_and_answer(
+    g: &mut Game,
+    from: PlayerId,
+    to: PlayerId,
+    kind: ProposalKind,
+    accept: bool,
+) {
+    let made = command(g, DiplomacyCommand::Propose { from, to, kind });
+    assert!(rejected(&made).is_none(), "{made:?}");
+    let events = command(
+        g,
+        DiplomacyCommand::Answer {
+            player: to,
+            from,
+            accept,
+        },
+    );
+    assert!(rejected(&events).is_none(), "{events:?}");
+}
+
+#[test]
+fn a_threat_that_works_buys_the_threatener_some_peace_and_costs_goodwill() {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    set_rel(&mut g, P0, P1, 20);
+    propose_and_answer(&mut g, P0, P1, ProposalKind::Threat, true);
+    let s = g.diplomacy.stance(P1, P0).unwrap();
+    assert!((1..=15).contains(&s.peace_duration), "{}", s.peace_duration);
+    assert!(g.relation(P0, P1) <= 20);
+    assert_eq!(g.diplomacy.stance(P0, P1).unwrap().treaty_patience, -120);
+    // A refused threat gives no peace.
+    let mut g = world();
+    met(&mut g, P0, P1);
+    propose_and_answer(&mut g, P0, P1, ProposalKind::Threat, false);
+    assert_eq!(
+        g.diplomacy.stance(P1, P0).map_or(0, |s| s.peace_duration),
+        0
+    );
+    // Nobody threatens a wizard it is at war with.
+    g.declare_war(P0, P1);
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind: ProposalKind::Threat,
+        },
+    );
+    assert_eq!(rejected(&events), Some(DiplomacyError::NotAllowed));
+}
+
+#[test]
+fn a_demand_is_paid_when_accepted_and_resented_when_refused() {
+    let mut g = world();
+    met(&mut g, P1, P0);
+    g.treasury_mut(P0).unwrap().gold = 200;
+    g.treasury_mut(P1).unwrap().gold = 10;
+    set_rel(&mut g, P0, P1, 0);
+    propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 75 }, true);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
+    assert_eq!(g.player(P1).unwrap().treasury().gold, 85);
+    let before = g.relation(P0, P1);
+    propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 50 }, false);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
+    // The human is never changed, so the AI's own side of a refusal shows in its patience only
+    // when the demand comes from the human; here the human refuses and the AI's feelings fall.
+    assert!(g.relation(P0, P1) <= before);
+    // More than the human has is not paid even when answered yes.
+    propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 500 }, true);
+    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
+}
+
+#[test]
+fn a_warning_is_counted_and_told() {
+    let mut g = world();
+    met(&mut g, P1, P0);
+    let events = command(&mut g, DiplomacyCommand::Warn { from: P1, to: P0 });
+    assert!(events.contains(&Event::Diplomacy(DiplomacyEvent::Warned {
+        from: P1,
+        to: P0
+    })));
+    command(&mut g, DiplomacyCommand::Warn { from: P1, to: P0 });
+    assert_eq!(g.diplomacy.stance(P1, P0).unwrap().warnings, 2);
+    // Strangers warn no one.
+    let events = command(&mut g, DiplomacyCommand::Warn { from: P1, to: P2 });
+    assert_eq!(rejected(&events), Some(DiplomacyError::NotContacted));
+}
+
+#[test]
+fn an_alliance_does_not_outlast_one_ally_fighting_the_others_ally() {
+    let mut g = world();
+    for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
+        met(&mut g, a, b);
+    }
+    g.start_treaty(P1, P2, Treaty::Alliance);
+    g.start_treaty(P0, P2, Treaty::Alliance);
+    g.declare_war(P0, P1);
+    diplomacy_turn(&mut g);
+    // P2 stands with both sides' ally; the alliance of P2 with one of the two quarrellers goes.
+    let allied = [Treaty::Alliance].contains(&g.treaty(P1, P2)) as u8
+        + [Treaty::Alliance].contains(&g.treaty(P0, P2)) as u8;
+    assert!(allied < 2, "{:?} {:?}", g.treaty(P1, P2), g.treaty(P0, P2));
+}
+
+#[test]
+fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() {
+    let mut g = world();
+    met(&mut g, P1, P2);
+    g.start_treaty(P1, P2, Treaty::Pact);
+    city(&mut g, P1, at(10, 10));
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    g.spawn_unit(P2, at(11, 11), walker);
+    let first = diplomacy_turn(&mut g);
+    assert!(
+        first.contains(&Event::Diplomacy(DiplomacyEvent::Trespassing {
+            owner: P1,
+            intruder: P2
+        }))
+    );
+    assert_eq!(g.treaty(P1, P2), Treaty::Pact);
+    let second = diplomacy_turn(&mut g);
+    assert!(!second
+        .iter()
+        .any(|e| matches!(e, Event::Diplomacy(DiplomacyEvent::Trespassing { .. }))));
+    assert_eq!(g.treaty(P1, P2), Treaty::Pact);
+    diplomacy_turn(&mut g);
+    assert_eq!(g.treaty(P1, P2), Treaty::None);
+}
+
+#[test]
+fn leaving_the_city_resets_the_warnings_and_wars_and_distance_are_ignored() {
+    let mut g = world();
+    met(&mut g, P1, P2);
+    g.start_treaty(P1, P2, Treaty::Pact);
+    city(&mut g, P1, at(10, 10));
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let unit = g.spawn_unit(P2, at(11, 11), walker);
+    diplomacy_turn(&mut g);
+    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().trespass, 1);
+    g.apply(Command::DismissUnit { unit });
+    g.spawn_unit(P2, at(14, 10), walker);
+    diplomacy_turn(&mut g);
+    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().trespass, 0);
+    assert_eq!(g.treaty(P1, P2), Treaty::Pact);
+}
+
+#[test]
+fn the_cities_allowed_grow_with_the_map_and_the_land() {
+    let mut g = world();
+    g.settings.basic.map_width = 60;
+    g.settings.basic.map_height = 40;
+    g.settings.basic.land_percent = crate::game::setting::LAND_MEDIUM;
+    assert_eq!(city_allowance(&g), 6);
+    g.settings.basic.land_percent = crate::game::setting::LAND_LARGE;
+    assert_eq!(city_allowance(&g), 9);
+    g.settings.basic.map_width = 90;
+    g.settings.basic.map_height = 60;
+    assert_eq!(city_allowance(&g), 20);
+}

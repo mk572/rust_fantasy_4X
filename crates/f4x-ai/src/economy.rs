@@ -171,7 +171,10 @@ fn plan_for(
     } else if expanding {
         traits.expanding
     } else {
-        traits.settled
+        match traits.variety {
+            Some((other, every)) if view.serial_of(city).0.is_multiple_of(every) => other,
+            _ => traits.settled,
+        }
     };
     let mix = if army_short {
         Mix::Units

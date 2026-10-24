@@ -278,17 +278,50 @@ another's city (on its plane, or in a tower) trigger a warning sequence: first a
 loss `-Random(5)` and a warning, a second step of nothing, and a third step the treaty is broken
 with `-5`. Wizards at war ignore it.
 
-**What the AI does today (task 361, basic rules; the rest is task 384).** Towards the human, at the start of
-the human's turn (`Ai::approach_human`, called by the client after the turn change; the proposals wait in a
-yes-or-no box and lapse when that turn ends): a wizard at war offers peace one turn in eight when
-`hidden + visible + personality_mod + peace_patience` beats `30 + Random(100)`; relation -75 or worse with no treaty
-declares war; relation -50 or worse breaks a pact or alliance; an ally at war with a wizard the human is not at war
-with asks the human to join, one turn in ten (`WarOn`); a friendly wizard offers a pact (relation above 20) or an
-alliance (above 60) with a chance that grows with the relation. Between AI wizards (`negotiate`, in `play_turn`):
-for each wizard met, with chance `1 / (15 - 2 * difficulty)`, the score of section 7 step 4 decides an alliance
-(above 150 with relation above 50), a pact (above 110, relation above 10), a spell swap (cheapest spell each lacks,
-when `exchange_patience + 80` is below the score) or, at war, peace (`peace_patience + Random(100) > 100`); the
-other wizard answers at once with `rate`; an ally joins the wars of its friend one turn in ten.
+**What the AI does today (tasks 361, 384 and 385).** Towards the human, at the start of the human's turn
+(`Ai::approach_human`, called by the client after the turn change; proposals wait in a yes-or-no box and lapse when
+that turn ends):
+- *At war:* peace is offered one turn in eight when `hidden + visible + personality_mod + peace_patience` beats
+  `30 + Random(100)`.
+- *Hate:* relation -75 or worse with no treaty is war; -50 or worse breaks a pact or alliance.
+- *Warnings (`DIPL_HumanWarOrPeace`):* when `hidden + visible + mood - Random(100) + treaty_patience <= -100`, a wizard
+  with a treaty warns once (`DiplomacyCommand::Warn`, counted in `Stance::warnings`, forgotten when the relation is
+  above -25); after that, or with no treaty, it declares war on `Random(100) < dislike - mood / 2` (dislike is the
+  relation below zero; the original uses the strength of the last bad action, which is cleared before our turn
+  starts), else it breaks the treaty, else it warns again.
+- *Demands:* a stronger wizard that dislikes the human (relation below -20, no alliance) demands a quarter of the
+  human's gold, at most `25 * (2..9)`, one turn in fourteen (`ProposalKind::Demand`); a refusal costs the demander's
+  goodwill `1 + Random(10)`.
+- *Need for war (`G_DIPL_NeedForWar`):* from turn 100, with no treaty: a Chaotic wizard on `Random(300) <= difficulty`;
+  a d20 of 1 and `relation + mood + hidden - superiority <= -150` (superiority is the share by which the wizard's
+  army is bigger); an ally at war with the human, one turn in ten; from difficulty 2, `Random(15) <= -relation / 10`
+  while the human is at war with fewer wizards than the difficulty and the relation is below -30.
+- *Friends:* a friendly wizard offers a pact (relation above 20) or an alliance (above 60) with a chance that grows
+  with the relation; an ally at war with a wizard the human is not at war with asks the human to join, one turn in
+  ten (`WarOn`); a close friend (relation 60 or more, with a treaty) gives a spell the human lacks or 25 to 100 gold
+  one turn in thirty.
+- *The human's threat (`Threaten to Attack`, `ProposalKind::Threat`):* the AI scores `hidden + relation + mood + threat
+  + Random(100) + Random(100)`; below 0 it declares war, 0 to 89 it refuses, 90 to 199 it pays `25 * (2..9)` gold (at
+  most it has) and yields, 200 or more it gives a spell and yields. A wizard that yields leaves the human alone
+  `Random(15)` turns; the human loses `Random(15)` relation and the patience falls to -120 either way.
+
+Between AI wizards (`negotiate`, in `play_turn`): for each wizard met, with chance `1 / (15 - 2 * difficulty)`, the
+score of section 7 step 4 decides an alliance (above 150 with relation above 50), a pact (above 110, relation above
+10), a spell swap (cheapest spell each lacks, when `exchange_patience + 80` is below the score) or, at war, peace
+(`peace_patience + Random(100) > 100`); the other wizard answers at once with `rate`; an ally joins the wars of its
+friend one turn in ten.
+
+In the rules (`diplomacy/mod.rs`, once a turn): `pick_sides` breaks an alliance when one ally is at war with the other's
+ally (the one who stands with the enemy breaks it); `trespass` is `DIPL_GetOffMyLawn` for every wizard but the human
+as the owner (non-settlers within two squares of a city on the same plane; towers are not counted): with a pact or
+alliance a warning and `-Random(5)` on the first turn, nothing on the second, `-5` and a broken treaty on the third,
+with no treaty 6 percent a turn of `-Random(5)`; the "too many cities" reaction counts the allowance as
+`(landsize + 1) * 3` scaled by the map's area against 60 by 40. In the client: the room fades in and out, an attack
+on a pact or alliance partner asks "You have a treaty with X. Do you still wish to attack?" first, and menu rows that
+cannot be chosen are greyed instead of dark.
+
+Left (task 384): AI-to-AI demands and threats, the original's alliance and pact-breaking chances of a superiority war,
+and the tuning of the numbers above by soak.
 
 ## 9. Implementation plan
 

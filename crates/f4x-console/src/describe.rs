@@ -543,6 +543,8 @@ pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String 
             spell(game, get),
             spell(game, give)
         ),
+        K::Threat => "a threat to attack".into(),
+        K::Demand { gold } => format!("{gold} gold as tribute"),
     }
 }
 
@@ -613,6 +615,16 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             "{} gives {} {gold} gold",
             player(game, *from),
             player(game, *to)
+        ),
+        D::Warned { from, to } => format!(
+            "{} warns {} that its patience is running out",
+            player(game, *from),
+            player(game, *to)
+        ),
+        D::Trespassing { owner, intruder } => format!(
+            "{} warns {} to keep its units away from its cities",
+            player(game, *owner),
+            player(game, *intruder)
         ),
         D::SpellGiven { from, to, spell: s } => format!(
             "{} gives {} {}",

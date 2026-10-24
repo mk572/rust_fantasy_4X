@@ -21,6 +21,8 @@ pub enum Like {
     Explore,
     /// Spells of the realms of life and arcane.
     Holy,
+    /// Curses and blows at the wizard or the cities of an enemy.
+    Curse,
 }
 
 /// The plan of a city: the focus pair it follows.
@@ -45,6 +47,14 @@ pub struct Traits {
     pub likes: &'static [Like],
     /// What a liked spell's research cost is multiplied by.
     pub like_share: f32,
+    /// Every `n`-th city of a settled wizard (by its serial) follows this focus pair instead of
+    /// `settled`: the objective weights the categories of building across its cities
+    /// (`AIBUILD.c` weights the categories of a city's buildings by objective; here the auto-builder
+    /// takes the focus, and the weight is how many cities take which).
+    pub variety: Option<(Focuses, u64)>,
+    /// How far a kind of spell moves up the order of casting (`wizardry::cast_rank`): four is one
+    /// step of the ladder (`AIDUDES.c` weights the categories of overland spells by objective).
+    pub cast_boost: &'static [(Like, i32)],
 }
 
 const PRAGMATIST: Traits = Traits {
@@ -56,6 +66,8 @@ const PRAGMATIST: Traits = Traits {
     lean_mana: false,
     likes: &[],
     like_share: 1.0,
+    variety: None,
+    cast_boost: &[],
 };
 
 const MILITARIST: Traits = Traits {
@@ -66,6 +78,8 @@ const MILITARIST: Traits = Traits {
     split_shift: 1,
     likes: &[Like::Summon, Like::UnitBuff],
     like_share: 0.67,
+    variety: Some(((Focus::Gold, Some(Focus::Production)), 3)),
+    cast_boost: &[(Like::Summon, 8), (Like::UnitBuff, 8), (Like::Curse, 12)],
     ..PRAGMATIST
 };
 
@@ -77,6 +91,8 @@ const THEURGIST: Traits = Traits {
     lean_mana: true,
     likes: &[Like::Holy],
     like_share: 0.67,
+    variety: Some(((Focus::Production, Some(Focus::Gold)), 3)),
+    cast_boost: &[(Like::GlobalBuff, 12), (Like::CityBuff, 4)],
     ..PRAGMATIST
 };
 
@@ -88,6 +104,8 @@ const PERFECTIONIST: Traits = Traits {
     lean_mana: true,
     likes: &[Like::CityBuff, Like::GlobalBuff],
     like_share: 0.67,
+    variety: Some(((Focus::Population, Some(Focus::Production)), 3)),
+    cast_boost: &[(Like::CityBuff, 12), (Like::GlobalBuff, 12)],
     ..PRAGMATIST
 };
 
@@ -97,6 +115,8 @@ const EXPANSIONIST: Traits = Traits {
     settled: (Focus::Production, Some(Focus::Population)),
     likes: &[Like::Explore],
     like_share: 0.67,
+    variety: Some(((Focus::Gold, Some(Focus::Production)), 3)),
+    cast_boost: &[(Like::Summon, 4), (Like::CityBuff, 4)],
     ..PRAGMATIST
 };
 
@@ -173,6 +193,23 @@ pub fn picks_fights(objective: Option<Objective>, personality: Personality) -> b
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_pragmatist_keeps_every_city_alike_and_the_ladder_of_spells() {
+        assert!(traits_of(None).variety.is_none() && traits_of(None).cast_boost.is_empty());
+        for o in [
+            Objective::Militarist,
+            Objective::Theurgist,
+            Objective::Perfectionist,
+            Objective::Expansionist,
+        ] {
+            let t = traits_of(Some(o));
+            let (alt, every) = t.variety.expect("a variety");
+            assert!(every >= 2, "{o:?}");
+            assert_ne!(alt, t.settled, "{o:?}");
+            assert!(!t.cast_boost.is_empty(), "{o:?}");
+        }
+    }
 
     #[test]
     fn the_pragmatist_row_is_the_ai_as_it_was() {

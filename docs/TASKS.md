@@ -17,54 +17,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 
 The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
-## The rework: concept entities (tasks 307 to 342)
-
-Goal: the code is organised by the game's concepts, and the concepts are entities. Today only unit
-and city are `hecs` entities. After the rework **player**, **wizard**, **hero**, **spell instance**,
-**terrain feature** (nodes, lairs, towers, minerals, volcanoes) and **item** are too, names are
-singular, and `PlayerId` lives with the player it identifies.
-
-Rules for every task of the rework:
-- **No change in the game's rules** (the one exception is task 338, which says so). Seeds do not
-  need to stay consistent: the RNG draw order, the event order, the learned-AI observations and old
-  saves may change. The tests (`cargo test --workspace`), `cargo fmt --all` and
-  `cargo clippy --workspace --tests` pass after each task.
-- **Do not keep a bad structure to avoid churn.** When a type, a name or a field is in the wrong place,
-  move it and fix every use. No re-export shims or wrapper methods are left behind.
-- **Docs first**: the design that the later tasks implement is in `docs/ecs-structure.md` section 3
-  (written by task 310). Read it before starting task 311. Where a task and the design disagree, the
-  design wins; fix the task text.
-- **Saves in between.** Until task 335 the save format keeps its layout: each task adapts the mapping
-  in `game/save.rs` so that the save round-trip tests stay green, and 335 redesigns the format. Old
-  saves need not load after 335 (the game version is checked).
-- **The rules treat the AI like a human.** A game rule never decides for the AI. If an AI wizard needs
-  to do something (convert gold to mana, answer an offer), its script in `f4x-ai` does it with the same
-  commands a human has.
-- **One task at a time, then mark it done.** Run `cargo fmt --all`, `cargo clippy --workspace --tests`
-  and `cargo test --workspace`; mark the task "(done)" in `TASKS.md` and run
-  `python3 scripts/archive_done_tasks.py`. Update the docs the task names. Commits are made when the
-  project owner asks.
-
-Phases and dependencies (a task needs the tasks before it in its chain):
-
-```
-A prepare  307 > 308 > 309 > 310
-B player   311 > 312 > 313 > 314 > 315 > 316 > 317     (needs A)
-C spell    318 (needs 315) > 319, 320, 321, 322, 323, 324 (each needs 318) > 325
-           340 (the art folders; no code dependency, placed last in C)
-D hero     326 (needs 317) > 327 > 328                  (328 also needs 318)
-E feature  329 (needs 313) > 330, 331, 332 (each needs 329)   (330 also needs 323 for warped nodes; 332 needs 313)
-           338 (needs 329 and 330; it belongs to phase E but was added last)
-F item     333 (needs 313, 315, 326) > 334 (needs 322, 327, 328, 331)
-G close    335 (needs B to F and 338) > 336 > 337 > 339 (the AI, last)
-H gaps     341 (needs 315, 317 and 325; its AI part is done with 339's AI work, after 339 if 339 comes first)
-           342 (needs 337; clean-up of `content.rs` once the structure is final)
-```
-
-Phases B and C meet only at 315 (the wizard's spell lists) and 322 (the cast in progress). Phase E
-needs only the player entity, so it can run in parallel with C and D; phase F needs both its
-neighbours.
-
 ## Table
 
 | # | Area | Summary |
@@ -73,12 +25,10 @@ neighbours.
 | 350 | Text | Refusals and notices the original has and ours lacks (continue-casting prompts, unit limits, Spell Blast mana, nodes, and more) |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures |
-| 363 | Tools | Render the original's XMI music as the Roland MT-32 played it, with `mt32-rs` and the user's ROMs |
 | 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
 | 365 | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 360 | Client | Conquest, banishment and defeat scenes |
-| 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories |
 | 367 | AI | Overland spells, heroes and items the AI never uses |
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) |
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
@@ -86,8 +36,6 @@ neighbours.
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 375 | Client | Wire the five Settings switches that do nothing yet |
-| 384 | AI | Diplomacy leftovers: threats, demands, greetings, get off my lawn, superiority wars, tuning |
-| 385 | Meta | Diplomacy leftovers of the rules and the client: Threaten to Attack, trespass, map size, picking sides, attack-on-partner box |
 
 ## Descriptions
 
@@ -161,27 +109,6 @@ Already tracked elsewhere (not repeated): spell and book treasure that matches t
 checking the lair data against `MONSTER.LBX` and `EVENTS.LBX` is on-hold task 241; where loot items are made (at
 clearing today) belongs to task 334; a freed prisoner needs no square because the hire is free, so nothing is open there.
 
-**363. Render the original's music as the Roland MT-32 played it.** The songs are XMI (AIL Extended MIDI), written by
-task 362. Turn them into audio the client can play, using `https://github.com/CopperlineHQ/mt32-rs` (a safe-Rust port
-of Munt; LGPL-2.1-or-later; the notes are in `docs/sound.md`, "mt32-rs") with the control and PCM ROMs of a real
-MT-32 that the author supplies (`assets-local/`, never committed; the revision to use, new or old, is the author's
-pick). Steps: (1) a spike: convert one song (`104_main_menu.xmi`) and render it, to see whether the timbres of
-`timbres/fat.mt` are needed (the DOS drivers uploaded them to the unit by SysEx before a song) and whether the
-result sounds right; (2) the XMI to standard MIDI converter: try the `cnc-formats` crate first (`xmi` feature: `XmiFile`, `XmiSequence`,
-`XmiTimbre` and `to_mid()`; MIT or Apache-2.0, 0.1.0-alpha.5 of 2026-03-26, github.com/iron-curtain-engine/cnc-formats;
-its docs do not say how it treats `FOR`/`NEXT` loops and branches, or several sequences in one file, so test it on
-all 118 songs and write our own if it falls short: delta times are the XMI's delay bytes, a note carries its
-duration, loops become a loop point). Its `XmiTimbre` list of a song's `TIMB` chunk also answers the question of
-step (1): which timbres of `fat.mt` each song needs;
-(3) a `f4x-tools render-music` step that renders every song to OGG with a loop point, in `assets-local/audio/music/`;
-(4) keep the dependency out of the shipped game (the extractor only), because of the LGPL; pin a git commit, since
-the crate has no release. The ROM path is an argument and the step fails with a message if a ROM is missing.
-
-The opening movie (task 85, done) plays without its song: `music/112_intro.xmi` (also `introsnd/000.xmi`) starts
-with it in `Draw_Logos`; wire it when this task can play XMI.
-
-*Needs:* 362 (done), the ROMs from the author.
-
 **364. Scenes with their own music.** Three scenes of the original that the client does not have, each with the music
 `sound.md` section 3.3 lists (the audio layer of tasks 76 and 97 is built; each scene only names its track and cast
 sound in `audio.rs`): (1) the **summon scene** (`Summon_Animation`, `Spells137.c`; the `SPELLSCR` summon background of the
@@ -211,11 +138,6 @@ silent. A switch under Settings ("Fade Music") turns it off for those who want t
 
 The numbers and the reasons are in `ai-design.md` section 12.
 
-**366. Objectives, step 3.** The original weights the buildings of a city by category and objective
-(`AIBUILD.c`) and casts overland spells as weighted categories (`AIDUDES.c`); here the plan of a city
-takes only a focus pair (`objective.rs`) and `wizardry::cast` tries kinds in a fixed order. Design
-(`ai-objectives.md` step 3), build, soak. *Needs:* nothing.
-
 **367. Overland spells, heroes and items the AI never uses.** Curses and attacks on enemy cities and
 stacks, city protection and wards against what an enemy casts, Spell of Return and the banished wizard's
 casts, Enchant Item and Create Artifact, the special spells (Word of Recall, Spell Blast and the like),
@@ -231,7 +153,7 @@ keep as a rule of the game with a reason (the human has no feelings to track; a 
 **369. The AI hardly fights and stops expanding.** The outpost rate was a bug (10 tens to a city, not 100, fixed 24 October 2026; re-run the soak first). After task 361
 (proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than
 its reason), the city target by objective once land is free, settlers by sea, using the gold (50 to 100
-in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2). *Needs:* 361.
+in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2); tune the diplomacy numbers of `diplomacy.md` section 8 there too (treaties formed, wars started, who wins). *Needs:* 361.
 
 **370. Battle AI: retreat, sally, weigh a lair.** The battle AI never flees, does not sally from a walled
 city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the
@@ -276,7 +198,3 @@ spell book has its own sort and filter lines.) Their help (topics 678 to 680, 68
 what each should do, as the original does; make the client do it. Also give Left Click Moves Units and
 Play Intro a help topic and a help area on the Settings screen (they have none, the area list comes
 from the original). *Needs:* nothing.
-
-**384. Diplomacy leftovers of the AI.** Task 361 made the AI propose (to the human at the start of its turn, to the other AI wizards with the chance and score of `NPC_To_NPC_Treaty_Negotiations`) with basic rules. What it leaves out, from `docs/diplomacy.md` sections 4, 6 and 8: (1) the war-or-peace decision with warnings (`DIPL_HumanWarOrPeace`: a counter of warnings, a roll to declare war or break the treaty; today a relation of -75 declares war and -50 breaks a treaty at once); (2) demands for tribute and the AI's reaction to the human's threats (`Threaten to Attack` is not a command yet); (3) the greeting of a wizard newly met, by temper; (4) `DIPL_GetOffMyLawn` (units next to a city, three warnings); (5) the need-for-war rolls (`G_DIPL_NeedForWar`: Chaotic wizards, superiority wars, joining an ally's war against the human, the `Random(15) <= -rel / 10` war); (6) the AI's gifts of gold and spells (`GiveGold`, `GiveSpell`) as tribute or thanks; (7) tuning the chances and weights with the soak (`ai-design.md` 12.2: treaties formed, wars started, who wins), and whether AI wizards in a pact or alliance stay out of each other's way in `race::war_target`.
-
-**385. Diplomacy leftovers of the rules and the client.** What is left of task 167 after the checks of 24 October 2026 (the AI's own talks are task 384; AI-to-AI treaties, the AI's offers to the human and an AI that does not march on a partner are done). (1) **Threaten to Attack** (`docs/diplomacy.md` section 4): the Threaten menu of `diplomacy_screen.rs` has only the two break-treaty rows; add the threat as a `DiplomacyCommand`, the human's loss of `Random(15)` relation, the treaty patience of -120 and the wizard's reaction (below 0 war, 0 to 89 a refusal, 90 to 199 a payment of `25 * (2..9)` gold and a peace of `Random(15)` turns, 200 or more a spell), as AI code in `f4x-ai` over a command the AI answers. (2) **Trespass** (`DIPL_GetOffMyLawn`, section 8): `Action::Trespass` exists and nothing raises it; units of a wizard within two squares of another's city give a mild relation loss and a warning, and on the third step the treaty is broken with -5 (not between wizards at war; the settlers do not count). (3) **The map size** in the "too many cities" reaction: `LAND_SIZE` in `diplomacy/mod.rs` assumes a medium map; keep the game's land and map size and use them. (4) **`G_DIPL_PickSides`**: an alliance breaks when one ally is at war with the other's ally. (5) **Client:** the fade-in and fade-out of the diplomacy room (`diplomac` entries 38 and up); the confirm box "You have a treaty with X. Do you still wish to attack?" before an attack on a pact or alliance partner; the readable colour of disabled menu rows. (The right-click on a wizard's gem already opens the sheet.) *Needs:* nothing; (1) shares the reaction code with 384.

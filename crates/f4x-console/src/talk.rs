@@ -173,10 +173,11 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let to = ctx.other_wizard(a, 0)?;
-    let kind = match a.need(1, "pact, alliance, peace, war, break or swap")? {
+    let kind = match a.need(1, "pact, alliance, peace, threat, war, break or swap")? {
         "pact" => ProposalKind::Pact,
         "alliance" => ProposalKind::Alliance,
         "peace" => ProposalKind::Peace,
+        "threat" => ProposalKind::Threat,
         "war" => ProposalKind::WarOn(ctx.other_wizard(a, 2)?),
         "break" => ProposalKind::BreakAllianceWith(ctx.other_wizard(a, 2)?),
         "swap" => {
@@ -187,7 +188,7 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         other => {
             return Err(ConsoleError::Usage(format!(
-                "propose pact, alliance, peace, war, break or swap, not {other:?}"
+                "propose pact, alliance, peace, threat, war, break or swap, not {other:?}"
             )))
         }
     };

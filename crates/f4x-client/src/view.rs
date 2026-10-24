@@ -654,6 +654,7 @@ impl App {
                             attackers,
                             defenders,
                             defending: false,
+                            treaty_asked: false,
                         });
                     }
                     None
@@ -1145,6 +1146,7 @@ impl App {
                         attackers: attack.attackers,
                         defenders: attack.defenders,
                         defending: true,
+                        treaty_asked: true,
                     });
             }
         }
@@ -1159,6 +1161,7 @@ impl App {
                     attackers: attack.attackers,
                     defenders: attack.defenders,
                     defending: true,
+                    treaty_asked: true,
                 });
         }
         self.turn_events = Some(events);

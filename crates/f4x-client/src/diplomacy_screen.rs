@@ -37,7 +37,8 @@ const MESSAGE_STYLE: usize = 4;
 const MENU_STYLE: usize = 1;
 const MESSAGE_SET: usize = 4;
 const MENU_SET: usize = 4;
-const MENU_OFF_SET: usize = 1;
+/// The tint of a menu row that cannot be chosen: the enabled colours, greyed and dimmed.
+const MENU_OFF_TINT: Color = Color::new(0.55, 0.55, 0.58, 0.9);
 
 /// How the wizard's face looks when it is not speaking (`moodwiz.lbx` frames).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,7 +125,13 @@ pub(crate) struct DiploUi {
     pub talk_since: f64,
     /// The talk is over once the reply has been read.
     pub leave_after: bool,
+    /// When the room was entered and, once the player has left, when: the room fades in and out.
+    pub opened: f64,
+    pub leaving: Option<f64>,
 }
+
+/// Seconds the room takes to fade in and out.
+const FADE: f64 = 0.35;
 
 impl DiploUi {
     pub(crate) fn mood_is_bad(&self) -> bool {
@@ -141,6 +148,8 @@ impl Default for DiploUi {
             mood: Mood::Neutral,
             talk_since: 0.0,
             leave_after: false,
+            opened: 0.0,
+            leaving: None,
         }
     }
 }
@@ -200,6 +209,7 @@ impl App {
             ui.message = say::menu_prompt(self.texts());
         }
         ui.talk_since = get_time();
+        ui.opened = get_time();
         self.diplo_ui = ui;
         self.screen = Screen::Diplomacy;
     }
@@ -369,8 +379,11 @@ impl App {
                             Act::Nothing
                         },
                     ),
-                    // Task 167: the threat and the wizard's reaction to it.
-                    row(self.text("diplomacy.threaten_attack"), false, Act::Nothing),
+                    row(
+                        self.text("diplomacy.threaten_attack"),
+                        ok(ProposalKind::Threat),
+                        Act::Propose(ProposalKind::Threat),
+                    ),
                     forget(),
                 ];
                 (say::threaten_prompt(self.texts()), rows)
@@ -568,6 +581,16 @@ impl App {
                     .unwrap_or_else(|| say::accepted(self.texts(), kind, salt));
                 self.diplo_say(said, Mood::Good, false)
             }
+            Some((false, false)) if kind == ProposalKind::Threat => {
+                let at_war = self.game.treaty(HUMAN, with) == Treaty::War;
+                let key = if at_war {
+                    "diplomacy.threat_war"
+                } else {
+                    "diplomacy.refused_threat"
+                };
+                let said = self.text(key);
+                self.diplo_say(said, Mood::Bad, false);
+            }
             Some((false, false)) => {
                 let level = relation_level(self.game.relation(HUMAN, with));
                 let said = self
@@ -592,7 +615,11 @@ impl App {
                 self.diplo_ui.menu = Menu::Main;
                 self.diplo_ui.message = say::menu_prompt(self.texts());
             }
-            Act::Leave => self.screen = Screen::Magic,
+            Act::Leave => {
+                if self.diplo_ui.leaving.is_none() {
+                    self.diplo_ui.leaving = Some(get_time());
+                }
+            }
             Act::Propose(kind) => self.diplo_propose(kind),
             Act::Break => {
                 let events = self.game.apply(Command::Diplomacy(
@@ -707,6 +734,33 @@ impl App {
                     .text("victim", self.diplo_name(victim));
                 Some(self.text_with("diplomacy.breaks_treaty", &args))
             }
+            D::Warned { from, to } if to == HUMAN => Some(self.text_with(
+                "diplomacy.warns_you",
+                &Args::new().text("wizard", self.diplo_name(from)),
+            )),
+            D::Trespassing { owner, intruder } if intruder == HUMAN => Some(self.text_with(
+                "diplomacy.trespass",
+                &Args::new().text("wizard", self.diplo_name(owner)),
+            )),
+            D::GoldGiven { from, to, gold } if to == HUMAN && from != HUMAN => Some(
+                self.text_with(
+                    "diplomacy.gives_gold",
+                    &Args::new()
+                        .text("wizard", self.diplo_name(from))
+                        .count("gold", gold),
+                ),
+            ),
+            D::SpellGiven { from, to, spell } if to == HUMAN && from != HUMAN => {
+                let name = self.game.content().rules.spells.get(spell).name.clone();
+                Some(
+                    self.text_with(
+                        "diplomacy.gives_spell",
+                        &Args::new()
+                            .text("wizard", self.diplo_name(from))
+                            .text("spell", name),
+                    ),
+                )
+            }
             D::TreatyChanged { a, b, treaty } if a == HUMAN || b == HUMAN => {
                 let other = if a == HUMAN { b } else { a };
                 let key = match treaty {
@@ -769,6 +823,7 @@ impl App {
         }
         self.diplo_act(Act::Go(menu));
         self.diplo_ui.talk_since = get_time() - 10.0;
+        self.diplo_ui.opened = get_time() - 10.0;
     }
 
     pub(crate) fn diplomacy_screen(&mut self) {
@@ -891,8 +946,29 @@ impl App {
                         Color::new(0.85, 0.7, 0.3, 0.28),
                     );
                 }
-                let set = if r.enabled { MENU_SET } else { MENU_OFF_SET };
-                self.bm_text_set(view, MENU_STYLE, set, &r.label, TEXT_X, ry, Align::Left);
+                if r.enabled {
+                    self.bm_text_set(
+                        view,
+                        MENU_STYLE,
+                        MENU_SET,
+                        &r.label,
+                        TEXT_X,
+                        ry,
+                        Align::Left,
+                    );
+                } else {
+                    // The set the original dims them with is too dark to read on this background:
+                    // the enabled colours, greyed.
+                    self.art.draw_bitmap_text_tinted(
+                        MENU_STYLE,
+                        MENU_SET,
+                        &r.label,
+                        view.0 + TEXT_X * view.2,
+                        view.1 + ry * view.2,
+                        view.2,
+                        MENU_OFF_TINT,
+                    );
+                }
                 if over && r.enabled && click {
                     chosen = Some(r.act.clone());
                 }
@@ -905,8 +981,28 @@ impl App {
                 _ => Act::Back,
             });
         }
-        if let Some(act) = chosen {
-            self.diplo_act(act);
+        if self.diplo_ui.leaving.is_none() {
+            if let Some(act) = chosen {
+                self.diplo_act(act);
+            }
+        }
+        // The room fades in when it is entered and out when it is left.
+        let now = get_time();
+        let dark = match self.diplo_ui.leaving {
+            Some(since) => ((now - since) / FADE).min(1.0),
+            None => 1.0 - ((now - self.diplo_ui.opened) / FADE).min(1.0),
+        };
+        if dark > 0.0 {
+            draw_rectangle(
+                0.0,
+                0.0,
+                screen_width(),
+                screen_height(),
+                Color::new(0.0, 0.0, 0.0, dark as f32),
+            );
+        }
+        if dark >= 1.0 && self.diplo_ui.leaving.is_some() {
+            self.screen = Screen::Magic;
         }
     }
 }

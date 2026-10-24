@@ -19,6 +19,9 @@ pub(crate) fn question_key(kind: ProposalKind) -> &'static str {
         ProposalKind::WarOn(_) => "diplomacy.ai_proposes_war",
         ProposalKind::BreakAllianceWith(_) => "diplomacy.ai_proposes_break",
         ProposalKind::Exchange { .. } => "diplomacy.ai_proposes_exchange",
+        ProposalKind::Demand { .. } => "diplomacy.ai_demands",
+        // A threat is only ever made by the human.
+        ProposalKind::Threat => "diplomacy.refused_threat",
     }
 }
 
@@ -57,6 +60,7 @@ impl App {
                 let (give, get) = (spells.get(give).name.clone(), spells.get(get).name.clone());
                 args = args.text("give", &give).text("get", &get);
             }
+            ProposalKind::Demand { gold } => args = args.count("gold", gold),
             _ => {}
         }
         let text = self.text_with(question_key(proposal.kind), &args);

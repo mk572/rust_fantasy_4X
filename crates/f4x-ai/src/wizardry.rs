@@ -136,6 +136,31 @@ fn priority(k: Kind) -> u8 {
     }
 }
 
+/// Where a kind of spell stands in the order of casting for a wizard: the ladder of `priority`
+/// (four to a step), moved up by what its objective weights (`Traits::cast_boost`). The Spell of
+/// Mastery stays first, and nothing else is moved past it.
+fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
+    use crate::objective::Like;
+    let like = match k {
+        Kind::Summon => Some(Like::Summon),
+        Kind::UnitBuff => Some(Like::UnitBuff),
+        Kind::CityBuff => Some(Like::CityBuff),
+        Kind::GlobalBuff => Some(Like::GlobalBuff),
+        Kind::Explore => Some(Like::Explore),
+        Kind::CityCurse | Kind::WizardCurse => Some(Like::Curse),
+        _ => None,
+    };
+    let boost = like
+        .and_then(|l| traits.cast_boost.iter().find(|&&(b, _)| b == l))
+        .map_or(0, |&(_, by)| by);
+    let rank = i32::from(priority(k)) * 4 - boost;
+    if k == Kind::Mastery {
+        rank
+    } else {
+        rank.max(1)
+    }
+}
+
 /// Everything the wizard does with its magic in a turn.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     fund_return(ai, game, events);
@@ -320,6 +345,7 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
         Like::Holy => def.realm == "life" || def.realm == "arcane",
+        Like::Curse => matches!(kind, Kind::CityCurse | Kind::WizardCurse),
     })
 }
 
@@ -597,7 +623,8 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
-        options.sort_by_key(|&(k, cost, s)| (priority(k), std::cmp::Reverse(cost), s));
+        let traits = crate::objective::traits(&view);
+        options.sort_by_key(|&(k, cost, s)| (cast_rank(k, &traits), std::cmp::Reverse(cost), s));
         let mut found = None;
         for (k, cost, spell) in options {
             let def = view.spell(spell);
@@ -656,6 +683,36 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_objective_moves_the_kinds_it_weights_up_the_order_of_casting() {
+        use crate::objective::traits_of;
+        use f4x_core::wizard::objective::Objective;
+        let pragmatist = traits_of(Some(Objective::Pragmatist));
+        let militarist = traits_of(Some(Objective::Militarist));
+        let perfectionist = traits_of(Some(Objective::Perfectionist));
+        // The ladder as it was: summons before buffs before curses.
+        assert!(cast_rank(Kind::Summon, &pragmatist) < cast_rank(Kind::GlobalBuff, &pragmatist));
+        assert!(cast_rank(Kind::GlobalBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
+        // A militarist curses its enemies before it buffs its cities.
+        assert!(cast_rank(Kind::CityCurse, &militarist) < cast_rank(Kind::CityBuff, &militarist));
+        assert!(cast_rank(Kind::CityBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
+        // A perfectionist buffs its cities before it summons.
+        assert!(
+            cast_rank(Kind::CityBuff, &perfectionist) < cast_rank(Kind::Summon, &perfectionist)
+        );
+        // Nothing passes the Spell of Mastery.
+        for t in [&pragmatist, &militarist, &perfectionist] {
+            for k in [
+                Kind::Summon,
+                Kind::CityCurse,
+                Kind::GlobalBuff,
+                Kind::Explore,
+            ] {
+                assert!(cast_rank(Kind::Mastery, t) < cast_rank(k, t));
+            }
+        }
+    }
 
     fn kind_of(id: &str) -> Kind {
         let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();

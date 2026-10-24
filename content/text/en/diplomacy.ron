@@ -53,6 +53,7 @@
     "diplomacy.ai_proposes_war": "{wizard} asks you to declare war on {third}. Do you accept?",
     "diplomacy.ai_proposes_break": "{wizard} asks you to break your alliance with {third}. Do you accept?",
     "diplomacy.ai_proposes_exchange": "{wizard} offers you {give} for {get}. Do you accept?",
+    "diplomacy.ai_demands": "{wizard} demands {gold} gold from you. Do you pay?",
     "diplomacy.accepted_war": "So be it. Our armies will march against them.",
     "diplomacy.accepted_break": "You have persuaded me. That alliance is ended.",
     "diplomacy.accepted_exchange": "A fair trade. Here is what I promised.",
@@ -70,6 +71,9 @@
     "diplomacy.refused_war": "That war is not mine to fight. I decline.",
     "diplomacy.refused_break": "I keep my word to my allies. I will not break it.",
     "diplomacy.refused_exchange": "I do not care for that trade.",
+    "diplomacy.refused_threat": "You dare to threaten me? We shall see who has cause to regret it.",
+    "diplomacy.accepted_threat": "Very well. I will not forget this, but I will not stand in your way for now.",
+    "diplomacy.threat_war": "Then it is war between us!",
 
     "diplomacy.lapsed": "I will think on it.",
     "diplomacy.gold_thanks": (pick: "salt", lines: [
@@ -106,6 +110,11 @@
     "diplomacy.at_war_with_you": "{wizard} is at war with you",
     "diplomacy.declares_war": "{attacker} declares war on {defender}",
     "diplomacy.breaks_treaty": "{breaker} breaks a treaty with {victim}",
+    "diplomacy.warns_you": "{wizard} warns you that its patience is running out",
+    "diplomacy.trespass": "{wizard} warns you to keep your units away from its cities",
+    "diplomacy.gives_gold": "{wizard} gives you {gold} gold",
+    "diplomacy.gives_spell": "{wizard} gives you the spell {spell}",
+    "diplomacy.attack_partner": "You have a treaty with {wizard}. Do you still wish to attack?",
     "diplomacy.have_pact": "You have a wizard pact with {wizard}",
     "diplomacy.have_alliance": "You have an alliance with {wizard}",
 }

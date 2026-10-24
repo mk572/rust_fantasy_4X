@@ -52,7 +52,7 @@ pub fn accepted_situation(kind: ProposalKind) -> Option<u16> {
         ProposalKind::Peace => Some(53),
         ProposalKind::BreakAllianceWith(_) => Some(55),
         ProposalKind::WarOn(_) => Some(56),
-        ProposalKind::Exchange { .. } => None,
+        ProposalKind::Exchange { .. } | ProposalKind::Threat | ProposalKind::Demand { .. } => None,
     }
 }
 
@@ -138,6 +138,8 @@ pub fn accepted(texts: &Texts, kind: ProposalKind, salt: usize) -> String {
         ProposalKind::WarOn(_) => line(texts, "diplomacy.accepted_war"),
         ProposalKind::BreakAllianceWith(_) => line(texts, "diplomacy.accepted_break"),
         ProposalKind::Exchange { .. } => line(texts, "diplomacy.accepted_exchange"),
+        ProposalKind::Threat => line(texts, "diplomacy.accepted_threat"),
+        ProposalKind::Demand { .. } => line(texts, "diplomacy.gold_thanks"),
     }
 }
 
@@ -155,6 +157,8 @@ pub fn refused(texts: &Texts, kind: ProposalKind, level: usize, salt: usize) -> 
         ProposalKind::WarOn(_) => line(texts, "diplomacy.refused_war"),
         ProposalKind::BreakAllianceWith(_) => line(texts, "diplomacy.refused_break"),
         ProposalKind::Exchange { .. } => line(texts, "diplomacy.refused_exchange"),
+        ProposalKind::Threat => line(texts, "diplomacy.refused_threat"),
+        ProposalKind::Demand { .. } => line(texts, "diplomacy.refused_threat"),
     }
 }
 

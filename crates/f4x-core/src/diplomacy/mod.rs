@@ -131,6 +131,13 @@ pub struct Stance {
     /// The treaty `to` broke with `from`, for the oath-breaker remarks.
     pub broken: Option<Treaty>,
     pub last_action: Option<LastAction>,
+    /// The warnings `from` has given `to` that it is getting tired of it (`DIPL_HumanWarOrPeace`).
+    #[serde(default)]
+    pub warnings: u8,
+    /// The turns in a row `to` has had units next to a city of `from` while they hold a treaty
+    /// (`DIPL_GetOffMyLawn`): the first is a warning, the third breaks the treaty.
+    #[serde(default)]
+    pub trespass: u8,
 }
 
 /// What a wizard offers another.
@@ -147,6 +154,13 @@ pub enum ProposalKind {
     Exchange {
         give: SpellId,
         get: SpellId,
+    },
+    /// The proposer threatens to attack the receiver (`Threaten to Attack`): the receiver
+    /// yields (accepts) and is left in peace for a few turns, or does not.
+    Threat,
+    /// The proposer demands `gold` of the receiver as tribute.
+    Demand {
+        gold: i32,
     },
 }
 
@@ -236,6 +250,17 @@ pub enum DiplomacyEvent {
         to: PlayerId,
         spell: SpellId,
     },
+    /// `from` warns `to` that its patience is running out.
+    Warned {
+        from: PlayerId,
+        to: PlayerId,
+    },
+    /// `intruder` has units next to a city of `owner`, who gives a warning (the first turn of a
+    /// treaty partner's trespass).
+    Trespassing {
+        owner: PlayerId,
+        intruder: PlayerId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -274,6 +299,11 @@ pub enum DiplomacyCommand {
         from: PlayerId,
         to: PlayerId,
         spell: SpellId,
+    },
+    /// `from` tells `to` that it is running out of patience (the first step of a quarrel).
+    Warn {
+        from: PlayerId,
+        to: PlayerId,
     },
 }
 
@@ -319,9 +349,29 @@ pub fn relation_key(relation: i32) -> &'static str {
 /// A pact needs a relation above this, an alliance above `ALLIANCE_RELATION`.
 pub const PACT_RELATION: i32 = 10;
 pub const ALLIANCE_RELATION: i32 = 50;
-/// The land size the "too many cities" reaction assumes (0 small, 1 medium, 2 large) until
-/// the map size is kept in a game.
-const LAND_SIZE: i32 = 1;
+/// The squares of a plane of the original's medium map, which the city allowance below is
+/// counted for.
+const ORIGINAL_PLANE_SQUARES: i32 = 60 * 40;
+
+/// The land size of the game as the original counts it: 0 small, 1 medium, 2 large.
+fn land_size(view: &Game) -> i32 {
+    let land = view.settings.basic.land_percent;
+    if land <= crate::game::setting::LAND_SMALL {
+        0
+    } else if land <= crate::game::setting::LAND_MEDIUM {
+        1
+    } else {
+        2
+    }
+}
+
+/// The cities a wizard may hold before the others take it amiss (`(landsize + 1) * 3` on the
+/// original's medium map, more on a larger one, in step with its land).
+fn city_allowance(view: &Game) -> i32 {
+    let basic = &view.settings.basic;
+    let squares = i32::from(basic.map_width) * i32::from(basic.map_height);
+    ((land_size(view) + 1) * 3 * squares / ORIGINAL_PLANE_SQUARES).max(3)
+}
 
 impl Diplomacy {
     pub fn pair(&self, a: PlayerId, b: PlayerId) -> Option<&Pair> {
@@ -825,6 +875,8 @@ impl Diplomacy {
             ProposalKind::Pact => status == Treaty::None,
             ProposalKind::Alliance => matches!(status, Treaty::None | Treaty::Pact),
             ProposalKind::Peace => status == Treaty::War,
+            ProposalKind::Threat => status != Treaty::War,
+            ProposalKind::Demand { gold } => status != Treaty::War && gold > 0,
             ProposalKind::WarOn(third) => {
                 status != Treaty::War && known_third(third) && self.treaty(to, third) != Treaty::War
             }
@@ -882,19 +934,43 @@ impl Diplomacy {
         // Asking wears down the receiver's patience with the asker, whoever answers and
         // whatever the answer is (the original does it inside the AI's rating, and not for a
         // spell swap, which it grants unrated).
-        if !matches!(proposal.kind, ProposalKind::Exchange { .. }) {
-            let wear = 20 + ctx.rng.roll(30) as i32;
-            let s = self.stance_mut(from, player);
-            s.treaty_patience -= 10 + wear;
-            s.exchange_patience -= 10;
-            s.peace_patience -= 10;
+        match proposal.kind {
+            ProposalKind::Exchange { .. } | ProposalKind::Demand { .. } => {}
+            ProposalKind::Threat => {}
+            _ => {
+                let wear = 20 + ctx.rng.roll(30) as i32;
+                let s = self.stance_mut(from, player);
+                s.treaty_patience -= 10 + wear;
+                s.exchange_patience -= 10;
+                s.peace_patience -= 10;
+            }
         }
+        let can_pay = match proposal.kind {
+            ProposalKind::Demand { gold } => ctx
+                .view
+                .player(player)
+                .is_some_and(|p| p.treasury().gold >= gold),
+            _ => true,
+        };
         let accepted = accept
+            && can_pay
             && self
                 .check_proposal(ctx.view, from, player, proposal.kind)
                 .is_ok();
         if accepted {
             self.carry_out(ctx, proposal);
+        } else if matches!(proposal.kind, ProposalKind::Demand { .. }) {
+            // Turning a demand down sours the one who made it.
+            let loss = 1 + ctx.rng.roll(10) as i32;
+            self.change_relations(ctx, -loss, player, from, Action::Threat, None);
+        }
+        if proposal.kind == ProposalKind::Threat {
+            // The threat costs the threatener some of the receiver's goodwill, yielded or not.
+            let loss = ctx.rng.roll(15) as i32;
+            self.change_relations(ctx, -loss, from, player, Action::Threat, None);
+            // A threat leaves the patience with the threatener at -120, on both sides.
+            self.stance_mut(from, player).treaty_patience = -120;
+            self.stance_mut(player, from).treaty_patience = -120;
         }
         self.queue.push(DiplomacyEvent::ProposalAnswered {
             proposal,
@@ -916,6 +992,16 @@ impl Diplomacy {
                 s.exchange_patience -= 20;
                 s.peace_patience -= 20;
             }
+            ProposalKind::Threat => {
+                // The yielding wizard leaves the threatener alone for a while.
+                let turns = ctx.rng.roll(15);
+                self.stance_mut(p.to, p.from).peace_duration = turns;
+            }
+            ProposalKind::Demand { gold } => ctx.out.push(Outcome::Gold {
+                from: p.to,
+                to: p.from,
+                amount: gold,
+            }),
             ProposalKind::WarOn(third) => self.declare_war(ctx, p.to, third),
             ProposalKind::BreakAllianceWith(third) => self.break_treaties(ctx, p.to, third),
             ProposalKind::Exchange { give, get } => {
@@ -1034,7 +1120,8 @@ impl Diplomacy {
             | DiplomacyCommand::DeclareWar { player, .. } => Some(player),
             DiplomacyCommand::Propose { from, .. }
             | DiplomacyCommand::GiveGold { from, .. }
-            | DiplomacyCommand::GiveSpell { from, .. } => Some(from),
+            | DiplomacyCommand::GiveSpell { from, .. }
+            | DiplomacyCommand::Warn { from, .. } => Some(from),
         };
         if actor.is_some_and(|a| ctx.view.wizard(a).is_some_and(|w| w.is_banished())) {
             return vec![Event::Rejected(crate::game::Rejection::Diplomacy(
@@ -1083,6 +1170,11 @@ impl Diplomacy {
             DiplomacyCommand::GiveSpell { from, to, spell } => {
                 self.give_spell_as_gift(ctx, from, to, spell)
             }
+            DiplomacyCommand::Warn { from, to } => self.check_gift(ctx.view, from, to).map(|()| {
+                let s = self.stance_mut(from, to);
+                s.warnings = s.warnings.saturating_add(1);
+                self.queue.push(DiplomacyEvent::Warned { from, to });
+            }),
         };
         let mut events = Vec::new();
         if let Err(e) = result {
@@ -1274,6 +1366,8 @@ impl Diplomacy {
             s.peace_duration = s.peace_duration.saturating_sub(1);
         }
         self.enchantments_in_force(ctx);
+        self.pick_sides(ctx);
+        self.trespass(ctx);
         self.diplomacy_growth(ctx);
         self.contact_sweep(ctx);
         // Patience comes back, and heals by itself a little.
@@ -1308,9 +1402,132 @@ impl Diplomacy {
                     *v += second;
                 }
             }
+            // Warnings are forgotten once the feeling has mended.
+            let mended = self.relation(ctx.view, PlayerId(a), PlayerId(b)) > -25;
             let s = self.stance_mut(PlayerId(a), PlayerId(b));
             s.peace_patience = s.peace_patience.clamp(-200, 200);
             s.last_action = None;
+            if mended {
+                s.warnings = 0;
+            }
+        }
+    }
+
+    /// An alliance does not outlast one ally's war with the other's ally
+    /// (`G_DIPL_PickSides`): the one who stands with the enemy breaks it.
+    fn pick_sides(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        let wizards = wizards(ctx.view);
+        for (i, &a) in wizards.iter().enumerate() {
+            for &b in &wizards[i + 1..] {
+                if self.treaty(a, b) != Treaty::Alliance {
+                    continue;
+                }
+                let split = wizards.iter().copied().find_map(|c| {
+                    if c == a || c == b {
+                        return None;
+                    }
+                    if self.treaty(a, c) == Treaty::War && self.treaty(b, c) == Treaty::Alliance {
+                        Some((b, a))
+                    } else if self.treaty(b, c) == Treaty::War
+                        && self.treaty(a, c) == Treaty::Alliance
+                    {
+                        Some((a, b))
+                    } else {
+                        None
+                    }
+                });
+                if let Some((breaker, victim)) = split {
+                    self.break_treaties(ctx, breaker, victim);
+                }
+            }
+        }
+    }
+
+    /// Units next to a wizard's city (`DIPL_GetOffMyLawn`): non-settlers of another wizard within
+    /// two squares, on the city's plane. With a pact or alliance the owner warns on the first turn
+    /// (a mild loss of goodwill), lets the second pass, and on the third turn the treaty is broken
+    /// with -5; with no treaty a turn in sixteen costs a little goodwill. Wizards at war ignore it,
+    /// and a human owner is not changed (`change_relations`). Towers, which reach both planes in
+    /// the original, are not counted.
+    fn trespass(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+        let view = ctx.view;
+        let Some(map) = view.map() else {
+            return;
+        };
+        let cities: Vec<(PlayerId, Position)> = view
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(_, info, pos)| (info.owner, pos))
+            .collect();
+        let units = view.units();
+        let mut intrusions: std::collections::BTreeSet<(u8, u8)> = Default::default();
+        for unit in units.all_units() {
+            let (Some(owner), Some(pos)) = (units.unit_owner(unit), units.unit_position(unit))
+            else {
+                continue;
+            };
+            if !view.is_wizard(owner) || units.unit_has_ability(unit, "create_outpost") {
+                continue;
+            }
+            let grid = map.plane(pos.plane);
+            for &(city_owner, city) in &cities {
+                if city_owner != owner
+                    && city.plane == pos.plane
+                    && grid.chebyshev((pos.x, pos.y), (city.x, city.y)) <= 2
+                {
+                    intrusions.insert((city_owner.0, owner.0));
+                }
+            }
+        }
+        for (i, &a) in wizards(view).iter().enumerate() {
+            for &b in &wizards(view)[i + 1..] {
+                for (owner, intruder) in [(a, b), (b, a)] {
+                    if !self.have_met(owner, intruder) || view.human() == Some(owner) {
+                        continue;
+                    }
+                    let treaty = self.treaty(owner, intruder);
+                    if treaty == Treaty::War || !intrusions.contains(&(owner.0, intruder.0)) {
+                        self.stance_mut(owner, intruder).trespass = 0;
+                        continue;
+                    }
+                    if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
+                        let step = self.stance(owner, intruder).map_or(0, |s| s.trespass) + 1;
+                        self.stance_mut(owner, intruder).trespass = step;
+                        match step {
+                            1 => {
+                                let loss = ctx.rng.roll(5) as i32;
+                                self.change_relations(
+                                    ctx,
+                                    -loss,
+                                    intruder,
+                                    owner,
+                                    Action::Trespass,
+                                    None,
+                                );
+                                self.queue
+                                    .push(DiplomacyEvent::Trespassing { owner, intruder });
+                            }
+                            2 => {}
+                            _ => {
+                                self.change_relations(
+                                    ctx,
+                                    -5,
+                                    intruder,
+                                    owner,
+                                    Action::Trespass,
+                                    None,
+                                );
+                                self.break_treaties(ctx, intruder, owner);
+                                self.stance_mut(owner, intruder).trespass = 0;
+                            }
+                        }
+                    } else if ctx.rng.roll(100) <= 6 {
+                        let loss = ctx.rng.roll(5) as i32;
+                        self.change_relations(ctx, -loss, intruder, owner, Action::Trespass, None);
+                    }
+                }
+            }
         }
     }
 
@@ -1383,12 +1600,13 @@ impl Diplomacy {
             }
             if ctx.view.turn.is_multiple_of(2) {
                 let cities = ctx.view.city_count(human) as i32;
+                let allowance = city_allowance(ctx.view);
                 for &ai in &wizards {
-                    if ai == human || (LAND_SIZE + 1) * 3 >= cities || ctx.rng.roll(4) != 1 {
+                    if ai == human || allowance >= cities || ctx.rng.roll(4) != 1 {
                         continue;
                     }
-                    let surplus = cities - (LAND_SIZE + 1) * 3;
-                    let divisor = (LAND_SIZE + 6) - i32::from(ctx.view.difficulty());
+                    let surplus = cities - allowance;
+                    let divisor = (land_size(ctx.view) + 6) - i32::from(ctx.view.difficulty());
                     let mut value = (-surplus / divisor.max(1)) * ctx.rng.roll(4) as i32 / 3 * 4;
                     value = value.min(-15);
                     if self.treaty(ai, human) != Treaty::Alliance && self.have_met(ai, human) {
@@ -1672,6 +1890,8 @@ pub enum KindSave {
     WarOn(u8),
     BreakAllianceWith(u8),
     Exchange { give: String, get: String },
+    Threat,
+    Demand { gold: i32 },
 }
 
 impl Diplomacy {
@@ -1701,6 +1921,8 @@ impl Diplomacy {
                         ProposalKind::Peace => KindSave::Peace,
                         ProposalKind::WarOn(t) => KindSave::WarOn(t.0),
                         ProposalKind::BreakAllianceWith(t) => KindSave::BreakAllianceWith(t.0),
+                        ProposalKind::Threat => KindSave::Threat,
+                        ProposalKind::Demand { gold } => KindSave::Demand { gold },
                         ProposalKind::Exchange { give, get } => KindSave::Exchange {
                             give: spell_id(give),
                             get: spell_id(get),
@@ -1736,6 +1958,8 @@ impl Diplomacy {
                     KindSave::Peace => ProposalKind::Peace,
                     KindSave::WarOn(t) => ProposalKind::WarOn(PlayerId(t)),
                     KindSave::BreakAllianceWith(t) => ProposalKind::BreakAllianceWith(PlayerId(t)),
+                    KindSave::Threat => ProposalKind::Threat,
+                    KindSave::Demand { gold } => ProposalKind::Demand { gold },
                     KindSave::Exchange { give, get } => ProposalKind::Exchange {
                         give: spell_named(&give)?,
                         get: spell_named(&get)?,

@@ -92,6 +92,16 @@ pub(crate) fn rate(
         ),
         // The original swaps spells without a test: both must have one the other lacks.
         ProposalKind::Exchange { .. } => (0, Some(Verdict::Accepted)),
+        // A threat has its own rule, a demand is the human's to answer.
+        ProposalKind::Threat => (
+            0,
+            Some(if answer_threat(game, judge, asker) {
+                Verdict::Accepted
+            } else {
+                Verdict::Refused
+            }),
+        ),
+        ProposalKind::Demand { .. } => (0, Some(Verdict::Refused)),
     };
     if let Some(v) = early {
         return v;
@@ -304,6 +314,9 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
                 );
                 return;
             }
+            if quarrel_with_human(ai, game, events, human, &stance, relation, mood, treaty) {
+                return;
+            }
             // An ally at war asks the human to join it.
             if treaty == Treaty::Alliance && game.roll(10) == 1 {
                 let enemy = third_parties.iter().copied().find(|&t| {
@@ -324,9 +337,271 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
                     <= OFFER_PERCENT + relation.max(0) as u32 / 10 + (mood / 10) as u32
                 {
                     propose(game, events, kind);
+                    return;
                 }
             }
+            if need_for_war(ai, game, events, human, relation, mood, treaty) {
+                return;
+            }
+            demand(ai, game, events, human, relation, treaty);
+            gift(ai, game, events, human, relation, treaty);
         }
+    }
+}
+
+/// How often (one in this) a wizard that is stronger and does not like the human demands tribute.
+const DEMAND_ONE_IN: u32 = 14;
+/// How often (one in this) a close friend gives the human a gift.
+const GIFT_ONE_IN: u32 = 30;
+/// The turn before which no wizard picks a war out of need (`G_DIPL_NeedForWar`).
+const NEED_FOR_WAR_FROM_TURN: u32 = 100;
+
+/// The warnings before a war (`DIPL_HumanWarOrPeace`): a wizard whose patience with the human is
+/// gone (`hidden + relation + mood - Random(100) + patience <= -100`) warns a partner once; after
+/// that, or with no treaty at all, it declares war with a chance of the dislike less half the
+/// mood, else it breaks the treaty it has, else it warns again. Returns whether it did something.
+#[allow(clippy::too_many_arguments)]
+fn quarrel_with_human(
+    ai: &Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    human: PlayerId,
+    stance: &f4x_core::diplomacy::Stance,
+    relation: i32,
+    mood: i32,
+    treaty: Treaty,
+) -> bool {
+    let me = ai.player;
+    let score = stance.hidden + relation + mood - game.roll(100) as i32 + stance.treaty_patience;
+    if score > -100 {
+        return false;
+    }
+    let warn = |game: &mut Game, events: &mut Vec<Event>| {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::Warn {
+                from: me,
+                to: human,
+            }),
+            events,
+        );
+    };
+    if treaty != Treaty::None && stance.warnings == 0 {
+        warn(game, events);
+        return true;
+    }
+    let dislike = (-relation).max(0);
+    if (game.roll(100) as i32) < dislike - mood / 2 {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                player: me,
+                on: human,
+            }),
+            events,
+        );
+    } else if treaty != Treaty::None {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::BreakTreaty {
+                player: me,
+                with: human,
+            }),
+            events,
+        );
+    } else {
+        warn(game, events);
+    }
+    true
+}
+
+/// A war picked out of need (`G_DIPL_NeedForWar`), against a human it has no treaty with and after
+/// turn 100: a Chaotic wizard now and then; a wizard that is stronger and dislikes the human
+/// (a d20 roll of 1, then `relation + mood + hidden - superiority <= -150`); one whose ally is at war
+/// with the human (one turn in ten); and, from difficulty 2, one that dislikes the human while the
+/// human is at war with few (`Random(15) <= -relation / 10`).
+fn need_for_war(
+    ai: &Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    human: PlayerId,
+    relation: i32,
+    mood: i32,
+    treaty: Treaty,
+) -> bool {
+    let me = ai.player;
+    if treaty != Treaty::None || game.turn < NEED_FOR_WAR_FROM_TURN {
+        return false;
+    }
+    let difficulty = u32::from(game.difficulty());
+    let hidden = game.diplomacy.stance(me, human).map_or(0, |s| s.hidden);
+    let (mine, theirs) = (army_strength(game, me), army_strength(game, human));
+    let superiority = (mine - theirs) * 100 / (mine + theirs).max(1);
+    let at_war_with_human = |game: &Game, w: PlayerId| game.treaty(w, human) == Treaty::War;
+    let allies_at_war = game.player_ids().into_iter().any(|w| {
+        w != me
+            && w != human
+            && game.treaty(me, w) == Treaty::Alliance
+            && at_war_with_human(game, w)
+    });
+    let human_wars = game
+        .player_ids()
+        .into_iter()
+        .filter(|&w| w != human && PlayerView::new(game, me).is_rival_wizard(w))
+        .filter(|&w| at_war_with_human(game, w))
+        .count() as u32;
+    let war = (game.personality(me) == f4x_core::wizard::objective::Personality::Chaotic
+        && game.roll(300) <= difficulty)
+        || (game.roll(20) == 1 && relation + mood + hidden - superiority <= -150)
+        || (allies_at_war && game.roll(10) == 1)
+        || (difficulty >= 2
+            && human_wars < difficulty
+            && relation < -30
+            && game.roll(15) - 1 <= (-relation / 10) as u32);
+    if war {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                player: me,
+                on: human,
+            }),
+            events,
+        );
+    }
+    war
+}
+
+/// A demand for tribute from a stronger wizard that does not like the human: a quarter of the
+/// human's gold, at most `25 * (2..9)`, in whole 25s.
+fn demand(
+    ai: &Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    human: PlayerId,
+    relation: i32,
+    treaty: Treaty,
+) {
+    let me = ai.player;
+    let gold = game.player(human).map_or(0, |p| p.treasury().gold);
+    if treaty == Treaty::Alliance
+        || relation >= -20
+        || gold < 100
+        || army_strength(game, me) <= army_strength(game, human)
+        || game.roll(DEMAND_ONE_IN) != 1
+    {
+        return;
+    }
+    let asked = (25 * (2 + game.roll(8) as i32)).min(gold / 4 / 25 * 25);
+    if asked >= 25 {
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::Propose {
+                from: me,
+                to: human,
+                kind: ProposalKind::Demand { gold: asked },
+            }),
+            events,
+        );
+    }
+}
+
+/// A gift from a close friend: a spell the human lacks, or gold from a full treasury.
+fn gift(
+    ai: &Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    human: PlayerId,
+    relation: i32,
+    treaty: Treaty,
+) {
+    let me = ai.player;
+    if treaty == Treaty::None || relation < 60 || game.roll(GIFT_ONE_IN) != 1 {
+        return;
+    }
+    if game.roll(3) == 1 {
+        if let Some(ProposalKind::Exchange { give, .. }) = spell_swap(game, me, human) {
+            ai.send(
+                game,
+                Command::Diplomacy(DiplomacyCommand::GiveSpell {
+                    from: me,
+                    to: human,
+                    spell: give,
+                }),
+                events,
+            );
+            return;
+        }
+    }
+    let gold = game.player(me).map_or(0, |p| p.treasury().gold);
+    if gold >= 200 {
+        let amount = 25 * (1 + game.roll(4) as i32);
+        ai.send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::GiveGold {
+                from: me,
+                to: human,
+                amount,
+            }),
+            events,
+        );
+    }
+}
+
+/// How a wizard answers a threat of the human (`Threaten to Attack`, `docs/diplomacy.md` section 4):
+/// `hidden + relation + mood + threat + Random(100) + Random(100)`; below 0 it declares war; 0 to
+/// 89 it refuses; 90 to 199 it pays `25 * (2..9)` gold (at most what it has) and yields; 200 or
+/// more it gives a spell instead and yields. Returns whether the wizard yields.
+fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
+    let stance = game
+        .diplomacy
+        .stance(asker, judge)
+        .cloned()
+        .unwrap_or_default();
+    let relation = game.relation(asker, judge);
+    let mood = crate::objective::temper(game.personality(judge), game.difficulty()).modifier();
+    let (mine, theirs) = (army_strength(game, judge), army_strength(game, asker));
+    // The human's side of the scale: a hopeless army either way is worth 100.
+    let threat = if mine == 0 {
+        100
+    } else if theirs == 0 {
+        -100
+    } else {
+        ((theirs - mine) * 100 / mine.max(theirs)).clamp(-100, 100)
+    };
+    let score =
+        stance.hidden + relation + mood + threat + game.roll(100) as i32 + game.roll(100) as i32;
+    if score < 0 {
+        game.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: judge,
+            on: asker,
+        }));
+        false
+    } else if score < 90 {
+        false
+    } else if score < 200 {
+        let gold = game.player(judge).map_or(0, |p| p.treasury().gold);
+        let pay = (25 * (2 + game.roll(8) as i32)).min(gold / 25 * 25);
+        if pay > 0 {
+            game.apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
+                from: judge,
+                to: asker,
+                amount: pay,
+            }));
+        }
+        true
+    } else {
+        let spell = spell_swap(game, judge, asker).and_then(|k| match k {
+            ProposalKind::Exchange { give, .. } => Some(give),
+            _ => None,
+        });
+        if let Some(spell) = spell {
+            game.apply(Command::Diplomacy(DiplomacyCommand::GiveSpell {
+                from: judge,
+                to: asker,
+                spell,
+            }));
+        }
+        true
     }
 }
 
@@ -746,6 +1021,58 @@ mod tests {
         assert!(g.relation(HUMAN, AI) <= WAR_RELATION);
         ai.send_approach(&mut g);
         assert_eq!(g.treaty(HUMAN, AI), Treaty::War);
+    }
+
+    #[test]
+    fn a_wizard_whose_patience_is_gone_warns_or_goes_to_war() {
+        let mut g = game();
+        g.start_treaty(HUMAN, AI, Treaty::Pact);
+        // Breaking a pact leaves every patience at -200.
+        g.break_treaties(HUMAN, AI);
+        let ai = Ai::new(AI);
+        for _ in 0..50 {
+            ai.send_approach(&mut g);
+            if g.treaty(HUMAN, AI) == Treaty::War {
+                return;
+            }
+        }
+        assert!(g.diplomacy.stance(AI, HUMAN).unwrap().warnings > 0);
+    }
+
+    #[test]
+    fn a_threat_is_answered_by_war_a_refusal_or_a_payment() {
+        let mut outcomes = std::collections::BTreeSet::new();
+        for seed in 0..80u64 {
+            let mut g = Game::new(seed);
+            for id in [HUMAN, AI] {
+                g.add_player(id, "W");
+            }
+            g.set_human(Some(HUMAN));
+            g.make_contact(HUMAN, AI);
+            g.treasury_mut(AI).unwrap().gold = 500;
+            g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+                from: HUMAN,
+                to: AI,
+                kind: ProposalKind::Threat,
+            }));
+            crate::answer_proposals(&mut g, AI);
+            let paid = g.player(AI).unwrap().treasury().gold < 500;
+            outcomes.insert((g.treaty(HUMAN, AI) == Treaty::War, paid));
+        }
+        assert!(outcomes.len() >= 2, "{outcomes:?}");
+    }
+
+    #[test]
+    fn a_wizard_without_an_army_demands_nothing() {
+        let mut g = game();
+        feeling(&mut g, -3);
+        g.treasury_mut(HUMAN).unwrap().gold = 400;
+        let ai = Ai::new(AI);
+        let relation = g.relation(AI, HUMAN);
+        for _ in 0..200 {
+            demand(&ai, &mut g, &mut Vec::new(), HUMAN, relation, Treaty::None);
+        }
+        assert!(PlayerView::new(&g, HUMAN).proposals_to_me().is_empty());
     }
 
     #[test]
