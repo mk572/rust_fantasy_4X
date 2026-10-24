@@ -52,6 +52,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 39 | Client | Resolution setting x1, x2 or x4: imported images are upscaled to match |
 | 40 | Rules | Life and death nodes, and a setting that lifts the ban on combining life and death books |
 | 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
+| 42 | Map | Mines, lumber camps and hunter's lodges on the map |
 
 ## Descriptions
 
@@ -614,3 +615,9 @@ freesound.org, Kenney's packs, and for music Incompetech-style libraries or piec
 Keep a credits file with each file's source, author and licence, and a check (a script or a test) that every file in
 `assets/audio/` is listed there. Needs the audio layer and the cue names of tasks 76 and 97.
 
+**42. Mines, lumber camps and hunter's lodges on the map.** `mapback.lbx` entries 87 (mine), 88 (lumber camp) and 90
+(hunter's lodge) are extracted, but the original game never places them: they are not part of it (they may come from
+Caster of Magic). Moved here from the on-hold task 124. Decide what they are for before drawing them: a site type on
+the map that a building, spell, unit or ability can refer to (a mine for ore and mana, a lumber camp for wood, a lodge
+for food), placed by the generator and shown with these pictures. Low priority; do it with item 4 (the community
+patch and Caster of Magic content).

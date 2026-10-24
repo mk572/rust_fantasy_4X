@@ -13,12 +13,10 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | # | Area | Summary |
 |---|---|---|
 | 81 | Housekeeping | Packaging for Mac |
-| 85 | Client | Import and play the original's opening movie |
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
 | 115 | Client | Cityscape: road masking |
 | 116 | Client | Cityscape: animation, wards and rubble |
-| 124 | Map | Mines, lumber camps and hunter's lodges on the map (low priority) |
 | 130 | Client | Warped node and cleared site pictures (low priority) |
 | 134 | Client | Game-end cut-scenes and the original's score screen |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
@@ -85,14 +83,6 @@ zip, and the local-assets workflow documented for players who supply their own o
 (`docs/local-assets.md`): where the game looks for `assets-local/` and `content-local/`, and how
 to run the importer with the system Python. A release workflow on GitHub Actions if feasible.
 
-**85. Import and play the original's opening movie.** Extract the intro from the author's own
-copy of the game (its animation frames and palette from the intro `.lbx` files, and the sound
-and music if they can be decoded; `reference/ReMoM/MoM/src/INTRO.c` shows which entries play in
-which order and with which timing) into `assets-local/` with a new `f4x-tools` step, and play it
-in the client at start-up, skippable with any key and switchable off in the settings. The
-movie is original-derived: it stays local, and the game runs without it. Depends on the audio tasks (76, 97)
-for the sound.
-
 **89. Game settings.** The options screens of the original [675-692]: automatic saving, event
 switches, strategic-only combat, animation and message speeds, and so on. Store them as a
 settings record, `serde(default)` and saved with the game where they change rules (events,
@@ -107,8 +97,6 @@ researching and casting, with a way to skip or switch it off.
 **115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
 
 **116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
-
-**124. Mines, lumber camps and hunter's lodges.** `mapback.lbx` 87 (mine), 88 (lumber camp), 90 (hunter's lodge) are extracted but nothing in the base game's data places them; check whether the original used them (they may be Caster of Magic's) and, if so, move to PLANNED item 4. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
 use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
