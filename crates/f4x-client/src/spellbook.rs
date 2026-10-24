@@ -28,9 +28,48 @@ pub(crate) struct BookPage {
     pub spells: Vec<SpellId>,
 }
 
+/// Which spells the map's spell book lists (a click on the line at the foot of the left page).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum BookFilter {
+    /// Every spell of the game; the ones the wizard does not know are dimmed.
+    All,
+    /// Every known spell; the battle ones cannot be cast on the map and are dimmed.
+    Known,
+    /// The known spells that can be cast on the map.
+    #[default]
+    KnownOverland,
+    /// The known spells that can be cast in battle (dimmed: they are cast from the combat book).
+    KnownBattle,
+}
+
+impl BookFilter {
+    const ALL: [BookFilter; 4] = [
+        BookFilter::All,
+        BookFilter::Known,
+        BookFilter::KnownOverland,
+        BookFilter::KnownBattle,
+    ];
+
+    fn next(self) -> Self {
+        let i = Self::ALL.iter().position(|f| *f == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+
+    fn text_key(self) -> &'static str {
+        match self {
+            BookFilter::All => "spell.show_all",
+            BookFilter::Known => "spell.show_known",
+            BookFilter::KnownOverland => "spell.show_overland",
+            BookFilter::KnownBattle => "spell.show_battle",
+        }
+    }
+}
+
 /// The small book's state.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BookUi {
+    /// Which spells the map book lists.
+    pub filter: BookFilter,
     /// The pages, always an even number.
     pub pages: Vec<BookPage>,
     /// The left page of the spread shown.
@@ -90,24 +129,51 @@ impl App {
         pages
     }
 
-    /// The spells the spell book offers: the known ones that can be cast on the map.
+    /// The spells the map's spell book lists, by its filter.
     fn castable_spells(&self) -> Vec<SpellId> {
         let Some(m) = self.game.wizard(HUMAN) else {
             return Vec::new();
         };
-        m.known()
-            .iter()
-            .copied()
-            .filter(|&s| {
-                self.game
-                    .content()
-                    .rules
-                    .spells
-                    .get(s)
-                    .contexts
-                    .contains(&CastContext::Overland)
-            })
-            .collect()
+        let spells = &self.game.content().rules.spells;
+        let works_in = |s: SpellId, context| spells.get(s).contexts.contains(&context);
+        match self.book_ui.filter {
+            BookFilter::All => spells.iter().map(|(id, _)| id).collect(),
+            BookFilter::Known => m.known().iter().copied().collect(),
+            BookFilter::KnownOverland => m
+                .known()
+                .iter()
+                .copied()
+                .filter(|&s| works_in(s, CastContext::Overland))
+                .collect(),
+            BookFilter::KnownBattle => m
+                .known()
+                .iter()
+                .copied()
+                .filter(|&s| works_in(s, CastContext::Battle))
+                .collect(),
+        }
+    }
+
+    /// Whether a click on `spell` in the map's book starts casting it: the wizard knows it and
+    /// it can be cast on the map.
+    fn book_spell_usable(&self, spell: SpellId) -> bool {
+        self.game.wizard(HUMAN).is_some_and(|m| m.knows(spell))
+            && self
+                .game
+                .content()
+                .rules
+                .spells
+                .get(spell)
+                .contexts
+                .contains(&CastContext::Overland)
+    }
+
+    /// Rebuild the pages after the filter changed, and open the book at its first spread.
+    fn refilter_book(&mut self) {
+        let spells = self.castable_spells();
+        self.book_ui.pages = self.book_pages(&spells, SMALL_PAGE);
+        self.book_ui.left = 0;
+        self.book_ui.last_left = 0;
     }
 
     pub fn open_spellbook(&mut self) {
@@ -281,6 +347,12 @@ impl App {
             self.screen = Screen::Map;
             return;
         }
+        // The filter line at the foot of the left page (or the Tab key) changes what is listed.
+        if (clicked && in_rect(32.0, 184.0, 130.0, 12.0)) || is_key_pressed(KeyCode::Tab) {
+            self.book_ui.filter = self.book_ui.filter.next();
+            self.refilter_book();
+            return;
+        }
         // Clicking a spell.
         let left = self.book_ui.left;
         for (side, page_i) in [(0usize, left), (1, left + 1)] {
@@ -289,7 +361,10 @@ impl App {
             };
             let x0 = if side == 0 { 32.0 } else { 164.0 };
             for (i, &spell) in page.spells.iter().enumerate() {
-                if clicked && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                if clicked
+                    && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0)
+                    && self.book_spell_usable(spell)
+                {
                     self.book_ui.last_left = left;
                     self.choose_spell_to_cast(spell);
                     return;
@@ -351,6 +426,18 @@ impl App {
         for (side, page_i) in [(0usize, left_i), (1, right_i)] {
             let x0 = if side == 0 { 32.0 } else { 164.0 };
             self.draw_book_page(lay, view, page_i, side == 1, x0, (x0 + 54.0, 16.0), 0.0);
+        }
+        if self.book_ui.combat.is_none() {
+            let line = self.text(self.book_ui.filter.text_key());
+            let hover = lay
+                .rect((32.0, 184.0, 130.0, 12.0))
+                .contains(mouse_position().into());
+            let ink = if hover {
+                Color::new(1.0, 0.95, 0.6, 1.0)
+            } else {
+                Color::new(0.85, 0.72, 0.45, 1.0)
+            };
+            self.bm_text(view, 1, ink, &line, 97.0, 187.0, Align::Center);
         }
     }
 
@@ -422,7 +509,12 @@ impl App {
             || self.game.casting_cost(HUMAN, spell, false),
             |c| c.remaining,
         );
-        let ink = Color::new(0.2, 0.12, 0.05, 1.0);
+        let usable = self.book_spell_usable(spell);
+        let ink = if usable {
+            Color::new(0.2, 0.12, 0.05, 1.0)
+        } else {
+            Color::new(0.2, 0.12, 0.05, 0.4)
+        };
         // The spell being cast glows (palette index 198 cycling, `SmlBook_Draw`).
         let hot = crate::cycle::SMALL_BOOK.colour(get_time());
         let color = if casting.is_some() { hot } else { ink };
@@ -606,5 +698,33 @@ impl App {
         if rejected {
             self.targeting = Some(t);
         }
+    }
+}
+
+#[cfg(test)]
+mod filter_tests {
+    use super::BookFilter;
+
+    #[test]
+    fn the_filter_cycles_through_the_four_lists_and_starts_on_known_overland() {
+        assert_eq!(BookFilter::default(), BookFilter::KnownOverland);
+        let mut f = BookFilter::All;
+        let seen: Vec<_> = (0..5)
+            .map(|_| {
+                let now = f;
+                f = f.next();
+                now
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                BookFilter::All,
+                BookFilter::Known,
+                BookFilter::KnownOverland,
+                BookFilter::KnownBattle,
+                BookFilter::All
+            ]
+        );
     }
 }

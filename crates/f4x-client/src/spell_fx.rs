@@ -5,7 +5,7 @@
 use f4x_core::battle::field::Field;
 use f4x_data::spell_art::{Role, SpellArt};
 
-/// The four spells whose picture flies in from the top right (`Combat_Spell_Animation_Bolt`).
+/// The four spells whose picture flies in from the top right (Ice Bolt's from the top left) (`Combat_Spell_Animation_Bolt`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bolt {
     Fire,
@@ -30,7 +30,8 @@ impl Bolt {
         match self {
             Bolt::Fire => ((-16.0, -20.0), (110.0, -66.0), (-10.0, 6.0)),
             Bolt::Fireball => ((-14.0, -21.0), (110.0, -66.0), (-10.0, 6.0)),
-            Bolt::Ice => ((-17.0, -20.0), (110.0, -110.0), (-10.0, 10.0)),
+            // Fire Bolt's picture mirrored: it comes in from the top left.
+            Bolt::Ice => ((-12.0, -20.0), (-110.0, -66.0), (10.0, 6.0)),
             Bolt::Doom => ((-14.0, -25.0), (0.0, -72.0), (0.0, 6.0)),
         }
     }
@@ -168,6 +169,15 @@ pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool) -> SpellFx {
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn ice_bolt_comes_in_from_the_left_where_fire_bolt_comes_from_the_right() {
+        let (_, fire_start, fire_step) = Bolt::Fire.path();
+        let (_, ice_start, ice_step) = Bolt::Ice.path();
+        assert!(fire_start.0 > 0.0 && fire_step.0 < 0.0);
+        assert!(ice_start.0 < 0.0 && ice_step.0 > 0.0);
+        assert_eq!((ice_start.1, ice_step.1), (fire_start.1, fire_step.1));
+    }
 
     fn art() -> SpellArt {
         let dir = Path::new("../../content");

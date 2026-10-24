@@ -17,6 +17,8 @@ pub(crate) struct ConsoleUi {
     recall: Option<usize>,
     /// The screen to go back to.
     back: Screen,
+    /// How many rows the text is scrolled up from its end (0 shows the newest lines).
+    scroll: usize,
 }
 
 impl Default for ConsoleUi {
@@ -27,6 +29,7 @@ impl Default for ConsoleUi {
             lines: vec!["Console. `help` lists the commands.".into()],
             recall: None,
             back: Screen::Map,
+            scroll: 0,
         }
     }
 }
@@ -51,6 +54,7 @@ impl App {
             Mode::Legal => "legal>",
             Mode::ReadOnly => "readonly>",
         };
+        self.console.scroll = 0;
         self.console.lines.push(format!("{prompt} {line}"));
         let reply = self.console.console.execute(&mut self.game, &line);
         for l in reply.text().lines() {
@@ -109,7 +113,10 @@ impl App {
                 match hits.as_slice() {
                     [one] => self.console.input = format!("{one} "),
                     [] => {}
-                    many => self.console.lines.push(many.join("  ")),
+                    many => {
+                        self.console.scroll = 0;
+                        self.console.lines.push(many.join("  "));
+                    }
                 }
             }
         }
@@ -118,10 +125,10 @@ impl App {
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, w, h, PANEL);
         let size = 20.0;
-        let rows = ((h - 70.0) / (size * 1.15)) as usize;
-        let skip = self.console.lines.len().saturating_sub(rows);
-        let mut y = 28.0;
-        for line in &self.console.lines[skip..] {
+        let rows = (((h - 70.0) / (size * 1.15)) as usize).max(1);
+        // Long lines wrap; the rows are what scrolls.
+        let mut shown: Vec<(String, Color)> = Vec::new();
+        for line in &self.console.lines {
             let color = if line.starts_with("error:") {
                 Color::new(1.0, 0.5, 0.45, 1.0)
             } else if line.starts_with("legal>") || line.starts_with("readonly>") {
@@ -129,8 +136,47 @@ impl App {
             } else {
                 WHITE
             };
-            draw_text(line, 16.0, y, size, color);
+            for row in wrap_line(line, w - 32.0, size) {
+                shown.push((row, color));
+            }
+        }
+        let furthest = shown.len().saturating_sub(rows);
+        let wheel = mouse_wheel().1;
+        if wheel != 0.0 {
+            let steps = (wheel.abs().ceil() as usize).max(1) * 3;
+            self.console.scroll = if wheel > 0.0 {
+                self.console.scroll.saturating_add(steps)
+            } else {
+                self.console.scroll.saturating_sub(steps)
+            };
+        }
+        if is_key_pressed(KeyCode::PageUp) {
+            self.console.scroll = self.console.scroll.saturating_add(rows.saturating_sub(1));
+        }
+        if is_key_pressed(KeyCode::PageDown) {
+            self.console.scroll = self.console.scroll.saturating_sub(rows.saturating_sub(1));
+        }
+        if is_key_pressed(KeyCode::Home) {
+            self.console.scroll = furthest;
+        }
+        if is_key_pressed(KeyCode::End) {
+            self.console.scroll = 0;
+        }
+        self.console.scroll = self.console.scroll.min(furthest);
+        let skip = furthest - self.console.scroll;
+        let mut y = 28.0;
+        for (row, color) in shown.iter().skip(skip).take(rows) {
+            draw_text(row, 16.0, y, size, *color);
             y += size * 1.15;
+        }
+        if self.console.scroll > 0 {
+            draw_text(
+                "scrolled up: PageDown or End for the newest lines",
+                w - 470.0,
+                h - 44.0,
+                16.0,
+                GRAY,
+            );
         }
         let (prompt, color) = match self.console.console.session.mode {
             Mode::Legal => ("[legal]>", Color::new(0.5, 0.9, 0.5, 1.0)),
@@ -148,6 +194,36 @@ impl App {
             size,
             color,
         );
-        draw_text("` / Esc: back to the game", w - 250.0, h - 22.0, 16.0, GRAY);
+        draw_text(
+            "` / Esc: back   PageUp / PageDown / wheel: scroll",
+            w - 440.0,
+            h - 22.0,
+            16.0,
+            GRAY,
+        );
     }
+}
+
+/// `line` cut into rows that fit in `width` pixels at `size`, at spaces where it can.
+fn wrap_line(line: &str, width: f32, size: f32) -> Vec<String> {
+    let fits = |text: &str| measure_text(text, None, size as u16, 1.0).width <= width;
+    let mut rows = Vec::new();
+    let mut row = String::new();
+    for word in line.split_inclusive(' ') {
+        if !row.is_empty() && !fits(&format!("{row}{word}")) {
+            rows.push(std::mem::take(&mut row));
+        }
+        row.push_str(word);
+        // A word longer than the row is cut where it overflows.
+        while !fits(&row) && row.chars().count() > 1 {
+            let cut = (1..row.chars().count())
+                .rev()
+                .find(|&n| fits(&row.chars().take(n).collect::<String>()))
+                .unwrap_or(1);
+            rows.push(row.chars().take(cut).collect());
+            row = row.chars().skip(cut).collect();
+        }
+    }
+    rows.push(row);
+    rows
 }

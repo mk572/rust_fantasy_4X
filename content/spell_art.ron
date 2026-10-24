@@ -54,7 +54,7 @@
         "cracks_call": [(lbx: "cmbtfx", entry: 15, role: Cast)],
         "cruel_unminding": [(lbx: "specfx", entry: 41, role: Cast)],
         "crusade": [(lbx: "specfx", entry: 32, role: Global)],
-        "death_spell": [(lbx: "specfx", entry: 13, role: Cast)],
+        "death_spell": [(lbx: "specfx", entry: 4, role: Cast)],
         "death_wish": [(lbx: "specfx", entry: 38, role: Global)],
         "detect_magic": [(lbx: "specfx", entry: 37, role: Global)],
         "disenchant_area": [(lbx: "specfx", entry: 9, role: Cast)],
@@ -80,7 +80,7 @@
         "great_wasting": [(lbx: "specfx", entry: 27, role: Global)],
         "herb_mastery": [(lbx: "specfx", entry: 24, role: Global)],
         "holy_arms": [(lbx: "specfx", entry: 34, role: Global)],
-        "ice_bolt": [(lbx: "specfx", entry: 11, role: Cast)],
+        "ice_bolt": [(lbx: "spells/ice_bolt", entry: 0, role: Cast)], // made by scripts/make_ice_bolt.py from Fire Bolt's frames
         "ice_storm": [(lbx: "specfx", entry: 10, role: Cast)],
         "just_cause": [(lbx: "specfx", entry: 33, role: Global)],
         "life_drain": [(lbx: "cmbtfx", entry: 6, role: Cast)],
@@ -111,7 +111,7 @@
         "warp_wood": [(lbx: "cmbtfx", entry: 2, role: Cast)],
         "web": [(lbx: "cmbtfx", entry: 13, role: Cast)],
         "wind_mastery": [(lbx: "specfx", entry: 19, role: Global)],
-        "word_of_death": [(lbx: "specfx", entry: 13, role: Cast)],
+        "word_of_death": [(lbx: "specfx", entry: 4, role: Cast)],
         "zombie_mastery": [(lbx: "specfx", entry: 17, role: Global)],
     },
 )

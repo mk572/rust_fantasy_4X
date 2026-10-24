@@ -65,6 +65,22 @@ pub fn place_features(
     let mut placed = Placed::new(map.width(), map.height());
     let towers = place_towers(seed, params, content, map, &mut placed)?;
     let mut rngs = Vec::new();
+    // Every kind of node gets the same share of the map's nodes (10 of 30 at the standard size),
+    // so no realm's magic is scarce: the kind of a node still follows its terrain, among the
+    // kinds that have some left.
+    let kinds: Vec<FeatureId> = (0..content.features.defs().len() as u16)
+        .map(FeatureId)
+        .filter(|&f| {
+            content
+                .features
+                .get(f)
+                .is_some_and(|d| d.kind == FeatureKind::Node)
+        })
+        .collect();
+    let total: usize = params.planes.iter().map(|p| p.node_count as usize).sum();
+    let mut left: Vec<usize> = (0..kinds.len())
+        .map(|i| total / kinds.len().max(1) + usize::from(i < total % kinds.len().max(1)))
+        .collect();
     for plane in Plane::ALL {
         let salt = 0x51ED_2701_F00D_0000u64 + plane.index() as u64;
         let mut rng = Pcg64Mcg::seed_from_u64(seed ^ salt.wrapping_mul(0x9E37_79B9_7F4A_7C15));
@@ -75,7 +91,11 @@ pub fn place_features(
             &mut rng,
             plane,
             pp.node_count as usize,
-            &towers,
+            &mut NodeKinds {
+                kinds: &kinds,
+                left: &mut left,
+                towers: &towers,
+            },
             content,
             grid,
             &mut placed,
@@ -238,21 +258,50 @@ fn place_towers(
     Ok(spots)
 }
 
+/// The kinds of node, how many of each are still to place on the map, and the tower squares.
+struct NodeKinds<'a> {
+    kinds: &'a [FeatureId],
+    left: &'a mut [usize],
+    towers: &'a [(u32, u32)],
+}
+
 fn place_nodes(
     rng: &mut Pcg64Mcg,
     plane: Plane,
     count: usize,
-    towers: &[(u32, u32)],
+    NodeKinds {
+        kinds,
+        left,
+        towers,
+    }: &mut NodeKinds,
     content: &Content,
     grid: &mut Grid,
     layer: &mut Placed,
 ) {
     let mut placed: Vec<(u32, u32)> = Vec::new();
+    // The first plane takes no more than its even share of a kind, which leaves the second room
+    // for what is left of every kind.
+    let share = if plane == Plane::Arcanus {
+        count.div_ceil(kinds.len().max(1))
+    } else {
+        usize::MAX
+    };
+    let mut room: Vec<usize> = vec![share; kinds.len()];
     let mut spots = candidates(grid, layer, plane, content, |_| true);
     shuffle(rng, &mut spots);
-    for (x, y, class) in spots {
+    // Two rounds over the spots: the second takes any kind that has some left, for the nodes
+    // the terrain has no room for in the first.
+    let again = spots.clone();
+    for (round, (x, y, class)) in spots
+        .into_iter()
+        .map(|s| (0, s))
+        .chain(again.into_iter().map(|s| (1, s)))
+    {
         if placed.len() >= count {
             break;
+        }
+        if round == 1 && layer.get(plane, x as i32, y as i32).is_some() {
+            continue;
         }
         let far_enough = |o: &(u32, u32)| grid.distance_sq(*o, (x, y)) >= NODE_SPACING.pow(2);
         if y < POLE_MARGIN
@@ -262,10 +311,26 @@ fn place_nodes(
         {
             continue;
         }
-        if let Some(id) = pick(
-            rng,
-            &content.features.weighted(FeatureKind::Node, class, plane),
-        ) {
+        let weighted = content.features.weighted(FeatureKind::Node, class, plane);
+        let weighted = if round == 1 {
+            kinds.iter().map(|&k| (k, 1)).collect()
+        } else {
+            weighted
+        };
+        let options: Vec<(FeatureId, u32)> = weighted
+            .into_iter()
+            .filter(|(f, _)| {
+                kinds
+                    .iter()
+                    .position(|k| k == f)
+                    .is_some_and(|k| left[k] > 0 && room[k] > 0)
+            })
+            .collect();
+        if let Some(id) = pick(rng, &options) {
+            if let Some(k) = kinds.iter().position(|&k| k == id) {
+                left[k] -= 1;
+                room[k] -= 1;
+            }
             layer.set(plane, x, y, id);
             put_node_terrain(content, plane, id, x, y, grid);
             placed.push((x, y));

@@ -292,6 +292,13 @@ impl Audio {
         }
     }
 
+    /// Stop an effect that may still be playing (its sound is only stopped if it was loaded).
+    pub fn stop_effect(&mut self, key: Option<Key>) {
+        if let Some(Some(sound)) = key.and_then(|k| self.loaded.get(&k)) {
+            stop_sound(sound);
+        }
+    }
+
     /// Make `want` the music that plays: nothing changes while it already does. A track that
     /// its switch forbids is not played; turning the switch on starts it.
     pub fn music(&mut self, want: Option<Track>) {

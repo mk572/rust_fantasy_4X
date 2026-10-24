@@ -427,6 +427,7 @@ impl App {
                 s.basic.land_percent = options.land_percent(&content.settings);
                 s.basic.magic_strength = options.magic;
                 (s.basic.map_width, s.basic.map_height) = options.map_size(&content.settings);
+                s.basic.original_map_generator = options.original_generator;
                 // The Random Events preference is the default for a new game; a level that
                 // plays without events (Intro) keeps them off.
                 s.events.random_events &= random_events;
@@ -492,10 +493,6 @@ impl App {
         self.game
             .wizard(PlayerId(owner))
             .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
-    }
-
-    pub(crate) fn race_name(&self, race: usize) -> &str {
-        &self.game.content().rules.races.defs()[race].name
     }
 
     fn next_city_name(&self) -> String {
@@ -2430,8 +2427,7 @@ impl App {
             "ui.status_line",
             &Args::new()
                 .count("turn", self.game.turn)
-                .text("plane", plane)
-                .text("race", self.race_name(self.race)),
+                .text("plane", plane),
         );
         self.overlay_line(view, &mut y, &turn, GOLD);
         if !self.art.available() {

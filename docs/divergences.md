@@ -719,9 +719,21 @@ immunity** protects against Terror. The other differences listed there are kept 
   half its gold); a human sees the merchant's box. The first to take it pays the same price to
   nobody (the gold the seller got is the market's); if nobody does, the item is gone.
 - **Map sizes** (343): the original has one map size, 60 by 40; ours offers four (45 by 30 to
-  90 by 60) and scales the counts per 2400 squares. The neutral cities are placed with a limit
-  of a thousand tries a plane, so about 40% of the target are made at every size, the 60 by 40
-  map included.
+  90 by 60) and scales the counts per 2400 squares.
+- **Neutral city placement** (user's design, 24 October 2026): the original rolls squares at random
+  (1000 tries a plane), 15 cities for 2400 squares at most; that is kept with `original_map_generator`
+  on. With the custom generator the plane is searched row by row from the equator outward (a row
+  south, a row north, and so on, the four polar rows left out), each row from west to east: a city
+  goes on the first square that feeds five citizens and keeps 6 squares from every city and fortress
+  and 5 from a node, tower or lair (the original keeps 4, 5 and 4), or on the best square within two
+  squares of it. It stops at 15 for every 2400 squares or at the last row, so the cities lie in the
+  middle belt of the map (`f4x-tools start-stats` counts what a game gets).
+- **Half upkeep for basic troops** (user's choice, inspired by the Caster of Magic mod; 24 October
+  2026): spearmen and swordsmen of every race cost half the food and half the gold. Upkeep is whole
+  numbers for each unit, so about every second basic troop (the ones with an odd serial number, the
+  order units are made in) costs nothing and the others pay in full. The unit sheet shows the
+  unit's own figure, so a free one shows none. `half_upkeep` in `content/settings.ron`
+  (`enabled: false` brings back the original's upkeep; `units` names the troops).
 - **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
   original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number
   of units exceeded" (`NEXTTURN.c`, message 66) when it is full. Ours has no such table: the only

@@ -416,7 +416,8 @@ impl App {
                 build.spells.clear();
                 self.create.step = Step::Picks;
             } else {
-                self.create.step = Step::Race;
+                // A ready-made wizard also chooses their starting spells, from the defaults.
+                self.next_spells(0);
             }
         } else if is_key_pressed(KeyCode::Escape) {
             self.create.step = if self.create.custom {

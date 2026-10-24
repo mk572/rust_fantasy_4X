@@ -9,8 +9,9 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use f4x_core::game::save::LoadError;
 use f4x_core::text::{Args, Texts};
-use f4x_data::save::{summarize_save, SaveSummary};
+use f4x_data::save::{summarize_save, SaveError, SaveSummary};
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -36,6 +37,24 @@ pub enum Slot {
     },
     /// The file is there but cannot be read.
     Damaged,
+    /// Written by another version of the game (or another save layout): `version` is the game
+    /// version the file names, or empty when it names none.
+    Incompatible {
+        version: String,
+    },
+}
+
+/// The game version a save file names (`game_version: "0.0.1"`), if it does.
+fn game_version_of(path: &Path) -> String {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| {
+            let rest = text.split("game_version:").nth(1)?;
+            let start = rest.find('"')? + 1;
+            let len = rest[start..].find('"')?;
+            Some(rest[start..start + len].to_string())
+        })
+        .unwrap_or_default()
 }
 
 impl Slot {
@@ -52,6 +71,11 @@ impl Slot {
                     .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                     .map(|d| d.as_secs()),
             },
+            Err(SaveError::Load(LoadError::Version { .. } | LoadError::GameVersion { .. })) => {
+                Slot::Incompatible {
+                    version: game_version_of(path),
+                }
+            }
             Err(_) => Slot::Damaged,
         }
     }
@@ -62,6 +86,12 @@ impl Slot {
         match self {
             Slot::Empty => texts.get("menu.slot_empty", &args),
             Slot::Damaged => texts.get("menu.slot_damaged", &args),
+            Slot::Incompatible { version } if version.is_empty() => {
+                texts.get("menu.slot_incompatible_unknown", &args)
+            }
+            Slot::Incompatible { version } => {
+                texts.get("menu.slot_incompatible", &args.text("version", version))
+            }
             Slot::Filled { summary, saved_at } => {
                 let when = saved_at.map(format_time).unwrap_or_default();
                 let end = if summary.finished {
@@ -472,7 +502,7 @@ impl App {
                     self.menu.confirm_overwrite = false;
                     self.save_to(&slot_path(n));
                     self.menu.slots[n] = Slot::read(&slot_path(n));
-                    if self.menu.slots[n] == Slot::Empty || self.menu.slots[n] == Slot::Damaged {
+                    if !self.menu.slots[n].loadable() {
                         self.menu.message = self.text("menu.could_not_save");
                     } else {
                         self.screen = Screen::Map;
@@ -543,5 +573,25 @@ mod tests {
         assert_eq!(Slot::read(&dir.join("none.ron")), Slot::Empty);
         std::fs::write(dir.join("bad.ron"), "nope").unwrap();
         assert_eq!(Slot::read(&dir.join("bad.ron")), Slot::Damaged);
+    }
+
+    #[test]
+    fn a_save_of_another_game_version_is_incompatible_not_damaged() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-saves/slots");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("old.ron"), "(version: 1, game_version: \"0.0.1\")").unwrap();
+        let slot = Slot::read(&dir.join("old.ron"));
+        assert_eq!(
+            slot,
+            Slot::Incompatible {
+                version: "0.0.1".into()
+            }
+        );
+        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        assert_eq!(
+            slot.label(&t, 0),
+            "1.  Incompatible save (game version 0.0.1)"
+        );
+        assert!(!slot.loadable());
     }
 }

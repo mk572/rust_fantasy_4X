@@ -425,7 +425,11 @@ impl App {
                 self.create.warn = Some(self.text("picks.make_all"));
             }
         } else if input && is_key_pressed(KeyCode::Escape) {
-            self.create.step = Step::Picks;
+            self.create.step = if self.create.custom {
+                Step::Picks
+            } else {
+                Step::Wizard
+            };
         }
         let _ = GOLD_INK;
     }

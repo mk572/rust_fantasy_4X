@@ -8,7 +8,7 @@
     "ui.esc_cancel": "Esc: cancel",
     "ui.arcanus": "Arcanus",
     "ui.myrror": "Myrror",
-    "ui.status_line": "Turn {turn}   {plane}   {race}",
+    "ui.status_line": "Turn {turn}   {plane}",
     "ui.no_art": "(no art: run extract-art)",
     "ui.no_units_selected": "No units selected",
     "ui.unexplored": "Unexplored",

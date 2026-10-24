@@ -11,6 +11,7 @@ mod refile;
 mod screens;
 mod soak;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -24,6 +25,12 @@ const USAGE: &str = "usage:
   f4x-tools validate [content-dir]            check content files (default: content)
   f4x-tools mapgen <seed> [width height] [land%] [content-dir]
                                               print both planes as ASCII
+  f4x-tools mapgen-stats [runs] [content-dir] count tiles, rivers, lakes, landmasses and features over
+                                              many maps (seeds 1..=runs, default 100, standard size) made
+                                              by our generator and by the original's, as a table
+  f4x-tools start-stats [runs] [content-dir]  neutral cities and fortress distances of whole new games
+                                              (seeds 1..=runs, default 100, 3 wizards, standard size)
+                                              with our rules and with the original's, as a table
   f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
                                               (default out: assets-local/art)
   f4x-tools extract-audio <game-dir> [out-dir]
@@ -42,6 +49,8 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("validate") => validate(args.get(1)),
         Some("mapgen") => mapgen(&args[1..]),
+        Some("mapgen-stats") => mapgen_stats(&args[1..]),
+        Some("start-stats") => start_stats(&args[1..]),
         Some("console") => console_cmd::run(&args[1..]),
         Some("soak") => soak::run(&args[1..]),
         Some("extract-art") => match args.get(1) {
@@ -175,6 +184,183 @@ fn mapgen(args: &[String]) -> Result<(), String> {
             println!("{row}");
         }
         println!();
+    }
+    Ok(())
+}
+
+/// Counts of one generated map, summed over both planes.
+fn map_counts(c: &Content, g: &f4x_core::map::mapgen::Generated) -> BTreeMap<String, f64> {
+    let mut n: BTreeMap<String, f64> = BTreeMap::new();
+    let mut add = |k: String, v: f64| *n.entry(k).or_default() += v;
+    for plane in Plane::ALL {
+        let grid = g.map.plane(plane);
+        let (w, h) = (grid.width() as i32, grid.height() as i32);
+        let land = |x: i32, y: i32| {
+            grid.get(x, y)
+                .and_then(|t| c.terrains.get(t))
+                .is_some_and(|d| d.class != TerrainClass::Ocean)
+        };
+        for y in 0..h {
+            for x in 0..w {
+                let class = grid
+                    .get(x, y)
+                    .and_then(|t| c.terrains.get(t))
+                    .map(|d| d.class);
+                if let Some(class) = class {
+                    add(format!("tiles: {class:?}"), 1.0);
+                }
+                if let Some(m) = grid.mineral(x, y).and_then(|f| c.features.get(f)) {
+                    add(format!("mineral: {}", m.name), 1.0);
+                }
+                add("rivers".into(), f64::from(u8::from(grid.has_river(x, y))));
+                add("lakes".into(), f64::from(u8::from(grid.is_lake(x, y))));
+            }
+        }
+        // Landmasses: 8-connected land, x wrapping.
+        let mut seen = vec![false; (w * h) as usize];
+        let (mut count, mut largest, mut total) = (0.0, 0.0f64, 0.0);
+        for y in 0..h {
+            for x in 0..w {
+                if seen[(y * w + x) as usize] || !land(x, y) {
+                    continue;
+                }
+                count += 1.0;
+                let (mut size, mut stack) = (0.0, vec![(x, y)]);
+                seen[(y * w + x) as usize] = true;
+                while let Some((cx, cy)) = stack.pop() {
+                    size += 1.0;
+                    for (dx, dy) in (-1..=1).flat_map(|a| (-1..=1).map(move |b| (a, b))) {
+                        let (nx, ny) = ((cx + dx).rem_euclid(w), cy + dy);
+                        if (0..h).contains(&ny) && land(nx, ny) && !seen[(ny * w + nx) as usize] {
+                            seen[(ny * w + nx) as usize] = true;
+                            stack.push((nx, ny));
+                        }
+                    }
+                }
+                largest = largest.max(size);
+                total += size;
+            }
+        }
+        add("landmasses".into(), count);
+        add(
+            "largest landmass, % of land (mean of planes)".into(),
+            50.0 * largest / total.max(1.0),
+        );
+    }
+    for p in &g.placements {
+        if let Some(d) = c.features.get(p.feature) {
+            add(format!("{:?}: {}", d.kind, d.name), 1.0);
+        }
+    }
+    n
+}
+
+/// Both generators over seeds `1..=runs`, standard size, as a markdown table of per-map means.
+fn mapgen_stats(args: &[String]) -> Result<(), String> {
+    let runs: u64 = match args.first() {
+        Some(s) => s
+            .parse()
+            .map_err(|_| format!("runs must be a number\n{USAGE}"))?,
+        None => 100,
+    };
+    let c = content(args.get(1))?;
+    let mut means = Vec::new();
+    for original_generator in [false, true] {
+        let params = GenParams {
+            original_generator,
+            ..GenParams::default()
+        };
+        let mut sum: BTreeMap<String, f64> = BTreeMap::new();
+        for seed in 1..=runs {
+            let g = generate(seed, &params, &c).map_err(|e| e.to_string())?;
+            for (k, v) in map_counts(&c, &g) {
+                *sum.entry(k).or_default() += v / runs as f64;
+            }
+        }
+        means.push(sum);
+    }
+    println!("Means per map (both planes, {runs} maps of 60 by 40 each; ours = noise, original = random walks)\n");
+    println!("| count | ours | original | ours vs original |");
+    println!("|---|---:|---:|---:|");
+    let keys: std::collections::BTreeSet<_> =
+        means.iter().flat_map(|m| m.keys().cloned()).collect();
+    for k in keys {
+        let (a, b) = (
+            means[0].get(&k).copied().unwrap_or(0.0),
+            means[1].get(&k).copied().unwrap_or(0.0),
+        );
+        let diff = if b == 0.0 {
+            "n/a".to_string()
+        } else {
+            format!("{:+.0}%", 100.0 * (a - b) / b)
+        };
+        println!("| {k} | {a:.1} | {b:.1} | {diff} |");
+    }
+    Ok(())
+}
+
+/// New games with `original_map_generator` off and on: the neutral cities each plane gets (the
+/// original's target is 15) and how far apart the wizards' fortresses stand.
+fn start_stats(args: &[String]) -> Result<(), String> {
+    use f4x_core::game::setup::{new_game, NewGame};
+    let runs: u64 = match args.first() {
+        Some(s) => s
+            .parse()
+            .map_err(|_| format!("runs must be a number\n{USAGE}"))?,
+        None => 100,
+    };
+    let c = content(args.get(1))?;
+    println!("{runs} games of 3 wizards on 60 by 40 maps\n");
+    println!("| | ours | original |");
+    println!("|---|---:|---:|");
+    let mut rows: Vec<[f64; 2]> = vec![[0.0; 2]; 6];
+    for (col, original) in [false, true].into_iter().enumerate() {
+        for seed in 1..=runs {
+            let mut spec = NewGame::with_wizards(3);
+            spec.seed = seed;
+            spec.settings.basic.original_map_generator = original;
+            let g = new_game(&c, &spec)?;
+            let cities = g.economy().cities();
+            let mut per_plane = [0.0; 2];
+            let mut forts = Vec::new();
+            for (_, city, at) in &cities {
+                if g.is_neutral_player(city.owner) {
+                    per_plane[at.plane.index()] += 1.0;
+                } else {
+                    forts.push(*at);
+                }
+            }
+            let mut nearest = f64::MAX;
+            for (i, a) in forts.iter().enumerate() {
+                for b in &forts[i + 1..] {
+                    if a.plane == b.plane {
+                        let dx = a.x.abs_diff(b.x);
+                        let d = dx.min(60 - dx).max(a.y.abs_diff(b.y));
+                        nearest = nearest.min(f64::from(d));
+                    }
+                }
+            }
+            let n = runs as f64;
+            rows[0][col] += per_plane[0] / n;
+            rows[1][col] += per_plane[1] / n;
+            rows[2][col] += f64::from(u8::from(per_plane[0] >= 15.0)) * 100.0 / n;
+            rows[3][col] += f64::from(u8::from(per_plane[1] >= 15.0)) * 100.0 / n;
+            if nearest < f64::MAX {
+                rows[4][col] += nearest / n;
+            }
+            rows[5][col] += f64::from(u8::from(nearest < 10.0)) * 100.0 / n;
+        }
+    }
+    let names = [
+        "neutral cities, Arcanus (target 15)",
+        "neutral cities, Myrror (target 15)",
+        "% of games with all 15 on Arcanus",
+        "% of games with all 15 on Myrror",
+        "nearest two fortresses on a plane (squares)",
+        "% of games with fortresses under 10 apart",
+    ];
+    for (name, r) in names.iter().zip(&rows) {
+        println!("| {name} | {:.1} | {:.1} |", r[0], r[1]);
     }
     Ok(())
 }

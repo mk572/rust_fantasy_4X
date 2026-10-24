@@ -6,6 +6,8 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
+mod original;
+
 use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
@@ -42,6 +44,9 @@ pub struct GenParams {
     pub lair_treasure_percent: u16,
     /// The game's node setting, 0 weak to 2 powerful.
     pub magic_strength: u8,
+    /// Make the land with the original's random-walk generator (`mapgen/original.rs`) instead of
+    /// the noise-based one.
+    pub original_generator: bool,
     /// Indexed by [`Plane::index`].
     pub planes: [PlaneParams; 2],
 }
@@ -59,6 +64,7 @@ impl Default for GenParams {
             lair_guard_percent: 75,
             lair_treasure_percent: 133,
             magic_strength: 1,
+            original_generator: false,
             planes: [
                 PlaneParams {
                     mineral_percent: 6,
@@ -72,6 +78,23 @@ impl Default for GenParams {
         }
     }
 }
+
+/// How the noise generator shares out the land it keeps off the polar caps, in thousandths: the
+/// original's mix, a little under (`f4x-tools mapgen-stats` compares).
+const MOUNTAIN_SHARE: u32 = 165;
+const HILL_SHARE: u32 = 165;
+const DESERT_SHARE: u32 = 110;
+const SWAMP_SHARE: u32 = 57;
+const FOREST_SHARE: u32 = 320;
+/// Deserts lie in belts this many percent of the way from the equator to a pole, and the pull
+/// that drives a square out of the belt, in tenths of a moisture step per percent.
+const DESERT_BELT: i32 = 40;
+const DESERT_PULL: i32 = 30;
+/// The noise lattice of the land across a 60-wide map: more of it, more and smaller continents.
+const LAND_LATTICE: u32 = 6;
+/// The tundra gradient: a square of grass or forest this many rows from the pole or fewer
+/// turns to tundra with the chance that a roll of 1 to this beats its row.
+const TUNDRA_REACH: u32 = 3;
 
 /// The size of the map the original's counts are for: 60 by 40 squares.
 pub const REFERENCE_AREA: u32 = 60 * 40;
@@ -154,6 +177,9 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Gene
     let mut map = Map::new(arcanus?, myrror?);
     let placed = place::place_features(seed, params, content, &mut map)?;
     let nodes = crate::feature::node::generate_nodes(seed, &map, &placed, content);
+    if params.original_generator {
+        original::extend_islands(seed, &mut map, &placed, content);
+    }
     let lairs = crate::feature::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
     let mut placements = Vec::new();
     for plane in Plane::ALL {
@@ -212,50 +238,109 @@ fn generate_plane(
     let (w, h) = (params.width, params.height);
     let plane_seed =
         seed.wrapping_add((plane.index() as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    if params.original_generator {
+        return Ok(original::generate_plane(
+            plane_seed,
+            params,
+            original::Terrain {
+                ocean,
+                grass,
+                forest,
+                hills,
+                mountains,
+                swamp,
+                desert,
+                tundra,
+            },
+        ));
+    }
     // The noise lattice is counted across the width: a wider map gets more of it, so the
     // continents keep their size in squares.
     let across = |freq: u32| ((freq * w + 30) / 60).max(2);
-    let elevation = noise_field(plane_seed, w, h, across(3), 4);
+    let elevation = noise_field(plane_seed, w, h, across(LAND_LATTICE), 4);
     let moisture = noise_field(plane_seed ^ 0xA5A5_5A5A_1234_4321, w, h, across(5), 3);
 
-    // Land is the top `land_percent` of elevation.
-    let sea_level = percentile(&elevation, 100 - params.land_percent as usize);
-    let is_land: Vec<bool> = elevation.iter().map(|&e| e >= sea_level).collect();
+    // Land is the top `land_percent` of elevation, and the polar caps come on top of it, as in
+    // the original: the top and bottom rows are tundra, with short tundra strips on the next ones.
+    let mut rng = Pcg64Mcg::seed_from_u64(plane_seed ^ 0x504F_4C41_5200);
+    let mut cap = vec![false; (w * h) as usize];
+    for x in 0..w {
+        for row in [0, h - 1] {
+            cap[(row * w + x) as usize] = true;
+        }
+        for row in [1, h - 2] {
+            if rng.gen_range(0..4) == 0 {
+                for k in 0..rng.gen_range(0..4) {
+                    cap[(row * w + (x + k).min(w - 1)) as usize] = true;
+                }
+            }
+        }
+    }
+    let open_sea: Vec<i32> = (0..cap.len())
+        .filter(|&i| !cap[i])
+        .map(|i| elevation[i])
+        .collect();
+    let wanted = (w * h * u32::from(params.land_percent) / 100) as usize;
+    let sea_level = percentile(
+        &open_sea,
+        100 - (wanted * 100 / open_sea.len().max(1)).min(99),
+    );
+    let mut is_land: Vec<bool> = elevation.iter().map(|&e| e >= sea_level).collect();
+    for (land, &c) in is_land.iter_mut().zip(&cap) {
+        *land |= c;
+    }
 
-    let land_elev: Vec<i32> = pick_where(&elevation, &is_land);
-    let land_moist: Vec<i32> = pick_where(&moisture, &is_land);
-    let mountain_at = percentile(&land_elev, 94);
-    let hills_at = percentile(&land_elev, 80);
-    let desert_below = percentile(&land_moist, 10);
-    let swamp_above = percentile(&land_moist, 92);
-    let forest_above = percentile(&land_moist, 67);
-    let polar_rows = h / 12;
+    // The rest of the land is shared out by rank: the highest ground is mountains, then hills;
+    // the driest ground in the desert belts either side of the equator is desert, the wettest
+    // swamp, then forest, and what is left grassland.
+    let mut core: Vec<usize> = (0..(w * h) as usize)
+        .filter(|&i| is_land[i] && !cap[i])
+        .collect();
+    let take = |core: &mut Vec<usize>, share: u32| -> Vec<usize> {
+        let n = (core.len() * share as usize / 1000).min(core.len());
+        core.drain(..n).collect()
+    };
+    core.sort_by_key(|&i| std::cmp::Reverse((elevation[i], i)));
+    let mount = take(&mut core, MOUNTAIN_SHARE);
+    let hilly = take(&mut core, HILL_SHARE * 1000 / (1000 - MOUNTAIN_SHARE));
+    let belt = |i: usize| {
+        let half = (h - 1) as i32;
+        let from_equator = ((i as i32 / w as i32) * 2 - half).abs() * 100 / half;
+        moisture[i] + (from_equator - DESERT_BELT).abs() * DESERT_PULL / 10
+    };
+    core.sort_by_key(|&i| (belt(i), i));
+    let rest = 1000 - MOUNTAIN_SHARE - HILL_SHARE;
+    let dry = take(&mut core, DESERT_SHARE * 1000 / rest);
+    core.sort_by_key(|&i| std::cmp::Reverse((moisture[i], i)));
+    let rest = rest - DESERT_SHARE;
+    let wet = take(&mut core, SWAMP_SHARE * 1000 / rest);
+    let green = take(&mut core, FOREST_SHARE * 1000 / (rest - SWAMP_SHARE));
 
     let mut grid = Grid::new(w, h, ocean);
+    let mut paint = |tiles: &[usize], t: TerrainId| {
+        for &i in tiles {
+            grid.set(i as u32 % w, i as u32 / w, t);
+        }
+    };
+    paint(&mount, mountains);
+    paint(&hilly, hills);
+    paint(&dry, desert);
+    paint(&wet, swamp);
+    paint(&green, forest);
+    paint(&core, grass);
+    let pole_band = (h / 5).min(8);
     for y in 0..h {
         for x in 0..w {
             let i = (y * w + x) as usize;
-            if !is_land[i] {
-                continue;
-            }
-            let (e, m) = (elevation[i], moisture[i]);
             let from_pole = y.min(h - 1 - y);
-            let t = if from_pole < polar_rows {
-                tundra
-            } else if e >= mountain_at {
-                mountains
-            } else if e >= hills_at {
-                hills
-            } else if m <= desert_below {
-                desert
-            } else if m >= swamp_above {
-                swamp
-            } else if m >= forest_above {
-                forest
-            } else {
-                grass
-            };
-            grid.set(x, y, t);
+            let open = grid
+                .get(x as i32, y as i32)
+                .is_some_and(|t| t == grass || t == forest);
+            if cap[i]
+                || (from_pole < pole_band && open && rng.gen_range(1..=TUNDRA_REACH) > from_pole)
+            {
+                grid.set(x, y, tundra);
+            }
         }
     }
     place_rivers(
@@ -296,7 +381,7 @@ fn place_rivers(
     for i in (1..sources.len()).rev() {
         sources.swap(i, rng.gen_range(0..=i));
     }
-    sources.truncate((land / 120).max(1));
+    sources.truncate((land / 80).max(1));
     for (sx, sy) in sources {
         let mut seen = std::collections::HashSet::new();
         let (mut x, mut y) = (sx, sy);
@@ -398,16 +483,6 @@ fn place_lakes(grid: &mut Grid, ocean: TerrainId, steep: [TerrainId; 2], seed: u
     }
 }
 
-fn pick_where(values: &[i32], mask: &[bool]) -> Vec<i32> {
-    values
-        .iter()
-        .zip(mask)
-        .filter(|(_, &m)| m)
-        .map(|(&v, _)| v)
-        .collect()
-}
-
-/// Value at the given percentile (0..=100) of `values`; empty input yields 0.
 fn percentile(values: &[i32], pct: usize) -> i32 {
     if values.is_empty() {
         return 0;
@@ -491,7 +566,11 @@ mod tests {
         let map = generate(1, &p, &c).unwrap().map;
         for plane in Plane::ALL {
             let pct = land_percent(map.plane(plane), &c.terrains);
-            assert!((p.land_percent as u32).abs_diff(pct) <= 2, "land {pct}%");
+            // The polar caps come on top of the share asked for.
+            assert!(
+                (p.land_percent as u32..=p.land_percent as u32 + 10).contains(&pct),
+                "land {pct}%"
+            );
         }
         assert_ne!(map.plane(Plane::Arcanus), map.plane(Plane::Myrror));
     }

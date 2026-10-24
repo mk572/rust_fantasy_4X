@@ -92,15 +92,18 @@ impl SpellArt {
     }
 
     /// The folder under `art/spells/` each picture goes to: the spell's id when only that spell
-    /// uses it, [`SHARED`] when several do or it is listed as shared.
+    /// uses it, [`SHARED`] when several do or it is listed as shared. Call Chaos's outcomes
+    /// (`Role::Chaos`) borrow the pictures of other spells (Warp Lightning, Disintegrate, Fire
+    /// Storm): they stay in the folder of the spell they belong to, and Call Chaos reads them
+    /// from there.
     pub fn folders(&self) -> BTreeMap<(String, usize), String> {
         let mut users: BTreeMap<(String, usize), BTreeSet<&str>> = BTreeMap::new();
         for (id, pictures) in &self.spells {
             for p in pictures {
-                users
-                    .entry((p.lbx.clone(), p.entry))
-                    .or_default()
-                    .insert(id.as_str());
+                let spells = users.entry((p.lbx.clone(), p.entry)).or_default();
+                if !matches!(p.role, Role::Chaos(_)) {
+                    spells.insert(id.as_str());
+                }
             }
         }
         for p in &self.shared {
@@ -211,6 +214,27 @@ mod tests {
     }
 
     #[test]
+    fn call_chaos_reads_the_pictures_it_borrows_from_the_folders_of_their_spells() {
+        let art = parse_spell_art(
+            r#"(
+                spells: {
+                    "warp_lightning": [(lbx: "cmbtfx", entry: 3, role: Cast)],
+                    "call_chaos": [
+                        (lbx: "cmbtfx", entry: 3, role: Chaos(5)),
+                        (lbx: "cmbtfx", entry: 3, role: Chaos(6)),
+                    ],
+                },
+            )"#,
+        )
+        .unwrap();
+        assert_eq!(art.folders()[&("cmbtfx".into(), 3)], "warp_lightning");
+        assert_eq!(
+            art.picture("call_chaos", &Role::Chaos(6)),
+            Some(("cmbtfx", 3))
+        );
+    }
+
+    #[test]
     fn a_picture_listed_as_shared_stays_shared_when_one_spell_uses_it() {
         let art = parse_spell_art(
             r#"(
@@ -236,7 +260,12 @@ mod tests {
         for (id, pictures) in &art.spells {
             for p in pictures {
                 let folder = &folders[&(p.lbx.clone(), p.entry)];
-                assert!(folder == id || folder == SHARED, "{id}: {folder}");
+                // Call Chaos's outcomes live in the folders of the spells they borrow from.
+                let borrowed = matches!(p.role, Role::Chaos(_));
+                assert!(
+                    folder == id || folder == SHARED || borrowed,
+                    "{id}: {folder}"
+                );
             }
         }
     }

@@ -26,7 +26,7 @@ pub mod spot {
     /// The gold, food and mana panels (one picture, three thirds).
     pub const PANELS: (f32, f32) = (240.0, 76.0);
     /// The Next Turn button.
-    pub const NEXT_TURN: (f32, f32) = (240.0, 173.0);
+    pub const NEXT_TURN: (f32, f32) = (238.0, 171.0);
     /// The menu buttons: `main.lbx` entries 1 to 7 at these x positions, all at y = 4.
     pub const MENU_Y: f32 = 4.0;
     pub const MENU_X: [f32; 7] = [7.0, 47.0, 89.0, 140.0, 184.0, 226.0, 270.0];
@@ -217,13 +217,12 @@ impl App {
         }
 
         // Gold and mana in the boxes under the minimap (`Main_Screen_Draw_Status_Window`): the
-        // figures right-aligned in grey, the units after them; the narrow font when a figure
+        // figures right-aligned in white, the units after them; the narrow font when a figure
         // has five digits.
         let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
         let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
-        let grey = self.art.minimap().named("reserve_text", GRAY);
         for (value, right, unit) in [(gold, 265.0, "GP"), (mana, 303.0, "MP")] {
             self.bm_text_shadowed(
                 view,
@@ -231,7 +230,7 @@ impl App {
                 &value.to_string(),
                 right,
                 68.0,
-                grey,
+                WHITE,
                 Align::Right,
             );
             self.bm_text_shadowed(view, 0, unit, right + 3.0, 68.0, WHITE, Align::Left);

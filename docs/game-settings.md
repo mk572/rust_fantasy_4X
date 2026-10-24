@@ -103,6 +103,8 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | basic | `difficulty` | 0..=4 (Intro to Impossible) | 2 | `Game::difficulty` |
 | basic | `opponents` | 1..=4 (more: `PLANNED.md` 3) | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
+| basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`map/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
+| content | `half_upkeep` (`enabled`, `units`) | bool, unit names | on, Spearmen and Swordsmen | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
 | basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
 | wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |
@@ -451,7 +453,7 @@ three is chosen, and the game-over text for a defeat by banishment names the rul
 | Random events on or off, frequency | section 4.5 |
 | Final score scale | `score_percent`, applied where the score is made (task 148) |
 | Fleeing (`Combat.c` 3863 and 4075) | `rules.safe_flee`, below |
-| AI race limits above Normal (nine races, then five); Myrran count rule above Normal with more than three wizards | `wizards.ai_race_limit` switch (on / off), default by preset; task 155 item 2 |
+| AI race limits above Normal (nine races, then five); Myrran count rule above Normal with more than three wizards | `ai.wizards.banned_races` and `world.neutral_banned_races`, lists of race ids per level, empty in the shipped file (task 379); the Myrran count rule is not planned |
 | Starting spells, researchable spells, the AI's main-realm spells (known; and researchable from Hard) | `spell_library` (the tables) and `ai.wizards.guaranteed_summoning_spell`; `magic.md` section 13 |
 | AI aggression against the human | AI behaviour, task 148 |
 
@@ -534,8 +536,8 @@ pub struct AiWizardSettings {
 
 `picks` (4.1) is the budget of phase 4; with `randomise` off the AI uses the presets as they are,
 today's behaviour. Everything uses the game's seeded generator, so the soak stays reproducible.
-Races are chosen later, in the start (task 155 item 2): the original limits AI races above Normal
-to nine, then five; that is `wizards.ai_race_limit`. Whether a preset wizard keeps its fixed race
+Races are chosen later, in the start: the original limits AI races above Normal
+to five of the nine; ours has no limit, and task 379 adds lists of banned races per level (empty by default). Whether a preset wizard keeps its fixed race
 or portrait is already handled in `game/setup.rs`; this list does not change it.
 
 ### 4.9 No Myrror (stage 4)

@@ -121,6 +121,11 @@ mod tests {
     #[test]
     fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() {
         let mut g = game(COAST_CITY, "high_men");
+        // Full upkeep: with the half upkeep of the shipped content a part of the troops is free,
+        // and the AI lets go of the paying ones only.
+        let mut content = g.content().clone();
+        content.settings.half_upkeep.enabled = false;
+        g.set_content(content);
         let army = spawn(&mut g, P0, at(9, 6), "high_men_spearmen", 8);
         g.treasury_mut(P0).unwrap().gold = 3;
         g.apply(Command::SetTaxRate {

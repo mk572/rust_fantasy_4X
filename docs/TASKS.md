@@ -294,7 +294,7 @@ settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, 
 set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
 
-**374. Neutral cities reach only about 40% of the target.** `place_neutral_cities` (`city/neutral.rs`) aims
+**374. Neutral cities reach only about 40% of the target.** *(Part done 24 October 2026: the placement is now a row scan from the equator, `divergences.md`; `f4x-tools start-stats` counts what a game gets: 22 of 30 with our land, 28 of 30 with the original generator. What stops the rest is not logged yet.)* `place_neutral_cities` (`city/neutral.rs`) aims
 at `neutral_city_count` (15 for every 2400 squares) a plane, but gives up after `MAX_TRIES = 1000`
 attempts, and that count is of every roll, the rejected squares too (`neutral_site_ok`), not only the
 cities made. The test `every_map_size_makes_a_game_with_the_counts_in_proportion` found that about 40%

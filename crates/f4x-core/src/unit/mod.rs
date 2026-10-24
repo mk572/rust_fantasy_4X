@@ -466,9 +466,23 @@ impl<'a> UnitView<'a> {
         out
     }
 
+    /// Whether the unit pays its upkeep: a basic troop of the setting `half_upkeep` pays only
+    /// when its serial number is even, so about every second unit made is free. The number is
+    /// the unit's own, so letting one go changes nothing for the others.
+    fn pays_upkeep(&self, unit: hecs::Entity) -> bool {
+        let half = &self.content.settings.half_upkeep;
+        if !half.enabled {
+            return true;
+        }
+        let basic = self
+            .unit_def(unit)
+            .is_some_and(|d| d.kind == UnitKind::Normal && half.units.contains(&d.name));
+        !basic || self.serial_of(unit).0.is_multiple_of(2)
+    }
+
     /// Food a unit eats per turn.
     pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) {
+        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) || !self.pays_upkeep(unit) {
             return 0;
         }
         match self.unit_def(unit).map(|d| d.kind) {
@@ -487,7 +501,7 @@ impl<'a> UnitView<'a> {
         let Some(def) = self.unit_def(unit) else {
             return 0;
         };
-        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) {
+        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) || !self.pays_upkeep(unit) {
             return 0;
         }
         let gold = match def.kind {
@@ -613,6 +627,62 @@ mod tests {
         };
         assert_eq!(max("boots", 1), 5, "two moves and a half-move");
         assert_eq!(max("rooted", 2), 0);
+    }
+
+    #[test]
+    fn basic_troops_cost_half_the_upkeep_when_the_setting_is_on() {
+        use crate::game::testutil::unit;
+        use crate::rules::{MovementType, Registry};
+        let mut content = content_with_magic();
+        let mut spear = unit("Spearmen", MovementType::Walking, 1, &[]);
+        spear.kind = UnitKind::Normal;
+        spear.upkeep.gold = 1;
+        let mut sword = unit("Swordsmen", MovementType::Walking, 1, &[]);
+        sword.kind = UnitKind::Normal;
+        sword.upkeep.gold = 1;
+        let mut knight = unit("Knights", MovementType::Walking, 1, &[]);
+        knight.kind = UnitKind::Normal;
+        knight.upkeep.gold = 3;
+        content.rules.units = Registry::new(vec![spear, sword, knight]);
+        let mut world = World::new();
+        let (a, b) = (
+            world.spawn(crate::player::bundle(PlayerId(0))),
+            world.spawn(crate::player::bundle(PlayerId(1))),
+        );
+        let id = |n: &str, c: &Content| c.rules.units.id_of(n).unwrap();
+        let made: Vec<_> = [
+            (a, "Spearmen"),
+            (a, "Swordsmen"),
+            (a, "Spearmen"),
+            (a, "Knights"),
+            (b, "Spearmen"),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, (owner, name))| {
+            spawn(
+                &mut world,
+                &content,
+                Serial(i as u64 + 1),
+                owner,
+                AT,
+                id(name, &content),
+            )
+        })
+        .collect();
+        let costs = |content: &Content| {
+            let units = UnitView::new(&world, content);
+            made.iter()
+                .map(|&u| (units.unit_gold_upkeep(u), units.unit_food_upkeep(u)))
+                .collect::<Vec<_>>()
+        };
+        // Off: every unit pays in full.
+        content.settings.half_upkeep.enabled = false;
+        assert_eq!(costs(&content), [(1, 1), (1, 1), (1, 1), (3, 1), (1, 1)]);
+        content.settings.half_upkeep.enabled = true;
+        // A basic troop with an odd serial number is free (serials 1 to 5 here); the knight, with
+        // its own upkeep, is not touched.
+        assert_eq!(costs(&content), [(0, 0), (1, 1), (0, 0), (3, 1), (0, 0)]);
     }
 
     #[test]

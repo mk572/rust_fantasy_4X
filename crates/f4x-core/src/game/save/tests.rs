@@ -376,6 +376,7 @@ fn every_setting_survives_a_save() {
         map_width: 75,
         map_height: 50,
         diagonal_extra_cost: true,
+        original_map_generator: true,
     };
     let text = g.snapshot().to_text().unwrap();
     let back = Snapshot::from_text(&text)

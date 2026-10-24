@@ -19,7 +19,15 @@
         diagonal_extra_cost: false, // false: a diagonal step costs the same as a straight one;
                                     // true: it costs 50% more (3 half-moves instead of 2),
                                     // for movement and for sight
+        original_map_generator: false, // false: this game's noise-based land;
+                                       // true: the original's random-walk continents
     ),
+
+    // Half the upkeep for the basic troops of every race, a divergence inspired by the Caster of
+    // Magic mod: about every second spearman or swordsman eats nothing and costs nothing (the
+    // ones with an odd serial number, the order the units were made in). Set `enabled: false` for
+    // the original's full upkeep, or change `units` (names of the units, the same for every race).
+    half_upkeep: (enabled: true, units: ["Spearmen", "Swordsmen"]),
 
     // The most computer wizards a new game can have (1 to 4; more wizards need more start
     // positions, so 4 is the limit for now).

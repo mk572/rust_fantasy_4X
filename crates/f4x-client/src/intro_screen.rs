@@ -163,15 +163,24 @@ impl App {
         self.intro.since = f64::MAX;
     }
 
+    /// Go to the start menu and silence the movie's sounds: the long ones would play on over
+    /// the screens after it.
+    fn leave_intro(&mut self) {
+        for sound in self.intro.beats.iter().filter_map(|b| b.sound) {
+            self.audio.stop_effect(Some(fx(sound)));
+        }
+        self.open_main_menu();
+    }
+
     pub(crate) fn intro_screen(&mut self) {
         clear_background(BLACK);
         let skip = get_last_key_pressed().is_some() || is_mouse_button_pressed(MouseButton::Left);
         let now = get_time();
         let Some(beat) = self.intro.beats.get(self.intro.at).copied() else {
-            return self.open_main_menu();
+            return self.leave_intro();
         };
         if skip {
-            return self.open_main_menu();
+            return self.leave_intro();
         }
         if !self.intro.sounded {
             self.intro.sounded = true;

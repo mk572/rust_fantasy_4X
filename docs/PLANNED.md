@@ -56,6 +56,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
 | 44 | Client | Build queues in the city production screen: a list of items a city works down in order |
 | 45 | Client | Start a game from a map seed chosen in the UI |
+| 46 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
 
 ## Descriptions
 
@@ -666,3 +667,6 @@ replayed without the command line:
 - a running game keeps showing its seed read-only, and the hall of fame and the save slots may list it;
 - the console's `new` command takes `seed=N` as well, if it does not yet.
 Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.
+
+**46. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
+

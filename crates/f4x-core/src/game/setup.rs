@@ -4,6 +4,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod original;
+
 use crate::content::Content;
 use crate::game::setting::GameSettings;
 use crate::map::mapgen::{generate, GenParams};
@@ -123,6 +125,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         land_percent: settings.basic.land_percent,
         difficulty: settings.basic.difficulty,
         magic_strength: settings.basic.magic_strength,
+        original_generator: settings.basic.original_map_generator,
         lair_guard_percent: settings.world.lair_guard_percent,
         lair_treasure_percent: settings.world.lair_treasure_percent,
         ..GenParams::sized(
@@ -302,8 +305,23 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         };
         races.push(id);
     }
+    // The original's rolled fortress sites, when the setting asks for them; if no pass finds
+    // them all the wizards start where `start_player` looks for them.
+    let rolled = settings.basic.original_map_generator.then(|| {
+        let planes: Vec<Plane> = (0..wizards)
+            .map(|k| {
+                if is_myrran(&game, PlayerId(k)) {
+                    Plane::Myrror
+                } else {
+                    Plane::Arcanus
+                }
+            })
+            .collect();
+        original::fortress_sites(&mut game, &planes)
+    });
     for k in 0..wizards {
-        start_player(&mut game, PlayerId(k), wizards, &races[k as usize])?;
+        let site = rolled.clone().flatten().map(|v| v[k as usize]);
+        start_player(&mut game, PlayerId(k), wizards, &races[k as usize], site)?;
         reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius.0);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
@@ -403,7 +421,13 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
 /// without spearmen), a smithy, barracks and builders hall, and three citizens on the farms.
 /// The site has to be land that can feed eight (seven for the later wizards), clear of other
 /// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
-fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Result<(), String> {
+fn start_player(
+    game: &mut Game,
+    player: PlayerId,
+    count: u8,
+    race: &str,
+    site: Option<Position>,
+) -> Result<(), String> {
     let rules = &game.content.rules;
     let rules_texts = &game.content.texts;
     let race_def = rules
@@ -458,7 +482,15 @@ fn start_player(game: &mut Game, player: PlayerId, count: u8, race: &str) -> Res
         .collect();
     let need = 8 - u32::from(player.0) / 3;
     // Each pass relaxes the last: fortress distance, site distance, the size the land must feed.
-    for (apart, clear, size) in [(16, 3, need), (10, 3, need), (10, 1, need), (0, 0, 0)] {
+    let passes: &[(u32, u32, u32)] = if site.is_some() {
+        &[(0, 0, 0)]
+    } else {
+        &[(16, 3, need), (10, 3, need), (10, 1, need), (0, 0, 0)]
+    };
+    if let Some(site) = site {
+        spots = vec![(site.x, site.y)];
+    }
+    for &(apart, clear, size) in passes {
         for &(x, y) in &spots {
             let pos = Position { plane, x, y };
             if fortresses

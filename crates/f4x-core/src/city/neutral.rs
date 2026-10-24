@@ -32,11 +32,42 @@ pub fn neutral_city_count(width: u32, height: u32) -> u32 {
     crate::map::mapgen::scaled_count(NEUTRAL_CITIES_PER_PLANE, width, height)
 }
 
-/// Placement attempts before giving up on the rest.
-const MAX_TRIES: u32 = 1000;
+/// The fewest citizens the land round a neutral city must be able to feed: its start population
+/// is up to 5, and a city that starves loses its garrison.
+const MIN_SITE_SIZE: u32 = 5;
+
+/// Rows at each pole that get no neutral city: tundra and ice.
+const POLAR_ROWS: u8 = 4;
+
+/// The rows a plane of `height` rows is searched in: the equator row, then the one below, the
+/// one above, two below and so on, to the polar rows.
+fn scan_rows(height: u32) -> Vec<u32> {
+    let polar = u32::from(POLAR_ROWS);
+    let equator = height / 2;
+    let mut rows = vec![equator];
+    for d in 1..height {
+        for y in [equator + d, equator.saturating_sub(d)] {
+            if (polar..height - polar).contains(&y) && !rows.contains(&y) {
+                rows.push(y);
+            }
+        }
+    }
+    rows
+}
 
 /// Squares between a neutral city and a node, tower or lair.
 const SITE_CLEARANCE: u32 = 4;
+
+/// The row scan of the custom generator keeps a little more room: squares between two cities,
+/// between a city and a fortress, and between a city and a node, tower or lair, so that the 15
+/// cities of a plane do not crowd it. The original's random placement keeps the original's.
+const STRICT_CITY_CLEARANCE: u32 = 6;
+const STRICT_FORTRESS_CLEARANCE: u32 = 6;
+const STRICT_SITE_CLEARANCE: u32 = 5;
+
+/// Placement attempts of the original's random placement on a plane of 60 by 40 squares (its
+/// 1000); a bigger map gets more, a smaller one the same.
+const MAX_TRIES: u32 = 1000;
 
 /// Squares between a neutral city and a wizard's fortress.
 const FORTRESS_CLEARANCE: u32 = 5;
@@ -61,8 +92,10 @@ const FIRST_CITY_PLAYER: u8 = 100;
 
 /// The original's `Range`: the longer side plus half the shorter, with no wrap-around. Squares
 /// at a range under 4 form a diamond-cornered block, smaller than a square of 7 by 7.
-fn range(x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
-    let (dx, dy) = (x1.abs_diff(x2), y1.abs_diff(y2));
+fn range(width: u32, x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
+    // The map wraps east and west: the short way round counts.
+    let dx = x1.abs_diff(x2);
+    let (dx, dy) = (dx.min(width - dx), y1.abs_diff(y2));
     dx.max(dy) + dx.min(dy) / 2
 }
 
@@ -78,34 +111,49 @@ impl Game {
     }
 
     /// Whether a neutral city may stand on `pos`: any city site, clear of the wizards' fortresses
-    /// and of nodes, towers and lairs.
-    fn neutral_site_ok(&self, pos: Position) -> bool {
+    /// and of nodes, towers and lairs; `strict` asks for more room all round (the row scan).
+    fn neutral_site_ok(&self, pos: Position, strict: bool) -> bool {
         if self.can_found_city(pos).is_err() {
             return false;
         }
-        let near = |x: u32, y: u32, d: u32| range(x, y, pos.x, pos.y) < d;
+        let width = self.map.as_ref().map_or(1, |m| m.width());
+        let near = |x: u32, y: u32, d: u32| range(width, x, y, pos.x, pos.y) < d;
+        let (fortress, site) = if strict {
+            (STRICT_FORTRESS_CLEARANCE, STRICT_SITE_CLEARANCE)
+        } else {
+            (FORTRESS_CLEARANCE, SITE_CLEARANCE)
+        };
         if crate::wizard::entity::all(&self.world)
             .iter()
             .filter_map(|w| w.fortress())
-            .any(|f| near(f.x, f.y, FORTRESS_CLEARANCE))
+            .any(|f| near(f.x, f.y, fortress))
         {
             return false;
         }
-        self.clear_of_sites(pos, SITE_CLEARANCE)
+        if strict
+            && self
+                .economy()
+                .cities()
+                .iter()
+                .any(|(_, _, c)| c.plane == pos.plane && near(c.x, c.y, STRICT_CITY_CLEARANCE))
+        {
+            return false;
+        }
+        self.clear_of_sites(pos, site)
     }
 
     /// Whether no node, tower or lair on `pos`'s plane is within `distance` (the original's
     /// `Range`).
     pub(crate) fn clear_of_sites(&self, pos: Position, distance: u32) -> bool {
-        if self.map.is_none() {
+        let Some(width) = self.map.as_ref().map(|m| m.width()) else {
             return false;
-        }
+        };
         // Towers stand on both planes at the same place.
         !self
             .economy()
             .site_squares()
             .iter()
-            .any(|s| s.plane == pos.plane && range(s.x, s.y, pos.x, pos.y) < distance)
+            .any(|s| s.plane == pos.plane && range(width, s.x, s.y, pos.x, pos.y) < distance)
     }
 
     /// A number for every land square telling which landmass it belongs to (0 for sea).
@@ -201,21 +249,49 @@ impl Game {
         }
         let masses = self.landmasses(plane);
         let mut default_race: std::collections::HashMap<u32, RaceId> = Default::default();
-        let (mut made, mut tries) = (0, 0);
+        let mut made = 0;
         let target = neutral_city_count(w, h);
+        // The original rolls squares at random, 1000 tries for a plane of 60 by 40, 3 to 56
+        // across and 3 to 36 down; the custom generator's land is searched row by row from the
+        // equator outward, a row south and then a row north, each from west to east: a city goes
+        // on the first square that will do, or a better one within two squares of it. The polar
+        // rows are left out.
+        let original = self.settings.basic.original_map_generator;
+        let max_tries = crate::map::mapgen::scaled_count(MAX_TRIES, w, h).max(MAX_TRIES);
+        let rows = scan_rows(h);
+        let (mut row, mut x, mut tries) = (0, 2, 0);
         while made < target {
             let pos = loop {
-                tries += 1;
-                if tries >= MAX_TRIES {
-                    return made;
+                if original {
+                    tries += 1;
+                    if tries >= max_tries {
+                        return made;
+                    }
+                    let pos = Position {
+                        plane,
+                        x: 2 + self.roll(w - 6),
+                        y: 2 + self.roll(h - 6),
+                    };
+                    if self.neutral_site_ok(pos, false) {
+                        break pos;
+                    }
+                    continue;
                 }
-                let pos = Position {
-                    plane,
-                    x: 2 + self.roll(w - 4),
-                    y: 2 + self.roll(h - 4),
+                let Some(&y) = rows.get(row) else {
+                    return made;
                 };
-                if self.neutral_site_ok(pos) {
-                    break pos;
+                if x >= w - 2 {
+                    (row, x) = (row + 1, 2);
+                    continue;
+                }
+                let here = Position { plane, x, y };
+                x += 1;
+                if self.neutral_site_ok(here, true)
+                    && self.economy().site_max_size(here) >= MIN_SITE_SIZE
+                {
+                    let best = self.best_site_near(here, h);
+                    x = x.max(best.x + 1);
+                    break best;
                 }
             };
             let forest = self.map.as_ref().is_some_and(|m| {
@@ -244,6 +320,33 @@ impl Game {
             made += 1;
         }
         made
+    }
+
+    /// The site within two squares of `at` (itself included) where the most citizens could live;
+    /// `at` unless another is better.
+    fn best_site_near(&self, at: Position, height: u32) -> Position {
+        let mut best = (self.economy().site_max_size(at), at);
+        for dy in -2i32..=2 {
+            for dx in -2i32..=2 {
+                let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
+                if x < 2 || y < i32::from(POLAR_ROWS) || y >= height as i32 - i32::from(POLAR_ROWS)
+                {
+                    continue;
+                }
+                let pos = Position {
+                    x: x as u32,
+                    y: y as u32,
+                    ..at
+                };
+                if pos != at && self.neutral_site_ok(pos, true) {
+                    let size = self.economy().site_max_size(pos);
+                    if size > best.0 {
+                        best = (size, pos);
+                    }
+                }
+            }
+        }
+        best.1
     }
 
     /// One neutral city with its population, buildings and garrison.

@@ -46,6 +46,8 @@ pub(crate) struct OptionsState {
     pub magic: u8,
     /// Index into `settings.map_sizes`.
     pub map: u8,
+    /// Make the land with the original's generator.
+    pub original_generator: bool,
 }
 
 impl OptionsState {
@@ -67,6 +69,7 @@ impl OptionsState {
                     m.width.abs_diff(b.map_width) + m.height.abs_diff(b.map_height)
                 })
                 .unwrap_or(0) as u8,
+            original_generator: b.original_map_generator,
         }
     }
 
@@ -145,43 +148,65 @@ impl App {
                 changed = Some(i);
             }
         }
-        // The original's picture has four buttons only: the map size is a line of text under
-        // them.
-        let map_label = {
-            let (w, h) = o.map_size(&self.game.content().settings);
-            self.text("options.map_size").to_string() + &format!(": {w} x {h}")
-        };
-        let hover = lay.rect((250.0, 143.0, 66.0, 12.0)).contains(mouse);
-        let shift = if hover { 1.0 } else { 0.0 };
-        self.bm_text(
-            view,
-            3,
-            shadow,
-            &map_label,
-            283.0 + shift,
-            146.0 + shift,
-            Align::Center,
-        );
-        self.bm_text(
-            view,
-            3,
-            if hover {
+        // The original's picture has four buttons only: the map size and the map generator are
+        // two more rows of text under them, the name on the left as the four have it and the
+        // choice on the right.
+        let gold = Color::new(0.95, 0.75, 0.2, 1.0);
+        let (w, h) = o.map_size(&self.game.content().settings);
+        let rows = [
+            (
+                143.0,
+                self.text("options.map_size").to_string(),
+                format!("{w} x {h}"),
+            ),
+            (
+                156.0,
+                self.text("options.generator").to_string(),
+                self.text(if o.original_generator {
+                    "options.generator_original"
+                } else {
+                    "options.generator_custom"
+                })
+                .to_string(),
+            ),
+        ];
+        for (i, (y, name, value)) in rows.into_iter().enumerate() {
+            let hover = lay.rect((166.0, y - 1.0, 150.0, 12.0)).contains(mouse);
+            let shift = if hover { 1.0 } else { 0.0 };
+            let ink = if hover {
                 Color::new(1.0, 1.0, 0.7, 1.0)
             } else {
                 font
-            },
-            &map_label,
-            282.0 + shift,
-            145.0 + shift,
-            Align::Center,
-        );
-        if hover && clicked {
-            changed = Some(4);
+            };
+            self.bm_text(view, 3, shadow, &name, 168.0, y + 1.0, Align::Left);
+            self.bm_text(view, 3, gold, &name, 167.0, y, Align::Left);
+            self.bm_text(
+                view,
+                3,
+                shadow,
+                &value,
+                283.0 + shift,
+                y + 1.0 + shift,
+                Align::Center,
+            );
+            self.bm_text(
+                view,
+                3,
+                ink,
+                &value,
+                282.0 + shift,
+                y + shift,
+                Align::Center,
+            );
+            if hover && clicked {
+                changed = Some(4 + i);
+            }
         }
         let o = &mut self.options;
         let map_sizes = self.game.content().settings.map_sizes.len() as u8;
         match changed {
             Some(4) => o.map = (o.map + 1) % map_sizes,
+            Some(5) => o.original_generator = !o.original_generator,
             Some(0) => o.difficulty = (o.difficulty + 1) % 5,
             Some(1) => o.opponents = o.opponents.clamp(1, most) % most + 1,
             Some(2) => o.land = (o.land + 1) % sizes,
@@ -226,6 +251,7 @@ impl App {
             y += 16.0;
             let difficulties = DIFFICULTIES.map(|k| self.text(k));
             let magic_levels = MAGIC_LEVELS.map(|k| self.text(k));
+            let generator_label = self.text("options.generator");
             let (difficulty, opponents_label, land_label, magic_label, map_label, back_label) = (
                 self.text("options.difficulty"),
                 self.text("options.opponents"),
@@ -252,6 +278,18 @@ impl App {
             o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic);
             let maps: Vec<String> = settings.map_sizes.iter().map(|s| s.name.clone()).collect();
             o.map = choose(x, &mut y, &map_label, &maps, o.map);
+            let generators = [
+                self.texts().get("options.generator_custom", &Args::new()),
+                self.texts().get("options.generator_original", &Args::new()),
+            ];
+            let o = &mut self.options;
+            o.original_generator = choose(
+                x,
+                &mut y,
+                &generator_label,
+                &generators,
+                u8::from(o.original_generator),
+            ) == 1;
             let seed = self.text_with(
                 "options.line_seed",
                 &Args::new().text("seed", self.seed.to_string()),
@@ -323,6 +361,20 @@ pub(crate) fn settings_lines(
             &Args::new()
                 .count("w", i32::from(b.map_width))
                 .count("h", i32::from(b.map_height)),
+        ),
+        texts.get(
+            "options.line_generator",
+            &Args::new().text(
+                "name",
+                texts.get(
+                    if b.original_map_generator {
+                        "options.generator_original"
+                    } else {
+                        "options.generator_custom"
+                    },
+                    &Args::new(),
+                ),
+            ),
         ),
         texts.get(
             "options.line_magic",

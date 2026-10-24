@@ -68,7 +68,7 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "new",
         kind: Kind::Legal,
-        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [map=small|medium|large|huge|<width>x<height>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful]",
+        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [map=small|medium|large|huge|<width>x<height>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful] [generator=custom|original]",
         help: "Start a new game on a generated map, replacing this one. Without wizard or books, a fixed wizard is used.",
         run: new,
     },
@@ -84,23 +84,35 @@ pub const TABLE: &[CommandDef] = &[
 fn help(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if let Some(name) = a.get(0) {
         let def = find(name).ok_or_else(|| ConsoleError::NoSuch(format!("command {name:?}")))?;
-        ctx.say(format!("{} [{}]", def.usage, kind_name(def.kind)));
+        ctx.say(format!("{}  [{}]", def.usage, kind_name(def.kind)));
         ctx.say(def.help.to_string());
+        ctx.say(match def.kind {
+            Kind::Query => "A query only reads the game; it runs in either mode.".to_string(),
+            Kind::Legal => {
+                "A legal command plays the game; it needs the mode `legal` (see `mode`)."
+                    .to_string()
+            }
+        });
         return Ok(());
     }
     ctx.say(format!(
-        "Mode: {}. Kinds: query reads, legal is normal play.",
+        "Mode: {}. A query reads the game; a legal command plays it. `help <command>` gives the usage and the full description.",
         ctx.session.mode.name()
     ));
     for def in commands() {
         ctx.say(format!(
-            "{:<9} {:<9} {}",
+            "{:<10} {:<6} {}",
             def.name,
             kind_name(def.kind),
-            def.usage
+            first_sentence(def.help)
         ));
     }
     Ok(())
+}
+
+/// The text up to the end of its first sentence.
+fn first_sentence(text: &str) -> &str {
+    text.find(". ").map_or(text, |i| &text[..=i])
 }
 
 pub fn kind_name(k: Kind) -> &'static str {
@@ -171,6 +183,14 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         }
     ));
     ctx.say(format!("land {}%", b.land_percent));
+    ctx.say(format!(
+        "map generator {}",
+        if b.original_map_generator {
+            "original"
+        } else {
+            "custom"
+        }
+    ));
     ctx.say(format!("map {} by {} squares", b.map_width, b.map_height));
     ctx.say(format!(
         "magic power {} ({})",
@@ -402,6 +422,17 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     spec.settings.basic.map_width,
                     spec.settings.basic.map_height,
                 ) = (width, height);
+            }
+            "generator" => {
+                spec.settings.basic.original_map_generator = match v.to_lowercase().as_str() {
+                    "original" => true,
+                    "custom" => false,
+                    _ => {
+                        return Err(ConsoleError::Parse(format!(
+                            "{v:?} is not a generator: use custom or original"
+                        )))
+                    }
+                };
             }
             "difficulty" => {
                 // A level brings the original's figures for it; the other basic choices stay.

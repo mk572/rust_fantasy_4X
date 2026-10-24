@@ -55,6 +55,11 @@ pub struct BasicSettings {
     /// sight: a square seen along a diagonal costs half as much again to see, or no more.
     #[serde(default)]
     pub diagonal_extra_cost: bool,
+    /// Make the land with the original's generator (random-walk continents, `NEWG_CreateLands`)
+    /// instead of this game's noise-based one. The features, lairs and nodes are placed the same
+    /// way either way. Off by default.
+    #[serde(default)]
+    pub original_map_generator: bool,
 }
 
 fn default_difficulty() -> u8 {
@@ -91,6 +96,7 @@ impl Default for BasicSettings {
             map_width: MAP_WIDTH,
             map_height: MAP_HEIGHT,
             diagonal_extra_cost: false,
+            original_map_generator: false,
         }
     }
 }
@@ -282,6 +288,26 @@ pub struct MapSize {
 /// How many opponents the game offers at most (the original: four).
 pub const MAX_OPPONENTS: u8 = 4;
 
+/// Which troops cost half the upkeep, and whether they do. Upkeep is whole food and gold for
+/// each unit, so about every second unit costs nothing: the ones with an even serial number pay
+/// (the number is the order the game made the units in, kept for each unit for good).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HalfUpkeep {
+    pub enabled: bool,
+    /// The names of the units (`Spearmen`, `Swordsmen`), the same for every race.
+    pub units: Vec<String>,
+}
+
+impl Default for HalfUpkeep {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            units: vec!["Spearmen".into(), "Swordsmen".into()],
+        }
+    }
+}
+
 /// `content/settings.ron`: the difficulty levels, the defaults of the new-game choices and of the
 /// client's preference switches. A file without it (the test content) leaves `levels` empty, and
 /// a game then plays the symmetric [`GameSettings::flat`].
@@ -294,6 +320,9 @@ pub struct SettingsDef {
     pub new_game: BasicSettings,
     /// The most computer wizards a new game can have, 1 to [`MAX_OPPONENTS`].
     pub max_opponents: u8,
+    /// Half the food and gold upkeep for the basic troops (a divergence inspired by the Caster of
+    /// Magic mod). Off when the file has no such entry.
+    pub half_upkeep: HalfUpkeep,
     /// The land sizes the options step offers, smallest first.
     pub land_sizes: Vec<LandSize>,
     /// The map sizes the options step offers, smallest first.
@@ -456,6 +485,7 @@ impl Default for SettingsDef {
             language: crate::text::FALLBACK_LANGUAGE.into(),
             new_game: BasicSettings::default(),
             max_opponents: MAX_OPPONENTS,
+            half_upkeep: HalfUpkeep::default(),
             land_sizes: vec![
                 size("Small", LAND_SMALL),
                 size("Medium", LAND_MEDIUM),
