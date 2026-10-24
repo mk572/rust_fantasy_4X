@@ -161,6 +161,8 @@ pub struct App {
     pub(crate) turn_events: Option<Vec<Event>>,
     /// The small spell book's pages.
     pub(crate) book_ui: crate::spellbook::BookUi,
+    /// A spell to research once the research under way is done (set from the spell book).
+    pub(crate) queued_research: Option<f4x_core::rules::SpellId>,
     /// The big spell book: the library, the research choice, spells just learned.
     pub(crate) big_ui: crate::bigbook::BigBookUi,
     /// A page turn of the spell books in progress (`page_turn.rs`).
@@ -350,6 +352,7 @@ impl App {
             defences: Default::default(),
             turn_events: None,
             book_ui: Default::default(),
+            queued_research: None,
             book_turn: None,
             big_ui: Default::default(),
             help: Default::default(),

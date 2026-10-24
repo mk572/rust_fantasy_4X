@@ -162,6 +162,22 @@ impl App {
             .game
             .wizard(HUMAN)
             .is_some_and(|m| m.researching().is_none() && !m.candidates().is_empty());
+        // A spell the player asked to learn next goes first, if it is on offer now.
+        if let Some(spell) = self.queued_research.filter(|_| idle) {
+            self.queued_research = None;
+            if self
+                .game
+                .wizard(HUMAN)
+                .is_some_and(|m| m.candidates().contains(&spell))
+            {
+                let events = self.game.apply(Command::SetResearch {
+                    player: HUMAN,
+                    spell,
+                });
+                self.note(events);
+                return;
+            }
+        }
         let alive = self.game.has_player(HUMAN)
             && !self.game.player(HUMAN).is_some_and(|p| p.is_defeated());
         if idle && alive && self.game.game_over.is_none() {

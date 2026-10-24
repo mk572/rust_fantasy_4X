@@ -212,7 +212,7 @@ five shades; the extractor does this ahead of time or leaves a mask:
 - **Cities and towers on the map** (`MAPBACK.LBX`): `map/locations/<name>_<banner>_<frame>.png` for the six
   banners in the game's order (blue, green, purple, red, yellow, neutral/brown), made with
   `COL_City_Banner`. Indexes 214 to 218 (and 224 to 228 on towers) are swapped for the banner's
-  shades, as `Draw_Map_Cities` does. `map/banners.tsv` has each banner's five shades as r,g,b.
+  shades, as `Draw_Map_Cities` does. `map/banners.tsv` has each banner's five shades as r,g,b. The neutral banner is the original's brown; this game plays it grey: run `scripts/grey_neutral.py` after extracting.
 - **Combat figures** (`figures1` to `figure16`): the figure pictures keep their palette indexes
   and a `_banner.png` mask marks the banner pixels (indexes 214 to 218; red channel 1 to 5, alpha
   255). The client paints the owner's shades at load (`paint_banner`, `Art::figure`).

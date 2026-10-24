@@ -26,7 +26,7 @@ pub mod spot {
     /// The gold, food and mana panels (one picture, three thirds).
     pub const PANELS: (f32, f32) = (240.0, 76.0);
     /// The Next Turn button.
-    pub const NEXT_TURN: (f32, f32) = (238.0, 171.0);
+    pub const NEXT_TURN: (f32, f32) = (240.0, 173.0);
     /// The menu buttons: `main.lbx` entries 1 to 7 at these x positions, all at y = 4.
     pub const MENU_Y: f32 = 4.0;
     pub const MENU_X: [f32; 7] = [7.0, 47.0, 89.0, 140.0, 184.0, 226.0, 270.0];
@@ -341,11 +341,11 @@ impl App {
         let (nx, ny) = spot::NEXT_TURN;
         if self.draw_pic(lay, "main", 35, 0, nx, ny).is_some() {
             let hover = self.art_picture("main", 58, 0).is_some_and(|t| {
-                let p = lay.point(nx + 6.0, ny + 5.0);
+                let p = lay.point(nx + 4.0, ny + 3.0);
                 Rect::new(p.x, p.y, t.width() * s, t.height() * s).contains(mouse)
             });
             let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
-            self.draw_pic(lay, "main", 58, frame, nx + 6.0, ny + 5.0);
+            self.draw_pic(lay, "main", 58, frame, nx + 4.0, ny + 3.0);
             click.next_turn = pressed && hover;
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));

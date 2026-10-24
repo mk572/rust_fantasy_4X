@@ -65,9 +65,46 @@ impl BookFilter {
     }
 }
 
+/// How the spells of each realm are ordered in the map's spell book.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum BookSort {
+    #[default]
+    Name,
+    ManaCost,
+}
+
+impl BookSort {
+    fn next(self) -> Self {
+        match self {
+            BookSort::Name => BookSort::ManaCost,
+            BookSort::ManaCost => BookSort::Name,
+        }
+    }
+
+    fn text_key(self) -> &'static str {
+        match self {
+            BookSort::Name => "spell.sort_name",
+            BookSort::ManaCost => "spell.sort_cost",
+        }
+    }
+}
+
+/// What a click on a spell the wizard does not know asks or says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BookAsk {
+    /// "Learn this spell next?": research it (or queue it behind the research under way).
+    Learn(SpellId),
+    /// A message with OK: the text key.
+    Say(&'static str),
+}
+
 /// The small book's state.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BookUi {
+    /// How the spells of a realm are ordered.
+    pub sort: BookSort,
+    /// A question or message over the book.
+    pub ask: Option<BookAsk>,
     /// Which spells the map book lists.
     pub filter: BookFilter,
     /// The pages, always an even number.
@@ -103,6 +140,16 @@ impl App {
     /// Pages of spells, `per_page` to a page, grouped by realm in the book's order, each
     /// group on its own pages; the last page is padded so the book has an even number.
     pub(crate) fn book_pages(&self, spells: &[SpellId], per_page: usize) -> Vec<BookPage> {
+        self.book_pages_sorted(spells, per_page, None)
+    }
+
+    /// `book_pages`, with each realm's spells in the order `sort` gives (none: the rules').
+    pub(crate) fn book_pages_sorted(
+        &self,
+        spells: &[SpellId],
+        per_page: usize,
+        sort: Option<BookSort>,
+    ) -> Vec<BookPage> {
         let rules = &self.game.content().rules;
         let mut pages: Vec<BookPage> = Vec::new();
         for realm in BOOK_REALMS {
@@ -111,7 +158,16 @@ impl App {
                 .copied()
                 .filter(|&s| rules.spells.get(s).realm == realm)
                 .collect();
-            of.sort();
+            match sort {
+                None => of.sort(),
+                Some(BookSort::Name) => of.sort_by_key(|&s| rules.spells.get(s).name.clone()),
+                Some(BookSort::ManaCost) => of.sort_by_key(|&s| {
+                    (
+                        self.game.casting_cost(HUMAN, s, false),
+                        rules.spells.get(s).name.clone(),
+                    )
+                }),
+            }
             let title = rules
                 .realms
                 .by_name(realm)
@@ -168,10 +224,110 @@ impl App {
                 .contains(&CastContext::Overland)
     }
 
+    /// What a click on a spell the wizard does not know leads to: an offer to learn it next when
+    /// it is on offer for research, else the reason it cannot be learnt.
+    fn why_not_learnable(&self, spell: SpellId) -> BookAsk {
+        let Some(m) = self.game.wizard(HUMAN) else {
+            return BookAsk::Say("spell.cannot_learn_yet");
+        };
+        let realm = self.game.content().rules.spells.get(spell).realm.clone();
+        // Arcane spells need no book; every other realm does.
+        if realm != "arcane" && m.books().get(&realm).copied().unwrap_or(0) == 0 {
+            return BookAsk::Say("spell.lack_books");
+        }
+        if m.candidates().contains(&spell) {
+            BookAsk::Learn(spell)
+        } else {
+            BookAsk::Say("spell.cannot_learn_yet")
+        }
+    }
+
+    /// The question or message over the book, and what its answer does.
+    fn answer_book_ask(&mut self, ask: BookAsk) {
+        match ask {
+            BookAsk::Say(key) => {
+                let text = self.text(key);
+                if self.info_box(&text) {
+                    self.book_ui.ask = None;
+                }
+            }
+            BookAsk::Learn(spell) => {
+                let name = self.game.content().rules.spells.get(spell).name.clone();
+                let researching = self
+                    .game
+                    .wizard(HUMAN)
+                    .and_then(|m| m.researching())
+                    .is_some();
+                let text = self.text_with(
+                    if researching {
+                        "spell.learn_next_queue"
+                    } else {
+                        "spell.learn_next"
+                    },
+                    &Args::new().text("spell", &name),
+                );
+                match self.confirm_box(&text) {
+                    Some(true) => {
+                        self.book_ui.ask = None;
+                        if researching {
+                            self.queued_research = Some(spell);
+                            self.log.push(
+                                self.text_with("spell.queued", &Args::new().text("spell", &name)),
+                            );
+                        } else {
+                            let events = self.game.apply(Command::SetResearch {
+                                player: HUMAN,
+                                spell,
+                            });
+                            self.note(events);
+                        }
+                    }
+                    Some(false) => self.book_ui.ask = None,
+                    None => {}
+                }
+            }
+        }
+    }
+
+    /// A message with OK; true once the player has read it.
+    fn info_box(&mut self, text: &str) -> bool {
+        let (w, h) = (screen_width(), screen_height());
+        let (bw, bh) = (w.min(560.0), 130.0);
+        let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
+        draw_rectangle(x, y, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
+        draw_rectangle_lines(x, y, bw, bh, 3.0, crate::ui::GOLD);
+        crate::frame::text_centered(text, w / 2.0, y + 45.0, 22.0, WHITE);
+        let ok = crate::ui::button(
+            Rect::new(x + bw / 2.0 - 50.0, y + 70.0, 100.0, 36.0),
+            &self.text("ui.ok"),
+            true,
+        );
+        ok || is_key_pressed(KeyCode::Enter)
+            || is_key_pressed(KeyCode::Escape)
+            || is_key_pressed(KeyCode::Space)
+    }
+
+    /// For the screenshot check: set the filter and the sort (`all`, `known`, `overland`,
+    /// `battle`, with `,cost` for the order by mana cost).
+    pub fn test_book_view(&mut self, view: &str) {
+        let (filter, sort) = view.split_once(',').unwrap_or((view, "name"));
+        self.book_ui.filter = match filter {
+            "all" => BookFilter::All,
+            "known" => BookFilter::Known,
+            "battle" => BookFilter::KnownBattle,
+            _ => BookFilter::KnownOverland,
+        };
+        self.book_ui.sort = if sort == "cost" {
+            BookSort::ManaCost
+        } else {
+            BookSort::Name
+        };
+    }
+
     /// Rebuild the pages after the filter changed, and open the book at its first spread.
     fn refilter_book(&mut self) {
         let spells = self.castable_spells();
-        self.book_ui.pages = self.book_pages(&spells, SMALL_PAGE);
+        self.book_ui.pages = self.book_pages_sorted(&spells, SMALL_PAGE, Some(self.book_ui.sort));
         self.book_ui.left = 0;
         self.book_ui.last_left = 0;
     }
@@ -188,7 +344,7 @@ impl App {
             }
         }
         let spells = self.castable_spells();
-        let pages = self.book_pages(&spells, SMALL_PAGE);
+        let pages = self.book_pages_sorted(&spells, SMALL_PAGE, Some(self.book_ui.sort));
         // Open at the spell being cast, or where the book was left.
         let mut left = self.book_ui.last_left.min(pages.len().saturating_sub(2));
         if let Some(c) = self.game.wizard(HUMAN).and_then(|m| m.casting()) {
@@ -199,6 +355,7 @@ impl App {
         self.book_ui.pages = pages;
         self.book_ui.left = left - left % 2;
         self.book_ui.replace = None;
+        self.book_ui.ask = None;
         self.book_ui.combat = None;
         self.screen = Screen::Spellbook;
     }
@@ -280,6 +437,13 @@ impl App {
     pub(crate) fn spellbook_screen(&mut self) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
+        // A question about a spell the wizard does not know, or why it cannot be learnt.
+        if let Some(ask) = self.book_ui.ask {
+            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+            self.draw_spellbook(&lay, view);
+            self.answer_book_ask(ask);
+            return;
+        }
         // A question first: give up the spell being cast for another?
         if let Some((spell, abort_only)) = self.book_ui.replace {
             clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
@@ -347,6 +511,12 @@ impl App {
             self.screen = Screen::Map;
             return;
         }
+        // The sort line at the right of the bookmark (or the S key) changes the order.
+        if (clicked && in_rect(200.0, 184.0, 116.0, 12.0)) || is_key_pressed(KeyCode::S) {
+            self.book_ui.sort = self.book_ui.sort.next();
+            self.refilter_book();
+            return;
+        }
         // The filter line at the foot of the left page (or the Tab key) changes what is listed.
         if (clicked && in_rect(32.0, 184.0, 130.0, 12.0)) || is_key_pressed(KeyCode::Tab) {
             self.book_ui.filter = self.book_ui.filter.next();
@@ -361,13 +531,17 @@ impl App {
             };
             let x0 = if side == 0 { 32.0 } else { 164.0 };
             for (i, &spell) in page.spells.iter().enumerate() {
-                if clicked
-                    && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0)
-                    && self.book_spell_usable(spell)
-                {
-                    self.book_ui.last_left = left;
-                    self.choose_spell_to_cast(spell);
-                    return;
+                if clicked && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                    if self.book_spell_usable(spell) {
+                        self.book_ui.last_left = left;
+                        self.choose_spell_to_cast(spell);
+                        return;
+                    }
+                    if !self.game.wizard(HUMAN).is_some_and(|m| m.knows(spell)) {
+                        self.book_ui.last_left = left;
+                        self.book_ui.ask = Some(self.why_not_learnable(spell));
+                        return;
+                    }
                 }
             }
         }
@@ -438,6 +612,16 @@ impl App {
                 Color::new(0.85, 0.72, 0.45, 1.0)
             };
             self.bm_text(view, 1, ink, &line, 97.0, 187.0, Align::Center);
+            let line = self.text(self.book_ui.sort.text_key());
+            let hover = lay
+                .rect((200.0, 184.0, 116.0, 12.0))
+                .contains(mouse_position().into());
+            let ink = if hover {
+                Color::new(1.0, 0.95, 0.6, 1.0)
+            } else {
+                Color::new(0.85, 0.72, 0.45, 1.0)
+            };
+            self.bm_text(view, 1, ink, &line, 258.0, 187.0, Align::Center);
         }
     }
 
@@ -509,11 +693,20 @@ impl App {
             || self.game.casting_cost(HUMAN, spell, false),
             |c| c.remaining,
         );
+        // Castable on the map; known but only for battle; not learnt (all spells are listed).
         let usable = self.book_spell_usable(spell);
+        let known = self.game.wizard(HUMAN).is_some_and(|m| m.knows(spell));
         let ink = if usable {
             Color::new(0.2, 0.12, 0.05, 1.0)
+        } else if known {
+            Color::new(0.5, 0.38, 0.26, 1.0)
         } else {
-            Color::new(0.2, 0.12, 0.05, 0.4)
+            Color::new(0.8, 0.77, 0.72, 1.0)
+        };
+        let symbol_tint = if known {
+            WHITE
+        } else {
+            Color::new(0.75, 0.75, 0.75, 0.55)
         };
         // The spell being cast glows (palette index 198 cycling, `SmlBook_Draw`).
         let hot = crate::cycle::SMALL_BOOK.colour(get_time());
@@ -560,18 +753,27 @@ impl App {
                 let word = self.text("spell.special");
                 self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);
             } else {
-                self.draw_pic(lay, "spells", realm_symbol, 0, x + 1.0, y + 7.0);
+                self.draw_pic_tinted(
+                    lay,
+                    "spells",
+                    realm_symbol,
+                    0,
+                    x + 1.0,
+                    y + 7.0,
+                    symbol_tint,
+                );
             }
         } else {
             for t in 0..turns {
                 let (col, row) = (t % 20, t / 20);
-                self.draw_pic(
+                self.draw_pic_tinted(
                     lay,
                     "spells",
                     realm_symbol,
                     0,
                     x + 1.0 + 6.0 * col as f32,
                     y + 7.0 + 6.0 * row as f32,
+                    symbol_tint,
                 );
             }
         }
