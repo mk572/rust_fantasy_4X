@@ -26,6 +26,7 @@
     "battle.fissure": "The earth cracks open",
     "battle.vortex": "A magic vortex appears",
     "battle.life_drained": "{unit} loses {points} life",
+    "battle.power_drained": "{unit} loses {amount} mana",
     "battle.countered": "Counter Magic stops {spell}",
     "battle.takes_damage": "{unit} takes {dealt} damage{kills}",
     "battle.unharmed": "{unit} is unharmed",

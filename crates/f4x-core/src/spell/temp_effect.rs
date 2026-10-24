@@ -120,6 +120,44 @@ impl<'a> UnitView<'a> {
             .collect()
     }
 
+    /// The abilities that come to the unit from its items and from lasting spells, and are not
+    /// its own: the original counts their special attacks as not innate (`Combat.c` 12573).
+    pub fn unit_granted_abilities(&self, unit: hecs::Entity) -> Vec<String> {
+        let own = self
+            .unit_def(unit)
+            .map(|d| d.abilities.clone())
+            .unwrap_or_default();
+        let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
+        let mut out: Vec<String> = Vec::new();
+        let mut take = |a: String| {
+            let innate = own.contains(&a)
+                || hero
+                    .as_ref()
+                    .is_some_and(|h| h.abilities.ids().contains(&a));
+            if !innate && !out.contains(&a) {
+                out.push(a);
+            }
+        };
+        let spells = crate::spell::instance::Spells::new(self.world)
+            .unit_enchantments(unit)
+            .into_iter()
+            .map(|(s, _)| s)
+            .chain(self.items().spells(unit));
+        for spell in spells {
+            for rule in &self.content.rules.spells.get(spell).effects {
+                if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
+                    (rule.when, &rule.condition, &rule.effect)
+                {
+                    take(a.clone());
+                }
+            }
+        }
+        for a in self.items().abilities(unit) {
+            take(a);
+        }
+        out
+    }
+
     /// The unit's abilities now: its own, those its lasting spells grant (Magic Immunity,
     /// Guardian Wind), plus temporary grants, minus temporary removals. Temporary effects apply
     /// in the order they were added, so a later grant restores what an earlier removal took.

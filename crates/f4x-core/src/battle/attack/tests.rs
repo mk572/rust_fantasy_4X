@@ -351,6 +351,20 @@ fn a_touch_that_is_not_resisted_kills_a_figure_for_each_attacker() {
     };
     let d = mean_kills(&touch(death), 6, || soft(40, 100, 4));
     assert!((d - 5.4).abs() < 0.3, "{d}");
+    // From an item or a spell the touches are weaker: 3 more for death, 1 more for stoning, so
+    // a resistance of 4 at -6 (or -4) never holds.
+    let by_item = SpecialAttacks {
+        death_extra: 3,
+        ..death
+    };
+    let g = mean_kills(&touch(by_item), 6, || soft(40, 100, 4));
+    assert!(g > 5.95, "{g}");
+    let stone_item = SpecialAttacks {
+        stoning_extra: 1,
+        ..stoner
+    };
+    let g = mean_kills(&touch(stone_item), 6, || soft(40, 100, 4));
+    assert!(g > 5.95, "{g}");
     let destroyer = SpecialAttacks {
         destruction: true,
         ..SpecialAttacks::default()

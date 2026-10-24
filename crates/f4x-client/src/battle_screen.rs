@@ -218,6 +218,9 @@ pub(crate) fn describe(
         BattleEvent::LifeDrained { unit: u, points } => {
             say("battle.life_drained", unit(*u).count("points", *points))
         }
+        BattleEvent::PowerDrained { unit: u, amount } => {
+            say("battle.power_drained", unit(*u).count("amount", *amount))
+        }
         BattleEvent::SpellCountered { spell: s, .. } => say("battle.countered", spell_of(*s)),
         BattleEvent::SpellDamaged {
             unit: u,

@@ -1135,7 +1135,7 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() {
         let u = battle.units.iter().find(|u| u.name == name).unwrap();
         (
             u.special_level,
-            SpecialAttacks::of_unit(&u.abilities, u.special_level),
+            SpecialAttacks::of_unit(&u.abilities, &u.granted, u.special_level),
             u.ranged_kind,
         )
     };
@@ -1439,6 +1439,48 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
         "{events:?}"
     );
     assert!(back.component::<f4x_core::city::City>(again).is_some());
+}
+
+#[test]
+fn razing_a_wizards_fortress_city_leaves_the_wizard_banished_and_the_winner_unharmed() {
+    // Three wizards, so that the game goes on when one is out.
+    let content =
+        f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+            .unwrap();
+    let mut g = new_game(
+        &content,
+        &NewGame {
+            seed: 7,
+            ..NewGame::with_wizards(3)
+        },
+    )
+    .unwrap();
+    let loser = PlayerId(1);
+    let city = g.economy().fortress_city(loser).expect("a fortress city");
+    let own_fortress = g.wizard(HUMAN).unwrap().fortress();
+    assert!(own_fortress.is_some());
+    g.conquer_city(city, HUMAN, 0);
+    // The fortress fell at the taking, not at the razing.
+    assert!(g.wizard(loser).unwrap().fortress().is_none());
+    assert!(
+        g.wizard(loser).unwrap().is_banished() || g.player(loser).unwrap().is_defeated(),
+        "banished or out"
+    );
+    let events = g.apply(f4x_core::game::Command::RazeCity {
+        player: HUMAN,
+        city,
+    });
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, f4x_core::game::Event::CityRazed { .. })),
+        "{events:?}"
+    );
+    assert!(g.component::<f4x_core::city::City>(city).is_none());
+    // The winner keeps their fortress, circle and place in the game.
+    assert_eq!(g.wizard(HUMAN).unwrap().fortress(), own_fortress);
+    assert!(!g.wizard(HUMAN).unwrap().is_banished());
+    assert!(!g.player(HUMAN).unwrap().is_defeated());
 }
 
 /// The one city marked as just taken (found again after a save: entities change).

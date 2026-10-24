@@ -1203,6 +1203,34 @@ fn a_life_stealing_shot_heals_the_shooter() {
     assert!(healed > 0);
 }
 
+#[test]
+fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check() {
+    let drainer = || {
+        let mut u = BattleUnit::simple(Side::Attacker, "hero", 2, 10, 1, 1).at((3, 10));
+        u.ranged = 6;
+        u.ammo = 6;
+        u.ranged_kind = RangedKind::Missile;
+        with_abilities(u, &["bow", "power_drain"])
+    };
+    let caster = || {
+        let mut u = dummy(&[]);
+        u.mana = 40;
+        u.resistance = 2;
+        u
+    };
+    let (mut drained, mut tries) = (0, 0);
+    for seed in 0..60 {
+        let mut b = duel(drainer(), caster(), seed);
+        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
+            .unwrap();
+        let lost = 40 - b.unit(1).unwrap().mana;
+        assert!((0..=20).contains(&lost) && lost != 1, "{lost}");
+        tries += 1;
+        drained += i32::from(lost > 0);
+    }
+    assert!(drained > 5 && drained < tries, "{drained} of {tries}");
+}
+
 fn crusher(side: Side, cell: Pos, ranged: bool) -> BattleUnit {
     let mut u = with_abilities(
         BattleUnit::simple(side, "giant", 1, 20, 8, 3).at(cell),

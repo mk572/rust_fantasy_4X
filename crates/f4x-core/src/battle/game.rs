@@ -330,6 +330,7 @@ impl Game {
                 .and_then(Realm::from_id),
             undead: self.units().unit_counts_as_undead(unit),
             abilities: abilities.clone(),
+            granted: self.units().unit_granted_abilities(unit),
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: self.unit_in_stasis(unit),

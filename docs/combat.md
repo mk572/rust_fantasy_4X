@@ -202,9 +202,9 @@ Armour piercing halves the defence (rounding down) before the immunity floor of 
 lightning breath pierces armour too. Healing (`DefenderState::heal`) mends the front figure,
 then brings dead figures back, and nothing over full strength is kept.
 
-Not here (task 157): power drain (it needs battle mana: now there, see section 8), the extra penalty and half
-strength of touches and doom damage granted by items and spells, hit points above full
-strength from life steal, and healing that skips irreversible damage.
+Power drain (an item's: the target resists or loses 2 to 20 of its own mana, `Damage::mana_lost`) and
+the weaker touches and half doom damage of attacks granted by items and spells (`BattleUnit::granted`:
+stoning touch resists with 1 more, death touch and life steal with 3 more) are in (task 157).
 
 Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit in
 `BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a
@@ -568,5 +568,4 @@ Dispel Magic (and True) also tries each battlefield enchantment of the caster's 
 Counter Magic cannot be dispelled, and the dispel still aims at a unit.
 
 **Not here** (task 159): Disenchant Area and True in battle, the node auras and counter, Wall of Stone in battle (tasks 158 and 163),
-true sight (it cancels invisibility), the Mass Invisibility rule that an invisible unit next to an
-enemy is seen, Entangle's exemption for fliers in the help text.
+Entangle's exemption for fliers in the help text.

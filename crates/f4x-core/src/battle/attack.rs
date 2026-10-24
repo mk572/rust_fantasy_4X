@@ -225,6 +225,10 @@ pub fn kill_figure(def: &mut DefenderState) -> Damage {
 }
 
 /// A ten-sided die: one to ten.
+/// The least and the most mana a Power Drain takes.
+const POWER_DRAIN_MIN: i32 = 2;
+const POWER_DRAIN_MAX: i32 = 20;
+
 fn d10(rng: &mut dyn RngCore) -> i32 {
     rng.gen_range(1..=10)
 }
@@ -254,6 +258,8 @@ pub struct Damage {
     /// Of `points`, the damage of a destruction or of a spell that severs or burns: a unit
     /// that dies of it is gone for good.
     pub gone: i32,
+    /// Mana the target is to lose (Power Drain).
+    pub mana_lost: i32,
 }
 
 impl Damage {
@@ -283,6 +289,7 @@ impl std::ops::AddAssign for Damage {
         self.healed += other.healed;
         self.drained += other.drained;
         self.gone += other.gone;
+        self.mana_lost += other.mana_lost;
     }
 }
 
@@ -351,18 +358,23 @@ pub fn process_attack(
             }
             if sp.stoning_touch
                 && !def.immunities.stoning
-                && def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0
+                && def.resistance_failure(Some(Realm::Nature), -sp.penalty - sp.stoning_extra, rng)
+                    > 0
             {
                 total += kill_figure(def).all_gone();
             }
             if sp.death_touch
                 && !def.immunities.death
-                && def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0
+                && def.resistance_failure(Some(Realm::Death), -sp.penalty - sp.death_extra, rng) > 0
             {
                 total += kill_figure(def);
             }
             if sp.life_steal && !def.immunities.death {
-                let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
+                let stolen = def.resistance_failure(
+                    Some(Realm::Death),
+                    -sp.penalty - sp.life_steal_extra,
+                    rng,
+                );
                 total += unblockable(def, stolen).all_drained();
                 total.healed += stolen;
             }
@@ -404,6 +416,14 @@ pub fn process_attack(
                 }
             }
         }
+    }
+    // Power Drain, once for the attack that hurt: the target resists, or loses 2 to 20 mana.
+    if sp.power_drain
+        && touchable
+        && total.points > 0
+        && def.resistance_failure(Some(Realm::Death), 0, rng) > 0
+    {
+        total.mana_lost = rng.gen_range(POWER_DRAIN_MIN..=POWER_DRAIN_MAX);
     }
     // What a creator of undead deals, apart from what the touches destroy, can raise the dead.
     if sp.create_undead && !def.immunities.magic {

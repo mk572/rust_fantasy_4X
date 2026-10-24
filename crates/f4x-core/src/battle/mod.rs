@@ -194,6 +194,10 @@ pub struct BattleUnit {
     pub realm: Option<Realm>,
     pub undead: bool,
     pub abilities: Vec<String>,
+    /// Of those, the ones an item or a lasting spell gives: their touches are weaker and their
+    /// doom damage is halved (`SpecialAttacks::of_unit`).
+    #[serde(default)]
+    pub granted: Vec<String>,
     pub status: Status,
     /// The damage it has taken, by kind: ordinary, drained, and the kind that destroys.
     pub damage_kinds: [i32; 3],
@@ -306,6 +310,7 @@ impl BattleUnit {
             realm: None,
             undead: false,
             abilities: Vec::new(),
+            granted: Vec::new(),
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: false,
@@ -469,6 +474,17 @@ impl BattleUnit {
         }
     }
 
+    /// Power Drain: the unit loses up to `amount` mana (a spell shooter's shots follow its mana).
+    /// Returns what it lost.
+    pub(super) fn drain_power(&mut self, amount: i32) -> i32 {
+        let lost = amount.min(self.mana).max(0);
+        self.mana -= lost;
+        if self.shoots_with_mana() {
+            self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+        }
+        lost
+    }
+
     /// Mana Leak: a caster loses `field::MANA_LEAK_DRAIN` mana; any unit with spell shots loses
     /// one (a caster's shots follow its mana).
     pub(super) fn leak_mana(&mut self, drain: i32) {
@@ -483,12 +499,18 @@ impl BattleUnit {
     }
 
     fn special_attacks(&self) -> SpecialAttacks {
-        SpecialAttacks::of_unit(&self.abilities, self.special_level)
+        SpecialAttacks::of_unit(&self.abilities, &self.granted, self.special_level)
     }
 
     /// A combatant for one of the unit's attacks.
     fn combatant(&self, mode: Mode, strength: i32, to_hit: i32) -> Combatant {
         let special = self.special_attacks();
+        // Doom damage that an item or a spell gives is half as strong.
+        let strength = if self.granted.iter().any(|a| a == "doom_damage") {
+            strength / 2
+        } else {
+            strength
+        };
         Combatant {
             strength,
             to_hit,
@@ -807,6 +829,11 @@ pub enum BattleEvent {
     LifeDrained {
         unit: usize,
         points: i32,
+    },
+    /// A Power Drain took `amount` mana from a unit.
+    PowerDrained {
+        unit: usize,
+        amount: i32,
     },
     /// Recall Hero took the hero (a battle unit id) off the field.
     HeroRecalled {
@@ -1448,6 +1475,12 @@ impl Battle {
         }
     }
 
+    /// Take the mana of a Power Drain off the unit, with the event when it had any to lose.
+    fn power_drained(&mut self, unit: usize, amount: i32) -> Option<BattleEvent> {
+        let lost = self.units[unit].drain_power(amount);
+        (lost > 0).then_some(BattleEvent::PowerDrained { unit, amount: lost })
+    }
+
     fn melee(&mut self, att: usize, def: usize) -> Vec<BattleEvent> {
         let reach_blocked = self.units[def].flies && !self.units[att].flies;
         let mut a = self.fighter(att, reach_blocked);
@@ -1481,6 +1514,9 @@ impl Battle {
         self.units[att].attacked = true;
         self.units[att].revealed = true;
         self.units[att].moves_left = 0;
+        for (id, mana_lost) in [(def, out.dealt.mana_lost), (att, out.taken.mana_lost)] {
+            events.extend(self.power_drained(id, mana_lost));
+        }
         for id in [att, def] {
             if !self.units[id].is_active() {
                 events.push(BattleEvent::UnitDied { unit: id });
@@ -1531,6 +1567,7 @@ impl Battle {
             dealt: dmg.points,
             kills: dmg.kills,
         }];
+        events.extend(self.power_drained(def, dmg.mana_lost));
         if !self.units[def].is_active() {
             events.push(BattleEvent::UnitDied { unit: def });
         }

@@ -46,16 +46,30 @@ pub struct SpecialAttacks {
     /// Its victims can be raised as undead (Ghouls); with life steal, which does so too, this
     /// is not an attack of its own.
     pub create_undead: bool,
+    /// An item's Power Drain: the target that fails a resistance check loses 2 to 20 mana.
+    pub power_drain: bool,
     /// The penalty to the target's resistance for gazes, stoning and death touches and life
     /// steal.
     pub penalty: i32,
+    /// What more the touches cost the target's resistance when an item or a spell gives them:
+    /// stoning touch 1, death touch and life steal 3 (the original's `noninnate` attributes).
+    pub stoning_extra: i32,
+    pub death_extra: i32,
+    pub life_steal_extra: i32,
     pub gaze: Gaze,
 }
 
 impl SpecialAttacks {
     /// The special attacks among a unit's abilities, with its special level.
-    pub fn of_unit(abilities: &[String], special_level: i32) -> SpecialAttacks {
+    pub fn of_unit(abilities: &[String], granted: &[String], special_level: i32) -> SpecialAttacks {
         let has = |name: &str| abilities.iter().any(|a| a == name);
+        let given = |name: &str, extra: i32| {
+            if granted.iter().any(|a| a == name) {
+                extra
+            } else {
+                0
+            }
+        };
         let level = special_level.abs();
         SpecialAttacks {
             poison: if has("poison_touch") { level } else { 0 },
@@ -65,7 +79,11 @@ impl SpecialAttacks {
             destruction: has("destruction"),
             dispel_evil: has("dispel_evil"),
             create_undead: has("create_undead"),
+            power_drain: has("power_drain"),
             penalty: level,
+            stoning_extra: given("stoning_touch", 1),
+            death_extra: given("death_touch", 3),
+            life_steal_extra: given("life_steal", 3),
             gaze: if has("multi_gaze") {
                 Gaze::Multi
             } else if has("stoning_gaze") {
@@ -87,6 +105,7 @@ impl SpecialAttacks {
             && !self.destruction
             && !self.dispel_evil
             && !self.create_undead
+            && !self.power_drain
             && self.gaze == Gaze::None
     }
 }
