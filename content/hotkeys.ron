@@ -17,8 +17,6 @@
     "quick_load": ["Ctrl+L"],
     "undo": ["Ctrl+Z"],
     "console": ["GraveAccent"],
-    "new_map": ["Ctrl+N"],
-    "next_race": ["Ctrl+R"],
 
     // The screens.
     "magic": ["M"],

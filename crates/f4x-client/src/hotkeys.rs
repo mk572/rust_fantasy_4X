@@ -10,15 +10,13 @@ use macroquad::prelude::KeyCode;
 use macroquad::prelude::{is_key_down, is_key_pressed};
 
 /// Every action a key can do on the map; the names are those of `hotkeys.ron`.
-pub(crate) const ACTIONS: [&str; 43] = [
+pub(crate) const ACTIONS: [&str; 41] = [
     "end_turn",
     "game_menu",
     "quick_save",
     "quick_load",
     "undo",
     "console",
-    "new_map",
-    "next_race",
     "magic",
     "spellbook",
     "army_list",

@@ -98,7 +98,6 @@
     "log.banished_spells": "You may not throw any spells while you are banished. There are at least {turns} turns remaining until you may return.",
     "log.banished_diplomacy": "You may not contact other wizards while you are banished.",
     "log.resign_keys": "Y: resign      Enter: keep casting",
-    "log.playing_as": "Playing as {race}",
     "log.farmers_balanced": "Farmers balanced to feed the army",
     "log.select_settlers": "Select settlers first",
     "log.not_in_game": "Not in the game yet",

@@ -1864,16 +1864,6 @@ impl App {
         if self.hotkeys.pressed("advisors") {
             self.open_advisor_menu();
         }
-        if self.hotkeys.pressed("new_map") {
-            self.new_map(self.seed + 1);
-        }
-        if self.hotkeys.pressed("next_race") {
-            self.race = (self.race + 1) % self.game.content().rules.races.len().max(1);
-            self.new_map(self.seed);
-            let name = self.race_name(self.race).to_string();
-            self.log
-                .push(self.text_with("log.playing_as", &Args::new().text("race", name)));
-        }
         self.road_plan_keys();
         if self.hotkeys.pressed("special") && self.road_plan.is_some() {
             self.road_plan_confirm();
