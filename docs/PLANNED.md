@@ -54,6 +54,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
 | 42 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
+| 44 | Client | Build queues in the city production screen: a list of items a city works down in order |
 
 ## Descriptions
 
