@@ -351,7 +351,15 @@ None is needed to match the original.
 4. **Gating.** As the original: `Sound Effects` off silences every effect including the clicks (task 266);
    `Background Music` off silences all music including the short pieces; `Event Music` only the two event pieces.
 
-### mt32-rs (checked 2026-10-24, README only; no code run)
+### mt32-rs (checked 2026-10-24)
+
+**Spike built (task 363 step 1): `tools/xmi-play`** (see `docs/scripts.md`). The author's pick is the *new* MT-32 ROM
+pair (control 2.07 + `mt32_pcm.rom`), not 1.07. Own XMI reader (delays, note durations to note-offs, tempo, loop
+controllers 110 to 120 dropped, loops not yet followed), the `TIMB` timbres of `fat.mt` (GTL directory of patch, bank,
+offset; 248-byte records) sent as SysEx into timbre memory with the patch pointed at them. Banks 55 are in the library;
+bank 127 entries are not and use the unit's own timbres. `-R` renders a whole folder to OGG for the client (task 363 done); the client's `Audio::scan` finds `music/NNN_name.ogg`. The opening movie plays `112_intro` as a piece. Loops are not followed: a looping track restarts from its first note. The submodule is `third_party/mt32-rs`. Both test songs render with signal (`104_main_menu` 102 s,
+`112_intro` 131 s); how right they sound is for the author's ears.
+
 
 - A safe-Rust port of Munt's `mt32emu`, standalone (written for an Amiga emulator). Covers MT-32 old and new, CM-32L,
   LAPC-I and CM-32LN, claims bit-identical output to Munt at the native rate, about 0.5 s of CPU per minute of music.

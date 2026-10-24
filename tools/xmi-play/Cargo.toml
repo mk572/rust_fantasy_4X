@@ -1,0 +1,14 @@
+# A console player for the original's XMI songs, rendered by the Roland MT-32 emulation `mt32-rs`.
+# Its own workspace and outside `crates/`: `mt32-rs` is LGPL-2.1-or-later, and the shipped game
+# (CC0) must not depend on it (task 363). Build it from this folder: `cargo run --release -- -h`.
+[workspace]
+
+[package]
+name = "xmi-play"
+version = "0.1.0"
+edition = "2021"
+license = "LGPL-2.1-or-later"
+publish = false
+
+[dependencies]
+mt32-rs = { path = "../../third_party/mt32-rs" }

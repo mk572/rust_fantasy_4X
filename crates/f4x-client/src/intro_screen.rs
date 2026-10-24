@@ -3,7 +3,8 @@
 //! fade in on its first frame, the Simtex copyright line over scene 2, and a few sound effects at
 //! fixed frames. Any key or click skips it. The pictures are the author's own copy of the game
 //! (`assets-local/screens/intro/`) and the sounds come from `SOUNDFX`; without them the movie is
-//! skipped. The original's intro music (an XMI song) waits for task 363.
+//! skipped. The movie's song (`music/112_intro`) plays under it, a piece that ends when the movie does
+//! (`App::want_music`).
 //!
 //! The show is made as a list of beats up front (`beats`), one picture held for a number of the
 //! original's 55 ms ticks at a darkness, so the timing can be tested without a window.

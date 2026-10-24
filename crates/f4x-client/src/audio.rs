@@ -145,6 +145,7 @@ impl Track {
 /// `MUSIC.LBX` entries by name (`MUSIC_Tracks` of ReMoM's `SOUND.h`).
 pub(crate) mod music {
     pub const SOM_STARTED: u16 = 12;
+    pub const INTRO: u16 = 112;
     pub const FANFARE: u16 = 115;
     pub const SPELL_FAILURE: u16 = 17;
     pub const NEW_SPELL: u16 = 40;
@@ -419,7 +420,8 @@ impl App {
         }
         match self.screen {
             Screen::MainMenu => return Some(Track::looping(music::MAIN_MENU)),
-            Screen::Create | Screen::Options | Screen::Intro => return None,
+            Screen::Intro => return Some(Track::piece(music::INTRO)),
+            Screen::Create | Screen::Options => return None,
             Screen::Diplomacy => return self.diplomacy_track(),
             Screen::GameOver => return self.game_over_track(),
             _ => {}

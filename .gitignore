@@ -9,3 +9,4 @@ __pycache__/
 /scripts/thermal_state
 /models-local
 /.venv
+/tools/*/target
