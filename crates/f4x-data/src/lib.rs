@@ -1127,11 +1127,11 @@ mod tests {
         std::fs::create_dir_all(&other).unwrap();
         std::fs::write(
             other.join("help.ron"),
-            r#"[(index: 229, title: "x", text: "y"), (index: 300, title: "extra", text: "z")]"#,
+            r#"[(index: 229, title: "x", text: "y"), (index: 9000, title: "extra", text: "z")]"#,
         )
         .unwrap();
         let layered = load_help(&[dir.as_path(), other.as_path()]).unwrap();
         assert_eq!(layered.topic(229).unwrap().title, "Next turn");
-        assert_eq!(layered.topic(300).unwrap().title, "extra");
+        assert_eq!(layered.topic(9000).unwrap().title, "extra");
     }
 }

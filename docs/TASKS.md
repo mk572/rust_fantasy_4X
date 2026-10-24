@@ -87,6 +87,7 @@ neighbours.
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 374 | Map | Neutral cities reach only about 40% of the target: find out why |
+| 375 | Client | Wire the seven Settings switches that do nothing yet |
 
 ## Descriptions
 
@@ -306,3 +307,11 @@ before turn 300, no wizard ends with more than a third of its mana or a hundred 
 objective plays worse than the Pragmatist. A part that does not move these numbers is reverted. Do not
 tune by giving the AI information a player lacks. *Needs:* 361; tasks 366, 367, 369 and 370 are its parts
 and may be done on their own.
+
+**375. Wire the seven Settings switches that do nothing yet.** City Spell Events, Overland Spell Events,
+Summoning Events, End of Turn Wait, Auto Unit Information, Enemy Moves and Spell Book Ordering are stored
+(`preferences.rs`) and shown on the Settings screen but read by nothing (check Spell Book Ordering first:
+the screen resets the book on toggle). Their help (topics 678 to 680, 684, 686, 687, 689) already says
+what each should do, as the original does; make the client do it. Also give Left Click Moves Units and
+Play Intro a help topic and a help area on the Settings screen (they have none, the area list comes
+from the original). *Needs:* nothing.
