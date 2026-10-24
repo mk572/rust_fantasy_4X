@@ -73,10 +73,11 @@ pub(crate) fn sale_value(cost: u32, walls: bool) -> u32 {
     (if walls { third / 2 } else { third }).max(1)
 }
 
-/// The city has sold a building since the turn began: it may sell one a turn (`sold_building`
-/// in the original, cleared when the turn changes).
+/// The city has sold this building since the turn began: it may sell one a turn
+/// (`sold_building` in the original, cleared when the turn changes). The city picture shows
+/// rubble in its place until then (`bs_Removed`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SoldBuilding;
+pub struct SoldBuilding(pub BuildingId);
 
 /// What buying the current item takes (`Economy::buy_plan`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -355,7 +356,12 @@ impl Economy<'_> {
 
     /// Whether the city has sold a building this turn.
     pub fn sold_this_turn(&self, city: hecs::Entity) -> bool {
-        self.world.get::<&SoldBuilding>(city).is_ok()
+        self.sold_building(city).is_some()
+    }
+
+    /// The building the city has sold this turn, which its picture shows as rubble.
+    pub fn sold_building(&self, city: hecs::Entity) -> Option<BuildingId> {
+        self.world.get::<&SoldBuilding>(city).ok().map(|s| s.0)
     }
 
     /// What selling `building` would bring, or why it cannot be sold.
@@ -478,7 +484,7 @@ impl Game {
         let (owner, cost) = self.economy().sell_plan(city, building)?;
         let ends_production = self.economy().production_needs(city, building);
         remove_building(&self.world, city, building)?;
-        let _ = self.world.insert_one(city, SoldBuilding);
+        let _ = self.world.insert_one(city, SoldBuilding(building));
         if ends_production {
             let mut p = self.economy().city_production(city);
             p.item = Some(ProductionItem::Housing);

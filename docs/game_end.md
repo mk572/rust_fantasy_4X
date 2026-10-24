@@ -79,12 +79,26 @@ the game over screen shows the scale. The original draws a bar of `min(score / 4
 shows the headline (victory or defeat and why), the turn and the human's score breakdown, and
 offers *New game*, *Look at the map* (the map stays visible; commands are refused) and *Quit*.
 
+### The scenes (`end_scene.rs`)
+
+Before the score the client plays the original's full-screen scenes from `CONQUEST.c` and `SPLMASTR.c`, one after the
+other from a queue (`App::end_scenes`): `Win_Animation` when the human wins, `Lose_Animation` when the human is out,
+and before the victory by the Spell of Mastery the parade of the rivals' portraits (`Spell_Of_Mastery`, a minute for
+each rival that is not banished). `Conquest_Animation` plays when the raiders (the neutral player) destroy a wizard,
+because the original returns early unless the raiders are on one side of it, and `Return_Animation` when a rival is
+banished. One stage is a few ticks of the original's clock (18.2 a second): victory 4 ticks and 90 stages, defeat 4 and
+45, conquest 5 and 30, return 5 and 40, parade 3 and 12 plus 60 for each rival. Esc or a click ends a scene. The hands
+the victor holds up are chosen by a table the review of ReMoM could not read (`GAME_PlayVictoryAnim`'s `off_79C7F`); the
+one used gives the shaman's hands to Raven, the priestess's to Sharee, Oberic's to Oberic, the draconian's to Sss'ra,
+a woman's to Freya, Ariel and Kali, and a man's to the rest, which fits the five targets in their order.
+`--shot FILE --scene win|lose|conquest|return|parade [--shot-after SECONDS]` shows each.
+
 ## 6. Not done
 
-- The cut-scenes and the original's score screen drawing (task 134), the hall of fame (88).
+- A rival's win by the Spell of Mastery is only the defeat scene: the sphere scene before it
+  (`Spell_Of_Mastery_Lose`) is task 360.
 - The AI conquest rules that would feed relations (63, 67). The "has started casting"
   announcement is in as plain text (animation: task 287).
-- A difficulty setting to scale the score (task 69).
 
 ## 7. Differences from the original
 

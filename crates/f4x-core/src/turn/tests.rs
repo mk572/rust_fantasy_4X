@@ -790,6 +790,8 @@ fn a_sale_is_remembered_in_a_save() {
         .unwrap();
     let city = back.economy().cities()[0].0;
     assert!(back.economy().sold_this_turn(city));
+    // The city picture shows rubble where it stood, so the save keeps which one it was.
+    assert_eq!(back.economy().sold_building(city), Some(barracks));
 }
 
 #[test]

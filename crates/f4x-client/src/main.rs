@@ -25,6 +25,7 @@ mod create_screen;
 mod cycle;
 mod diplomacy_screen;
 mod diplomacy_text;
+mod end_scene;
 mod enemy_city_screen;
 mod event_popup;
 mod frame;
@@ -85,6 +86,8 @@ struct Options {
     autobuild: bool,
     /// With `--shot --city`, open the question to sell the city's first building.
     sell: bool,
+    /// With `--shot --city`, open the list to choose what to build.
+    choose: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
     /// With `--shot`, open this wizard's sheet first (0 is you; a rival's shows as if met).
@@ -97,6 +100,12 @@ struct Options {
     spells: bool,
     apprentice: bool,
     research: bool,
+    /// With `--shot`, warp the magic nodes and show the first one.
+    warp_nodes: bool,
+    /// With `--shot`, show this scene: win, lose, conquest or return.
+    scene: Option<String>,
+    /// With `--shot`, take it this many seconds after the start instead of at the third frame.
+    shot_after: Option<f64>,
     /// With `--shot`, explore the whole map first.
     reveal: bool,
     /// With `--shot`, put the top-left of the map view at this tile.
@@ -150,6 +159,8 @@ struct Options {
     event: Option<String>,
     /// With `--shot`, announce this finished building (an id).
     built: Option<String>,
+    /// With `--shot --city`, dress the city: spells, `ward:REALM`, `sold`, `built:ID`.
+    city_fx: Option<String>,
     /// Announce this spell (an id) as just learned; `--learn-at` starts the animation that many seconds in.
     learn: Option<String>,
     /// With `--spells` or `--apprentice`: show a page turn (`forward` or `back`) `--turn-at` seconds in.
@@ -204,6 +215,10 @@ fn parse_args() -> Result<Options, String> {
         city: false,
         autobuild: false,
         sell: false,
+        choose: false,
+        warp_nodes: false,
+        scene: None,
+        shot_after: None,
         magic: false,
         wizard: None,
         talk: None,
@@ -249,6 +264,7 @@ fn parse_args() -> Result<Options, String> {
         offer: None,
         event: None,
         built: None,
+        city_fx: None,
         learn: None,
         turn: None,
         turn_at: 0.0,
@@ -288,6 +304,16 @@ fn parse_args() -> Result<Options, String> {
             "--city" => o.city = true,
             "--autobuild" => o.autobuild = true,
             "--sell" => o.sell = true,
+            "--choose" => o.choose = true,
+            "--warp-nodes" => o.warp_nodes = true,
+            "--scene" => o.scene = Some(value("--scene")?),
+            "--shot-after" => {
+                o.shot_after = Some(
+                    value("--shot-after")?
+                        .parse()
+                        .map_err(|_| "--shot-after must be a number of seconds")?,
+                )
+            }
             "--select" => o.select = true,
             "--armies" => o.armies = true,
             "--cities" => o.cities = true,
@@ -309,6 +335,7 @@ fn parse_args() -> Result<Options, String> {
             "--fizzle" => o.fizzle = true,
             "--level-up" => o.level_up = true,
             "--built" => o.built = Some(value("--built")?),
+            "--city-fx" => o.city_fx = Some(value("--city-fx")?),
             "--learn" => o.learn = Some(value("--learn")?),
             "--turn" => o.turn = Some(value("--turn")?),
             "--turn-at" => {
@@ -445,7 +472,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell]] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -532,9 +559,21 @@ async fn main() {
         if options.sell {
             app.open_test_sale();
         }
+        if options.choose {
+            app.choosing = true;
+        }
+        if let Some(list) = &options.city_fx {
+            app.open_test_city_fx(list);
+        }
     }
     if options.reveal {
         app.reveal_all();
+    }
+    if options.warp_nodes {
+        app.open_test_warped_nodes();
+    }
+    if let Some(name) = &options.scene {
+        app.open_test_scene(name);
     }
     if let Some((x, y)) = options.at {
         app.set_camera(x, y);
@@ -701,7 +740,11 @@ async fn main() {
         }
         frames += 1;
         if let Some(path) = &options.shot {
-            if frames == 3 {
+            let due = match options.shot_after {
+                Some(seconds) => get_time() >= seconds,
+                None => frames == 3,
+            };
+            if due {
                 get_screen_data().export_png(&path.to_string_lossy());
                 break;
             }

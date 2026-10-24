@@ -48,3 +48,10 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
 - **Forester, Mountaineer and Pathfinding do nothing in battle.** The original's `Battle_Unit_Movement_Mode`
   maps them all to ground movement; the battle's trees and rocks cost them the same as anyone. A `Min` on
   `Moves` (Flight) is applied before the bonuses, not after (`rules/stats.rs`).
+- **ReMoM's `FLIC_Draw` moves the animation on a frame each time it is called.** Code that draws one picture
+  several times in a row is layering successive frames, not drawing one frame again: the city's river and
+  ocean overlay (`Cityscape_Draw_Background`) is drawn `water counter / 2 + 1` times so the water builds up, the
+  victory scene's hands draw frames 0 to the current one over each other, and the conquest scene's dissolving wizard
+  does the same. `Set_Animation_Frame` first sets where it starts; a frame number past the end loops back (to the
+  loop frame, 0 for these pictures). Read the call count before you read the frame number.
+

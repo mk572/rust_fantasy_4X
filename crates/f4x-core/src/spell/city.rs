@@ -172,7 +172,7 @@ impl Game {
 
     /// Set a Spell Ward against `realm` on the city. The first ward of a city starts its list
     /// afresh, so wards left over from a spell that was dispelled or lost with the city are gone.
-    pub(crate) fn add_spell_ward(&mut self, city: hecs::Entity, realm: crate::rules::RealmId) {
+    pub fn add_spell_ward(&mut self, city: hecs::Entity, realm: crate::rules::RealmId) {
         let id = self.content.rules.realms.get(realm).id.clone();
         let mut wards = self.economy().city_wards(city);
         if !wards.contains(&id) {

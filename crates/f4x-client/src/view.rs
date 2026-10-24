@@ -178,6 +178,12 @@ pub struct App {
     pub(crate) spell_notices: std::collections::VecDeque<crate::event_popup::SpellNotice>,
     pub(crate) built_notices:
         std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
+    /// The full-screen scenes waiting to be played, oldest first (`end_scene.rs`), and whether the
+    /// scene of the game's end is among them already.
+    pub(crate) end_scenes: std::collections::VecDeque<crate::end_scene::Scene>,
+    pub(crate) end_scene_queued: bool,
+    /// The building just announced, which the city screen shows fading in (`built_popup.rs`).
+    pub(crate) build_in: Option<crate::built_popup::BuildIn>,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
     /// The turn is ending: 2 until one frame with the hourglass has been drawn, then 1 while
@@ -337,6 +343,9 @@ impl App {
             item_pool_warning: false,
             event_notices: Default::default(),
             built_notices: Default::default(),
+            build_in: None,
+            end_scenes: Default::default(),
+            end_scene_queued: false,
             global_casts: Default::default(),
             spell_notices: Default::default(),
             targeting: None,
@@ -512,15 +521,15 @@ impl App {
                     self.audio.effect(key);
                 }
             }
-            if let Event::WizardDefeated { player } | Event::WizardBanished { player, .. } = &event
-            {
-                // The conquest scene's scream (task 360 will play it inside the scene).
-                let feminine = self
-                    .game
-                    .wizard(*player)
-                    .is_some_and(|w| w.gender() == f4x_core::text::Gender::Feminine);
-                self.audio
-                    .effect(Some(crate::audio::scream_sound(feminine)));
+            match &event {
+                Event::WizardBanished { player, by } => {
+                    self.queue_conquest_scene(*player, Some(*by), true)
+                }
+                Event::WizardDefeated { player } => {
+                    let by = self.game.player(*player).and_then(|p| p.defeated_by());
+                    self.queue_conquest_scene(*player, by, false);
+                }
+                _ => {}
             }
             let line = match event {
                 Event::EnchantmentDispelled {
@@ -1000,6 +1009,8 @@ impl App {
         self.battle_ui = crate::battle_screen::BattleUi::default();
         self.turn_events = None;
         self.game_over_seen = false;
+        self.end_scenes.clear();
+        self.end_scene_queued = false;
         self.screen = Screen::Map;
         self.choosing = false;
         self.selection.clear();
@@ -1200,6 +1211,8 @@ impl App {
                 self.game = game;
                 self.seed = seed;
                 self.game_over_seen = false;
+                self.end_scenes.clear();
+                self.end_scene_queued = false;
                 self.screen = Screen::Map;
                 self.selection.clear();
                 self.log.clear();
@@ -1223,6 +1236,18 @@ impl App {
     /// Put the top-left of the map view on a tile.
     pub fn set_camera(&mut self, x: f32, y: f32) {
         self.cam = vec2(x, y);
+    }
+
+    /// For screenshots: warp every magic node, explore the map and show the first node.
+    pub fn open_test_warped_nodes(&mut self) {
+        let nodes = self.game.economy().nodes();
+        for node in &nodes {
+            self.game.warp_node(node.pos);
+        }
+        self.game.reveal_map(HUMAN);
+        if let Some(node) = nodes.first() {
+            self.set_camera(node.pos.x as f32 - 4.0, node.pos.y as f32 - 3.0);
+        }
     }
 
     /// With End of Turn Wait off: the last unit that waited for orders has just been given them
@@ -1401,7 +1426,17 @@ impl App {
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::GameOver | Screen::Console)
         {
-            self.screen = Screen::GameOver;
+            // The victory or the defeat is played before the score.
+            if !self.end_scene_queued {
+                self.end_scene_queued = true;
+                self.queue_game_over_scene();
+            }
+            if self.end_scenes.is_empty() {
+                self.screen = Screen::GameOver;
+            }
+        }
+        if !matches!(self.screen, Screen::Console | Screen::MainMenu) && self.end_scene_frame() {
+            return true;
         }
         self.watch_for_help();
         match self.screen {

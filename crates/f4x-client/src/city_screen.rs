@@ -4,6 +4,7 @@
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -161,7 +162,6 @@ impl App {
         self.draw_city_area(city, lay);
         self.draw_city_garrison(city, lay);
         self.draw_city_production(city, lay);
-        self.draw_autobuild_button(city, lay);
         if renaming {
             self.choosing = was_choosing;
             self.draw_rename_box(city);
@@ -213,6 +213,102 @@ impl App {
             },
         );
         true
+    }
+
+    /// [`App::city_pic`] with some of its pixels hidden, as the original fades in a building
+    /// that was just finished (`Vanish_Bitmap`): `percent` of them show.
+    #[allow(clippy::too_many_arguments)]
+    fn city_pic_fading(
+        &mut self,
+        lay: Layout,
+        entry: usize,
+        frame: usize,
+        x: f32,
+        y: f32,
+        percent: u32,
+        draw: u64,
+    ) {
+        let Some(tex) = self.art.picture("cityscap", entry, frame).cloned() else {
+            return;
+        };
+        let mut img = tex.get_texture_data();
+        let width = usize::from(img.width);
+        for i in 0..img.bytes.len() / 4 {
+            if crate::cityscape::vanished((i % width) as u32, (i / width) as u32, draw, percent) {
+                img.bytes[i * 4 + 3] = 0;
+            }
+        }
+        let faded = Texture2D::from_image(&img);
+        faded.set_filter(FilterMode::Nearest);
+        let at = lay.rect(x, y, 0.0, 0.0);
+        draw_texture_ex(
+            &faded,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(faded.size() * lay.scale),
+                ..Default::default()
+            },
+        );
+    }
+
+    /// For screenshots: dress the first city with these, separated by commas: a spell's id
+    /// (a lasting spell on the city), `ward:REALM` (a Spell Ward), `sold` (sell its first
+    /// building, which leaves rubble) or `built:ID` (the building fades in).
+    pub fn open_test_city_fx(&mut self, list: &str) {
+        use f4x_core::rules::exec::Target;
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
+            return;
+        };
+        let rules = &self.game.content().rules;
+        let spell_ward = rules.spells.id_of("spell_ward");
+        let mut spells = Vec::new();
+        let mut wards = Vec::new();
+        let (mut sell, mut built) = (false, None);
+        for token in list.split(',').filter(|t| !t.is_empty()) {
+            if token == "sold" {
+                sell = true;
+            } else if let Some(id) = token.strip_prefix("built:") {
+                built = rules.buildings.id_of(id);
+            } else if let Some(realm) = token.strip_prefix("ward:") {
+                match rules.realms.id_of(realm) {
+                    Some(r) => wards.push(r),
+                    None => eprintln!("unknown realm {realm}"),
+                }
+            } else {
+                match rules.spells.id_of(token) {
+                    Some(s) => spells.push(s),
+                    None => eprintln!("unknown spell {token}"),
+                }
+            }
+        }
+        for spell in spells {
+            self.game
+                .attach_enchantment(Target::City(city), spell, HUMAN);
+        }
+        if let (Some(spell), false) = (spell_ward, wards.is_empty()) {
+            self.game
+                .attach_enchantment(Target::City(city), spell, HUMAN);
+            for realm in wards {
+                self.game.add_spell_ward(city, realm);
+            }
+        }
+        if sell {
+            let first = self.game.city_buildings(city).first().copied();
+            if let Some(b) = first {
+                if let Err(e) = self.game.sell_building(city, b) {
+                    eprintln!("cannot sell: {e:?}");
+                }
+            }
+        }
+        if let Some(building) = built {
+            self.build_in = Some(crate::built_popup::BuildIn {
+                city,
+                building,
+                started: None,
+            });
+        }
     }
 
     /// The box for a new name for the city (the original's name box); Enter keeps what is typed,
@@ -534,10 +630,12 @@ impl App {
         let rules = &self.game.content().rules;
         let at = self.city_position(city);
         let pop = self.game.city_population(city).figures;
+        // A building sold this turn keeps its place as rubble.
         let buildings = self
             .game
             .city_buildings(city)
             .into_iter()
+            .chain(self.game.economy().sold_building(city))
             .map(|id| (3 + id.index() as i16, rules.buildings.get(id).shape))
             .collect();
         let enchanted = |name: &str| {
@@ -613,13 +711,43 @@ impl App {
         let view = Self::view(lay);
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
-        let enchanted = |name: &str| {
+        let spells: Vec<String> = {
+            let rules = &self.game.content().rules;
             self.game
                 .city_enchantments(city)
                 .iter()
-                .any(|&(s, _)| self.game.content().rules.spells.get(s).id == name)
+                .map(|&(s, _)| rules.spells.get(s).id.clone())
+                .collect()
         };
-        let frame = if enchanted("flying_fortress") {
+        let enchanted = |name: &str| spells.iter().any(|s| s == name);
+        // The original counts its animations in draws of the screen.
+        let draws = (get_time() * cs::DRAWS_PER_SECOND) as u64;
+        let building_counter = cs::anim_counter(draws, 60);
+        let water_counter = cs::anim_counter(draws, 84);
+        let wall_counter = cs::anim_counter(draws, 60);
+        // A building just finished fades in (ten steps), and one sold this turn is rubble.
+        let mut fading: Option<(BuildingId, u32)> = None;
+        if let Some(mut b) = self.build_in {
+            if b.city == city {
+                let now = get_time();
+                let steps = ((now - *b.started.get_or_insert(now)) * cs::DRAWS_PER_SECOND) as u32;
+                if steps < 10 {
+                    fading = Some((b.building, steps * 10));
+                    self.build_in = Some(b);
+                } else {
+                    self.build_in = None;
+                }
+            } else {
+                self.build_in = None;
+            }
+        }
+        let fades = |idx: i16| {
+            fading
+                .filter(|&(b, _)| 3 + b.index() as i16 == idx)
+                .map(|(_, percent)| percent)
+        };
+        let flying_fortress = enchanted("flying_fortress");
+        let frame = if flying_fortress {
             1
         } else if enchanted("cursed_lands") {
             0
@@ -659,15 +787,46 @@ impl App {
                 }
             }
         }
-        if river {
-            self.city_pic(lay, "cityscap", if myrror { 115 } else { 3 }, 0, x0, y0);
+        // The water is drawn over the ground more and more often, each time with the next
+        // frame of its picture, so it seems to flow.
+        let water = if river {
+            Some(if myrror { 115 } else { 3 })
         } else if ocean {
-            self.city_pic(lay, "cityscap", if myrror { 116 } else { 4 }, 0, x0, y0);
+            Some(if myrror { 116 } else { 4 })
+        } else {
+            None
+        };
+        if let Some(entry) = water {
+            let frames = self.art.frames("cityscap", entry);
+            for layer in 0..cs::water_layers(water_counter) {
+                self.city_pic(
+                    lay,
+                    "cityscap",
+                    entry,
+                    cs::looped_frame(layer, frames),
+                    x0,
+                    y0,
+                );
+            }
         }
-        if mountain {
-            self.city_pic(lay, "cityscap", if myrror { 9 } else { 2 }, 0, x0, y0);
-        } else if hills {
-            self.city_pic(lay, "cityscap", if myrror { 10 } else { 1 }, 0, x0, y0);
+        // The sky or the land behind the city, unless it flies.
+        if !flying_fortress {
+            let sky = if enchanted("cloud_of_shadow") {
+                Some(if myrror { 111 } else { 91 })
+            } else if enchanted("heavenly_light") {
+                Some(if myrror { 113 } else { 93 })
+            } else if enchanted("chaos_rift") {
+                Some(if myrror { 112 } else { 92 })
+            } else if mountain {
+                Some(if myrror { 9 } else { 2 })
+            } else if hills {
+                Some(if myrror { 10 } else { 1 })
+            } else {
+                None
+            };
+            if let Some(entry) = sky {
+                self.city_pic(lay, "cityscap", entry, 0, x0, y0);
+            }
         }
         self.city_pic(lay, "cityscap", 5, 0, x0 + 2.0, y0 + 16.0);
 
@@ -681,7 +840,16 @@ impl App {
         // Variants of houses, trees and rocks are drawn from the layout's own seed so they
         // stay put from frame to frame.
         let mut mouse_over: Option<i16> = None;
+        let mut over_rubble = false;
         let mouse: Vec2 = mouse_position().into();
+        let sold = self.game.economy().sold_building(city);
+        let rubble_of = sold.map(|b| {
+            (
+                3 + b.index() as i16,
+                self.game.content().rules.buildings.get(b).shape,
+            )
+        });
+        let evil_presence = enchanted("evil_presence");
         for (row, cells) in grid.iter().enumerate().skip(1) {
             for (col, &cell) in cells.iter().enumerate() {
                 let (cx, cy) = cs::cell_position(row, col);
@@ -715,8 +883,47 @@ impl App {
                     }
                     idx if cs::sprite_of(idx).is_some() => {
                         let (entry, up) = cs::sprite_of(idx).expect("checked");
-                        self.city_pic(lay, "cityscap", entry, 0, sx, sy - up);
                         let rect = lay.rect(sx, sy - up, 40.0, up + 1.0);
+                        // A building sold this turn stays as rubble of its size.
+                        if let Some((_, shape)) = rubble_of.filter(|&(i, _)| i == idx) {
+                            let rubble = cs::rubble_picture(shape);
+                            let frames = self.art.frames("cityscap", rubble);
+                            let frame = cs::looped_frame(building_counter, frames);
+                            self.city_pic(lay, "cityscap", rubble, frame, sx, sy - up);
+                            over_rubble |= rect.contains(mouse);
+                            continue;
+                        }
+                        let frames = self.art.frames("cityscap", entry);
+                        let frame = cs::looped_frame(building_counter, frames);
+                        let fade = fades(idx);
+                        match fade {
+                            Some(percent) => {
+                                self.city_pic_fading(lay, entry, frame, sx, sy - up, percent, draws)
+                            }
+                            None => {
+                                self.city_pic(lay, "cityscap", entry, frame, sx, sy - up);
+                            }
+                        }
+                        // Evil Presence darkens the religious buildings.
+                        if evil_presence && cs::EVIL_PRESENCE_BUILDINGS.contains(&idx) {
+                            let pic = cs::EVIL_PRESENCE_PICTURE;
+                            let frames = self.art.frames("cityscap", pic);
+                            let frame = cs::looped_frame(building_counter, frames);
+                            match fade {
+                                Some(percent) => self.city_pic_fading(
+                                    lay,
+                                    pic,
+                                    frame,
+                                    sx,
+                                    sy - up,
+                                    percent,
+                                    draws,
+                                ),
+                                None => {
+                                    self.city_pic(lay, "cityscap", pic, frame, sx, sy - up);
+                                }
+                            }
+                        }
                         if rect.contains(mouse) {
                             mouse_over = Some(idx);
                         }
@@ -732,7 +939,36 @@ impl App {
             .iter()
             .any(|&id| self.game.content().rules.buildings.get(id).id == "city_walls");
         if has_walls {
-            self.city_pic(lay, "cityscap", 76, 0, x0, y0 + 82.0);
+            let walls_fade = fading
+                .filter(|&(b, _)| self.game.content().rules.buildings.get(b).id == "city_walls")
+                .map(|(_, percent)| percent);
+            match walls_fade {
+                Some(percent) => self.city_pic_fading(lay, 76, 0, x0, y0 + 82.0, percent, draws),
+                None => {
+                    self.city_pic(lay, "cityscap", 76, 0, x0, y0 + 82.0);
+                }
+            }
+        }
+        // The wards and spells that guard the city, along the bottom, and its magic walls.
+        let wards = self.game.economy().city_wards(city);
+        for (realm, entry, left) in cs::REALM_WARDS {
+            if wards.iter().any(|w| w == realm) {
+                self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
+            }
+        }
+        for (spell, entry, left) in cs::CITY_BLESSINGS {
+            if enchanted(spell) {
+                self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
+            }
+        }
+        // Wall of Darkness is drawn with the air wall's picture, as in the original; Wall of
+        // Stone is not drawn (it makes the city walls).
+        for (spell, entry) in [("wall_of_darkness", 79), ("wall_of_fire", 77)] {
+            if enchanted(spell) {
+                let frames = self.art.frames("cityscap", entry);
+                let frame = cs::looped_frame(wall_counter, frames);
+                self.city_pic(lay, "cityscap", entry, frame, x0, y0 + 84.0);
+            }
         }
         gl.flush();
         gl.quad_gl.scissor(None);
@@ -741,6 +977,7 @@ impl App {
         let name = match mouse_over {
             Some(cs::FORTRESS) => Some(self.text("city.fortress")),
             Some(cs::SUMMONING_CIRCLE) => Some(self.text("city.summoning_circle")),
+            None if over_rubble => Some(self.text("city.destroyed")),
             Some(i) if (3..=35).contains(&i) => self
                 .game
                 .content()
@@ -1190,6 +1427,7 @@ impl App {
         );
         draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 3.0, GOLD);
         lay.text(&self.text("city.choose_build"), 26.0, 24.0, 6.0, GOLD);
+        self.draw_autobuild_button(city, lay, (222.0, 17.0, 72.0));
         let items = self.buildable_items(city);
         let per_page = 18usize;
         let columns = 2usize;

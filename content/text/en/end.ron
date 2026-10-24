@@ -8,6 +8,15 @@
     "end.lost_mastery": "{winner} has finished the Spell of Mastery.",
     "end.lost_conquest": "You have lost your last city to {winner}.",
     "end.log": "{title} {reason}",
+    // The victory speech, a line every fifteen steps of the scene.
+    "end.win_1": "Having conquered both the",
+    "end.win_2": "world of Arcanus and Myrror,",
+    "end.win_3": "I and only I, remain the one",
+    "end.win_4": "and true Master of Magic.",
+    // The raiders destroying a wizard: the fortress when the wizard has other cities.
+    "end.raiders_fortress": "Raiders destroy {loser}'s fortress.",
+    "end.raiders": "Raiders destroy {loser}.",
+    "end.returns": "{wizard} begins casting the Spell Of Return.",
     // The score sheet: how many, and the points they are worth.
     "end.spells": (count: "n", one: "{n} Spell: {points}", other: "{n} Spells: {points}"),
     "end.townsfolk": "{n} Townsfolk: {points}",

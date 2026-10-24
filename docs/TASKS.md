@@ -109,6 +109,12 @@ prints a `def.name` goes through it, and the plural of a race (the original keep
 animation, the "begins casting the Spell of Return" scene for a banished computer wizard, the defeat
 and victory scenes and the banished wizard's portrait. Read `Conquest_Animation`, `Return_Animation`,
 `Lose_Animation` and `Win_Animation` (ReMoM `CONQUEST.c`) first. *Needs:* 341 (done).
+**Done in task 134** (`end_scene.rs`, `docs/game_end.md`): the victory, the defeat, the conquest scene with the raiders,
+the Spell of Return scene and the parade of portraits for the human's Spell of Mastery. **Left:** the scene a rival's
+Spell of Mastery brings (`Spell_Of_Mastery_Lose`, ReMoM `SPLMASTR.c`: `spellose.lbx`, the wizard's picture sheared and
+shrunk into the sphere of their colour, the familiar in the corner) before the defeat; the zap of a wizard banished by
+another wizard, which the original does not show (its early return) and which we could add as our own; and a hand check
+of the scenes in a real game (the shots were taken from `--scene`).
 
 **361. The AI makes diplomacy proposals.** Today the AI only answers (`f4x-ai/src/diplomacy.rs`: `answer` rates
 each proposal with `diplomacy::rate`); it never proposes, threatens, declares war or makes peace, so the

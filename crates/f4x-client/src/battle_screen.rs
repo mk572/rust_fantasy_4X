@@ -808,10 +808,33 @@ impl App {
                         .facing
                         .insert(*unit, battle_anim::facing(prev, last));
                 }
-                out.push(Anim::Move {
-                    unit: *unit,
-                    path: path.clone(),
+                // A teleporter or a merging unit crosses the field in one jump, with its
+                // own sound and picture (`Battle_Unit_Teleport`, `Battle_Unit_Tunnel`).
+                let instant = before.unit(*unit).and_then(|u| {
+                    if u.has("teleport") {
+                        Some(false)
+                    } else if u.has("merging") {
+                        Some(true)
+                    } else {
+                        None
+                    }
                 });
+                match (instant, path.last()) {
+                    (Some(tunnel), Some(&to)) => {
+                        out.push(Anim::Sound {
+                            cast: if tunnel { 12 } else { 11 },
+                        });
+                        out.push(if tunnel {
+                            Anim::Tunnel { unit: *unit, to }
+                        } else {
+                            Anim::Teleport { unit: *unit, to }
+                        });
+                    }
+                    _ => out.push(Anim::Move {
+                        unit: *unit,
+                        path: path.clone(),
+                    }),
+                }
             }
             BattleEvent::Attacked {
                 attacker, defender, ..
@@ -1699,7 +1722,18 @@ impl App {
             match piece {
                 Piece::Unit(id) => {
                     let idle = self.battle_ui.selected == Some(id) && my_turn;
-                    self.draw_unit(battle, id, looks[&id], idle, (ox, oy, scale), my_turn);
+                    let look = looks[&id];
+                    self.draw_unit(battle, id, look, idle, (ox, oy, scale), my_turn);
+                    // A teleporter is on two squares while it fades out and in.
+                    if let Some((at, alpha)) = look.twin {
+                        let twin = Visual {
+                            at,
+                            alpha,
+                            twin: None,
+                            ..look
+                        };
+                        self.draw_unit(battle, id, twin, idle, (ox, oy, scale), my_turn);
+                    }
                 }
                 Piece::Wall(_) if self.wall_picture_missing(battle, plane, pos) => {
                     draw_wall(battle.map.wall(pos), at(pos), scale);
@@ -1868,17 +1902,21 @@ impl App {
                 };
                 if let Some(tex) = tex {
                     let native = tex.size();
-                    let size = native * scale;
+                    // A unit sinking into the ground is drawn lower and cut off at the line
+                    // its feet stood on.
+                    let sunk = vis.sink.clamp(0.0, native.y);
+                    let size = vec2(native.x, native.y - sunk) * scale;
                     // Standing on the bottom corner of the square, the figure rising from
                     // there; the formation's offsets only move the figures about it (a lone
                     // figure's offset is (1, 8)).
                     draw_texture_ex(
                         tex,
                         sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32) * scale,
-                        sy + (CELL_H - native.y + (fy - 8) as f32) * scale,
+                        sy + (CELL_H - native.y + sunk + (fy - 8) as f32) * scale,
                         tint,
                         DrawTextureParams {
                             dest_size: Some(size),
+                            source: Some(Rect::new(0.0, 0.0, native.x, native.y - sunk)),
                             ..Default::default()
                         },
                     );

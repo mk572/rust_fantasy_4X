@@ -19,6 +19,16 @@ const CELL: (f32, f32) = (41.0, 43.0);
 /// `cityscap.lbx` entry of the big wall picture.
 const WALL_PICTURE: usize = 114;
 
+/// A finished building waiting to fade in on the city screen (`Cityscape_Build_Anim_Reset`):
+/// the picture starts hidden and shows more of itself ten times in a second.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BuildIn {
+    pub city: hecs::Entity,
+    pub building: BuildingId,
+    /// When the city screen first drew it.
+    pub started: Option<f64>,
+}
+
 impl App {
     /// For screenshots and checks: announce this building (an id) as if the first city had just
     /// finished it.
@@ -86,6 +96,11 @@ impl App {
         );
         if closed {
             self.built_notices.pop_front();
+            self.build_in = Some(BuildIn {
+                city,
+                building,
+                started: None,
+            });
         }
         true
     }

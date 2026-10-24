@@ -53,6 +53,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 40 | Rules | Life and death nodes, and a setting that lifts the ban on combining life and death books |
 | 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
 | 42 | Map | Mines, lumber camps and hunter's lodges on the map |
+| 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
 
 ## Descriptions
 
@@ -621,3 +622,20 @@ Caster of Magic). Moved here from the on-hold task 124. Decide what they are for
 the map that a building, spell, unit or ability can refer to (a mine for ore and mana, a lumber camp for wood, a lodge
 for food), placed by the generator and shown with these pictures. Low priority; do it with item 4 (the community
 patch and Caster of Magic content).
+
+**43. Proper windowing support.** Today everything is drawn onto the same pane: a screen paints the whole frame, and
+a pop-up is either a function that takes the frame over (`built_popup_frame`, `end_scene_frame`, the help box with its
+frozen copy of the screen) or a box painted over what the screen drew before. A modern game should have windowed
+layers: each box, panel and screen a window with its own place in a stack, so that a window can stand over a live
+screen, several can be open at once, and input goes to the one on top. Sketch, to be settled when it is taken up:
+- a layer stack in the client: a window has a rectangle (in the original's 320 by 200 coordinates, scaled as now), an
+  order, a title or none, and says whether it is modal (blocks the ones below) or not;
+- input goes to the topmost window under the pointer, a click outside a modal window is swallowed, Esc closes the top
+  one, and the help pop-up (task 289) and the confirmation boxes become windows instead of frozen frames;
+- windows that the original draws full-screen stay full-screen by default, so the look does not change; the new part is
+  that they can be dragged, resized (with item 11's higher resolutions) or placed on another monitor, and that the
+  map can stay visible and live behind a box such as the city screen or the advisors;
+- the drawing of a window can go to its own render target, which also gives fades, the original's page-flip effects
+  and drop shadows without each screen doing its own.
+Related: items 6, 10, 11 and 39 (graphics, fonts and resolution), task 289 (help pop-ups) and the full-screen scenes
+of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.

@@ -51,12 +51,18 @@ pub(crate) fn label(texts: &Texts, plan: Option<&BuildPlan>) -> String {
 }
 
 impl App {
-    /// The "Auto" button of the city screen; opens the dialog when clicked.
-    pub(crate) fn draw_autobuild_button(&mut self, city: hecs::Entity, lay: Layout) {
+    /// The "Auto" button in the window where the production is chosen (`city_screen.rs`), at
+    /// `(x, y)` and `width` wide; opens the dialog when clicked.
+    pub(crate) fn draw_autobuild_button(
+        &mut self,
+        city: hecs::Entity,
+        lay: Layout,
+        (x, y, width): (f32, f32, f32),
+    ) {
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = self.game.autobuild_of(city).is_some();
-        let r = lay.rect(66.0, 80.0, 64.0, 10.0);
-        let hover = r.contains(mouse_position().into()) && !self.choosing;
+        let r = lay.rect(x, y, width, 10.0);
+        let hover = r.contains(mouse_position().into());
         let fill = if hover {
             Color::new(0.4, 0.3, 0.15, 1.0)
         } else {
@@ -75,6 +81,7 @@ impl App {
             if own { WHITE } else { LIGHTGRAY },
         );
         if hover && is_mouse_button_pressed(MouseButton::Left) {
+            self.choosing = false;
             self.autobuild_dialog = Some(AutoDialog {
                 plan: plan.unwrap_or_default(),
                 had_plan: own,

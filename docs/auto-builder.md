@@ -224,8 +224,9 @@ building. Off by default; the garrison rule alone reacts then.
 3. Hooking it to production: the choice after each item, the Vizier default, the news message.
    **Done**: `apply_production` asks `Game::autobuild_choice` after a building and after a unit;
    the news line is the existing "city: item complete" message.
-4. The dialog in the client. **Done** (`autobuild_dialog.rs`: the Auto button on the city
-   screen opens it; `--shot --city --autobuild` shows it).
+4. The dialog in the client. **Done** (`autobuild_dialog.rs`: the Auto button in the window
+   where the production is chosen (Change on the city screen) opens it; `--shot --city
+   --autobuild` shows it, `--shot --city --choose` the window with the button).
 5. The scripted AI sets plans. **Done** (not soak-tested: the behaviour tests are ignored by
    default and were not run).
 6. The learning AI's action space. Not done.

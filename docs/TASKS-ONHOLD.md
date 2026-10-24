@@ -16,11 +16,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 89 | Meta | Game settings |
 | 95 | Client | Tutorial |
 | 115 | Client | Cityscape: road masking |
-| 116 | Client | Cityscape: animation, wards and rubble |
-| 130 | Client | Warped node and cleared site pictures (low priority) |
-| 134 | Client | Game-end cut-scenes and the original's score screen |
 | 136 | Client | Earth Gate and Astral Gate in the client and the AI (low priority) |
-| 137 | Client | Teleport and merge animation in the battle screen (low priority) |
 | 140 | Client | Unit statistics window and the enemy stack list |
 | 143 | Client | Offer, hire and event pop-ups |
 | 144 | Client | Turn summary and message pop-ups |
@@ -94,28 +90,10 @@ researching and casting, with a way to skip or switch it off.
 
 **115. Cityscape: road masking.** The city picture draws the whole road grid; the original hides the road squares that no building, house or tree touches (`Cityscape_Roads_1` to `_5` in ReMoM `CITYSCAP.c`, using the road pictures and the two masks `cityscap.lbx` 109 and 110), so roads appear only where the city has grown. Port the masking rules.
 
-**116. Cityscape: animation, wards and rubble.** Animate the city picture as the original does: building frames (a counter that cycles nine frames), the water overlay, the wall, and the build-in effect when something is newly built. Draw the ward and enchantment icons along the bottom (death, chaos, nature, life and sorcery wards, Nature's Eye, Inspirations, Prosperity, Consecration), Wall of Fire, Wall of Darkness and the wall sprites, Cloud of Shadow, Heavenly Light and Chaos Rift backdrops, Evil Presence over religious buildings, and rubble where a building was destroyed.
-
-**130. Warped node and cleared site pictures.** A warped node is drawn with a purple tint placeholder;
-use `mapback.lbx` 93 (the warped-node mask). Check the original for any picture left behind by a
-cleared site (the original just stops drawing the lair) and for nodes that are guarded versus cleared. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**134. Game-end cut-scenes and the original's score screen.** **Done: the score screen** (`game_over_screen.rs`, on `halofam` with the icon rows and the bar, `--score`) **and the Hall of Fame** (task 88, `hall_of_fame.rs`, `saves/hall_of_fame.txt`, `--hall`, from the start menu and after the score). **Left:** the win, lose and conquest animations and the parade of portraits (`conquest`, `win`, `lose` in `assets-local/screens/`), and the old buttons are gone: after the table the game returns to the start menu as the original does. The game-over screen is plain text
-and buttons. The original plays a victory animation, a defeat ("limbo fall") animation and, for
-a conquest, a conquest animation; announces when a wizard *starts* casting the Spell of Mastery
-(full-screen, with a two-line caption) and, when it completes, parades each surviving wizard's
-portrait; and draws the score as icon rows (book, townsfolk, defeated wizards' portraits, fame,
-time, Spell of Mastery) with a running bar of `min(score / 40, 200)`. Needs the local art. See `docs/game_end.md`.
-
 **136. Earth Gate and Astral Gate in the client and the AI.** The core has both (task 12). The client
 should offer the teleport when a stack in an Earth Gate city moves onto another gate city (a button
 or a prompt) and enable the plane-shift button in an Astral Gate city; the AI should use them to
 reinforce threatened cities and to cross planes. Low priority: only needed for specific spells, buildings, units or abilities.
-
-**137. Teleport and merge animation in the battle screen.** The core reports a teleport or merge as a
-`Moved` event with a one-square path to the destination, so the battle screen now glides the unit across
-the map. Play the original's fade out at the origin and fade in at the destination (teleport) or a sinking
-and rising figure (merge, `Battle_Unit_Teleport`, `Battle_Unit_Tunnel`), with the sounds. Low priority: only needed for specific spells, buildings, units or abilities.
 
 **140. Unit statistics window and the enemy stack list.** **Done:** the sheet (`unit_sheet.rs` builds it, `unit_screen.rs` draws it, following ReMoM `Unit_Statistics_Popup`/`Thing_View_Draw`): the unit's figures on their diamond (grass or water), the name (a race's unit with the race first), moves with the movement icon, upkeep icons or (in battle) the front figure's damage, five icon rows (melee by weapon quality, range by attack type, armour, resistance, hearts; gold icons for bonuses, darkened ones for curses and damage), and the abilities list, eight to a page with the up and down arrows (level with experience, quiver, to hit, construction, abilities with the original's icons, undead, lasting spells), Dismiss (with a yes/no, `Command::DismissUnit`; not heroes) and OK on the map. Opened by a right-click on a unit's line in the selected-stack text or on a unit in the battle; `--sheet N` for screenshots. **Also built:** `Unit_List_Window` (`unit_list_screen.rs`, `--unit-list`). **Also built:** a left-click on a lasting spell of yours on the map sheet asks "Do you wish to turn off the X spell?" (`UV_Remove_Unit_Enchantment`; no click in battle, as `enable_disenchant`) and `Command::TurnOffUnitSpell` ends it; a unit left at sea without what kept it afloat drowns at once, with the original's warning ("This unit will die..." or "This unit and other units..."), through `drown_stranded`. The original lets Wind Walking on another unit of the stack save the rest; ours counts each unit's own abilities. **Left:** (2) The help pop-up of an ability or spell (right-click on its line); the removal box (and the Dismiss question) use the original's `Confirmation_Box` art; `--sheet N --sheet-spell ID [--sheet-ask]` puts a spell on the unit and opens the question for a screenshot. (3) Heroes: portrait, items row and item powers, hero abilities (tasks 218 to 221, 47); Dismiss for heroes (task 48). (4) The sheet from the city garrison is done (a right-click on a garrison unit; `garrison_cells` in `city_screen.rs`); from the Army list and the item screen it comes with those screens (tasks 138 and 142, which do not exist yet); the production screen's version (cost, upkeep for a unit not yet built), and the expanding-box opening. (5) The battle's sheet is a snapshot taken on opening and sits on a plain background instead of over the field. (6) Scouting, Summon Demons use count, mana left (`Caster 12 (20) mp`) and Warp Creature's three icons, once those exist. (7) The hits row shows hit points of one figure; the original also draws it so (the figure count is the pictures on the diamond).
 

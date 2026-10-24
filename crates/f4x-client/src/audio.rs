@@ -407,6 +407,9 @@ impl App {
             return self.combat_track();
         }
         self.audio.battle_track = None;
+        if let Some(track) = self.end_scene_track() {
+            return Some(track);
+        }
         match self.screen {
             Screen::MainMenu => return Some(Track::looping(music::MAIN_MENU)),
             Screen::Create | Screen::Options | Screen::Intro => return None,

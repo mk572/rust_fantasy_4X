@@ -209,9 +209,91 @@ pub fn draw_square(
             }
         }
         if node.warped && node.pos == here {
-            draw_rectangle(sx, sy, t.x, t.y, Color::new(0.45, 0.0, 0.5, 0.35));
+            draw_warped_node(art, sx, sy, k);
         }
     }
+}
+
+/// The pixels of a node square: 20 by 18.
+const NODE_W: usize = 20;
+const NODE_H: usize = 18;
+
+/// How often the warped node's picture changes: the original redraws the screen this often.
+const WARP_STEPS_PER_SECOND: f64 = 18.0;
+
+/// The warped node's square as the original draws it (`Draw_Map_Nodes`): what is on the screen
+/// there is copied, half its pixels are dropped, each row and then each column is shifted by
+/// up to a pixel (a different amount every frame, so it shimmers), and the result is cut to
+/// the shape of `mapback.lbx` 93 and drawn over the square.
+fn draw_warped_node(art: &mut Art, sx: f32, sy: f32, k: f32) {
+    let mask: Vec<bool> = match art.picture("mapback", 93, 0) {
+        Some(tex) => {
+            let img = tex.get_texture_data();
+            (0..NODE_W * NODE_H)
+                .map(|i| {
+                    let (x, y) = (i % NODE_W, i / NODE_W);
+                    x < usize::from(img.width)
+                        && y < usize::from(img.height)
+                        && img.bytes[(y * usize::from(img.width) + x) * 4 + 3] > 0
+                })
+                .collect()
+        }
+        None => vec![true; NODE_W * NODE_H],
+    };
+    let shot = get_screen_data();
+    let (width, height) = (usize::from(shot.width), usize::from(shot.height));
+    let dpi = screen_dpi_scale();
+    let step = (get_time() * WARP_STEPS_PER_SECOND) as u64;
+    // A pixel of the square, sampled from the screen and kept half of the time.
+    let mut square = [[None::<[u8; 3]>; NODE_W]; NODE_H];
+    for (y, row) in square.iter_mut().enumerate() {
+        for (x, cell) in row.iter_mut().enumerate() {
+            if crate::cityscape::vanished(x as u32, y as u32, step, 50) {
+                continue;
+            }
+            let px = ((sx + (x as f32 + 0.5) * k) * dpi) as usize;
+            let py = ((sy + (y as f32 + 0.5) * k) * dpi) as usize;
+            if px < width && py < height {
+                let i = (py * width + px) * 4;
+                *cell = Some([shot.bytes[i], shot.bytes[i + 1], shot.bytes[i + 2]]);
+            }
+        }
+    }
+    // The shift of each row and column: -1, 0 or 1, from the frame number.
+    let shear = |i: usize| -> i32 {
+        match crate::cityscape::vanished(i as u32, 99, step, 50) as u8
+            + 2 * crate::cityscape::vanished(i as u32, 7, step, 75) as u8
+        {
+            0 => 1,
+            3 => -1,
+            _ => 0,
+        }
+    };
+    let mut across = [[None::<[u8; 3]>; NODE_W]; NODE_H];
+    for (y, row) in across.iter_mut().enumerate() {
+        for (x, cell) in row.iter_mut().enumerate() {
+            let from = x as i32 - shear(y);
+            if (0..NODE_W as i32).contains(&from) {
+                *cell = square[y][from as usize];
+            }
+        }
+    }
+    let mut bytes = vec![0u8; NODE_W * NODE_H * 4];
+    for y in 0..NODE_H {
+        for x in 0..NODE_W {
+            let from = y as i32 - shear(x);
+            if !(0..NODE_H as i32).contains(&from) || !mask[y * NODE_W + x] {
+                continue;
+            }
+            if let Some(c) = across[from as usize][x] {
+                let i = (y * NODE_W + x) * 4;
+                bytes[i..i + 4].copy_from_slice(&[c[0], c[1], c[2], 255]);
+            }
+        }
+    }
+    let tex = Texture2D::from_rgba8(NODE_W as u16, NODE_H as u16, &bytes);
+    tex.set_filter(FilterMode::Nearest);
+    draw_pic(&tex, sx, sy, k);
 }
 
 /// Which city picture frame fits a population (in thousands): the original's `(pop - 1) / 4`,

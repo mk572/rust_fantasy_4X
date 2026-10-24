@@ -107,6 +107,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 112 | Client | Battle map art (done) |
 | 113 | Client | ~~Original bitmap fonts~~ (done) |
 | 114 | Client | ~~Cityscape: port the original's procedural city layout~~ (done) |
+| 116 | Client | Cityscape: animation, wards and rubble (done) |
 | 117 | City | Selling buildings from the city picture (done) |
 | 118 | Client | Bitmap fonts on every screen and a text layout helper (done) |
 | 119 | Client | City screen details (done) |
@@ -118,10 +119,13 @@ original task numbers. Newest work is merged in ascending order by number.
 | 126 | Client | Bitmap font for the remaining overland text (done) |
 | 127 | Map | Lair rewards: original spell, book and retort selection (done) |
 | 128 | Client | Site encounter dialogs and treasure popup (done) |
+| 130 | Client | Warped node and cleared site pictures (low priority) (done) |
 | 131 | Combat | Battle grid shape and deployment as in the original (done) |
 | 132 | Client | Battle screen: unit figures, animation and the original's frame (done) |
 | 133 | Client | Prompt before attacking, and battles between AI players (done) |
+| 134 | Client | Game-end cut-scenes and the original's score screen (done) |
 | 135 | Client | Run the AI wizards in the client (done) |
+| 137 | Client | Teleport and merge animation in the battle screen (low priority) (done) |
 | 138 | Client | Army list screen (done) |
 | 139 | Client | City list screen (done) |
 | 141 | Client | ~~Outpost screen, enemy city screen and the naming boxes~~ (done) |
@@ -406,6 +410,20 @@ middle of a battle continues exactly like the unsaved one.
 
 **111. Special battle sites: nodes, lairs, towers, ruins and fortress cities (done).** The original fights node, lair, tower, temple and ruin battles on their own battlefields (node type changes the ground and effects, `Combat_Node_Type`; lairs and keeps have structures; a wizard's fortress city has its own layout). Add battle map variants and their effects on movement and combat, fed from the overland feature under the defenders; needs guardians (8) and nodes (108). **Done (17 October 2026):** the building of a tower, node or encounter site stands on the structure square of the field (`Structure` in `battle/map/layout.rs`, chosen from the feature on the square as `Build_Battlefield` does: ruins are a dungeon, the fallen temple the ruins, the monster lair a cave), nobody can enter that square, and the client draws the building (`cmbtcity` 19 to 23, 65 and 121), the sorcery node's animation (66) and the chaos node's volcano (`chriver` 24 to 31); `--battle-site FEATURE` for screenshots. **Since done:** the node auras and counter (task 160) and the fortress city field and picture (task 290).
 
+**116. Cityscape: animation, wards and rubble (done).** `city_screen.rs` (`draw_city_buildings_at`) and `cityscape.rs`
+draw the city as `Cityscape_Window`, `Cityscape_Draw_Buildings`, `_Foreground` and `_Background` do. The animation counters
+count draws at 18 a second and wrap as the original's (`anim_counter`: buildings and walls at 60, water at 84): every
+building with frames cycles through them; the river or ocean is laid over the ground one more time each step, each time
+with the next frame of its picture; Wall of Fire and Wall of Darkness (drawn with the air wall's picture, as in the
+original) animate along the bottom. The ward row has the five Spell Ward realms and Nature's Eye, Inspirations,
+Prosperity and Consecration (entry 102; ReMoM loads 101 for it, which is the prosperity picture), the backdrops are
+Cloud of Shadow, Heavenly Light and Chaos Rift (for Myrror 111 to 113) unless the city flies, and Evil Presence darkens the
+shrine, temple and parthenon. A finished building fades in for ten steps once its box is closed (`BuildIn`, a pixel
+dither as `Vanish_Bitmap`). A building sold this turn stays as rubble of its shape with "Destroyed" under the mouse
+(`SoldBuilding` now carries the building, saved as `sold_building`). `--shot --city --city-fx LIST` dresses the city
+(spell ids, `ward:REALM`, `sold`, `built:ID`) and `--choose` opens the production list. **Not done by hand:** the
+animation over time (only single frames were looked at) and Evil Presence (the test city has no shrine).
+
 **117. Selling buildings from the city picture (done).** A click on a building in the city picture (help topic 303) opens the original's confirmation box (`Confirmation_Box`, `resource.lbx` 0, 1, 3 and 4; `confirmation_box` in `sell_prompt.rs`): "Do you wish to sell back the X for N gold?", and Yes sends `Command::SellBuilding`. A building another one needs gets the red warning box (`Warn0`, `resource.lbx` 38 and 39): "You cannot sell back the X because it is required by the Y." (`Economy::first_dependant`). Selling what the current production needs warns "This will cease production of your Z" and puts the city back on Housing (`production_needs`, as the original). The fortress and the summoning circle are not for sale. `--shot FILE --city --sell` shows the box. See task 295 for the price and the one-sale-a-turn rule.
 
 **118. Bitmap fonts on every screen and a text layout helper (done).** Only the map frame and the city screen use the original's fonts. Move the magic, wizard creation, production menu, message log and unit panels to them, and add a bitmap-font word wrap, justify and column helper (`Print_Paragraph` style) so long help text and descriptions can be shown.
@@ -428,6 +446,13 @@ Warlord counting as "arcane" in the realm check (ReMoM bug note); prisoner heroe
 tasks 48 and 49 (the `Loot` already carries their values); the 12-book and 6-retort limits. Design: [`heroes-items-design.md`](heroes-items-design.md) step 7 (task 221 does the items and the prisoner hero).
 
 **Checked against ReMoM on 17 October 2026:** `WIZ_RollSpellReward` and `EZ_SpecialTreasure` do not give a usable result as written (the spell index arithmetic always lands on the first ten spells; the special treasure never counts its points spent, so a book would repeat until the wizard has thirteen), so the intent stays. Done now: Famous gives its 10 fame, a wizard with six retorts is given a book and one with twelve books a retort (the original's two limits), and a book or retort hoard that finds nothing to give pays an item of 1200 or 1000 mana. The realm of a hoard's book is the original's `Lair_Magic_Realm` (nodes their own realm, caves and lairs any, dungeons, keeps and ruins death, temples life). Left: nothing known; the Alchemy/Warlord "arcane" quirk is not copied.
+
+**130. Warped node and cleared site pictures (done).** `draw_warped_node` (`map_draw.rs`) does what `Draw_Map_Nodes` does:
+the 20 by 18 pixels of the node's square are copied from the screen, half are dropped, each row and then each column is
+shifted by up to a pixel (new amounts every 18th of a second) and the result is cut to the shape of `mapback.lbx` 93.
+`--shot --warp-nodes` shows it. The original draws no picture for a cleared site (`Draw_Map_Lairs` takes only intact
+ones) and ours matches: a cleared encounter site is removed from the map, towers and nodes stay as they were, and a node
+looks the same guarded or cleared.
 
 **132. Battle screen: unit figures, animation and the original's frame (done).** Done: each unit is drawn
 as its figures (`figures1`-`figure16`, positions and facing as in the original, painted in the
@@ -465,7 +490,25 @@ pictures (`compix` 42 to 59); the button is locked with nothing to show; a key o
 Evil Omens is listed too (the original omits it); right-click help on the cells is not done. Terrain autotile edges, dirt patches, roads, rivers and the city
 (task 112) are also missing.
 
+**134. Game-end cut-scenes and the original's score screen (done).** The score screen (`game_over_screen.rs`, on `halofam`,
+`--score`) and the Hall of Fame (task 88, `hall_of_fame.rs`, `--hall`) were done first. The scenes are in
+`end_scene.rs` (`--shot --scene win|lose|conquest|return|parade`, `--shot-after SECONDS`): the victory
+(`Win_Animation`: the wizard raising their arms over the planets and the sparkle, the four lines of the speech), the
+defeat (`Lose_Animation`: the wizard falling into the vortex along `TBL_DefeatAnimSteps`), the raiders destroying a wizard
+(`Conquest_Animation`, only when the raiders are one side of it, as the original's early return has it), the banished
+rival's Spell of Return (`Return_Animation`, over the map) and the parade of the rivals' portraits when the human
+finishes the Spell of Mastery (`Spell_Of_Mastery`). The win and the defeat come before the score; Esc or a click skips a
+scene; the scream and the music are the original's. See `docs/game_end.md`. The Spell of Mastery's other scene, a rival's
+win (`Spell_Of_Mastery_Lose`, the sphere), is task 360.
+
 **135. Run the AI wizards in the client (done).** The client starts every wizard with the shared `f4x_core::setup::new_game` and holds one `f4x_ai::Ai` per rival (`App::rival_wizards`, recreated on a new map and on load). Ending the turn lets each rival play (`end_turn`), then ends it for everyone (`resume_turn`). The AI keeps an attack on a human instead of auto-resolving it (`Ai::leave_defence_to`, `take_attacks`): the human gets the "You are attacked!" box (Fight or Auto, no cancelling; `attack_prompt.rs`) for each, one after another, and the turn ends once all are fought (stale ones, with a unit already dead, are dropped). The rivals' doings reach the human only through the Chancellor's report and the log (`concerns_human` drops their refusals and out-of-sight foundings); `--turns N` auto-resolves the attacks. The turn is autosaved when it completes. **Not done here:** the attack box still has the plain look (task 264); an AI wizard never opens talks with the human (`f4x-ai` only answers proposals); it is added to task 167 below.
+
+**137. Teleport and merge animation in the battle screen (done).** `Anim::Teleport` and `Anim::Tunnel` (`battle_anim.rs`,
+chosen in `battle_screen.rs` by the unit's ability, teleport first) follow `Battle_Unit_Teleport` and
+`Battle_Unit_Tunnel`: a teleporter fades out where it stood (frames of 20 steps from 150) while it fades in on the new
+square from the fourth frame, two pictures at once; a merging unit sinks in four steps of five pixels, fading, cut off
+at the line its feet stood on, and rises on the new square in five; sounds are soundfx 11 and 12. The fades are
+smooth alpha where the original dithers pixels. Checked by unit tests only; no battle with such a unit was looked at.
 
 **141. (done) Outpost screen, enemy city screen and the naming boxes.** `Outpost_Screen` (a small city sheet for an outpost; also names a newly founded one), `Enemy_City_Screen` (what is known about another wizard's city) and the rename boxes for the capital (first turn) and new outposts. **Built:** the outpost screen (`outpost_screen.rs`: reduced cityscape, houses, garrison, enchantments; `--outpost`) with the naming box that a newly founded outpost opens (`Command::RenameCity`; `--outpost-new`), and the enemy city screen (`enemy_city_screen.rs`, opened by a click on an explored city of another wizard; `--enemy-city`). **Also built:** the capital's rename box on turn 1 (`--capital-name`). **Also built:** the outpost's enchantment list pages and turns off your own spell as the city screen's does (`city_enchantment_list`, shared; `--outpost` now puts eight city spells on the outpost to see it). **Garrison slots:** the original's `Outpost_Garrison_Picture_Coords` divides both the x and the y step by 5, which would put slots 0 to 4 on one spot, so it is a typo in the original (or its reconstruction); the slots keep the city screen's grid, 5 to a row, 20 by 24 apart. Nothing is left; the new-outpost music (`MUSIC_New_Outpost`) is part of task 76.
 

@@ -18,6 +18,8 @@
     "city.spell_ward": "{spell} ({wards})",
     "city.fortress": "Fortress",
     "city.summoning_circle": "Summoning Circle",
+    // Shown over the rubble of a building sold this turn.
+    "city.destroyed": "Destroyed",
     "city.turns": (count: "n", one: "Turn", other: "Turns"),
     "city.converts_to_gold": "Converts production to gold.",
     "city.increases_growth": "Increases population growth rate.",

@@ -394,8 +394,8 @@ pub struct CitySave {
     pub effects: Vec<crate::spell::temp_effect::TempEffect>,
     /// Taken this turn by this player, who may still raze it.
     pub conquered: Option<u8>,
-    /// A building was sold this turn.
-    pub sold_building: bool,
+    /// The building sold this turn.
+    pub sold_building: Option<String>,
     /// The city's auto-builder plan and what it has spent so far.
     pub autobuild: Option<crate::city::autobuild::AutoBuild>,
 }
@@ -786,7 +786,10 @@ impl Game {
                         .ok()
                         .and_then(|c| crate::player::id_of(&self.world, c.0))
                         .map(|p| p.0),
-                    sold_building: self.economy().sold_this_turn(e),
+                    sold_building: self
+                        .economy()
+                        .sold_building(e)
+                        .map(|b| rules.buildings.get(b).id.clone()),
                     autobuild: self
                         .world
                         .get::<&crate::city::autobuild::AutoBuild>(e)
@@ -1343,10 +1346,14 @@ impl Snapshot {
                     .world
                     .insert_one(entity, crate::spell::city::SpellWards(c.wards));
             }
-            if c.sold_building {
+            if let Some(b) = c.sold_building {
+                let b = rules
+                    .buildings
+                    .id_of(&b)
+                    .ok_or(LoadError::UnknownId("building", b))?;
                 let _ = game
                     .world
-                    .insert_one(entity, crate::city::production::SoldBuilding);
+                    .insert_one(entity, crate::city::production::SoldBuilding(b));
             }
             if let Some(a) = c.autobuild {
                 let _ = game.world.insert_one(entity, a);

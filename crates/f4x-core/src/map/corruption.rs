@@ -253,7 +253,8 @@ impl Game {
         }
     }
 
-    pub(crate) fn warp_node(&mut self, at: Position) -> Vec<Event> {
+    /// Warp the node at `at`, with no checks (the spell's effect; the screenshot options use it).
+    pub fn warp_node(&mut self, at: Position) -> Vec<Event> {
         let Some(node) = self.economy().node_at(at) else {
             return Vec::new();
         };

@@ -17,6 +17,12 @@ const SHOT_TIME: f32 = 0.9;
 /// The part of a shot's time its missile is in the air; the blow lands after it.
 pub const SHOT_FLIGHT: f32 = 0.5;
 const DEATH_TIME: f32 = 0.5;
+/// Seconds of one frame of a teleport or a tunnel (two ticks of the original's clock).
+pub const INSTANT_FRAME: f32 = 2.0 / 18.2;
+/// How many frames a teleport lasts (the fade runs from 150 in steps of 20), and a tunnel (four
+/// down, five up).
+const TELEPORT_FRAMES: usize = 8;
+const TUNNEL_FRAMES: usize = 9;
 /// Walking figures cycle through these animation frames.
 const WALK_FRAMES: [u8; 4] = [0, 1, 2, 1];
 const WALK_RATE: f32 = 7.0;
@@ -27,6 +33,18 @@ pub enum Anim {
     Move {
         unit: usize,
         path: Vec<Pos>,
+    },
+    /// A teleporting unit fades out where it stood and in on the square `to`
+    /// (`Battle_Unit_Teleport`).
+    Teleport {
+        unit: usize,
+        to: Pos,
+    },
+    /// A merging unit sinks into the ground where it stood and rises on the square `to`
+    /// (`Battle_Unit_Tunnel`).
+    Tunnel {
+        unit: usize,
+        to: Pos,
     },
     Attack {
         attacker: usize,
@@ -71,6 +89,8 @@ impl Anim {
     pub fn duration(&self) -> f32 {
         match self {
             Anim::Move { path, .. } => path.len() as f32 * STEP_TIME,
+            Anim::Teleport { .. } => TELEPORT_FRAMES as f32 * INSTANT_FRAME,
+            Anim::Tunnel { .. } => TUNNEL_FRAMES as f32 * INSTANT_FRAME,
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
@@ -120,6 +140,12 @@ pub struct Visual {
     pub alpha: f32,
     /// How red to flash it (a blow just landed), 0 to 1.
     pub hurt: f32,
+    /// Pixels it has sunk into the ground: the figure is drawn that much lower and cut off at
+    /// the ground line (a unit tunnelling).
+    pub sink: f32,
+    /// A second picture of the unit at the same moment: where, and how solid (a teleporter
+    /// still fading out while it already fades in).
+    pub twin: Option<((f32, f32), f32)>,
 }
 
 impl Visual {
@@ -130,6 +156,8 @@ impl Visual {
             frame: 1,
             alpha: 1.0,
             hurt: 0.0,
+            sink: 0.0,
+            twin: None,
         }
     }
 }
@@ -231,6 +259,38 @@ fn walk_frame(time: f32) -> u8 {
     WALK_FRAMES[(time * WALK_RATE) as usize % WALK_FRAMES.len()]
 }
 
+/// The frame a teleport or tunnel is at `t` seconds in (the last one holds).
+fn frame_of(t: f32, frames: usize) -> usize {
+    ((t / INSTANT_FRAME) as usize).min(frames - 1)
+}
+
+/// How solid a teleporting unit is where it stood and where it arrives, in frame `frame`: the
+/// original counts `i` down from 150 in steps of 20, the old picture fading out while `i` is
+/// above 50 (as `i - 50` percent) and the new one fading in from 100 (as `100 - i` percent).
+pub fn teleport_fade(frame: usize) -> (f32, f32) {
+    let i = 150 - 20 * frame as i32;
+    let leaving = if i > 50 { (i - 50) as f32 / 100.0 } else { 0.0 };
+    let arriving = if i <= 100 {
+        (100 - i) as f32 / 100.0
+    } else {
+        0.0
+    };
+    (leaving, arriving)
+}
+
+/// A tunnelling unit in frame `frame`: whether it has reached the new square, how deep it has
+/// sunk (pixels) and how solid it is. It goes down in four steps of five pixels, fading, and
+/// comes up in five.
+pub fn tunnel_step(frame: usize) -> (bool, f32, f32) {
+    if frame < 4 {
+        let i = (4 - frame) as f32;
+        (false, (5.0 - i) * 5.0, i * 0.2)
+    } else {
+        let i = (frame - 4) as f32;
+        (true, 20.0 - i * 5.0, i * 0.2)
+    }
+}
+
 /// How `unit`, standing on `cell` before the animation, looks `t` seconds into `anim`.
 /// `None` if the animation does not touch it.
 pub fn visual_in(anim: &Anim, t: f32, unit: usize, cell: Pos, base_facing: u8) -> Option<Visual> {
@@ -247,6 +307,29 @@ pub fn visual_in(anim: &Anim, t: f32, unit: usize, cell: Pos, base_facing: u8) -
             );
             v.facing = facing(a, b);
             v.frame = walk_frame(t);
+            Some(v)
+        }
+        Anim::Teleport { unit: u, to } if *u == unit => {
+            let (leaving, arriving) = teleport_fade(frame_of(t, TELEPORT_FRAMES));
+            let there = (to.0 as f32, to.1 as f32);
+            if leaving > 0.0 {
+                v.alpha = leaving;
+                if arriving > 0.0 {
+                    v.twin = Some((there, arriving));
+                }
+            } else {
+                v.at = there;
+                v.alpha = arriving;
+            }
+            Some(v)
+        }
+        Anim::Tunnel { unit: u, to } if *u == unit => {
+            let (arrived, sink, alpha) = tunnel_step(frame_of(t, TUNNEL_FRAMES));
+            if arrived {
+                v.at = (to.0 as f32, to.1 as f32);
+            }
+            v.sink = sink;
+            v.alpha = alpha;
             Some(v)
         }
         Anim::Death { unit: u } if *u == unit => {
@@ -406,6 +489,51 @@ mod tests {
         assert_eq!(d(0.0).hurt, 0.0);
         assert!(d(ATTACK_TIME * 0.5).hurt > 0.5);
         assert_eq!(d(0.0).facing, 3);
+    }
+
+    #[test]
+    fn a_teleporter_fades_out_and_in_over_the_same_frames() {
+        // Frame by frame: the old picture is solid at first, the new one starts at the fourth
+        // frame, and at the sixth the old one is gone.
+        assert_eq!(teleport_fade(0), (1.0, 0.0));
+        let (leaving, arriving) = teleport_fade(3);
+        assert!((leaving - 0.4).abs() < 1e-6 && (arriving - 0.1).abs() < 1e-6);
+        assert_eq!(teleport_fade(5), (0.0, 0.5));
+        let (_, last) = teleport_fade(7);
+        assert!((last - 0.9).abs() < 1e-6);
+        let anim = Anim::Teleport {
+            unit: 1,
+            to: (7, 4),
+        };
+        let first = visual_in(&anim, 0.0, 1, (2, 2), 2).unwrap();
+        assert_eq!(first.at, (2.0, 2.0));
+        assert!(first.twin.is_none());
+        let middle = visual_in(&anim, INSTANT_FRAME * 4.5, 1, (2, 2), 2).unwrap();
+        assert_eq!(middle.at, (2.0, 2.0));
+        assert_eq!(middle.twin.map(|(at, _)| at), Some((7.0, 4.0)));
+        let end = visual_in(&anim, anim.duration(), 1, (2, 2), 2).unwrap();
+        assert_eq!(end.at, (7.0, 4.0));
+        assert!(end.twin.is_none() && end.alpha > 0.8);
+        assert!(visual_in(&anim, 0.0, 2, (2, 2), 2).is_none());
+    }
+
+    #[test]
+    fn a_tunneller_sinks_by_the_origin_and_rises_at_the_target() {
+        assert_eq!(tunnel_step(0), (false, 5.0, 0.8));
+        assert_eq!(tunnel_step(3), (false, 20.0, 0.2 * 1.0));
+        let (arrived, sink, alpha) = tunnel_step(4);
+        assert!(arrived && sink == 20.0 && alpha == 0.0);
+        let (_, sink, alpha) = tunnel_step(8);
+        assert!(sink == 0.0 && (alpha - 0.8).abs() < 1e-6);
+        let anim = Anim::Tunnel {
+            unit: 0,
+            to: (9, 9),
+        };
+        let down = visual_in(&anim, INSTANT_FRAME * 1.5, 0, (1, 1), 2).unwrap();
+        assert_eq!(down.at, (1.0, 1.0));
+        assert_eq!(down.sink, 10.0);
+        let up = visual_in(&anim, INSTANT_FRAME * 7.5, 0, (1, 1), 2).unwrap();
+        assert_eq!(up.at, (9.0, 9.0));
     }
 
     #[test]

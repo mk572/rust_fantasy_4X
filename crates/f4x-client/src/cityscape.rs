@@ -361,6 +361,78 @@ pub fn sprite_of(idx: i16) -> Option<(usize, f32)> {
     }
 }
 
+/// How often the city screen draws in the original, which counts its animations in draws.
+pub const DRAWS_PER_SECOND: f64 = 18.0;
+
+/// The animation counter after `draws` draws (`cityscape_bldg_anim_ctr` and the others): the
+/// counter is the draw count over six, and when the count reaches `wrap` it goes back to six.
+/// Buildings and walls wrap at 60 (counter 1 to 9), the water at 84 (1 to 13).
+pub fn anim_counter(draws: u64, wrap: u64) -> usize {
+    let itr = if draws < wrap {
+        draws
+    } else {
+        6 + (draws - 6) % (wrap - 6)
+    };
+    (itr / 6) as usize
+}
+
+/// The frame a counter shows of a picture with `frames` frames: past the last it loops back to
+/// the first (`Set_Animation_Frame`).
+pub fn looped_frame(counter: usize, frames: usize) -> usize {
+    if frames == 0 {
+        0
+    } else {
+        counter % frames
+    }
+}
+
+/// How many times the water is drawn over the ground: the layers add up from the first frame
+/// of the river or ocean picture, each draw taking the next frame (`FLIC_Draw` moves on).
+pub fn water_layers(water_counter: usize) -> usize {
+    water_counter / 2 + 1
+}
+
+/// Where the ward and enchantment pictures stand along the bottom, left to right: the
+/// realm of a Spell Ward and its picture, then the spells.
+pub const REALM_WARDS: [(&str, usize, f32); 5] = [
+    ("death", 94, 8.0),
+    ("chaos", 95, 29.0),
+    ("nature", 98, 50.0),
+    ("life", 96, 71.0),
+    ("sorcery", 97, 92.0),
+];
+pub const CITY_BLESSINGS: [(&str, usize, f32); 4] = [
+    ("natures_eye", 99, 113.0),
+    ("inspirations", 100, 134.0),
+    ("prosperity", 101, 155.0),
+    ("consecration", 102, 176.0),
+];
+/// The height of the ward row below the top of the picture.
+pub const WARD_ROW: f32 = 83.0;
+
+/// The cityscape indexes Evil Presence marks (`bt_Shrine` to `bt_Parthenon`: the shrine, the
+/// temple and the parthenon, not the cathedral) and the picture drawn over them.
+pub const EVIL_PRESENCE_BUILDINGS: std::ops::RangeInclusive<i16> = 22..=24;
+pub const EVIL_PRESENCE_PICTURE: usize = 82;
+
+/// Rubble of a sold building, by the building's shape (`cityscap.lbx` 105 to 108).
+pub fn rubble_picture(shape: u8) -> usize {
+    105 + usize::from(shape.min(3))
+}
+
+/// Whether the build-in effect hides the pixel `(x, y)` of the new building at `percent`
+/// (`Vanish_Bitmap`): each pixel has a threshold from one to a hundred that changes with every
+/// draw, and it shows once the percent reaches it.
+pub fn vanished(x: u32, y: u32, draw: u64, percent: u32) -> bool {
+    let mut h = u64::from(x) << 32 ^ u64::from(y) ^ draw.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    h ^= h >> 30;
+    h = h.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    h ^= h >> 27;
+    h = h.wrapping_mul(0x94d0_49bb_1331_11eb);
+    h ^= h >> 31;
+    (h % 100) as u32 + 1 > percent
+}
+
 /// Screen position of a cell relative to the cityscape's top-left, as in
 /// `Cityscape_Draw_Buildings`: rows slant to the left, and each road takes two pixels.
 pub fn cell_position(row: usize, col: usize) -> (f32, f32) {
@@ -528,5 +600,36 @@ mod tests {
         assert_eq!(sprite_of(34), Some((75, 32.0)));
         assert_eq!(sprite_of(FORTRESS), Some((40, 47.0)));
         assert_eq!(sprite_of(35), None);
+    }
+    #[test]
+    fn counters_loop_like_the_originals() {
+        // The first draw shows counter 0; after that the counter is the draw count over six.
+        assert_eq!(anim_counter(0, 60), 0);
+        assert_eq!(anim_counter(5, 60), 0);
+        assert_eq!(anim_counter(6, 60), 1);
+        assert_eq!(anim_counter(59, 60), 9);
+        // At the wrap the count goes back to six, so counter 1 again, never 0.
+        assert_eq!(anim_counter(60, 60), 1);
+        assert_eq!(anim_counter(113, 60), 9);
+        assert_eq!(anim_counter(114, 60), 1);
+        assert_eq!(anim_counter(83, 84), 13);
+        assert_eq!(anim_counter(84, 84), 1);
+        assert_eq!(looped_frame(9, 9), 0);
+        assert_eq!(looped_frame(4, 9), 4);
+        assert_eq!(water_layers(0), 1);
+        assert_eq!(water_layers(13), 7);
+    }
+
+    #[test]
+    fn the_new_building_fades_in() {
+        let shown = |p| {
+            (0..40u32)
+                .flat_map(|x| (0..40u32).map(move |y| (x, y)))
+                .filter(|&(x, y)| !vanished(x, y, 3, p))
+                .count()
+        };
+        assert!(shown(0) < 40, "{}", shown(0));
+        assert_eq!(shown(100), 1600);
+        assert!(shown(30) < shown(60) && shown(60) < shown(90));
     }
 }
