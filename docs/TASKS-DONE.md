@@ -260,6 +260,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 295 | City | Selling a building: the original pays a third of the cost and allows one sale per city per turn (done) |
 | 296 | Magic | Melding on a node you already own and guard (the original forbids it) (done) |
 | 297 | Map | Scout range and the starting reveal as in the original (done) |
+| 298 | Client | (done) Overland: smooth unit movement and unit animation |
 | 301 | Client | The original's mouse pointers on every screen (done) |
 | 305 | Core | (done) Lair spell treasure: research the original's intent, consider a change |
 | 307 | Core | Game version 0.0.2, shown prominently (done) |
@@ -321,6 +322,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 385 | Meta | Diplomacy leftovers of the rules and the client: Threaten to Attack, trespass, map size, picking sides, attack-on-partner box (done) |
 
 ## Descriptions
+
+**298. (done) Overland: smooth unit movement and unit animation.** A moving stack jumps from square to square; the original slides it over the map and animates the unit pictures (the weapon icons and the unit enchantment outlines already animate in the window, not on the map). Add a slide for our own and visible enemy moves, with the original's speed setting, and the status letters and grey of a patrolling unit on the map pictures. Split from task 120. **Done 25 October 2026** (`map_slide.rs`): a `UnitsMoved` step of one square becomes a slide of 0.16 s (the original flips the screen five or six times a step; it has no speed setting, only Enemy Moves); your own units always slide, others only with Enemy Moves on, on explored squares and when one is visible; steps of one path run one after the other; the stack's top unit is drawn on the way and the other squares keep their stacks. The enchantment glow (`Draw_Unit_Enchantment_Outline`, the realm of the first spell in the original's order, cycling at 8 steps a second) is drawn on the map and in the unit window, and a patrolling unit of yours is greyed on the map. The original draws no status letters on the map pictures (`Draw_Unit_Picture` flag 2), so none are added.
 
 **363. (done) Render the original's music as the Roland MT-32 played it.** The songs are XMI (AIL Extended MIDI), written by
 task 362. Turn them into audio the client can play, using `https://github.com/CopperlineHQ/mt32-rs` (a safe-Rust port

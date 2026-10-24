@@ -41,6 +41,7 @@ mod learn_spell;
 mod level_up;
 mod magic_screen;
 mod map_draw;
+mod map_slide;
 mod menu_screen;
 mod newgame_flow;
 mod newgame_picks;

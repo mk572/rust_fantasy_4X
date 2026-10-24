@@ -33,6 +33,9 @@ pub(crate) struct SheetUi {
     pub confirm: bool,
     /// A lasting spell of the viewer's was clicked and waits for a yes.
     pub turn_off: Option<TurnOff>,
+    /// The units of the square the sheet was opened from, for the arrows to step through
+    /// (empty: a sheet of one unit).
+    pub group: Vec<hecs::Entity>,
 }
 
 /// The question "turn off this spell?" (`UV_Remove_Unit_Enchantment`).
@@ -49,6 +52,34 @@ impl App {
     pub(crate) fn open_unit_sheet(&mut self, unit: hecs::Entity) {
         if let Some(sheet) = self.overland_sheet(unit) {
             self.show_sheet(sheet);
+        }
+    }
+
+    /// Open the sheet of `unit`, one of the `group` standing on a square: the Left and Right
+    /// arrows (or the buttons) step through the group's sheets.
+    pub(crate) fn open_unit_sheet_of(&mut self, unit: hecs::Entity, group: Vec<hecs::Entity>) {
+        self.open_unit_sheet(unit);
+        if self.sheet_ui.sheet.is_some() && group.len() > 1 {
+            self.sheet_ui.group = group;
+        }
+    }
+
+    /// Show the sheet of the unit `step` places on in the group (wrapping round).
+    fn step_sheet(&mut self, step: isize) {
+        let Some(current) = self.sheet_ui.sheet.as_ref().and_then(|s| match s.source {
+            Source::Overland(u) => Some(u),
+            _ => None,
+        }) else {
+            return;
+        };
+        let group = self.sheet_ui.group.clone();
+        let Some(at) = group.iter().position(|&u| u == current) else {
+            return;
+        };
+        let next = group[(at as isize + step).rem_euclid(group.len() as isize) as usize];
+        if let Some(sheet) = self.overland_sheet(next) {
+            self.sheet_ui.sheet = Some(sheet);
+            self.sheet_ui.first = 0;
         }
     }
 
@@ -109,6 +140,7 @@ impl App {
             first: 0,
             confirm: false,
             turn_off: None,
+            group: Vec::new(),
         };
         self.screen = Screen::UnitSheet;
     }
@@ -180,6 +212,32 @@ impl App {
             }
             if dismiss || (sheet.can_dismiss && is_key_pressed(KeyCode::D)) {
                 self.sheet_ui.confirm = true;
+            }
+            if self.sheet_ui.group.len() > 1 && !asking {
+                let n = self.sheet_ui.group.len();
+                let at = self
+                    .sheet_ui
+                    .group
+                    .iter()
+                    .position(|&u| matches!(sheet.source, Source::Overland(s) if s == u))
+                    .map_or(0, |i| i + 1);
+                let view = (lay.origin.x, lay.origin.y, lay.scale);
+                self.bm_text(
+                    view,
+                    1,
+                    Color::new(0.95, 0.93, 0.85, 1.0),
+                    &format!("{at}/{n}"),
+                    px + 246.5,
+                    py + 108.0,
+                    Align::Center,
+                );
+                let back = self.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0);
+                let forward = self.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0);
+                if back || is_key_pressed(KeyCode::Left) {
+                    self.step_sheet(-1);
+                } else if forward || is_key_pressed(KeyCode::Right) {
+                    self.step_sheet(1);
+                }
             }
         } else if is_key_pressed(KeyCode::Enter) {
             leave = true;
@@ -535,6 +593,11 @@ impl App {
         self.red_button_face(lay, label, x, y, true)
     }
 
+    /// A red button of another width (the picture is stretched).
+    fn red_button_sized(&mut self, lay: &Layout, label: &str, x: f32, y: f32, w: f32) -> bool {
+        self.red_button_face_sized(lay, label, x, y, true, w)
+    }
+
     fn red_button_face(
         &mut self,
         lay: &Layout,
@@ -543,7 +606,19 @@ impl App {
         y: f32,
         enabled: bool,
     ) -> bool {
-        let (w, h) = (49.0, 12.0);
+        self.red_button_face_sized(lay, label, x, y, enabled, 49.0)
+    }
+
+    fn red_button_face_sized(
+        &mut self,
+        lay: &Layout,
+        label: &str,
+        x: f32,
+        y: f32,
+        enabled: bool,
+        w: f32,
+    ) -> bool {
+        let h = 12.0;
         let r = lay.rect((x, y, w, h));
         let hover = enabled && r.contains(mouse_position().into());
         let down = hover && is_mouse_button_down(MouseButton::Left);

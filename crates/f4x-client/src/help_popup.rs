@@ -133,9 +133,14 @@ impl App {
         // On the main screen Next Turn replaces Done, Patrol, Wait and Build once every unit has
         // moved, and is not there before.
         let next_turn_shown = matches!(self.screen, Screen::Map) && self.all_units_moved();
+        // The income, food and mana panels (233 to 235) are the summary column's, drawn while no
+        // stack is selected; the moves line (236) belongs to the selected stack's window.
+        let selected = !self.selection.is_empty();
         let allowed = |topic: i32| {
             if !matches!(self.screen, Screen::Map) {
                 true
+            } else if selected && (233..=235).contains(&topic) || !selected && topic == 236 {
+                false
             } else if next_turn_shown {
                 !(223..=228).contains(&topic)
             } else {

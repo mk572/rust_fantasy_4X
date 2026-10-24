@@ -214,6 +214,8 @@ pub struct App {
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// The unit statistics sheet that is open, if any.
     pub(crate) sheet_ui: crate::unit_screen::SheetUi,
+    /// Steps the units on the map are still sliding through (task 298).
+    pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// The army list's scroll and the unit under the mouse.
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
@@ -377,6 +379,7 @@ impl App {
             human_build: None,
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
+            slides: Vec::new(),
             army_ui: Default::default(),
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
@@ -524,6 +527,7 @@ impl App {
         let mut founded = false;
         let mut dispelled = 0;
         for event in events {
+            self.start_slide(&event);
             if let Event::SpellCast { player, spell } = &event {
                 if *player == HUMAN || self.prefs.get(crate::preferences::Pref::EnemySpells) {
                     let id = &self.game.content().rules.spells.get(*spell).id;
@@ -2082,8 +2086,16 @@ impl App {
             } else if is_mouse_button_pressed(MouseButton::Right)
                 && !self.selection.is_empty()
                 && !self.prefs.get(Pref::LeftClickMoves)
+                && self.selection_position() != Some(pos)
             {
                 self.go_to(pos);
+            } else if is_mouse_button_pressed(MouseButton::Right) {
+                // A right-click on one of your stacks shows the sheet of its first unit; the
+                // arrows there step through the others.
+                let stack = self.own_stack_at(pos);
+                if let Some(&first) = stack.first() {
+                    self.open_unit_sheet_of(first, stack);
+                }
             }
         }
     }
@@ -2152,6 +2164,17 @@ impl App {
     }
 
     /// Whether the square holds units of another wizard or of the neutral player.
+    /// The human's units on a square, as many as a stack holds.
+    fn own_stack_at(&self, pos: Position) -> Vec<hecs::Entity> {
+        self.game
+            .units()
+            .units_at(pos)
+            .into_iter()
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
+            .take(f4x_core::unit::MAX_STACK)
+            .collect()
+    }
+
     fn foreign_stack_at(&self, pos: Position) -> bool {
         self.game
             .units()
@@ -2350,12 +2373,13 @@ impl App {
         width: u32,
         t: Vec2,
     ) {
+        self.finish_slides();
         let mut stacks: HashMap<(u32, u32), Vec<hecs::Entity>> = HashMap::new();
         for unit in self.game.units().all_units() {
             let Some(at) = self.game.units().unit_position(unit) else {
                 continue;
             };
-            if at.plane != self.plane {
+            if at.plane != self.plane || self.is_sliding(unit) {
                 continue;
             }
             let mine = self.game.units().unit_owner(unit) == Some(HUMAN);
@@ -2370,64 +2394,99 @@ impl App {
         self.draw_road_plan(&screen_of, t);
         let blink = (get_time() * 3.0) as i64 % 2 == 0;
         for ((x, y), units) in stacks {
-            let top = units
-                .iter()
-                .copied()
-                .find(|u| self.selection.contains(u))
-                .unwrap_or(units[0]);
-            let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
-            let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
             let at = screen_of(x, y);
-            // The stack's top unit on the background of its owner's banner
-            // (`art::background_entry`), the figure one pixel in.
-            let banner = self
-                .banner_index(owner)
-                .min(f4x_core::player::NEUTRAL_BANNER);
-            let k = t.x / TILE_W;
-            if let Some(tex) = self
-                .art
-                .picture("mapback", crate::art::background_entry(banner), 0)
-            {
-                draw_texture_ex(
-                    tex,
-                    at.x,
-                    at.y,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(tex.size() * k),
-                        ..Default::default()
-                    },
-                );
-            }
-            let icon =
-                art.and_then(|(lbx, entry)| self.art.unit_picture(&lbx, entry as usize, banner));
-            match icon {
-                Some(tex) => draw_texture_ex(
-                    tex,
-                    at.x + k,
-                    at.y + k,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(tex.size() * k),
-                        ..Default::default()
-                    },
-                ),
-                None => draw_rectangle(
-                    at.x + t.x * 0.25,
-                    at.y + t.y * 0.25,
-                    t.x * 0.5,
-                    t.y * 0.5,
-                    self.banner_color(owner),
-                ),
-            }
-            if units.iter().any(|u| self.selection.contains(u)) && blink {
-                draw_rectangle_lines(at.x, at.y, t.x, t.y, 3.0, GOLD);
-            }
-            if units.len() > 1 {
-                let view = (at.x, at.y, k);
-                let count = units.len().to_string();
-                self.bm_text_outlined(view, 1, &count, 19.0, 11.0, Align::Right);
-            }
+            self.draw_stack_icon(at, t, &units, blink);
+        }
+        // The stacks on their way from one square to the next.
+        let sliding: Vec<(Vec2, Vec<hecs::Entity>)> = self
+            .sliding(self.plane)
+            .into_iter()
+            .map(|(square, s)| (square, s.units.clone()))
+            .collect();
+        for (square, units) in sliding {
+            let from = screen_of(square.x.floor() as u32, square.y.floor() as u32);
+            let at = from + vec2(square.x.fract() * t.x, square.y.fract() * t.y);
+            self.draw_stack_icon(at, t, &units, blink);
+        }
+    }
+
+    /// One stack as one icon: its top unit (a selected one first) on the background of the
+    /// owner's banner, the count when several stand together, and the blinking frame of the
+    /// selection.
+    fn draw_stack_icon(&mut self, at: Vec2, t: Vec2, units: &[hecs::Entity], blink: bool) {
+        let top = units
+            .iter()
+            .copied()
+            .find(|u| self.selection.contains(u))
+            .unwrap_or(units[0]);
+        let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
+        let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
+        // The stack's top unit on the background of its owner's banner
+        // (`art::background_entry`), the figure one pixel in.
+        let banner = self
+            .banner_index(owner)
+            .min(f4x_core::player::NEUTRAL_BANNER);
+        let k = t.x / TILE_W;
+        if let Some(tex) = self
+            .art
+            .picture("mapback", crate::art::background_entry(banner), 0)
+        {
+            draw_texture_ex(
+                tex,
+                at.x,
+                at.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(tex.size() * k),
+                    ..Default::default()
+                },
+            );
+        }
+        // An enchanted unit glows in its realm's colours; one of yours on patrol is greyed.
+        let glow = self.unit_glow_realm(top);
+        let patrolling = owner == HUMAN.0
+            && self.game.units().unit_standby(top) == Some(f4x_core::unit::Standby::Patrol);
+        let tint = if patrolling {
+            Color::new(0.6, 0.6, 0.6, 1.0)
+        } else {
+            WHITE
+        };
+        let icon = art.and_then(|(lbx, entry)| match glow {
+            Some(realm) => self.art.unit_glow(
+                &lbx,
+                entry as usize,
+                banner,
+                realm,
+                crate::map_slide::glow_step(),
+            ),
+            None => self.art.unit_picture(&lbx, entry as usize, banner),
+        });
+        match icon {
+            Some(tex) => draw_texture_ex(
+                tex,
+                at.x + k,
+                at.y + k,
+                tint,
+                DrawTextureParams {
+                    dest_size: Some(tex.size() * k),
+                    ..Default::default()
+                },
+            ),
+            None => draw_rectangle(
+                at.x + t.x * 0.25,
+                at.y + t.y * 0.25,
+                t.x * 0.5,
+                t.y * 0.5,
+                self.banner_color(owner),
+            ),
+        }
+        if units.iter().any(|u| self.selection.contains(u)) && blink {
+            draw_rectangle_lines(at.x, at.y, t.x, t.y, 3.0, GOLD);
+        }
+        if units.len() > 1 {
+            let view = (at.x, at.y, k);
+            let count = units.len().to_string();
+            self.bm_text_outlined(view, 1, &count, 19.0, 11.0, Align::Right);
         }
     }
 

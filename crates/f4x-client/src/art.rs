@@ -148,6 +148,8 @@ pub struct Art {
     masked: HashMap<(String, usize, usize, usize, usize), Option<Texture2D>>,
     /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
+    /// Map pictures of units with the glow of an enchantment: (file, entry, banner, realm, step).
+    unit_glows: HashMap<(String, usize, u8, usize, usize), Option<Texture2D>>,
     /// Which pictures belong to which spell (`content/spell_art.ron`).
     spells: SpellArt,
 }
@@ -256,6 +258,7 @@ impl Art {
             river_overlays: HashMap::new(),
             figures: HashMap::new(),
             glows: HashMap::new(),
+            unit_glows: HashMap::new(),
             unit_pictures: HashMap::new(),
             masked: HashMap::new(),
             spells,
@@ -630,6 +633,46 @@ impl Art {
             self.glows.insert(key, glow);
         }
         self.glows.get(&key).and_then(Option::as_ref)
+    }
+
+    /// The colours of a realm's glow at an animation step, as the eight-colour ramp
+    /// `outline_pixels` walks.
+    fn glow_ramp(&self, realm: usize, step: usize) -> Vec<Color> {
+        const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
+        (0..8)
+            .map(|i| {
+                self.minimap.named(
+                    &format!("outline_{}_{}", REALMS[realm % 5], (i + step) % 8),
+                    WHITE,
+                )
+            })
+            .collect()
+    }
+
+    /// A unit's picture on the map or in the unit window with the glow the original draws round an
+    /// enchanted unit (`Draw_Unit_Enchantment_Outline`); `realm` and `step` as for
+    /// [`Self::glowing_figure`].
+    pub fn unit_glow(
+        &mut self,
+        lbx: &str,
+        entry: usize,
+        banner: u8,
+        realm: usize,
+        step: usize,
+    ) -> Option<&Texture2D> {
+        let key = (lbx.to_string(), entry, banner, realm, step % 8);
+        if !self.unit_glows.contains_key(&key) {
+            let ramp = self.glow_ramp(realm, step);
+            let glow = self.unit_picture(lbx, entry, banner).cloned().map(|tex| {
+                let mut img = tex.get_texture_data();
+                outline_pixels(&mut img, &ramp);
+                let glowing = Texture2D::from_image(&img);
+                glowing.set_filter(FilterMode::Nearest);
+                glowing
+            });
+            self.unit_glows.insert(key.clone(), glow);
+        }
+        self.unit_glows.get(&key).and_then(Option::as_ref)
     }
 
     /// A figure under a spell's effect, recoloured pixel by pixel as the original does.

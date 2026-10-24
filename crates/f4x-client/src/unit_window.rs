@@ -104,7 +104,17 @@ impl App {
                 at.1,
             );
         }
-        if let Some(tex) = self.art.unit_picture(&lbx, entry as usize, banner) {
+        let tex = match self.unit_glow_realm(unit) {
+            Some(realm) => self.art.unit_glow(
+                &lbx,
+                entry as usize,
+                banner,
+                realm,
+                crate::map_slide::glow_step(),
+            ),
+            None => self.art.unit_picture(&lbx, entry as usize, banner),
+        };
+        if let Some(tex) = tex {
             let to = lay.point(at.0 + 1.0, at.1 + 1.0);
             draw_texture_ex(
                 tex,
@@ -274,7 +284,8 @@ impl App {
             }
         }
         if let Some(unit) = click.slot_info {
-            self.open_unit_sheet(unit);
+            let group = self.stack_units();
+            self.open_unit_sheet_of(unit, group);
         }
         let units = self.selection.clone();
         match click.button {

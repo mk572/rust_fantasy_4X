@@ -320,6 +320,15 @@ pub(crate) fn missile_type(u: &BattleUnit) -> usize {
 /// first of its lasting spells in the original's order (0 chaos, 1 death, 2 life, 3 nature,
 /// 4 sorcery). Invisible units have none.
 fn enchantment_realm(u: &BattleUnit, ids: &[String]) -> Option<usize> {
+    if u.is_invisible() {
+        return None;
+    }
+    realm_of_spells(ids)
+}
+
+/// The realm of the first of these lasting spells in the original's order (0 chaos, 1 death,
+/// 2 life, 3 nature, 4 sorcery): the colour of the glow round the unit.
+pub(crate) fn realm_of_spells(ids: &[String]) -> Option<usize> {
     const ORDER: [(&str, usize); 32] = [
         ("regeneration", 3),
         ("resist_magic", 4),
@@ -354,9 +363,6 @@ fn enchantment_realm(u: &BattleUnit, ids: &[String]) -> Option<usize> {
         ("holy_weapon", 2),
         ("resist_elements", 3),
     ];
-    if u.is_invisible() {
-        return None;
-    }
     ORDER
         .iter()
         .find(|(id, _)| ids.iter().any(|e| e == id))
