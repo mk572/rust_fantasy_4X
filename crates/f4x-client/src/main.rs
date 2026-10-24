@@ -80,6 +80,8 @@ struct Options {
     content: PathBuf,
     assets: PathBuf,
     seed: u64,
+    /// `--seed` was given: every new game uses it. Without it each game gets a seed of its own.
+    seed_given: bool,
     /// Save a screenshot after a few frames and quit (for automated checks).
     shot: Option<PathBuf>,
     /// With `--shot`, open the city screen first.
@@ -214,6 +216,7 @@ fn parse_args() -> Result<Options, String> {
         mute: false,
         hear: None,
         seed: 1,
+        seed_given: false,
         shot: None,
         city: false,
         autobuild: false,
@@ -300,6 +303,7 @@ fn parse_args() -> Result<Options, String> {
                 }
             }
             "--seed" => {
+                o.seed_given = true;
                 o.seed = value("--seed")?
                     .parse()
                     .map_err(|_| "--seed must be a number")?
@@ -511,9 +515,16 @@ async fn main() {
     let mut app = match App::new(
         content,
         art::Art::load(options.assets, spell_art),
-        options.seed,
+        if options.seed_given {
+            options.seed
+        } else {
+            view::fresh_seed()
+        },
     ) {
-        Ok(app) => app,
+        Ok(mut app) => {
+            app.seed_fixed = options.seed_given;
+            app
+        }
         Err(e) => {
             eprintln!("could not start a game: {e}");
             std::process::exit(1);

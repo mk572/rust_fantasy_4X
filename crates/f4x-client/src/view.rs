@@ -114,6 +114,8 @@ pub struct App {
     /// The news of the last turn change, for the Chancellor to show again.
     pub(crate) last_news: Vec<crate::chancellor::Section>,
     pub(crate) seed: u64,
+    /// The seed was chosen with `--seed`: every new game starts from it.
+    pub(crate) seed_fixed: bool,
     pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
     pub(crate) cam: Vec2,
@@ -262,6 +264,15 @@ pub struct App {
     pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
 
+/// A seed for a map nobody has asked a number for: the clock, mixed.
+pub fn fresh_seed() -> u64 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |d| d.as_nanos() as u64);
+    // Mix it so that two games a moment apart do not get near numbers; kept to six digits.
+    (nanos ^ (nanos >> 29)).wrapping_mul(0x9E37_79B9_7F4A_7C15) % 1_000_000
+}
+
 impl App {
     /// The name of a retort.
     pub(crate) fn retort_name(&self, retort: f4x_core::wizard::magic::Retort) -> String {
@@ -312,6 +323,7 @@ impl App {
             cart_plane: Plane::Arcanus,
             last_news: Vec::new(),
             seed,
+            seed_fixed: false,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
             zoom: 4.0,
@@ -1046,7 +1058,7 @@ impl App {
         let content = self.game.content().clone();
         let (game, integrity) =
             f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
-        self.seed = game.seed();
+        // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.index();
@@ -1270,7 +1282,8 @@ impl App {
         ) {
             Ok(game) => {
                 self.game = game;
-                self.seed = seed;
+                // The next game gets another seed, unless `--seed` fixed it.
+                self.seed = if self.seed_fixed { seed } else { fresh_seed() };
                 self.game_over_seen = false;
                 self.end_scenes.clear();
                 self.end_scene_queued = false;
