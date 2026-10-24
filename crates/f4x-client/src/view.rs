@@ -191,8 +191,6 @@ pub struct App {
     pub(crate) surveyor: bool,
     /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
     pub(crate) survey_probe: Option<Position>,
-    /// The key list is shown (F1 shows it while held).
-    pub(crate) show_keys: bool,
     /// The wizard creation screen's state.
     pub(crate) create: crate::create_screen::CreateState,
     /// The human wizard chosen on the creation screen; new maps reuse it.
@@ -227,6 +225,8 @@ pub struct App {
     pub(crate) menu: crate::menu_screen::MenuState,
     pub(crate) intro: crate::intro_screen::IntroState,
     pub(crate) help_ui: crate::help_popup::HelpUi,
+    /// The keys of the overland map (`content/hotkeys.ron`).
+    pub(crate) hotkeys: crate::hotkeys::Hotkeys,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
@@ -342,7 +342,6 @@ impl App {
             road_plan: None,
             surveyor: false,
             survey_probe: None,
-            show_keys: false,
             create: crate::create_screen::CreateState::empty(),
             human_build: None,
             battle_ui: Default::default(),
@@ -362,6 +361,7 @@ impl App {
             menu: Default::default(),
             intro: Default::default(),
             help_ui: Default::default(),
+            hotkeys: Default::default(),
             console: Default::default(),
             combat_results: None,
             battle_site: None,
@@ -1245,7 +1245,7 @@ impl App {
         } else {
             self.battle_ui.ready = false;
         }
-        if is_key_pressed(KeyCode::GraveAccent) {
+        if self.hotkeys.pressed("console") {
             self.toggle_console();
         }
         if self.combat_results.is_some()
@@ -1729,25 +1729,19 @@ impl App {
             return;
         };
         let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
-        let mut keys = vec![
-            (KeyCode::Kp1, (-1, 1)),
-            (KeyCode::Kp2, (0, 1)),
-            (KeyCode::Kp3, (1, 1)),
-            (KeyCode::Kp4, (-1, 0)),
-            (KeyCode::Kp6, (1, 0)),
-            (KeyCode::Kp7, (-1, -1)),
-            (KeyCode::Kp8, (0, -1)),
-            (KeyCode::Kp9, (1, -1)),
-        ];
-        if !shift {
-            keys.extend([
-                (KeyCode::Left, (-1, 0)),
-                (KeyCode::Right, (1, 0)),
-                (KeyCode::Up, (0, -1)),
-                (KeyCode::Down, (0, 1)),
-            ]);
-        }
-        let Some(&(_, (dx, dy))) = keys.iter().find(|(k, _)| is_key_pressed(*k)) else {
+        let Some(&(_, (dx, dy))) = [
+            ("move_down_left", (-1, 1)),
+            ("move_down", (0, 1)),
+            ("move_down_right", (1, 1)),
+            ("move_left", (-1, 0)),
+            ("move_right", (1, 0)),
+            ("move_up_left", (-1, -1)),
+            ("move_up", (0, -1)),
+            ("move_up_right", (1, -1)),
+        ]
+        .iter()
+        // With Shift held, the keys that scroll the map scroll it.
+        .find(|(action, _)| self.hotkeys.pressed_moving(action, shift)) else {
             return;
         };
         let Some(map) = self.game.map() else {
@@ -1803,78 +1797,77 @@ impl App {
         let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
         let scrolls = self.selection.is_empty() || shift;
         if scrolls {
-            for (key, dir) in [
-                (KeyCode::Left, vec2(-1.0, 0.0)),
-                (KeyCode::Right, vec2(1.0, 0.0)),
-                (KeyCode::Up, vec2(0.0, -1.0)),
-                (KeyCode::Down, vec2(0.0, 1.0)),
+            for (action, dir) in [
+                ("scroll_left", vec2(-1.0, 0.0)),
+                ("scroll_right", vec2(1.0, 0.0)),
+                ("scroll_up", vec2(0.0, -1.0)),
+                ("scroll_down", vec2(0.0, 1.0)),
             ] {
-                if is_key_down(key) {
+                if self.hotkeys.down(action) {
                     pan += dir;
                 }
             }
         }
         self.cam += pan * step;
-        if is_key_pressed(KeyCode::Tab) {
+        if self.hotkeys.pressed("other_plane") {
             self.toggle_plane();
         }
-        if is_key_pressed(KeyCode::Equal) || is_key_pressed(KeyCode::KpAdd) {
+        if self.hotkeys.pressed("zoom_in") {
             self.zoom = (self.zoom + 1.0).min(6.0);
         }
-        if is_key_pressed(KeyCode::Minus) || is_key_pressed(KeyCode::KpSubtract) {
+        if self.hotkeys.pressed("zoom_out") {
             self.zoom = (self.zoom - 1.0).max(1.0);
         }
-        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::N) {
+        if self.hotkeys.pressed("end_turn") {
             self.request_end_turn();
         }
-        let command_key = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::LeftSuper);
-        if command_key && is_key_pressed(KeyCode::Z) {
+        if self.hotkeys.pressed("undo") {
             self.undo_last();
         }
-        if is_key_pressed(KeyCode::F10) {
+        if self.hotkeys.pressed("quick_save") {
             self.save_to(Path::new(QUICKSAVE));
         }
-        if command_key && is_key_pressed(KeyCode::L) {
+        if self.hotkeys.pressed("quick_load") {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
                 self.log.push(
                     self.text_with("log.load_failed", &Args::new().text("why", e.to_string())),
                 );
             }
         }
-        if !command_key && is_key_pressed(KeyCode::M) {
+        if self.hotkeys.pressed("magic") {
             self.open_magic();
         }
-        if is_key_pressed(KeyCode::S) {
+        if self.hotkeys.pressed("spellbook") {
             self.open_spellbook();
         }
-        if !command_key && is_key_pressed(KeyCode::A) {
+        if self.hotkeys.pressed("army_list") {
             self.open_army_list();
         }
-        if is_key_pressed(KeyCode::G) {
+        if self.hotkeys.pressed("game_menu") {
             self.open_slots(false);
         }
-        for (key, advisor) in [
-            (KeyCode::F1, 0),
-            (KeyCode::F2, 1),
-            (KeyCode::F3, 2),
-            (KeyCode::F4, 3),
-            (KeyCode::F5, 4),
-            (KeyCode::F6, 5),
-            (KeyCode::F7, 6),
-            (KeyCode::F8, 7),
-            (KeyCode::F9, 8),
+        for (action, advisor) in [
+            ("surveyor", 0),
+            ("cartographer", 1),
+            ("apprentice", 2),
+            ("history", 3),
+            ("astrologer", 4),
+            ("chancellor", 5),
+            ("tax_collector", 6),
+            ("grand_vizier", 7),
+            ("mirror", 8),
         ] {
-            if is_key_pressed(key) {
+            if self.hotkeys.pressed(action) {
                 self.open_advisor(advisor);
             }
         }
-        if is_key_pressed(KeyCode::I) && !command_key {
+        if self.hotkeys.pressed("advisors") {
             self.open_advisor_menu();
         }
-        if command_key && is_key_pressed(KeyCode::N) {
+        if self.hotkeys.pressed("new_map") {
             self.new_map(self.seed + 1);
         }
-        if command_key && is_key_pressed(KeyCode::R) {
+        if self.hotkeys.pressed("next_race") {
             self.race = (self.race + 1) % self.game.content().rules.races.len().max(1);
             self.new_map(self.seed);
             let name = self.race_name(self.race).to_string();
@@ -1882,15 +1875,15 @@ impl App {
                 .push(self.text_with("log.playing_as", &Args::new().text("race", name)));
         }
         self.road_plan_keys();
-        if is_key_pressed(KeyCode::B) && self.road_plan.is_some() {
+        if self.hotkeys.pressed("special") && self.road_plan.is_some() {
             self.road_plan_confirm();
-        } else if is_key_pressed(KeyCode::B) {
+        } else if self.hotkeys.pressed("special") {
             self.special_button();
         }
-        if is_key_pressed(KeyCode::Q) || is_key_pressed(KeyCode::U) {
+        if self.hotkeys.pressed("unselect") {
             self.selection.clear();
         }
-        if is_key_pressed(KeyCode::P) {
+        if self.hotkeys.pressed("plane_shift") {
             // The plane button: the selected units change plane if they can, else the view does.
             let shifted = !self.selection.is_empty() && {
                 let events = self.game.apply(Command::ShiftPlane {
@@ -1911,19 +1904,19 @@ impl App {
             }
         }
         self.stack_keys();
-        if is_key_pressed(KeyCode::T) {
+        if self.hotkeys.pressed("balance_farmers") {
             self.game.balance_farmers(HUMAN);
             self.log.push(self.text("log.farmers_balanced"));
         }
-        if is_key_pressed(KeyCode::W) && !self.selection.is_empty() {
+        if self.hotkeys.pressed("wait") && !self.selection.is_empty() {
             self.select_next_idle(true);
         }
-        if is_key_pressed(KeyCode::D) && !self.selection.is_empty() {
+        if self.hotkeys.pressed("done") && !self.selection.is_empty() {
             self.game.apply(Command::ClearOrders {
                 units: self.selection.clone(),
             });
         }
-        if is_key_pressed(KeyCode::C) {
+        if self.hotkeys.pressed("centre") {
             if let Some(at) = self.selection_position() {
                 self.center_on(at);
             }
@@ -2333,37 +2326,6 @@ impl App {
         for (i, text) in shown.iter().enumerate() {
             let at = bottom - line * (i + 1) as f32;
             self.bm_text_shadowed(view, 1, text, spot::MAP.0 + 4.0, at, messages, Align::Left);
-        }
-        let hint = self.text("ui.keys_hint");
-        let hint_x = spot::MAP.0 + spot::MAP.2 - 4.0;
-        self.bm_text_shadowed(
-            view,
-            1,
-            &hint,
-            hint_x,
-            bottom - line,
-            LIGHTGRAY,
-            Align::Right,
-        );
-        if self.show_keys || is_key_down(KeyCode::F1) {
-            let keys = [
-                self.text("ui.keys_1"),
-                self.text("ui.keys_2"),
-                self.text("ui.keys_3"),
-                self.text("ui.keys_4"),
-            ];
-            let width = spot::MAP.2 * 0.9 - 8.0;
-            let rows: Vec<String> = keys
-                .iter()
-                .flat_map(|k| self.bm_wrap(1, k, width))
-                .collect();
-            let (left, top) = (spot::MAP.0 + spot::MAP.2 * 0.05, spot::MAP.1 + 50.0);
-            let r = lay.rect((left, top, spot::MAP.2 * 0.9, line * rows.len() as f32 + 6.0));
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.0, 0.8));
-            for (i, k) in rows.iter().enumerate() {
-                let at = top + 3.0 + line * i as f32;
-                self.bm_text(view, 1, WHITE, k, left + 4.0, at, Align::Left);
-            }
         }
     }
 

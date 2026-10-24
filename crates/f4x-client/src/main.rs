@@ -32,6 +32,7 @@ mod game_over_screen;
 mod global_spell;
 mod hall_of_fame;
 mod help_popup;
+mod hotkeys;
 mod intro_screen;
 mod item_screen;
 mod learn_spell;
@@ -487,6 +488,10 @@ async fn main() {
         }
     };
     app.help = help;
+    match hotkeys::Hotkeys::load(&[&options.content, Path::new("saves")]) {
+        Ok(keys) => app.hotkeys = keys,
+        Err(e) => eprintln!("{e}; the shipped keys are used"),
+    }
     if !options.mute && options.shot.is_none() {
         app.audio = audio::Audio::scan(&options.audio, sounds);
         if !app.audio.has_files() {

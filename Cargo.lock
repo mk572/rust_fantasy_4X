@@ -2612,6 +2612,7 @@ dependencies = [
  "macroquad",
  "rand 0.8.8",
  "rand_pcg",
+ "ron",
 ]
 
 [[package]]

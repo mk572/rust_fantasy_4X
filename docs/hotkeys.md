@@ -1,106 +1,21 @@
-# The original's hotkeys
+# Hotkeys
 
-What each key does in Master of Magic, read from ReMoM (`reference/ReMoM/MoM/src`, the field
-setup of each screen: `Add_Hot_Key`, `Add_Button_Field`, `Add_Hidden_Field`). The client follows
-this table; where it adds a key of its own, that is marked **extra**. Letter keys are not case
-sensitive. "Not yet" means the screen or action does not exist in our game.
+The keys of the overland map are not in the code: `content/hotkeys.ron` lists, for each action
+(`end_turn`, `move_left`, `quick_save`, ...), the keys that do it. `crates/f4x-client/src/hotkeys.rs`
+reads it.
 
-## Main screen (`MainScr.c`)
-
-| Key | Original | Client |
-|---|---|---|
-| F1 | Advisor: Surveyor | done (a map mode; C, Esc or Cancel leave, a click centres the map) |
-| F2 | Advisor: Cartographer | done (N flips the plane, a click moves the map there, C or Esc close) |
-| F3 | Advisor: Apprentice | done |
-| F4 | Advisor: History | done |
-| F5 | Advisor: Astrologer | done |
-| F6 | Advisor: Chancellor | done (the last turn's scroll) |
-| F7 | Advisor: Tax Collector | done (a list box; click a rate) |
-| F8 | Advisor: Grand Vizier | off at once; on after a Y or N question |
-| F9 | Advisor: Mirror (your wizard sheet) | done (a rival's sheet: right-click its gem on the Magic screen) |
-| F10 | Quick-save (save slot 9) | done |
-| N | Next turn | done (**extra:** Enter does the same) |
-| G | Game button (save, load, quit menu) | done (also Esc) |
-| S | Spells button (the spell book) | done |
-| A | Armies button (army list) | done (task 138) |
-| M | Magic button | done |
-| I | Info button (the advisor menu) | done (also the Info button) |
-| P | Plane button: show the other plane | done (shifts the selected units first, if they can) |
-| (none) | Cities button (no key) | not yet |
-| D | Done: the selected stack is finished for this turn | clears the stack's orders only (no idle-stack cycling yet) |
-| W | Wait: skip to the next idle stack | not yet |
-| B | Build (outpost; with engineers a road: click the far end, a blue line (red if water blocks it) shows the path and the side panel the turns, then OK, O, Enter or B builds, Escape or right-click cancels); the Purify and Meld buttons have no key | done (Meld also on B for a spirit) |
-| C | Centre the map on the selected stack | done |
-| Q or U | Unselect the stack | done |
-| Numpad 1 to 9 and the arrow keys (the source calls them the eight direction keys) | Move the selected stack one square | done |
-| X | nothing | none |
-| Z, T | Debug and test keys | none |
-| Alt-K, Alt-A | Debug (commented out in the source) | none |
-
-The original scrolls the map with the mouse at the screen edge; arrows with nothing selected scroll in the
-client (**extra**, as is Shift plus an arrow with a stack selected).
-
-## Extras of the client (no counterpart in the original)
-
-| Key | Action |
-|---|---|
-| Ctrl-L | Quick-load |
-| Ctrl-Z | Undo the last order |
-| Ctrl-N | New random map (development) |
-| Ctrl-R | Next race (development) |
-| T | Balance farmers to feed the army |
-| Tab | Show the other plane |
-| `+`, `-` | Zoom |
-| `/` | Show the key list |
-| `` ` `` (backquote) | The text console |
-
-## City screen (`CityScr.c`)
-
-| Key | Original |
-|---|---|
-| B | Buy |
-| C | Change (production) |
-| O | OK (close) |
-| Esc | Close |
-| X | Debug |
-
-Production screen (`ProdScr.c`): C Cancel, O OK, Esc.
-
-## Lists and information screens
-
-| Screen | Keys |
-|---|---|
-| City list (`CityList.c`), army list (`ArmyList.c`) | U scroll up, D scroll down, Esc leave |
-| Unit view (`UnitStat.c`) | O OK, D Dismiss, U and D arrows (previous and next unit), Esc, X |
-| Magic screen (`MagicScr.c`) | A Alchemy, Esc leave. Typed strings (RVL, PWR, DESTIN) are debug codes. |
-| Spell book (`Spellbook.c`, `SBookScr.c`) | F next page, B previous page, Esc |
-| Advisor screens (`AdvsrScr.c`) | N next, C close, Esc |
-| Mirror (`WIZVIEW.c`), Surveyor, Score, Item screen | Esc leaves (the Mirror also on a click) |
-| Chancellor's scroll (after a turn) | Esc, Enter or a click closes; U, D, arrows or the wheel scroll |
-| Settings | Click a row to flip it; O, Enter or Esc leave (and save) |
-| Hire dialog (`HIRE.c`) | H or A for the Hire button (the key depends on its text) |
-| After taking a city (`Combat.c`) | R raze, N keep |
-| Lair dialog (`Lair.c`) | Y yes, N no |
-| Main menu (`MainMenu.c`) | C Continue, L Load, N New game, H Hall of fame, Q Quit, Esc |
-| Load screen (`LoadScr.c`) | Esc |
-
-## Battle (`Combat.c`)
-
-| Key | Original |
-|---|---|
-| S | Spell |
-| W | Wait |
-| D or Space | Done with the unit |
-| U | Info (the unit's sheet) |
-| A | Auto (the computer plays the battle) |
-| F | Flee |
-| Esc | Cancel auto, or leave a sub-dialog |
-
-The client keeps Tab (next unit) and E / Enter (end the turn) as **extras**.
-
-## Source notes
-
-- The key names in the source are `ST_KEY_*` (`MoX/src/MOX_KEYS.h`); the arrow keys and the numpad
-  digits are the same eight direction keys.
-- `Add_Multi_Hot_Key_Field` is a typed string; the only ones are the Alt debug keys and the Magic
-  screen codes above.
+- **Format:** a map from the action's name to a list of keys, each `"Key"`, `"Ctrl+Key"`,
+  `"Shift+Key"` or `"Alt+Key"`. Ctrl is Control, or Cmd on a Mac, and must be held exactly when the
+  key names it (so `M` and `Ctrl+M` are different keys). The file's header lists the key names.
+- **Changing a key:** copy the action's line into `saves/hotkeys.ron` (the player's own) or into the
+  `hotkeys.ron` of a content folder (a mod). The base is the shipped file; each later file replaces
+  the keys of the actions it names, the player's last. An empty list turns an action's key off.
+  An unknown action or key name is reported on start-up and the shipped keys are used.
+- **Shared keys:** the arrows are in `move_*` and `scroll_*`: with a stack selected they move it, with
+  nothing selected (or Shift held) they scroll the map. Two other actions on one key both fire.
+- **What is not in the file:** the keys of a screen's own boxes (Enter and Escape in a question, the
+  arrows in a list, the letters of a screen's buttons) and the battle's keys stay where they are.
+- **Help:** the Keys topic (`content/help.ron`, topic 900, shown with the Game button's help) writes
+  `{key:action}` where a key goes, and the pop-up fills in the keys in force, so it follows a change.
+  Other help topics can do the same.
+- F1 is the Surveyor like F2 to F9 are the other advisors; there is no key list on the map any more.

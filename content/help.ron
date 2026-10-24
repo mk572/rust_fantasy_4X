@@ -1,21 +1,27 @@
 // The game's own help text, in English. A topic number is the one the screens' help areas name
 // (`help_screens.ron`). A topic that is not here opens nothing.
 [
-    (index: 216, title: "Game", text: "Opens the save and load screen. From there you can also change the settings or leave the game."),
-    (index: 217, title: "Spells", text: "Opens your spell book, from which you cast overland spells. Spells for battle are cast in the battle itself."),
-    (index: 218, title: "Armies", text: "Lists all of your stacks of units. Pick one to centre the map on it, or open a unit's sheet."),
+    (index: 216, title: "Game", text: "Opens the save and load screen. From there you can also change the settings or leave the game. The shortcut is {key:game_menu}.", include: Some(900)),
+    (index: 217, title: "Spells", text: "Opens your spell book, from which you cast overland spells. Spells for battle are cast in the battle itself. The shortcut is {key:spellbook}."),
+    (index: 218, title: "Armies", text: "Lists all of your stacks of units. Pick one to centre the map on it, or open a unit's sheet. The shortcut is {key:army_list}."),
     (index: 219, title: "Cities", text: "Lists all of your cities with their size, what they are building and what they produce. Pick one to open it."),
-    (index: 220, title: "Magic", text: "Opens your magic screen: how your power is split between mana, research and casting skill, what you are casting and researching, and the enchantments you keep up."),
-    (index: 221, title: "Information", text: "Opens the list of advisors: the Surveyor, Cartographer, Apprentice, Historian, Astrologer, Chancellor, Tax Collector, Grand Vizier and the Mirror."),
+    (index: 220, title: "Magic", text: "Opens your magic screen: how your power is split between mana, research and casting skill, what you are casting and researching, and the enchantments you keep up. The shortcut is {key:magic}."),
+    (index: 221, title: "Information", text: "Opens the list of advisors: the Surveyor, Cartographer, Apprentice, Historian, Astrologer, Chancellor, Tax Collector, Grand Vizier and the Mirror. The shortcut is {key:advisors}."),
     (index: 222, title: "Plane", text: "Switches the map between Arcanus and Myrror. With units selected, the units change plane instead if they are standing where they can (a tower of wizardry, or a plane gate)."),
-    (index: 223, title: "Done", text: "Cancels the orders of the selected units, such as a march in progress, so they stay where they are. The keyboard shortcut is D."),
-    (index: 225, title: "Wait", text: "Puts the selected stack aside for now and selects the next stack that still has moves left. The stack comes back later in the turn. The keyboard shortcut is W."),
-    (index: 226, title: "Build", text: "The special action of the selected units: settlers found a city, engineers build a road, a unit that can purify cleanses corrupted land, and a spirit melds with a magic node. The keyboard shortcut is B."),
-    (index: 229, title: "Next turn", text: "Ends your turn once no unit is left waiting for orders. The other wizards then play, and the next turn begins."),
+    (index: 223, title: "Done", text: "Cancels the orders of the selected units, such as a march in progress, so they stay where they are. The shortcut is {key:done}."),
+    (index: 225, title: "Wait", text: "Puts the selected stack aside for now and selects the next stack that still has moves left. The stack comes back later in the turn. The shortcut is {key:wait}."),
+    (index: 226, title: "Build", text: "The special action of the selected units: settlers found a city, engineers build a road, a unit that can purify cleanses corrupted land, and a spirit melds with a magic node. The shortcut is {key:special}."),
+    (index: 229, title: "Next turn", text: "Ends your turn once no unit is left waiting for orders. The other wizards then play, and the next turn begins. The shortcut is {key:end_turn}."),
     (index: 231, title: "Gold", text: "The gold in your treasury. Gold pays for buildings and units you buy, and for upkeep."),
     (index: 232, title: "Mana", text: "The mana in your reserve. Mana pays for spells, for the upkeep of the spells you keep up, and for summoned creatures."),
     (index: 233, title: "Gold income", text: "The gold you gain or lose each turn: the taxes of your cities less the upkeep of buildings and units. If the treasury cannot pay, you are asked which units to let go before the turn ends."),
     (index: 234, title: "Food", text: "The food your cities produce each turn less what your units eat. If it is negative, you are asked which units to let go before the turn ends."),
     (index: 235, title: "Mana income", text: "The mana you gain or lose each turn: what your cities and nodes produce, less the upkeep of the spells you keep up. A negative figure drains your reserve; when the reserve runs out, you are asked which spells to give up."),
     (index: 236, title: "Moves", text: "How many moves the selected units have left this turn. A stack moves at the speed of its slowest unit."),
+    (index: 900, title: "Keys", text: "Click a stack to select it, and right-click a square to send it there. {key:end_turn} ends the turn, {key:wait} waits, {key:done} cancels orders, {key:special} founds a city, builds a road, purifies or melds, {key:unselect} unselects.
+Move the selected stack with {key:move_left}, {key:move_right}, {key:move_up} and {key:move_down}; the diagonals are {key:move_up_left}, {key:move_up_right}, {key:move_down_left} and {key:move_down_right}.
+{key:scroll_left}, {key:scroll_right}, {key:scroll_up} and {key:scroll_down} scroll the map when nothing is selected, or with Shift held. Zoom in with {key:zoom_in} and out with {key:zoom_out}. {key:other_plane} shows the other plane and {key:centre} centres the map on the stack.
+{key:magic} opens magic, {key:spellbook} your spells, {key:army_list} your armies, {key:advisors} the advisors and {key:game_menu} the game menu. The advisors have keys of their own: {key:surveyor} Surveyor, {key:cartographer} Cartographer, {key:apprentice} Apprentice, {key:history} Historian, {key:astrologer} Astrologer, {key:chancellor} Chancellor, {key:tax_collector} Tax Collector, {key:grand_vizier} Grand Vizier, {key:mirror} Mirror.
+{key:quick_save} saves, {key:quick_load} loads, {key:undo} takes back your last move, {key:balance_farmers} balances the farmers and {key:console} opens the console.
+To change a key, copy its line from hotkeys.ron into saves/hotkeys.ron."),
 ]

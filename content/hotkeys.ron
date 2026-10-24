@@ -1,0 +1,63 @@
+// The keys of the overland map, by what they do. Each action has a list of keys; any of them
+// does it. A key is written "Key", "Ctrl+Key", "Shift+Key" or "Alt+Key" (Ctrl is Control, or
+// Cmd on a Mac); the keys are the letters A to Z, the digits Key0 to Key9, F1 to F12, Enter,
+// Escape, Tab, Space, Backspace, Delete, Insert, Home, End, PageUp, PageDown, Left, Right, Up,
+// Down, Kp0 to Kp9, KpAdd, KpSubtract, KpEnter, Equal, Minus, Comma, Period, Slash, Semicolon,
+// Apostrophe, LeftBracket, RightBracket, Backslash and GraveAccent.
+//
+// To change a key, copy the action into `saves/hotkeys.ron` (yours) or into the `hotkeys.ron` of
+// a content folder (a mod) with the keys you want; an action named there replaces the one here,
+// and the rest stay as they are. An empty list turns the action's key off. A key that two
+// actions share does both.
+{
+    // The turn and the game.
+    "end_turn": ["Enter", "N"],
+    "game_menu": ["G"],
+    "quick_save": ["F10"],
+    "quick_load": ["Ctrl+L"],
+    "undo": ["Ctrl+Z"],
+    "console": ["GraveAccent"],
+    "new_map": ["Ctrl+N"],
+    "next_race": ["Ctrl+R"],
+
+    // The screens.
+    "magic": ["M"],
+    "spellbook": ["S"],
+    "army_list": ["A"],
+    "advisors": ["I"],
+    "surveyor": ["F1"],
+    "cartographer": ["F2"],
+    "apprentice": ["F3"],
+    "history": ["F4"],
+    "astrologer": ["F5"],
+    "chancellor": ["F6"],
+    "tax_collector": ["F7"],
+    "grand_vizier": ["F8"],
+    "mirror": ["F9"],
+
+    // The view.
+    "zoom_in": ["Equal", "KpAdd"],
+    "zoom_out": ["Minus", "KpSubtract"],
+    "other_plane": ["Tab"],
+    "centre": ["C"],
+    "scroll_left": ["Left"],
+    "scroll_right": ["Right"],
+    "scroll_up": ["Up"],
+    "scroll_down": ["Down"],
+
+    // The selected stack.
+    "unselect": ["Q", "U"],
+    "special": ["B"],
+    "plane_shift": ["P"],
+    "balance_farmers": ["T"],
+    "wait": ["W"],
+    "done": ["D"],
+    "move_down_left": ["Kp1"],
+    "move_down": ["Kp2", "Down"],
+    "move_down_right": ["Kp3"],
+    "move_left": ["Kp4", "Left"],
+    "move_right": ["Kp6", "Right"],
+    "move_up_left": ["Kp7"],
+    "move_up": ["Kp8", "Up"],
+    "move_up_right": ["Kp9"],
+}

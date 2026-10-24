@@ -16,6 +16,13 @@ use crate::view::{App, Screen};
 
 /// The box's text width and the margin round it, in the original's pixels.
 const TEXT_WIDTH: f32 = 180.0;
+
+/// A text of more lines than this is set in a wider box.
+const LONG_TEXT: usize = 14;
+const WIDE_TEXT_WIDTH: f32 = 280.0;
+
+/// The tallest box, in the original's pixels.
+const MAX_HEIGHT: f32 = 192.0;
 const MARGIN: f32 = 10.0;
 
 /// Seconds the box takes to grow out of the area.
@@ -32,6 +39,10 @@ pub(crate) struct HelpRequest {
 pub(crate) struct HelpPopup {
     title: String,
     lines: Vec<String>,
+    /// The text's width in the original's pixels.
+    width: f32,
+    /// The first line shown, for a text taller than the screen.
+    scroll: usize,
     /// The area asked about, as left, top, width, height.
     from: (f32, f32, f32, f32),
     opened: f64,
@@ -129,25 +140,38 @@ impl App {
         if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
             parts.push(more.clone());
         }
-        let mut lines = Vec::new();
-        for (i, part) in parts.iter().enumerate() {
-            if i > 0 {
-                lines.push(String::new());
-                lines.push(format!("\u{1}{}", part.title));
-            }
-            for paragraph in part.text.lines() {
-                if paragraph.trim().is_empty() {
+        let wrap = |app: &Self, width: f32| {
+            let mut lines = Vec::new();
+            for (i, part) in parts.iter().enumerate() {
+                if i > 0 {
                     lines.push(String::new());
-                } else {
-                    lines.extend(self.wrap_text(1, paragraph, TEXT_WIDTH));
+                    lines.push(format!("\u{1}{}", part.title));
+                }
+                let text = crate::hotkeys::fill_keys(&part.text, &app.hotkeys);
+                for paragraph in text.lines() {
+                    if paragraph.trim().is_empty() {
+                        lines.push(String::new());
+                    } else {
+                        lines.extend(app.wrap_text(1, paragraph, width));
+                    }
                 }
             }
+            lines
+        };
+        // A long text gets a wider box so that it fits the screen.
+        let mut width = TEXT_WIDTH;
+        let mut lines = wrap(self, width);
+        if lines.len() > LONG_TEXT {
+            width = WIDE_TEXT_WIDTH;
+            lines = wrap(self, width);
         }
         let frozen = Texture2D::from_image(&get_screen_data());
         frozen.set_filter(FilterMode::Nearest);
         self.help_ui.popup = Some(HelpPopup {
             title: parts[0].title.clone(),
             lines,
+            width,
+            scroll: 0,
             from: request.from,
             opened: get_time(),
             frozen,
@@ -176,11 +200,17 @@ impl App {
         // Where the box ends up: round the area, kept on the screen.
         let line = self.art.text_height(1) + 1.0;
         let title = self.art.text_height(4) + 5.0;
-        let height = MARGIN * 2.0 + title + line * popup.lines.len() as f32;
-        let width = TEXT_WIDTH + 2.0 * MARGIN;
+        // The box is at most as tall as the screen; a longer text scrolls.
+        let room = ((MAX_HEIGHT - MARGIN * 2.0 - title) / line)
+            .floor()
+            .max(1.0) as usize;
+        let shown = popup.lines.len().min(room);
+        let top_line = popup.scroll.min(popup.lines.len() - shown);
+        let height = MARGIN * 2.0 + title + line * shown as f32;
+        let width = popup.width + 2.0 * MARGIN;
         let (fx, fy, fw, fh) = popup.from;
-        let left = (fx + fw / 2.0 - width / 2.0).clamp(4.0, 316.0 - width);
-        let top = (fy + fh / 2.0 - height / 2.0).clamp(4.0, 196.0 - height);
+        let left = (fx + fw / 2.0 - width / 2.0).clamp(4.0, (316.0 - width).max(4.0));
+        let top = (fy + fh / 2.0 - height / 2.0).clamp(4.0, (196.0 - height).max(4.0));
 
         let grown = if self.prefs.get(Pref::ExpandingHelp) && self.help_ui.probe.is_none() {
             (((get_time() - popup.opened) / GROW_SECONDS) as f32).clamp(0.0, 1.0)
@@ -214,7 +244,27 @@ impl App {
             let red = Color::new(0.4, 0.05, 0.02, 1.0);
             let mut y = top + MARGIN;
             let heading = popup.title.clone();
-            let body = popup.lines.clone();
+            let body: Vec<String> = popup.lines[top_line..top_line + shown].to_vec();
+            let more = top_line + shown < popup.lines.len();
+            // Small arrows at the corner show that the text goes on above or below.
+            let mark = Color::new(0.4, 0.05, 0.02, 1.0);
+            let (cx, s) = (left + width - 9.0, 3.0);
+            if more {
+                let (a, b, c) = (
+                    lay.point(cx - s, top + height - 8.0),
+                    lay.point(cx + s, top + height - 8.0),
+                    lay.point(cx, top + height - 4.0),
+                );
+                draw_triangle(a, b, c, mark);
+            }
+            if top_line > 0 {
+                let (a, b, c) = (
+                    lay.point(cx - s, top + 8.0),
+                    lay.point(cx + s, top + 8.0),
+                    lay.point(cx, top + 4.0),
+                );
+                draw_triangle(a, b, c, mark);
+            }
             self.bm_text(view, 4, red, &heading, left + MARGIN, y, Align::Left);
             y += title;
             for text in body {
@@ -227,9 +277,23 @@ impl App {
                 }
             }
         }
-        let leave = get_last_key_pressed().is_some()
+        // The wheel and the arrow keys scroll a long text; any other key or a click closes it.
+        let wheel = mouse_wheel().1;
+        let scrolled =
+            is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::PageDown) || wheel < 0.0;
+        let back = is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::PageUp) || wheel > 0.0;
+        let paged = is_key_pressed(KeyCode::PageDown) || is_key_pressed(KeyCode::PageUp);
+        let leave = (get_last_key_pressed().is_some() && !(scrolled || back))
             || is_mouse_button_pressed(MouseButton::Left)
             || is_mouse_button_pressed(MouseButton::Right);
+        if let Some(popup) = self.help_ui.popup.as_mut() {
+            let step = if paged { room } else { 3 };
+            if scrolled {
+                popup.scroll = (popup.scroll + step).min(popup.lines.len().saturating_sub(shown));
+            } else if back {
+                popup.scroll = popup.scroll.saturating_sub(step);
+            }
+        }
         if leave {
             self.help_ui.popup = None;
         }

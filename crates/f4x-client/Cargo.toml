@@ -13,3 +13,4 @@ macroquad.workspace = true
 hecs.workspace = true
 rand.workspace = true
 rand_pcg.workspace = true
+ron.workspace = true

@@ -1102,11 +1102,13 @@ mod tests {
         assert_eq!(help.screens.len(), 41);
         assert!(!help.topics.is_empty());
         // The game's own text is written for areas that open it: no orphan topic.
-        let opened: std::collections::HashSet<i32> = help
+        let mut opened: std::collections::HashSet<i32> = help
             .screens
             .iter()
             .flat_map(|s| s.fields.iter().map(|f| f.help))
             .collect();
+        // A topic that another topic includes is shown with it.
+        opened.extend(help.topics.iter().filter_map(|t| t.include.map(i32::from)));
         for t in &help.topics {
             assert!(
                 opened.contains(&i32::from(t.index)),
