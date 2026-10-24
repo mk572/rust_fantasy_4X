@@ -309,6 +309,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
 | 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
 | 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
+| 374 | Map | Neutral cities reach only about 40% of the target: find out why (done) |
 | 376 | World | Raiders and rampaging monsters (the original's `Make_Raiders` and `Make_Monsters`) (done) |
 
 ## Descriptions
@@ -1328,6 +1329,26 @@ Homebrew's ffmpeg has no libvorbis, hence `brew install vorbis-tools`.
 *Needs:* nothing.
 
 **372. (done) Decide the overland terrain move costs.** **Done 24 October 2026:** the user chose the original's costs; `content/terrain.ron` has them (swamp food stays half a food). Was: The original's `TERRSTAT.LBX` charges 3 moves for hills, 3 for swamp and 4 for mountains (a chaos node 4); ours charge 2, 2 and 3 (`content/terrain.ron`, `divergences.md` section 34). Parity with the original is the project's default, so the proposal is to take the original's costs for hills, swamp, mountains and the chaos node; the choice moves the map's rough ground, the AI's path costs and the learned battle and strategic numbers, so it is the user's decision. If adopted: change the four rows, keep the Forester and Mountaineer minimums (1 move), update the movement tests and `design.md`, and run the soak for a baseline (`ai-design.md` 12.2). The Mountaineer's 3 moves on grassland is the original's bug and stays out.
+
+**374. Neutral cities reach only about 40% of the target (done).** *(Part done 24 October 2026: the placement is now a row scan from the equator, `divergences.md`; `f4x-tools start-stats` counts what a game gets: 22 of 30 with our land, 28 of 30 with the original generator. What stops the rest is not logged yet.)* `place_neutral_cities` (`city/neutral.rs`) aims
+at `neutral_city_count` (15 for every 2400 squares) a plane, but gives up after `MAX_TRIES = 1000`
+attempts, and that count is of every roll, the rejected squares too (`neutral_site_ok`), not only the
+cities made. The test `every_map_size_makes_a_game_with_the_counts_in_proportion` found that about 40%
+of the target is made at every map size, the 60 by 40 map included. Find out why: log how many tries
+each rule rejects (water, a site within `SITE_CLEARANCE` of a node, tower or lair, within
+`FORTRESS_CLEARANCE` of a fortress, too close to another city, the 2-square border), and compare with
+ReMoM (`reference/ReMoM/MoM/src`, the neutral city placement of the world generator: how it counts
+attempts and its minimum distances). If the cap is the cause, follow ReMoM's rule (or raise the cap
+and keep the distances); if a clearance is too wide for the land, fix it. Then tighten the test's
+30% lower bound to the real target. *Needs:* nothing.
+
+Measure with the soak before and after each part: 2 wizards, seeds 1 to 8, 300 turns; 4 wizards, seeds 1
+to 4; the numbers of `ai-design.md` section 12.2 (games won, battles, cities taken, wars, cities and
+outposts at the end, mana and gold unspent). Target to start with: at least half the two-wizard games end
+before turn 300, no wizard ends with more than a third of its mana or a hundred gold unspent, and no
+objective plays worse than the Pragmatist. A part that does not move these numbers is reverted. Do not
+tune by giving the AI information a player lacks. *Needs:* 361; tasks 366, 367, 369 and 370 are its parts
+and may be done on their own.
 
 **376. Raiders and rampaging monsters (done).** The original's neutral turn has two generators we lack
 (`AIDATA.c`, run from `AIDUDES.c` after the neutral cities' turn; `MoM-NextTurn-AI.md` II.D).

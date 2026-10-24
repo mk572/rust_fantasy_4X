@@ -86,7 +86,6 @@ neighbours.
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
-| 374 | Map | Neutral cities reach only about 40% of the target: find out why |
 | 375 | Client | Wire the five Settings switches that do nothing yet |
 
 ## Descriptions
@@ -293,26 +292,6 @@ deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+
 settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
 set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
-
-**374. Neutral cities reach only about 40% of the target.** *(Part done 24 October 2026: the placement is now a row scan from the equator, `divergences.md`; `f4x-tools start-stats` counts what a game gets: 22 of 30 with our land, 28 of 30 with the original generator. What stops the rest is not logged yet.)* `place_neutral_cities` (`city/neutral.rs`) aims
-at `neutral_city_count` (15 for every 2400 squares) a plane, but gives up after `MAX_TRIES = 1000`
-attempts, and that count is of every roll, the rejected squares too (`neutral_site_ok`), not only the
-cities made. The test `every_map_size_makes_a_game_with_the_counts_in_proportion` found that about 40%
-of the target is made at every map size, the 60 by 40 map included. Find out why: log how many tries
-each rule rejects (water, a site within `SITE_CLEARANCE` of a node, tower or lair, within
-`FORTRESS_CLEARANCE` of a fortress, too close to another city, the 2-square border), and compare with
-ReMoM (`reference/ReMoM/MoM/src`, the neutral city placement of the world generator: how it counts
-attempts and its minimum distances). If the cap is the cause, follow ReMoM's rule (or raise the cap
-and keep the distances); if a clearance is too wide for the land, fix it. Then tighten the test's
-30% lower bound to the real target. *Needs:* nothing.
-
-Measure with the soak before and after each part: 2 wizards, seeds 1 to 8, 300 turns; 4 wizards, seeds 1
-to 4; the numbers of `ai-design.md` section 12.2 (games won, battles, cities taken, wars, cities and
-outposts at the end, mana and gold unspent). Target to start with: at least half the two-wizard games end
-before turn 300, no wizard ends with more than a third of its mana or a hundred gold unspent, and no
-objective plays worse than the Pragmatist. A part that does not move these numbers is reverted. Do not
-tune by giving the AI information a player lacks. *Needs:* 361; tasks 366, 367, 369 and 370 are its parts
-and may be done on their own.
 
 **375. Wire the five Settings switches that do nothing yet.** City Spell Events, Overland Spell Events,
 Summoning Events, Auto Unit Information and Enemy Moves are stored
