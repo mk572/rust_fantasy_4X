@@ -70,6 +70,7 @@ impl CreateState {
             shelf: random_books(),
             rows: random_books(),
             warn: None,
+            ignore_drag: false,
         }
     }
 }
@@ -152,8 +153,9 @@ impl App {
         self.ng_abilities(lay);
     }
 
-    /// `Warn0`: the warning box with the message; any click or Enter closes it.
-    pub(crate) fn ng_warn_box(&mut self, lay: &Layout) -> bool {
+    /// `Warn0`: the warning box with the message; any click or Enter closes it, but not on the
+    /// frame it came up (`closable` is false): the click that caused it would close it at once.
+    pub(crate) fn ng_warn_box(&mut self, lay: &Layout, closable: bool) -> bool {
         let Some(message) = self.create.warn.clone() else {
             return false;
         };
@@ -174,13 +176,82 @@ impl App {
                 Align::Center,
             );
         }
-        if is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
+        if closable
+            && (is_mouse_button_pressed(MouseButton::Left)
+                || is_key_pressed(KeyCode::Enter)
+                || is_key_pressed(KeyCode::Escape))
         {
             self.create.warn = None;
+            self.create.ignore_drag = true;
         }
         true
+    }
+
+    /// The step before this one, which Escape and the Back button go to: the options step from
+    /// the first. A step of spells or the race goes back to the last realm that has spells to
+    /// choose (what was chosen stays), else to the books of a custom wizard or the name of a
+    /// ready-made one.
+    pub(crate) fn create_back(&mut self) {
+        let before_spells = if self.create.custom {
+            Step::Picks
+        } else {
+            Step::Name
+        };
+        let last_spells = |app: &App, below: usize| {
+            (0..below)
+                .rev()
+                .find(|&i| {
+                    !app.spell_sections(crate::newgame_picks::REALM_ORDER[i])
+                        .is_empty()
+                })
+                .map_or(before_spells, Step::Spells)
+        };
+        match self.create.step {
+            Step::Wizard => self.open_options(),
+            Step::Portrait => self.create.step = Step::Wizard,
+            Step::Name => {
+                self.create.step = if self.create.custom {
+                    Step::Portrait
+                } else {
+                    Step::Wizard
+                }
+            }
+            Step::Picks => self.create.step = Step::Name,
+            Step::Spells(i) => self.create.step = last_spells(self, i),
+            Step::Race => {
+                self.create.step = last_spells(self, crate::newgame_picks::REALM_ORDER.len())
+            }
+            Step::Banner => self.create.step = Step::Race,
+        }
+    }
+
+    /// The Back button at the foot of every step of the creation: a small box between the portrait
+    /// frame and the picks count.
+    fn ng_back_button(&mut self, lay: &Layout) {
+        let r = lay.rect((165.0, 182.0, 30.0, 14.0));
+        let hover = r.contains(mouse_position().into());
+        let fill = if hover {
+            Color::new(0.34, 0.24, 0.15, 1.0)
+        } else {
+            Color::new(0.24, 0.17, 0.11, 1.0)
+        };
+        draw_rectangle(r.x, r.y, r.w, r.h, fill);
+        draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.1, 0.07, 0.05, 1.0));
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let label = self.text("create.back");
+        self.bm_text(view, 3, SHADOW, &label, 181.0, 187.0, Align::Center);
+        self.bm_text(
+            view,
+            3,
+            if hover { GOLD_INK } else { LIGHT },
+            &label,
+            180.0,
+            186.0,
+            Align::Center,
+        );
+        if hover && self.ng_input() && is_mouse_button_pressed(MouseButton::Left) {
+            self.create_back();
+        }
     }
 
     pub(crate) fn create_screen(&mut self) {
@@ -195,7 +266,10 @@ impl App {
         };
         self.draw_pic(&lay, "newgame", background, 0, 0.0, 0.0);
         // A warning box has the input until it is closed.
-        let before = self.create.warn.clone();
+        let had_warning = self.create.warn.is_some();
+        if !is_mouse_button_down(MouseButton::Left) {
+            self.create.ignore_drag = false;
+        }
         match self.create.step {
             Step::Wizard => self.step_wizard(&lay, false),
             Step::Portrait => self.step_wizard(&lay, true),
@@ -205,9 +279,8 @@ impl App {
             Step::Race => self.step_race(&lay),
             Step::Banner => self.step_banner(&lay),
         }
-        if before.is_none() {
-            self.ng_warn_box(&lay);
-        }
+        self.ng_back_button(&lay);
+        self.ng_warn_box(&lay, had_warning);
     }
 
     /// Whether the steps may take input (no warning box is open).
@@ -325,11 +398,7 @@ impl App {
             }
         }
         if is_key_pressed(KeyCode::Escape) && self.ng_input() {
-            if picture {
-                self.create.step = Step::Wizard;
-            } else {
-                self.open_options();
-            }
+            self.create_back();
         }
     }
 
@@ -420,11 +489,7 @@ impl App {
                 self.next_spells(0);
             }
         } else if is_key_pressed(KeyCode::Escape) {
-            self.create.step = if self.create.custom {
-                Step::Portrait
-            } else {
-                Step::Wizard
-            };
+            self.create_back();
         }
     }
 
@@ -513,11 +578,7 @@ impl App {
             self.race = race;
             self.create.step = Step::Banner;
         } else if is_key_pressed(KeyCode::Escape) && self.ng_input() {
-            self.create.step = if self.create.custom {
-                Step::Picks
-            } else {
-                Step::Name
-            };
+            self.create_back();
         }
     }
 
@@ -545,7 +606,7 @@ impl App {
             }
         }
         if is_key_pressed(KeyCode::Escape) {
-            self.create.step = Step::Race;
+            self.create_back();
         }
     }
 

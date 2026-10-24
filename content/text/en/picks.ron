@@ -19,5 +19,7 @@
     "picks.rare": "Rare",
     "picks.very_rare": "Very Rare",
     "picks.rarity_row": "{rarity}: {n}",
+    "picks.spell_hint": "Point at a spell to read about it.",
+    "picks.no_spell_help": "There is no help text for this spell.",
     "picks.none_left_here": "You have no picks left in this area, to deselect click on a selected item",
 }

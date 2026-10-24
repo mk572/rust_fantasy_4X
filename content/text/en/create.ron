@@ -6,6 +6,7 @@
         feminine: "Tab: she",
         neuter: "Tab: they"),
     "create.default_name": "You",
+    "create.back": "Back",
     "create.select_picture": "Select Picture",
     "create.select_wizard": "Select Wizard",
     "create.custom": "Custom",

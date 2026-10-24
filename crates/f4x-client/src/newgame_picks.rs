@@ -150,7 +150,7 @@ impl App {
         }
         let mouse: Vec2 = mouse_position().into();
         let input = self.ng_input();
-        let down = is_mouse_button_down(MouseButton::Left) && input;
+        let down = is_mouse_button_down(MouseButton::Left) && input && !self.create.ignore_drag;
         let pressed = is_mouse_button_pressed(MouseButton::Left) && input;
         let left = self.create.build.picks_left();
 
@@ -239,12 +239,12 @@ impl App {
                 self.create.warn = Some(self.text("picks.make_all"));
             }
         } else if input && is_key_pressed(KeyCode::Escape) {
-            self.create.step = Step::Name;
+            self.create_back();
         }
     }
 
     /// The sections of a realm's spell step: `(rarity, choices)` for each that is shown.
-    fn spell_sections(&self, realm: &str) -> Vec<(Rarity, usize)> {
+    pub(crate) fn spell_sections(&self, realm: &str) -> Vec<(Rarity, usize)> {
         let build = &self.create.build;
         let mut out = Vec::new();
         let common = build.spell_choices_of(
@@ -290,6 +290,75 @@ impl App {
         self.create.step = Step::Race;
     }
 
+    /// The box under the spell lists with the help text of the spell the pointer is over, so the
+    /// player knows what they pick; a hint when it is over none.
+    fn spell_help_box(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        top: f32,
+        hovered: Option<f4x_core::rules::SpellId>,
+    ) {
+        let (x, w) = (167.0, 148.0);
+        let bottom = 178.0;
+        if bottom - top < 24.0 {
+            return;
+        }
+        let r = lay.rect((x, top + 2.0, w, bottom - top - 2.0));
+        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.05, 0.75));
+        draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.35, 0.25, 0.15, 1.0));
+        let Some(id) = hovered else {
+            let hint = self.text("picks.spell_hint");
+            let lines = self.bm_wrap(0, &hint, w - 8.0);
+            for (i, line) in lines.iter().enumerate() {
+                self.bm_text(
+                    view,
+                    0,
+                    GREY_INK,
+                    line,
+                    x + 4.0,
+                    top + 6.0 + 7.0 * i as f32,
+                    Align::Left,
+                );
+            }
+            return;
+        };
+        let def = self.game.content().rules.spells.get(id);
+        let name = def.name.clone();
+        let text = self
+            .help
+            .topic_by_title(&name)
+            .map_or_else(|| self.text("picks.no_spell_help"), |t| t.text.clone());
+        self.bm_text(
+            view,
+            1,
+            Color::new(1.0, 0.95, 0.6, 1.0),
+            &name,
+            x + 4.0,
+            top + 5.0,
+            Align::Left,
+        );
+        let rows = (((bottom - top - 2.0) - 17.0) / 7.0).floor().max(1.0) as usize;
+        let mut lines = self.bm_wrap(0, &text, w - 8.0);
+        if lines.len() > rows {
+            lines.truncate(rows);
+            if let Some(last) = lines.last_mut() {
+                last.push_str("...");
+            }
+        }
+        for (i, line) in lines.iter().enumerate() {
+            self.bm_text(
+                view,
+                0,
+                LIGHT,
+                line,
+                x + 4.0,
+                top + 15.0 + 7.0 * i as f32,
+                Align::Left,
+            );
+        }
+    }
+
     /// Screen 5: the spells of one realm.
     pub(crate) fn step_spells(&mut self, lay: &Layout, index: usize) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -326,6 +395,7 @@ impl App {
         let mut remaining = 0usize;
         let mut toggle = None;
         let mut refused = false;
+        let mut hovered = None;
         for (s, &(rarity, want)) in sections.iter().enumerate() {
             let top = 39.0 + 51.0 * s as f32;
             self.draw_pic(lay, "newgame", 48 + s, 0, 167.0, 37.0 + 51.0 * s as f32);
@@ -384,6 +454,9 @@ impl App {
                     self.draw_pic(lay, "newgame", 52, 0, 169.0 + 74.0 * col as f32, y);
                 }
                 let cell = lay.rect((170.0 + 74.0 * col as f32, top + 7.0 * row as f32, 70.0, 6.0));
+                if cell.contains(mouse) {
+                    hovered = Some(*id);
+                }
                 if pressed && cell.contains(mouse) {
                     if selected {
                         toggle = Some((*id, false));
@@ -395,6 +468,7 @@ impl App {
                 }
             }
         }
+        self.spell_help_box(lay, view, 39.0 + 51.0 * sections.len() as f32, hovered);
         if let Some((id, add)) = toggle {
             if add {
                 self.create.build.spells.push(id);
@@ -425,11 +499,7 @@ impl App {
                 self.create.warn = Some(self.text("picks.make_all"));
             }
         } else if input && is_key_pressed(KeyCode::Escape) {
-            self.create.step = if self.create.custom {
-                Step::Picks
-            } else {
-                Step::Wizard
-            };
+            self.create_back();
         }
         let _ = GOLD_INK;
     }

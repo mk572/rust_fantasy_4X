@@ -39,6 +39,9 @@ pub(crate) struct CreateState {
     pub rows: [u8; 11],
     /// A message in the warning box, which takes the input until it is closed.
     pub warn: Option<String>,
+    /// A book drag whose refusal was just closed goes on being ignored until the button is let go
+    /// (or the same refusal would come up again every frame).
+    pub ignore_drag: bool,
 }
 
 impl App {
