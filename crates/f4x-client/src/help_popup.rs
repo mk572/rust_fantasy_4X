@@ -120,6 +120,16 @@ impl App {
             ((mx - lay.origin.x) / lay.scale).floor() as i32,
             ((my - lay.origin.y) / lay.scale).floor() as i32,
         ));
+        if matches!(self.screen, Screen::UnitSheet) {
+            if let Some((topic, from)) = self.sheet_special_help(x, y) {
+                self.help_ui.request = Some(HelpRequest {
+                    topic,
+                    extra: None,
+                    from,
+                });
+                return;
+            }
+        }
         // On the main screen Next Turn replaces Done, Patrol, Wait and Build once every unit has
         // moved, and is not there before.
         let next_turn_shown = matches!(self.screen, Screen::Map) && self.all_units_moved();

@@ -2,9 +2,9 @@
 {
     "attack.attacked": "You are attacked!",
     "attack.attack": "Attack?",
-    "attack.fight": "Fight (Enter)",
-    "attack.auto": "Auto (A)",
-    "attack.cancel": "Cancel (Esc)",
+    "attack.fight": "Fight",
+    "attack.auto": "Auto",
+    "attack.cancel": "Cancel",
     "attack.mana_title": "Spend how much mana?",
     "attack.mana_line": "At most this much of your {reserve} mana may be spent:",
     "attack.mana_ok": "Fight (Enter)",

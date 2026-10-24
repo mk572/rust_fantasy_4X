@@ -655,6 +655,47 @@ def cross_check_building_texts(texts: list[tuple[Building, str]], rules_out: Pat
     return found
 
 
+# What the control bytes of a `DIPLOMSG.LBX` line stand for (`Get_Diplomacy_Statement`, `code & 0x7F`);
+# the client fills the names in. Code 6 is not used by any line.
+DIPLOMSG_TOKENS = {
+    0: "{player}", 1: "{wizard}", 2: "{third}", 3: "{city}", 4: "{size}", 5: "{other}",
+    7: "{victim}", 8: "{gold}", 9: "{wanted}", 10: "{gold} gold", 11: "{broken_treaty}",
+    12: "{spell}", 13: "{unit}", 14: "{article}", 15: "{treaty}", 16: "{year}", 17: "{gift}",
+    18: "{target}", 19: "{third_other}", 20: "{number}",
+}
+
+
+def import_diplomacy_lines(game: Path, report: Report) -> list[str]:
+    """The wizards' lines (`DIPLOMSG.LBX`): entry 0 has, for each situation, a record of
+    three shorts whose last is the number of variants; entry 1 holds 15 lines of 200 bytes per
+    situation. Control bytes become `{placeholders}`; a line break inside a line is a space."""
+    entries = read_lbx(game / "DIPLOMSG.LBX")
+    situations = read_records(entries[0])
+    body = entries[1]
+    count, size = struct.unpack_from("<HH", body, 0)
+    out = []
+    for number, record in enumerate(situations):
+        variants = struct.unpack_from("<3h", record, 0)[2]
+        lines = []
+        for v in range(min(variants, 15)):
+            at = 4 + (number * 15 + v) * size
+            if at + size > len(body):
+                report.note("diplomacy", f"situation {number} variant {v} is outside the file")
+                break
+            text = ""
+            for byte in body[at : at + size].split(b"\0")[0]:
+                if byte < 128:
+                    text += chr(byte)
+                elif (byte & 0x7F) in DIPLOMSG_TOKENS:
+                    text += DIPLOMSG_TOKENS[byte & 0x7F]
+                else:
+                    text += chr(byte)
+            lines.append(ron_str(" ".join(text.split())))
+        if lines:
+            out.append(f"    (situation: {number}, lines: [{', '.join(lines)}]),")
+    return out
+
+
 def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
@@ -704,6 +745,7 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     ])
     write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
     write_list(out / "event_texts.ron", local_header, import_event_texts(game))
+    write_list(out / "diplomsg.ron", local_header, import_diplomacy_lines(game, report))
     building_texts = import_building_texts(game, buildings)
     write_list(out / "building_texts.ron", local_header, [
         f"    (building: {ron_str(b.id)}, text: {ron_str(t)})," for b, t in building_texts

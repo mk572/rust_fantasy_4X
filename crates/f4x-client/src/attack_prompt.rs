@@ -48,8 +48,9 @@ impl App {
     }
 
     /// For the screenshot check (`--auto-attack`): the human's first stack leaves an attack on a
-    /// monster to the computer, which asks for the mana limit.
-    pub fn open_test_auto_attack(&mut self) {
+    /// monster to the computer, which asks for the mana limit; `--attack-box` stops at the
+    /// question before.
+    pub fn open_test_auto_attack(&mut self, question_only: bool) {
         let attackers = self.game.units().player_units(HUMAN);
         let Some(pos) = attackers
             .first()
@@ -71,11 +72,16 @@ impl App {
         if let Some(t) = self.game.treasury_mut(HUMAN) {
             t.mana = t.mana.max(120);
         }
-        self.start_auto_battle(PendingAttack {
+        let attack = PendingAttack {
             attackers,
             defenders: vec![defender],
             defending: false,
-        });
+        };
+        if question_only {
+            self.attack_prompt = Some(attack);
+        } else {
+            self.start_auto_battle(attack);
+        }
     }
 
     fn run_auto_battle(&mut self, attack: PendingAttack, mana: Option<u32>) {
@@ -192,34 +198,52 @@ impl App {
             self.mana_ask_frame(&attack, ask);
             return true;
         }
-        let (w, h) = (screen_width(), screen_height());
-        let (bw, bh) = (560.0, 190.0);
-        let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
-        draw_rectangle(x, y, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
-        draw_rectangle_lines(x, y, bw, bh, 3.0, GOLD);
+        // The original's box (`resource` 0 and 1, as `Confirmation_Box`) with the question and
+        // three of its red buttons; the original asks nothing before a fight, so this is the
+        // closest thing it has.
+        let lay = crate::frame::Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
         let title = self.text(if attack.defending {
             "attack.attacked"
         } else {
             "attack.attack"
         });
-        crate::frame::text_centered(&title, w / 2.0, y + 36.0, 26.0, GOLD);
-        crate::frame::text_centered(&self.attack_line(&attack), w / 2.0, y + 72.0, 20.0, WHITE);
-        let fight = button(
-            Rect::new(x + 20.0, y + bh - 56.0, 160.0, 38.0),
-            &self.text("attack.fight"),
-            true,
+        let question = format!("{title} {}", self.attack_line(&attack));
+        let line = self.art.text_height(4) + 2.0;
+        let lines: Vec<(f32, String)> = self
+            .bm_wrap(4, &question, 166.0)
+            .into_iter()
+            .map(|l| (0.0, l))
+            .collect();
+        let paragraph = line * lines.len() as f32;
+        let (x, y) = (68.0, ((200.0 - (paragraph + 34.0)) / 2.0).floor());
+        // The question box's lower part has wells for two buttons; with three red ones only its
+        // bottom edge is used.
+        let edge = self
+            .art
+            .picture("resource", 1, 0)
+            .map_or(24.0, |t| t.height());
+        let below = y + paragraph + 10.0;
+        self.draw_pic_rows(&lay, "resource", 0, x, y, y, below + edge - 4.0);
+        self.draw_pic_rows(
+            &lay,
+            "resource",
+            1,
+            x,
+            below,
+            below + edge - 4.0,
+            below + edge,
         );
-        let auto = button(
-            Rect::new(x + 200.0, y + bh - 56.0, 160.0, 38.0),
-            &self.text("attack.auto"),
-            true,
+        self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
+        let at = y + paragraph + 17.0;
+        let (fight_label, auto_label, cancel_label) = (
+            self.text("attack.fight"),
+            self.text("attack.auto"),
+            self.text("attack.cancel"),
         );
-        let cancel = !attack.defending
-            && button(
-                Rect::new(x + 380.0, y + bh - 56.0, 160.0, 38.0),
-                &self.text("attack.cancel"),
-                true,
-            );
+        let fight = self.red_button(&lay, &fight_label, x + 13.0, at);
+        let auto = self.red_button(&lay, &auto_label, x + 67.0, at);
+        let cancel = !attack.defending && self.red_button(&lay, &cancel_label, x + 121.0, at);
         let fight = fight || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Y);
         let auto = auto || is_key_pressed(KeyCode::A);
         let cancel = cancel

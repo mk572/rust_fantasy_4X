@@ -29,13 +29,49 @@ const NAME_LEN: usize = 16;
 /// Where the hire pop-ups put the unit's sheet (`Hire_Hero_Popup`: `window_x`, `window_y`).
 const WINDOW: (f32, f32) = (25.0, 17.0);
 
+/// The card line of each special power: its name and what it does (`ITEM_ViewTexts`).
+const POWER_LINES: [(&str, &str); 32] = [
+    ("vampiric", "item_power.vampiric"),
+    ("lightning", "item_power.lightning"),
+    ("cloak_of_fear", "item_power.cloak_of_fear"),
+    ("destruction", "item_power.destruction"),
+    ("wraithform", "item_power.wraithform"),
+    ("regeneration", "item_power.regeneration"),
+    ("pathfinding", "item_power.pathfinding"),
+    ("water_walking", "item_power.water_walking"),
+    ("resist_elements", "item_power.resist_elements"),
+    ("elemental_armor", "item_power.elemental_armor"),
+    ("chaos", "item_power.chaos"),
+    ("endurance", "item_power.endurance"),
+    ("haste", "item_power.haste"),
+    ("invisibility", "item_power.invisibility"),
+    ("death", "item_power.death"),
+    ("flight", "item_power.flight"),
+    ("resist_magic", "item_power.resist_magic"),
+    ("magic_immunity", "item_power.magic_immunity"),
+    ("power_drain", "item_power.power_drain"),
+    ("holy_avenger", "item_power.holy_avenger"),
+    ("true_sight", "item_power.true_sight"),
+    ("phantasmal", "item_power.phantasmal"),
+    ("flaming", "item_power.flaming"),
+    ("bless", "item_power.bless"),
+    ("lion_heart", "item_power.lion_heart"),
+    ("stoning", "item_power.stoning"),
+    ("planar_travel", "item_power.planar_travel"),
+    ("merging", "item_power.merging"),
+    ("righteousness", "item_power.righteousness"),
+    ("invulnerability", "item_power.invulnerability"),
+    ("guardian_wind", "item_power.guardian_wind"),
+    ("giant_strength", "item_power.giant_strength"),
+];
+
 impl App {
     /// For screenshots and checks: give the human wizard the fame, gold and turn an offer
     /// needs and make the offer (`hero`, `mercenaries` or `item`).
     pub fn open_test_offer(&mut self, kind: &str) {
         use f4x_core::player::offer::OfferKind;
         let what = match kind {
-            "hero" => OfferKind::Hero,
+            "hero" | "prisoner" => OfferKind::Hero,
             "mercenaries" => OfferKind::Mercenaries,
             _ => OfferKind::Item,
         };
@@ -48,6 +84,17 @@ impl App {
         let made = (0..200).any(|_| self.game.cheat_offer(HUMAN, what).is_some());
         if !made {
             eprintln!("nothing to offer");
+        }
+        if kind == "prisoner" {
+            // The same hero, free: what a cleared lair's prisoner is.
+            if let Some(offers) = self
+                .game
+                .player_component_mut::<f4x_core::player::Offers>(HUMAN)
+            {
+                if let Some(Offer::Hero { price, .. }) = offers.0.first_mut() {
+                    *price = 0;
+                }
+            }
         }
     }
 
@@ -181,6 +228,8 @@ impl App {
         self.draw_pic(lay, "hire", 0, 0, 0.0, 0.0);
         let price = offer.price();
         let title = match offer {
+            // A hero that costs nothing is a prisoner set free (`GAME_HeroHireType` 2).
+            Offer::Hero { price: 0, .. } => self.text("offer.prisoner"),
             Offer::Hero { .. } => self.text_with("offer.hero", &Args::new().count("price", price)),
             Offer::Mercenaries { count, .. } => self.text_with(
                 "offer.mercenaries",
@@ -225,24 +274,28 @@ impl App {
                 Align::Left,
             );
         }
-        let label = self.text(if matches!(offer, Offer::Hero { .. }) && naming {
-            "ui.accept"
-        } else {
-            "ui.hire"
-        });
+        let free_hero = matches!(offer, Offer::Hero { price: 0, .. });
+        let label = self.text(
+            if matches!(offer, Offer::Hero { .. }) && (naming || free_hero) {
+                "ui.accept"
+            } else {
+                "ui.hire"
+            },
+        );
         let reject_label = self.text("ui.reject");
         let hire = self.red_button(lay, &label, wx + 221.0, wy + 143.0);
         let reject = self.red_button(lay, &reject_label, wx + 221.0, wy + 162.0);
         // H hires (the original's hotkey); while naming Enter ends the name.
-        let key = is_key_pressed(KeyCode::Enter) || (!naming && is_key_pressed(KeyCode::H));
+        let key = is_key_pressed(KeyCode::Enter)
+            || (!naming && is_key_pressed(if free_hero { KeyCode::A } else { KeyCode::H }));
         let hire = (hire || key) && affordable;
         let reject = reject || is_key_pressed(KeyCode::Escape);
         (hire && !reject, reject)
     }
 
     /// The item card of `Item_View_Prepare` (`itemisc` 25, 220 by 83) with the item's picture,
-    /// its name and up to five lines of what it gives, each with a bullet. The original adds
-    /// the text of each special power after its name; those texts are not extracted.
+    /// its name and up to five lines of what it gives, each with a bullet. A special power's line
+    /// says what it does after its name (our words; the original's are `ITEM_ViewTexts`).
     pub(crate) fn draw_item_card(
         &mut self,
         lay: &Layout,
@@ -286,12 +339,16 @@ impl App {
             lines.push(self.text_with("item.charges", &args));
         }
         for id in &item.powers {
-            lines.push(
+            let line = POWER_LINES
+                .iter()
+                .find(|(power, _)| power == id)
+                .map(|(_, key)| self.text(key));
+            lines.push(line.unwrap_or_else(|| {
                 rules
                     .item_powers
                     .by_name(id)
-                    .map_or(id.clone(), |d| d.name.clone()),
-            );
+                    .map_or(id.clone(), |d| d.name.clone())
+            }));
         }
         lines.truncate(5);
         let (space, top) = if lines.len() == 5 {

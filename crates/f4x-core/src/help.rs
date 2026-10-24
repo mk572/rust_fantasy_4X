@@ -44,6 +44,22 @@ impl Help {
         self.topics.iter().find(|t| t.index == index)
     }
 
+    /// The topic whose title is `name`, ignoring case and anything but letters and digits (a
+    /// spell's or an ability's help is the topic with its name: "Nature's Eye", NATURE'S EYE).
+    pub fn topic_by_title(&self, name: &str) -> Option<&HelpTopic> {
+        let key = |s: &str| {
+            s.chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect::<String>()
+        };
+        let wanted = key(name);
+        if wanted.is_empty() {
+            return None;
+        }
+        self.topics.iter().find(|t| key(&t.title) == wanted)
+    }
+
     /// The areas of `screen` (a [`HelpScreen::id`]).
     pub fn screen(&self, id: u16) -> Option<&HelpScreen> {
         self.screens.iter().find(|s| s.id == id)

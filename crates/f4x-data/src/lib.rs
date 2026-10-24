@@ -224,6 +224,26 @@ pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::world_event::EventTe
     ron::from_str(&text).map_err(|e| ContentError::Parse(format!("event_texts.ron: {e}")))
 }
 
+/// Load the optional original lines of the wizards' talk (`diplomsg.ron`, from `DIPLOMSG.LBX`)
+/// from a content directory: the variants of each situation, with `{placeholders}`. A directory
+/// without them yields none, and the wizards speak the game's own lines.
+pub fn load_diplomacy_lines(dir: &Path) -> Result<HashMap<u16, Vec<String>>, ContentError> {
+    #[derive(serde::Deserialize)]
+    struct Row {
+        situation: u16,
+        lines: Vec<String>,
+    }
+    let path = dir.join("diplomsg.ron");
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    let rows: Vec<Row> =
+        ron::from_str(&text).map_err(|e| ContentError::Parse(format!("diplomsg.ron: {e}")))?;
+    Ok(rows.into_iter().map(|r| (r.situation, r.lines)).collect())
+}
+
 /// One language's messages: every `*.ron` file of `text/<lang>/` in each directory. A key may be
 /// in one file only; a directory earlier in `dirs` wins over a later one for a key both have.
 fn load_language(

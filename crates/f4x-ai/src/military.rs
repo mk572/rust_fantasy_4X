@@ -326,6 +326,33 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (rally, expected, at_rally, elsewhere, force)
     };
     for u in &elsewhere {
+        // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
+        // city when that has one too, and an Astral Gate city sends those on the wrong plane
+        // across (the original's AI does the second, `AIMOVE.c`).
+        let ordered = PlayerView::new(game, me).unit_has_order(*u);
+        let here = game.units().unit_position(*u);
+        if !ordered {
+            if game.can_use_earth_gate(&[*u], rally).is_ok() {
+                ai.send(
+                    game,
+                    Command::EarthGate {
+                        units: vec![*u],
+                        to: rally,
+                    },
+                    events,
+                );
+                continue;
+            }
+            if here.is_some_and(|p| {
+                p.plane != rally.plane
+                    && game
+                        .economy()
+                        .has_gate(p, me, f4x_core::city::gate::ASTRAL_GATE)
+            }) {
+                ai.send(game, Command::ShiftPlane { units: vec![*u] }, events);
+                continue;
+            }
+        }
         let comes_home = {
             let view = PlayerView::new(game, me);
             !view.unit_has_order(*u)

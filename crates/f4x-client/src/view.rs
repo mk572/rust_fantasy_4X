@@ -167,6 +167,8 @@ pub struct App {
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
     pub(crate) event_texts: Vec<f4x_core::world_event::EventText>,
+    /// The original's lines of the wizards' talk by situation (`diplomsg.ron`, local only).
+    pub(crate) diplomsg: std::collections::HashMap<u16, Vec<String>>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
     /// The events the player has yet to be told of, oldest first.
@@ -340,6 +342,7 @@ impl App {
             big_ui: Default::default(),
             help: Default::default(),
             event_texts: Vec::new(),
+            diplomsg: Default::default(),
             item_pool_warning: false,
             event_notices: Default::default(),
             built_notices: Default::default(),
@@ -1993,6 +1996,19 @@ impl App {
     /// Send the selected units to `pos` (the click that moves units is the preference
     /// `Left Click Moves Units`).
     fn go_to(&mut self, pos: Position) {
+        // A stack in a city with an Earth Gate that is sent to another city with one is
+        // teleported there at once, for one move (`MainScr.c`, the Earth Gate branch).
+        if self.game.can_use_earth_gate(&self.selection, pos).is_ok() {
+            let events = self.game.apply(Command::EarthGate {
+                units: self.selection.clone(),
+                to: pos,
+            });
+            self.note(events);
+            if let Some(at) = self.selection_position() {
+                self.center_on(at);
+            }
+            return;
+        }
         let events = self.game.apply(Command::GoTo {
             units: self.selection.clone(),
             to: pos,

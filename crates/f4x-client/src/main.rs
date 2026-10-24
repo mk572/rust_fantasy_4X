@@ -127,6 +127,7 @@ struct Options {
     advisor: Option<usize>,
     /// With `--shot`, ask how much mana an automatic fight may spend.
     auto_attack: bool,
+    attack_box: bool,
     /// With `--shot`, open the help for this point of the screen (320 by 200 coordinates).
     help_at: Option<(i32, i32)>,
     /// With `--shot`, show this scene of the opening movie (0 to 12), at full brightness.
@@ -237,6 +238,7 @@ fn parse_args() -> Result<Options, String> {
         advisor: None,
         intro: None,
         auto_attack: false,
+        attack_box: false,
         help_at: None,
         survey_at: None,
         scroll: None,
@@ -419,6 +421,7 @@ fn parse_args() -> Result<Options, String> {
                 )
             }
             "--auto-attack" => o.auto_attack = true,
+            "--attack-box" => o.attack_box = true,
             "--help-at" => {
                 let v = value("--help-at")?;
                 let (x, y) = v.split_once(',').ok_or("--help-at takes X,Y")?;
@@ -474,7 +477,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -531,6 +534,7 @@ async fn main() {
         }
     }
     app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
+    app.diplomsg = f4x_data::load_diplomacy_lines(&options.content).unwrap_or_default();
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
@@ -710,8 +714,8 @@ async fn main() {
         app.open_slots(true);
     } else if options.settings {
         app.screen = view::Screen::Settings;
-    } else if options.auto_attack {
-        app.open_test_auto_attack();
+    } else if options.auto_attack || options.attack_box {
+        app.open_test_auto_attack(options.attack_box);
     } else if let Some(scene) = options.intro {
         app.open_intro_at(scene);
     } else if options.menu {

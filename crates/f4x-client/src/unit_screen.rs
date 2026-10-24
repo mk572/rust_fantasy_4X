@@ -113,6 +113,35 @@ impl App {
         self.screen = Screen::UnitSheet;
     }
 
+    /// The help topic of the ability or spell line at `(x, y)` (320 by 200 coordinates) of the
+    /// open sheet, with the line's area: a right-click on it opens the topic named like it
+    /// (`UV_Set_Specials_Help_Fields`).
+    pub(crate) fn sheet_special_help(&self, x: i32, y: i32) -> Option<(u16, (f32, f32, f32, f32))> {
+        let sheet = self.sheet_ui.sheet.as_ref()?;
+        let (px, py) = if matches!(sheet.source, Source::Battle(_)) {
+            BATTLE_AT
+        } else {
+            MAP_AT
+        };
+        let first = self
+            .sheet_ui
+            .first
+            .min(sheet.specials.len().saturating_sub(1));
+        for (i, special) in sheet.specials.iter().skip(first).take(PER_PAGE).enumerate() {
+            let (col, row) = (i / 4, i % 4);
+            let left = px + 7.0 + 107.0 * col as f32;
+            let top = py + 107.0 + 17.0 * row as f32;
+            let area = (left, top, 105.0, 17.0);
+            let inside = (x as f32 >= area.0 && (x as f32) < area.0 + area.2)
+                && (y as f32 >= area.1 && (y as f32) < area.1 + area.3);
+            if inside {
+                let topic = self.help.topic_by_title(&special.name)?;
+                return Some((topic.index, area));
+            }
+        }
+        None
+    }
+
     fn close_sheet(&mut self) {
         self.screen = self.sheet_ui.back.take().unwrap_or(Screen::Map);
         self.sheet_ui.sheet = None;

@@ -7,6 +7,7 @@
     "offer.mercenaries": (count: "n",
         one: "Mercenary for Hire: {price} gold",
         other: "{n} Mercenaries for Hire: {price} gold"),
+    "offer.prisoner": "A prisoner asks to join your army",
     "offer.name_hero": "Name Your Hero",
     "offer.not_enough_gold": "Not enough gold",
 }
