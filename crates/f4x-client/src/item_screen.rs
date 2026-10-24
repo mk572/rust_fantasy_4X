@@ -2,7 +2,7 @@
 //! heroes in two columns with their three item slots, the fortress vault below, the anvil, the
 //! gold and mana, and the Alchemy and OK buttons, over the Army list. A click on an item picks
 //! it up (it follows the mouse with its name), a click on another slot puts it there, swapping
-//! with what is in the slot; the anvil destroys the item in hand for mana. A right-click on an
+//! with what is in the slot; the anvil destroys the item in hand for mana, and S sells it for gold. A right-click on an
 //! item shows its card, on a hero's picture the hero's sheet. Items that wait on the award list
 //! come up in the hand one at a time. The rules are the core's (`armory`, `Command::MoveItem`,
 //! `Command::ScrapItem`); a move to a hero somewhere else asks to pay its mana first.
@@ -338,6 +338,10 @@ impl App {
         if left && lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)).contains(mouse) {
             self.scrap_held();
         }
+        // S sells the item in the hand for half its value in gold (task 294).
+        if held && is_key_pressed(KeyCode::S) {
+            self.sell_held();
+        }
         if let Some(item) = card_at {
             self.item_ui.card = Some(item);
         }
@@ -382,6 +386,24 @@ impl App {
             player: HUMAN,
             from: spot,
         });
+        self.note(events);
+        self.item_ui.held = None;
+        self.pick_up_award();
+    }
+
+    /// Sell the item in the hand if it is in the vault or on the award list: half its value in
+    /// gold now, and the computer wizards are asked in turn whether they buy it.
+    fn sell_held(&mut self) {
+        let spot = match self.item_ui.held {
+            Some(ItemSpot::Vault(i)) => Spot::Vault(i),
+            Some(ItemSpot::Award(i)) => Spot::Award(i),
+            _ => return,
+        };
+        let mut events = self.game.apply(Command::SellItem {
+            player: HUMAN,
+            from: spot,
+        });
+        events.extend(f4x_ai::answer_resales(&mut self.game));
         self.note(events);
         self.item_ui.held = None;
         self.pick_up_award();

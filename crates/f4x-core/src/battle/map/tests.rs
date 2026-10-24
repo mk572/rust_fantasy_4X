@@ -328,3 +328,52 @@ fn a_node_square_is_fought_on_the_ground_of_its_kind() {
     assert_eq!(set_of(Some(TerrainClass::ChaosNode)), Set::Mountains);
     assert_eq!(set_of(Some(TerrainClass::SorceryNode)), Set::Plains);
 }
+
+fn sea_with_two_decks() -> (BattleMap, Vec<Pos>, Vec<Pos>) {
+    let decks = layout::ship_decks(&[(3, 7)], &[(3, 7)]);
+    let (a, d) = (
+        decks.attackers[0].clone().unwrap(),
+        decks.defenders[0].clone().unwrap(),
+    );
+    let mut spec = Spec::open(Set::Water);
+    spec.ship_decks = a.iter().chain(&d).map(|&(x, y)| (20 - x, y)).collect();
+    let mut rng = Pcg64Mcg::seed_from_u64(1);
+    (
+        BattleMap::from_layout(layout::generate(&spec, &mut rng)),
+        a,
+        d,
+    )
+}
+
+#[test]
+fn a_walker_jumps_the_water_between_two_decks_for_two_moves() {
+    let (m, a, d) = sea_with_two_decks();
+    // The attackers' deck square nearest the other one, and the square across the gap.
+    let (from, to) = a
+        .iter()
+        .flat_map(|&p| d.iter().map(move |&q| (p, q)))
+        .find(|&(p, q)| {
+            distance(p, q) == 2 && (p.0 - q.0).abs() != 1 && (p.1 - q.1).abs() != 1
+                || (distance(p, q) == 2 && (p.0 - q.0).abs() == 2 && p.1 == q.1)
+        })
+        .unwrap();
+    assert!(m.is_ship_deck(from) && m.is_ship_deck(to));
+    // The water in between is closed to walking.
+    let gap = ((from.0 + to.0) / 2, (from.1 + to.1) / 2);
+    assert_eq!(m.enter_cost(gap, false), None);
+    // With the jump's two moves, it is reachable; with one move left it still is (any move
+    // left lets a unit take a step); with none it is not.
+    let reach = m.reachable(from, 4, false, &none);
+    assert_eq!(reach.get(&to).map(|c| c.0), Some(JUMP_COST));
+    assert!(m.reachable(from, 1, false, &none).contains_key(&to));
+    assert!(!m.reachable(from, 0, false, &none).contains_key(&to));
+    // The gap itself cannot be stood in, and a ship cannot jump.
+    assert!(!reach.contains_key(&gap));
+    let ship = Mover {
+        sails: true,
+        ..Mover::default()
+    };
+    assert!(!m.reachable_as(from, 4, ship, &none).contains_key(&to));
+    // A unit that flies crosses the water, as it always does.
+    assert!(m.reachable(from, 4, true, &none).contains_key(&gap));
+}

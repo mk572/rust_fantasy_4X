@@ -301,14 +301,31 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   ground, and are kept as files too. Deviations: the first kind of river starts at (6, 15) and the second at
   the band's top edge, because the original's start squares lie outside the playable band (or
   end after one step).
-- **Water battles** (task 254): a fight on a sea square is all ocean. Walkers cannot enter it,
-  ships sail it (2 half-moves a square), swimmers take the cheaper way, fliers cross it. Only
-  ships, fliers and swimmers take part; land units aboard sit the fight out, and go down with
-  their side if it loses (`ActiveBattle::left_out`). A side with a Floating Island, or a unit
-  with Wind Walking, brings its land units: the island's 3 by 3 deck (a road-cost block, drawn
-  as grass because the island's own picture, `cmbtcity` 117, is blank in the files) is where they
-  stand; the island itself does not fight. The decks are where `Generate_Combat_Map` puts them
-  (`island_decks`). Summoning onto the sea is not possible.
+- **Water battles** (tasks 254, 233, 235, 352): a fight on a sea square is all ocean. Walkers cannot
+  enter it, ships sail it (2 half-moves a square), swimmers take the cheaper way, fliers cross it.
+  **Ships are decks** (our own rule; the original has no such thing: it keeps the land units out
+  of a sea fight unless a Floating Island or Wind Walking carries them). Each ship of a side that
+  has a deck (`deck` in `units.ron`, width by length: trireme 3 by 7, galley 4 by 8, warship 5 by 9,
+  Floating Island 5 by 5) is laid out by `layout::ship_decks` as brown ground with pointed ends:
+  the first ships of the two sides face each other across one square of water, further ships lie
+  where they fit with a square of water between decks. The field is a diamond of about 200 squares,
+  so the decks are far smaller than the 5 by 15 and 10 by 30 first asked for; two facing decks
+  need `width + width + 1 + length <= 20` (tested for every pair of the content's ships). A ship
+  that does not fit sails as a unit. The ship (and the island, which is a ship here) is a fighter
+  that stays at its bow and cannot sail off; the land units it carries stand on the rest of the
+  deck and fight. A walker on a deck may **jump** the single square of water to another deck
+  (diagonals too) for two moves (4 half-moves), always possible with any move left, as with rough
+  ground (`BattleMap::reachable_as`, `JUMP_COST`). Land units not aboard a ship that has a deck
+  sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
+  Walking still carries a stack through the air. The decks are drawn as brown diamonds
+  (`battle_ground.rs`) until a ship picture is used. Summoning onto the sea is not possible.
+  **A ship lost** in a fight, or removed or dispelled at any time, leaves its passengers at sea:
+  beside free land each scrambles ashore on the fleeing odds (half of the troops, three in four of
+  the heroes make it, `Game::drown_stranded`), anywhere else they drown; fliers, swimmers and
+  water walkers never needed a ship. Attacking from a ship follows ReMoM: nothing bars the
+  passengers of a ship from attacking a land square, and in the original only a coastal city is
+  fought with ships in the stack (they sit out). The nine-unit limit counts passengers as before
+  (a separate fix of the limit is planned).
 - **Deployment order** (`deployment_order`): units without a ranged attack take the front squares,
   shooters the squares behind; with more than five shooters the strongest in melee move forward
   until the front has four (the original picks the wrong list for that search; ours picks the

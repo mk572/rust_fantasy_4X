@@ -437,3 +437,103 @@ fn the_commands_accept_and_reject() {
         ))]
     ));
 }
+
+fn plain_item(cost: u32) -> Item {
+    Item {
+        name: "Sword".into(),
+        kind: crate::rules::ItemKind::Sword,
+        cost,
+        icon: 0,
+        bonus: crate::item::ItemBonus::default(),
+        powers: Vec::new(),
+        charges: None,
+        prefab: None,
+        made: None,
+    }
+}
+
+#[test]
+fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() {
+    use crate::item::armory::Spot;
+    let mut g = world();
+    g.give_item(P0, plain_item(1000));
+    let (mine, theirs) = (
+        g.treasury_mut(P0).unwrap().gold,
+        g.treasury_mut(P1).unwrap().gold,
+    );
+    let events = g.apply(crate::game::Command::SellItem {
+        player: P0,
+        from: Spot::Vault(0),
+    });
+    assert!(matches!(
+        events[0],
+        Event::ItemSold {
+            player: P0,
+            gold: 500,
+            ..
+        }
+    ));
+    assert_eq!(g.treasury_mut(P0).unwrap().gold, mine + 500);
+    assert!(g.items().armory(P0).vault.iter().all(Option::is_none));
+    // The other wizard is offered it for what the seller got.
+    assert!(
+        matches!(
+            &events[1],
+            Event::OfferMade {
+                player: P1,
+                offer: Offer::Resale {
+                    price: 500,
+                    seller: P0,
+                    ..
+                }
+            }
+        ),
+        "{events:?}"
+    );
+    assert_eq!(g.offers(P1).len(), 1);
+    let events = g.apply(crate::game::Command::AcceptOffer {
+        player: P1,
+        index: 0,
+        name: None,
+    });
+    assert!(
+        matches!(events[0], Event::ItemMade { player: P1, .. }),
+        "{events:?}"
+    );
+    assert_eq!(g.treasury_mut(P1).unwrap().gold, theirs - 500);
+    assert!(g.offers(P1).is_empty());
+    assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
+}
+
+#[test]
+fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() {
+    use crate::item::armory::Spot;
+    let mut g = world();
+    g.give_item(P0, plain_item(1000));
+    g.apply(crate::game::Command::SellItem {
+        player: P0,
+        from: Spot::Vault(0),
+    });
+    g.apply(crate::game::Command::RejectOffer {
+        player: P1,
+        index: 0,
+    });
+    assert!(g.offers(P1).is_empty());
+    assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 0);
+    assert_eq!(g.items().armory(P0).vault.iter().flatten().count(), 0);
+    // A buyer without the gold is not asked.
+    g.give_item(P0, plain_item(1000));
+    g.treasury_mut(P1).unwrap().gold = 100;
+    let events = g.apply(crate::game::Command::SellItem {
+        player: P0,
+        from: Spot::Vault(0),
+    });
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert!(g.offers(P1).is_empty());
+    // An empty slot is refused.
+    let events = g.apply(crate::game::Command::SellItem {
+        player: P0,
+        from: Spot::Vault(0),
+    });
+    assert!(matches!(events[0], Event::Rejected(_)));
+}

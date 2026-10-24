@@ -314,15 +314,40 @@ impl Game {
             .all(|&p| e.step_cost(p, from, land, traits).is_ok())
     }
 
-    /// Land units at sea with no ship under them are lost.
+    /// Land units at sea with no ship under them are lost, as the units of a defeated army are
+    /// when they flee: where free land lies beside them they scramble ashore, half of the troops
+    /// and three in four of the heroes making it (`overland_aftermath`'s odds); anywhere else
+    /// they drown. Fliers and swimmers never need a ship, so they never come here (task 235).
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
+        let mut drowned: Vec<(crate::player::PlayerId, u32)> = Vec::new();
         for (owner, unit) in self.economy().stranded() {
-            self.remove_unit(unit, crate::hero::Fate::Slain);
-            events.push(Event::UnitsDrowned {
-                player: owner,
-                units: 1,
+            let at = self.units().unit_position(unit);
+            let landing = at.and_then(|at| {
+                crate::unit::pathing::neighbours(self, at)
+                    .into_iter()
+                    .find(|&next| {
+                        !self.economy().is_sea(next) && self.free_landing(next, at, owner, &[unit])
+                    })
             });
+            let hero = self
+                .units()
+                .unit_def(unit)
+                .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
+            let percent = if hero { 75 } else { 50 };
+            if let Some(land) = landing.filter(|_| self.roll(100) <= percent) {
+                let _ = self.world.remove_one::<Aboard>(unit);
+                let _ = self.world.insert_one(unit, land);
+                continue;
+            }
+            self.remove_unit(unit, crate::hero::Fate::Slain);
+            match drowned.iter_mut().find(|(p, _)| *p == owner) {
+                Some((_, n)) => *n += 1,
+                None => drowned.push((owner, 1)),
+            }
+        }
+        for (player, units) in drowned {
+            events.push(Event::UnitsDrowned { player, units });
         }
         events
     }
@@ -533,47 +558,54 @@ mod tests {
     }
 
     #[test]
-    fn at_sea_only_ships_and_fliers_fight_and_the_passengers_sit_out() {
+    fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(6, 4));
-        let walker = unit(&mut g, "walker", at(6, 4));
+        let boat = unit(&mut g, "boat", at(5, 4));
+        let walker = unit(&mut g, "walker", at(4, 4));
+        g.move_stack(&[walker], at(5, 4)).unwrap();
+        assert_eq!(g.economy().carrier_of(walker), Some(boat));
         let attacker_boat = {
             let u = g.content.rules.units.id_of("boat").unwrap();
-            g.spawn_unit(P1, at(7, 4), u)
+            g.spawn_unit(P1, at(6, 4), u)
         };
-        g.move_stack(&[walker], at(6, 4)).ok();
         g.start_battle(&[attacker_boat], &[boat, walker]).unwrap();
         let b = g.battle().unwrap();
-        assert_eq!(b.units.len(), 2, "the passenger is not in the fight");
-        assert!(b.units.iter().all(|u| u.sails));
+        assert_eq!(b.units.len(), 3, "the passenger is in the fight");
         let look = b.map.look().unwrap();
         assert_eq!(look.set, crate::battle::map::layout::Set::Water);
-        // A ship moves on the water; a walker would not.
-        let ship = b
-            .units
-            .iter()
-            .find(|u| u.side == crate::battle::Side::Defender)
-            .unwrap();
-        assert!(!b.reachable(ship.id).is_empty());
+        // Every unit stands on a deck, and the ships stay where they are.
+        for u in &b.units {
+            assert!(b.map.is_ship_deck(u.cell), "{:?} is not on a deck", u.cell);
+            assert_eq!(u.sails, u.moves == 0, "a ship does not sail off its deck");
+        }
+        let on_foot = b.units.iter().find(|u| !u.sails).unwrap();
+        assert_eq!(b.map.enter_cost(on_foot.cell, false), Some(2));
+        // The water between and round the decks is closed to a walker.
         assert_eq!(b.map.enter_cost((10, 10), false), None);
-        assert_eq!(b.map.enter_cost_as((10, 10), ship.mover()), Some(2));
-        // The attackers win: the passenger of the beaten ship goes down with it.
-        g.battle.as_mut().unwrap().battle.winner = Some(crate::battle::Side::Attacker);
+        // The attackers win and the defenders are all dead, the passenger with its ship.
+        let active = &mut g.battle.as_mut().unwrap().battle;
+        active.winner = Some(crate::battle::Side::Attacker);
+        for u in &mut active.units {
+            if u.side == crate::battle::Side::Defender {
+                u.status = crate::battle::Status::Dead;
+            }
+        }
         g.finish_battle();
         assert!(g.units().unit_position(walker).is_none());
     }
 
     #[test]
-    fn a_floating_island_carries_its_land_units_into_a_sea_fight() {
+    fn a_floating_island_is_a_ship_in_a_sea_fight_and_its_passengers_stand_on_its_deck() {
         let mut g = world();
         let island = {
             let u = g.content.rules.units.id_of("floating_island").unwrap();
-            g.spawn_unit(P0, at(6, 4), u)
+            g.spawn_unit(P0, at(5, 4), u)
         };
-        let walkers: Vec<_> = (0..2).map(|_| unit(&mut g, "walker", at(6, 4))).collect();
+        let walkers: Vec<_> = (0..2).map(|_| unit(&mut g, "walker", at(4, 4))).collect();
+        g.move_stack(&walkers, at(5, 4)).unwrap();
         let enemy = {
             let u = g.content.rules.units.id_of("boat").unwrap();
-            g.spawn_unit(P1, at(7, 4), u)
+            g.spawn_unit(P1, at(6, 4), u)
         };
         let mut defenders = vec![island];
         defenders.extend(&walkers);
@@ -586,18 +618,11 @@ mod tests {
             .collect();
         assert_eq!(
             own.len(),
-            2,
-            "the island itself does not fight, its passengers do"
+            3,
+            "the island fights like a ship, with its passengers"
         );
-        let decks = crate::battle::map::layout::island_decks(false, true);
         for u in own {
-            let cell = (20 - u.cell.0, u.cell.1);
-            assert!(decks.defenders.contains(&cell), "{:?}", u.cell);
-            assert_eq!(
-                b.map.enter_cost(u.cell, false),
-                Some(1),
-                "a deck walks like a road"
-            );
+            assert!(b.map.is_ship_deck(u.cell), "{:?}", u.cell);
         }
     }
 
@@ -607,6 +632,15 @@ mod tests {
         let boat = unit(&mut g, "boat", at(5, 4));
         let w = unit(&mut g, "walker", at(4, 4));
         g.move_stack(&[w], at(5, 4)).unwrap();
+        // Open sea: no shore beside the square.
+        let ocean = g.content.terrains.id_of("ocean").unwrap();
+        for (x, y) in [(4, 3), (4, 4), (4, 5), (5, 3), (5, 5), (6, 3), (6, 5)] {
+            g.map
+                .as_mut()
+                .unwrap()
+                .plane_mut(Plane::Arcanus)
+                .set(x, y, ocean);
+        }
         g.despawn_with_spells(boat);
         let events = g.drown_stranded();
         assert_eq!(
@@ -624,6 +658,26 @@ mod tests {
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
         );
+    }
+
+    #[test]
+    fn passengers_of_a_lost_ship_beside_the_shore_may_scramble_ashore() {
+        let mut g = world();
+        let mut ashore = 0;
+        let runs = 30;
+        for _ in 0..runs {
+            let boat = unit(&mut g, "boat", at(5, 4));
+            let w = unit(&mut g, "walker", at(4, 4));
+            g.move_stack(&[w], at(5, 4)).unwrap();
+            g.despawn_with_spells(boat);
+            g.drown_stranded();
+            if let Some(p) = g.units().unit_position(w) {
+                assert!(!g.economy().is_sea(p), "the survivors stand on land");
+                ashore += 1;
+                g.remove_unit(w, crate::hero::Fate::Released);
+            }
+        }
+        assert!(ashore > 0 && ashore < runs, "{ashore} of {runs} made it");
     }
 
     #[test]

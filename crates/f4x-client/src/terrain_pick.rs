@@ -290,6 +290,24 @@ pub fn shore_with_rivers(land: usize, rivers: usize, plain: usize) -> usize {
     }
 }
 
+/// The lake (a sea square with land all round) that a river runs into, for the sides in
+/// `rivers` (bits N 1, E 2, S 4, W 8): `_1LakeRiv_N/E/S/W`. Where more than one river runs in the
+/// original keeps one and turns the others to grassland (`River_Autotile`, block 1); ours keeps
+/// them all (task 253), so the same side is drawn, the north one first, then west, south, east.
+pub fn lake_with_river(rivers: usize) -> usize {
+    match rivers {
+        r if r & 1 != 0 => LAKE_RIVER_N,
+        r if r & 8 != 0 => LAKE_RIVER_W,
+        r if r & 4 != 0 => LAKE_RIVER_S,
+        _ => LAKE_RIVER_E,
+    }
+}
+
+const LAKE_RIVER_W: usize = 0xC5;
+const LAKE_RIVER_N: usize = 0xC6;
+const LAKE_RIVER_E: usize = 0xC7;
+const LAKE_RIVER_S: usize = 0xC8;
+
 /// The terrain type of a square on Arcanus (add 762 for Myrror). `table(t, mask)` is one of
 /// the original's autotile tables.
 pub fn ground_type(
@@ -316,7 +334,11 @@ pub fn ground_type(
                             .is_some_and(|c| c != TerrainClass::Ocean)
                 })
                 .fold(0, |m, &(_, _, bit)| m | bit);
-            shore_with_rivers(land, rivers, plain)
+            if land == 255 && rivers != 0 {
+                lake_with_river(rivers)
+            } else {
+                shore_with_rivers(land, rivers, plain)
+            }
         }
         TerrainClass::SorceryNode => SORCERY_NODE,
         TerrainClass::NatureNode => NATURE_NODE,
@@ -528,6 +550,23 @@ mod tests {
             Some(2 + 255),
             "a lake: land all round"
         );
+    }
+
+    #[test]
+    fn a_river_into_a_lake_gives_the_lake_piece_of_its_side() {
+        assert_eq!(lake_with_river(1), 0xC6);
+        assert_eq!(lake_with_river(2), 0xC7);
+        assert_eq!(lake_with_river(4), 0xC8);
+        assert_eq!(lake_with_river(8), 0xC5);
+        assert_eq!(lake_with_river(2 | 4), 0xC8, "south wins over east");
+        assert_eq!(lake_with_river(2 | 8), 0xC5, "west wins over east");
+        assert_eq!(lake_with_river(1 | 4 | 8), 0xC6, "north wins");
+        let (mut g, c) = world(&["ggg", "gog", "ggg"]);
+        g.set_river(1, 0, true);
+        assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(0xC6));
+        g.set_river(1, 0, false);
+        g.set_river(2, 1, true);
+        assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(0xC7));
     }
 
     #[test]

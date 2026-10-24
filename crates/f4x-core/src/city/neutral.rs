@@ -27,6 +27,11 @@ use crate::rules::{RaceId, UnitKind};
 /// Neutral cities placed on each plane.
 pub const NEUTRAL_CITIES_PER_PLANE: u32 = 15;
 
+/// Neutral cities on a plane of `width` by `height`: 15 for every 60 by 40 squares.
+pub fn neutral_city_count(width: u32, height: u32) -> u32 {
+    crate::map::mapgen::scaled_count(NEUTRAL_CITIES_PER_PLANE, width, height)
+}
+
 /// Placement attempts before giving up on the rest.
 const MAX_TRIES: u32 = 1000;
 
@@ -197,7 +202,8 @@ impl Game {
         let masses = self.landmasses(plane);
         let mut default_race: std::collections::HashMap<u32, RaceId> = Default::default();
         let (mut made, mut tries) = (0, 0);
-        while made < NEUTRAL_CITIES_PER_PLANE {
+        let target = neutral_city_count(w, h);
+        while made < target {
             let pos = loop {
                 tries += 1;
                 if tries >= MAX_TRIES {

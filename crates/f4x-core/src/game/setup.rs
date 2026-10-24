@@ -125,7 +125,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         magic_strength: settings.basic.magic_strength,
         lair_guard_percent: settings.world.lair_guard_percent,
         lair_treasure_percent: settings.world.lair_treasure_percent,
-        ..GenParams::default()
+        ..GenParams::sized(
+            u32::from(settings.basic.map_width),
+            u32::from(settings.basic.map_height),
+        )
     };
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::new(spec.seed);

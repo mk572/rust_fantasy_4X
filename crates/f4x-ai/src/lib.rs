@@ -269,6 +269,7 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
 }
 
 pub use neutral::play_neutrals;
+pub use offer::answer_resales;
 
 /// Let every AI play its turn, then end the turn for everyone. Returns all the events.
 pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {

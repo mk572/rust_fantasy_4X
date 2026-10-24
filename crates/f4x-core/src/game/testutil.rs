@@ -145,6 +145,7 @@ pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) ->
         requires: vec![],
         level_path: Some("xp".into()),
         hero: None,
+        deck: None,
         art: None,
     }
 }

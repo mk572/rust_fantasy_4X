@@ -188,8 +188,8 @@ fn troops_sail_a_galley_across_and_step_ashore() {
 }
 
 #[test]
-fn troops_left_at_sea_when_their_ship_is_lost_drown_at_the_turn_end() {
-    // The rule as it stands today; task 235 may change when and how this happens.
+fn troops_left_at_sea_when_their_ship_is_lost_scramble_ashore_or_drown_at_the_turn_end() {
+    // Task 235: beside a shore they use the fleeing odds, so each either lands or drowns.
     let mut g = game(COAST_CITY, "high_men");
     let galley = spawn(&mut g, P0, near_sea(), "galley", 1)[0];
     let troops = spawn(&mut g, P0, port(), "high_men_spearmen", 2);
@@ -205,9 +205,24 @@ fn troops_left_at_sea_when_their_ship_is_lost_drown_at_the_turn_end() {
             _ => 0,
         })
         .sum();
-    assert_eq!(drowned, 2);
+    let ashore = troops
+        .iter()
+        .filter(|&&t| {
+            g.units().unit_position(t).is_some_and(|p| {
+                !(g.economy().terrain_class_at(p)
+                    == Some(f4x_core::map::terrain::TerrainClass::Ocean))
+            })
+        })
+        .count() as u32;
+    assert_eq!(drowned + ashore, 2, "each one lands or drowns");
     for &t in &troops {
-        assert_eq!(g.units().unit_position(t), None, "gone");
+        if let Some(p) = g.units().unit_position(t) {
+            assert!(
+                !(g.economy().terrain_class_at(p)
+                    == Some(f4x_core::map::terrain::TerrainClass::Ocean)),
+                "nobody is left afloat"
+            );
+        }
     }
 }
 

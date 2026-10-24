@@ -33,6 +33,17 @@
         (name: "Large", land_percent: 30),
     ],
 
+    // The map sizes of the options step, smallest first: a name and the squares across and down
+    // of each plane (the original's is 60 by 40, the "Medium"). The counts of towers, magic
+    // nodes, encounter sites and neutral cities follow the area, the original's being for 2400
+    // squares. The tested range is 45 to 90 across and 30 to 60 down.
+    map_sizes: [
+        (name: "Small", width: 45, height: 30),
+        (name: "Medium", width: 60, height: 40),
+        (name: "Large", width: 75, height: 50),
+        (name: "Huge", width: 90, height: 60),
+    ],
+
     // What each difficulty level fills in, from Intro to Impossible (exactly five). Choosing a
     // level at the start of a game copies these into the game's settings. Most figures are the
     // original's (`difficulty_modifiers_table` and the map generator). Notes:

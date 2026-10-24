@@ -1,6 +1,7 @@
 // Player-facing messages of the offers (heroes, mercenaries, merchant items).
 // One key is in one file only (docs/text.md).
 {
+    "offer.resale": "A rival wizard has put a magic {item} up for sale.  Your price is {price} gold pieces.",
     "offer.merchant": "A merchant arrives and offers a magic {item} for sale.  The price is only {price} gold pieces.",
     "offer.hero": "Hero for Hire: {price} gold",
     "offer.mercenaries": (count: "n",

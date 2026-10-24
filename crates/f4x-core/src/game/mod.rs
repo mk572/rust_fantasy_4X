@@ -495,9 +495,16 @@ impl Game {
                 .accept_offer(player, index, name)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Offer(e))]),
             Command::RejectOffer { player, index } => match self.reject_offer(player, index) {
-                Ok(()) => Vec::new(),
+                Ok(events) => events,
                 Err(e) => vec![Event::Rejected(Rejection::Offer(e))],
             },
+            Command::SellItem { player, from } => {
+                self.sell_item(player, from).unwrap_or_else(|| {
+                    vec![Event::Rejected(Rejection::Item(
+                        item::armory::ItemError::Empty,
+                    ))]
+                })
+            }
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),

@@ -19,6 +19,13 @@ pub const LAND_LARGE: u8 = 30;
 
 /// The difficulty a game gets when nothing says otherwise ("Average").
 pub const DEFAULT_DIFFICULTY: u8 = 2;
+/// The map a game gets when nothing says otherwise: the original's 60 by 40 squares.
+pub const MAP_WIDTH: u16 = 60;
+pub const MAP_HEIGHT: u16 = 40;
+/// The sizes the map generator and the rest of the game are tested on (task 343): from 45 by 30
+/// to 90 by 60 squares.
+pub const MAP_WIDTHS: std::ops::RangeInclusive<u16> = 45..=90;
+pub const MAP_HEIGHTS: std::ops::RangeInclusive<u16> = 30..=60;
 /// The node setting a game gets when nothing says otherwise ("Normal").
 pub const DEFAULT_MAGIC_STRENGTH: u8 = 1;
 
@@ -37,6 +44,12 @@ pub struct BasicSettings {
     /// Node strength: 0 weak, 1 normal, 2 powerful.
     #[serde(default = "default_magic")]
     pub magic_strength: u8,
+    /// The size of each plane in squares (see [`MAP_WIDTHS`]); the counts of towers, nodes,
+    /// sites and neutral cities follow the area.
+    #[serde(default = "default_map_width")]
+    pub map_width: u16,
+    #[serde(default = "default_map_height")]
+    pub map_height: u16,
     /// A diagonal step on the overland map costs half as much again as a straight one (3
     /// half-moves on open ground); off, it costs the same (the original's rule). The same goes for
     /// sight: a square seen along a diagonal costs half as much again to see, or no more.
@@ -60,6 +73,14 @@ fn default_magic() -> u8 {
     DEFAULT_MAGIC_STRENGTH
 }
 
+fn default_map_width() -> u16 {
+    MAP_WIDTH
+}
+
+fn default_map_height() -> u16 {
+    MAP_HEIGHT
+}
+
 impl Default for BasicSettings {
     fn default() -> Self {
         Self {
@@ -67,6 +88,8 @@ impl Default for BasicSettings {
             opponents: 1,
             land_percent: LAND_LARGE,
             magic_strength: DEFAULT_MAGIC_STRENGTH,
+            map_width: MAP_WIDTH,
+            map_height: MAP_HEIGHT,
             diagonal_extra_cost: false,
         }
     }
@@ -240,6 +263,15 @@ pub struct LandSize {
     pub land_percent: u8,
 }
 
+/// One map size on the new-game options step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MapSize {
+    pub name: String,
+    /// Squares across and down, each plane (see [`MAP_WIDTHS`]).
+    pub width: u16,
+    pub height: u16,
+}
+
 /// How many opponents the game offers at most (the original: four).
 pub const MAX_OPPONENTS: u8 = 4;
 
@@ -257,6 +289,8 @@ pub struct SettingsDef {
     pub max_opponents: u8,
     /// The land sizes the options step offers, smallest first.
     pub land_sizes: Vec<LandSize>,
+    /// The map sizes the options step offers, smallest first.
+    pub map_sizes: Vec<MapSize>,
     /// Intro, Easy, Average, Hard, Impossible; empty or exactly [`LEVELS`].
     pub levels: Vec<LevelDef>,
     /// The Settings screen's switches by name (the client knows the names), on or off.
@@ -420,6 +454,19 @@ impl Default for SettingsDef {
                 size("Medium", LAND_MEDIUM),
                 size("Large", LAND_LARGE),
             ],
+            map_sizes: [
+                ("Small", 45, 30),
+                ("Medium", 60, 40),
+                ("Large", 75, 50),
+                ("Huge", 90, 60),
+            ]
+            .into_iter()
+            .map(|(name, width, height)| MapSize {
+                name: name.into(),
+                width,
+                height,
+            })
+            .collect(),
             levels: Vec::new(),
             preferences: Default::default(),
             spell_library: SpellLibraryDef::default(),
@@ -472,6 +519,20 @@ impl SettingsDef {
                 problems.push(format!(
                     "land size {:?}: {}% is not 1 to 99 or the name is empty",
                     size.name, size.land_percent
+                ));
+            }
+        }
+        if self.map_sizes.is_empty() {
+            problems.push("map_sizes is empty".into());
+        }
+        for size in &self.map_sizes {
+            if size.name.trim().is_empty()
+                || !MAP_WIDTHS.contains(&size.width)
+                || !MAP_HEIGHTS.contains(&size.height)
+            {
+                problems.push(format!(
+                    "map size {:?}: {} by {} is not {:?} by {:?} or the name is empty",
+                    size.name, size.width, size.height, MAP_WIDTHS, MAP_HEIGHTS
                 ));
             }
         }
@@ -608,6 +669,13 @@ impl GameSettings {
             b.magic_strength <= 2,
             format!("magic power {} is not 0 to 2", b.magic_strength),
         );
+        check(
+            MAP_WIDTHS.contains(&b.map_width) && MAP_HEIGHTS.contains(&b.map_height),
+            format!(
+                "map {} by {} is not {:?} by {:?}",
+                b.map_width, b.map_height, MAP_WIDTHS, MAP_HEIGHTS
+            ),
+        );
         let w = &self.wizards;
         for (who, gold) in [
             ("your", w.starting_gold.human),
@@ -703,6 +771,8 @@ impl GameSettings {
         b.opponents = b.opponents.clamp(1, 4);
         b.land_percent = b.land_percent.clamp(1, 99);
         b.magic_strength = b.magic_strength.min(2);
+        b.map_width = b.map_width.clamp(*MAP_WIDTHS.start(), *MAP_WIDTHS.end());
+        b.map_height = b.map_height.clamp(*MAP_HEIGHTS.start(), *MAP_HEIGHTS.end());
         let w = &mut self.wizards;
         w.starting_gold.human = w.starting_gold.human.clamp(0, 2000);
         w.starting_gold.ai = w.starting_gold.ai.clamp(0, 2000);

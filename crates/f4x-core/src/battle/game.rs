@@ -25,6 +25,37 @@ pub struct ActiveBattle {
     pub lair: Option<hecs::Entity>,
 }
 
+/// The ships of a sea battle that got a deck, with its squares (the rules' frame).
+#[derive(Debug, Default)]
+struct ShipDeckPlan {
+    attackers: Vec<(hecs::Entity, Vec<Pos>)>,
+    defenders: Vec<(hecs::Entity, Vec<Pos>)>,
+}
+
+impl ShipDeckPlan {
+    fn of(&self, side: Side) -> &[(hecs::Entity, Vec<Pos>)] {
+        match side {
+            Side::Attacker => &self.attackers,
+            Side::Defender => &self.defenders,
+        }
+    }
+
+    fn cells(&self) -> Vec<Pos> {
+        self.attackers
+            .iter()
+            .chain(&self.defenders)
+            .flat_map(|(_, c)| c.iter().copied())
+            .collect()
+    }
+
+    fn covers(&self, cell: Pos) -> bool {
+        self.attackers
+            .iter()
+            .chain(&self.defenders)
+            .any(|(_, c)| c.contains(&cell))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleStartError {
     /// A battle is already being fought.
@@ -361,22 +392,16 @@ impl Game {
         let ocean = city.is_none()
             && self.economy().terrain_class_at(site)
                 == Some(crate::map::terrain::TerrainClass::Ocean);
-        let is_island = |g: &Game, u: hecs::Entity| {
-            g.units()
-                .unit_def(u)
-                .is_some_and(|d| d.id == "floating_island")
+        // Ships fight as decks on the sea, and a Floating Island is a ship here: the land units
+        // aboard stand on its deck (tasks 233 and 352).
+        let decks = if ocean {
+            self.ship_deck_plan(attackers, defenders)
+        } else {
+            ShipDeckPlan::default()
         };
-        let has_island =
-            |g: &Game, group: &[hecs::Entity]| ocean && group.iter().any(|&u| is_island(g, u));
-        let (attacker_island, defender_island) =
-            (has_island(self, attackers), has_island(self, defenders));
         let mut left_out = Vec::new();
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
-            let island = if side == Side::Attacker {
-                attacker_island
-            } else {
-                defender_island
-            };
+            let ship_decks = decks.of(side);
             let carried = ocean
                 && group
                     .iter()
@@ -385,29 +410,21 @@ impl Game {
                 .iter()
                 .copied()
                 .filter(|&u| {
-                    let keep = !ocean
-                        || (!is_island(self, u) && (island || carried || self.can_fight_at_sea(u)));
+                    let on_deck = self
+                        .economy()
+                        .carrier_of(u)
+                        .is_some_and(|c| ship_decks.iter().any(|(ship, _)| *ship == c));
+                    let keep = !ocean || carried || on_deck || self.can_fight_at_sea(u);
                     if !keep {
                         left_out.push((side, u));
                     }
                     keep
                 })
                 .collect();
-            let deck: Vec<Pos> = if island {
-                let decks = layout::island_decks(attacker_island, defender_island);
-                let cells = if side == Side::Attacker {
-                    decks.attackers
-                } else {
-                    decks.defenders
-                };
-                cells.into_iter().map(|(x, y)| (20 - x, y)).collect()
-            } else {
-                Vec::new()
-            };
             let cells = if city.is_some() {
                 city_deployment(side == Side::Attacker, fighters.len(), walled, fortress)
             } else {
-                deployment(side == Side::Attacker, fighters.len() + deck.len())
+                deployment(side == Side::Attacker, fighters.len())
             };
             let mut bus = Vec::new();
             for (n, &unit) in fighters.iter().enumerate() {
@@ -418,23 +435,41 @@ impl Game {
                 bu.flies |= carried;
                 bus.push(bu);
             }
-            // Melee units take the front squares, shooters the ones behind them. Walkers on a
-            // Floating Island stand on its deck.
+            // Melee units take the front squares, shooters the ones behind them.
             let order = deployment_order(&bus);
             let mut placed = vec![false; bus.len()];
             let mut taken: Vec<Pos> = Vec::new();
-            let mut deck = deck.into_iter();
-            for &i in &order {
-                let u = &bus[i];
-                if !(u.flies || u.sails || u.swims) {
-                    if let Some(cell) = deck.next() {
-                        bus[i].cell = cell;
-                        placed[i] = true;
-                        taken.push(cell);
+            // A ship is its deck: the ship stays at its bow and does not sail, and the land
+            // units it carries stand on the rest, the middle first.
+            for (ship, cells) in ship_decks {
+                let Some(si) = fighters.iter().position(|f| f == ship) else {
+                    continue;
+                };
+                bus[si].cell = cells[0];
+                bus[si].moves = 0;
+                bus[si].moves_left = 0;
+                placed[si] = true;
+                taken.push(cells[0]);
+                let centre = (
+                    cells.iter().map(|c| c.0).sum::<i32>() / cells.len() as i32,
+                    cells.iter().map(|c| c.1).sum::<i32>() / cells.len() as i32,
+                );
+                let mut rest: Vec<Pos> = cells[1..].to_vec();
+                rest.sort_by_key(|c| (c.0 - centre.0).abs() + (c.1 - centre.1).abs());
+                let mut rest = rest.into_iter();
+                for (i, f) in fighters.iter().enumerate() {
+                    if self.economy().carrier_of(*f) == Some(*ship) {
+                        if let Some(cell) = rest.next() {
+                            bus[i].cell = cell;
+                            placed[i] = true;
+                            taken.push(cell);
+                        }
                     }
                 }
             }
-            let mut free = cells.into_iter().filter(|c| !taken.contains(c));
+            let mut free = cells
+                .into_iter()
+                .filter(|c| !taken.contains(c) && !decks.covers(*c));
             for &i in &order {
                 if !placed[i] {
                     if let Some(cell) = free.next() {
@@ -453,7 +488,7 @@ impl Game {
         let seed = self.next_u64();
         // The field is built from the square alone, as the original seeds it from the square's
         // place, so a fight on the same square is fought on the same ground.
-        let mut map = self.battle_field(site, city, walled, (attacker_island, defender_island));
+        let mut map = self.battle_field(site, city, walled, &decks.cells());
         let has = |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
         if city.is_some() {
             map = map.with_city(walled);
@@ -503,6 +538,46 @@ impl Game {
         }])
     }
 
+    /// The decks of the ships of both sides in a sea battle: each ship with a deck square set that
+    /// fits, largest first; a ship that does not fit sails as a unit, and its passengers sit the
+    /// fight out. Nothing is laid out unless the first ship of each side can face the other.
+    fn ship_deck_plan(
+        &self,
+        attackers: &[hecs::Entity],
+        defenders: &[hecs::Entity],
+    ) -> ShipDeckPlan {
+        let ships = |group: &[hecs::Entity]| -> Vec<(hecs::Entity, (i32, i32))> {
+            let mut out: Vec<_> = group
+                .iter()
+                .copied()
+                .filter(|&u| self.economy().is_ship(u))
+                .map(|u| {
+                    let (w, l) = self
+                        .units()
+                        .unit_def(u)
+                        .and_then(|d| d.deck)
+                        .unwrap_or((3, 7));
+                    (u, (i32::from(w), i32::from(l)))
+                })
+                .collect();
+            out.sort_by_key(|&(_, (w, l))| std::cmp::Reverse(w * l));
+            out
+        };
+        let (a, d) = (ships(attackers), ships(defenders));
+        let sizes = |v: &[(hecs::Entity, (i32, i32))]| v.iter().map(|s| s.1).collect::<Vec<_>>();
+        let laid = layout::ship_decks(&sizes(&a), &sizes(&d));
+        let pick = |v: &[(hecs::Entity, (i32, i32))], cells: Vec<Option<Vec<Pos>>>| {
+            v.iter()
+                .zip(cells)
+                .filter_map(|(s, c)| c.map(|c| (s.0, c)))
+                .collect::<Vec<_>>()
+        };
+        ShipDeckPlan {
+            attackers: pick(&a, laid.attackers),
+            defenders: pick(&d, laid.defenders),
+        }
+    }
+
     /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
     /// swimmer.
     fn can_fight_at_sea(&self, unit: hecs::Entity) -> bool {
@@ -538,12 +613,12 @@ impl Game {
         site: Position,
         city: Option<hecs::Entity>,
         walled: bool,
-        islands: (bool, bool),
+        ship_cells: &[Pos],
     ) -> BattleMap {
         use super::map::layout::{Site, Spec};
         let economy = self.economy();
         let mut spec = Spec::open(super::map::set_of(economy.terrain_class_at(site)));
-        (spec.attacker_island, spec.defender_island) = islands;
+        spec.ship_decks = ship_cells.iter().map(|&(x, y)| (20 - x, y)).collect();
         if let Some(c) = city {
             let pop = self.city_population(c);
             spec.site = if pop.figures == 0 {
@@ -757,6 +832,8 @@ impl Game {
                 let _ = self.world.insert_one(entity, Hurt(hurt as u32));
             }
         }
+        // Passengers of a ship that went down in the fight scramble ashore or drown (task 235).
+        events.extend(self.drown_stranded());
         if let Some(side) = battle.winner {
             events.push(Event::BattleEnded {
                 winner: battle.player_of(side),

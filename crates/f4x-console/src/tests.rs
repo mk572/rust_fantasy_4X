@@ -2894,3 +2894,77 @@ fn a_dead_hero_is_listed_and_raised_from_the_console() {
         "the spell is being cast or the hero is back"
     );
 }
+
+#[test]
+fn every_map_size_makes_a_game_with_the_counts_in_proportion() {
+    let content = content();
+    let sizes = content.settings.map_sizes.clone();
+    assert_eq!(sizes.len(), 4);
+    let mut made_before = 0;
+    for size in sizes {
+        let mut spec = NewGame::with_wizards(5);
+        spec.seed = 11;
+        (
+            spec.settings.basic.map_width,
+            spec.settings.basic.map_height,
+        ) = (size.width, size.height);
+        let game = new_game(&content, &spec).unwrap();
+        let map = game.map().unwrap();
+        assert_eq!(
+            (map.width(), map.height()),
+            (u32::from(size.width), u32::from(size.height))
+        );
+        assert_eq!(
+            (
+                game.settings().basic.map_width,
+                game.settings().basic.map_height
+            ),
+            (size.width, size.height),
+            "the choice is part of the game's settings"
+        );
+        assert_eq!(wizards(&game), 5);
+        let cities = game.economy().cities();
+        let (w, h) = (u32::from(size.width), u32::from(size.height));
+        // Five fortresses, and the neutral cities of both planes scale with the area.
+        let neutral = cities
+            .iter()
+            .filter(|(c, _, _)| {
+                game.economy()
+                    .city_owner(*c)
+                    .is_some_and(|o| game.is_neutral_player(o))
+            })
+            .count() as u32;
+        let wanted = 2 * f4x_core::city::neutral::neutral_city_count(w, h);
+        // The placement gives up after a thousand tries a plane, so about 40% of the target
+        // are made at every size (the 60 by 40 map included): in proportion, and growing.
+        assert!(
+            neutral * 100 >= wanted * 30 && neutral <= wanted,
+            "{}: {neutral} neutral cities of {wanted}",
+            size.name
+        );
+        assert!(
+            neutral > made_before,
+            "{}: more than the smaller map",
+            size.name
+        );
+        made_before = neutral;
+        assert_eq!(cities.len() as u32, 5 + neutral, "{}", size.name);
+        // A save and a load keep the size.
+        let back = game.snapshot().restore(content.clone()).unwrap();
+        assert_eq!(back.map().unwrap().width(), w);
+    }
+}
+
+#[test]
+fn the_new_command_takes_a_map_size() {
+    let mut game = game();
+    let mut c = console();
+    c.execute(&mut game, "new 3 map=huge");
+    let r = c.execute(&mut game, "settings");
+    assert!(r.text().contains("map 90 by 60 squares"), "{}", r.text());
+    assert_eq!(game.map().unwrap().width(), 90);
+    c.execute(&mut game, "new 3 map=75x50");
+    assert_eq!(game.map().unwrap().height(), 50);
+    let r = c.execute(&mut game, "new 3 map=200x200");
+    assert!(r.error.is_some());
+}

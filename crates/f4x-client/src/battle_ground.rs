@@ -223,6 +223,23 @@ impl App {
                         Color::new(0.2, 0.4, 0.2, 1.0),
                     ),
                 }
+                // A ship's deck: brown planks over the water, a darker plank every other square,
+                // until the files' ship pictures are used (task 233).
+                if look.is_some_and(|l| l.roads[(cgy * W + cgx) as usize] == layout::SHIP_DECK) {
+                    let plank = if (cgx + cgy) & 1 == 0 {
+                        Color::new(0.47, 0.31, 0.16, 1.0)
+                    } else {
+                        Color::new(0.41, 0.27, 0.13, 1.0)
+                    };
+                    crate::battle_screen::diamond(sx, sy, scale, plank, true);
+                    crate::battle_screen::diamond(
+                        sx,
+                        sy,
+                        scale,
+                        Color::new(0.25, 0.15, 0.07, 1.0),
+                        false,
+                    );
+                }
                 if river {
                     // Six pictures serve both planes (`river_art.rs`); Myrror's are repainted.
                     let shape = (tile - layout::RIVER_TILE as usize) % 6;

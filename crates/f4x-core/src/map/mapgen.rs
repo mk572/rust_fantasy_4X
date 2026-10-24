@@ -73,6 +73,35 @@ impl Default for GenParams {
     }
 }
 
+/// The size of the map the original's counts are for: 60 by 40 squares.
+pub const REFERENCE_AREA: u32 = 60 * 40;
+
+/// `base` per [`REFERENCE_AREA`] squares, for a map of `width` by `height`, rounded.
+pub fn scaled_count(base: u32, width: u32, height: u32) -> u32 {
+    (base * width * height + REFERENCE_AREA / 2) / REFERENCE_AREA
+}
+
+impl GenParams {
+    /// The parameters for a map of `width` by `height`: the counts of towers, nodes and
+    /// encounter sites (which are the original's for 60 by 40) follow the area.
+    pub fn sized(width: u32, height: u32) -> Self {
+        let d = Self::default();
+        let nodes = |p: PlaneParams| PlaneParams {
+            node_count: scaled_count(u32::from(p.node_count), width, height).min(255) as u8,
+            ..p
+        };
+        Self {
+            width,
+            height,
+            tower_count: scaled_count(u32::from(d.tower_count), width, height).min(255) as u8,
+            strong_sites: scaled_count(d.strong_sites, width, height),
+            weak_sites: scaled_count(d.weak_sites, width, height),
+            planes: [nodes(d.planes[0]), nodes(d.planes[1])],
+            ..d
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GenError {
     BadParams(String),
@@ -183,8 +212,11 @@ fn generate_plane(
     let (w, h) = (params.width, params.height);
     let plane_seed =
         seed.wrapping_add((plane.index() as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
-    let elevation = noise_field(plane_seed, w, h, 3, 4);
-    let moisture = noise_field(plane_seed ^ 0xA5A5_5A5A_1234_4321, w, h, 5, 3);
+    // The noise lattice is counted across the width: a wider map gets more of it, so the
+    // continents keep their size in squares.
+    let across = |freq: u32| ((freq * w + 30) / 60).max(2);
+    let elevation = noise_field(plane_seed, w, h, across(3), 4);
+    let moisture = noise_field(plane_seed ^ 0xA5A5_5A5A_1234_4321, w, h, across(5), 3);
 
     // Land is the top `land_percent` of elevation.
     let sea_level = percentile(&elevation, 100 - params.land_percent as usize);
@@ -595,6 +627,48 @@ mod tests {
             };
             let map = generate(3, &p, &c).unwrap().map;
             assert_eq!((map.width(), map.height()), (w, h));
+        }
+    }
+
+    #[test]
+    fn the_counts_follow_the_area_with_the_originals_for_60_by_40() {
+        assert_eq!(GenParams::sized(60, 40), GenParams::default());
+        let huge = GenParams::sized(90, 60);
+        assert_eq!(huge.tower_count, 14);
+        assert_eq!((huge.strong_sites, huge.weak_sites), (56, 72));
+        assert_eq!(huge.planes[0].node_count, 36);
+        let small = GenParams::sized(45, 30);
+        assert_eq!(
+            (small.tower_count, small.strong_sites, small.weak_sites),
+            (3, 14, 18)
+        );
+        assert_eq!(scaled_count(15, 75, 50), 23);
+    }
+
+    #[test]
+    fn every_size_of_the_range_generates_a_valid_map() {
+        let c = content();
+        for (w, h) in [(45, 30), (75, 50), (90, 60)] {
+            let p = GenParams::sized(w, h);
+            let g = generate(5, &p, &c).unwrap();
+            assert_eq!((g.map.width(), g.map.height()), (w, h));
+            let towers = g
+                .placements
+                .iter()
+                .filter(|p| {
+                    c.features
+                        .get(p.feature)
+                        .is_some_and(|f| f.kind == FeatureKind::Tower)
+                })
+                .count();
+            assert!(
+                towers <= usize::from(p.tower_count),
+                "{w}x{h}: {towers} towers"
+            );
+            assert!(
+                towers + 3 >= usize::from(p.tower_count),
+                "{w}x{h}: {towers} towers"
+            );
         }
     }
 }

@@ -34,6 +34,9 @@ pub const SAIL_COST: u8 = 2;
 /// (which stays ocean).
 pub const DECK: u8 = 0x80;
 pub const DECK_PICTURE: u8 = 0x81;
+/// The road-layer value of a ship's deck in a sea battle (task 233): ground to stand on, apart
+/// from the island's only in that a walker may jump the single square of water between decks.
+pub const SHIP_DECK: u8 = 0x82;
 
 /// The original's city area, in its own frame.
 pub const MIN_CGX_CITY: i32 = 5;
@@ -143,6 +146,8 @@ pub struct Spec {
     /// A Floating Island under the attackers, and under the defenders (water battles).
     pub attacker_island: bool,
     pub defender_island: bool,
+    /// The squares of the ships' decks (water battles), in the original's frame.
+    pub ship_decks: Vec<(i32, i32)>,
 }
 
 impl Spec {
@@ -165,6 +170,7 @@ impl Spec {
             rivers: [false; 9],
             attacker_island: false,
             defender_island: false,
+            ship_decks: Vec::new(),
         }
     }
 }
@@ -599,6 +605,175 @@ pub fn island_decks(attacker: bool, defender: bool) -> IslandDecks {
     decks
 }
 
+/// The squares of a ship's deck of `width` by `length` squares, relative to its top left corner:
+/// long in `y`, pointed at both ends.
+pub fn ship_shape(width: i32, length: i32) -> Vec<(i32, i32)> {
+    let taper = (width / 2).min(2);
+    let least = if width % 2 == 0 { 2 } else { 1 };
+    let mut out = Vec::new();
+    for row in 0..length {
+        let d = row.min(length - 1 - row);
+        let inset = 2 * (taper - d).max(0);
+        let here = (width - inset).max(least).min(width);
+        let x0 = (width - here) / 2;
+        out.extend((x0..x0 + here).map(|x| (x, row)));
+    }
+    out
+}
+
+/// Where the ships' decks lie in a sea battle, in the rules' frame: for each ship of a side, in
+/// the order given, the squares of its deck, or `None` if it did not fit. The first ship of each
+/// side faces the other's across one square of water; the rest lie where they fit, one square of
+/// water between any two decks. `attackers` and `defenders` are the `(width, length)` of each
+/// ship; if the first two cannot face each other nothing is laid out (all `None`).
+pub fn ship_decks(attackers: &[(i32, i32)], defenders: &[(i32, i32)]) -> ShipDecks {
+    let mut out = ShipDecks {
+        attackers: vec![None; attackers.len()],
+        defenders: vec![None; defenders.len()],
+    };
+    let cells_at = |size: (i32, i32), x: i32, y: i32| -> Vec<(i32, i32)> {
+        ship_shape(size.0, size.1)
+            .into_iter()
+            .map(|(dx, dy)| (x + dx, y + dy))
+            .collect()
+    };
+    let inside = |cells: &[(i32, i32)]| cells.iter().all(|&(x, y)| in_band(W - 1 - x, y));
+    let clear = |cells: &[(i32, i32)], placed: &[(i32, i32)]| {
+        cells.iter().all(|&(x, y)| {
+            placed
+                .iter()
+                .all(|&(px, py)| (px - x).abs().max((py - y).abs()) > 1)
+        })
+    };
+    let mut placed: Vec<(i32, i32)> = Vec::new();
+    // The first ships face each other across a gap column.
+    let first = match (attackers.first(), defenders.first()) {
+        (Some(&a), Some(&d)) => {
+            let mut best: Option<(i32, Cells, Cells)> = None;
+            for edge in 0..W {
+                let (xa, xd) = (edge - a.0 + 1, edge + 2);
+                if xa < 0 || xd + d.0 > W {
+                    continue;
+                }
+                for ya in 0..=(H - a.1) {
+                    let ca = cells_at(a, xa, ya);
+                    if !inside(&ca) {
+                        continue;
+                    }
+                    for yd in 0..=(H - d.1) {
+                        let cd = cells_at(d, xd, yd);
+                        if !inside(&cd) {
+                            continue;
+                        }
+                        let score = (edge - 9).abs() * 2
+                            + (ya * 2 + a.1 - H).abs()
+                            + (yd * 2 + d.1 - H).abs();
+                        if best.as_ref().is_none_or(|b| score < b.0) {
+                            best = Some((score, ca.clone(), cd));
+                        }
+                    }
+                }
+            }
+            best.map(|(_, ca, cd)| (ca, cd))
+        }
+        // One side alone: its first ship lies by the middle, on its own side.
+        (Some(&one), None) | (None, Some(&one)) => {
+            let attacker = defenders.is_empty();
+            let mut best: Option<(i32, Cells)> = None;
+            for x in 0..=(W - one.0) {
+                for y in 0..=(H - one.1) {
+                    let cells = cells_at(one, x, y);
+                    if !inside(&cells) {
+                        continue;
+                    }
+                    let edge = if attacker { x + one.0 - 1 } else { x };
+                    let score = (edge - if attacker { 9 } else { 11 }).abs() * 2
+                        + (y * 2 + one.1 - H).abs();
+                    if best.as_ref().is_none_or(|b| score < b.0) {
+                        best = Some((score, cells));
+                    }
+                }
+            }
+            best.map(|(_, c)| {
+                if attacker {
+                    (c, Vec::new())
+                } else {
+                    (Vec::new(), c)
+                }
+            })
+        }
+        _ => None,
+    };
+    let Some((ca, cd)) = first else {
+        return out;
+    };
+    placed.extend(&ca);
+    placed.extend(&cd);
+    let centre = |c: &[(i32, i32)]| {
+        let n = c.len() as i32;
+        (
+            c.iter().map(|p| p.0).sum::<i32>() / n,
+            c.iter().map(|p| p.1).sum::<i32>() / n,
+        )
+    };
+    let anchors = [
+        if ca.is_empty() { (9, 11) } else { centre(&ca) },
+        if cd.is_empty() { (11, 11) } else { centre(&cd) },
+    ];
+    if !ca.is_empty() {
+        out.attackers[0] = Some(ca);
+    }
+    if !cd.is_empty() {
+        out.defenders[0] = Some(cd);
+    }
+    for (side, sizes) in [(0usize, attackers), (1, defenders)] {
+        for (n, &size) in sizes.iter().enumerate().skip(1) {
+            let mut best: Option<(i32, Vec<(i32, i32)>)> = None;
+            for x in 0..=(W - size.0) {
+                for y in 0..=(H - size.1) {
+                    let cells = cells_at(size, x, y);
+                    if !inside(&cells) || !clear(&cells, &placed) {
+                        continue;
+                    }
+                    let c = centre(&cells);
+                    let near = (c.0 - anchors[side].0)
+                        .abs()
+                        .max((c.1 - anchors[side].1).abs());
+                    // A side keeps to its own half of the field.
+                    let wrong = if side == 0 {
+                        (c.0 - 9).max(0)
+                    } else {
+                        (11 - c.0).max(0)
+                    };
+                    let score = near + wrong * 2;
+                    if best.as_ref().is_none_or(|b| score < b.0) {
+                        best = Some((score, cells));
+                    }
+                }
+            }
+            if let Some((_, cells)) = best {
+                placed.extend(&cells);
+                if side == 0 {
+                    out.attackers[n] = Some(cells);
+                } else {
+                    out.defenders[n] = Some(cells);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The squares of one deck.
+type Cells = Vec<(i32, i32)>;
+
+/// See [`ship_decks`]: the deck of each ship, in the order the sizes were given.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShipDecks {
+    pub attackers: Vec<Option<Vec<(i32, i32)>>>,
+    pub defenders: Vec<Option<Vec<(i32, i32)>>>,
+}
+
 /// See [`island_decks`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IslandDecks {
@@ -783,7 +958,10 @@ fn movement_costs(
                 }
                 _ => {}
             }
-            if roads[i] != 0 && roads[i] != DECK_PICTURE {
+            if roads[i] == SHIP_DECK {
+                cost[i] = 2;
+                sail[i] = INF;
+            } else if roads[i] != 0 && roads[i] != DECK_PICTURE {
                 cost[i] = 1;
                 sail[i] = INF;
             }
@@ -1014,6 +1192,9 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
         }
         for &(x, y) in &decks.pictures {
             roads[at(x, y)] = DECK_PICTURE;
+        }
+        for &(x, y) in &spec.ship_decks {
+            roads[at(x, y)] = SHIP_DECK;
         }
         let (cost, sail) = movement_costs(&group, &roads, Site::Open, Structure::Outpost);
         return Layout {
@@ -1371,6 +1552,64 @@ mod tests {
             // Every cell a unit may deploy on can be entered on foot.
             for (x, y) in [(14, 12), (15, 11), (16, 13), (8, 12), (7, 11)] {
                 assert_ne!(l.cost_at(x, y), INF, "seed {seed} ({x},{y})");
+            }
+        }
+    }
+
+    #[test]
+    fn a_ship_deck_is_pointed_at_both_ends() {
+        let shape = ship_shape(5, 9);
+        let width = |row: i32| shape.iter().filter(|p| p.1 == row).count();
+        assert_eq!(
+            (0..9).map(width).collect::<Vec<_>>(),
+            vec![1, 3, 5, 5, 5, 5, 5, 3, 1]
+        );
+        assert_eq!(ship_shape(4, 8).iter().filter(|p| p.1 == 0).count(), 2);
+    }
+
+    #[test]
+    fn every_pair_of_ships_faces_across_one_square_of_water() {
+        let sizes = [(3, 7), (4, 8), (5, 9)];
+        for a in sizes {
+            for d in sizes {
+                let decks = ship_decks(&[a], &[d]);
+                let (Some(da), Some(dd)) = (&decks.attackers[0], &decks.defenders[0]) else {
+                    panic!("{a:?} against {d:?} did not fit");
+                };
+                for &(x, y) in da.iter().chain(dd) {
+                    assert!(
+                        in_band(W - 1 - x, y),
+                        "{a:?} {d:?}: ({x}, {y}) is off the field"
+                    );
+                }
+                let gap = da
+                    .iter()
+                    .flat_map(|p| {
+                        dd.iter()
+                            .map(move |q| (p.0 - q.0).abs().max((p.1 - q.1).abs()))
+                    })
+                    .min()
+                    .unwrap();
+                assert_eq!(gap, 2, "{a:?} against {d:?}: one square of water between");
+            }
+        }
+    }
+
+    #[test]
+    fn more_ships_lie_where_they_fit_with_water_between() {
+        let decks = ship_decks(&[(3, 7), (3, 7)], &[(3, 7), (3, 7), (3, 7)]);
+        let all: Vec<_> = decks
+            .attackers
+            .iter()
+            .chain(&decks.defenders)
+            .flatten()
+            .collect();
+        assert!(all.len() >= 3, "{} ships laid out", all.len());
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert!(a.iter().all(|p| b
+                    .iter()
+                    .all(|q| (p.0 - q.0).abs().max((p.1 - q.1).abs()) >= 2)));
             }
         }
     }

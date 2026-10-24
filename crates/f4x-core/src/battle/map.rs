@@ -18,6 +18,8 @@ pub mod layout;
 use layout::{Layout, Look, Set, Spec};
 use rand::Rng;
 
+/// Half-moves to jump the square of water between two ships' decks: two moves.
+pub const JUMP_COST: u32 = 4;
 pub const GRID_W: i32 = 21;
 pub const GRID_H: i32 = 22;
 
@@ -125,6 +127,9 @@ pub struct BattleMap {
     fortress: bool,
     /// Squares Earth to Mud turned to mud.
     mud: Vec<bool>,
+    /// The squares of a ship's deck in a sea battle (task 233).
+    #[serde(default)]
+    ship_deck: Vec<bool>,
 }
 
 impl BattleMap {
@@ -138,7 +143,18 @@ impl BattleMap {
             walls: None,
             fortress: false,
             mud: vec![false; (GRID_W * GRID_H) as usize],
+            ship_deck: vec![false; (GRID_W * GRID_H) as usize],
         }
+    }
+
+    /// Whether the square is a ship's deck.
+    pub fn is_ship_deck(&self, pos: Pos) -> bool {
+        Self::in_bounds(pos)
+            && self
+                .ship_deck
+                .get(Self::index(pos))
+                .copied()
+                .unwrap_or(false)
     }
 
     /// Whether the square is mud.
@@ -277,6 +293,8 @@ impl BattleMap {
                 let i = Self::index((x, y));
                 map.costs[i] = cost;
                 map.sail[i] = layout.sail_at(cgx, cgy);
+                map.ship_deck[i] =
+                    layout.look.roads[(cgy * layout::W + cgx) as usize] == layout::SHIP_DECK;
                 map.cells[i] = match cost {
                     _ if layout.is_void(cgx, cgy) => Cell::Void,
                     // Ocean: walkers cannot enter it, ships and fliers can.
@@ -490,6 +508,30 @@ impl BattleMap {
                     }
                     best.insert(next, (total, at));
                     queue.push(Reverse((total, next)));
+                }
+            }
+            // From one ship's deck a walker may jump the single square of water to another
+            // deck (task 233), for two moves; any move left lets it, as with rough ground.
+            if self.is_ship_deck(at) && !mover.flying && !mover.sails {
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+                        let (gap, far) = ((at.0 + dx, at.1 + dy), (at.0 + 2 * dx, at.1 + 2 * dy));
+                        if self.enter_cost_as(gap, mover).is_some()
+                            || !self.is_ship_deck(far)
+                            || occupied(far)
+                        {
+                            continue;
+                        }
+                        let total = cost + JUMP_COST;
+                        if cost >= points || best.get(&far).is_some_and(|&(c, _)| c <= total) {
+                            continue;
+                        }
+                        best.insert(far, (total, at));
+                        queue.push(Reverse((total, far)));
+                    }
                 }
             }
         }

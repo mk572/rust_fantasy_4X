@@ -44,6 +44,8 @@ pub(crate) struct OptionsState {
     pub land: u8,
     /// Index into [`MAGIC_LEVELS`].
     pub magic: u8,
+    /// Index into `settings.map_sizes`.
+    pub map: u8,
 }
 
 impl OptionsState {
@@ -59,7 +61,20 @@ impl OptionsState {
             opponents: b.opponents.clamp(1, settings.max_opponents),
             land: land as u8,
             magic: b.magic_strength.min(2),
+            map: (0..settings.map_sizes.len())
+                .min_by_key(|&i| {
+                    let m = &settings.map_sizes[i];
+                    m.width.abs_diff(b.map_width) + m.height.abs_diff(b.map_height)
+                })
+                .unwrap_or(0) as u8,
         }
+    }
+
+    /// The squares across and down of the chosen map size.
+    pub fn map_size(&self, settings: &SettingsDef) -> (u16, u16) {
+        let sizes = &settings.map_sizes;
+        let m = &sizes[usize::from(self.map).min(sizes.len() - 1)];
+        (m.width, m.height)
     }
 
     /// The land share of the chosen size.
@@ -130,8 +145,43 @@ impl App {
                 changed = Some(i);
             }
         }
+        // The original's picture has four buttons only: the map size is a line of text under
+        // them.
+        let map_label = {
+            let (w, h) = o.map_size(&self.game.content().settings);
+            self.text("options.map_size").to_string() + &format!(": {w} x {h}")
+        };
+        let hover = lay.rect((250.0, 143.0, 66.0, 12.0)).contains(mouse);
+        let shift = if hover { 1.0 } else { 0.0 };
+        self.bm_text(
+            view,
+            3,
+            shadow,
+            &map_label,
+            283.0 + shift,
+            146.0 + shift,
+            Align::Center,
+        );
+        self.bm_text(
+            view,
+            3,
+            if hover {
+                Color::new(1.0, 1.0, 0.7, 1.0)
+            } else {
+                font
+            },
+            &map_label,
+            282.0 + shift,
+            145.0 + shift,
+            Align::Center,
+        );
+        if hover && clicked {
+            changed = Some(4);
+        }
         let o = &mut self.options;
+        let map_sizes = self.game.content().settings.map_sizes.len() as u8;
         match changed {
+            Some(4) => o.map = (o.map + 1) % map_sizes,
             Some(0) => o.difficulty = (o.difficulty + 1) % 5,
             Some(1) => o.opponents = o.opponents.clamp(1, most) % most + 1,
             Some(2) => o.land = (o.land + 1) % sizes,
@@ -176,11 +226,12 @@ impl App {
             y += 16.0;
             let difficulties = DIFFICULTIES.map(|k| self.text(k));
             let magic_levels = MAGIC_LEVELS.map(|k| self.text(k));
-            let (difficulty, opponents_label, land_label, magic_label, back_label) = (
+            let (difficulty, opponents_label, land_label, magic_label, map_label, back_label) = (
                 self.text("options.difficulty"),
                 self.text("options.opponents"),
                 self.text("options.land_size"),
                 self.text("options.magic_power"),
+                self.text("options.map_size"),
                 self.text("options.back"),
             );
             let o = &mut self.options;
@@ -199,6 +250,8 @@ impl App {
             let lands: Vec<String> = settings.land_sizes.iter().map(|s| s.name.clone()).collect();
             o.land = choose(x, &mut y, &land_label, &lands, o.land);
             o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic);
+            let maps: Vec<String> = settings.map_sizes.iter().map(|s| s.name.clone()).collect();
+            o.map = choose(x, &mut y, &map_label, &maps, o.map);
             button(Rect::new(x, y + 20.0, 150.0, 40.0), &back_label, true)
         } else {
             draw_text(self.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
@@ -254,6 +307,12 @@ pub(crate) fn settings_lines(
             &Args::new().count("n", b.opponents),
         ),
         texts.get("options.line_land", &Args::new().count("n", b.land_percent)),
+        texts.get(
+            "options.line_map",
+            &Args::new()
+                .count("w", i32::from(b.map_width))
+                .count("h", i32::from(b.map_height)),
+        ),
         texts.get(
             "options.line_magic",
             &Args::new().text("name", name(&MAGIC_LEVELS, b.magic_strength)),

@@ -77,7 +77,7 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let accept = match &offer {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),
             Offer::Mercenaries { price, .. } => ai_accepts_mercenaries(turn, *price, gold),
-            Offer::Item { price, .. } => ai_accepts_item(
+            Offer::Item { price, .. } | Offer::Resale { price, .. } => ai_accepts_item(
                 *price,
                 gold,
                 PlayerView::new(game, ai.player).my_heroes().len(),
@@ -97,6 +97,55 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         ai.send(game, command, events);
     }
+}
+
+/// The computer wizards answer the items resold to them now (task 294), one after the other
+/// round the cycle until the item is taken or nobody is left. Returns the events.
+pub fn answer_resales(game: &mut Game) -> Vec<Event> {
+    let mut events = Vec::new();
+    // Every refusal passes the item on, so the cycle is as long as the number of wizards.
+    for _ in 0..game.player_ids().len() {
+        let waiting: Vec<_> = game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| Some(p) != game.human() && !game.is_neutral_player(p))
+            .filter(|&p| {
+                PlayerView::new(game, p)
+                    .offers()
+                    .iter()
+                    .any(|o| matches!(o, Offer::Resale { .. }))
+            })
+            .collect();
+        if waiting.is_empty() {
+            break;
+        }
+        for player in waiting {
+            let ai = Ai::new(player);
+            let (index, price, heroes, gold) = {
+                let view = PlayerView::new(game, player);
+                let Some(index) = view
+                    .offers()
+                    .iter()
+                    .position(|o| matches!(o, Offer::Resale { .. }))
+                else {
+                    continue;
+                };
+                let price = view.offers()[index].price();
+                (index, price, view.my_heroes().len(), view.treasury().gold)
+            };
+            let command = if ai_accepts_item(price, gold, heroes) {
+                Command::AcceptOffer {
+                    player,
+                    index,
+                    name: None,
+                }
+            } else {
+                Command::RejectOffer { player, index }
+            };
+            ai.send(game, command, &mut events);
+        }
+    }
+    events
 }
 
 #[cfg(test)]
@@ -211,5 +260,55 @@ mod tests {
             }
         }
         assert!(equipped, "the hero never got an item");
+    }
+
+    fn item(cost: u32) -> f4x_core::item::Item {
+        f4x_core::item::Item {
+            name: "Sword".into(),
+            kind: f4x_core::rules::ItemKind::Sword,
+            cost,
+            icon: 0,
+            bonus: f4x_core::item::ItemBonus::default(),
+            powers: Vec::new(),
+            charges: None,
+            prefab: None,
+            made: None,
+        }
+    }
+
+    #[test]
+    fn a_computer_wizard_with_a_hero_and_the_gold_buys_a_resold_item_and_one_without_does_not() {
+        use f4x_core::item::armory::Spot;
+        let mut g = game();
+        let sell = |g: &mut Game| {
+            g.give_item(PlayerId(0), item(1000));
+            let mut events = g.apply(Command::SellItem {
+                player: PlayerId(0),
+                from: Spot::Vault(0),
+            });
+            events.extend(answer_resales(g));
+            events
+        };
+        // No hero to carry it: turned down, and the item is gone.
+        g.treasury_mut(P1).unwrap().gold = 5000;
+        let events = sell(&mut g);
+        assert!(g.offers(P1).is_empty());
+        assert!(!events.iter().any(|e| matches!(e, Event::ItemMade { .. })));
+        assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 0);
+        // With a hero and gold it buys at the price the seller was paid.
+        offer_hero(&mut g);
+        let mut hired = Vec::new();
+        answer(&Ai::new(P1), &mut g, &mut hired);
+        assert!(!g.units().hero_units(P1).is_empty(), "{hired:?}");
+        let gold = g.treasury_mut(P1).unwrap().gold;
+        let events = sell(&mut g);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::ItemMade { player: P1, .. })),
+            "{events:?}"
+        );
+        assert_eq!(g.treasury_mut(P1).unwrap().gold, gold - 500);
+        assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
     }
 }

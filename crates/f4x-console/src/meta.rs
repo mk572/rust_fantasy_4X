@@ -68,7 +68,7 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "new",
         kind: Kind::Legal,
-        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful]",
+        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [map=small|medium|large|huge|<width>x<height>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful]",
         help: "Start a new game on a generated map, replacing this one. Without wizard or books, a fixed wizard is used.",
         run: new,
     },
@@ -171,6 +171,7 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         }
     ));
     ctx.say(format!("land {}%", b.land_percent));
+    ctx.say(format!("map {} by {} squares", b.map_width, b.map_height));
     ctx.say(format!(
         "magic power {} ({})",
         b.magic_strength,
@@ -374,6 +375,33 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     .zip(sizes.iter().map(|s| s.land_percent))
                     .collect();
                 spec.settings.basic.land_percent = parse_choice(v, "land", &table, 1, 99)?;
+            }
+            "map" => {
+                // A size of `settings.ron` by lower-case name, or `<width>x<height>`.
+                let lower = v.to_lowercase();
+                let sizes = &ctx.game.content().settings.map_sizes;
+                let by_name = sizes.iter().find(|s| s.name.to_lowercase() == lower);
+                let (width, height) = match by_name {
+                    Some(s) => (s.width, s.height),
+                    None => lower
+                        .split_once('x')
+                        .and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?)))
+                        .ok_or_else(|| {
+                            ConsoleError::Parse(format!(
+                                "{v:?} is not a map size: use a name or <width>x<height>"
+                            ))
+                        })?,
+                };
+                use f4x_core::game::setting::{MAP_HEIGHTS, MAP_WIDTHS};
+                if !MAP_WIDTHS.contains(&width) || !MAP_HEIGHTS.contains(&height) {
+                    return Err(ConsoleError::Parse(format!(
+                        "a map is {MAP_WIDTHS:?} by {MAP_HEIGHTS:?} squares"
+                    )));
+                }
+                (
+                    spec.settings.basic.map_width,
+                    spec.settings.basic.map_height,
+                ) = (width, height);
             }
             "difficulty" => {
                 // A level brings the original's figures for it; the other basic choices stay.

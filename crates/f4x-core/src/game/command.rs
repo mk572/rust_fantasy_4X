@@ -124,6 +124,12 @@ pub enum Command {
         player: player::PlayerId,
         from: item::armory::Spot,
     },
+    /// Sell a vault or award item for half its value in gold; the other wizards are offered it
+    /// at that price in turn.
+    SellItem {
+        player: player::PlayerId,
+        from: item::armory::Spot,
+    },
     /// Take one of the offers made at the turn change (the merchant's item, mercenaries or a
     /// hero for hire); `name` renames a hero before it joins.
     AcceptOffer {

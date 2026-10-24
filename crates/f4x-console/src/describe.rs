@@ -94,6 +94,10 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
             "the item {} for {price} gold",
             item.display_name(game.content())
         ),
+        Offer::Resale { item, price, .. } => format!(
+            "the item {} for {price} gold, sold by another wizard",
+            item.display_name(game.content())
+        ),
     }
 }
 
@@ -420,6 +424,9 @@ pub fn event(game: &Game, e: &Event) -> String {
         }
         Event::OfferMade { player: p, offer: o } => {
             format!("{} is offered: {}", player(game, *p), offer(game, o))
+        }
+        Event::ItemSold { player: p, name, gold } => {
+            format!("{} sells the item {name} for {gold} gold", player(game, *p))
         }
         Event::MercenariesHired { player: p, units } => {
             format!("{} hires {} mercenaries", player(game, *p), units.len())

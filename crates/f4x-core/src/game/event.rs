@@ -302,6 +302,12 @@ pub enum Event {
         player: player::PlayerId,
         offer: player::offer::Offer,
     },
+    /// A wizard sold an item for `gold` (task 294); it is offered to the others next.
+    ItemSold {
+        player: player::PlayerId,
+        name: String,
+        gold: i32,
+    },
     /// A company of mercenaries joined the army at the summoning circle.
     MercenariesHired {
         player: player::PlayerId,

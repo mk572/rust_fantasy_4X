@@ -50,6 +50,14 @@ pub enum Offer {
     },
     /// A merchant sells a magic item.
     Item { item: Item, price: i32 },
+    /// A wizard's item is sold at half its value (task 294): it is offered to the other wizards
+    /// in turn, `rest` still to be asked after this one.
+    Resale {
+        item: Item,
+        price: i32,
+        seller: PlayerId,
+        rest: Vec<PlayerId>,
+    },
 }
 
 impl Offer {
@@ -57,7 +65,8 @@ impl Offer {
         match self {
             Offer::Hero { price, .. }
             | Offer::Mercenaries { price, .. }
-            | Offer::Item { price, .. } => *price,
+            | Offer::Item { price, .. }
+            | Offer::Resale { price, .. } => *price,
         }
     }
 }
@@ -255,11 +264,20 @@ impl Game {
     /// An offer that was not taken is withdrawn: its item is gone from the game and a prefab one
     /// can be offered again.
     fn release_offer(&mut self, player: PlayerId, offer: &Offer) {
-        if let Offer::Item { item, .. } = offer {
-            if let Some(entity) = self.offered_item(player, item) {
-                self.despawn_item(entity);
+        match offer {
+            Offer::Item { item, .. } => {
+                if let Some(entity) = self.offered_item(player, item) {
+                    self.despawn_item(entity);
+                }
+                self.release_prefab(item);
             }
-            self.release_prefab(item);
+            // A resold item that nobody takes is gone; its prefab stays taken.
+            Offer::Resale { item, .. } => {
+                if let Some(entity) = self.offered_item(player, item) {
+                    self.despawn_item(entity);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -475,7 +493,7 @@ impl Game {
                 }
                 vec![Event::MercenariesHired { player, units }]
             }
-            Offer::Item { item, price } => {
+            Offer::Item { item, price } | Offer::Resale { item, price, .. } => {
                 if let Some(t) = self.treasury_mut(player) {
                     t.gold -= price;
                 }
@@ -500,15 +518,97 @@ impl Game {
         Ok(events)
     }
 
-    /// Turn the offer down.
-    pub fn reject_offer(&mut self, player: PlayerId, index: usize) -> Result<(), OfferError> {
+    /// Turn the offer down. A resold item goes on to the next wizard in the cycle.
+    pub fn reject_offer(
+        &mut self,
+        player: PlayerId,
+        index: usize,
+    ) -> Result<Vec<Event>, OfferError> {
         let offer = self
             .player_component_mut::<Offers>(player)
             .filter(|o| index < o.0.len())
             .map(|o| o.0.remove(index))
             .ok_or(OfferError::NoOffer)?;
         self.release_offer(player, &offer);
-        Ok(())
+        Ok(match offer {
+            Offer::Resale {
+                item, price, rest, ..
+            } => self.offer_resale(item, price, player, rest),
+            _ => Vec::new(),
+        })
+    }
+
+    /// Sell the item in a vault slot or on the award list (task 294): the seller is paid half its
+    /// value in gold at once, and the item is offered at that price to the other wizards, those
+    /// whose fortress is on the seller's plane first, each group starting after the seller in the
+    /// order of the players. The first to take it pays; if nobody does, the item is gone.
+    pub fn sell_item(
+        &mut self,
+        player: PlayerId,
+        from: crate::item::armory::Spot,
+    ) -> Option<Vec<Event>> {
+        use crate::item::armory::{ItemSpot, Spot};
+        let spot = match from {
+            Spot::Vault(i) => ItemSpot::Vault(i),
+            Spot::Award(i) => ItemSpot::Award(i),
+        };
+        let item = self.remove_item_at(player, spot)?;
+        let price = item.anvil_mana();
+        self.treasury_mut(player)?.gold += price;
+        let name = item.display_name(&self.content);
+        let plane_of = |g: &Game, p: PlayerId| g.wizard(p)?.summon_point().map(|at| at.plane);
+        let mine = plane_of(self, player);
+        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
+        let start = ids.iter().position(|&p| p == player).unwrap_or(0);
+        let others: Vec<PlayerId> = (1..ids.len())
+            .map(|n| ids[(start + n) % ids.len()])
+            .filter(|&p| self.can_be_offered(p))
+            .collect();
+        let (same, other): (Vec<_>, Vec<_>) = others
+            .into_iter()
+            .partition(|&p| mine.is_some() && plane_of(self, p) == mine);
+        let queue: Vec<PlayerId> = same.into_iter().chain(other).collect();
+        let mut events = vec![Event::ItemSold {
+            player,
+            name,
+            gold: price,
+        }];
+        events.extend(self.offer_resale(item, price, player, queue));
+        Some(events)
+    }
+
+    /// Offer a resold item to the next wizard of `queue` who can pay for it; with nobody left it
+    /// is gone.
+    fn offer_resale(
+        &mut self,
+        item: Item,
+        price: i32,
+        seller: PlayerId,
+        mut queue: Vec<PlayerId>,
+    ) -> Vec<Event> {
+        while !queue.is_empty() {
+            let buyer = queue.remove(0);
+            if !self.can_be_offered(buyer)
+                || self.player(buyer).map_or(0, |p| p.treasury().gold) < price
+            {
+                continue;
+            }
+            self.spawn_item(item.clone(), crate::item::entity::HeldBy::Offered(buyer));
+            let offer = Offer::Resale {
+                item,
+                price,
+                seller,
+                rest: queue,
+            };
+            if let Some(o) = self.player_component_mut::<Offers>(buyer) {
+                o.0.push(offer.clone());
+            }
+            return vec![Event::OfferMade {
+                player: buyer,
+                offer,
+            }];
+        }
+        Vec::new()
     }
 }
 

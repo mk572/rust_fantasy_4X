@@ -78,7 +78,12 @@ impl App {
             .player(HUMAN)
             .is_some_and(|p| p.treasury().gold >= offer.price());
         let (accept, reject) = match &offer {
-            Offer::Item { item, price } => self.merchant_box(&lay, item, *price, affordable),
+            Offer::Item { item, price } => {
+                self.merchant_box(&lay, item, *price, "offer.merchant", affordable)
+            }
+            Offer::Resale { item, price, .. } => {
+                self.merchant_box(&lay, item, *price, "offer.resale", affordable)
+            }
             _ => self.hire_box(&lay, &offer, affordable),
         };
         if accept {
@@ -99,10 +104,12 @@ impl App {
             if self.offer_ui.naming {
                 self.offer_ui.naming = false;
             } else {
-                let events = self.game.apply(Command::RejectOffer {
+                let mut events = self.game.apply(Command::RejectOffer {
                     player: HUMAN,
                     index: 0,
                 });
+                // A resold item goes on to the next wizard, who may be a computer one.
+                events.extend(f4x_ai::answer_resales(&mut self.game));
                 self.note(events);
             }
         }
@@ -116,6 +123,7 @@ impl App {
         lay: &Layout,
         item: &f4x_core::item::Item,
         price: i32,
+        key: &str,
         affordable: bool,
     ) -> (bool, bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -125,10 +133,7 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
         let name = item.display_name(self.game.content());
-        let text = self.text_with(
-            "offer.merchant",
-            &Args::new().text("item", &name).count("price", price),
-        );
+        let text = self.text_with(key, &Args::new().text("item", &name).count("price", price));
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
@@ -166,7 +171,7 @@ impl App {
             Offer::Mercenaries { unit, level, .. } => {
                 (rules.units.by_name(unit), Some(usize::from(*level)))
             }
-            Offer::Item { .. } => (None, None),
+            Offer::Item { .. } | Offer::Resale { .. } => (None, None),
         };
         if let Some(def) = def {
             let sheet = self.offer_sheet(def, level, HUMAN.0);
@@ -181,7 +186,7 @@ impl App {
                 "offer.mercenaries",
                 &Args::new().count("n", *count).count("price", price),
             ),
-            Offer::Item { .. } => String::new(),
+            Offer::Item { .. } | Offer::Resale { .. } => String::new(),
         };
         self.bm_text(view, 4, gold, &title, wx + 103.0, wy - 14.0, Align::Center);
 

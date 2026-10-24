@@ -45,6 +45,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
     legal!("accept", "accept <offer> [name]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one.", accept),
     legal!("equip", "equip <from> <to> [pay]", "Move an item between the vault, the award list and a hero's slots (vault:N, award:N, hero:UNIT:SLOT; see `items`); `pay` agrees to the mana a far-off hero costs.", equip),
+    legal!("sell-item", "sell-item <vault:N|award:N>", "Sell a vault or award item for half its value in gold; the other wizards are offered it at that price in turn.", sell_item),
     legal!("scrap", "scrap <vault:N|award:N>", "Destroy a vault or award item for half its value in mana.", scrap),
     legal!("craft", "craft <enchant|artifact> <kind> <power,power|-> [charges:<spell>:<n>] [name...]", "Design an item and start casting Enchant Item or Create Artifact (kinds: sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail; powers are ids of `item_powers.ron`).", craft),
     legal!("resurrect", "resurrect <hero>", "Cast Resurrection on a dead hero, by the number or name `dead` lists; if it is paid over turns, give the hero once the cost is paid.", resurrect),
@@ -605,6 +606,29 @@ fn scrap(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     let player = ctx.session.player;
     ctx.apply(Command::ScrapItem { player, from })
+}
+
+fn sell_item(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    use f4x_core::item::armory::{ItemSpot, Spot};
+    let from = match crate::args::parse_item_spot(ctx.game, a.need(0, "place")?)? {
+        ItemSpot::Vault(i) => Spot::Vault(i),
+        ItemSpot::Award(i) => Spot::Award(i),
+        ItemSpot::Hero(..) => {
+            return Err(ConsoleError::Parse(
+                "only the vault and the award list can be sold".into(),
+            ))
+        }
+    };
+    let player = ctx.session.player;
+    ctx.apply(Command::SellItem { player, from })?;
+    // The computer wizards answer at once, round the cycle.
+    let events = f4x_ai::answer_resales(ctx.game);
+    for e in &events {
+        let text = crate::describe::event(ctx.game, e);
+        ctx.say(text);
+    }
+    ctx.events.extend(events);
+    Ok(())
 }
 
 fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

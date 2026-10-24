@@ -694,3 +694,31 @@ Three places where the original's immunity code is a known bug and the game foll
 (`combat.md` section 2.1 has the whole audit): **ships and catapults** have no magical weapon, so
 weapon immunity stops them; **Wraith Form** is no shelter from Wrack or Call Lightning; **death
 immunity** protects against Terror. The other differences listed there are kept as the original.
+
+## 36. Ships in battle, lost ships and lakes (tasks 233, 234, 235, 236, 253, 352)
+
+- **Sea battles** (233, 352): the original keeps land units out of a fight on the sea unless a
+  Floating Island or Wind Walking carries them, and has no ship on the field. Ours lays each
+  ship out as a deck of brown squares with pointed ends (`units.ron` `deck`), with one square of
+  water between ships that a walker may jump for two moves; the land units aboard fight on the
+  deck, and the Floating Island is a ship here. See `combat.md` "Water battles".
+- **Attacking from a ship** (234): follows ReMoM, which bars nothing.
+- **A ship lost** (235): the original has no rule; ours lets the passengers use the fleeing odds
+  beside land (some drown) and drowns them in open sea; fliers and swimmers always survive.
+- **The stack limit** (236): unchanged, nine units a tile with passengers counted; a separate fix of
+  the limits is planned.
+- **Lakes with an inflow** (253): drawn with the original's `_1LakeRiv_*` pieces, but the map is
+  not rewritten: a lake without an inflow stays a lake (the original makes it desert) and extra
+  inflows stay rivers (the original turns them to grassland).
+- **Selling an item** (294): the original's anvil only turns an item into mana. Ours adds a sale
+  (`Command::SellItem`, S on the item screen, `sell-item` in the console): the seller is paid half
+  the item's value in gold at once, and the item is offered at that price (`Offer::Resale`) to
+  the other wizards in turn, those whose fortress is on the seller's plane first, each group
+  starting after the seller; a wizard who cannot pay is not asked. A computer wizard answers
+  through `f4x_ai::answer_resales` by the merchant's rule (a hero to carry it, the price at most
+  half its gold); a human sees the merchant's box. The first to take it pays the same price to
+  nobody (the gold the seller got is the market's); if nobody does, the item is gone.
+- **Map sizes** (343): the original has one map size, 60 by 40; ours offers four (45 by 30 to
+  90 by 60) and scales the counts per 2400 squares. The neutral cities are placed with a limit
+  of a thousand tries a plane, so about 40% of the target are made at every size, the 60 by 40
+  map included.

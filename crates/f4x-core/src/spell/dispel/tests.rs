@@ -535,6 +535,20 @@ fn a_wizard_turns_off_only_their_own_spell_on_a_unit() {
     assert_eq!(g.units().unit_enchantments(unit), vec![(strength, P1)]);
 }
 
+/// The squares round (x, y) turn to ocean too: no shore to scramble to.
+fn open_sea(g: &mut Game, x: u32, y: u32) {
+    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    for dy in 0..3 {
+        for dx in 0..3 {
+            g.map
+                .as_mut()
+                .unwrap()
+                .plane_mut(Plane::Arcanus)
+                .set(x - 1 + dx, y - 1 + dy, ocean);
+        }
+    }
+}
+
 #[test]
 fn turning_off_water_walking_at_sea_drowns_the_unit() {
     let mut g = world();
@@ -544,6 +558,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() {
         .unwrap()
         .plane_mut(Plane::Arcanus)
         .set(3, 3, ocean);
+    open_sea(&mut g, 3, 3);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let walking = sp(&g, "water_walking");
@@ -575,6 +590,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() {
         .unwrap()
         .plane_mut(Plane::Arcanus)
         .set(3, 3, ocean);
+    open_sea(&mut g, 3, 3);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let flight = sp(&g, "flight");

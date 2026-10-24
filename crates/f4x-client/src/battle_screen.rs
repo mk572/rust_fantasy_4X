@@ -2093,7 +2093,7 @@ fn draw_wall(wall: Wall, (sx, sy): (f32, f32), scale: f32) {
     draw_triangle(bottom + up, east + up, west + up, top);
 }
 
-fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {
+pub(crate) fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {
     let (w, h) = (CELL_W * scale, CELL_H * scale);
     let top = vec2(sx + w / 2.0, sy);
     let right = vec2(sx + w, sy + h / 2.0);
