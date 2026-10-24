@@ -276,8 +276,13 @@ impl App {
         {
             self.select_next(sel);
         }
-        if self.bar_button(&lay, (3, 28), (rx, row(2.0)), my_turn && sel.is_some()) {
-            order = sel.map(|u| BattleCommand::Done { unit: u });
+        // Done ends the selected unit's turn; with no unit left that can act it ends the side's.
+        if self.bar_button(&lay, (3, 28), (rx, row(2.0)), my_turn) {
+            let active = sel.filter(|&u| battle.unit(u).is_some_and(super::unfinished));
+            order = Some(match active {
+                Some(unit) => BattleCommand::Done { unit },
+                None => BattleCommand::EndTurn,
+            });
         }
         // Auto hands your side to the computer; pressed again, it takes it back.
         let auto = self.battle_ui.auto;

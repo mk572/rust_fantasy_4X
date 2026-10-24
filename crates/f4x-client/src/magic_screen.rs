@@ -329,20 +329,15 @@ impl App {
             160.0,
             Align::Right,
         );
-        if researching_spell.is_none() {
-            let none = self.text("magic.no_spell");
-            self.bm_text(view, 2, gold, &none, 67.0, 100.0, Align::Left);
-        } else {
-            self.bm_text(
-                view,
-                2,
-                gold,
-                &self.text_with("magic.rp", &Args::new().count("n", income.research)),
-                101.0,
-                160.0,
-                Align::Right,
-            );
-        }
+        self.bm_text(
+            view,
+            2,
+            gold,
+            &self.text_with("magic.rp", &Args::new().count("n", income.research)),
+            101.0,
+            160.0,
+            Align::Right,
+        );
         self.bm_text(
             view,
             2,

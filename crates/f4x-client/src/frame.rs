@@ -340,12 +340,15 @@ impl App {
         }
         let (nx, ny) = spot::NEXT_TURN;
         if self.draw_pic(lay, "main", 35, 0, nx, ny).is_some() {
+            // The button has one picture; it sits 2 px down and right while it is held.
+            let (bx, by) = (nx + 6.0, ny + 5.0);
             let hover = self.art_picture("main", 58, 0).is_some_and(|t| {
-                let p = lay.point(nx + 4.0, ny + 3.0);
+                let p = lay.point(bx, by);
                 Rect::new(p.x, p.y, t.width() * s, t.height() * s).contains(mouse)
             });
-            let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
-            self.draw_pic(lay, "main", 58, frame, nx + 4.0, ny + 3.0);
+            let held = hover && is_mouse_button_down(MouseButton::Left);
+            let push = if held { 2.0 } else { 0.0 };
+            self.draw_pic(lay, "main", 58, 0, bx + push, by + push);
             click.next_turn = pressed && hover;
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));

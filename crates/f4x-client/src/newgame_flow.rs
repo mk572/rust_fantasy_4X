@@ -230,9 +230,10 @@ impl App {
     /// The Back button at the foot of every step of the creation: a small box between the portrait
     /// frame and the picks count.
     fn ng_back_button(&mut self, lay: &Layout) {
-        // The race and banner steps use the corner, so there the button stands by OK.
+        // The race and banner steps use the corner (the race list's frame reaches down to y 198
+        // at x 166 to 231), so there the button stands by OK, right of that frame.
         let left = if matches!(self.create.step, Step::Race | Step::Banner) {
-            214.0
+            248.0
         } else {
             165.0
         };
@@ -467,10 +468,16 @@ impl App {
             38.0,
             Align::Left,
         );
+        // OK, where it stands on the other steps; Enter does the same.
+        self.draw_pic(lay, "newgame", 42, 0, 252.0, 182.0);
         if !self.ng_input() {
             return;
         }
-        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+        let ok_clicked = is_mouse_button_pressed(MouseButton::Left)
+            && lay
+                .rect((251.0, 181.0, 32.0, 16.0))
+                .contains(mouse_position().into());
+        if ok_clicked || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
             if self.create.build.name.trim().is_empty() {
                 let fallback = portrait
                     .and_then(|p| {
@@ -599,10 +606,10 @@ impl App {
         }
         // OK goes on, once a race is picked.
         let ok = self.create.race_pick.is_some();
-        self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
+        self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 286.0, 182.0);
         if input
             && is_mouse_button_pressed(MouseButton::Left)
-            && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
+            && lay.rect((285.0, 181.0, 32.0, 16.0)).contains(mouse)
         {
             match self.create.race_pick {
                 Some(race) => {

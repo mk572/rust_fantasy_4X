@@ -199,7 +199,7 @@ impl App {
             Color::new(1.0, 1.0, 1.0, 0.4)
         };
         let (shift, frame) = (
-            if hover_shift && hover && enabled {
+            if hover_shift && hover && enabled && is_mouse_button_down(MouseButton::Left) {
                 1.0
             } else {
                 0.0
