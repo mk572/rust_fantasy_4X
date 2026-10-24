@@ -12,6 +12,7 @@ mod diplomacy;
 mod economy;
 mod expand;
 mod military;
+mod monster;
 mod naval;
 mod neutral;
 mod objective;
@@ -268,7 +269,7 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
     events
 }
 
-pub use neutral::play_neutrals;
+pub use neutral::{play_neutrals, play_neutrals_for};
 pub use offer::answer_resales;
 
 /// Let every AI play its turn, then end the turn for everyone. Returns all the events.

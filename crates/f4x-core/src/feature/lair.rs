@@ -81,7 +81,7 @@ fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, rules: &'a LairRules) -> 
 
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
 /// transports, with their costs, in the data's order.
-fn candidates(content: &Content, realm: &str) -> Vec<(String, i32)> {
+pub(crate) fn candidates(content: &Content, realm: &str) -> Vec<(String, i32)> {
     content
         .rules
         .units
@@ -720,8 +720,11 @@ impl Game {
         let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return Vec::new();
         };
+        if owner == MONSTERS {
+            return self.occupy_zone(units, to);
+        }
         match self.economy().lair_at(to) {
-            Some(l) if l.guards.is_empty() && owner != MONSTERS => self.claim_lair(l.entity, owner),
+            Some(l) if l.guards.is_empty() => self.claim_lair(l.entity, owner),
             _ => Vec::new(),
         }
     }

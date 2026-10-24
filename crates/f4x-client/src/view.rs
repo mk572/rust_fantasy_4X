@@ -701,6 +701,57 @@ impl App {
                     Some(self.text_with("log.city_razed", &Args::new().count("gold", gold)))
                 }
                 Event::CityDestroyed { .. } => Some(self.text("log.city_destroyed")),
+                // The raiders and the monsters are news where the human has been.
+                Event::RaidersRaised { city, count, .. } => {
+                    let seen = self
+                        .game
+                        .economy()
+                        .cities()
+                        .into_iter()
+                        .find(|(e, ..)| *e == city)
+                        .is_some_and(|(.., p)| self.game.is_explored(HUMAN, p));
+                    seen.then(|| {
+                        let args = Args::new()
+                            .text("city", self.city_name(city))
+                            .count("n", count);
+                        self.text_with("log.raiders", &args)
+                    })
+                }
+                Event::MonstersSettled {
+                    pos,
+                    site,
+                    count,
+                    evicted,
+                } => self.game.is_explored(HUMAN, pos).then(|| {
+                    let name = self
+                        .game
+                        .content()
+                        .features
+                        .id_of(&site)
+                        .and_then(|f| self.game.content().features.get(f))
+                        .map_or(site, |def| def.name.clone());
+                    let args = Args::new().text("site", name).count("n", count);
+                    let key = if evicted > 0 {
+                        "log.monsters_took_over"
+                    } else {
+                        "log.monsters_settled"
+                    };
+                    self.text_with(key, &args)
+                }),
+                Event::CityRampaged {
+                    name,
+                    owner,
+                    ruined,
+                    ..
+                } => {
+                    let key = match (owner == HUMAN, ruined) {
+                        (true, true) => "log.city_ruined_yours",
+                        (true, false) => "log.city_rampaged_yours",
+                        (false, true) => "log.city_ruined",
+                        (false, false) => "log.city_rampaged",
+                    };
+                    Some(self.text_with(key, &Args::new().text("city", name)))
+                }
                 Event::WizardBanished { player, .. } if player == HUMAN => {
                     self.resign_prompt = true;
                     Some(self.text("log.banished_you"))
@@ -1082,8 +1133,18 @@ impl App {
                     });
             }
         }
-        // The independent cities run themselves through their own AI (farmers, taxes, builds).
-        events.extend(f4x_ai::play_neutrals(&mut self.game));
+        // The independent cities and the roaming monsters run themselves through their own AI
+        // (farmers, taxes, builds, raids); the human fights the attacks on them in person.
+        let (neutral_events, attacks) = f4x_ai::play_neutrals_for(&mut self.game, &[HUMAN]);
+        events.extend(neutral_events);
+        for attack in attacks {
+            self.defences
+                .push_back(crate::attack_prompt::PendingAttack {
+                    attackers: attack.attackers,
+                    defenders: attack.defenders,
+                    defending: true,
+                });
+        }
         self.turn_events = Some(events);
         self.resume_turn();
     }

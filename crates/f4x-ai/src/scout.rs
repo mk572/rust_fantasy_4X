@@ -171,7 +171,7 @@ fn recruit(ai: &Ai, game: &Game) -> Option<hecs::Entity> {
 
 /// The reachable square worth most to this scout: new ground within sight of it, less the
 /// walk, skipping the patches other scouts are heading for.
-fn best_target(
+pub(crate) fn best_target(
     view: &PlayerView,
     unit: hecs::Entity,
     from: Position,

@@ -300,6 +300,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
 | 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
 | 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
+| 376 | World | Raiders and rampaging monsters (the original's `Make_Raiders` and `Make_Monsters`) (done) |
 
 ## Descriptions
 
@@ -1283,3 +1284,33 @@ Homebrew's ffmpeg has no libvorbis, hence `brew install vorbis-tools`.
 *Needs:* nothing.
 
 **372. (done) Decide the overland terrain move costs.** **Done 24 October 2026:** the user chose the original's costs; `content/terrain.ron` has them (swamp food stays half a food). Was: The original's `TERRSTAT.LBX` charges 3 moves for hills, 3 for swamp and 4 for mountains (a chaos node 4); ours charge 2, 2 and 3 (`content/terrain.ron`, `divergences.md` section 34). Parity with the original is the project's default, so the proposal is to take the original's costs for hills, swamp, mountains and the chaos node; the choice moves the map's rough ground, the AI's path costs and the learned battle and strategic numbers, so it is the user's decision. If adopted: change the four rows, keep the Forester and Mountaineer minimums (1 move), update the movement tests and `design.md`, and run the soak for a baseline (`ai-design.md` 12.2). The Mountaineer's 3 moves on grassland is the original's bug and stays out.
+
+**376. Raiders and rampaging monsters (done).** The original's neutral turn has two generators we lack
+(`AIDATA.c`, run from `AIDUDES.c` after the neutral cities' turn; `MoM-NextTurn-AI.md` II.D).
+*`Make_Raiders`*: when a neutral city exists, an accumulator grows by a random 0 to difficulty each
+turn; at 30 it is reset and a random neutral city sends out a stack of up to nine of its own troops
+(`raider_percent` of them, `game-settings.md`) at a level set by the turn; they come out beside the city,
+are taken from its garrison, and head for a player's city or fortress. *`Make_Monsters`*: with at least
+one intact non-Life lair and from turn 50, an accumulator grows by a random 0 to difficulty, and at
+`50 - 5 * difficulty` a monster stack of the lair's race is made beside a random lair on a continent that
+holds a player's city, with a budget of `(rand(d+1) + rand(d+1)) * turn / 5` (halved when it lands on an
+AI's continent), and goes rampaging. A won city battle against such a stack has its own lines in the
+Combat results scroll (`_active_battle_unit` 666 to 668: rampage without ruins, raiders won, rampage
+that left ruins; `Rampage_Combat_City` may turn the city into a lair with its gold as loot) and the
+Chancellor's scroll. Task 154 dropped the raiders in favour of planned item 33; the owner now wants both
+back, so build them as the original does, behind the `raiders_enabled` / `raider_percent` settings, and
+let item 33 later replace the raiders with the neutral cities' own strategy. Also give the neutral
+stacks to the AI's defence logic (a stack is a threat to a city), and add the three result lines
+(task 144) and a news line. Tests: the accumulators and thresholds, the spawn square and budget, the
+rampage outcome and ruins. *Needs:* `neutral.rs` (task 292) for the neutral cities' troops; the
+`Fantastic` flag on monster units (summoned means rampage, not raiders).
+**Built (24 October 2026), with the owner's changes** (`threat.rs`, `lairs.md`, `divergences.md`): the raiders are
+new free troops in the neutral city (no gold, no food) and the city goes to war for good (it takes lairs and
+cities, anybody's, within 14 squares); the new monsters take over the lair they are made in, the old guards
+are driven out and roam as the monsters' units, settle in empty stands (a lair without guards, a cleared node
+or tower nobody holds) and attack the cities they find; the monsters that win a city wreck it (half the time
+razing it into a ruins site they guard) and vanish. The three scroll lines (`--results rampage|ruins|raiders`),
+news lines and the settings `raiders_enabled`, `monsters_enabled`, `raider_percent` are in. **Not done:** giving
+the wizards' AI a defence plan against a roaming stack (the army still hits a stack next to its city when it is
+the stronger, nothing more); the `Fantastic` flag was not needed because the monsters are the guards' kinds.
+Tests are in `threat/tests.rs`, `f4x-ai` `neutral.rs` and `monster.rs`; no soak was run.

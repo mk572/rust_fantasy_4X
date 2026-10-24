@@ -410,6 +410,29 @@ pub fn event(game: &Game, e: &Event) -> String {
                 pos(*to)
             )
         }
+        Event::RaidersRaised { owner, count, .. } => {
+            format!("{} raises {count} raiders", player(game, *owner))
+        }
+        Event::MonstersSettled {
+            pos: at,
+            site,
+            count,
+            evicted,
+        } => format!(
+            "{count} monsters settle in the {site} at {} and drive out {evicted}",
+            pos(*at)
+        ),
+        Event::CityRampaged {
+            pos: at,
+            name,
+            owner,
+            ruined,
+        } => format!(
+            "Monsters {} {name} of {} at {}",
+            if *ruined { "raze" } else { "wreck" },
+            player(game, *owner),
+            pos(*at)
+        ),
         Event::SiteCleared {
             player: p,
             pos: at,

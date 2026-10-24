@@ -109,7 +109,7 @@ impl Game {
     }
 
     /// A number for every land square telling which landmass it belongs to (0 for sea).
-    fn landmasses(&self, plane: Plane) -> Vec<u32> {
+    pub(crate) fn landmasses(&self, plane: Plane) -> Vec<u32> {
         let Some(map) = self.map.as_ref() else {
             return Vec::new();
         };

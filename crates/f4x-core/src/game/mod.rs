@@ -21,7 +21,9 @@ pub mod view;
 #[cfg(test)]
 mod tests;
 
-use crate::{battle, city, content, diplomacy, game, item, map, player, unit, wizard, world_event};
+use crate::{
+    battle, city, content, diplomacy, game, item, map, player, threat, unit, wizard, world_event,
+};
 use rand::RngCore;
 
 pub use command::Command;
@@ -63,6 +65,8 @@ pub struct Game {
     pub diplomacy: diplomacy::Diplomacy,
     /// The random events that are going on.
     pub(crate) events: world_event::Events,
+    /// The clocks of the raiders and the roaming monsters.
+    pub(crate) threat: threat::Threat,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
     pub(crate) item_awards: Vec<(hecs::Entity, String, bool)>,
@@ -98,6 +102,7 @@ impl Game {
             game_over: None,
             diplomacy: diplomacy::Diplomacy::default(),
             events: world_event::Events::default(),
+            threat: threat::Threat::default(),
             item_awards: Vec::new(),
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
@@ -777,6 +782,15 @@ impl Game {
         let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return Vec::new();
         };
+        // Monsters do not hold a city: they wreck it and stay outside.
+        if owner == player::MONSTERS {
+            if let Some(city) = self.economy().city_at(to) {
+                for &u in units {
+                    let _ = self.world.insert_one(u, unit::MovesLeft(0));
+                }
+                return self.rampage_city(city, 0, units);
+            }
+        }
         for &u in units {
             let _ = self.world.insert_one(u, to);
             let _ = self.world.insert_one(u, unit::MovesLeft(0));

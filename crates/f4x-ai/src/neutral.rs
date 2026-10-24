@@ -4,19 +4,24 @@
 //! once it is not, never settlers. A city with a guarded site (tower, node or encounter site)
 //! it has explored within [`RAID_RANGE`] squares also builds a raiding party of [`RAID_PARTY`]
 //! beyond its garrison and sends it to assault the site, then home again (task 354; what a
-//! winner may keep is `claim_lair`'s rule, task 353). They never attack anyone else or cast.
-//! The game does none of this itself, so a host that ends turns must call [`play_neutrals`]
-//! first, or the cities starve.
+//! winner may keep is `claim_lair`'s rule, task 353). They never attack anyone else or cast,
+//! until one raises a raiding party (task 376): that city's player is then at war (see
+//! [`Game::is_aggressive_player`]) and every soldier it can spare marches on the lairs and
+//! cities near it, other independent cities and wizards' included. The monsters that roam the
+//! map are played here too (`monster.rs`). The game does none of this itself, so a host that
+//! ends turns must call [`play_neutrals`] (or [`play_neutrals_for`]) first, or the cities starve.
 
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
 use f4x_core::rules::Stat;
 
-use crate::view::{distance, is_fighter, stack_strength};
-use crate::Ai;
+use crate::military::expected_defence;
+use crate::view::{distance, garrison_wanted, is_fighter, stack_strength};
+use crate::{Ai, Attack};
 
 /// Soldiers wanted per four citizens, as many melee as ranged (the garrison a city starts with).
 const GARRISON_PER_FOUR: usize = 2;
@@ -27,26 +32,49 @@ pub const RAID_RANGE: i32 = 8;
 /// Soldiers beyond the garrison that make a raiding party.
 pub const RAID_PARTY: usize = 3;
 
-/// Play every independent city's turn. Returns the events its commands caused.
+/// Squares from a city within which a city at war looks for lairs and cities to conquer.
+pub const WAR_RANGE: i32 = 14;
+
+/// A city at war attacks when its force is this much stronger than what it expects to meet.
+const WAR_EDGE: f32 = 1.2;
+
+/// Play every independent city's turn, and the roaming monsters'. Returns the events their
+/// commands caused. Battles against anyone are fought out by the battle AI.
 pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
+    play_neutrals_for(game, &[]).0
+}
+
+/// Like [`play_neutrals`], but the players in `defended_by` fight the battles against them
+/// themselves: an attack on them is not resolved but returned, for the host to play out.
+pub fn play_neutrals_for(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
     let cities: Vec<_> = game
         .player_ids()
         .into_iter()
         .filter(|id| game.is_neutral_player(*id))
         .collect();
     let mut events = Vec::new();
+    let mut attacks = Vec::new();
     for id in cities {
         let mut ai = Ai::new(id);
+        ai.leave_defence_to(defended_by);
         game.balance_farmers(id);
         // Taxes are looked at only when the city is not paying its way: finding the lowest
         // rate that does costs a forecast per rate.
         if PlayerView::new(game, id).budget().net_gold() < 1 {
             crate::economy::taxes(&mut ai, game, &mut events);
         }
-        raid(&ai, game, &mut events);
+        if game.is_aggressive_player(id) {
+            war(&mut ai, game, &mut events);
+        } else {
+            raid(&ai, game, &mut events);
+        }
         production(&ai, game, &mut events);
+        attacks.extend(ai.take_attacks());
     }
-    events
+    let (more, more_attacks) = crate::monster::roam(game, defended_by);
+    events.extend(more);
+    attacks.extend(more_attacks);
+    (events, attacks)
 }
 
 /// A party must be this much stronger than guards it knows.
@@ -75,9 +103,19 @@ pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
 /// nearest first. With `party` (the strength of the raiders), a site whose guards the city
 /// knows from an earlier fight and which are too strong for them is left out.
 fn sites_near(view: &PlayerView, from: Position, party: Option<f32>) -> Vec<Position> {
+    sites_within(view, from, party, RAID_RANGE)
+}
+
+/// [`sites_near`] with a range of the caller's choosing.
+fn sites_within(
+    view: &PlayerView,
+    from: Position,
+    party: Option<f32>,
+    range: i32,
+) -> Vec<Position> {
     let mut found = Vec::new();
-    for dy in -RAID_RANGE..=RAID_RANGE {
-        for dx in -RAID_RANGE..=RAID_RANGE {
+    for dy in -range..=range {
+        for dx in -range..=range {
             if let Some(p) = view.shift(from, dx, dy) {
                 let too_strong = party
                     .zip(guard_strength(view, p))
@@ -281,6 +319,214 @@ pub(crate) fn assault(
     }
 }
 
+/// Fight the battle the AI means to fight: the human defends in person when `ai` leaves the
+/// defence to them (the host plays it out), else the battle AI plays both sides.
+pub(crate) fn strike(
+    ai: &mut Ai,
+    game: &mut Game,
+    attackers: Vec<hecs::Entity>,
+    defenders: Vec<hecs::Entity>,
+    events: &mut Vec<Event>,
+) {
+    let in_person = defenders
+        .first()
+        .and_then(|&d| game.units().unit_owner(d))
+        .is_some_and(|owner| ai.defended_by.contains(&owner));
+    if in_person {
+        ai.attacks.push(Attack {
+            attackers,
+            defenders,
+        });
+    } else {
+        ai.send(
+            game,
+            Command::AutoResolve {
+                mana_budget: None,
+                attackers,
+                defenders,
+            },
+            events,
+        );
+    }
+}
+
+/// What a stack of a city at war does about one square next to it.
+enum Target {
+    Nothing,
+    /// A site to assault.
+    Site,
+    /// A city nobody defends: walk in.
+    Empty,
+    /// A city or stack that is defended, and how much it is worth.
+    Defended(Vec<hecs::Entity>, f32),
+}
+
+/// A city at war: one unit scouts, the soldiers beyond each city's garrison hit what is next to
+/// them when they are the stronger, and otherwise march on the nearest lair or city (within
+/// [`WAR_RANGE`] of one of the player's cities) they are strong enough for, or go home.
+fn war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    crate::scout::scout(ai, game, events);
+    let me = ai.player;
+    let (homes, stacks) = {
+        let view = PlayerView::new(game, me);
+        let mut homes: Vec<(hecs::Entity, Position)> = view.my_cities();
+        homes.sort_by_key(|(e, _)| view.serial_of(*e));
+        let home_squares: Vec<Position> = homes.iter().map(|&(_, p)| p).collect();
+        let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+        for u in view.my_units() {
+            if !is_fighter(&view, u) || ai.scouts.contains(&view.serial_of(u)) {
+                continue;
+            }
+            let Some(pos) = view.unit_position(u) else {
+                continue;
+            };
+            match by_square.iter_mut().find(|(p, _)| *p == pos) {
+                Some((_, list)) => list.push(u),
+                None => by_square.push((pos, vec![u])),
+            }
+        }
+        by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+        let mut stacks = Vec::new();
+        for (pos, mut units) in by_square {
+            if home_squares.contains(&pos) {
+                // The weakest stay at home (the stack is in the order the game lists it).
+                let keep = garrison_wanted(&view, pos).min(units.len());
+                units.drain(..keep);
+            }
+            if !units.is_empty() {
+                stacks.push((pos, units));
+            }
+        }
+        (home_squares, stacks)
+    };
+    for (pos, units) in stacks {
+        let moving: Vec<hecs::Entity> = {
+            let view = PlayerView::new(game, me);
+            units
+                .into_iter()
+                .filter(|&u| view.unit_position(u) == Some(pos))
+                .collect()
+        };
+        if moving.is_empty() {
+            continue;
+        }
+        // 1. Hit what is next to us, when we are the stronger.
+        let (mine, targets) = {
+            let view = PlayerView::new(game, me);
+            let turn = view.turn();
+            let mine = stack_strength(&view, &moving);
+            let targets: Vec<(Position, Target)> = around(&view, pos)
+                .into_iter()
+                .map(|n| {
+                    let target = if view.has_lair(n) {
+                        match guard_strength(&view, n) {
+                            Some(theirs) if mine < theirs * WAR_EDGE => Target::Nothing,
+                            _ => Target::Site,
+                        }
+                    } else {
+                        match (view.city_at(n), view.hostile_at(n)) {
+                            (Some(city), Some(defenders)) if view.city_owner(city) != Some(me) => {
+                                if defenders.is_empty() {
+                                    Target::Empty
+                                } else {
+                                    let theirs =
+                                        expected_defence(&view, &Default::default(), turn, n);
+                                    Target::Defended(defenders, theirs)
+                                }
+                            }
+                            _ => Target::Nothing,
+                        }
+                    };
+                    (n, target)
+                })
+                .collect();
+            (mine, targets)
+        };
+        let mut acted = false;
+        for (n, target) in targets {
+            match target {
+                Target::Nothing => {}
+                Target::Site => {
+                    assault(ai, game, &moving, n, events);
+                    acted = true;
+                }
+                Target::Empty => {
+                    acted = ai.send(
+                        game,
+                        Command::MoveStack {
+                            units: moving.clone(),
+                            to: n,
+                        },
+                        events,
+                    );
+                }
+                Target::Defended(defenders, theirs) => {
+                    if mine >= theirs * WAR_EDGE {
+                        strike(ai, game, moving.clone(), defenders, events);
+                        acted = true;
+                    }
+                }
+            }
+            if acted {
+                break;
+            }
+        }
+        if acted {
+            continue;
+        }
+        // 2. March on the nearest target we are strong enough for, or go home.
+        let (target, nearest_home) = {
+            let view = PlayerView::new(game, me);
+            let turn = view.turn();
+            let mine = stack_strength(&view, &moving);
+            let mut best: Option<(u32, Position)> = None;
+            let mut consider = |p: Position| {
+                let d = distance(&view, pos, p).unwrap_or(u32::MAX);
+                if best.is_none_or(|(bd, bp)| (d, p.y, p.x) < (bd, bp.y, bp.x)) {
+                    best = Some((d, p));
+                }
+            };
+            for &h in &homes {
+                for site in sites_within(&view, h, Some(mine), WAR_RANGE) {
+                    consider(site);
+                }
+            }
+            for (_, owner, city) in view.known_cities() {
+                let near = owner != me
+                    && homes
+                        .iter()
+                        .any(|&h| distance(&view, h, city).is_some_and(|d| d <= WAR_RANGE as u32));
+                if near
+                    && mine >= expected_defence(&view, &Default::default(), turn, city) * WAR_EDGE
+                {
+                    consider(city);
+                }
+            }
+            let nearest_home = homes
+                .iter()
+                .copied()
+                .min_by_key(|&h| (distance(&view, pos, h), h.y, h.x));
+            (best.map(|(_, p)| p), nearest_home)
+        };
+        match (target, nearest_home) {
+            (Some(target), _) => {
+                march(ai, game, &moving, target, events);
+            }
+            (None, Some(home)) if home != pos => {
+                ai.send(
+                    game,
+                    Command::GoTo {
+                        units: moving,
+                        to: home,
+                    },
+                    events,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 /// What each of the player's cities builds: the Barracks if it has none, else a plan of soldiers
 /// while the garrison is short and the treasury can pay for one more, else of buildings.
 fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -310,7 +556,9 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u))
                 .count();
-            let party = if sites_near(&view, pos, None).is_empty() {
+            let party = if game.is_aggressive_player(me) {
+                RAID_PARTY * 2
+            } else if sites_near(&view, pos, None).is_empty() {
                 0
             } else {
                 RAID_PARTY
@@ -398,6 +646,17 @@ mod tests {
         g
     }
 
+    /// A world at war: the city's nine paladins are the free troops of a raid, which nobody
+    /// feeds or pays.
+    fn war_world() -> Game {
+        let mut g = raiding_world(None, false);
+        for unit in g.units().player_units(TOWN) {
+            g.scenario_set_unpaid(unit, true);
+        }
+        g.scenario_set_aggressive(TOWN, true);
+        g
+    }
+
     fn turns(g: &mut Game, n: usize) {
         for _ in 0..n {
             play_neutrals(g);
@@ -456,5 +715,74 @@ mod tests {
             .iter()
             .all(|&u| g.units().unit_position(u) == Some(at(4, 4))));
         assert!(g.economy().lair_at(at(6, 4)).is_some());
+    }
+
+    #[test]
+    fn a_city_at_war_sends_all_but_its_garrison_against_a_site_in_range() {
+        // Nine paladins and a site in range: the peaceful city sends only what it has above
+        // garrison and party; at war it sends everyone but the garrison.
+        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
+        g.scenario_set_aggressive(TOWN, true);
+        let mut cleared = false;
+        for _ in 0..12 {
+            for e in play_neutrals(&mut g) {
+                if let Event::SiteCleared { player, .. } = e {
+                    assert_eq!(player, TOWN);
+                    cleared = true;
+                }
+            }
+            g.apply(Command::EndTurn);
+        }
+        assert!(cleared, "the site is cleared");
+    }
+
+    #[test]
+    fn a_city_at_war_takes_an_undefended_city_of_a_wizard() {
+        let mut g = war_world();
+        let target = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
+        // The wizard's city has no defenders; the free town knows the land round it.
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        for _ in 0..15 {
+            play_neutrals(&mut g);
+            g.apply(Command::EndTurn);
+            if g.economy().city_owner(target) == Some(TOWN) {
+                break;
+            }
+        }
+        assert_eq!(g.economy().city_owner(target), Some(TOWN));
+    }
+
+    #[test]
+    fn a_peaceful_city_leaves_a_wizards_city_alone() {
+        let mut g = raiding_world(None, false);
+        let target = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        turns(&mut g, 10);
+        assert_eq!(g.economy().city_owner(target), Some(crate::testworld::P0));
+    }
+
+    #[test]
+    fn an_attack_on_a_player_who_defends_in_person_is_kept_for_the_host() {
+        let mut g = war_world();
+        spawn(
+            &mut g,
+            crate::testworld::P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            "high_men_spearmen",
+            1,
+        );
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        let mut kept = Vec::new();
+        for _ in 0..15 {
+            let (_, attacks) = play_neutrals_for(&mut g, &[crate::testworld::P0]);
+            kept.extend(attacks);
+            g.balance_farmers(crate::testworld::P0);
+            g.apply(Command::EndTurn);
+            if !kept.is_empty() {
+                break;
+            }
+        }
+        assert!(!kept.is_empty(), "the attack waits for the human");
+        assert!(!g.in_battle());
     }
 }

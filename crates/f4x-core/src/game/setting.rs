@@ -182,6 +182,13 @@ pub struct WorldSettings {
     pub lair_treasure_percent: u16,
     /// Added to the starting size of a neutral city.
     pub neutral_city_size_bonus: u8,
+    /// Whether the independent cities raise raiding parties now and then (`threat/raider.rs`).
+    pub raiders_enabled: bool,
+    /// Whether monsters now and then leave their lair to settle in another and to attack cities
+    /// (`threat/monster.rs`).
+    pub monsters_enabled: bool,
+    /// How big a party is, as a percent of the troops in the city (the original's `d / 6`).
+    pub raider_percent: u16,
     /// How far each wizard sees around their capital when the game starts.
     pub start_reveal_radius: Radius,
 }
@@ -612,6 +619,9 @@ impl GameSettings {
                 lair_guard_percent: 75,
                 lair_treasure_percent: 133,
                 neutral_city_size_bonus: 1,
+                raiders_enabled: false,
+                monsters_enabled: false,
+                raider_percent: 33,
                 start_reveal_radius: Radius(2.5),
             },
             rules: RuleSettings {
@@ -745,6 +755,10 @@ impl GameSettings {
                 self.world.neutral_city_size_bonus
             ),
         );
+        check(
+            self.world.raider_percent <= 300,
+            format!("raiders {}% is over 300", self.world.raider_percent),
+        );
         let radius = self.world.start_reveal_radius.0;
         check(
             radius.is_finite() && (0.0..=10.0).contains(&radius),
@@ -802,6 +816,7 @@ impl GameSettings {
         self.world.lair_guard_percent = self.world.lair_guard_percent.min(300);
         self.world.lair_treasure_percent = self.world.lair_treasure_percent.min(500);
         self.world.neutral_city_size_bonus = self.world.neutral_city_size_bonus.min(6);
+        self.world.raider_percent = self.world.raider_percent.min(300);
         let radius = self.world.start_reveal_radius.0;
         self.world.start_reveal_radius = Radius(if radius.is_finite() {
             radius.clamp(0.0, 10.0)
@@ -898,6 +913,14 @@ mod tests {
         }
         assert_eq!(at(0).world.lair_treasure_percent, 400);
         assert_eq!(at(3).world.lair_treasure_percent, 100);
+        // The raiders are `troops * d / 6` of the original.
+        for d in 0..=4u8 {
+            assert_eq!(
+                at(d).world.raider_percent,
+                [0, 17, 33, 50, 67][usize::from(d)]
+            );
+            assert!(at(d).world.raiders_enabled && at(d).world.monsters_enabled);
+        }
         for d in 0..=4 {
             assert!(
                 at(d).is_level(&settings()) && at(d).validate().is_empty(),
@@ -942,7 +965,15 @@ mod tests {
     fn the_shipped_flat_game_is_the_averages_world() {
         // `flat` keeps the Average level's world, events and score, as it always did.
         let (flat, average) = (GameSettings::flat(), at(2));
-        assert_eq!(flat.world, average.world);
+        // except that nothing raids or roams in it, so tests and soaks stay as they were.
+        assert_eq!(
+            flat.world,
+            WorldSettings {
+                raiders_enabled: false,
+                monsters_enabled: false,
+                ..average.world
+            }
+        );
         assert_eq!(flat.events, average.events);
         assert_eq!(flat.scoring, average.scoring);
     }

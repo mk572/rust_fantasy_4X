@@ -125,13 +125,14 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `strong_sites`, `weak_sites` | 0..=100 | 25, 32 | `GenParams` |
 | world | `nodes_arcanus`, `nodes_myrror` | 0..=40 | 16, 14 | `PlaneParams` |
 | world | `mineral_percent_arcanus`, `_myrror` | 0..=30 | 6, 10 | `PlaneParams` |
-| world | `lairs_enabled`, `neutral_cities_enabled`, `raiders_enabled` | bool | on | always on |
+| world | `lairs_enabled`, `neutral_cities_enabled` | bool | on | always on |
+| world | `raiders_enabled`, `monsters_enabled` | bool | on (off in `flat`) | `threat.rs` (task 376) |
 | world | `myrror_enabled` | bool | on | always two planes (stage 4, 4.9) |
 | world | `heroes_enabled` | bool | on | heroes are not built yet (tasks 218, 219); read when they are |
 | world | `lair_guard_percent` | 0..=300 | from preset | `feature/lair.rs`: `budget * (d + 1) / 4` |
 | world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
 | world | `neutral_city_size_bonus` | -2..=6 | from preset | `city/neutral.rs`: `(d + 1) / 3` terms |
-| world | `raider_percent` | 0..=300 | from preset | task 154's raiders, `troops * d / 6` in the original |
+| world | `raider_percent` | 0..=300 | from preset | `threat/raider.rs` (task 376): the party is `troops * raider_percent / 100`, `troops * d / 6` in the original |
 | rules | `max_stack` | one value, 1..=9 now (4.3) | 9 | `unit::MAX_STACK` |
 | rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
 | rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |
@@ -446,7 +447,7 @@ three is chosen, and the game-over text for a defeat by banishment names the rul
 | AI maintenance and Hard / Impossible unit upkeep cut | `ai.maintenance_percent`, `ai.unit_upkeep_percent` |
 | Lair guards, lair treasure | `lair_guard_percent`, `lair_treasure_percent` |
 | Neutral city size | `neutral_city_size_bonus` |
-| Raiders | `raider_percent` (task 154's code reads it) |
+| Raiders and roaming monsters | `raiders_enabled`, `monsters_enabled`, `raider_percent` (task 376) |
 | Random events on or off, frequency | section 4.5 |
 | Final score scale | `score_percent`, applied where the score is made (task 148) |
 | Fleeing (`Combat.c` 3863 and 4075) | `rules.safe_flee`, below |

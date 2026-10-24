@@ -37,6 +37,11 @@ pub struct Unit(pub UnitId);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Hurt(pub u32);
 
+/// On a unit its owner pays no upkeep for, neither gold nor food: the troops a neutral city
+/// raises when it goes raiding (`threat/raider.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unpaid;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Experience(pub u32);
 
@@ -463,7 +468,7 @@ impl<'a> UnitView<'a> {
 
     /// Food a unit eats per turn.
     pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        if self.unit_is_undead(unit) {
+        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) {
             return 0;
         }
         match self.unit_def(unit).map(|d| d.kind) {
@@ -472,12 +477,17 @@ impl<'a> UnitView<'a> {
         }
     }
 
+    /// Whether the owner pays nothing for the unit (see [`Unpaid`]).
+    pub fn unit_is_unpaid(&self, unit: hecs::Entity) -> bool {
+        self.world.get::<&Unpaid>(unit).is_ok()
+    }
+
     /// Gold a unit costs per turn (heroes with the noble trait cost nothing).
     pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> i32 {
         let Some(def) = self.unit_def(unit) else {
             return 0;
         };
-        if self.unit_is_undead(unit) {
+        if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) {
             return 0;
         }
         let gold = match def.kind {

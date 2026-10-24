@@ -161,6 +161,9 @@ impl Game {
         if loser == winner {
             return Vec::new();
         }
+        if winner == crate::player::MONSTERS {
+            return self.rampage_city(city, city_damage, &[]);
+        }
         let citizens = self.economy().citizens(city);
         if citizens == 0 {
             // An outpost is destroyed, not held.

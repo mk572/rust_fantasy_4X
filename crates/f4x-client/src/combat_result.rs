@@ -40,6 +40,18 @@ enum Outcome {
     CityLost,
 }
 
+/// What happened to the city besides the battle (`_active_battle_unit` 666 to 668 of the original).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Aftermath {
+    Nothing,
+    /// Monsters wrecked the city and went their way.
+    Rampage,
+    /// Monsters razed the city and settled in the ruins.
+    Ruins,
+    /// An independent city's raiders took the city.
+    Raiders,
+}
+
 /// A battle begun, for the paper: who attacked, and whether a city stood there.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BattleSite {
@@ -63,6 +75,7 @@ pub(crate) struct CombatResults {
     razed: bool,
     /// The raze question is up.
     asking: bool,
+    aftermath: Aftermath,
 }
 
 impl App {
@@ -117,6 +130,10 @@ impl App {
         let exhausted = events
             .iter()
             .any(|e| matches!(e, Event::Battle(f4x_core::battle::BattleEvent::Exhausted)));
+        let rampage = events.iter().find_map(|e| match e {
+            Event::CityRampaged { name, ruined, .. } => Some((name.clone(), *ruined)),
+            _ => None,
+        });
         let outcome = match (ended, looted) {
             (Some(_), _) if exhausted => Outcome::Exhausted,
             (Some(_), _) if fled_side.is_some() => {
@@ -162,7 +179,16 @@ impl App {
             buildings: Vec::new(),
             razed: false,
             asking: false,
+            aftermath: Aftermath::Nothing,
         };
+        if let Some((name, ruined)) = rampage {
+            results.city_name = name;
+            results.aftermath = if ruined {
+                Aftermath::Ruins
+            } else {
+                Aftermath::Rampage
+            };
+        }
         if let Some((city, gold, killed, lost, fame_lost, fame_gained)) = looted {
             let rules = &self.game.content().rules;
             results.gold = gold;
@@ -172,6 +198,14 @@ impl App {
                 .map(|&b| rules.buildings.get(b).name.clone())
                 .collect();
             results.city_name = self.city_name(city);
+            let taker = self.game.economy().city_owner(city);
+            if !human_took
+                && taker.is_some_and(|p| {
+                    p != f4x_core::player::MONSTERS && self.game.is_neutral_player(p)
+                })
+            {
+                results.aftermath = Aftermath::Raiders;
+            }
             if human_took {
                 results.fame += fame_gained;
                 results.city = Some(city);
@@ -215,6 +249,21 @@ impl App {
             }
         };
         out.push(Line::centered(4, HEADING, top + 25.0, heading));
+        let aftermath = match r.aftermath {
+            Aftermath::Nothing => None,
+            Aftermath::Rampage => Some("combat.rampage"),
+            Aftermath::Ruins => Some("combat.ruins"),
+            Aftermath::Raiders => Some("combat.raiders"),
+        };
+        if let Some(key) = aftermath {
+            out.push(Line::centered(
+                1,
+                LINES,
+                top + y,
+                self.text_with(key, &Args::new().text("city", &r.city_name)),
+            ));
+            y += 9.0;
+        }
         if r.fame != 0 {
             let key = if r.fame < 0 {
                 "combat.fame_lost"
@@ -294,6 +343,7 @@ impl App {
             buildings: Vec::new(),
             razed: false,
             asking: false,
+            aftermath: Aftermath::Nothing,
         };
         match kind {
             "lost" => {
@@ -310,6 +360,20 @@ impl App {
                 r.outcome = Outcome::Fled;
                 r.paper = 11;
                 r.fame = 0;
+            }
+            "rampage" | "ruins" | "raiders" => {
+                r.outcome = Outcome::Lost;
+                r.paper = 9;
+                r.fame = -1;
+                r.aftermath = match kind {
+                    "rampage" => Aftermath::Rampage,
+                    "ruins" => Aftermath::Ruins,
+                    _ => Aftermath::Raiders,
+                };
+                if kind == "raiders" {
+                    r.gold = 80;
+                    r.killed = 2;
+                }
             }
             "city" | "raze" => {
                 r.asking = kind == "raze";

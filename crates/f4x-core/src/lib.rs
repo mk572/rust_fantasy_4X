@@ -17,6 +17,7 @@ pub mod player;
 pub mod rules;
 pub mod spell;
 pub mod text;
+pub mod threat;
 pub mod turn;
 pub mod unit;
 pub mod wizard;

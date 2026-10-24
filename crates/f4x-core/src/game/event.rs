@@ -417,6 +417,30 @@ pub enum Event {
         to: map::Position,
         lair: hecs::Entity,
     },
+    /// An independent city raised a raiding party: free troops in the city, and the city goes to
+    /// war (`threat/raider.rs`).
+    RaidersRaised {
+        city: hecs::Entity,
+        owner: player::PlayerId,
+        count: u32,
+    },
+    /// Monsters took over a stand: a stack made for the purpose settled in a lair and drove its
+    /// guards out (`evicted` of them), or roaming monsters settled in an empty one.
+    MonstersSettled {
+        pos: map::Position,
+        /// The site's feature id.
+        site: String,
+        count: u32,
+        evicted: u32,
+    },
+    /// Monsters beat the defenders of a city. It stays its owner's, wrecked, or (`ruined`) it is
+    /// razed and monsters settle in the ruins.
+    CityRampaged {
+        pos: map::Position,
+        name: String,
+        owner: player::PlayerId,
+        ruined: bool,
+    },
     /// A site was cleared and its treasure taken.
     SiteCleared {
         player: player::PlayerId,

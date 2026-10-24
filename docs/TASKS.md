@@ -88,7 +88,6 @@ neighbours.
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 374 | Map | Neutral cities reach only about 40% of the target: find out why |
 | 375 | Client | Wire the six Settings switches that do nothing yet |
-| 376 | World | Raiders and rampaging monsters (the original's `Make_Raiders` and `Make_Monsters`) |
 
 ## Descriptions
 
@@ -322,23 +321,3 @@ the screen resets the book on toggle). Their help (topics 678 to 680, 686, 687, 
 what each should do, as the original does; make the client do it. Also give Left Click Moves Units and
 Play Intro a help topic and a help area on the Settings screen (they have none, the area list comes
 from the original). *Needs:* nothing.
-
-**376. Raiders and rampaging monsters.** The original's neutral turn has two generators we lack
-(`AIDATA.c`, run from `AIDUDES.c` after the neutral cities' turn; `MoM-NextTurn-AI.md` II.D).
-*`Make_Raiders`*: when a neutral city exists, an accumulator grows by a random 0 to difficulty each
-turn; at 30 it is reset and a random neutral city sends out a stack of up to nine of its own troops
-(`raider_percent` of them, `game-settings.md`) at a level set by the turn; they come out beside the city,
-are taken from its garrison, and head for a player's city or fortress. *`Make_Monsters`*: with at least
-one intact non-Life lair and from turn 50, an accumulator grows by a random 0 to difficulty, and at
-`50 - 5 * difficulty` a monster stack of the lair's race is made beside a random lair on a continent that
-holds a player's city, with a budget of `(rand(d+1) + rand(d+1)) * turn / 5` (halved when it lands on an
-AI's continent), and goes rampaging. A won city battle against such a stack has its own lines in the
-Combat results scroll (`_active_battle_unit` 666 to 668: rampage without ruins, raiders won, rampage
-that left ruins; `Rampage_Combat_City` may turn the city into a lair with its gold as loot) and the
-Chancellor's scroll. Task 154 dropped the raiders in favour of planned item 33; the owner now wants both
-back, so build them as the original does, behind the `raiders_enabled` / `raider_percent` settings, and
-let item 33 later replace the raiders with the neutral cities' own strategy. Also give the neutral
-stacks to the AI's defence logic (a stack is a threat to a city), and add the three result lines
-(task 144) and a news line. Tests: the accumulators and thresholds, the spawn square and budget, the
-rampage outcome and ruins. *Needs:* `neutral.rs` (task 292) for the neutral cities' troops; the
-`Fantastic` flag on monster units (summoned means rampage, not raiders).

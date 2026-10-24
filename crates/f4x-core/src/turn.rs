@@ -105,6 +105,7 @@ impl Game {
         events.extend(self.process_gaias_blessing());
         self.heal_units();
         events.extend(self.process_chaos_rifts());
+        events.extend(self.process_threats());
         events.extend(self.determine_offers());
         events
     }

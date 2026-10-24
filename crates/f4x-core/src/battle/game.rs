@@ -1032,6 +1032,19 @@ impl Game {
             .filter_map(source_of)
             .filter(|&u| self.units().unit_position(u).is_some())
             .collect();
+        // Monsters that have beaten a city's defenders wreck it and stay outside.
+        if attacker == crate::player::MONSTERS {
+            if let Some(city) = self.economy().city_at(pos) {
+                if self
+                    .economy()
+                    .city_owner(city)
+                    .is_some_and(|o| o != attacker)
+                {
+                    events.extend(self.rampage_city(city, battle.city_damage, &movers));
+                    return events;
+                }
+            }
+        }
         if let Some(&first) = movers.first() {
             let from = self.units().unit_position(first).unwrap_or(pos);
             for &u in &movers {

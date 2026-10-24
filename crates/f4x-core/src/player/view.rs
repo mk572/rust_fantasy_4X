@@ -387,6 +387,18 @@ impl<'a> PlayerView<'a> {
         self.explored(at) && self.game.economy().lair_at(at).is_some()
     }
 
+    /// The explored stands nobody holds: a lair without guards, or a cleared node or tower with
+    /// no owner. Monsters settle in them.
+    pub fn vacant_zones(&self) -> Vec<Position> {
+        self.game
+            .economy()
+            .lairs()
+            .into_iter()
+            .map(|l| l.pos)
+            .filter(|&p| self.explored(p) && self.game.vacant_zone(p).is_some())
+            .collect()
+    }
+
     /// What guards the site on a square, once the player has fought for it (otherwise the
     /// player does not know).
     pub fn lair_guards(&self, at: Position) -> Option<Vec<(String, u32)>> {

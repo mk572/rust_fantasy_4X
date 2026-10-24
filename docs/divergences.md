@@ -727,3 +727,13 @@ immunity** protects against Terror. The other differences listed there are kept 
   of units exceeded" (`NEXTTURN.c`, message 66) when it is full. Ours has no such table: the only
   limit is nine units on a square (`large-stacks.md`). The warning and every check for it are not
   built and will not be.
+- **Raiders and rampaging monsters** (task 376, `threat.rs`; the owner's design, 24 October 2026): the
+  original's raiders are copies of a neutral city's garrison that walk out beside the city, with a
+  third of the garrison removed to pay for them, and then head for a player's city; its monsters are
+  made beside a lair and rampage. Ours raises the raiders *in* the city as new troops that cost no
+  upkeep, and puts the city at war for good (`Aggressive`): all its spare soldiers take lairs and
+  cities near it. Our new monsters take over the lair they are made in, the old guards are driven out
+  and roam, settle in empty stands and attack the cities they find; the monsters that win a city
+  vanish, as the original's message says, and the lair choice has no bias to the human's plane (the
+  original rerolls towards it). A city a raiding city conquers is its own, not a new independent city
+  (item 33's design is still planned). Both are off in the symmetric `flat` game.

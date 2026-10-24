@@ -33,6 +33,12 @@ pub fn id_of(world: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Neutral;
 
+/// On the player of an independent city that has gone to war: it raised a raiding party
+/// (`threat/raider.rs`) and from then on tries to conquer the lairs and cities near it
+/// (`f4x_ai::play_neutrals`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Aggressive;
+
 /// The id of the one neutral player that owns the monsters of lairs and nodes. Its units last
 /// until someone kills them (the lair guards are made for a fight and removed after it; undead
 /// raised for the monsters stay).
