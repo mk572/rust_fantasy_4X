@@ -632,10 +632,12 @@ impl Game {
             active.battle.refresh_fields();
         }
         let mut out: Vec<Event> = events.into_iter().map(Event::Battle).collect();
-        let ended = self.battle.as_mut().and_then(|a| a.battle.check_winner());
-        if let Some(end) = ended {
-            out.push(Event::Battle(end));
-        }
+        let ended = self
+            .battle
+            .as_mut()
+            .map(|a| a.battle.check_winner())
+            .unwrap_or_default();
+        out.extend(ended.into_iter().map(Event::Battle));
         self.finish_if_over(&mut out);
         Ok(out)
     }

@@ -810,6 +810,9 @@ pub enum BattleEvent {
     HeroRecalled {
         unit: usize,
     },
+    /// The turn limit ran out with both sides still standing: every unit retreats exhausted and
+    /// the defender is given the field (ends the battle, right before `Ended`).
+    Exhausted,
     Ended {
         winner: Side,
     },
@@ -1029,9 +1032,9 @@ impl Battle {
         events
     }
 
-    fn check_winner(&mut self) -> Option<BattleEvent> {
+    fn check_winner(&mut self) -> Vec<BattleEvent> {
         if self.winner.is_some() {
-            return None;
+            return Vec::new();
         }
         // A unit lent to the enemy by confusion still counts for its owner.
         let alive = |s| {
@@ -1040,11 +1043,13 @@ impl Battle {
                 .filter(|u| u.is_active() && u.turned_from.unwrap_or(u.side) == s)
                 .count()
         };
+        let mut exhausted = false;
         let winner = if alive(Side::Attacker) == 0 {
             Some(Side::Defender)
         } else if alive(Side::Defender) == 0 {
             Some(Side::Attacker)
         } else if self.turn > TURN_LIMIT {
+            exhausted = true;
             Some(Side::Defender)
         } else {
             None
@@ -1066,7 +1071,12 @@ impl Battle {
                 }
             }
         }
-        winner.map(|winner| BattleEvent::Ended { winner })
+        let mut events = Vec::new();
+        if exhausted {
+            events.push(BattleEvent::Exhausted);
+        }
+        events.extend(winner.map(|winner| BattleEvent::Ended { winner }));
+        events
     }
 
     fn check_unit(&self, unit: usize) -> Result<&BattleUnit, BattleError> {
@@ -1415,9 +1425,7 @@ impl Battle {
                 events.push(BattleEvent::Fled { side });
             }
         }
-        if let Some(end) = self.check_winner() {
-            events.push(end);
-        }
+        events.extend(self.check_winner());
         Ok(events)
     }
 

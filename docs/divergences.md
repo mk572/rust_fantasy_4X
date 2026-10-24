@@ -722,3 +722,8 @@ immunity** protects against Terror. The other differences listed there are kept 
   90 by 60) and scales the counts per 2400 squares. The neutral cities are placed with a limit
   of a thousand tries a plane, so about 40% of the target are made at every size, the 60 by 40
   map included.
+- **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
+  original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number
+  of units exceeded" (`NEXTTURN.c`, message 66) when it is full. Ours has no such table: the only
+  limit is nine units on a square (`large-stacks.md`). The warning and every check for it are not
+  built and will not be.

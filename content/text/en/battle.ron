@@ -4,6 +4,7 @@
     "battle.triumphant": "Victory is yours",
     "battle.defeated": "Your army has been beaten",
     "battle.retreated": "Your army has withdrawn from the field",
+    "battle.exhausted": "Both armies are spent",
     "battle.opponent_fled": "The enemy has left the field",
 
     "battle.victory": "Victory!",

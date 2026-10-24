@@ -34,6 +34,8 @@ enum Outcome {
     Fled,
     /// The opponent retreated.
     OpponentFled,
+    /// The turn limit ran out (`Battle result 4`).
+    Exhausted,
     /// A city of the human's fell without a battle.
     CityLost,
 }
@@ -112,7 +114,11 @@ impl App {
             Event::Battle(f4x_core::battle::BattleEvent::Fled { side }) => Some(*side),
             _ => None,
         });
+        let exhausted = events
+            .iter()
+            .any(|e| matches!(e, Event::Battle(f4x_core::battle::BattleEvent::Exhausted)));
         let outcome = match (ended, looted) {
+            (Some(_), _) if exhausted => Outcome::Exhausted,
             (Some(_), _) if fled_side.is_some() => {
                 let fled_human = site.is_some_and(|s| {
                     let player = match fled_side {
@@ -203,6 +209,7 @@ impl App {
             Outcome::Lost => self.text("battle.defeated"),
             Outcome::Fled => self.text("battle.retreated"),
             Outcome::OpponentFled => self.text("battle.opponent_fled"),
+            Outcome::Exhausted => self.text("battle.exhausted"),
             Outcome::CityLost => {
                 self.text_with("combat.conquered", &Args::new().text("city", &r.city_name))
             }
@@ -293,6 +300,11 @@ impl App {
                 r.outcome = Outcome::Lost;
                 r.paper = 11;
                 r.fame = -1;
+            }
+            "exhausted" => {
+                r.outcome = Outcome::Exhausted;
+                r.paper = 11;
+                r.fame = 0;
             }
             "fled" => {
                 r.outcome = Outcome::Fled;

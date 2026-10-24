@@ -272,7 +272,7 @@ pub(crate) fn describe(
         }
         BattleEvent::Fled { .. } => say("battle.fled", Args::new()),
         BattleEvent::HeroRecalled { unit: u } => say("battle.recalled", unit(*u)),
-        BattleEvent::Ended { .. } => None,
+        BattleEvent::Ended { .. } | BattleEvent::Exhausted => None,
     }
 }
 

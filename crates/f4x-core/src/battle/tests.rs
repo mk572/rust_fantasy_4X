@@ -370,6 +370,10 @@ fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() {
             winner: Side::Defender
         }
     )));
+    // The scroll says both armies withdrew exhausted, and the event comes before the end.
+    let at = |f: fn(&BattleEvent) -> bool| last.iter().position(f);
+    let exhausted = at(|e| matches!(e, BattleEvent::Exhausted)).expect("exhausted event");
+    assert!(exhausted < at(|e| matches!(e, BattleEvent::Ended { .. })).unwrap());
 }
 
 /// Both sides walk at the nearest enemy and attack: every such battle ends.
