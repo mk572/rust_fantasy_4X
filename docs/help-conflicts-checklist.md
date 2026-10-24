@@ -103,5 +103,5 @@ of those things needs our own text. Add the topic here when the text is written.
 ## 4. Decided on 24 October 2026 while writing the screens' text
 - Patrol (topic 224): ours lasts until the unit moves again; the original's lasts until you click the unit. Decided: keep ours; the help says so.
 - Casting skill (topic 273): the magic screen now shows skill with hero help, and the base skill in brackets, as the original does.
-- Seven Settings switches do nothing yet (task 375); their help describes what they should do.
+- Six Settings switches do nothing yet (task 375; End of Turn Wait is wired); their help describes what they should do.
 - Strategic Combat Only (685): kept, with the new meaning (battle AI without the battle screen, after the mana prompt).

@@ -183,6 +183,9 @@ pub struct App {
     /// The turn is ending: 2 until one frame with the hourglass has been drawn, then 1 while
     /// the computer plays (`pointer.rs`).
     pub(crate) turn_pending: u8,
+    /// Whether a unit of the human waited for orders in the last frame; with End of Turn Wait
+    /// off, the turn ends when the last one is given orders.
+    pub(crate) units_waited: bool,
     /// Whether the selected stack can walk to the square under the pointer, for the boot.
     pub(crate) pointer_walk: Option<((Position, Vec<hecs::Entity>), bool)>,
     /// A road being planned (task 102).
@@ -338,6 +341,7 @@ impl App {
             spell_notices: Default::default(),
             targeting: None,
             turn_pending: 0,
+            units_waited: false,
             pointer_walk: None,
             road_plan: None,
             surveyor: false,
@@ -1219,6 +1223,21 @@ impl App {
     /// Put the top-left of the map view on a tile.
     pub fn set_camera(&mut self, x: f32, y: f32) {
         self.cam = vec2(x, y);
+    }
+
+    /// With End of Turn Wait off: the last unit that waited for orders has just been given them
+    /// (a turn that starts with every unit already settled does not end by itself).
+    fn last_order_given(&mut self) -> bool {
+        let waits = !self.all_units_moved();
+        let was = std::mem::replace(&mut self.units_waited, waits);
+        was && !waits
+            && !self.prefs.get(Pref::EndOfTurnWait)
+            && matches!(self.screen, Screen::Map)
+            && self.turn_pending == 0
+            && self.turn_events.is_none()
+            && self.upkeep_prompt.is_none()
+            && self.defences.is_empty()
+            && !self.game.in_battle()
     }
 
     /// Handle input and draw one frame. Returns false when the player quits.
@@ -2282,7 +2301,7 @@ impl App {
             Some(_) => self.log.push(self.text("log.not_in_game")),
             None => {}
         }
-        if click.next_turn {
+        if click.next_turn || self.last_order_given() {
             self.request_end_turn();
         }
 
