@@ -227,6 +227,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 268 | Client | Settings: Event Music (done) |
 | 272 | Client | Settings: End of Turn Summary (done) |
 | 274 | Rules | Settings: Random Events (done) |
+| 275 | Client | Settings: End of Turn Wait (done) |
 | 280 | Client | Settings: Spell Animations (done) |
 | 282 | Client | Settings: Show Node Owners (done) |
 | 283 | Client | Settings: Expanding Help (done) |
@@ -535,6 +536,8 @@ Evil Omens is listed too (the original omits it); right-click help on the cells 
 **268. Settings: Event Music (done).** *(Correction from `sound.md` section 2: in the original this switch covers only the two random-event pieces; the victory, city, spell and hero pieces follow Background Music.)* The short pieces the original plays for events (a wizard's victory or defeat, a city falling, a new spell or hero) play only when Event Music is on. Needs 76 for the audio layer; find the triggers among the `Event` values. The switch is `Pref::EventMusic` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **274. Settings: Random Events (done).** Decided with the user: a game setting, and the preferences page's entry is the default for new games (an Intro game keeps events off). The draw also reads `events.frequency` (Half, Normal, Double); its screen waits for task 248.
+
+**275. Settings: End of Turn Wait (done).** Whether the turn waits for the player after the end-of-turn steps (the messages and the computer wizards' turns) before the next turn begins. Read the original's help for exactly what it pauses on, then add the pause and the switch. Needs 135 if it concerns the computer wizards' turns. The switch is `Pref::EndofTurnWait` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **280. Settings: Spell Animations (done).** Play the animations of spells cast on the map and in battle when on (task 159 lists the spell animation work); off skips them. Needs the animations themselves first. The switch is `Pref::SpellAnimations` in `preferences.rs` (stored by task 89); read the original's help for it before building. **Done:** the human's own battle spell animations are skipped when off (`spell_animation` in `battle_screen/spell_anim.rs`). The original gates only the overland animations, not battle ones, and those overland animations (summon, city enchantment, terrain, learn-spell scroll) are not built (task 306); see `divergences.md` 30.
 

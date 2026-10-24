@@ -51,7 +51,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 270 | Client | Settings: Overland Spell Events |
 | 271 | Client | Settings: Summoning Events |
 | 273 | Client | Settings: Raze City |
-| 275 | Client | Settings: End of Turn Wait |
 | 276 | Client | Settings: Auto Unit Information |
 | 277 | Client | Settings: Enemy Moves |
 | 278 | Client | Settings: Enemy Spells |
@@ -183,8 +182,6 @@ Parity task, low priority.
 **271. Settings: Summoning Events.** Show a message when a wizard summons a creature, hero or champion (Summon Hero, Summon Champion, Summoning Circle and the realm summons); off hides them. Includes the player's own summons if the original shows them. The switch is `Pref::SummoningEvents` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **273. Settings: Raze City.** Whether the player is asked to keep or raze a conquered city. The prompt exists (`raze_prompt` in `view.rs`); read the original's help for what Off does (probably keeps the city without asking) and make the switch decide. Note the rules half: whether the human may raze at all is a game rule, not a preference, if the original treats it so. The switch is `Pref::RazeCity` in `preferences.rs` (stored by task 89); read the original's help for it before building.
-
-**275. Settings: End of Turn Wait.** Whether the turn waits for the player after the end-of-turn steps (the messages and the computer wizards' turns) before the next turn begins. Read the original's help for exactly what it pauses on, then add the pause and the switch. Needs 135 if it concerns the computer wizards' turns. The switch is `Pref::EndofTurnWait` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
 **276. Settings: Auto Unit Information.** Show a unit's information automatically when it is selected, as the original's help describes. Check which panel it means (the side column's unit box or the unit statistics sheet) and wire the switch. The switch is `Pref::AutoUnitInformation` in `preferences.rs` (stored by task 89); read the original's help for it before building.
 
