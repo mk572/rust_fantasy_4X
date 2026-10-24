@@ -101,7 +101,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | Group | Field | Type / range | Default (Average) | Today |
 |---|---|---|---|---|
 | basic | `difficulty` | 0..=4 (Intro to Impossible) | 2 | `Game::difficulty` |
-| basic | `opponents` | 1..=4 (more: `PLANNED.md` 3) | 1 in the client | `NewGame` wizard count |
+| basic | `opponents` | 1..=9 | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
 | basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`map/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
 | content | `half_upkeep` (`enabled`, `units`) | bool, unit names | on, Spearmen and Swordsmen | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |

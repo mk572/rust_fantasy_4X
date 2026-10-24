@@ -279,9 +279,12 @@ Where the item rules differ from the original's code or are read from ReMoM with
   (the design doc's open question 4: whether the original makes the fled ones revivable is not
   settled). Unpaid upkeep and dismissal make a hero `Free` (hireable again with its experience);
   a defeated wizard's heroes are `Gone`.
+- **No limit of six heroes.** The original lets a wizard serve six heroes at most. Ours has no
+  limit: a wizard may serve all 35. The hero screen scrolls six at a time. The chance of a hero
+  offer still falls with the number of heroes served.
 - **Hero spells are refused before they are paid for.** The help says Summon Hero, Summon
   Champion and Resurrection "fail" with six heroes. Ours does not start the cast when the wizard
-  has six heroes, no summoning circle, or nobody who could come (and Incarnation when Torin is
+  has no summoning circle, or nobody who could come (and Incarnation when Torin is
   serving or gone), so no mana is lost. A summoning that was paid over turns and then finds
   nobody is lost, with an event.
 - **Resurrection names the hero.** The wizard chooses which dead hero returns

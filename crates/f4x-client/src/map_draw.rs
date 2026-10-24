@@ -201,10 +201,9 @@ pub fn draw_square(
     // The aura of a node somebody owns, in the owner's banner, shimmering.
     if let Some(node) = game.economy().node_covering(here) {
         if let Some(owner) = node.owner {
-            let banner = banner_of(game, owner).min(4);
+            let banner = banner_of(game, owner);
             let slot = node.aura.iter().position(|&a| a == (wx, y)).unwrap_or(0);
-            let entry = 63 + usize::from(banner);
-            if let Some(tex) = art.picture("mapback", entry, (anim + slot) % 6) {
+            if let Some(tex) = art.banner_picture("node_aura", banner, (anim + slot) % 6) {
                 draw_pic(tex, sx, sy, k);
             }
         }

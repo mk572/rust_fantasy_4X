@@ -1301,6 +1301,10 @@ impl App {
                 self.offer_capital_naming();
                 self.log
                     .push(self.text_with("log.new_map", &Args::new().count("seed", seed)));
+                if let Some(each) = self.game.settings().basic.crowding() {
+                    self.log
+                        .push(self.text_with("log.crowded", &Args::new().count("n", each)));
+                }
             }
             Err(e) => {
                 let args = Args::new().text("why", e.to_string());
@@ -2361,11 +2365,16 @@ impl App {
             let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
             let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
             let at = screen_of(x, y);
-            // The stack's top unit on the background of its owner's banner (`mapback` 14 to 19:
-            // blue, green, purple, red, yellow, neutral), the figure one pixel in.
-            let banner = self.banner_index(owner).min(5);
+            // The stack's top unit on the background of its owner's banner
+            // (`art::background_entry`), the figure one pixel in.
+            let banner = self
+                .banner_index(owner)
+                .min(f4x_core::player::NEUTRAL_BANNER);
             let k = t.x / TILE_W;
-            if let Some(tex) = self.art.picture("mapback", 14 + usize::from(banner), 0) {
+            if let Some(tex) = self
+                .art
+                .picture("mapback", crate::art::background_entry(banner), 0)
+            {
                 draw_texture_ex(
                     tex,
                     at.x,

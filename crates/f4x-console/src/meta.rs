@@ -68,7 +68,7 @@ pub const TABLE: &[CommandDef] = &[
     CommandDef {
         name: "new",
         kind: Kind::Legal,
-        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..5] [land=small|medium|large|<percent>] [map=small|medium|large|huge|<width>x<height>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful] [generator=custom|original]",
+        usage: "new [seed] [wizard=<preset>] [name=<text>] [books=life:3,nature:2] [retorts=alchemy,...] [race=<id>] [players=2..10] [land=small|medium|large|<percent>] [map=small|medium|large|huge|<width>x<height>] [difficulty=intro|easy|average|hard|impossible] [magic=weak|normal|powerful] [generator=custom|original]",
         help: "Start a new game on a generated map, replacing this one. Without wizard or books, a fixed wizard is used.",
         run: new,
     },
@@ -480,6 +480,11 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     *ctx.game = game;
     ctx.session.player = crate::setup::HUMAN;
     ctx.say(format!("new game, seed {}", spec.seed));
+    if let Some(each) = spec.settings.basic.crowding() {
+        ctx.say(format!(
+            "warning: only {each} squares for each wizard, there may not be room to expand"
+        ));
+    }
     Ok(())
 }
 

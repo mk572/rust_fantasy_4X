@@ -23,8 +23,6 @@ pub enum HeroError {
     Unknown,
     /// The hero is serving already, or gone for good.
     NotAvailable,
-    /// The wizard has six heroes.
-    NoRoom,
     /// The wizard has no summoning circle for the hero to appear in.
     NoCircle,
     /// The wizard cannot pay the hero's price.
@@ -37,7 +35,6 @@ impl HeroError {
         match self {
             Self::Unknown => "refuse_wizard.hero_error_unknown",
             Self::NotAvailable => "refuse_wizard.hero_error_not_available",
-            Self::NoRoom => "refuse_wizard.hero_error_no_room",
             Self::NoCircle => "refuse_wizard.hero_error_no_circle",
             Self::NoGold => "refuse_wizard.hero_error_no_gold",
         }
@@ -258,7 +255,7 @@ pub fn legendary(tier: Tier, level: usize) -> i32 {
 
 /// Sage: research points for the wizard (here `level` itself, not one more).
 pub fn sage(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32, (3, 1), (9, 1))
+    by_tier(tier, level as i32, (3, 1), (9, 2))
 }
 
 impl HeroAbilities {
@@ -319,7 +316,7 @@ mod tests {
         assert_eq!((prayermaster(n, 5), prayermaster(s, 5)), (6, 9));
         assert_eq!((legendary(n, 5), legendary(s, 5)), (18, 27));
         // Sage goes by the level itself.
-        assert_eq!((sage(n, 5), sage(s, 5)), (15, 45));
+        assert_eq!((sage(n, 5), sage(s, 5)), (15, 22));
         assert_eq!(might(Tier::None, 5), 0);
         // Rounded down: x = 2.
         assert_eq!((blademaster(s, 1), might(s, 1), legendary(s, 1)), (1, 3, 9));

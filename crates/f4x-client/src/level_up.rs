@@ -61,7 +61,9 @@ impl App {
         else {
             return;
         };
-        let banner = self.banner_index(HUMAN.0).min(5);
+        let banner = self
+            .banner_index(HUMAN.0)
+            .min(f4x_core::player::NEUTRAL_BANNER);
         let Some(tex) = self.art.unit_picture(&lbx, entry as usize, banner) else {
             return;
         };

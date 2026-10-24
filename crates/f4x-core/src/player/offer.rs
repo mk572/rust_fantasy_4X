@@ -120,7 +120,7 @@ pub fn mercenary_chance(fame: i32, famous: bool, computer: bool) -> i32 {
 }
 
 /// The hero's chance: the computer wizards get ten more, and the chance is divided by
-/// `(heroes + 1) / 2 + 1`, so it falls as the wizard fills their slots.
+/// `(heroes + 1) / 2 + 1`, so it falls the more heroes the wizard already has.
 pub fn hero_chance(fame: i32, famous: bool, computer: bool, heroes: usize) -> i32 {
     let chance = offer_chance(3, 25, fame, famous) + if computer { AI_BONUS } else { 0 };
     chance / ((heroes as i32 + 1) / 2 + 1)
@@ -355,11 +355,8 @@ impl Game {
         }
     }
 
-    /// A hero for hire, if the wizard has a slot free and somebody to offer.
+    /// A hero for hire, if there is somebody to offer.
     fn hero_offer(&mut self, player: PlayerId) -> Option<Offer> {
-        if self.units().open_hero_slots(player) == 0 {
-            return None;
-        }
         let kind = self.pick_hero(player, false, Class::Any)?;
         let price = self.units().hero_hire_price(player, kind)?;
         Some(Offer::Hero { kind, price })

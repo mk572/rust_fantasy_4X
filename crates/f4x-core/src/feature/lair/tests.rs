@@ -318,10 +318,11 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     };
     assert_eq!(*player, P0);
     assert_eq!((loot.gold, loot.mana), (120, 30));
-    assert_eq!(loot.items.len(), 1, "the 400 hoard is made into an item");
-    assert_eq!(g.items().armory(P0).items().count(), 1);
-    // The test rules have no heroes to free.
+    // The 400 hoard is made into an item, and the prisoner, who cannot be freed (the test
+    // rules have no heroes), is rerolled into a second.
     assert!(!loot.prisoner);
+    assert_eq!(loot.items.len(), 2);
+    assert_eq!(g.items().armory(P0).items().count(), 2);
     assert_eq!(
         (
             g.player(P0).unwrap().treasury().gold,
@@ -911,13 +912,13 @@ fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home(
 }
 
 #[test]
-fn a_prisoner_with_no_free_hero_slot_is_rerolled_for_a_wizard_too() {
+fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() {
     let mut g = crate::hero::game::tests::world();
     g.content.features = world(1).content.features;
-    for kind in 0..crate::hero::kind::MAX_HEROES {
+    for kind in 0..g.content.rules.hero_templates.len() {
         g.spawn_hero(P0, at(1, 1), kind).unwrap();
     }
-    assert_eq!(g.units().open_hero_slots(P0), 0);
+    assert!(!g.units().hero_summonable(P0, crate::hero::kind::Class::Any));
     let mut l = rich_lair();
     l.special = 0;
     l.gold = 0;

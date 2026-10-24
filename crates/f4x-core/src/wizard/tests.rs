@@ -220,14 +220,17 @@ fn a_wizard_chooses_a_banner_and_it_is_saved() {
     assert_eq!(g.player(P0).unwrap().banner(), 3);
     b.banner = Some(9);
     g.create_wizard(P0, &b).unwrap();
+    assert_eq!(g.player(P0).unwrap().banner(), 9, "orange is the tenth");
+    b.banner = Some(40);
+    g.create_wizard(P0, &b).unwrap();
     assert_eq!(
         g.player(P0).unwrap().banner(),
-        4,
-        "kept within the five choices"
+        9,
+        "kept within the ten choices"
     );
     let content = g.content.clone();
     let back = g.snapshot().restore(content).unwrap();
-    assert_eq!(back.player(P0).unwrap().banner(), 4);
+    assert_eq!(back.player(P0).unwrap().banner(), 9);
     g.add_neutral_player(PlayerId(9));
     assert_eq!(
         g.player(PlayerId(9)).unwrap().banner(),

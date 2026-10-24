@@ -7,9 +7,6 @@ use crate::game::rng::GameRng;
 use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
 use crate::rules::{HeroTemplate, PickType, Rules, UnitId};
 
-/// How many heroes a wizard may have at once (`NUM_HERO_SLOTS`).
-pub const MAX_HEROES: usize = 6;
-
 /// The hero types before the champions, and the champions after them (`Pick_Random_Hero`):
 /// Torin the Chosen is the last type and only Incarnation summons him.
 pub const HEROES: usize = 24;
@@ -155,7 +152,7 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
                 }
             }
             9 => {
-                if !abilities.noble && t.unit != "chosen" {
+                if !abilities.noble {
                     abilities.noble = true;
                     spent = true;
                 }

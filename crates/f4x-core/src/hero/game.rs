@@ -12,7 +12,7 @@
 //! components and the owner are removed and the entity stays (`release_body`).
 
 use crate::game::serial::Serial;
-use crate::hero::kind::{self, Class, Standing, MAX_HEROES};
+use crate::hero::kind::{self, Class, Standing};
 use crate::hero::Hero;
 use crate::hero::HeroError;
 use crate::hero::{Fate, HeroState};
@@ -117,11 +117,6 @@ impl UnitView<'_> {
         self.hero_kind(unit)
             .and_then(|k| self.content.rules.hero_templates.get(k))
             .map_or_else(Default::default, |t| t.gender)
-    }
-
-    /// How many more heroes the wizard may have (`Hero_Slot_Open`).
-    pub fn open_hero_slots(&self, player: PlayerId) -> usize {
-        MAX_HEROES.saturating_sub(self.hero_units(player).len())
     }
 
     /// The hero type of a hero entity.
@@ -234,9 +229,6 @@ impl Game {
             Some(HeroState::Free | HeroState::Dead)
         ) {
             return Err(HeroError::NotAvailable);
-        }
-        if self.units().open_hero_slots(player) == 0 {
-            return Err(HeroError::NoRoom);
         }
         let unit = kind::unit_of(&self.content.rules, kind).ok_or(HeroError::Unknown)?;
         let owner = self.player_entity(player).ok_or(HeroError::Unknown)?;
@@ -574,19 +566,20 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_wizard_has_six_heroes_at_most() {
+    fn a_wizard_may_have_every_hero_but_a_hero_serves_one_wizard_only() {
         let mut g = world();
-        for k in 0..6 {
+        let all = g.content.rules.hero_templates.len();
+        for k in 0..all {
             g.spawn_hero(P0, at(1, 1), k).unwrap();
         }
-        assert_eq!(g.units().open_hero_slots(P0), 0);
-        assert_eq!(g.units().hero_units(P0).len(), 6);
-        assert_eq!(g.spawn_hero(P0, at(1, 1), 6), Err(HeroError::NoRoom));
-        assert_eq!(g.units().open_hero_slots(P1), 6);
-        // Taking one away opens a slot.
+        assert_eq!(g.units().hero_units(P0).len(), all);
+        // Nobody is left for the other wizard.
+        assert_eq!(g.spawn_hero(P1, at(1, 1), 0), Err(HeroError::NotAvailable));
+        // Taking one away frees it.
         let first = g.units().hero_units(P0)[0];
         g.remove_unit(first, Fate::Released);
-        assert_eq!(g.units().open_hero_slots(P0), 1);
+        assert_eq!(g.units().hero_units(P0).len(), all - 1);
+        assert!(g.spawn_hero(P1, at(1, 1), 0).is_ok());
     }
 
     #[test]

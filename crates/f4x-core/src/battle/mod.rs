@@ -436,6 +436,7 @@ impl BattleUnit {
             figures: self.figures,
             front_damage: self.front_damage,
             large_shield: self.has("large_shield"),
+            lucky: self.has("lucky"),
         }
     }
 

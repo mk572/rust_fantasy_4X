@@ -35,7 +35,6 @@
     "refuse_wizard.production_error_already_sold": "The city has sold a building this turn already.",
     "refuse_wizard.hero_error_unknown": "There is no such hero.",
     "refuse_wizard.hero_error_not_available": "That hero is serving already, or is gone for good.",
-    "refuse_wizard.hero_error_no_room": "You may only control six heroes at one time.",
     "refuse_wizard.hero_error_no_circle": "You have no summoning circle for the hero to appear in.",
     "refuse_wizard.hero_error_no_gold": "You cannot pay the hero's price.",
     "refuse_wizard.offer_error_no_offer": "That offer is no longer open.",

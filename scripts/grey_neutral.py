@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Turn the neutral player's colour from brown to grey in the local art.
 
-The neutral banner is the sixth of `map/banners.tsv`; the pictures that come already coloured for
+The neutral banner is the last of `map/banners.tsv` (the sixth as extracted, the eleventh after
+`make_banner_colours.py`); the pictures that come already coloured for
 it are the cities and towers on the map (`map/locations/*_neutral_*.png`), the unit backgrounds
 (`map/overlays/unit_backgrounds/unit_background_neutral_*.png`) and the neutral colour of the
 minimap (`map/tiles/minimap.tsv`). Only the banner's own pixels change (those that differ from the
@@ -85,13 +86,19 @@ def main():
         if n:
             grey.save(path)
             total += 1
-    text, n = tsv_lines(art / "map/banners.tsv", lambda f: len(f) >= 3 and f[0] == "5")
+    text, n = tsv_lines(art / "map/banners.tsv", lambda f: len(f) >= 3 and f[1] == "neutral")
     (art / "map/banners.tsv").write_text(text)
     total += n
     minimap = art / "map/tiles/minimap.tsv"
     if minimap.exists():
+        banners = [
+            int(f[1])
+            for f in (l.split("\t") for l in minimap.read_text().splitlines())
+            if f[0] == "banner" and len(f) > 1
+        ]
+        last = str(max(banners, default=5))
         text, n = tsv_lines(
-            minimap, lambda f: (f[0] == "banner" and f[1] == "5") or f[0] == "neutral"
+            minimap, lambda f: (f[0] == "banner" and f[1] == last) or f[0] == "neutral"
         )
         minimap.write_text(text)
         total += n

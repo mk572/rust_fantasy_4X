@@ -750,10 +750,14 @@ impl Game {
     }
 
     /// Where a freed prisoner can serve `player`: a wizard gets a free offer; a neutral player
-    /// gets the hero in the nearest of its cities that has room. `None` when it has no free
-    /// hero slot (or no room).
+    /// gets the hero in the nearest of its cities that has room. `None` when no hero is left to
+    /// free (every one serves, or is gone for good) or there is no room: the prisoner is then
+    /// rerolled into the hoard.
     fn prisoner_place(&self, player: PlayerId, near: Position) -> Option<Prisoner> {
-        if self.units().open_hero_slots(player) == 0 {
+        if !self
+            .units()
+            .hero_summonable(player, crate::hero::kind::Class::Any)
+        {
             return None;
         }
         if self.wizard(player).is_some() {

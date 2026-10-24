@@ -49,6 +49,67 @@ fn drop_unavailable(b: &mut WizardBuild) {
     b.retorts.retain(|&r| retort_available(r, &books));
 }
 
+/// How many of `total` wizards may start on Myrror, from least to most: the planes' wizards
+/// differ by at most two on Arcanus's side and one on Myrror's, so for `n` on Arcanus there are
+/// `n - 2` to `n + 1` on Myrror (7 wizards: 4 and 3, or 3 and 4; 8: 5 and 3, or 4 and 4).
+pub(crate) fn myrran_range(total: usize) -> (usize, usize) {
+    (total.saturating_sub(2).div_ceil(2), total.div_ceil(2))
+}
+
+/// Make the share of Myrran wizards fit [`myrran_range`]: random computer wizards without
+/// the retort are made Myrran (three books given up, one kept at least) while there are too few,
+/// and random Myrran ones are made ordinary (their picks refilled) while there are too many.
+/// `builds` are the computer wizards, `human_myrran` says whether the human wizard is one,
+/// `total` is all the wizards.
+pub(crate) fn balance_planes(
+    game: &mut Game,
+    builds: &mut [WizardBuild],
+    human_myrran: bool,
+    total: usize,
+    picks: u8,
+) {
+    let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::Myrran);
+    let (least, most) = myrran_range(total);
+    let count = |builds: &[WizardBuild]| {
+        builds.iter().filter(|b| myrran(b)).count() + usize::from(human_myrran)
+    };
+    while count(builds) < least {
+        let ordinary: Vec<usize> = (0..builds.len()).filter(|&k| !myrran(&builds[k])).collect();
+        if ordinary.is_empty() {
+            break;
+        }
+        let k = ordinary[game.roll(ordinary.len() as u32) as usize - 1];
+        for _ in 0..3 {
+            // A book from a realm picked by its share of the books, keeping at least one.
+            let total = u32::from(book_total(&builds[k]));
+            if total <= 1 {
+                break;
+            }
+            let mut r = game.roll(total);
+            for realm in REALMS {
+                let n = u32::from(books(&builds[k], realm));
+                if r <= n {
+                    *builds[k].books.get_mut(realm).unwrap() -= 1;
+                    break;
+                }
+                r -= n;
+            }
+        }
+        builds[k].books.retain(|_, n| *n > 0);
+        builds[k].retorts.insert(Retort::Myrran);
+        drop_unavailable(&mut builds[k]);
+    }
+    while count(builds) > most {
+        let myrrans: Vec<usize> = (0..builds.len()).filter(|&k| myrran(&builds[k])).collect();
+        if myrrans.is_empty() {
+            break;
+        }
+        let k = myrrans[game.roll(myrrans.len() as u32) as usize - 1];
+        builds[k].retorts.remove(&Retort::Myrran);
+        refill(game, &mut builds[k], picks);
+    }
+}
+
 /// Make `count` computer wizards from the ready-made ones not in `taken` (which gains the ones
 /// used). When the ready-made wizards run out (or are not installed: they are local-only
 /// content), `fallback(i)` gives the i-th computer wizard's plain build, which goes through the
@@ -58,6 +119,7 @@ pub(crate) fn make(
     settings: &GameSettings,
     taken: &mut Vec<String>,
     count: usize,
+    human_myrran: bool,
     fallback: &dyn Fn(usize) -> WizardBuild,
 ) -> Vec<WizardBuild> {
     let rules = settings.ai.wizards;
@@ -75,14 +137,16 @@ pub(crate) fn make(
             .is_some_and(|b| b.retorts.contains(&Retort::Myrran))
     };
 
-    // Who: a random ready-made wizard each, at most two of them Myrran.
+    // Who: a random ready-made wizard each, as many of them Myrran as the planes can take.
     let mut builds: Vec<WizardBuild> = Vec::new();
-    let mut myrrans = 0;
+    let mut myrrans = usize::from(human_myrran);
+    let wizards = usize::from(settings.basic.opponents) + 1;
+    let (_, most) = myrran_range(wizards);
     for i in 0..count {
         let free: Vec<&String> = ids
             .iter()
             .filter(|id| !taken.contains(id))
-            .filter(|id| !(rules.myrran_rule && myrrans >= 2 && myran(game, id)))
+            .filter(|id| !(rules.myrran_rule && myrrans >= most && myran(game, id)))
             .collect();
         if free.is_empty() {
             builds.push(fallback(i));
@@ -144,43 +208,8 @@ pub(crate) fn make(
         }
     }
 
-    // Myrran: with four or more wizards, if no computer wizard is Myrran, one or two are made so.
-    let wizards = usize::from(settings.basic.opponents) + 1;
-    if rules.myrran_rule
-        && wizards >= 4
-        && !builds.is_empty()
-        && !builds.iter().any(|b| b.retorts.contains(&Retort::Myrran))
-    {
-        let n = (game.roll(2) as usize).min(builds.len());
-        let mut chosen: Vec<usize> = Vec::new();
-        while chosen.len() < n {
-            let k = game.roll(builds.len() as u32) as usize - 1;
-            if !chosen.contains(&k) {
-                chosen.push(k);
-            }
-        }
-        for k in chosen {
-            for _ in 0..3 {
-                // A book from a realm picked by its share of the books, keeping at least one.
-                let total = u32::from(book_total(&builds[k]));
-                if total <= 1 {
-                    break;
-                }
-                let mut r = game.roll(total);
-                for realm in REALMS {
-                    let n = u32::from(books(&builds[k], realm));
-                    if r <= n {
-                        *builds[k].books.get_mut(realm).unwrap() -= 1;
-                        break;
-                    }
-                    r -= n;
-                }
-            }
-            builds[k].books.retain(|_, n| *n > 0);
-            builds[k].retorts.insert(Retort::Myrran);
-            drop_unavailable(&mut builds[k]);
-        }
-    }
+    // Myrran: the wizards are shared between the planes (`balance_planes`).
+    balance_planes(game, &mut builds, human_myrran, wizards, picks);
 
     // Fill the picks up with random books and retorts.
     for b in &mut builds {

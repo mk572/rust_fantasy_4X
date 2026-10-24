@@ -94,7 +94,7 @@ battle deployment's own bound; more would need a fourth column.
 
 - **Transport:** a galley carries five, so a stack on a ship is not the stack's limit; task 236
   says how passengers count against a tile. The setting does not change a ship's capacity.
-- **Heroes:** six slots at most (`heroes-items-design.md`); unchanged.
+- **Heroes:** no limit on how many a wizard serves (`divergences.md`); unchanged.
 - **Neutral and lair garrisons:** capped at `max_stack`; a larger limit does not make them
   larger by itself. Whether a neutral city's `population / 4` should scale is a balance question.
 - **Balance:** a bigger stack makes area spells and the Fireball-like attacks stronger relative to

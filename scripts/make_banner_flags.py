@@ -23,7 +23,7 @@ PICTURE_X = 158
 TARGET = ROOT / "assets-local/art/banner_flags"
 # The rows each flag of the picture stands in (the picture is drawn at the top of the screen).
 # Green to pink, light blue to brown, red to turquoise, purple to dark blue, yellow to orange.
-DEFAULT_TURN = "180,180x0.78,180,285x0.8,-18"
+DEFAULT_TURN = "210,180x0.78,180,285x0.8,-18"
 BANDS = [(21, 56), (56, 94), (94, 129), (129, 163), (163, 200)]
 
 

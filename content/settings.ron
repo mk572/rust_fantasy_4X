@@ -13,7 +13,7 @@
     // before the player changes anything.
     new_game: (
         difficulty: 2,       // 0 Intro, 1 Easy, 2 Average, 3 Hard, 4 Impossible
-        opponents: 1,        // computer wizards, 1 to 4
+        opponents: 1,        // computer wizards, 1 to 9
         land_percent: 30,    // share of each plane's tiles: 15 small, 20 medium, 30 large
         magic_strength: 1,   // nodes: 0 weak, 1 normal, 2 powerful
         diagonal_extra_cost: false, // false: a diagonal step costs the same as a straight one;
@@ -29,9 +29,9 @@
     // the original's full upkeep, or change `units` (names of the units, the same for every race).
     half_upkeep: (enabled: true, units: ["Spearmen", "Swordsmen"]),
 
-    // The most computer wizards a new game can have (1 to 4; more wizards need more start
-    // positions, so 4 is the limit for now).
-    max_opponents: 4,
+    // The most computer wizards a new game can have (1 to 9; more wizards need more start
+    // positions).
+    max_opponents: 9,
 
     // The land sizes of the options step, smallest first: a name and the share of each plane's
     // tiles that is land.

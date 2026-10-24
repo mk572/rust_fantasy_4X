@@ -20,7 +20,8 @@ use crate::view::{App, Screen, HUMAN};
 
 /// The window's top-left corner.
 const WINDOW: (f32, f32) = (17.0, 2.0);
-/// Heroes shown (`NUM_HEROES`).
+/// Heroes shown at a time: a wizard may serve more, and the arrows scroll through them a page
+/// at a time.
 const HEROES: usize = 6;
 
 /// What the screen remembers while it is open.
@@ -37,6 +38,13 @@ pub(crate) struct ItemUi {
     /// The first vault slot shown: the vault has no limit and the screen shows [`VAULT_SLOTS`]
     /// of it at a time, a page at a time.
     pub vault_offset: usize,
+    /// The first hero shown, always a multiple of [`HEROES`].
+    pub hero_offset: usize,
+}
+
+/// Pages of heroes for `count` heroes.
+pub(crate) fn hero_pages_for(count: usize) -> usize {
+    count.div_ceil(HEROES).max(1)
 }
 
 /// Pages of the vault for `used` slots up to the last item: one slot more than that is always
@@ -184,6 +192,28 @@ impl App {
         self.bm_text_outlined(view, 1, &name, x + 20.0, y + 4.0, Align::Left);
     }
 
+    /// Draw a triangle arrow of the scroll buttons at `at` (11 by 18) pointing left (`dir < 0`)
+    /// or right; true when the mouse is on it and it is `enabled`.
+    fn scroll_arrow(&self, lay: &Layout, at: (f32, f32), dir: i32, enabled: bool) -> bool {
+        let (ax, ay) = at;
+        let (x, y, scale) = (lay.origin.x, lay.origin.y, lay.scale);
+        let tip = if dir < 0 { ax } else { ax + 9.0 };
+        let base = if dir < 0 { ax + 9.0 } else { ax };
+        let color = if enabled {
+            Color::new(0.95, 0.85, 0.5, 1.0)
+        } else {
+            Color::new(0.4, 0.36, 0.25, 1.0)
+        };
+        draw_triangle(
+            vec2(x + tip * scale, y + (ay + 9.0) * scale),
+            vec2(x + base * scale, y + (ay + 1.0) * scale),
+            vec2(x + base * scale, y + (ay + 17.0) * scale),
+            color,
+        );
+        let mouse: Vec2 = mouse_position().into();
+        enabled && lay.rect((ax - 1.0, ay, 11.0, 18.0)).contains(mouse)
+    }
+
     pub(crate) fn item_screen(&mut self) {
         clear_background(BLACK);
         let lay = Layout::new();
@@ -201,7 +231,10 @@ impl App {
         let mut card_at = None;
 
         // The heroes, their pictures and their slots.
-        for (i, &hero) in heroes.iter().take(HEROES).enumerate() {
+        let hero_pages = hero_pages_for(heroes.len());
+        self.item_ui.hero_offset = self.item_ui.hero_offset.min((hero_pages - 1) * HEROES);
+        let shown = heroes.iter().skip(self.item_ui.hero_offset).take(HEROES);
+        for (i, &hero) in shown.enumerate() {
             let (x1, y1) = hero_square(i);
             self.draw_pic(&lay, "armylist", 6, 0, x1, y1);
             let portrait = self
@@ -268,28 +301,31 @@ impl App {
             }
         }
 
+        // More heroes than fit: an arrow on each side of the page number scrolls six at a time.
+        if hero_pages > 1 {
+            let page = self.item_ui.hero_offset / HEROES;
+            for (dir, ax) in [(-1i32, wx + 88.0), (1, wx + 124.0)] {
+                let enabled = if dir < 0 {
+                    page > 0
+                } else {
+                    page + 1 < hero_pages
+                };
+                if self.scroll_arrow(&lay, (ax, wy + 142.0), dir, enabled) && left {
+                    let page = if dir < 0 { page - 1 } else { page + 1 };
+                    self.item_ui.hero_offset = page * HEROES;
+                }
+            }
+            let label = format!("{}/{}", page + 1, hero_pages);
+            self.bm_text_outlined(view, 1, &label, wx + 111.0, wy + 147.0, Align::Center);
+        }
+
         // The vault: four slots of it at a time, with an arrow on each side to scroll a page.
         let pages = self.vault_pages();
         self.item_ui.vault_offset = self.item_ui.vault_offset.min((pages - 1) * VAULT_SLOTS);
+        let page = self.item_ui.vault_offset / VAULT_SLOTS;
         for (dir, ax) in [(-1i32, wx + 40.0), (1, wx + 139.0)] {
-            let ay = wy + 170.0;
-            let page = self.item_ui.vault_offset / VAULT_SLOTS;
             let enabled = if dir < 0 { page > 0 } else { page + 1 < pages };
-            let (x, y, scale) = (lay.origin.x, lay.origin.y, lay.scale);
-            let tip = if dir < 0 { ax } else { ax + 9.0 };
-            let base = if dir < 0 { ax + 9.0 } else { ax };
-            let color = if enabled {
-                Color::new(0.95, 0.85, 0.5, 1.0)
-            } else {
-                Color::new(0.4, 0.36, 0.25, 1.0)
-            };
-            draw_triangle(
-                vec2(x + tip * scale, y + (ay + 9.0) * scale),
-                vec2(x + base * scale, y + (ay + 1.0) * scale),
-                vec2(x + base * scale, y + (ay + 17.0) * scale),
-                color,
-            );
-            if enabled && left && lay.rect((ax - 1.0, ay, 11.0, 18.0)).contains(mouse) {
+            if self.scroll_arrow(&lay, (ax, wy + 170.0), dir, enabled) && left {
                 let page = if dir < 0 { page - 1 } else { page + 1 };
                 self.item_ui.vault_offset = page * VAULT_SLOTS;
             }
@@ -465,6 +501,14 @@ mod tests {
         );
         assert_eq!(vault_pages_for(7), 2);
         assert_eq!(vault_pages_for(8), 3);
+    }
+
+    #[test]
+    fn heroes_scroll_six_to_a_page() {
+        assert_eq!(hero_pages_for(0), 1);
+        assert_eq!(hero_pages_for(6), 1);
+        assert_eq!(hero_pages_for(7), 2);
+        assert_eq!(hero_pages_for(35), 6);
     }
 
     #[test]

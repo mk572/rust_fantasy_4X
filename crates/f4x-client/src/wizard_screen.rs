@@ -142,10 +142,14 @@ impl App {
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let me = self.game.player(ui.who);
-        let wizard_picture = usize::from(me.map_or(0, |p| p.portrait())) * 5
-            + usize::from(me.map_or(NEUTRAL_BANNER, |p| p.banner()));
+        let wizard_picture = crate::art::gem_entry(
+            me.map_or(0, |p| p.portrait()),
+            me.map_or(NEUTRAL_BANNER, |p| p.banner()),
+        );
         let name = me.map_or_else(String::new, |p| p.name());
-        self.draw_pic(&lay, "lilwiz", wizard_picture, 0, px + 11.0, py + 11.0);
+        if let Some(entry) = wizard_picture {
+            self.draw_pic(&lay, "lilwiz", entry, 0, px + 11.0, py + 11.0);
+        }
         self.bm_text(view, 4, gold, &name, px + 114.0, py + 11.0, Align::Center);
 
         if ui.who != HUMAN {

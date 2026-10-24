@@ -255,7 +255,7 @@ until it is hired; the roster of per-wizard records is gone.
   finds nobody and fails like any summoning that finds nobody.
 - Hiring a hero takes it off every wizard's offers. An offer that is answered after the hero was
   taken is refused.
-- A wizard has at most six heroes serving; `open_hero_slots` counts the entities with a body.
+- A wizard may have any number of heroes serving, all 35 in theory (the original stops at six). What limits the supply is the roster: every place that brings a hero in (offers, Summon Hero and Champion, Incarnation, a freed prisoner) checks that a free hero exists and falls back when none does (no offer, the cast is refused before it is paid, the prisoner is rerolled into the hoard).
 - A wizard that is defeated lets its heroes go: they are `Free` again with their experience (their
   items go with the wizard).
 - The hero's own spell list stays a list of spell ids on `Hero`: a hero's casts happen in a battle

@@ -35,9 +35,10 @@ const ARCANIAN: [&str; 9] = [
     "orc",
 ];
 const MYRRAN: [&str; 5] = ["beastmen", "dark_elf", "draconian", "dwarven", "troll"];
-/// The banner of each flag on the banner step, top to bottom: green, blue, red, purple, yellow
-/// (as numbers of `BANNER_NAMES`).
-const FLAG_BANNERS: [u8; 5] = [1, 0, 3, 2, 4];
+/// The banner of each flag on the banner step, top to bottom: green, blue, red, purple, yellow,
+/// then (the second column) pink, brown, turquoise, dark blue, orange (as numbers of
+/// `BANNER_NAMES`).
+const FLAG_BANNERS: [u8; 10] = [1, 0, 3, 2, 4, 5, 6, 7, 8, 9];
 
 /// The book picture (of `newgame.lbx` 24 to 38) of a realm: white, blue, green, black, red.
 pub(crate) fn book_base(realm: &str) -> usize {
@@ -670,8 +671,8 @@ impl App {
     }
 
     /// Screen 7: ten small flags in two columns, the original's five and five more colours made
-    /// from them (`scripts/make_banner_flags.py`); a click on one of the original's takes the
-    /// banner and starts the game. The new colours need more banners in the game first (task 381).
+    /// from them (`scripts/make_banner_flags.py`); a click on one takes the banner and starts the
+    /// game.
     fn step_banner(&mut self, lay: &Layout) {
         let portrait = self.create.build.portrait.map(usize::from);
         let title = self.text("create.select_banner");
@@ -713,11 +714,10 @@ impl App {
             }
         }
         match clicked {
-            Some((0, row)) => {
-                self.create.build.banner = Some(FLAG_BANNERS[row]);
+            Some((column, row)) => {
+                self.create.build.banner = Some(FLAG_BANNERS[row + 5 * column]);
                 self.begin_game();
             }
-            Some(_) => self.create.warn = Some(self.text("create.banner_soon")),
             None => {
                 if is_key_pressed(KeyCode::Escape) && input {
                     self.create_back();
@@ -822,10 +822,10 @@ mod tests {
     }
 
     #[test]
-    fn the_flags_cover_the_five_banners_once() {
+    fn the_flags_cover_the_ten_banners_once() {
         let mut seen = FLAG_BANNERS.to_vec();
         seen.sort_unstable();
-        assert_eq!(seen, vec![0, 1, 2, 3, 4]);
+        assert_eq!(seen, (0..10).collect::<Vec<u8>>());
     }
 
     #[test]

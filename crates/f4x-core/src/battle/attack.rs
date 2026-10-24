@@ -92,6 +92,8 @@ pub struct DefenderState {
     pub front_damage: i32,
     /// It carries a large shield: +2 defence against every attack but a melee blow.
     pub large_shield: bool,
+    /// A Lucky hero: whoever attacks it has one plus less to hit.
+    pub lucky: bool,
 }
 
 impl DefenderState {
@@ -388,7 +390,11 @@ pub fn process_attack(
         let mut dmg = if attacker.ignores_defense || def.asleep() {
             attacker.strength
         } else {
-            let hits = roll_successes(attacker.strength, attacker.to_hit, rng);
+            let hits = roll_successes(
+                attacker.strength,
+                attacker.to_hit - i32::from(def.lucky),
+                rng,
+            );
             (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
@@ -462,7 +468,7 @@ pub fn spell_attack(
         if attacker.ignores_defense || def.asleep() {
             strength
         } else {
-            let hits = roll_successes(strength, attacker.to_hit, rng);
+            let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
             (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
         }
     };

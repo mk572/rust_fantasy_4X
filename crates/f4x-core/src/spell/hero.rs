@@ -61,13 +61,10 @@ impl UnitView<'_> {
         self.raisable_heroes().last().copied()
     }
 
-    /// Why the wizard cannot bring a hero in by this hook now, if so: no free place among the
-    /// six, no summoning circle, or nobody to bring (Incarnation: Torin is already serving or
+    /// Why the wizard cannot bring a hero in by this hook now, if so: no summoning
+    /// circle, or nobody to bring (Incarnation: Torin is already serving or
     /// gone). `Resurrection` is checked against the hero chosen, not here.
     pub fn hero_spell_blocked(&self, player: PlayerId, hook: &str) -> Option<HeroError> {
-        if self.open_hero_slots(player) == 0 {
-            return Some(HeroError::NoRoom);
-        }
         let states = self.hero_states();
         if crate::wizard::entity::find(self.world, player)
             .is_none_or(|w| w.summon_point().is_none())
@@ -243,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn a_dead_hero_is_not_hired_and_six_is_the_most() {
+    fn a_dead_hero_is_not_hired_and_there_is_no_limit_on_how_many_serve() {
         let mut g = caster();
         g.treasury_mut(P0).unwrap().gold = 5000;
         let first = g.hire_hero(P0, 0).unwrap();
@@ -252,7 +249,7 @@ mod tests {
         for k in 1..=6 {
             g.hire_hero(P0, k).unwrap();
         }
-        assert_eq!(g.units().open_hero_slots(P0), 0);
+        assert_eq!(g.units().hero_units(P0).len(), 6);
         assert_eq!(g.units().raisable_heroes(), vec![0]);
     }
 
@@ -275,10 +272,11 @@ mod tests {
     }
 
     #[test]
-    fn summoning_is_refused_without_room_or_a_circle_and_costs_nothing() {
+    fn summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing() {
         let mut g = caster();
         g.treasury_mut(P0).unwrap().gold = 5000;
-        for k in 0..6 {
+        // Every hero serves: nobody is left to summon.
+        for k in 0..=torin(&g.content.rules) {
             g.hire_hero(P0, k).unwrap();
         }
         let mana = g.player(P0).unwrap().treasury().mana;

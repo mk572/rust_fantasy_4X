@@ -7,7 +7,6 @@
         neuter: "Tab: they"),
     "create.default_name": "You",
     "create.back": "Back",
-    "create.banner_soon": "This colour cannot be played yet: more player colours are on their way.",
     "create.pick_race": "Select a race first.",
     "create.race_hint": "Point at a race to read about it. Click a race to pick it, then OK.",
     "create.race.barbarian": "Low-tech settlers of Arcanus. Their towns breed fast and their troops throw weapons, which suits steady expansion and plain warfare. Friendly with Nomads and Orcs.",

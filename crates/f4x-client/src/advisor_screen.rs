@@ -294,7 +294,10 @@ impl App {
             {
                 continue;
             }
-            let banner = self.game.wizard(owner).map_or(5, |w| w.banner());
+            let banner = self
+                .game
+                .wizard(owner)
+                .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
             let (sx, sy) = px(at.x, at.y);
             square(sx + 2.0, sy + 1.0, 1.0, self.art.banner_color(banner));
         }
@@ -309,8 +312,11 @@ impl App {
             let colour = if self.game.is_neutral_player(city.owner) {
                 Color::new(0.5, 0.3, 0.1, 1.0)
             } else {
-                self.art
-                    .banner_color(self.game.wizard(city.owner).map_or(5, |w| w.banner()))
+                self.art.banner_color(
+                    self.game
+                        .wizard(city.owner)
+                        .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner()),
+                )
             };
             square(sx + 1.0, sy + 1.0, 3.0, BLACK);
             square(sx, sy, 3.0, colour);
@@ -342,14 +348,20 @@ impl App {
             let Some((banner, name)) = self.game.wizard(id).map(|w| (w.banner(), w.name())) else {
                 continue;
             };
-            self.draw_pic(
-                &lay,
-                "reload",
-                3 + usize::from(banner),
-                0,
-                260.0,
-                80.0 + row * 9.0,
-            );
+            // The original's flags for its five colours; a flat one for the new colours.
+            if banner < 5 {
+                self.draw_pic(
+                    &lay,
+                    "reload",
+                    3 + usize::from(banner),
+                    0,
+                    260.0,
+                    80.0 + row * 9.0,
+                );
+            } else {
+                let r = lay.rect((261.0, 81.0 + row * 9.0, 7.0, 6.0));
+                draw_rectangle(r.x, r.y, r.w, r.h, self.art.banner_color(banner));
+            }
             self.bm_text(
                 view,
                 1,

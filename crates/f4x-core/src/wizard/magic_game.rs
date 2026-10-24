@@ -346,7 +346,7 @@ impl Game {
             if self.spell_has_hook(spell, hook)
                 && self.units().hero_spell_blocked(player, hook).is_some()
             {
-                // Six heroes already, no circle to appear in, or nobody left to bring.
+                // No circle to appear in, or nobody left to bring.
                 return Err(MagicError::NotAvailable);
             }
         }

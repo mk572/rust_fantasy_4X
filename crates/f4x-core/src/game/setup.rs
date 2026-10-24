@@ -81,7 +81,7 @@ pub struct NewGame {
 }
 
 impl NewGame {
-    /// A new game with `wizards` playing (2 to 5) and every other choice at its default.
+    /// A new game with `wizards` playing (2 to 10) and every other choice at its default.
     pub fn with_wizards(wizards: u8) -> Self {
         let mut spec = Self::default();
         spec.settings.basic.opponents = wizards.saturating_sub(1);
@@ -170,6 +170,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut builds = Vec::new();
     // The computer wizards, made together when the settings ask for it (see `ai_wizards`).
     let mut made: Option<std::collections::VecDeque<WizardBuild>> = None;
+    let myrran_build = |b: &WizardBuild| b.retorts.contains(&Retort::Myrran);
     for k in 0..wizards as usize {
         let build = if k == 0 && !spec.all_ai {
             if let Some(build) = &spec.build {
@@ -206,9 +207,15 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     let plain =
                         |i: usize| plain_computer_build(&game.content, spec.seed, first + i);
                     let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
-                    crate::wizard::ai::make(&mut game, &settings, &mut taken, computers, &|i| {
-                        plain[i].clone()
-                    })
+                    let human_myrran = !spec.all_ai && builds.first().is_some_and(myrran_build);
+                    crate::wizard::ai::make(
+                        &mut game,
+                        &settings,
+                        &mut taken,
+                        computers,
+                        human_myrran,
+                        &|i| plain[i].clone(),
+                    )
                     .into()
                 })
                 .pop_front()
@@ -232,6 +239,19 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         };
         builds.push(build);
     }
+    // The wizards are shared between the planes, as evenly as the Myrran retort allows
+    // (`ai::myrran_range`). Computer wizards that were made together are balanced already.
+    if !settings.ai.wizards.randomise {
+        let first = usize::from(!spec.all_ai);
+        let human_myrran = first == 1 && builds.first().is_some_and(myrran_build);
+        crate::wizard::ai::balance_planes(
+            &mut game,
+            &mut builds[first..],
+            human_myrran,
+            usize::from(wizards),
+            settings.wizards.picks.ai,
+        );
+    }
     for (k, build) in builds.iter().enumerate() {
         game.create_wizard(PlayerId(k as u8), build)
             .map_err(|e| format!("{e:?}"))?;
@@ -241,7 +261,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for k in 0..wizards {
         let id = PlayerId(k);
         let mut banner = game.player(id).map_or(0, |p| p.banner());
-        while used.contains(&banner) {
+        // Each wizard has a colour of their own while there are colours left.
+        while used.len() < usize::from(crate::player::BANNER_CHOICES) && used.contains(&banner) {
             banner = (banner + 1) % crate::player::BANNER_CHOICES;
         }
         used.insert(banner);
@@ -467,7 +488,15 @@ fn start_player(
         .as_ref()
         .map(|m| (m.width(), m.height()))
         .ok_or("no map")?;
-    let (cx, cy) = anchor(width, height, player.0, count);
+    // Wizards on the same plane are spread round it, whatever the others do on the other.
+    let (mates, index) = {
+        let same: Vec<u8> = (0..count)
+            .filter(|&k| is_myrran(game, PlayerId(k)) == (plane == Plane::Myrror))
+            .collect();
+        let index = same.iter().position(|&k| k == player.0).unwrap_or(0);
+        (same.len().max(1) as u8, index as u8)
+    };
+    let (cx, cy) = anchor(width, height, index, mates);
     let wrap = |a: u32, b: u32| {
         let d = a.abs_diff(b);
         d.min(width - d)

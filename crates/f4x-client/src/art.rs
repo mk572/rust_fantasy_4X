@@ -72,7 +72,7 @@ impl MinimapColours {
         self.terrain.get(terrain_type).copied().unwrap_or(BLACK)
     }
 
-    /// The colour of a city of this banner (5 is the neutral banner).
+    /// The colour of a city of this banner (10 is the neutral banner).
     pub fn city(&self, banner: u8) -> Color {
         self.banners
             .get(usize::from(banner))
@@ -153,7 +153,41 @@ pub struct Art {
 }
 
 /// Banner names in the order the game numbers them.
-pub const BANNER_NAMES: [&str; 6] = ["blue", "green", "purple", "red", "yellow", "neutral"];
+pub const BANNER_NAMES: [&str; 11] = [
+    "blue",
+    "green",
+    "purple",
+    "red",
+    "yellow",
+    "pink",
+    "brown",
+    "turquoise",
+    "dark_blue",
+    "orange",
+    "neutral",
+];
+
+/// The `mapback` entry of a banner's unit background: the original's 14 to 18 and 19 for the
+/// neutral one, 100 to 104 for the new colours (`scripts/make_banner_colours.py`).
+pub fn background_entry(banner: u8) -> usize {
+    match banner {
+        0..=4 => 14 + usize::from(banner),
+        5..=9 => 95 + usize::from(banner),
+        _ => 19,
+    }
+}
+
+/// The `lilwiz` entry of a wizard's gem: portrait times five plus the colour for the original's
+/// five, 100 + portrait times five + the new colour's number from 0 for the new ones. None for
+/// the neutral banner, which has no gem.
+pub fn gem_entry(portrait: u8, banner: u8) -> Option<usize> {
+    let portrait = usize::from(portrait);
+    match banner {
+        0..=4 => Some(portrait * 5 + usize::from(banner)),
+        5..=9 => Some(100 + portrait * 5 + usize::from(banner) - 5),
+        _ => None,
+    }
+}
 
 impl Art {
     pub fn load(dir: PathBuf, spells: SpellArt) -> Self {
@@ -908,7 +942,38 @@ fn default_banner_color(banner: u8) -> Color {
         2 => Color::new(0.65, 0.33, 0.65, 1.0),
         3 => Color::new(0.68, 0.0, 0.0, 1.0),
         4 => Color::new(1.0, 0.8, 0.14, 1.0),
+        5 => Color::new(0.65, 0.33, 0.5, 1.0),
+        6 => Color::new(0.5, 0.38, 0.26, 1.0),
+        7 => Color::new(0.0, 0.68, 0.68, 1.0),
+        8 => Color::new(0.18, 0.25, 0.45, 1.0),
+        9 => Color::new(1.0, 0.54, 0.14, 1.0),
         _ => Color::new(0.75, 0.6, 0.46, 1.0),
+    }
+}
+
+#[cfg(test)]
+mod banner_tests {
+    use super::*;
+
+    #[test]
+    fn every_banner_has_a_name_a_background_and_a_gem() {
+        assert_eq!(
+            BANNER_NAMES.len(),
+            usize::from(f4x_core::player::NEUTRAL_BANNER) + 1
+        );
+        assert_eq!(
+            BANNER_NAMES[usize::from(f4x_core::player::NEUTRAL_BANNER)],
+            "neutral"
+        );
+        let backgrounds: Vec<usize> = (0..=10).map(background_entry).collect();
+        assert_eq!(
+            backgrounds,
+            [14, 15, 16, 17, 18, 100, 101, 102, 103, 104, 19]
+        );
+        assert_eq!(gem_entry(2, 3), Some(13));
+        assert_eq!(gem_entry(0, 5), Some(100));
+        assert_eq!(gem_entry(13, 9), Some(169));
+        assert_eq!(gem_entry(0, f4x_core::player::NEUTRAL_BANNER), None);
     }
 }
 

@@ -35,7 +35,7 @@ pub struct BasicSettings {
     /// 0 intro, 1 easy, 2 average, 3 hard, 4 impossible.
     #[serde(default = "default_difficulty")]
     pub difficulty: u8,
-    /// Computer wizards, 1 to 4. `setup::new_game` sets it from the number of wizards it makes.
+    /// Computer wizards, 1 to [`MAX_OPPONENTS`]. `setup::new_game` sets it from the number of wizards it makes.
     #[serde(default = "default_opponents")]
     pub opponents: u8,
     /// Land as a share of each plane's tiles, 1 to 99 (see [`LAND_SMALL`]).
@@ -98,6 +98,21 @@ impl Default for BasicSettings {
             diagonal_extra_cost: false,
             original_map_generator: false,
         }
+    }
+}
+
+impl BasicSettings {
+    /// Squares of both planes for each wizard.
+    pub fn squares_per_player(&self) -> u32 {
+        2 * u32::from(self.map_width) * u32::from(self.map_height) / (u32::from(self.opponents) + 1)
+    }
+
+    /// The squares each wizard has when the game leaves fewer than [`MIN_SQUARES_PER_PLAYER`]:
+    /// the game still starts, but the player is warned that there may be too little room to
+    /// expand.
+    pub fn crowding(&self) -> Option<u32> {
+        let each = self.squares_per_player();
+        (each < MIN_SQUARES_PER_PLAYER).then_some(each)
     }
 }
 
@@ -285,8 +300,13 @@ pub struct MapSize {
     pub height: u16,
 }
 
-/// How many opponents the game offers at most (the original: four).
-pub const MAX_OPPONENTS: u8 = 4;
+/// How many opponents the game offers at most (the original: four). Nine opponents are ten
+/// wizards on a 90 by 60 map, 2.25 times the original's biggest map for twice its wizards.
+pub const MAX_OPPONENTS: u8 = 9;
+
+/// The least land a wizard should have to expand into, in squares of both planes together
+/// (`crowding`): the original's 4800 squares for five wizards is 960 each.
+pub const MIN_SQUARES_PER_PLAYER: u32 = 900;
 
 /// Which troops cost half the upkeep, and whether they do. Upkeep is whole food and gold for
 /// each unit, so about every second unit costs nothing: the ones with an even serial number pay
@@ -698,8 +718,8 @@ impl GameSettings {
             format!("difficulty {} is not 0 to 4", b.difficulty),
         );
         check(
-            (1..=4).contains(&b.opponents),
-            format!("{} opponents is not 1 to 4", b.opponents),
+            (1..=MAX_OPPONENTS).contains(&b.opponents),
+            format!("{} opponents is not 1 to {MAX_OPPONENTS}", b.opponents),
         );
         check(
             (1..=99).contains(&b.land_percent),
@@ -812,7 +832,7 @@ impl GameSettings {
     pub fn normalised(mut self) -> Self {
         let b = &mut self.basic;
         b.difficulty = b.difficulty.min(4);
-        b.opponents = b.opponents.clamp(1, 4);
+        b.opponents = b.opponents.clamp(1, MAX_OPPONENTS);
         b.land_percent = b.land_percent.clamp(1, 99);
         b.magic_strength = b.magic_strength.min(2);
         b.map_width = b.map_width.clamp(*MAP_WIDTHS.start(), *MAP_WIDTHS.end());
@@ -1015,7 +1035,7 @@ mod tests {
         def.levels.pop();
         assert_eq!(def.validate().len(), 1, "{:?}", def.validate());
         let mut def = settings();
-        def.max_opponents = 5;
+        def.max_opponents = 10;
         def.land_sizes.clear();
         assert_eq!(def.validate().len(), 2, "{:?}", def.validate());
         let mut def = settings();
@@ -1026,7 +1046,7 @@ mod tests {
         assert_eq!(def.validate().len(), 3, "{:?}", def.validate());
         let mut def = settings();
         def.levels[3].ai.gold_percent = 5;
-        def.new_game.opponents = 9;
+        def.new_game.opponents = 10;
         let problems = def.validate();
         assert!(problems.iter().any(|p| p.starts_with("level 3:")));
         assert!(problems.iter().any(|p| p.starts_with("new_game:")));

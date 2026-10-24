@@ -25,11 +25,16 @@ const OPTION_DIFFICULTIES: [&str; 5] = [
     "options.hard",
     "options.impossible",
 ];
-const OPPONENT_NAMES: [&str; 4] = [
+const OPPONENT_NAMES: [&str; 9] = [
     "options.one",
     "options.two",
     "options.three",
     "options.four",
+    "options.five",
+    "options.six",
+    "options.seven",
+    "options.eight",
+    "options.nine",
 ];
 pub(crate) const MAGIC_LEVELS: [&str; 3] = ["options.weak", "options.normal", "options.powerful"];
 
@@ -200,6 +205,32 @@ impl App {
             );
             if hover && clicked {
                 changed = Some(4 + i);
+            }
+        }
+        // Too little land for each wizard: the game still starts, but the player is told.
+        let crowded = {
+            let (w, h) = o.map_size(&self.game.content().settings);
+            let basic = f4x_core::game::setting::BasicSettings {
+                opponents: o.opponents,
+                map_width: w,
+                map_height: h,
+                ..Default::default()
+            };
+            basic.crowding()
+        };
+        if let Some(each) = crowded {
+            let text = self.text_with("options.crowded", &Args::new().count("n", each));
+            let red = Color::new(1.0, 0.45, 0.4, 1.0);
+            for (i, line) in self.bm_wrap(1, &text, 150.0).iter().enumerate() {
+                self.bm_text(
+                    view,
+                    1,
+                    red,
+                    line,
+                    167.0,
+                    170.0 + 8.0 * i as f32,
+                    Align::Left,
+                );
             }
         }
         let o = &mut self.options;

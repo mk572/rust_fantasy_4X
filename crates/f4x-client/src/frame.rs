@@ -439,7 +439,9 @@ impl App {
                 && (0..COLS).contains(&i)
                 && (0..ROWS).contains(&j)
             {
-                let banner = self.banner_index(city.owner.0).min(5);
+                let banner = self
+                    .banner_index(city.owner.0)
+                    .min(f4x_core::player::NEUTRAL_BANNER);
                 pixel(i, j, self.art.minimap().city(banner));
             }
         }

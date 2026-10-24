@@ -20,8 +20,6 @@ const DONE: (f32, f32) = (246.0, 176.0);
 const PATROL: (f32, f32) = (280.0, 176.0);
 const WAIT: (f32, f32) = (246.0, 186.0);
 const SPECIAL: (f32, f32) = (280.0, 186.0);
-/// `mapback.lbx` entry of the first unit background (blue); the neutral one is the sixth.
-const BACKGROUNDS: usize = 14;
 
 /// The button a click on the column pressed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,12 +91,14 @@ impl App {
         else {
             return;
         };
-        let banner = self.banner_index(HUMAN.0).min(5);
+        let banner = self
+            .banner_index(HUMAN.0)
+            .min(f4x_core::player::NEUTRAL_BANNER);
         if selected {
             self.draw_pic(
                 lay,
                 "mapback",
-                BACKGROUNDS + usize::from(banner),
+                crate::art::background_entry(banner),
                 0,
                 at.0,
                 at.1,

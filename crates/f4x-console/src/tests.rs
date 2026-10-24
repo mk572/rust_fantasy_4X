@@ -344,6 +344,54 @@ fn new_game_settings_reach_the_game() {
 }
 
 #[test]
+fn up_to_ten_wizards_start_shared_between_the_planes_evenly() {
+    use f4x_core::map::Plane;
+    for wizards in 2..=10u8 {
+        for seed in [3u64, 4] {
+            let mut spec = NewGame::with_wizards(wizards);
+            spec.seed = seed;
+            (
+                spec.settings.basic.map_width,
+                spec.settings.basic.map_height,
+            ) = (90, 60);
+            let g = new_game(&content(), &spec).unwrap();
+            let planes: Vec<Plane> = (0..wizards)
+                .map(|k| g.wizard(PlayerId(k)).unwrap().fortress().unwrap().plane)
+                .collect();
+            // Every wizard has a colour of their own, and none has the neutral one.
+            let mut banners: Vec<u8> = (0..wizards)
+                .map(|k| g.wizard(PlayerId(k)).unwrap().banner())
+                .collect();
+            banners.sort_unstable();
+            banners.dedup();
+            assert_eq!(banners.len(), usize::from(wizards), "{wizards} wizards");
+            assert!(banners
+                .iter()
+                .all(|&b| b < f4x_core::player::NEUTRAL_BANNER));
+            let myrror = planes.iter().filter(|&&p| p == Plane::Myrror).count() as i32;
+            let arcanus = i32::from(wizards) - myrror;
+            assert!(
+                (-1..=2).contains(&(arcanus - myrror)),
+                "{wizards} wizards, seed {seed}: {arcanus} on Arcanus, {myrror} on Myrror"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_crowded_game_is_warned_about_and_still_starts() {
+    let mut b = f4x_core::game::setting::BasicSettings::default();
+    (b.map_width, b.map_height) = (90, 60);
+    b.opponents = 9;
+    assert_eq!(b.squares_per_player(), 1080);
+    assert_eq!(b.crowding(), None);
+    (b.map_width, b.map_height) = (60, 40);
+    assert_eq!(b.crowding(), Some(480));
+    b.opponents = 4;
+    assert_eq!(b.crowding(), None);
+}
+
+#[test]
 fn the_originals_map_generator_makes_a_playable_game_with_the_real_content() {
     let mut spec = NewGame::with_wizards(3);
     spec.seed = 11;

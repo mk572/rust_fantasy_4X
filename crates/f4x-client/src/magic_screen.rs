@@ -431,14 +431,8 @@ impl App {
             if !self.game.have_met(HUMAN, id) {
                 continue;
             }
-            let gem = self.draw_pic(
-                lay,
-                "lilwiz",
-                usize::from(portrait) * 5 + usize::from(banner),
-                0,
-                x,
-                4.0,
-            );
+            let gem = crate::art::gem_entry(portrait, banner)
+                .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0));
             let rel = self.game.relation(HUMAN, id);
             let word = self.text(f4x_core::diplomacy::relation_key(rel));
             self.bm_text_set(

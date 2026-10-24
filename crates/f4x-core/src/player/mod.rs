@@ -149,7 +149,7 @@ impl Bonus {
 }
 
 /// The banner of the neutral player and of monsters.
-pub const NEUTRAL_BANNER: u8 = 5;
+pub const NEUTRAL_BANNER: u8 = 10;
 
 /// The tax rate everyone starts with: a gold for each citizen.
 pub const START_TAX_RATE: u8 = 2;
@@ -158,7 +158,7 @@ pub const START_TAX_RATE: u8 = 2;
 pub const PORTRAITS: u8 = 14;
 
 /// How many banners wizards can choose from.
-pub const BANNER_CHOICES: u8 = 5;
+pub const BANNER_CHOICES: u8 = 10;
 
 /// A new player: the components every player starts with. A wizard's player gets its `Control`
 /// and `WizardLink` when the game adds it.

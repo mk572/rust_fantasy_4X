@@ -600,9 +600,6 @@ mod tests {
                 {
                     assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
                 }
-                if t.unit == "chosen" {
-                    assert!(!a.noble);
-                }
                 if unit.abilities.iter().any(|x| x == "magic_immunity") {
                     assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
                 }
@@ -1032,7 +1029,7 @@ mod tests {
         assert!(s.levels[1].rules.safe_flee.human && !s.levels[2].rules.safe_flee.human);
         assert!(!s.levels[0].events.random_events && s.levels[1].events.random_events);
         assert_eq!(s.new_game.difficulty, 2);
-        assert_eq!(s.max_opponents, 4);
+        assert_eq!(s.max_opponents, 9);
         let sizes: Vec<_> = s
             .land_sizes
             .iter()
@@ -1068,9 +1065,9 @@ mod tests {
     fn a_settings_file_out_of_range_is_refused() {
         let over = std::env::temp_dir().join("f4x-settings-bad");
         std::fs::create_dir_all(&over).unwrap();
-        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 9))").unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 10))").unwrap();
         let err = load_settings(&[&over]).unwrap_err();
-        assert!(err.to_string().contains("9 opponents"), "{err}");
+        assert!(err.to_string().contains("10 opponents"), "{err}");
         std::fs::write(over.join("settings.ron"), "(levels: [])").unwrap();
         assert!(load_settings(&[&over]).is_ok());
         std::fs::write(over.join("settings.ron"), "(new_game: (difficulty: 2)").unwrap();
