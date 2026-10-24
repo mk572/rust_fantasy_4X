@@ -71,6 +71,7 @@ impl CreateState {
             rows: random_books(),
             warn: None,
             ignore_drag: false,
+            race_pick: None,
         }
     }
 }
@@ -228,7 +229,13 @@ impl App {
     /// The Back button at the foot of every step of the creation: a small box between the portrait
     /// frame and the picks count.
     fn ng_back_button(&mut self, lay: &Layout) {
-        let r = lay.rect((165.0, 182.0, 30.0, 14.0));
+        // The race step's list runs down to the corner, so there the button stands by OK.
+        let left = if self.create.step == Step::Race {
+            214.0
+        } else {
+            165.0
+        };
+        let r = lay.rect((left, 182.0, 30.0, 14.0));
         let hover = r.contains(mouse_position().into());
         let fill = if hover {
             Color::new(0.34, 0.24, 0.15, 1.0)
@@ -239,13 +246,13 @@ impl App {
         draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.1, 0.07, 0.05, 1.0));
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let label = self.text("create.back");
-        self.bm_text(view, 3, SHADOW, &label, 181.0, 187.0, Align::Center);
+        self.bm_text(view, 3, SHADOW, &label, left + 16.0, 187.0, Align::Center);
         self.bm_text(
             view,
             3,
             if hover { GOLD_INK } else { LIGHT },
             &label,
-            180.0,
+            left + 15.0,
             186.0,
             Align::Center,
         );
@@ -508,7 +515,8 @@ impl App {
     fn step_race(&mut self, lay: &Layout) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "newgame", 54, 0, 164.0, 18.0);
-        self.draw_pic(lay, "newgame", 55, 0, 208.0, 34.0);
+        // The lists stand at the left of the right-hand half, an explanation box beside them.
+        self.draw_pic(lay, "newgame", 55, 0, 166.0, 34.0);
         let portrait = self.create.build.portrait.map(usize::from);
         let title = self.text("create.select_race");
         self.ng_frame(lay, &title, portrait);
@@ -521,33 +529,39 @@ impl App {
             .retorts
             .contains(&f4x_core::wizard::magic::Retort::Myrran);
         let (arcanian, myrran_list) = self.race_lists();
-        let names: Vec<String> = self
+        let (names, ids): (Vec<String>, Vec<String>) = self
             .game
             .content()
             .rules
             .races
             .defs()
             .iter()
-            .map(|r| r.name.clone())
-            .collect();
+            .map(|r| (r.name.clone(), r.id.clone()))
+            .unzip();
         let title = Color::new(0.85, 0.65, 0.2, 1.0);
         let bright = Color::new(1.0, 0.95, 0.6, 1.0);
         let mouse: Vec2 = mouse_position().into();
-        let clicked = is_mouse_button_pressed(MouseButton::Left) && self.ng_input();
+        let input = self.ng_input();
+        let clicked = is_mouse_button_pressed(MouseButton::Left) && input;
         let (arcanian_title, myrran_title) =
             (self.text("create.arcanian"), self.text("create.myrran"));
-        self.bm_text(view, 3, title, &arcanian_title, 198.0, 25.0, Align::Left);
-        self.bm_text(view, 3, title, &myrran_title, 202.0, 134.0, Align::Left);
+        self.bm_text(view, 3, title, &arcanian_title, 199.0, 25.0, Align::Center);
+        self.bm_text(view, 3, title, &myrran_title, 199.0, 134.0, Align::Center);
         let mut chosen = None;
         let mut refused = false;
+        let mut hovered = None;
         for (list, top, allowed) in [(&arcanian, 38.0, true), (&myrran_list, 147.0, myrran)] {
             for (i, race) in list.iter().enumerate() {
                 let Some(race) = *race else { continue };
                 let y = top + 10.0 * i as f32;
-                let hot = lay.rect((211.0, y, 59.0, 8.0)).contains(mouse) && self.ng_input();
+                let hot = lay.rect((168.0, y, 64.0, 8.0)).contains(mouse) && input;
+                if hot {
+                    hovered = Some(race);
+                }
+                let picked = self.create.race_pick == Some(race);
                 let ink = if !allowed {
                     GREY_INK
-                } else if hot {
+                } else if hot || picked {
                     bright
                 } else {
                     LIGHT
@@ -557,11 +571,14 @@ impl App {
                     2,
                     Color::new(0.0, 0.0, 0.0, 1.0),
                     &names[race],
-                    221.0,
+                    189.0,
                     y + 1.0,
                     Align::Left,
                 );
-                self.bm_text(view, 2, ink, &names[race], 220.0, y, Align::Left);
+                self.bm_text(view, 2, ink, &names[race], 178.0, y, Align::Left);
+                if picked {
+                    self.draw_pic(lay, "newgame", 52, 0, 169.0, y);
+                }
                 if hot && clicked {
                     if allowed {
                         chosen = Some(race);
@@ -571,14 +588,81 @@ impl App {
                 }
             }
         }
+        // What the race is like, for the one the pointer is over (or else the one picked).
+        self.race_summary_box(lay, view, hovered.or(self.create.race_pick), &names, &ids);
         if refused {
             self.create.warn = Some(self.text("create.need_myrran"));
         }
         if let Some(race) = chosen {
-            self.race = race;
-            self.create.step = Step::Banner;
-        } else if is_key_pressed(KeyCode::Escape) && self.ng_input() {
+            self.create.race_pick = Some(race);
+        }
+        // OK goes on, once a race is picked.
+        let ok = self.create.race_pick.is_some();
+        self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
+        if input
+            && is_mouse_button_pressed(MouseButton::Left)
+            && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
+        {
+            match self.create.race_pick {
+                Some(race) => {
+                    self.race = race;
+                    self.create.step = Step::Banner;
+                }
+                None => self.create.warn = Some(self.text("create.pick_race")),
+            }
+        } else if is_key_pressed(KeyCode::Escape) && input {
             self.create_back();
+        }
+    }
+
+    /// The box beside the race lists: the race's name and a short summary of what it is good at.
+    fn race_summary_box(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        race: Option<usize>,
+        names: &[String],
+        ids: &[String],
+    ) {
+        let (x, top, w, h) = (236.0, 34.0, 80.0, 143.0);
+        let r = lay.rect((x, top, w, h));
+        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.05, 0.75));
+        draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.35, 0.25, 0.15, 1.0));
+        let Some(race) = race else {
+            let hint = self.text("create.race_hint");
+            for (i, line) in self.bm_wrap(0, &hint, w - 8.0).iter().enumerate() {
+                self.bm_text(
+                    view,
+                    0,
+                    GREY_INK,
+                    line,
+                    x + 4.0,
+                    top + 5.0 + 7.0 * i as f32,
+                    Align::Left,
+                );
+            }
+            return;
+        };
+        self.bm_text(
+            view,
+            1,
+            Color::new(1.0, 0.95, 0.6, 1.0),
+            &names[race],
+            x + 4.0,
+            top + 4.0,
+            Align::Left,
+        );
+        let text = self.text(&format!("create.race.{}", ids[race]));
+        for (i, line) in self.bm_wrap(0, &text, w - 8.0).iter().enumerate() {
+            self.bm_text(
+                view,
+                0,
+                LIGHT,
+                line,
+                x + 4.0,
+                top + 15.0 + 7.0 * i as f32,
+                Align::Left,
+            );
         }
     }
 
@@ -642,7 +726,10 @@ impl App {
                 self.next_spells(0);
                 self.create.step
             }
-            "race" => Step::Race,
+            "race" => {
+                self.create.race_pick = Some(0);
+                Step::Race
+            }
             "banner" => Step::Banner,
             _ => Step::Wizard,
         };
@@ -667,6 +754,16 @@ mod tests {
         assert_eq!(book_base("nature"), 6);
         assert_eq!(book_base("death"), 9);
         assert_eq!(book_base("chaos"), 12);
+    }
+
+    #[test]
+    fn every_race_has_a_summary_for_the_race_step() {
+        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        for race in content.rules.races.defs() {
+            let key = format!("create.race.{}", race.id);
+            assert!(texts.has(&key), "no summary {key}");
+        }
     }
 
     #[test]

@@ -42,6 +42,8 @@ pub(crate) struct CreateState {
     /// A book drag whose refusal was just closed goes on being ignored until the button is let go
     /// (or the same refusal would come up again every frame).
     pub ignore_drag: bool,
+    /// The race picked on the race step (an index into the rules' races), until OK is clicked.
+    pub race_pick: Option<usize>,
 }
 
 impl App {
