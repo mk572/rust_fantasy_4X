@@ -62,6 +62,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 61 | Magic | The Spell of Mastery's research cost and the AI casting it (done) |
 | 62 | Magic | Player-chosen losses when mana runs short (done) |
 | 63 | Meta | Diplomacy (done) |
+| 64 | Meta | Wizard personalities and AI objectives (done) |
 | 65 | Meta | AI v1: expansion, production, defence (done) |
 | 66 | Meta | AI research and spell use (done) |
 | 67 | Meta | AI attack (done) |
@@ -291,6 +292,21 @@ original task numbers. Newest work is merged in ascending order by number.
 ## Descriptions
 
 **62. Player-chosen losses when mana runs short (done).** Not in the original (its `WIZ_MatchManaUpkeep` drops a random kind of asset and only the summons part exists), so this is our own rule, chosen by the project owner: before ending the turn the client asks `Game::upkeep_shortfall` and, if the reserve plus the coming mana income cannot pay, shows a prompt (`upkeep_prompt.rs`) with every item that costs mana, the default pre-marked; `Command::ReleaseUpkeep` gives up the chosen ones and the turn change drops only what is still missing. The AI and the console keep the deterministic newest-first rule. The "mana short" event interaction belongs to task 68 (random events).
+
+**64. Wizard personalities and AI objectives (done).** Maniacal to peaceful personalities and the
+pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
+[271, 782-794]. See `docs/diplomacy.md`. **Done:** both are drawn at game start for every wizard
+but the human, as the original's `Init_Magic_Personalities_Objectives` does (`objective.rs`: the
+primary realm's weight row plus the retort bonuses, personality first, then objective; both stored as
+components of the wizard (`Personality`, `Objective`; task 316) and in saves; `Wizard::objective`,
+`Wizard::personality`). Personality already acted in
+diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Done 24 October 2026 (with 339):** the objective steers the scripted AI's city target, strike army,
+city focus, power split, research order and war declarations, and the personality the strike army and who
+starts wars (`f4x-ai/src/objective.rs`, `ai-objectives.md` section 0). **Rest moved to task 366:** the building weights by
+category and the casting by weighted categories. Earlier open text: what
+the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
+(`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
+here yet.
 
 **68. Random events (done).** Plague, population boom, conjunctions, moons, mana short and the other eighteen events of the original, modelled in `docs/events.md` (the table, the draw and its vetoes, the victim weights, how each ends, what each does); switchable option [768-775, 683]. Follow intent for B18 (count from the real turn, not from game start or load). Events are a table of statuses, not enchantments with timers. Done: `events.rs` (the table, the pressure, the victim weights, the end rules), `events_game.rs` (the draw with its vetoes and the playing out of all 18 events), the readers (mana short and conjunctions in the power, the moons in the temples' mana, the boom in growth), the saved state, the pop-up (`event_popup.rs`, from `EVENTMSG.LBX` and `EVENTS.LBX`), the world event under the minimap, the plague and boom marks in the city header, `--event KIND` for screenshots and the console's `event`. What is left is task 303.
 

@@ -12,7 +12,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 
 | # | Area | Summary |
 |---|---|---|
-| 64 | Meta | Wizard personalities and AI objectives |
 | 81 | Housekeeping | Packaging for Mac |
 | 85 | Client | Import and play the original's opening movie |
 | 89 | Meta | Game settings |
@@ -76,23 +75,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 344 | Client | Check the art and animation of Ice Bolt and Raise Volcano (both play `specfx` 11) |
 
 ## Descriptions
-
-### Meta: diplomacy, AI, events, victory
-
-**64. Wizard personalities and AI objectives.** Maniacal to peaceful personalities and the
-pragmatist, militarist, theurgist, perfectionist and expansionist objectives that steer the AI
-[271, 782-794]. See `docs/diplomacy.md`. **Done:** both are drawn at game start for every wizard
-but the human, as the original's `Init_Magic_Personalities_Objectives` does (`objective.rs`: the
-primary realm's weight row plus the retort bonuses, personality first, then objective; both stored as
-components of the wizard (`Personality`, `Objective`; task 316) and in saves; `Wizard::objective`,
-`Wizard::personality`). Personality already acted in
-diplomacy (it was `Chaotic` for everyone before, so AI-against-AI games now differ). **Done 24 October 2026 (with 339):** the objective steers the scripted AI's city target, strike army,
-city focus, power split, research order and war declarations, and the personality the strike army and who
-starts wars (`f4x-ai/src/objective.rs`, `ai-objectives.md` section 0). **Open:** the building weights by
-category and the casting by weighted categories (task 366). Earlier open text: what
-the objective does. The original uses it for the AI's expansion rate (`AIMOVE.c`), building weights
-(`AIBUILD.c`), magic investment (`AIDUDES.c`) and war declarations (`DIPLOMAC.c`); nothing reads it
-here yet.
 
 ### Client, content, housekeeping
 
