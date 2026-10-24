@@ -51,6 +51,11 @@ impl Game {
         }
     }
 
+    /// Whether undo is switched on.
+    pub fn undo_enabled(&self) -> bool {
+        self.undo_on
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo_stack.is_empty()
     }

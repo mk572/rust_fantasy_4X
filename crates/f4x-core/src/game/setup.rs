@@ -331,7 +331,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.assign_temperaments();
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
     game.init_heroes();
-    game.set_undo(true);
+    // Undo takes a snapshot of the whole game for every command: only a person needs it.
+    game.set_undo(!spec.all_ai);
     Ok(game)
 }
 

@@ -1133,6 +1133,9 @@ impl App {
             self.game.balance_farmers(HUMAN);
         }
         // The rival wizards play first; an attack on the human is fought before the turn ends.
+        // Their commands are not taken back, and undo would snapshot the whole game for each.
+        let undo = self.game.undo_enabled();
+        self.game.set_undo(false);
         let mut events = Vec::new();
         for ai in &mut self.ais {
             events.extend(ai.play_turn(&mut self.game));
@@ -1149,6 +1152,7 @@ impl App {
         // (farmers, taxes, builds, raids); the human fights the attacks on them in person.
         let (neutral_events, attacks) = f4x_ai::play_neutrals_for(&mut self.game, &[HUMAN]);
         events.extend(neutral_events);
+        self.game.set_undo(undo);
         for attack in attacks {
             self.defences
                 .push_back(crate::attack_prompt::PendingAttack {

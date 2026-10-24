@@ -401,7 +401,7 @@ Interplay: `hardcore` and `spell_of_mastery` are independent.
 
 ### 4.5 Random events: switch and frequency
 
-Task 68 is built, and `random_events` and `event_frequency` are read by the draw (task 274: the preferences page's Random Events entry is the default for a new game, and a level that plays without events, Intro, keeps them off; the console's `new events=on|off event-frequency=half|normal|double` and `settings` show the rest; the three-way choice with the chances on a screen waits for the advanced screen of task 248; `event_start_turn` is not built, the first five turns are fixed). The original's rule (`EVENTS.c`, `Determine_Event`): every turn, a "pressure"
+Task 68 is built, and `random_events` and `event_frequency` are read by the draw (task 274: the preferences page's Random Events entry is the default for a new game, and a level that plays without events, Intro, keeps them off; the console's `new events=on|off event-frequency=half|normal|double` and `settings` show the rest; the three-way choice with the chances on a screen waits for the advanced screen (planned item 47); `event_start_turn` is not built, the first five turns are fixed). The original's rule (`EVENTS.c`, `Determine_Event`): every turn, a "pressure"
 equal to the turns since the last event (nothing for the first five turns after the game starts, a
 flaw the help conflicts list as B18) is scaled by a difficulty fraction (50% on Intro, 66%, 75%, 80%,
 100%), and an event fires when `Random(512)` is at most the pressure. The chance therefore grows
@@ -762,7 +762,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
    event switches. Each gets its own task and its own tests, and its range on the screen is raised
    only when it is done.
 
-Tasks 89 and 94 become stages 1 to 3 (tasks 246 to 248; stage 4 is task 249); the presentation half of task 94 is separate (not saved per
+Tasks 89 and 94 become stages 1 to 3 (tasks 246 and 247, and planned item 47; stage 4 is planned item 48, formerly tasks 248 and 249); the presentation half of task 94 is separate (not saved per
 game).
 
 ## 10. Open questions
