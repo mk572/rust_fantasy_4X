@@ -278,9 +278,9 @@ hull and deck drawn for the isometric diamond grid (the field's cells are 32 by 
 a rectangle in cell axes, so it looks diagonal on screen), a bow and stern for the pointed ends, a
 rail where the gap is jumped, a sunk hull when a ship dies, and a picture for the Floating Island's
 deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+ or GPL 2.0+, in
-`CREDITS.md`) was tried and does not fit: it is flat top-down 32 by 32 tiles, not isometric. Options to
+`reference/lpc-ship/`, notice in `reference/CREDITS.md`) was tried and does not fit: it is flat top-down 32 by 32 tiles, not isometric. Options to
 settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
-set (check its licence and credit it in `CREDITS.md`). Keep the deck cells as the rules' truth; only
+set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
 
 Measure with the soak before and after each part: 2 wizards, seeds 1 to 8, 300 turns; 4 wizards, seeds 1
