@@ -229,8 +229,8 @@ impl App {
     /// The Back button at the foot of every step of the creation: a small box between the portrait
     /// frame and the picks count.
     fn ng_back_button(&mut self, lay: &Layout) {
-        // The race step's list runs down to the corner, so there the button stands by OK.
-        let left = if self.create.step == Step::Race {
+        // The race and banner steps use the corner, so there the button stands by OK.
+        let left = if matches!(self.create.step, Step::Race | Step::Banner) {
             214.0
         } else {
             165.0
@@ -666,31 +666,60 @@ impl App {
         }
     }
 
-    /// Screen 7: five flags; a click takes the banner and starts the game.
+    /// Screen 7: ten small flags in two columns, the original's five and five more colours made
+    /// from them (`scripts/make_banner_flags.py`); a click on one of the original's takes the
+    /// banner and starts the game. The new colours need more banners in the game first (task 381).
     fn step_banner(&mut self, lay: &Layout) {
-        self.draw_pic(lay, "newgame", 46, 0, 158.0, 0.0);
         let portrait = self.create.build.portrait.map(usize::from);
         let title = self.text("create.select_banner");
         self.ng_frame(lay, &title, portrait);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_build_shelf(lay);
-        let tops = [21.0, 56.0, 94.0, 129.0, 163.0];
-        let bottoms = [55.0, 93.0, 128.0, 162.0, 199.0];
         let mouse: Vec2 = mouse_position().into();
-        if !self.ng_input() {
-            return;
-        }
-        for i in 0..5 {
-            let r = lay.rect((175.0, tops[i], 138.0, bottoms[i] - tops[i]));
-            if r.contains(mouse) && is_mouse_button_pressed(MouseButton::Left) {
-                self.create.build.banner = Some(FLAG_BANNERS[i]);
-                self.begin_game();
-                return;
+        let input = self.ng_input();
+        let mut clicked = None;
+        for column in 0..2 {
+            for row in 0..5 {
+                let (x, y) = (170.0 + 74.0 * column as f32, 26.0 + 34.0 * row as f32);
+                let entry = row + 5 * column;
+                let area = lay.rect((x - 2.0, y - 4.0, 74.0, 30.0));
+                let hot = input && area.contains(mouse);
+                if self.draw_pic(lay, "banner_flags", entry, 0, x, y).is_none() {
+                    draw_rectangle(
+                        area.x,
+                        area.y,
+                        area.w,
+                        area.h,
+                        Color::new(0.4, 0.3, 0.2, 1.0),
+                    );
+                }
+                if hot {
+                    draw_rectangle_lines(
+                        area.x,
+                        area.y,
+                        area.w,
+                        area.h,
+                        2.0,
+                        Color::new(1.0, 0.95, 0.6, 1.0),
+                    );
+                    if is_mouse_button_pressed(MouseButton::Left) {
+                        clicked = Some((column, row));
+                    }
+                }
             }
         }
-        if is_key_pressed(KeyCode::Escape) {
-            self.create_back();
+        match clicked {
+            Some((0, row)) => {
+                self.create.build.banner = Some(FLAG_BANNERS[row]);
+                self.begin_game();
+            }
+            Some(_) => self.create.warn = Some(self.text("create.banner_soon")),
+            None => {
+                if is_key_pressed(KeyCode::Escape) && input {
+                    self.create_back();
+                }
+            }
         }
     }
 
