@@ -144,8 +144,8 @@ pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool) -> SpellFx {
             .clone()
             .map(|(lbx, entry)| SpellFx::Ground { lbx, entry }),
         "call_chaos" => Some(SpellFx::Chaos),
-        // Two spells play a big picture of their own.
-        "earth_to_mud" | "black_wind" => own.clone().map(|pic| cell(pic, true)),
+        // Three spells play a big picture of their own.
+        "earth_to_mud" | "black_wind" | "petrify" => own.clone().map(|pic| cell(pic, true)),
         _ => own.clone().map(|pic| cell(pic, false)),
     }
     .or_else(|| {

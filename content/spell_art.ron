@@ -80,7 +80,7 @@
         "great_wasting": [(lbx: "specfx", entry: 27, role: Global)],
         "herb_mastery": [(lbx: "specfx", entry: 24, role: Global)],
         "holy_arms": [(lbx: "specfx", entry: 34, role: Global)],
-        "ice_bolt": [(lbx: "spells/ice_bolt", entry: 0, role: Cast)], // made by scripts/make_ice_bolt.py from Fire Bolt's frames
+        "ice_bolt": [(lbx: "spells/ice_bolt", entry: 0, role: Cast)], // made by scripts/make_spell_art.py from Fire Bolt's frames
         "ice_storm": [(lbx: "specfx", entry: 10, role: Cast)],
         "just_cause": [(lbx: "specfx", entry: 33, role: Global)],
         "life_drain": [(lbx: "cmbtfx", entry: 6, role: Cast)],
@@ -91,7 +91,7 @@
         "mind_storm": [(lbx: "cmbtfx", entry: 21, role: Cast)],
         "nature_awareness": [(lbx: "specfx", entry: 22, role: Global)],
         "natures_wrath": [(lbx: "specfx", entry: 23, role: Global)],
-        "petrify": [(lbx: "specfx", entry: 12, role: Cast)],
+        "petrify": [(lbx: "spells/petrify", entry: 0, role: Cast)], // made by scripts/make_spell_art.py from Change Terrain's sparkles (specfx 8), in dark brown
         "planar_seal": [(lbx: "specfx", entry: 35, role: Global)],
         "possession": [(lbx: "cmbtfx", entry: 8, role: Cast)],
         "psionic_blast": [(lbx: "cmbtfx", entry: 16, role: Cast)],
