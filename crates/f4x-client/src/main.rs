@@ -49,6 +49,7 @@ mod outpost_screen;
 mod page_turn;
 mod pointer;
 mod preferences;
+mod production_screen;
 mod resurrect_prompt;
 mod river_art;
 mod road_plan;
@@ -560,7 +561,9 @@ async fn main() {
             app.open_test_sale();
         }
         if options.choose {
-            app.choosing = true;
+            if let view::Screen::City(city) = app.screen {
+                app.open_production(city);
+            }
         }
         if let Some(list) = &options.city_fx {
             app.open_test_city_fx(list);

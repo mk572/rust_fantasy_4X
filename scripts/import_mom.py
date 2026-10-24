@@ -599,6 +599,62 @@ def import_event_texts(game: Path) -> list[str]:
     return lines
 
 
+def import_building_texts(game: Path, buildings: list[Building]) -> list[tuple[Building, str]]:
+    """The original's one-paragraph description of each building (BUILDESC.LBX entry 0, 200
+    bytes a record, indexed like BUILDDAT). Kept local and used only to check our numbers; the
+    game shows its own descriptions (`content/text/en/building.ron`)."""
+    records = read_records(read_lbx(game / "BUILDESC.LBX")[0])
+    out = []
+    for b in buildings:
+        text = " ".join(cstr(records[b.index]).split()) if b.index < len(records) else ""
+        if text:
+            out.append((b, text))
+    return out
+
+
+# What a description's figure means: (pattern, our effect stat, sign of our value, op).
+DESCRIPTION_CLAIMS = (
+    (r"\+(\d+) spell research", "CityResearch", 1, "Add"),
+    (r"\+(\d+) mana(?! points a turn)", "CityMana", 1, "Add"),
+    (r"upkeep cost of (\d+) mana", "CityMana", -1, "Add"),
+    (r"unrest(?: level)? by (\d+)", "CityUnrest", -1, "Add"),
+    (r"revenues? of (?:the|a) city by \+?(\d+)%", "CityGold", 1, "Percent"),
+    (r"production(?: points of a city)? by \+(\d+)%", "CityProduction", 1, "Percent"),
+    (r"production of forest squares by (\d+)%", "CityProduction", 1, "Percent"),
+    (r"and production by \+(\d+)%", "CityProduction", 1, "Percent"),
+    (r"\+(\d+) food(?! and)", "CityFoodFlat", 1, "Add"),
+    (r"harvest by \+(\d+)", "CityFood", 1, "Add"),
+    (r"\+(\d+) people per turn", "CityGrowth", 1, "Add"),
+)
+
+
+def cross_check_building_texts(texts: list[tuple[Building, str]], rules_out: Path,
+                               report: Report) -> int:
+    """Compare the figures the original's descriptions state with the effects in our
+    `buildings.ron`; each difference is a `check` note in the report."""
+    lines = {}
+    for line in (rules_out / "buildings.ron").read_text(encoding="utf-8").splitlines():
+        m = re.search(r'\(id: "([a-z0-9_]+)"', line)
+        if m:
+            lines[m.group(1)] = line
+    found = 0
+    for b, text in texts:
+        line = lines.get(b.id)
+        if line is None:
+            continue
+        effects = re.findall(r"stat: (\w+), op: (\w+), value: (-?\d+)", line)
+        for pattern, stat, sign, op in DESCRIPTION_CLAIMS:
+            m = re.search(pattern, text)
+            if not m:
+                continue
+            ours = sum(int(v) for (st, o, v) in effects if st == stat and o == op) * sign
+            if ours != int(m.group(1)):
+                found += 1
+                report.note("check", f"building {b.name}: {stat} {ours} in our data, "
+                                     f"description says {m.group(1)} ({text!r})")
+    return found
+
+
 def write_list(path: Path, header: str, lines: list[str]) -> None:
     path.write_text(f"// {header}\n[\n" + "\n".join(lines) + "\n]\n", encoding="utf-8")
 
@@ -648,6 +704,12 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
     ])
     write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
     write_list(out / "event_texts.ron", local_header, import_event_texts(game))
+    building_texts = import_building_texts(game, buildings)
+    write_list(out / "building_texts.ron", local_header, [
+        f"    (building: {ron_str(b.id)}, text: {ron_str(t)})," for b, t in building_texts
+    ])
+    LOG.info("building description cross-check: %d mismatches",
+             cross_check_building_texts(building_texts, rules_out, report))
     mismatches = cross_check_help(help_topics, buildings, races, spell_rows, report)
     LOG.info("help cross-check: %d mismatches", mismatches)
     write_list(out / "help.ron", local_header, [help_ron(t) for t in help_topics])

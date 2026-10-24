@@ -135,7 +135,7 @@ pub struct App {
     pub(crate) sell_prompt: Option<crate::sell_prompt::SellPrompt>,
     /// The auto-builder dialog over the city screen, while it is open.
     pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
-    pub(crate) choice_scroll: usize,
+    pub(crate) prod_ui: crate::production_screen::ProductionUi,
     /// The magic screen's staves, locks and windows.
     pub(crate) magic_ui: crate::magic_screen::MagicUi,
     pub(crate) wizard_ui: crate::wizard_screen::WizardUi,
@@ -323,7 +323,7 @@ impl App {
             city_naming: None,
             sell_prompt: None,
             autobuild_dialog: None,
-            choice_scroll: 0,
+            prod_ui: Default::default(),
             magic_ui: Default::default(),
             wizard_ui: Default::default(),
             diplo_ui: Default::default(),

@@ -43,16 +43,6 @@ impl Layout {
             h * self.scale,
         )
     }
-
-    pub(crate) fn text(self, s: &str, x: f32, y: f32, size: f32, color: Color) {
-        draw_text(
-            s,
-            self.ox + x * self.scale,
-            self.oy + y * self.scale,
-            size * self.scale,
-            color,
-        );
-    }
 }
 
 /// The top left of the first unit in the garrison window.
@@ -172,7 +162,7 @@ impl App {
             self.choosing = was_choosing;
             self.draw_sell_prompt();
         } else if self.choosing {
-            self.draw_production_menu(city, lay);
+            self.draw_production_screen(city);
         }
     }
 
@@ -1377,8 +1367,7 @@ impl App {
             }
         }
         if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing) {
-            self.choosing = true;
-            self.choice_scroll = 0;
+            self.open_production(city);
         }
         if self.pic_button(lay, 9, 286.0, 188.0, !self.choosing) {
             self.screen = Screen::Map;
@@ -1416,83 +1405,8 @@ impl App {
         enabled && hover && is_mouse_button_pressed(MouseButton::Left)
     }
 
-    fn draw_production_menu(&mut self, city: hecs::Entity, lay: Layout) {
-        let panel = lay.rect(20.0, 14.0, 280.0, 170.0);
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::new(0.1, 0.08, 0.05, 0.97),
-        );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 3.0, GOLD);
-        lay.text(&self.text("city.choose_build"), 26.0, 24.0, 6.0, GOLD);
-        self.draw_autobuild_button(city, lay, (222.0, 17.0, 72.0));
-        let items = self.buildable_items(city);
-        let per_page = 18usize;
-        let columns = 2usize;
-        let page = per_page * columns;
-        let (_, wheel) = mouse_wheel();
-        if wheel != 0.0 {
-            let max = items.len().saturating_sub(page);
-            self.choice_scroll = (self.choice_scroll as i32 - wheel.signum() as i32 * 2)
-                .clamp(0, max as i32) as usize;
-        }
-        let eco = self.game.economy().city_economy(city).unwrap_or_default();
-        if is_mouse_button_pressed(MouseButton::Right) {
-            self.choosing = false;
-            return;
-        }
-        for (slot, item) in items.iter().skip(self.choice_scroll).take(page).enumerate() {
-            let (col, row) = ((slot / per_page) as f32, (slot % per_page) as f32);
-            let r = lay.rect(26.0 + col * 138.0, 30.0 + row * 8.2, 134.0, 7.6);
-            let hover = r.contains(mouse_position().into());
-            if hover {
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.4, 0.3, 0.15, 1.0));
-            }
-            let cost = self.game.economy().item_cost(city, *item);
-            let detail = match item {
-                ProductionItem::TradeGoods => self.text("city.detail_gold"),
-                ProductionItem::Housing => self.text("city.detail_growth"),
-                _ => {
-                    let turns = if eco.production > 0 {
-                        cost.div_ceil(eco.production as u32).to_string()
-                    } else {
-                        "-".into()
-                    };
-                    self.text_with(
-                        "city.cost_turns",
-                        &Args::new().count("cost", cost).text("turns", turns),
-                    )
-                }
-            };
-            lay.text(
-                &self.item_name(*item),
-                27.0 + col * 138.0,
-                35.5 + row * 8.2,
-                5.0,
-                WHITE,
-            );
-            let dims = measure_text(&detail, None, (5.0 * lay.scale) as u16, 1.0);
-            draw_text(
-                &detail,
-                r.x + r.w - dims.width - 4.0,
-                r.y + r.h - 4.0,
-                5.0 * lay.scale,
-                Color::new(0.8, 0.8, 0.6, 1.0),
-            );
-            if hover && is_mouse_button_pressed(MouseButton::Left) {
-                let events = self
-                    .game
-                    .apply(Command::SetProduction { city, item: *item });
-                self.note(events);
-                self.choosing = false;
-            }
-        }
-    }
-
     /// Everything the city may start building: buildings, then units, then the two specials.
-    fn buildable_items(&self, city: hecs::Entity) -> Vec<ProductionItem> {
+    pub(crate) fn buildable_items(&self, city: hecs::Entity) -> Vec<ProductionItem> {
         let rules = &self.game.content().rules;
         let mut items = Vec::new();
         for (id, _) in rules.buildings.iter() {

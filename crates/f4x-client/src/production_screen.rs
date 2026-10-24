@@ -1,0 +1,395 @@
+//! The production screen (`Production_Screen`, ProdScr.c): a full screen with the buildings the
+//! city may build in a column on the left, the units on the right, and between them the
+//! original's panel for the one picked (`Thing_View_Draw` called as `uvt_Prod`): a building's
+//! picture, maintenance, what it allows and its description; a unit's sheet with its cost.
+//! A click on another item picks it, a click on the picked one, or OK, starts it; Cancel and
+//! Esc leave. Positions are the original's.
+
+use f4x_core::city::production::ProductionItem;
+use f4x_core::game::Command;
+use macroquad::prelude::*;
+
+use crate::frame::{Align, Layout};
+use crate::view::{App, HUMAN};
+
+/// Rows a column shows (the original's lists are cut to fit).
+const ROWS: usize = 12;
+const ROW_HEIGHT: f32 = 14.0;
+/// The panel's left edge, and the units column's.
+const PANEL_X: f32 = 74.0;
+const UNITS_X: f32 = 240.0;
+/// A city holds at most this many units.
+const GARRISON_LIMIT: usize = 9;
+
+/// Our description of each building (the keys are in `content/text/en/building.ron`).
+const DESCRIPTIONS: [(&str, &str); 33] = [
+    ("barracks", "building.barracks"),
+    ("armory", "building.armory"),
+    ("fighters_guild", "building.fighters_guild"),
+    ("armorers_guild", "building.armorers_guild"),
+    ("war_college", "building.war_college"),
+    ("smithy", "building.smithy"),
+    ("stables", "building.stables"),
+    ("animists_guild", "building.animists_guild"),
+    ("fantastic_stable", "building.fantastic_stable"),
+    ("ship_wrights_guild", "building.ship_wrights_guild"),
+    ("ship_yard", "building.ship_yard"),
+    ("maritime_guild", "building.maritime_guild"),
+    ("sawmill", "building.sawmill"),
+    ("library", "building.library"),
+    ("sages_guild", "building.sages_guild"),
+    ("oracle", "building.oracle"),
+    ("alchemists_guild", "building.alchemists_guild"),
+    ("university", "building.university"),
+    ("wizards_guild", "building.wizards_guild"),
+    ("shrine", "building.shrine"),
+    ("temple", "building.temple"),
+    ("parthenon", "building.parthenon"),
+    ("cathedral", "building.cathedral"),
+    ("marketplace", "building.marketplace"),
+    ("bank", "building.bank"),
+    ("merchants_guild", "building.merchants_guild"),
+    ("granary", "building.granary"),
+    ("farmers_market", "building.farmers_market"),
+    ("foresters_guild", "building.foresters_guild"),
+    ("builders_hall", "building.builders_hall"),
+    ("mechanicians_guild", "building.mechanicians_guild"),
+    ("miners_guild", "building.miners_guild"),
+    ("city_walls", "building.city_walls"),
+];
+
+/// What the production screen remembers while it is open.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ProductionUi {
+    pub selected: Option<ProductionItem>,
+    /// The first row shown of the buildings and of the units.
+    pub scroll: [usize; 2],
+    /// A warning box waits for a click.
+    pub warning: Option<String>,
+    /// Opened this frame: the click that opened it must not answer it.
+    pub fresh: bool,
+}
+
+impl App {
+    /// Open the production screen over `city`'s screen with its current production picked.
+    pub(crate) fn open_production(&mut self, city: hecs::Entity) {
+        self.prod_ui = ProductionUi {
+            selected: self.game.economy().city_production(city).item,
+            fresh: true,
+            ..Default::default()
+        };
+        self.sheet_ui.first = 0;
+        self.choosing = true;
+    }
+
+    /// Everything the city may start, as the left column (trade goods, housing, buildings)
+    /// and the right (units).
+    fn production_columns(&self, city: hecs::Entity) -> (Vec<ProductionItem>, Vec<ProductionItem>) {
+        let items = self.buildable_items(city);
+        let (units, mut buildings): (Vec<_>, Vec<_>) = items
+            .into_iter()
+            .partition(|i| matches!(i, ProductionItem::Unit(_)));
+        // The two specials lead the buildings, as buildings 1 and 2 do in the original.
+        buildings.sort_by_key(|i| match i {
+            ProductionItem::TradeGoods => 0,
+            ProductionItem::Housing => 1,
+            _ => 2,
+        });
+        (buildings, units)
+    }
+
+    pub(crate) fn draw_production_screen(&mut self, city: hecs::Entity) {
+        let lay = Layout::new();
+        clear_background(Color::new(0.03, 0.09, 0.09, 1.0));
+        let (buildings, units) = self.production_columns(city);
+        let fresh = std::mem::take(&mut self.prod_ui.fresh);
+        let full = self.game.units().units_at(self.city_position(city)).len() >= GARRISON_LIMIT;
+        let selected = self
+            .prod_ui
+            .selected
+            .filter(|s| buildings.contains(s) || units.contains(s))
+            .or_else(|| buildings.first().copied());
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+
+        // The middle panel first: the tabs overlap its edges.
+        if let Some(item) = selected {
+            self.draw_production_panel(city, item, &lay);
+        }
+
+        let (_, wheel) = mouse_wheel();
+        if wheel != 0.0 {
+            let column = usize::from(mouse_position().0 > lay.origin.x + 120.0 * lay.scale);
+            let len = [buildings.len(), units.len()][column];
+            let max = len.saturating_sub(ROWS);
+            let scroll = &mut self.prod_ui.scroll[column];
+            *scroll = (*scroll as i32 - wheel.signum() as i32).clamp(0, max as i32) as usize;
+        }
+
+        let waiting = self.prod_ui.warning.is_some() || fresh;
+        let mut clicked = None;
+        for (column, list) in [&buildings, &units].into_iter().enumerate() {
+            let x = if column == 0 { 0.0 } else { UNITS_X };
+            let first = self.prod_ui.scroll[column].min(list.len().saturating_sub(1));
+            for (row, item) in list.iter().skip(first).take(ROWS).enumerate() {
+                let y = 4.0 + ROW_HEIGHT * row as f32;
+                self.draw_pic(&lay, "unitview", 31 + column, 0, x, y);
+                let picked = selected == Some(*item);
+                let blocked = column == 1 && full;
+                let color = if blocked {
+                    Color::new(0.55, 0.55, 0.55, 1.0)
+                } else if picked {
+                    Color::new(0.85, 1.0, 0.98, 1.0)
+                } else {
+                    Color::new(0.35, 0.78, 0.76, 1.0)
+                };
+                let name = self.item_name(*item);
+                self.bm_text(
+                    view,
+                    2,
+                    color,
+                    &name,
+                    x + 2.0 + column as f32,
+                    y + 1.0,
+                    Align::Left,
+                );
+                let tab = lay.rect((x, y, 74.0, 11.0));
+                if !waiting
+                    && is_mouse_button_pressed(MouseButton::Left)
+                    && tab.contains(mouse_position().into())
+                {
+                    clicked = Some((*item, blocked));
+                }
+            }
+        }
+
+        let city_lay = crate::city_screen::Layout::new();
+        self.draw_autobuild_button(city, city_lay, (2.0, 181.0, 70.0));
+        let (cancel, ok) = (self.text("ui.cancel"), self.text("ui.ok"));
+        let cancel = self.red_button(&lay, &cancel, 99.0, 181.0);
+        let ok = self.red_button(&lay, &ok, 172.0, 181.0);
+
+        if let Some(text) = self.prod_ui.warning.clone() {
+            if self.warning_box(&lay, &text) {
+                self.prod_ui.warning = None;
+            }
+            return;
+        }
+        if fresh {
+            return;
+        }
+        if is_key_pressed(KeyCode::Escape) || cancel {
+            self.choosing = false;
+        } else if ok || is_key_pressed(KeyCode::Enter) {
+            self.start_production(city, selected);
+        } else if let Some((item, blocked)) = clicked {
+            if blocked {
+                self.prod_ui.warning = Some(self.text("production.garrison_full"));
+            } else if selected == Some(item) {
+                self.start_production(city, Some(item));
+            } else {
+                self.prod_ui.selected = Some(item);
+                self.sheet_ui.first = 0;
+            }
+        }
+    }
+
+    fn start_production(&mut self, city: hecs::Entity, item: Option<ProductionItem>) {
+        if let Some(item) = item {
+            let events = self.game.apply(Command::SetProduction { city, item });
+            self.note(events);
+        }
+        self.choosing = false;
+    }
+
+    /// `Thing_View_Draw` for the production screen.
+    fn draw_production_panel(&mut self, city: hecs::Entity, item: ProductionItem, lay: &Layout) {
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let white = WHITE;
+        let (px, py) = (PANEL_X, 0.0);
+        let cost = self.game.economy().item_cost(city, item);
+        match item {
+            ProductionItem::Unit(id) => {
+                let def = self.game.content().rules.units.get(id).clone();
+                let sheet = self.offer_sheet(&def, None, HUMAN.0);
+                self.draw_production_sheet(lay, &sheet, (px, py));
+                let mut price = cost.to_string();
+                if cost != def.cost {
+                    price = format!("{cost}({})", def.cost);
+                }
+                let word = self.text("production.cost");
+                self.bm_text(view, 1, white, &word, px + 55.0, py + 34.0, Align::Left);
+                self.bm_text(view, 1, white, &price, px + 77.0, py + 34.0, Align::Left);
+            }
+            _ => self.draw_building_panel(city, item, cost, lay),
+        }
+    }
+
+    fn draw_building_panel(
+        &mut self,
+        city: hecs::Entity,
+        item: ProductionItem,
+        cost: u32,
+        lay: &Layout,
+    ) {
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let white = WHITE;
+        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
+        let (px, py) = (PANEL_X, 0.0);
+        self.draw_pic(lay, "unitview", 0, 0, px, py);
+        // The picture, centred in 44 by 36 pixels.
+        let rules = &self.game.content().rules;
+        let entry = match item {
+            ProductionItem::Building(id) => {
+                if rules.buildings.get(id).id == "city_walls" {
+                    Some(114)
+                } else {
+                    crate::cityscape::sprite_of(id.index() as i16 + 3).map(|(entry, _)| entry)
+                }
+            }
+            ProductionItem::TradeGoods => Some(41),
+            _ => Some(
+                42 + self
+                    .game
+                    .city_race(city)
+                    .map_or(0, |r| rules.races.get(r).house_type as usize)
+                    .min(2),
+            ),
+        };
+        if let Some(size) = entry.and_then(|e| self.art.picture("cityscap", e, 0).map(|t| t.size()))
+        {
+            let x = px + 6.0 + ((44.0 - size.x) / 2.0).floor();
+            let y = py + 4.0 + ((36.0 - size.y) / 2.0).floor();
+            if let Some(entry) = entry {
+                self.draw_pic(lay, "cityscap", entry, 0, x, y);
+            }
+        }
+        let name = self.item_name(item);
+        let name_x = px + 4.0 + 51.0;
+        if self.art.text_width(4, &name) > 100.0 {
+            for (i, line) in self.bm_wrap(4, &name, 100.0).iter().enumerate() {
+                self.bm_text(
+                    view,
+                    4,
+                    gold,
+                    line,
+                    name_x,
+                    py + 7.0 + 8.0 * i as f32,
+                    Align::Left,
+                );
+            }
+        } else {
+            self.bm_text(view, 4, gold, &name, name_x, py + 11.0, Align::Left);
+        }
+        let rules = &self.game.content().rules;
+        let (upkeep, id) = match item {
+            ProductionItem::Building(b) => (rules.buildings.get(b).upkeep_gold, Some(b)),
+            _ => (0, None),
+        };
+        if id.is_some() {
+            let word = self.text("production.cost");
+            self.bm_text(view, 1, white, &word, px + 55.0, py + 34.0, Align::Left);
+            self.bm_text(
+                view,
+                1,
+                white,
+                &cost.to_string(),
+                px + 77.0,
+                py + 34.0,
+                Align::Left,
+            );
+        }
+        let word = self.text("production.maintenance");
+        self.bm_text(view, 4, gold, &word, px + 12.0, py + 47.0, Align::Left);
+        if upkeep == 0 {
+            self.bm_text(view, 2, white, "0", px + 96.0, py + 48.0, Align::Right);
+        } else {
+            for i in 0..upkeep {
+                self.draw_pic(
+                    lay,
+                    "backgrnd",
+                    42,
+                    0,
+                    px + 93.0 + 9.0 * i as f32,
+                    py + 49.0,
+                );
+            }
+        }
+        let allows = self.production_allows(city, id);
+        let word = self.text("production.allows");
+        self.bm_text(view, 4, gold, &word, px + 12.0, py + 58.0, Align::Left);
+        if !allows.is_empty() {
+            let and = self.text("production.and");
+            let mut text = allows[..allows.len() - 1].join(", ");
+            if allows.len() > 1 {
+                text.push_str(&format!(" {and} "));
+            }
+            text.push_str(&allows[allows.len() - 1]);
+            text.push('.');
+            for (i, line) in self.bm_wrap(2, &text, 100.0).iter().enumerate() {
+                self.bm_text(
+                    view,
+                    2,
+                    white,
+                    line,
+                    px + 64.0,
+                    py + 59.0 + 7.0 * i as f32,
+                    Align::Left,
+                );
+            }
+        }
+        let description = match item {
+            ProductionItem::Building(b) => {
+                let id = self.game.content().rules.buildings.get(b).id.clone();
+                DESCRIPTIONS
+                    .iter()
+                    .find(|(building, _)| *building == id)
+                    .map(|(_, key)| self.text(key))
+            }
+            ProductionItem::TradeGoods => Some(self.text("city.converts_to_gold")),
+            _ => Some(self.text("city.increases_growth")),
+        };
+        if let Some(text) = description {
+            for (i, line) in self.bm_wrap(4, &text, 147.0).iter().enumerate() {
+                self.bm_text(
+                    view,
+                    4,
+                    gold,
+                    line,
+                    px + 13.0,
+                    py + 107.0 + 9.0 * i as f32,
+                    Align::Left,
+                );
+            }
+        }
+    }
+
+    /// The buildings this one lets the city build (`Building_Allows_List`): the ones that need
+    /// it, are not built yet and are open to the city's race.
+    fn production_allows(
+        &self,
+        city: hecs::Entity,
+        building: Option<f4x_core::rules::BuildingId>,
+    ) -> Vec<String> {
+        let Some(building) = building else {
+            return Vec::new();
+        };
+        let rules = &self.game.content().rules;
+        let this = &rules.buildings.get(building).id;
+        let race = self
+            .game
+            .city_race(city)
+            .map(|r| rules.races.get(r).id.clone());
+        let built = self.game.city_buildings(city);
+        rules
+            .buildings
+            .iter()
+            .filter(|(id, def)| {
+                def.requires.iter().any(|r| r == this)
+                    && !built.contains(id)
+                    && (def.races.is_empty()
+                        || race.as_ref().is_some_and(|r| def.races.contains(r)))
+            })
+            .map(|(_, def)| def.name.clone())
+            .collect()
+    }
+}
