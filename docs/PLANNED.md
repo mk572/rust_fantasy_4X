@@ -639,3 +639,17 @@ screen, several can be open at once, and input goes to the one on top. Sketch, t
   and drop shadows without each screen doing its own.
 Related: items 6, 10, 11 and 39 (graphics, fonts and resolution), task 289 (help pop-ups) and the full-screen scenes
 of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.
+
+**44. Build queues in the city production screen.** The original builds one thing at a time and the screen
+(`production_screen.rs`, after `Production_Screen`) picks that one. A mod may want a queue: the player lists several
+buildings and units in the order they should be made, and the city works down the list, so a new item starts the turn
+the last one is done and no production is wasted on a turn the player was not looking. To settle when it is built:
+- the screen gets a queue strip (for example under the picked item's panel, or a third column) where a click on an item
+  adds it, the picked one can be moved up and down or taken out, and the first entry is the city's current production;
+- the core keeps the queue per city (saved, and part of the replay), with `Command`s to add, remove and reorder, and an
+  entry that becomes impossible (a building another city's spell destroyed the requirement of, a unit the city can no
+  longer train) is skipped with a message, as the Grand Vizier's choice is;
+- the auto-builder (`docs/auto-builder.md`) fills the queue's end, or only an empty queue, to be decided; the AI uses
+  the queue exactly as a human does (design.md section 8: it follows the same rules);
+- the Producing panel on the city screen shows the queue's next entries, and the cost, turns and Buy keep to the first.
+Related: the production screen (task 116's neighbours), the auto-builder, and the Chancellor's "completed" lines.

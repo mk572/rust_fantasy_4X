@@ -523,7 +523,7 @@ impl App {
         } else {
             0
         };
-        let specials = specials(&SpecialsInput {
+        let mut specials = specials(&SpecialsInput {
             level,
             abilities: &abilities,
             ammo: stat(Stat::Ammo),
@@ -537,6 +537,17 @@ impl App {
             texts: self.texts(),
             enchantments,
         });
+        // What temporary effects do to the unit, after its own abilities (task 152).
+        specials.extend(
+            self.temp_effect_lines(unit)
+                .into_iter()
+                .map(|name| Special {
+                    name,
+                    icon: None,
+                    spell: None,
+                    removable: false,
+                }),
+        );
         let art = def.art.clone();
         Some(Sheet {
             source: Source::Overland(unit),

@@ -24,11 +24,7 @@
     "city.converts_to_gold": "Converts production to gold.",
     "city.increases_growth": "Increases population growth rate.",
     "city.nothing": "Nothing",
-    "city.choose_build": "Choose what to build   (wheel scrolls, right-click cancels)",
-    "city.detail_gold": "gold",
-    "city.detail_growth": "growth",
     // Cost and turns in the build list; `turns` is a number of turns, or - when none is made.
-    "city.cost_turns": "{cost}  {turns}t",
     "city.trade_goods": "Trade Goods",
     "city.housing": "Housing",
 }

@@ -1,11 +1,6 @@
-// The production screen's labels and our own one-paragraph description of each building.
+// Our own one-paragraph description of each building (the production screen shows it).
 // One key is in one file only (docs/text.md).
 {
-    "production.cost": "Cost",
-    "production.maintenance": "Maintenance",
-    "production.allows": "Allows",
-    "production.and": "and",
-    "production.garrison_full": "The city's garrison is full; no more units fit.",
     "building.barracks": "Trains regular soldiers. Units cannot be built here without it.",
     "building.armory": "Stores arms and armor. Lets the city build better equipped troops.",
     "building.fighters_guild": "Teaches basic fighting skills. New units start as regulars.",

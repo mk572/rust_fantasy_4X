@@ -59,6 +59,7 @@ mod site_prompt;
 mod spell_fx;
 mod spellbook;
 mod surveyor;
+mod temp_effect_view;
 mod terrain_pick;
 mod ui;
 mod unit_list_screen;

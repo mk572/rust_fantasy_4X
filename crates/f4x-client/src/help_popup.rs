@@ -32,6 +32,8 @@ const GROW_SECONDS: f64 = 0.25;
 #[derive(Debug, Clone)]
 pub(crate) struct HelpRequest {
     topic: u16,
+    /// A second topic shown under the first (the weapon of the melee row).
+    extra: Option<u16>,
     from: (f32, f32, f32, f32),
 }
 
@@ -58,6 +60,21 @@ pub(crate) struct HelpUi {
     /// For the screenshot check (`--help X,Y`): ask about this point at once, and skip the
     /// growing.
     pub probe: Option<(i32, i32)>,
+}
+
+/// The topic of the melee row on the unit sheet.
+const MELEE_TOPIC: u16 = 383;
+
+/// The help topic of the weapon a melee icon shows (`unitview` stat icon 0 sword, 3 magic,
+/// 2 mithril, 4 adamantium): Sword, Magic Weapon, Mithril Weapon, Adamantium Weapon.
+fn weapon_topic(icon: usize) -> Option<u16> {
+    match icon {
+        0 => Some(384),
+        3 => Some(385),
+        2 => Some(386),
+        4 => Some(762),
+        _ => None,
+    }
 }
 
 impl App {
@@ -116,8 +133,13 @@ impl App {
             }
         };
         if let Some((topic, rect)) = self.help.at_where(id, x, y, allowed) {
+            let extra = (topic.index == MELEE_TOPIC && matches!(self.screen, Screen::UnitSheet))
+                .then_some(self.sheet_ui.sheet.as_ref())
+                .flatten()
+                .and_then(|sheet| weapon_topic(sheet.melee.icon));
             self.help_ui.request = Some(HelpRequest {
                 topic: topic.index,
+                extra,
                 from: (
                     rect.0 as f32,
                     rect.1 as f32,
@@ -139,6 +161,9 @@ impl App {
         let mut parts = vec![topic.clone()];
         if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
             parts.push(more.clone());
+        }
+        if let Some(weapon) = request.extra.and_then(|i| self.help.topic(i)) {
+            parts.push(weapon.clone());
         }
         let wrap = |app: &Self, width: f32| {
             let mut lines = Vec::new();
@@ -298,5 +323,17 @@ impl App {
             self.help_ui.popup = None;
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::unit_sheet::melee_icon;
+
+    #[test]
+    fn each_weapon_quality_opens_its_own_topic() {
+        let topics: Vec<_> = (0..4).map(|q| weapon_topic(melee_icon(q))).collect();
+        assert_eq!(topics, [Some(384), Some(385), Some(386), Some(762)]);
     }
 }

@@ -1,0 +1,8 @@
+// The production screen's labels and warning. One key is in one file only (docs/text.md).
+{
+    "production.cost": "Cost",
+    "production.maintenance": "Maintenance",
+    "production.allows": "Allows",
+    "production.and": "and",
+    "production.garrison_full": "The city's garrison is full; no more units fit.",
+}

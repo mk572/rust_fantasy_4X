@@ -258,6 +258,22 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
+/// The temporary effects on a unit or city, one line each (task 152).
+fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
+    use f4x_core::spell::temp_effect::TempKind;
+    for t in ctx.game.units().temp_effects(e) {
+        let what = match t.kind {
+            TempKind::Modifier { stat, op, value } => format!("{stat:?} {op:?} {value}"),
+            TempKind::Grant(a) => format!("grants {a}"),
+            TempKind::Remove(a) => format!("removes {a}"),
+        };
+        let turns = t
+            .turns
+            .map_or("permanent".to_string(), |n| format!("{n} turns left"));
+        ctx.say(format!("temporary: {what} ({turns})"));
+    }
+}
+
 fn unit_line(ctx: &Ctx, u: hecs::Entity) -> String {
     let (hits, max) = ctx.game.units().unit_hits(u);
     let owner = ctx.game.units().unit_owner(u).map_or(0, |o| o.0);
@@ -330,6 +346,16 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         stats.join(", "),
         ctx.game.units().unit_level(u)
     ));
+    let weapons = match ctx.game.units().unit_weapon_quality(u) {
+        1 => Some("magic"),
+        2 => Some("mithril"),
+        3 => Some("adamantium"),
+        _ => None,
+    };
+    if let Some(weapons) = weapons {
+        ctx.say(format!("weapons: {weapons}"));
+    }
+    say_temp_effects(ctx, u);
     let abilities = ctx.game.units().unit_abilities(u);
     if !abilities.is_empty() {
         ctx.say(format!("abilities: {}", abilities.join(", ")));
@@ -404,6 +430,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             eco.food, eco.production, eco.gold, eco.gold_upkeep, eco.research, eco.mana, eco.growth_tens
         ));
     }
+    say_temp_effects(ctx, c);
     let built: Vec<String> = ctx
         .game
         .city_buildings(c)

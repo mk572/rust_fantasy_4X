@@ -525,8 +525,11 @@ impl App {
         let mut hit = false;
         let view = Self::view(lay);
         let list = self.game.city_enchantments(city);
-        if list.len() > PAGE {
-            let last = list.len() - 1;
+        // The temporary effects follow the spells, in plain text and not clickable (task 152).
+        let effects = self.temp_effect_lines(city);
+        let total = list.len() + effects.len();
+        if total > PAGE {
+            let last = total - 1;
             let up = lay.rect(first.0 + 62.0, first.1 - 1.0, 12.0, 12.0);
             hit |=
                 is_mouse_button_pressed(MouseButton::Left) && up.contains(mouse_position().into());
@@ -550,6 +553,22 @@ impl App {
         }
         let mouse = mouse_position().into();
         let click = is_mouse_button_pressed(MouseButton::Left) && enabled;
+        for (row, line) in effects.iter().enumerate() {
+            let row = list.len() + row;
+            if row < self.city_spell_first || row >= self.city_spell_first + PAGE {
+                continue;
+            }
+            let i = (row - self.city_spell_first) as f32;
+            self.bm_text(
+                view,
+                1,
+                Color::new(0.85, 0.85, 0.8, 1.0),
+                line,
+                first.0 + shift,
+                first.1 + shift + i * 7.0,
+                Align::Left,
+            );
+        }
         for (row, &(spell, caster)) in list
             .iter()
             .enumerate()
