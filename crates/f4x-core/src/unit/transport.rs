@@ -87,9 +87,43 @@ impl Economy<'_> {
 
     /// Whether any of `owner`'s ships on `at` has a free place.
     pub fn ship_room_at(&self, at: Position, owner: PlayerId) -> bool {
-        self.ships_at(at, owner)
-            .into_iter()
-            .any(|s| self.ship_room(s) > 0)
+        if let Some((o, squares)) = self.ship_room {
+            if o == owner {
+                return squares.contains(&at);
+            }
+        }
+        // Path searches ask this for every sea square they look at: no list, no sorting, and the
+        // cheap tests (owner, sailing) before the stat.
+        let units = self.units();
+        self.world
+            .query::<(&crate::unit::Unit, &Position)>()
+            .iter()
+            .filter(|(_, (_, p))| **p == at)
+            .any(|(u, _)| {
+                units.unit_owner(u) == Some(owner)
+                    && units
+                        .unit_def(u)
+                        .is_some_and(|d| d.movement == MovementType::Sailing)
+                    && self.ship_room(u) > 0
+            })
+    }
+
+    /// Every square where `owner` has a ship with a free place: one pass over the units, for a
+    /// search that asks about many squares.
+    pub fn ship_room_squares(&self, owner: PlayerId) -> std::collections::HashSet<Position> {
+        let units = self.units();
+        self.world
+            .query::<(&crate::unit::Unit, &Position)>()
+            .iter()
+            .filter(|&(u, _)| {
+                units.unit_owner(u) == Some(owner)
+                    && units
+                        .unit_def(u)
+                        .is_some_and(|d| d.movement == MovementType::Sailing)
+                    && self.ship_room(u) > 0
+            })
+            .map(|(_, (_, p))| *p)
+            .collect()
     }
 
     /// Whether two squares touch (the map wraps east and west).

@@ -100,6 +100,9 @@ pub struct Economy<'a> {
     pub(crate) events: &'a crate::world_event::Events,
     /// A diagonal step costs half as much again (`BasicSettings::diagonal_extra_cost`).
     pub(crate) diagonal_extra: bool,
+    /// For a path search: the squares where this player has a ship with a free place, worked
+    /// out once, so the search need not look for ships at every sea square.
+    pub(crate) ship_room: Option<(PlayerId, &'a HashSet<Position>)>,
 }
 
 impl<'a> Economy<'a> {
@@ -110,12 +113,20 @@ impl<'a> Economy<'a> {
             content,
             events: &crate::world_event::NONE,
             diagonal_extra: false,
+            ship_room: None,
         }
     }
 
     /// The same view with diagonal steps costing half as much again, or not.
     pub fn with_diagonal_extra(mut self, extra: bool) -> Self {
         self.diagonal_extra = extra;
+        self
+    }
+
+    /// The same view with the squares where `owner` has a ship with room (from
+    /// [`Economy::ship_room_squares`]; the world must not change while it is used).
+    pub fn with_ship_room(mut self, owner: PlayerId, squares: &'a HashSet<Position>) -> Self {
+        self.ship_room = Some((owner, squares));
         self
     }
 

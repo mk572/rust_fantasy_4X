@@ -51,6 +51,8 @@ impl Game {
         }
         let flies = self.economy().stack_traits(units);
         let economy = self.economy();
+        let room = economy.ship_room_squares(owner);
+        let economy = economy.with_ship_room(owner, &room);
         let profiles = economy.step_profiles(units)?;
         let step_cost = |from: Position, next: Position| -> Option<u32> {
             economy.stack_step_cost(&profiles, from, next, flies)
@@ -140,6 +142,8 @@ impl Game {
         };
         let flies = self.economy().stack_traits(units);
         let economy = self.economy();
+        let room = economy.ship_room_squares(owner);
+        let economy = economy.with_ship_room(owner, &room);
         let Some(profiles) = economy.step_profiles(units) else {
             return seen;
         };
