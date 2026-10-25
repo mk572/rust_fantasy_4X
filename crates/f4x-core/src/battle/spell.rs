@@ -156,6 +156,9 @@ enum Kind {
         bind: bool,
         save: Option<SpellSave>,
     },
+    /// A normal unit becomes a creature of chaos with a random mutation, for good (Chaos
+    /// Channels): the same change as overland.
+    Channel,
     /// After a resistance check, one of three lasting harms to a normal unit (Warp Creature).
     Warp {
         save: Option<SpellSave>,
@@ -342,6 +345,7 @@ impl Game {
                 _ => None,
             },
             Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
+            Effect::Custom(h) if h == crate::unit::mutation::CHAOS_CHANNELS => Some(Kind::Channel),
             Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
                 save: def.save.clone(),
             }),
@@ -803,6 +807,14 @@ impl Game {
                         return Err(SpellError::Target(TargetError::NoCircle));
                     }
                 }
+                if matches!(kind, Kind::Channel) {
+                    let entity = u.source.and_then(|i| self.battle_source(i));
+                    match entity.map(|e| self.check_mutate(e)) {
+                        Some(Ok(())) => {}
+                        Some(Err(e)) => return Err(SpellError::Target(e)),
+                        None => return Err(SpellError::Target(TargetError::NotNormalUnit)),
+                    }
+                }
                 if matches!(kind, Kind::LifeDrain)
                     && (u.realm == Some(Realm::Death) || u.has("death_immunity"))
                 {
@@ -989,6 +1001,12 @@ impl Game {
         unit.figures = unit.figures_start.div_ceil(2).max(1);
         active.battle.units[id] = unit;
         vec![BattleEvent::Raised { unit: id }]
+    }
+
+    /// The overland unit the battle unit `id` was copied from.
+    fn battle_source_of(&self, id: usize) -> Option<hecs::Entity> {
+        let index = self.battle.as_ref()?.battle.units.get(id)?.source?;
+        self.battle_source(index)
     }
 
     /// The overland unit a battle unit was copied from, by its index in the battle's list.
@@ -1278,6 +1296,16 @@ impl Game {
                     spell,
                 }]
             }
+            (Kind::Channel, SpellAim::Unit(target)) => {
+                if self.channel_battle_unit(target) {
+                    vec![BattleEvent::SpellEnchanted {
+                        unit: target,
+                        spell,
+                    }]
+                } else {
+                    Vec::new()
+                }
+            }
             (Kind::Warp { save }, SpellAim::Unit(target)) => {
                 self.warp_creature(spell, def, target, player, save.as_ref())
             }
@@ -1442,9 +1470,8 @@ impl Game {
 
     /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, five hit
     /// points of healing (not the dead), Chaos Channels, Warp Creature, a Fire Bolt of strength
-    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels is not in the game yet
-    /// (task 159) and does nothing; Warp Creature works as the spell does, on a normal unit not
-    /// warped already.
+    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels and Warp Creature work
+    /// as the spells do, on a normal unit that has not got the change already.
     fn call_chaos(&mut self, side: Side, player: PlayerId) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for t in self.enemies_of(side) {
@@ -1456,6 +1483,23 @@ impl Game {
                 unit: t,
                 outcome: (roll - 1) as u8,
             });
+            if roll == 3 {
+                // Chaos Channels, on a normal unit that is not mutated or undead.
+                let channelable = self
+                    .battle_source_of(t)
+                    .is_some_and(|e| self.check_mutate(e).is_ok());
+                if channelable && self.channel_battle_unit(t) {
+                    if let Some(spell) = self
+                        .content
+                        .rules
+                        .spells
+                        .id_of(crate::unit::mutation::CHAOS_CHANNELS)
+                    {
+                        events.push(BattleEvent::SpellEnchanted { unit: t, spell });
+                    }
+                }
+                continue;
+            }
             match roll {
                 4 => {
                     let u = &active.battle.units[t];
@@ -1634,6 +1678,28 @@ impl Game {
         let Some(base) = base else {
             return vec![event];
         };
+        let lasting = self.lasting_spells(&unit, &kept, &base, target);
+        if let Some(active) = self.battle.as_mut() {
+            active.battle.rebuild_unit(target, base, kept, &lasting);
+            if unit.enchantments.iter().any(|e| e == CREATURE_BINDING)
+                && !lasting.iter().any(|(id, _, _)| id == CREATURE_BINDING)
+            {
+                active.battle.return_unit(target);
+            }
+            active.battle.refresh_fields();
+        }
+        vec![event]
+    }
+
+    /// The lasting spells (id, modifiers, abilities) a battle unit keeps on top of `base`, for
+    /// `rebuild_unit`, from the spells `kept` on it. `unit` is the unit as it was before.
+    fn lasting_spells(
+        &self,
+        unit: &super::BattleUnit,
+        kept: &[(SpellId, PlayerId)],
+        base: &super::BattleUnit,
+        target: usize,
+    ) -> Vec<(String, Vec<Modifier>, Vec<String>)> {
         let lasting: Vec<_> = kept
             .iter()
             .filter_map(|&(s, _)| {
@@ -1667,16 +1733,40 @@ impl Game {
                 (id, mods, grants)
             })
             .collect();
+        lasting
+    }
+
+    /// Chaos Channels on a unit of the battle: its overland unit is mutated for good, and the
+    /// battle unit is rebuilt from it with the spells it keeps. Whether it was mutated.
+    pub(super) fn channel_battle_unit(&mut self, target: usize) -> bool {
+        let Some(active) = self.battle.as_ref() else {
+            return false;
+        };
+        let unit = active.battle.units[target].clone();
+        let Some(index) = unit.source else {
+            return false;
+        };
+        let Some(entity) = active.sources.get(index).copied() else {
+            return false;
+        };
+        let mut rng = std::mem::replace(&mut self.rng, crate::game::rng::GameRng::lent());
+        let done = self.mutate(entity, &mut rng).is_some();
+        self.rng = rng;
+        if !done {
+            return false;
+        }
+        let Some(base) = self.battle_unit_from(entity, unit.side, index) else {
+            return false;
+        };
+        let kept = unit.combat_spells.clone();
+        let lasting = self.lasting_spells(&unit, &kept, &base, target);
+        let realm = base.realm;
         if let Some(active) = self.battle.as_mut() {
             active.battle.rebuild_unit(target, base, kept, &lasting);
-            if unit.enchantments.iter().any(|e| e == CREATURE_BINDING)
-                && !lasting.iter().any(|(id, _, _)| id == CREATURE_BINDING)
-            {
-                active.battle.return_unit(target);
-            }
+            active.battle.units[target].realm = realm;
             active.battle.refresh_fields();
         }
-        vec![event]
+        true
     }
 }
 

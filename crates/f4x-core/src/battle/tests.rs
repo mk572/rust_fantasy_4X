@@ -2660,6 +2660,88 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
 }
 
 #[test]
+fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
+    let mut g = casting_game();
+    g.treasury_mut(A).unwrap().mana = 2000;
+    g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
+    let spell = g.content.rules.spells.id_of("chaos_channels").unwrap();
+    {
+        let mut m = g.wizard_mut(A).unwrap();
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&spell);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != spell);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(spell);
+        m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
+    }
+    // The test content's walker is a fantastic creature; a normal unit is one of a kind that is.
+    let mut def = g
+        .content
+        .rules
+        .units
+        .get(g.content.rules.units.id_of("walker").unwrap())
+        .clone();
+    def.id = "soldier".into();
+    def.kind = crate::rules::UnitKind::Normal;
+    let mut defs = g.content.rules.units.defs().to_vec();
+    defs.push(def);
+    g.content.rules.units = crate::rules::Registry::new(defs);
+    let soldier = g.content.rules.units.id_of("soldier").unwrap();
+    let ours = g.spawn_unit(A, at(4, 4), soldier);
+    let theirs = g.spawn_unit(D, at(5, 4), soldier);
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: vec![theirs],
+    });
+    g.battle.as_mut().unwrap().battle.set_caster(
+        Side::Attacker,
+        crate::battle::BattleCaster::new(2000, 2000, 10),
+    );
+    let enemy = g
+        .battle()
+        .unwrap()
+        .units
+        .iter()
+        .find(|u| u.side == Side::Defender)
+        .unwrap()
+        .id;
+    let mine = g
+        .battle()
+        .unwrap()
+        .units
+        .iter()
+        .find(|u| u.side == Side::Attacker)
+        .unwrap()
+        .id;
+    let cast = |g: &mut Game, unit| {
+        g.battle_command(BattleCommand::Cast {
+            spell,
+            aim: SpellAim::Unit(unit),
+            mana: 0,
+        })
+    };
+    // Only the wizard's own units can be channelled.
+    assert!(cast(&mut g, enemy).is_err());
+    let events = cast(&mut g, mine).unwrap();
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::Battle(BattleEvent::SpellEnchanted { unit, .. }) if *unit == mine
+    )));
+    // The overland unit is mutated for good and the unit in the battle is a creature of chaos.
+    assert!(g.units().unit_is_mutated(ours));
+    assert_eq!(
+        g.battle().unwrap().unit(mine).unwrap().realm,
+        Some(Realm::Chaos)
+    );
+    // A unit takes the change once.
+    assert!(cast(&mut g, mine).is_err());
+}
+
+#[test]
 fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
     let mut g = casting_game();
     let hero = hero_unit(&mut g, &["fire_bolt", "healing"], 2);

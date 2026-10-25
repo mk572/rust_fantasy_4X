@@ -551,7 +551,7 @@ Death Spell (each figure of each enemy unit without death immunity resists at -2
 Word (the same on fantastic creatures; its resistance check is against life, the spell's own
 realm, where the original's code uses death, an OGBUG; the undead resist at an extra -5, as the help says: the original has it reversed) and Call Chaos (each
 enemy unit gets one of: nothing, 5 healing, Chaos Channels, Warp Creature, a strength-15 Fire Bolt,
-Warp Lightning, Doom Bolt, Disintegrate; the two spells not in the game yet do nothing).
+Warp Lightning, Doom Bolt, Disintegrate; Chaos Channels and Warp Creature are skipped on a unit they cannot take). **Chaos Channels** can also be cast in a battle on one of the caster's own normal units: it mutates the overland unit for good (as overland, `unit/mutation.rs`) and the unit in the battle is rebuilt from it as a creature of chaos.
 
 **Destroying and cursing one unit** (`Effect::Slay`, `SpellDef::save`): Word of Death (-5), Petrify
 (stoning immunity stops it), Dispel Evil (-4, on chaos and death creatures only, undead -9),
