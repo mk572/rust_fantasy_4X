@@ -25,6 +25,7 @@
     (id: "first_strike", name: "First Strike", description: "Strikes before the defender can answer.", effects: []),
     (id: "flying", name: "Flying", description: "Moves over any terrain.", effects: []),
     (id: "forester", name: "Forester", description: "Crosses forests at no extra cost.", effects: []),
+    (id: "hasted", name: "Haste", description: "Moves twice as far and attacks or shoots twice a turn.", effects: []),
     (id: "healer", name: "Healer", description: "Heals friendly units each turn.", effects: []),
     (id: "holy_bonus", name: "Holy Bonus", description: "Strengthened by holy magic.", effects: []),
     (id: "ice_bolt", name: "Ice Bolt", description: "Ranged attack type: Ice Bolt.", effects: []),

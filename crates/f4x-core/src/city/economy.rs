@@ -642,6 +642,12 @@ impl<'a> Economy<'a> {
         if self.city_has_enchantment(city, "gaias_blessing") {
             pacify += 2;
         }
+        // Just Cause calms every city of its wizard by one.
+        if self.wizard(owner).is_some_and(|m| {
+            crate::spell::global_enchantment::magic_has_global(&m, self.content, "just_cause")
+        }) {
+            pacify += 1;
+        }
         if pacify < raw_rebels {
             let police = self
                 .units()

@@ -542,11 +542,32 @@ impl App {
                         self.book_ui.ask = Some(self.why_not_learnable(spell));
                         return;
                     }
+                    // A known spell that cannot be cast from here (a battle spell on the map)
+                    // is described instead.
+                    self.book_ui.last_left = left;
+                    self.ask_spell_help(spell, (x0, 29.0 + 22.0 * i as f32, 121.0, 17.0));
+                    return;
                 }
             }
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_spellbook(&lay, view);
+    }
+
+    /// The spell listed at `(x, y)` (320 by 200 coordinates) of the open book, with its area.
+    pub(crate) fn book_spell_at(&self, x: f32, y: f32) -> Option<(SpellId, (f32, f32, f32, f32))> {
+        let left = self.book_ui.left;
+        for (side, page_i) in [(0usize, left), (1, left + 1)] {
+            let page = self.book_ui.pages.get(page_i)?;
+            let x0 = if side == 0 { 32.0 } else { 164.0 };
+            for (i, &spell) in page.spells.iter().enumerate() {
+                let area = (x0, 29.0 + 22.0 * i as f32, 121.0, 17.0);
+                if x >= area.0 && x < area.0 + area.2 && y >= area.1 && y < area.1 + area.3 {
+                    return Some((spell, area));
+                }
+            }
+        }
+        None
     }
 
     /// The player picked a spell in the book: cast it, asking first if another is under way.

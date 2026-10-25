@@ -53,6 +53,8 @@ pub(crate) struct Special {
     pub spell: Option<f4x_core::rules::SpellId>,
     /// A click on the line turns the spell off: it is the viewer's own and not in a battle.
     pub removable: bool,
+    /// The help subject a right-click on the line opens (`ability:<id>`, `spell:<id>`).
+    pub subject: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,6 +303,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         icon,
         spell: None,
         removable: false,
+        subject: None,
     };
     if let Some((name, xp, level)) = input.level {
         let args = Args::new().text("name", name).count("xp", xp);
@@ -350,7 +353,10 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
                 .texts
                 .get("unit.caster", &Args::new().count("n", input.mana));
         }
-        out.push(plain(name, Some(icon)));
+        out.push(Special {
+            subject: Some(f4x_core::help::ability_subject(id)),
+            ..plain(name, Some(icon))
+        });
     }
     if input.undead {
         out.push(plain(
@@ -364,6 +370,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             icon: enchantment_icon(id),
             spell: Some(*spell),
             removable: *removable,
+            subject: Some(f4x_core::help::spell_subject(id)),
         });
     }
     out
@@ -546,6 +553,7 @@ impl App {
                     icon: None,
                     spell: None,
                     removable: false,
+                    subject: None,
                 }),
         );
         let art = def.art.clone();

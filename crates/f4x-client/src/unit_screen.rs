@@ -167,7 +167,7 @@ impl App {
             let inside = (x as f32 >= area.0 && (x as f32) < area.0 + area.2)
                 && (y as f32 >= area.1 && (y as f32) < area.1 + area.3);
             if inside {
-                let topic = self.help.topic_by_title(&special.name)?;
+                let topic = self.help.topic_for(special.subject.as_deref()?)?;
                 return Some((topic.index, area));
             }
         }

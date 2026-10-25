@@ -184,7 +184,8 @@ impl Game {
     }
 
     /// Gaia's Blessing: each turn a city's deserts may turn to grassland, its volcanoes to
-    /// hills (a tenth each) and its corrupted squares come clean (a fifth).
+    /// hills (a tenth each) and its corrupted squares come clean (a fifth). Consecration cleans
+    /// every corrupted square of its city's area each turn.
     pub(crate) fn process_gaias_blessing(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         let mut cities: Vec<_> = self
@@ -195,12 +196,14 @@ impl Game {
             .collect();
         self.sort_by_serial(&mut cities);
         for city in cities {
-            let blessed = self
-                .spells()
-                .city_enchantments(city)
-                .iter()
-                .any(|&(s, _)| self.content.rules.spells.get(s).id == "gaias_blessing");
-            if !blessed {
+            let has = |id: &str| {
+                self.spells()
+                    .city_enchantments(city)
+                    .iter()
+                    .any(|&(s, _)| self.content.rules.spells.get(s).id == id)
+            };
+            let (blessed, consecrated) = (has("gaias_blessing"), has("consecration"));
+            if !blessed && !consecrated {
                 continue;
             }
             let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
@@ -213,8 +216,11 @@ impl Game {
                 .map(|(p, _)| p)
                 .collect();
             for p in area {
-                if self.is_corrupted(p) && self.roll(5) == 1 {
+                if self.is_corrupted(p) && (consecrated || self.roll(5) == 1) {
                     events.extend(self.purify_square(p));
+                }
+                if !blessed {
+                    continue;
                 }
                 let has_volcano = self.economy().volcano_at(p).is_some();
                 match self.economy().terrain_class_at(p) {

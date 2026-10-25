@@ -40,32 +40,17 @@ pub(crate) struct BigBookUi {
     pub learn: Option<crate::learn_spell::LearnAnim>,
 }
 
-/// What a spell does, from the help text: the topic named for it, less its heading lines
-/// (effects, target, cost, upkeep). Empty without the help.
-pub(crate) fn describe_spell(help: &f4x_core::help::Help, name: &str) -> String {
-    let Some(topic) = help
-        .topics
-        .iter()
-        .find(|t| t.title.eq_ignore_ascii_case(name) && t.text.contains("Casting Cost"))
-    else {
-        return String::new();
-    };
-    let mut lines = topic.text.lines();
-    for line in lines.by_ref() {
-        if line.starts_with("Upkeep") {
-            break;
-        }
-    }
-    lines.collect::<Vec<_>>().join(" ")
+/// What a spell does: the text of its help topic (`spell:<id>`). Empty without one.
+pub(crate) fn describe_spell(help: &f4x_core::help::Help, id: &str) -> String {
+    help.topic_for(&f4x_core::help::spell_subject(id))
+        .map(|t| t.text.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default()
 }
 
 impl App {
     /// The paragraph that tells what a spell does.
     fn spell_text(&self, spell: SpellId) -> String {
-        describe_spell(
-            &self.help,
-            &self.game.content().rules.spells.get(spell).name,
-        )
+        describe_spell(&self.help, &self.game.content().rules.spells.get(spell).id)
     }
 
     /// Break `text` into lines no wider than `width` of the original's pixels.
@@ -519,22 +504,22 @@ mod tests {
     use f4x_core::help::{Help, HelpTopic};
 
     #[test]
-    fn a_spells_description_is_the_help_text_after_its_heading() {
+    fn a_spells_description_is_the_text_of_its_topic() {
         let help = Help {
             topics: vec![HelpTopic {
-                index: 29,
-                title: "GAIA'S BLESSING".into(),
-                text: "Effects: City Enchantment\nTarget: city\nCasting Cost: 300 mana\nUpkeep: 3 mana/turn\nA city's food grows."
-                    .into(),
+                index: 2000,
+                title: "Gaia's Blessing".into(),
+                text: "A city's food\ngrows.".into(),
                 picture: None,
                 include: None,
+                subject: Some("spell:gaias_blessing".into()),
             }],
             screens: Vec::new(),
         };
         assert_eq!(
-            describe_spell(&help, "Gaia's Blessing"),
+            describe_spell(&help, "gaias_blessing"),
             "A city's food grows."
         );
-        assert_eq!(describe_spell(&help, "Nothing"), "");
+        assert_eq!(describe_spell(&help, "nothing"), "");
     }
 }

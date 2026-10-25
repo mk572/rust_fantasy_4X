@@ -307,3 +307,28 @@ fn warp_node_turns_a_rivals_node_against_them() {
         Err(TargetError::NodeWarped)
     );
 }
+
+#[test]
+fn consecration_cleans_every_corrupted_square_of_its_city_at_once() {
+    let mut g = world();
+    g.apply(Command::FoundCity {
+        owner: P0,
+        pos: at(10, 6),
+        name: "T".into(),
+        race: g.content.rules.races.id_of("elf"),
+        population: 3,
+    });
+    let city = g.economy().city_at(at(10, 6)).unwrap();
+    {
+        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
+        grid.set_corrupted(9, 6, true);
+        grid.set_corrupted(11, 7, true);
+    }
+    g.process_gaias_blessing();
+    assert!(g.is_corrupted(at(9, 6)), "no spell, no cleaning");
+    let consecration = g.content.rules.spells.id_of("consecration").unwrap();
+    g.add_city_enchantment(city, consecration, P0);
+    g.process_gaias_blessing();
+    assert!(!g.is_corrupted(at(9, 6)));
+    assert!(!g.is_corrupted(at(11, 7)));
+}

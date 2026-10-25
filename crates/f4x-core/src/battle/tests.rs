@@ -4521,3 +4521,22 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() {
     g.treasury_mut(A).unwrap().mana = 0;
     assert_eq!(g.strategic_mana_default(A), None);
 }
+
+#[test]
+fn a_hasted_unit_attacks_twice_in_a_turn() {
+    let mut hasted = spearman(Side::Attacker, (9, 10));
+    hasted.abilities.push("hasted".into());
+    hasted.apply_lasting(&[], &[]);
+    let mut b = duel(hasted, spearman(Side::Defender, (10, 10)), 3);
+    assert!(b.unit(0).unwrap().extra_attack);
+    b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+        .unwrap();
+    assert!(!b.unit(0).unwrap().attacked, "one attack is left");
+    b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+        .unwrap();
+    assert!(b.unit(0).unwrap().attacked);
+    assert_eq!(
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
+        Err(BattleError::AlreadyAttacked)
+    );
+}

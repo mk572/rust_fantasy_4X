@@ -13,6 +13,10 @@ pub struct HelpTopic {
     /// Another topic whose text is shown with this one.
     #[serde(default)]
     pub include: Option<u16>,
+    /// What the topic explains when no screen area opens it: `ability:<id>` or `spell:<id>`.
+    /// Found with [`Help::topic_for`]; a subject has one topic.
+    #[serde(default)]
+    pub subject: Option<String>,
 }
 
 /// Left, top, right and bottom in 320 by 200 screen coordinates.
@@ -39,25 +43,26 @@ pub struct Help {
     pub screens: Vec<HelpScreen>,
 }
 
+/// The help subject of an ability, as a topic's `subject` writes it.
+pub fn ability_subject(id: &str) -> String {
+    format!("ability:{id}")
+}
+
+/// The help subject of a spell.
+pub fn spell_subject(id: &str) -> String {
+    format!("spell:{id}")
+}
+
 impl Help {
     pub fn topic(&self, index: u16) -> Option<&HelpTopic> {
         self.topics.iter().find(|t| t.index == index)
     }
 
-    /// The topic whose title is `name`, ignoring case and anything but letters and digits (a
-    /// spell's or an ability's help is the topic with its name: "Nature's Eye", NATURE'S EYE).
-    pub fn topic_by_title(&self, name: &str) -> Option<&HelpTopic> {
-        let key = |s: &str| {
-            s.chars()
-                .filter(|c| c.is_alphanumeric())
-                .flat_map(char::to_lowercase)
-                .collect::<String>()
-        };
-        let wanted = key(name);
-        if wanted.is_empty() {
-            return None;
-        }
-        self.topics.iter().find(|t| key(&t.title) == wanted)
+    /// The topic that explains `subject` (`ability:forester`, `spell:web`).
+    pub fn topic_for(&self, subject: &str) -> Option<&HelpTopic> {
+        self.topics
+            .iter()
+            .find(|t| t.subject.as_deref() == Some(subject))
     }
 
     /// The areas of `screen` (a [`HelpScreen::id`]).
@@ -105,9 +110,38 @@ impl Help {
     }
 
     /// Cross-reference problems; empty means consistent. An area may open a topic that is not
-    /// written yet (see [`Help::unwritten`]); it then opens nothing.
+    /// written yet (see [`Help::unwritten`]); it then opens nothing. A topic number is used once,
+    /// and no two topics repeat the same title and text.
     pub fn problems(&self) -> Vec<String> {
         let mut p = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for t in &self.topics {
+            if !seen.insert(t.index) {
+                p.push(format!("help topic {} is there twice", t.index));
+            }
+        }
+        let mut subjects = std::collections::HashSet::new();
+        for t in &self.topics {
+            if let Some(subject) = &t.subject {
+                if !subjects.insert(subject) {
+                    p.push(format!(
+                        "help topic {} repeats the subject {subject}",
+                        t.index
+                    ));
+                }
+            }
+        }
+        for (i, t) in self.topics.iter().enumerate() {
+            if let Some(other) = self.topics[..i]
+                .iter()
+                .find(|o| o.title.eq_ignore_ascii_case(&t.title) && o.text == t.text)
+            {
+                p.push(format!(
+                    "help topics {} and {} have the same title and text",
+                    other.index, t.index
+                ));
+            }
+        }
         for t in &self.topics {
             if let Some(inc) = t.include {
                 if self.topic(inc).is_none() {
@@ -133,7 +167,58 @@ mod tests {
             text: String::new(),
             picture: None,
             include,
+            subject: None,
         }
+    }
+
+    #[test]
+    fn a_subject_finds_its_topic_and_has_one() {
+        let mut a = topic(1000, None);
+        a.subject = Some("ability:forester".into());
+        let mut b = topic(1001, None);
+        b.subject = Some("spell:web".into());
+        b.title = "Web".into();
+        let mut help = Help {
+            topics: vec![a.clone(), b],
+            screens: Vec::new(),
+        };
+        assert_eq!(
+            help.topic_for("ability:forester").map(|t| t.index),
+            Some(1000)
+        );
+        assert_eq!(help.topic_for("spell:web").map(|t| t.index), Some(1001));
+        assert!(help.topic_for("spell:none").is_none());
+        assert!(help.problems().is_empty());
+        let mut again = a;
+        again.index = 1002;
+        again.title = "Other".into();
+        help.topics.push(again);
+        assert!(help
+            .problems()
+            .iter()
+            .any(|p| p.contains("repeats the subject")));
+    }
+
+    #[test]
+    fn repeated_topics_are_problems() {
+        let help = Help {
+            topics: vec![topic(1, None), topic(1, None), topic(2, None)],
+            screens: Vec::new(),
+        };
+        let problems = help.problems();
+        assert!(problems
+            .iter()
+            .any(|p| p.contains("topic 1 is there twice")));
+        let mut twin = topic(3, None);
+        twin.title = "T2".into();
+        let help = Help {
+            topics: vec![topic(2, None), twin],
+            screens: Vec::new(),
+        };
+        assert!(help
+            .problems()
+            .iter()
+            .any(|p| p.contains("same title and text")));
     }
 
     #[test]

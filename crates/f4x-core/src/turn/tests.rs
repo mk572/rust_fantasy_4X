@@ -1247,7 +1247,7 @@ fn gaias_blessing_pacifies_two_rebels() {
 }
 
 #[test]
-fn pestilence_adds_unrest_and_kills_a_citizen_when_the_roll_is_under_the_population() {
+fn pestilence_adds_unrest_and_each_citizen_may_die_but_the_last_is_spared() {
     let mut g = world();
     g.treasury_mut(PlayerId(1)).unwrap().mana = 100_000;
     let city = found(&mut g, at(10, 6), "elf", 10);
@@ -1256,16 +1256,16 @@ fn pestilence_adds_unrest_and_kills_a_citizen_when_the_roll_is_under_the_populat
     let pestilence = g.content.rules.spells.id_of("pestilence").unwrap();
     g.add_city_enchantment(city, pestilence, PlayerId(1));
     assert_eq!(unrest(&g), calm + 2, "two more rebels");
-    // Ten citizens lose one with nine chances in ten; a few turns show the plague.
+    // Each citizen but the last has a tenth of a chance to die: twenty turns show the plague.
     let mut deaths = 0;
-    for _ in 0..5 {
+    for _ in 0..20 {
         deaths += g
             .apply(Command::EndTurn)
             .iter()
             .filter(|e| matches!(e, Event::CityShrank { .. }))
             .count();
     }
-    assert!(deaths >= 2, "the plague killed {deaths} times in 5 turns");
+    assert!(deaths >= 3, "the plague killed {deaths} times in 20 turns");
 }
 
 #[test]
@@ -1325,4 +1325,16 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
         plain + 4,
         "150 percent twice over: 6 for the temple"
     );
+}
+
+#[test]
+fn just_cause_pacifies_one_rebel_in_every_city() {
+    let mut g = world();
+    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 4; // 4 rebels of 10
+    let city = found(&mut g, at(10, 6), "elf", 10);
+    let rebels = |g: &Game| g.economy().city_economy(city).unwrap().rebels;
+    assert_eq!(rebels(&g), 4);
+    let just_cause = g.content.rules.spells.id_of("just_cause").unwrap();
+    g.add_global(P0, just_cause);
+    assert_eq!(rebels(&g), 3);
 }

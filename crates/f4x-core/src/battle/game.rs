@@ -334,6 +334,7 @@ impl Game {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: self.unit_in_stasis(unit),
+            extra_attack: false,
             revealed: false,
             was_invisible: false,
             combat_spells: Vec::new(),
@@ -517,7 +518,7 @@ impl Game {
         battle.wall_of_fire = has("wall_of_fire");
         battle.wall_of_darkness = has("wall_of_darkness");
         if let Some(c) = city {
-            battle.warded_realms = self.economy().city_wards(c);
+            battle.warded_realms = self.economy().city_shielded_realms(c);
         }
         // A Cloud of Shadow treats every fight at the city as if its owner had cast Darkness.
         if let Some(cloud) = self.content.rules.spells.id_of("cloud_of_shadow") {

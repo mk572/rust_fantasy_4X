@@ -1,8 +1,7 @@
 //! Help pop-ups: a right-click on a button, icon or figure opens the help for it, as
 //! in the original. Each screen has a list of areas in the original's 320 by 200 pixels
 //! (`content/help_screens.ron`, from `HLPENTRY.LBX`) that name the topic they open; the topic's
-//! text is the game's own (`content/help.ron`), or the local copy of the original's where ours is
-//! not written yet. A topic with no text opens nothing. A click or a key closes the pop-up.
+//! text is the game's own (`content/help.ron`; the original's is never read). A topic with no text opens nothing. A click or a key closes the pop-up.
 //!
 //! The screen under it is frozen: the frame it opened on is kept as a picture, so a click that
 //! closes the pop-up cannot reach a button below. With Expanding Help on, the box grows out of the
@@ -103,6 +102,24 @@ impl App {
         })
     }
 
+    /// Ask for the pop-up of a spell's own topic, out of the area `from`. False without a topic.
+    pub(crate) fn ask_spell_help(
+        &mut self,
+        spell: f4x_core::rules::SpellId,
+        from: (f32, f32, f32, f32),
+    ) -> bool {
+        let id = &self.game.content().rules.spells.get(spell).id;
+        let Some(topic) = self.help.topic_for(&f4x_core::help::spell_subject(id)) else {
+            return false;
+        };
+        self.help_ui.request = Some(HelpRequest {
+            topic: topic.index,
+            extra: None,
+            from,
+        });
+        true
+    }
+
     /// Look for a right-click on a help area. Called once a frame, before the screen reacts.
     pub(crate) fn watch_for_help(&mut self) {
         let probe = self.help_ui.probe;
@@ -120,6 +137,14 @@ impl App {
             ((mx - lay.origin.x) / lay.scale).floor() as i32,
             ((my - lay.origin.y) / lay.scale).floor() as i32,
         ));
+        // A spell in the spell book opens its own description.
+        if matches!(self.screen, Screen::Spellbook) {
+            if let Some((spell, from)) = self.book_spell_at(x as f32, y as f32) {
+                if self.ask_spell_help(spell, from) {
+                    return;
+                }
+            }
+        }
         if matches!(self.screen, Screen::UnitSheet) {
             if let Some((topic, from)) = self.sheet_special_help(x, y) {
                 self.help_ui.request = Some(HelpRequest {

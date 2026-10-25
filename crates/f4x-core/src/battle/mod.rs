@@ -203,6 +203,8 @@ pub struct BattleUnit {
     pub damage_kinds: [i32; 3],
     /// Has attacked or shot this turn.
     pub attacked: bool,
+    /// A hasted unit's second attack or shot this turn, not used yet.
+    pub extra_attack: bool,
     /// An invisible unit that gave itself away by attacking or casting: the other side sees it
     /// until its own next turn begins.
     pub revealed: bool,
@@ -314,6 +316,7 @@ impl BattleUnit {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: false,
+            extra_attack: false,
             revealed: false,
             was_invisible: false,
             combat_spells: Vec::new(),
@@ -406,6 +409,15 @@ impl BattleUnit {
         self.abilities
             .iter()
             .any(|a| a == "teleport" || a == "merging")
+    }
+
+    /// An attack or shot is used up: a hasted unit has a second one before it is spent.
+    pub fn used_attack(&mut self) {
+        if self.extra_attack {
+            self.extra_attack = false;
+        } else {
+            self.attacked = true;
+        }
     }
 
     pub fn is_active(&self) -> bool {
@@ -1044,6 +1056,7 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
+            u.extra_attack = u.has("hasted");
             u.revealed = false;
         }
         if let Some(caster) = &mut self.casters[side.index()] {
@@ -1512,7 +1525,7 @@ impl Battle {
         self.units[att].record(out.taken);
         self.units[att].heal_kinds(out.dealt.healed);
         self.units[def].heal_kinds(out.taken.healed);
-        self.units[att].attacked = true;
+        self.units[att].used_attack();
         self.units[att].revealed = true;
         self.units[att].moves_left = 0;
         for (id, mana_lost) in [(def, out.dealt.mana_lost), (att, out.taken.mana_lost)] {
@@ -1560,7 +1573,7 @@ impl Battle {
             a.heal_points(dmg.healed, true);
         }
         a.spend_shot();
-        a.attacked = true;
+        a.used_attack();
         a.revealed = true;
         let mut events = vec![BattleEvent::Shot {
             attacker: att,

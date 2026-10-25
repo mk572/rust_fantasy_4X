@@ -172,25 +172,14 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     problems
 }
 
-/// Load the optional help files (`help.ron`, `help_screens.ron`) from content directories. A
-/// topic or a screen comes from the first directory that has it, so the game's own text in
-/// `content/` is overridden by nothing, and the original's text in `content-local/` (listed
-/// after it) only fills the topics not written there. Directories without the files give an
-/// empty [`Help`].
-pub fn load_help(dirs: &[&Path]) -> Result<f4x_core::help::Help, ContentError> {
-    let mut help = f4x_core::help::Help::default();
-    for dir in dirs {
-        for topic in optional::<f4x_core::help::HelpTopic>(dir, "help.ron")? {
-            if help.topic(topic.index).is_none() {
-                help.topics.push(topic);
-            }
-        }
-        for screen in optional::<f4x_core::help::HelpScreen>(dir, "help_screens.ron")? {
-            if help.screen(screen.id).is_none() {
-                help.screens.push(screen);
-            }
-        }
-    }
+/// Load the game's help (`help.ron`, `help_screens.ron`) from the content directory `dir`. The
+/// help text is ours: nothing else is read, so the original's text is never a fallback. A
+/// directory without the files gives an empty [`Help`].
+pub fn load_help(dir: &Path) -> Result<f4x_core::help::Help, ContentError> {
+    let help = f4x_core::help::Help {
+        topics: optional::<f4x_core::help::HelpTopic>(dir, "help.ron")?,
+        screens: optional::<f4x_core::help::HelpScreen>(dir, "help_screens.ron")?,
+    };
     let problems = help.problems();
     if problems.is_empty() {
         Ok(help)
@@ -1115,7 +1104,7 @@ mod tests {
     #[test]
     fn the_shipped_help_is_consistent_and_every_topic_is_opened_by_an_area() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let help = load_help(&[dir.as_path()]).unwrap();
+        let help = load_help(&dir).unwrap();
         assert_eq!(help.screens.len(), 41);
         assert!(!help.topics.is_empty());
         // The game's own text is written for areas that open it: no orphan topic.
@@ -1126,7 +1115,7 @@ mod tests {
             .collect();
         // A topic that another topic includes is shown with it.
         opened.extend(help.topics.iter().filter_map(|t| t.include.map(i32::from)));
-        for t in &help.topics {
+        for t in help.topics.iter().filter(|t| t.subject.is_none()) {
             assert!(
                 opened.contains(&i32::from(t.index)),
                 "topic {} has no area",
@@ -1139,16 +1128,38 @@ mod tests {
         assert_eq!(topic.index, 223);
         let (topic, _) = help.at_where(1, 250, 178, |t| t != 223).unwrap();
         assert_eq!(topic.index, 229);
-        // An earlier directory wins over a later one for the same topic.
-        let other = std::env::temp_dir().join("f4x-help-layers");
-        std::fs::create_dir_all(&other).unwrap();
-        std::fs::write(
-            other.join("help.ron"),
-            r#"[(index: 229, title: "x", text: "y"), (index: 9000, title: "extra", text: "z")]"#,
-        )
-        .unwrap();
-        let layered = load_help(&[dir.as_path(), other.as_path()]).unwrap();
-        assert_eq!(layered.topic(229).unwrap().title, "Next turn");
-        assert_eq!(layered.topic(9000).unwrap().title, "extra");
+    }
+
+    #[test]
+    fn every_ability_and_every_spell_has_a_help_topic() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let help = load_help(&dir).unwrap();
+        let content = load_content(&dir).unwrap();
+        for ability in content.rules.abilities.defs() {
+            let topic = help.topic_for(&format!("ability:{}", ability.id));
+            assert!(
+                topic.is_some_and(|t| !t.text.trim().is_empty()),
+                "no help for the ability {}",
+                ability.id
+            );
+        }
+        for spell in content.rules.spells.defs() {
+            let topic = help.topic_for(&format!("spell:{}", spell.id));
+            assert!(
+                topic.is_some_and(|t| !t.text.trim().is_empty()),
+                "no help for the spell {}",
+                spell.id
+            );
+        }
+        // And no topic names a subject that does not exist.
+        for t in help.topics.iter().filter_map(|t| t.subject.as_deref()) {
+            let (kind, id) = t.split_once(':').unwrap();
+            let known = match kind {
+                "ability" => content.rules.abilities.defs().iter().any(|a| a.id == id),
+                "spell" => content.rules.spells.defs().iter().any(|s| s.id == id),
+                _ => false,
+            };
+            assert!(known, "help subject {t} is not in the game");
+        }
     }
 }

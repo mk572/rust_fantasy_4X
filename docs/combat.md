@@ -478,6 +478,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   copied from (those *are* taken off the overland unit), only those cast by another wizard, and
   then the unit is rebuilt from its base (re-read from the overland unit if that changed) with the
   spells that are left. A unit cannot be given a spell it has.
+- **Haste** doubles the unit's moves and grants the ability `hasted`: a hasted unit has a second attack or shot each turn (`BattleUnit::extra_attack`, spent by `used_attack`; the second shot uses a second round of ammunition).
 - **Summons** appear on a free square of the caster's half of the field, at most nine units a
   side, ready to act; they are made like any unit and the overland copy is dropped at once, so
   nothing is left on the map afterwards.

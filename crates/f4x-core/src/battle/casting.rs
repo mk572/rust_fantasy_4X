@@ -497,6 +497,10 @@ impl BattleUnit {
                 self.abilities.push(g.clone());
             }
         }
+        // Haste: a unit that has not attacked yet may attack twice this turn.
+        if self.has("hasted") && !self.attacked {
+            self.extra_attack = true;
+        }
         self.sync_abilities();
     }
 

@@ -327,7 +327,7 @@ impl App {
         let name = def.name.clone();
         let text = self
             .help
-            .topic_by_title(&name)
+            .topic_for(&f4x_core::help::spell_subject(&def.id))
             .map_or_else(|| self.text("picks.no_spell_help"), |t| t.text.clone());
         self.bm_text(
             view,

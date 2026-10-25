@@ -406,21 +406,20 @@ mod tests {
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
         let rival = g.spawn_unit(P1, at(9, 5), walker);
         let melee = |g: &Game, u| g.units().unit_stat(u, Stat::Melee);
+        let to_hit = |g: &Game, u| g.units().unit_stat(u, Stat::ToHit);
         let (m0, m1) = (melee(&g, normal), melee(&g, chaos));
+        let h0 = to_hit(&g, normal);
         assert!(!g.units().unit_has_magical_weapon(normal));
         grant(&mut g, P0, "holy_arms");
-        assert_eq!(melee(&g, normal), m0 + 1);
+        assert_eq!(to_hit(&g, normal), h0 + 1);
+        assert_eq!(melee(&g, normal), m0, "to hit, not strength");
         assert!(g.units().unit_has_magical_weapon(normal), "blessed blades");
         assert!(!g.units().unit_has_magical_weapon(rival), "not mine");
         assert_eq!(melee(&g, chaos), m1, "not a normal unit");
         assert_eq!(melee(&g, rival), m0, "not mine");
         grant(&mut g, P0, "chaos_surge");
         assert_eq!(melee(&g, chaos), m1 + 2);
-        assert_eq!(
-            melee(&g, normal),
-            m0 + 1,
-            "chaos surge skips non-chaos units"
-        );
+        assert_eq!(melee(&g, normal), m0, "chaos surge skips non-chaos units");
     }
 
     #[test]

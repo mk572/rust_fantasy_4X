@@ -71,11 +71,11 @@ impl Game {
                 events.push(Event::ProductionCompleted { city, item });
             }
             let (before, mut after) = self.apply_growth(city, eco.growth_tens);
-            // Pestilence kills a citizen when the city has more people than a roll of 1 to 10
-            // (`NEXTTURN.c`).
-            if self.economy().city_has_enchantment(city, "pestilence") && after > self.rng.roll(10)
-            {
-                after -= 1;
+            // Pestilence: each citizen has a tenth of a chance to die, but the last one is spared
+            // (the original kills one when the city has more people than a roll of 1 to 10).
+            if self.economy().city_has_enchantment(city, "pestilence") {
+                let dead = (1..after).filter(|_| self.rng.roll(10) == 1).count() as u32;
+                after -= dead;
                 let pop = Population {
                     figures: after,
                     ..self.city_population(city)

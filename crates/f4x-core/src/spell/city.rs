@@ -33,6 +33,9 @@ const CHAOS_RIFT_BUILDING_PERCENT: u32 = 5;
 /// The realms a Spell Ward can be set against, in the original's order.
 pub const WARD_REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
 
+/// The realms whose spells Consecration keeps off the city and the units in it.
+pub const CONSECRATION_REALMS: [&str; 2] = ["death", "chaos"];
+
 /// The realms a city has Spell Wards against (the ward spell itself, with its caster and its
 /// upkeep, is in the city's enchantments; this says which realms it was set to). Read through
 /// [`Game::city_wards`], which ignores it once the spell is gone.
@@ -212,7 +215,8 @@ impl Game {
             _ => return None,
         };
         self.economy()
-            .city_warded_against(city, &def.realm)
+            .city_shielded_realms(city)
+            .contains(&def.realm)
             .then_some(city)
     }
 
@@ -268,6 +272,20 @@ impl Economy<'_> {
     /// Whether the city is warded against spells of `realm` (a realm's id).
     pub fn city_warded_against(&self, city: hecs::Entity, realm: &str) -> bool {
         self.city_wards(city).iter().any(|w| w == realm)
+    }
+
+    /// The realms whose spells cannot be cast on the city or the units in it: the Spell Ward's,
+    /// and death and chaos under Consecration.
+    pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<String> {
+        let mut realms = self.city_wards(city);
+        if self.city_has_enchantment(city, "consecration") {
+            for realm in CONSECRATION_REALMS {
+                if !realms.iter().any(|r| r == realm) {
+                    realms.push(realm.to_string());
+                }
+            }
+        }
+        realms
     }
 
     /// Whether a Spell Ward on the city keeps the unit out: it is a fantastic creature (or a

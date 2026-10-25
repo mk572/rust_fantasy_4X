@@ -603,3 +603,43 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
         g.battle = None;
     }
 }
+
+#[test]
+fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() {
+    let mut g = world();
+    let city = found(&mut g, P0, at(10, 6), 4);
+    let consecration = g.content.rules.spells.id_of("consecration").unwrap();
+    g.add_city_enchantment(city, consecration, P0);
+    assert_eq!(
+        g.economy().city_shielded_realms(city),
+        vec!["death".to_string(), "chaos".to_string()]
+    );
+    assert!(
+        g.economy().city_wards(city).is_empty(),
+        "it is no spell ward"
+    );
+    // P1's Evil Presence (death) and Chaos Rift (chaos) are turned away.
+    for name in ["evil_presence", "chaos_rift"] {
+        let spell = g.content.rules.spells.id_of(name).unwrap();
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(spell);
+        g.wizard_mut(P1)
+            .unwrap()
+            .get_mut::<crate::wizard::sheet::Skill>()
+            .left = 500;
+        let events = g.apply(Command::CastSpell {
+            player: P1,
+            spell,
+            target: Some(Target::City(city)),
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::SpellFizzled { .. })),
+            "{name}"
+        );
+    }
+}

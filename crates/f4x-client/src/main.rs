@@ -501,7 +501,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let help = f4x_data::load_help(&[Path::new("content"), &options.content]).unwrap_or_default();
+    let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
     let spell_art = match f4x_data::spell_art::load_spell_art(
         &[&options.content, Path::new("content")],
         &content.rules,

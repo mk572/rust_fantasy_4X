@@ -290,7 +290,7 @@ passive rules for unit stats (a rule may carry a condition such as `KindIs(Norma
 `RealmIs("chaos")`, checked against each of the owner's units). Spells with an engine rule carry
 the `global_effect` hook so that casting them does not report "no effect yet". Implemented:
 Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature Awareness, Detect Magic, Holy Arms,
-Chaos Surge, Charm of Life. The rest is task 87.
+Chaos Surge, Charm of Life. The rest is task 87. Holy Arms gives the owner's normal units magical weapons and +1 to hit (not +1 attack); Just Cause adds 10 fame and pacifies one rebel in each of the owner's cities.
 
 ## 15. City enchantments with engine effects (task 25)
 
@@ -309,6 +309,8 @@ the hook `city_flag` (casting only enchants the city), and the code is in `spell
 | Stream of Life | doubled growth (stat), no rebels in the city and the units there heal completely each turn (task 24) |
 | Evil Presence | an enemy city: the mana of its shrines, temples, parthenons and cathedrals is destroyed, unless the owner has death books; casting it on such a city is refused; an outpost shrinks faster (B22: the help, not the original's code, which stops them pacifying) |
 | Chaos Rift | an enemy city: each turn every unit inside takes five strength 8 lightning bolts (armour piercing, stopped by magic immunity) and a building that nothing needs falls with 5 percent chance (`Event::ChaosRiftStrikes`; help only, B26) |
+| Consecration | not a spell ward, but it shields the city and its units from death and chaos spells the same way (`city_shielded_realms`: overland spells fizzle, an attacker cannot cast them in a battle there), and cleans every corrupted square of the city's area each turn (`process_gaias_blessing`); unrest -2 as a stat |
+| Pestilence | +2 unrest (stat); each turn every citizen but the last has a 10% chance to die (`turn.rs`; the original kills one when the city has more people than a roll of 1 to 10) |
 | Wall of Stone | not an enchantment: builds City Walls in a friendly city that has none (the original's `Cast_Wall_Of_Stone`) |
 | Wall of Fire, Wall of Darkness, Flying Fortress, Cloud of Shadow | read when a battle starts at the city: `combat.md` section 7 |
 | Spell Ward | cast with a realm (`Target::CityRealm`: the console's `ward:<city>:<realm>`, the client asks); the realms are kept in `SpellWards`, one ward costs the upkeep each; it turns away overland spells of that realm aimed at the city or at enemy units in it (`SpellFizzled`), bars fantastic creatures of the realm from entering the city, and stops the attackers casting spells of it in a battle there (B24) |
