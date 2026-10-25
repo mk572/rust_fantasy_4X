@@ -1378,11 +1378,15 @@ impl App {
             .player(crate::view::HUMAN)
             .map_or(0, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
-        let can_buy = price.is_some_and(|p| p as i32 <= gold);
-        if self.pic_button(lay, 7, 214.0, 188.0, can_buy && !self.choosing) {
+        // Clickable whenever the item can be bought; too little gold is answered with a box.
+        if self.pic_button(lay, 7, 214.0, 188.0, price.is_some() && !self.choosing) {
             if let (Some(price), Some(item)) = (price, prod.item) {
-                let name = self.item_name(item);
-                self.sell_prompt = Some(SellPrompt::Buy { city, name, price });
+                self.sell_prompt = Some(if price as i32 <= gold {
+                    let name = self.item_name(item);
+                    SellPrompt::Buy { city, name, price }
+                } else {
+                    SellPrompt::Refused(self.text("sell.not_enough_gold"))
+                });
             }
         }
         if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing) {

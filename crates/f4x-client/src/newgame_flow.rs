@@ -279,7 +279,8 @@ impl App {
         if !is_mouse_button_down(MouseButton::Left) {
             self.create.ignore_drag = false;
         }
-        match self.create.step {
+        let step = self.create.step;
+        match step {
             Step::Wizard => self.step_wizard(&lay, false),
             Step::Portrait => self.step_wizard(&lay, true),
             Step::Name => self.step_name(&lay),
@@ -288,7 +289,11 @@ impl App {
             Step::Race => self.step_race(&lay),
             Step::Banner => self.step_banner(&lay),
         }
-        self.ng_back_button(&lay);
+        // A step that was left this frame (OK clicked) must not hand its click to the next step's
+        // Back button, which stands where OK did.
+        if self.create.step == step {
+            self.ng_back_button(&lay);
+        }
         self.ng_warn_box(&lay, had_warning);
     }
 

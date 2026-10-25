@@ -5,5 +5,6 @@
     "sell.ask": "Do you wish to sell back the {building} for {gold} gold?",
     "sell.stops": " This will cease production of your {item}.",
     "sell.buy": "Do you wish to spend {price} Gold by purchasing the {building}?",
+    "sell.not_enough_gold": "You do not have enough gold.",
     "sell.turn_off": "Do you wish to turn off the {spell} spell?",
 }
