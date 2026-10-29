@@ -6,6 +6,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use f4x_core::diplomacy::relation_key;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::text::Args;
@@ -32,15 +33,6 @@ pub(crate) struct WizardUi {
     pub who: PlayerId,
     /// The screen to return to.
     pub back: Screen,
-}
-
-impl Default for WizardUi {
-    fn default() -> Self {
-        Self {
-            who: HUMAN,
-            back: Screen::Map,
-        }
-    }
 }
 
 /// One piece of the retort sentence and where it goes, as `(text, x offset, line)`; the closing
@@ -99,60 +91,59 @@ impl App {
         if !known {
             return;
         }
-        self.wizard_ui = WizardUi {
-            who,
-            back: self.screen,
-        };
-        self.screen = Screen::Wizard;
+        let back = self.screen;
+        self.open_page(Screen::Wizard, WizardUi { who, back });
     }
 
     /// For the screenshot check: show a wizard's sheet whether or not they have been met.
     pub fn open_test_wizard(&mut self, who: u8) {
-        self.wizard_ui = WizardUi {
+        let ui = WizardUi {
             who: PlayerId(who),
             back: Screen::Map,
         };
-        self.screen = Screen::Wizard;
+        self.open_page(Screen::Wizard, ui);
     }
+}
 
-    pub(crate) fn wizard_screen(&mut self, input: &Input) {
-        let ui = self.wizard_ui;
+impl Page for WizardUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let ui = *self;
         if input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::Enter)
             || input.mouse_pressed(MouseButton::Left)
         {
-            self.screen = ui.back;
+            app.screen = ui.back;
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (px, py, pw, ph) = PANEL;
-        if self.draw_pic(&lay, "backgrnd", 4, 0, px, py).is_none() {
+        if app.draw_pic(&lay, "backgrnd", 4, 0, px, py).is_none() {
             let r = lay.rect(PANEL);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.18, 0.2, 0.3, 1.0));
             let _ = (pw, ph);
         }
-        let Some(wallet) = self.game.player(ui.who).map(|p| p.treasury()) else {
+        let Some(wallet) = app.game.player(ui.who).map(|p| p.treasury()) else {
             return;
         };
         let Some((owned_books, owned_retorts)) =
-            self.game.wizard(ui.who).map(|w| (w.books(), w.retorts()))
+            app.game.wizard(ui.who).map(|w| (w.books(), w.retorts()))
         else {
             return;
         };
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let me = self.game.player(ui.who);
+        let me = app.game.player(ui.who);
         let wizard_picture = crate::art::gem_entry(
             me.map_or(0, |p| p.portrait()),
             me.map_or(NEUTRAL_BANNER, |p| p.banner()),
         );
         let name = me.map_or_else(String::new, |p| p.name());
         if let Some(entry) = wizard_picture {
-            self.draw_pic(&lay, "lilwiz", entry, 0, px + 11.0, py + 11.0);
+            app.draw_pic(&lay, "lilwiz", entry, 0, px + 11.0, py + 11.0);
         }
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::nearest(4, gold).center(),
             &name,
@@ -161,33 +152,33 @@ impl App {
         );
 
         if ui.who != HUMAN {
-            let relation = self.text(relation_key(self.game.relation(HUMAN, ui.who)));
-            let treaty = self.text(self.game.treaty(HUMAN, ui.who).key());
-            let personality = self.text(
-                self.game
+            let relation = app.text(relation_key(app.game.relation(HUMAN, ui.who)));
+            let treaty = app.text(app.game.treaty(HUMAN, ui.who).key());
+            let personality = app.text(
+                app.game
                     .wizard(ui.who)
                     .map_or_else(Default::default, |w| w.personality())
                     .key(),
             );
-            let objective = self
+            let objective = app
                 .game
                 .wizard(ui.who)
                 .and_then(|w| w.objective())
-                .map_or_else(String::new, |o| self.text(o.key()));
+                .map_or_else(String::new, |o| app.text(o.key()));
             for (i, (label, value)) in [
-                (self.text("wizard.relations"), relation),
-                (self.text("wizard.treaties"), treaty),
-                (self.text("wizard.personality"), personality),
-                (self.text("wizard.objective"), objective),
+                (app.text("wizard.relations"), relation),
+                (app.text("wizard.treaties"), treaty),
+                (app.text("wizard.personality"), personality),
+                (app.text("wizard.objective"), objective),
             ]
             .into_iter()
             .enumerate()
             {
                 let y = py + 25.0 + 8.0 * i as f32;
-                self.draw_styled(
+                app.draw_styled(
                     view,
                     &Style::nearest(1, light),
-                    &self.text_with(
+                    &app.text_with(
                         "wizard.row",
                         &Args::new().text("label", label).text("value", value),
                     ),
@@ -198,26 +189,26 @@ impl App {
         }
 
         // Gold and mana, then the shelf of books.
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::nearest(1, light).right(),
             &wallet.gold.to_string(),
             px + 31.0,
             py + 75.0,
         );
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::nearest(1, light).right(),
             &wallet.mana.to_string(),
             px + 159.0,
             py + 75.0,
         );
-        self.draw_styled(view, &Style::nearest(0, gold), "GP", px + 34.0, py + 75.0);
-        self.draw_styled(view, &Style::nearest(0, gold), "MP", px + 162.0, py + 75.0);
+        app.draw_styled(view, &Style::nearest(0, gold), "GP", px + 34.0, py + 75.0);
+        app.draw_styled(view, &Style::nearest(0, gold), "MP", px + 162.0, py + 75.0);
         let books = book_entries(|r| owned_books.get(r).map_or(0, |&n| i32::from(n)));
         let left = px + 90.0 - books.len() as f32 * BOOK_STEP / 2.0;
         for (i, &entry) in books.iter().enumerate() {
-            self.draw_pic(
+            app.draw_pic(
                 &lay,
                 "magic",
                 entry,
@@ -226,17 +217,17 @@ impl App {
                 py + 66.0,
             );
         }
-        let fame = self.game.fame(ui.who);
+        let fame = app.game.fame(ui.who);
         if fame > 0 {
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(2, light).right(),
                 &fame.to_string(),
                 px + 79.0,
                 py + 96.0,
             );
-            let fame_word = self.text("wizard.fame");
-            self.draw_styled(
+            let fame_word = app.text("wizard.fame");
+            app.draw_styled(
                 view,
                 &Style::nearest(2, light),
                 &fame_word,
@@ -249,33 +240,33 @@ impl App {
         let retorts: Vec<String> = Retort::LISTED
             .into_iter()
             .filter(|r| owned_retorts.contains(r))
-            .map(|r| self.retort_name(r))
+            .map(|r| app.retort_name(r))
             .collect();
         let start_y = py + 111.0 - if retorts.len() > 5 { 2.0 } else { 0.0 };
         let (comma, and, stop) = (
-            self.text("list.sep"),
-            self.text("list.sep_last"),
-            self.text("ui.full_stop"),
+            app.text("list.sep"),
+            app.text("list.sep_last"),
+            app.text("ui.full_stop"),
         );
         let separators = (comma.as_str(), and.as_str(), stop.as_str());
         let pieces = {
-            let art = &self.art;
+            let art = &app.art;
             retort_pieces(&retorts, separators, RETORT_WIDTH, |t| art.text_width(1, t))
         };
         for (text, x, line) in pieces {
             let y = start_y + RETORT_LINE * line as f32;
-            self.draw_styled(view, &Style::nearest(1, light), &text, px + 13.0 + x, y);
+            app.draw_styled(view, &Style::nearest(1, light), &text, px + 13.0 + x, y);
         }
-        let heroes = self.text("wizard.heroes");
-        self.draw_styled(
+        let heroes = app.text("wizard.heroes");
+        app.draw_styled(
             view,
             &Style::nearest(2, gold),
             &heroes,
             px + 74.0,
             py + 131.0,
         );
-        for (i, hero) in self.game.wizard_heroes(ui.who).iter().enumerate() {
-            self.draw_styled(
+        for (i, hero) in app.game.wizard_heroes(ui.who).iter().enumerate() {
+            app.draw_styled(
                 view,
                 &Style::nearest(1, light),
                 hero,

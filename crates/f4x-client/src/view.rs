@@ -136,7 +136,6 @@ pub struct App {
     pub(crate) prod_ui: crate::production_screen::ProductionUi,
     /// The magic screen's staves, locks and windows.
     pub(crate) magic_ui: crate::magic_screen::MagicUi,
-    pub(crate) wizard_ui: crate::wizard_screen::WizardUi,
     /// The diplomacy screen's talk.
     pub(crate) diplo_ui: crate::diplomacy_screen::DiploUi,
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
@@ -361,7 +360,6 @@ impl App {
             autobuild_dialog: None,
             prod_ui: Default::default(),
             magic_ui: Default::default(),
-            wizard_ui: Default::default(),
             diplo_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),
@@ -1508,7 +1506,7 @@ impl App {
                 self.city_screen(city, input);
             }
             Screen::Magic => self.magic_screen(input),
-            Screen::Wizard => self.wizard_screen(input),
+            Screen::Wizard => self.page_frame(input),
             Screen::UnitSheet => self.unit_sheet_screen(input),
             Screen::ArmyList => self.page_frame(input),
             Screen::CityList => self.page_frame(input),
