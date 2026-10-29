@@ -288,7 +288,7 @@ impl App {
                     if paragraph.trim().is_empty() {
                         lines.push(String::new());
                     } else {
-                        lines.extend(app.wrap_text(1, paragraph, width));
+                        lines.extend(app.bm_wrap(1, paragraph, width));
                     }
                 }
             }

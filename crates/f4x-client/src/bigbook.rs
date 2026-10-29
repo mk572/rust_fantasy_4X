@@ -53,29 +53,6 @@ impl App {
         describe_spell(&self.help, &self.game.content().rules.spells.get(spell).id)
     }
 
-    /// Break `text` into lines no wider than `width` of the original's pixels.
-    pub(crate) fn wrap_text(&self, style: usize, text: &str, width: f32) -> Vec<String> {
-        let mut lines = Vec::new();
-        let mut line = String::new();
-        for word in text.split_whitespace() {
-            let try_line = if line.is_empty() {
-                word.to_string()
-            } else {
-                format!("{line} {word}")
-            };
-            if !line.is_empty() && self.art.text_width(style, &try_line) > width {
-                lines.push(std::mem::take(&mut line));
-                line = word.to_string();
-            } else {
-                line = try_line;
-            }
-        }
-        if !line.is_empty() {
-            lines.push(line);
-        }
-        lines
-    }
-
     /// Open the Apprentice's library: every spell the books allow, known or not, and the two
     /// pages of spells on offer for research at the end.
     pub fn open_apprentice(&mut self) {
@@ -424,7 +401,7 @@ impl App {
         let text = self.spell_text(spell);
         let line_h = self.art.text_height(0) + 1.0;
         for (n, l) in self
-            .wrap_text(0, &text, 128.0)
+            .bm_wrap(0, &text, 128.0)
             .into_iter()
             .take(3)
             .enumerate()

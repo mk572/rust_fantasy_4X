@@ -6,6 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
+use crate::font::{Effect, Ink, Style};
 use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -341,17 +342,10 @@ impl App {
         color: Color,
         align: Align,
     ) {
-        let (ox, oy, s) = view;
-        let width = self.art.text_width(style, text);
-        let left = match align {
-            Align::Left => x,
-            Align::Center => x - width / 2.0,
-            Align::Right => x - width,
-        };
-        let black = Color::new(0.0, 0.0, 0.0, 1.0);
-        let at = |d: f32| (ox + (left + d) * s, oy + (y + d) * s);
-        self.art.draw_flat_text(style, text, at(1.0), s, black);
-        self.art.draw_flat_text(style, text, at(0.0), s, color);
+        let look = Style::new(style, Ink::Flat(color))
+            .effect(Effect::Shadow)
+            .align(align);
+        self.draw_styled(view, &look, text, x, y);
     }
 
     /// The gold, food and mana panels, the locked action buttons and the Next Turn button: the
@@ -583,11 +577,10 @@ impl App {
         y: f32,
         align: Align,
     ) {
-        let black = Color::new(0.0, 0.0, 0.0, 1.0);
-        for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (1.0, 1.0)] {
-            self.bm_text(view, style, black, text, x + dx, y + dy, align);
-        }
-        self.bm_text(view, style, WHITE, text, x, y, align);
+        let look = Style::new(style, Ink::Nearest(WHITE))
+            .effect(Effect::Outline)
+            .align(align);
+        self.draw_styled(view, &look, text, x, y);
     }
 
     /// Like [`App::bm_text`] but in one of the font's sixteen colour sets by number (the
@@ -603,16 +596,8 @@ impl App {
         y: f32,
         align: Align,
     ) -> f32 {
-        let (ox, oy, s) = view;
-        let w = self.art.text_width(style, text);
-        let ax = match align {
-            Align::Left => x,
-            Align::Center => x - w / 2.0,
-            Align::Right => x - w,
-        };
-        self.art
-            .draw_bitmap_text(style, set, text, ox + ax * s, oy + y * s, s);
-        w
+        let look = Style::new(style, Ink::Set(set)).align(align);
+        self.draw_styled(view, &look, text, x, y)
     }
 
     /// Text in one of the original's bitmap fonts, placed at `(x, y)` in the original's
@@ -629,35 +614,8 @@ impl App {
         y: f32,
         align: Align,
     ) -> f32 {
-        let (ox, oy, s) = view;
-        if self.art.has_fonts() {
-            let set = self.art.nearest_font_set(style, color);
-            let w = self.art.text_width(style, text);
-            let ax = match align {
-                Align::Left => x,
-                Align::Center => x - w / 2.0,
-                Align::Right => x - w,
-            };
-            self.art
-                .draw_bitmap_text(style, set, text, ox + ax * s, oy + y * s, s);
-            w
-        } else {
-            let size = (self.art.text_height(style) + 1.0) * s;
-            let w = measure_text(text, None, size as u16, 1.0).width / s;
-            let ax = match align {
-                Align::Left => x,
-                Align::Center => x - w / 2.0,
-                Align::Right => x - w,
-            };
-            draw_text(
-                text,
-                ox + ax * s,
-                oy + (y + self.art.text_height(style)) * s,
-                size,
-                color,
-            );
-            w
-        }
+        let look = Style::new(style, Ink::Nearest(color)).align(align);
+        self.draw_styled(view, &look, text, x, y)
     }
 }
 

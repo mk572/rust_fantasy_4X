@@ -391,27 +391,4 @@ impl App {
             self.bm_text(view, 2, light, line, x + 20.0, at - 1.0, Align::Left);
         }
     }
-
-    /// Words wrapped to `width` pixels in one of the original's bitmap fonts.
-    pub(crate) fn bm_wrap(&self, style: usize, text: &str, width: f32) -> Vec<String> {
-        let mut lines = Vec::new();
-        let mut line = String::new();
-        for word in text.split_whitespace() {
-            let attempt = if line.is_empty() {
-                word.to_string()
-            } else {
-                format!("{line} {word}")
-            };
-            if !line.is_empty() && self.art.text_width(style, &attempt) > width {
-                lines.push(std::mem::take(&mut line));
-                line = word.to_string();
-            } else {
-                line = attempt;
-            }
-        }
-        if !line.is_empty() {
-            lines.push(line);
-        }
-        lines
-    }
 }
