@@ -835,7 +835,7 @@ impl App {
                 Event::SummoningCircleMoved { .. } => Some(self.text("log.circle_moved")),
                 Event::SpellLearned { player, spell } => {
                     if player == HUMAN {
-                        self.big_ui.learned.push_back(spell);
+                        self.modals.enqueue(crate::learn_spell::Learned(spell));
                     }
                     Some(self.text_with("log.learned", &self.spell_arg(Args::new(), spell)))
                 }
@@ -1441,14 +1441,6 @@ impl App {
             return self.modal_frame(input);
         }
         if self.item_pool_frame(input) {
-            return true;
-        }
-        // A spell just learned is announced over the big book, and then the next research asked.
-        if !self.big_ui.learned.is_empty()
-            && !self.game.in_battle()
-            && matches!(self.screen, Screen::Map)
-            && self.learned_notice(input)
-        {
             return true;
         }
         // A wizard just met greets the player on the next turn, on the diplomacy screen.

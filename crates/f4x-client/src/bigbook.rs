@@ -3,8 +3,6 @@
 //! spell just learned. Four spells to a page, each with its cost, how long it takes and what it
 //! does, on the original's open-book picture (`scroll.lbx`).
 
-use std::collections::VecDeque;
-
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
 use f4x_core::game::Command;
@@ -36,8 +34,6 @@ pub(crate) struct BigBookUi {
     /// The first of the two research pages.
     pub first_research: usize,
     pub left: usize,
-    /// Spells learned and not yet announced.
-    pub learned: VecDeque<SpellId>,
     /// The learn-spell animation of the first of them, once it has started (`learn_spell.rs`).
     pub learn: Option<crate::learn_spell::LearnAnim>,
 }

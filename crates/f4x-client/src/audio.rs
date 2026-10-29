@@ -485,9 +485,6 @@ impl App {
         if !self.built_notices.is_empty() {
             return Some(Track::piece(music::BUILDING_FINISHED));
         }
-        if !self.big_ui.learned.is_empty() {
-            return Some(Track::piece(music::NEW_SPELL));
-        }
         if self.spell_notices.front().is_some_and(|n| n.fizzled()) {
             return Some(Track::piece(music::SPELL_FAILURE));
         }

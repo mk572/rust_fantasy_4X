@@ -9,9 +9,11 @@ use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
+use crate::audio::{music, Track};
 use crate::bigbook::BigMode;
 use crate::event_popup::GREEN;
 use crate::frame::Layout;
+use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 
@@ -42,6 +44,21 @@ pub(crate) struct LearnAnim {
     place: Option<(usize, usize)>,
 }
 
+/// A spell the human has just learned, announced until the animation or the box is done.
+pub(crate) struct Learned(pub(crate) SpellId);
+
+impl Modal for Learned {
+    fn kind(&self) -> &'static str {
+        kind::LEARNED
+    }
+    fn music(&self) -> Option<Track> {
+        Some(Track::piece(music::NEW_SPELL))
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.learned_frame(*self, input))
+    }
+}
+
 fn any_input(input: &Input) -> bool {
     input.mouse_pressed(MouseButton::Left)
         || input.key_pressed(KeyCode::Enter)
@@ -56,7 +73,7 @@ impl App {
             eprintln!("unknown spell {id}");
             return;
         };
-        self.big_ui.learned.push_back(spell);
+        self.modals.enqueue(Learned(spell));
         let anim = self.start_learn_anim(spell);
         self.big_ui.learn = Some(LearnAnim {
             started: get_time() - seconds,
@@ -80,14 +97,11 @@ impl App {
         }
     }
 
-    /// The oldest spell learned and not yet announced, over the whole screen until it is done.
-    /// Returns whether it took the frame.
-    pub(crate) fn learned_notice(&mut self, input: &Input) -> bool {
-        let Some(&spell) = self.big_ui.learned.front() else {
-            return false;
-        };
+    /// A spell learned, over the whole screen until its animation is done; what is left of it
+    /// while it plays.
+    fn learned_frame(&mut self, Learned(spell): Learned, input: &Input) -> Option<Learned> {
         if !self.prefs.get(Pref::SpellAnimations) {
-            return self.learned_box(spell, input);
+            return self.learned_box(spell, input).then_some(Learned(spell));
         }
         let mut anim = match self.big_ui.learn.clone() {
             Some(a) if a.spell == spell => a,
@@ -104,14 +118,13 @@ impl App {
         } else {
             let stage = ((t - anim.lab_end) / DECODE_STEP) as usize;
             let Some(place) = anim.place.filter(|_| stage < DECODE_STAGES && !pressed) else {
-                self.big_ui.learned.pop_front();
                 self.big_ui.learn = None;
-                return true;
+                return None;
             };
             self.draw_decode(&lay, spell, place, stage);
         }
         self.big_ui.learn = Some(anim);
-        true
+        Some(Learned(spell))
     }
 
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
@@ -199,11 +212,9 @@ impl App {
     }
 
     /// With animations off: "You have mastered the spell of X" in a box over the map.
+    /// True while the box stays.
     fn learned_box(&mut self, spell: SpellId, input: &Input) -> bool {
         let name = self.game.content().rules.spells.get(spell).name.clone();
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let lay = Layout::new();
         let text = self.text_with("spell.mastered", &Args::new().text("spell", &name));
         let closed = self.notify2_box(
@@ -216,9 +227,6 @@ impl App {
             },
             input,
         );
-        if closed {
-            self.big_ui.learned.pop_front();
-        }
-        true
+        !closed
     }
 }
