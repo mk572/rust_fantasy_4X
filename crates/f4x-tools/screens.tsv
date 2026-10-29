@@ -250,3 +250,35 @@ armylist	5	5	item_screen	hero_background
 armylist	6	6	item_screen	hero_outline
 armylist	7	7	item_screen	button_alchemy
 armylist	8	8	item_screen	button_ok
+
+# Item crafting (ItemMake.c): the kind buttons (14 to 23, then the chosen state 25 to 34), the
+# picture arrows, the OK button and the spell charges
+spellscr	13	13	item_crafting	background
+spellscr	14	14	item_crafting	button_sword
+spellscr	15	15	item_crafting	button_mace
+spellscr	16	16	item_crafting	button_axe
+spellscr	17	17	item_crafting	button_bow
+spellscr	18	18	item_crafting	button_staff
+spellscr	19	19	item_crafting	button_wand
+spellscr	20	20	item_crafting	button_misc
+spellscr	21	21	item_crafting	button_shield
+spellscr	22	22	item_crafting	button_chainmail
+spellscr	23	23	item_crafting	button_platemail
+spellscr	24	24	item_crafting	button_ok
+spellscr	25	25	item_crafting	button_sword_chosen
+spellscr	26	26	item_crafting	button_mace_chosen
+spellscr	27	27	item_crafting	button_axe_chosen
+spellscr	28	28	item_crafting	button_bow_chosen
+spellscr	29	29	item_crafting	button_staff_chosen
+spellscr	30	30	item_crafting	button_wand_chosen
+spellscr	31	31	item_crafting	button_misc_chosen
+spellscr	32	32	item_crafting	button_shield_chosen
+spellscr	33	33	item_crafting	button_chainmail_chosen
+spellscr	34	34	item_crafting	button_platemail_chosen
+spellscr	35	35	item_crafting	button_arrow_left
+spellscr	36	36	item_crafting	button_arrow_right
+spellscr	37	37	item_crafting	charges_box
+spellscr	38	38	item_crafting	button_charges_1
+spellscr	39	39	item_crafting	button_charges_2
+spellscr	40	40	item_crafting	button_charges_3
+spellscr	41	41	item_crafting	button_charges_4

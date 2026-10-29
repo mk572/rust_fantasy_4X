@@ -169,7 +169,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 ## 8. What is still missing
 
-Every screen and window above is done except these (each is a gap, not yet a task):
+Every screen and window above is done except these (each is a task in `TASKS.md`: 396 to 402; the evict box is part of task 378):
 
 - the credits roll of the main menu;
 - a confirmation before Quit and an auto-save on it;

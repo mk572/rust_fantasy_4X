@@ -25,6 +25,13 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 393 | Client | Textures and scaling |
 | 394 | Client | Screen trait |
 | 395 | Client | Client test seams |
+| 396 | Client | Main menu credits roll |
+| 397 | Client | Quit confirmation and auto-save on Quit |
+| 398 | Client | Message for units lost while fleeing |
+| 399 | Client | Food warning on Next Turn |
+| 400 | Client | Extra-mana screen for an overland spell |
+| 401 | Client | Portrait picker for a spell that targets a wizard |
+| 402 | Client | Banner with the spell's name in combat |
 
 ## Descriptions
 
@@ -37,3 +44,17 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 **394. Screen trait.** `Screen` is an enum and `view.rs` is large. Give each screen one implementation of a `Screen` trait (`update`, `draw`) so `view.rs` becomes the dispatcher and fewer files know about each other. Do this after 389 and 391. **Started:** the dispatch is now one function, `App::screen_frame` in `view.rs` (the `match` on `Screen`), which `frame()` and the modal base both call. The screens are still `App` methods with their state in `App` fields (`big_ui`, `diplo_ui`, `city_list_ui` and so on), so the trait needs each screen's state moved into its own struct first.
 
 **395. Client test seams.** With the input snapshot (391) and the modal stack (389), test click flows without a window (a prompt opens, Esc closes it, a click on a disabled button does nothing). Supports the UI test layer in `docs/rust_coding_rules.md`.
+
+**396. Main menu credits roll.** The main menu has no Credits entry. Add the credits roll as a screen of its own (task 394 style: its own state struct), with its text in `content/text/en/*.ron` and the sources and licences that `PLANNED.md` asks to keep in a credits file. Listed in `screen_list.md` section 8.
+
+**397. Quit confirmation and auto-save on Quit.** Quit leaves at once. Ask first (a modal question, as the resign question) and write the auto-save before the program ends, so a quit never loses the game. Listed in `screen_list.md` section 8.
+
+**398. Message for units lost while fleeing.** The core sends `Event::UnitsLostFleeing` but the client shows nothing. Add a notice modal naming the units lost (text keys with count and plural forms) when the human flees a battle. Listed in `screen_list.md` section 8.
+
+**399. Food warning on Next Turn.** When Next Turn is pressed and a city would starve, the original warns first, in its own words. Add the question as a modal that lets the player go back, with the original's wording from `content-local` as the text key. Listed in `screen_list.md` section 8.
+
+**400. Extra-mana screen for an overland spell.** An overland spell cannot be given extra mana; combat has the Up and Down keys for it. Add the screen the original shows for the spells that can take more mana, and the cast command that carries the amount. Check `design.md` for which spells allow it. Listed in `screen_list.md` section 8.
+
+**401. Portrait picker for a spell that targets a wizard.** A spell aimed at a wizard (Spell of Return, Disjunction and the like where the original asks for a portrait) is aimed by clicking a city or unit. Add the picker with the wizards' portraits, as a modal question. Listed in `screen_list.md` section 8.
+
+**402. Banner with the spell's name in combat.** The original shows the name of the spell being cast over the battle. Add it as a short banner (a modal or a battle overlay that does not stop the animation clock, to be decided) with the spell's name from the rules. Listed in `screen_list.md` section 8.
