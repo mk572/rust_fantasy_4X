@@ -80,7 +80,7 @@
         "great_wasting": [(lbx: "specfx", entry: 27, role: Global)],
         "herb_mastery": [(lbx: "specfx", entry: 24, role: Global)],
         "holy_arms": [(lbx: "specfx", entry: 34, role: Global)],
-        "ice_bolt": [(lbx: "spells/ice_bolt", entry: 0, role: Cast)], // made by scripts/make_spell_art.py from Fire Bolt's frames
+        "ice_bolt": [(lbx: "cmbtfx", entry: 11, role: Cast)],
         "ice_storm": [(lbx: "specfx", entry: 10, role: Cast)],
         "just_cause": [(lbx: "specfx", entry: 33, role: Global)],
         "life_drain": [(lbx: "cmbtfx", entry: 6, role: Cast)],

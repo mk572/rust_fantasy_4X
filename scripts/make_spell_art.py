@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Make the animations of spells the original has no picture for, from pictures it has.
 
-  ice_bolt  Fire Bolt's frames, orange turned to light blue and mirrored (the bolt flies in from the left).
   petrify   Change Terrain's sparkles (specfx 8), green turned to dark brown.
 
 Reads the player's own extracted art (assets-local/art/spells/...) and writes
@@ -31,14 +30,6 @@ def squeeze_hue(r, g, b, source, target):
     return (target[0] + t * (target[1] - target[0])) / 360.0, s, v
 
 
-def ice(r, g, b):
-    # Fire's hues run from red through orange to yellow (0 to 60 degrees); they are squeezed into
-    # the blues from deep (212) to ice (188), the whites and greys staying what they are.
-    hue, s, v = squeeze_hue(r, g, b, (0.0, 60.0), (212.0, 188.0))
-    # Lighter and paler than the flame: light blue, not navy.
-    return colorsys.hsv_to_rgb(hue, s * 0.7, min(1.0, v * 0.9 + 0.12))
-
-
 def stone(r, g, b):
     # Green sparkles (about 60 to 120 degrees) to a dark brown (hue 26 to 30): the brightest point
     # of a sparkle is a medium-dark brown, the rest nearly black brown.
@@ -47,9 +38,6 @@ def stone(r, g, b):
 
 
 RECIPES = {
-    "ice_bolt": dict(
-        source=SPELLS / "fire_bolt", glob="cmbtfx_000_*.png", colour=ice, mirror=True
-    ),
     "petrify": dict(
         source=SPELLS / "_shared", glob="specfx_008_*.png", colour=stone, mirror=False
     ),
