@@ -18,6 +18,17 @@ use std::collections::VecDeque;
 use crate::input::Input;
 use crate::view::App;
 
+/// The order the waiting notices run in when several kinds wait together: the order of the
+/// `if` chain in `App::frame` that they replace. Lower runs first.
+pub(crate) mod priority {
+    pub(crate) const MASTERY: u8 = 20;
+}
+
+/// The names of the kinds that other code asks about (`ModalStack::has`).
+pub(crate) mod kind {
+    pub(crate) const MASTERY: &str = "mastery";
+}
+
 pub(crate) trait Modal {
     /// What kind of box this is: opening one replaces an open one of the same kind.
     fn kind(&self) -> &'static str;
@@ -65,6 +76,14 @@ impl ModalStack {
             .position(|m| m.priority() > modal.priority())
             .unwrap_or(self.waiting.len());
         self.waiting.insert(at, Box::new(modal));
+    }
+
+    /// Whether a modal of this kind is open or waiting.
+    pub(crate) fn has(&self, kind: &str) -> bool {
+        self.open
+            .iter()
+            .chain(&self.waiting)
+            .any(|m| m.kind() == kind)
     }
 
     pub(crate) fn is_empty(&self) -> bool {

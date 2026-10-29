@@ -248,19 +248,10 @@ pub struct App {
     pub(crate) combat_results: Option<crate::combat_result::CombatResults>,
     /// The battle last begun, for the scroll's paper.
     pub(crate) battle_site: Option<crate::combat_result::BattleSite>,
-    /// The question after the human's fortress falls: resign, or cast the Spell of Return.
     /// The question of what to give up when the mana reserve cannot pay the upkeep.
     pub(crate) upkeep_prompt: Option<crate::upkeep_prompt::UpkeepPrompt>,
-    /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
-    /// paid for (`Targeting::resolve`).
-    /// Disjunction or Spell Binding being aimed: the spell, whether it is already paid for, and
-    /// the row of the rival's global enchantment chosen so far.
-    /// The spell being cast has nothing to aim at: ask whether to stop casting it.
-    /// Resurrection's list of the dead heroes: the spell, whether it is paid already, the row picked.
-    /// The questions waiting over the screen below (`modal.rs`).
+    /// The questions and notices over the screen below (`modal.rs`).
     pub(crate) modals: crate::modal::ModalStack,
-    /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
-    pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
 
 /// A seed for a map nobody has asked a number for: the clock, mixed.
@@ -453,7 +444,6 @@ impl App {
             battle_site: None,
             upkeep_prompt: None,
             modals: Default::default(),
-            mastery_notice: std::collections::VecDeque::new(),
         };
         app.start_game();
         Ok(app)
@@ -910,7 +900,7 @@ impl App {
                     Some(self.text_with("log.earthquake", &args))
                 }
                 Event::MasteryStarted { caster } => {
-                    self.mastery_notice.push_back(caster);
+                    self.modals.enqueue(crate::bigbook::MasteryNotice(caster));
                     let args = self.wizard_arg(Args::new(), "wizard", caster);
                     Some(self.text_with("log.mastery_started", &args))
                 }
@@ -1466,14 +1456,6 @@ impl App {
             return true;
         }
         if self.site_notice_frame(input) {
-            return true;
-        }
-        // A wizard has started casting the Spell of Mastery: announced over the whole screen.
-        if !self.mastery_notice.is_empty()
-            && !self.game.in_battle()
-            && matches!(self.screen, Screen::Map)
-            && self.mastery_notice_frame(input)
-        {
             return true;
         }
         // A spell just learned is announced over the big book, and then the next research asked.

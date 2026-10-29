@@ -468,7 +468,7 @@ impl App {
             let entry = self.audio.table.global_music.get(&entry).copied()?;
             return Some(Track::piece(u16::from(entry)));
         }
-        if !self.mastery_notice.is_empty() {
+        if self.modals.has(crate::modal::kind::MASTERY) {
             return Some(Track::piece(music::SOM_STARTED));
         }
         if let Some(n) = self.event_notices.front() {

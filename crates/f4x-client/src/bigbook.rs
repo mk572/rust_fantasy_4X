@@ -6,6 +6,7 @@
 use std::collections::VecDeque;
 
 use crate::input::Input;
+use crate::modal::{keep, kind, priority, Modal};
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
@@ -451,14 +452,30 @@ impl App {
     }
 }
 
+/// A wizard has started casting the Spell of Mastery.
+pub(crate) struct MasteryNotice(pub(crate) f4x_core::player::PlayerId);
+
+impl Modal for MasteryNotice {
+    fn kind(&self) -> &'static str {
+        kind::MASTERY
+    }
+    fn priority(&self) -> u8 {
+        priority::MASTERY
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.mastery_notice_frame(*self, input))
+    }
+}
+
 impl App {
     /// "<wizard> has started casting the Spell of Mastery" over a black screen, as the original
     /// does (`Cast_Spell_Of_Mastery`; its swirling animation is local art not drawn here yet,
     /// task 287); any key or click goes on.
-    pub(crate) fn mastery_notice_frame(&mut self, input: &Input) -> bool {
-        let Some(&caster) = self.mastery_notice.front() else {
-            return false;
-        };
+    pub(crate) fn mastery_notice_frame(
+        &mut self,
+        MasteryNotice(caster): MasteryNotice,
+        input: &Input,
+    ) -> Option<MasteryNotice> {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(Color::new(0.02, 0.0, 0.06, 1.0));
@@ -487,9 +504,9 @@ impl App {
             || input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::Space)
         {
-            self.mastery_notice.pop_front();
+            return None;
         }
-        true
+        Some(MasteryNotice(caster))
     }
 }
 
