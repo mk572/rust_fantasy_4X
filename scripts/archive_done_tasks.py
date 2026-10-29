@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Move finished tasks from docs/TASKS.md to docs/TASKS-DONE.md.
+"""Move finished tasks from docs/TASKS.md and docs/TASKS-ONHOLD.md to docs/TASKS-DONE.md.
 
 A task counts as done when its table summary contains "(done)" or is struck through
 (~~text~~), or when the bold title of its description contains "(done)". Both the table
 row and the description move, and the numbers stay as they are. TASKS-DONE.md is kept in
 ascending order by number.
 
-    python3 scripts/archive_done_tasks.py [--dry-run] [--tasks FILE] [--done FILE]
+    python3 scripts/archive_done_tasks.py [--dry-run] [--tasks FILE ...] [--done FILE]
 """
 import argparse
 import re
@@ -117,28 +117,38 @@ def write_done(path: Path, rows, descs):
 def main() -> int:
     docs = Path(__file__).resolve().parent.parent / "docs"
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--tasks", type=Path, default=docs / "TASKS.md")
+    ap.add_argument("--tasks", type=Path, nargs="+",
+                    default=[docs / "TASKS.md", docs / "TASKS-ONHOLD.md"],
+                    help="task files to scan (default: TASKS.md and TASKS-ONHOLD.md)")
     ap.add_argument("--done", type=Path, default=docs / "TASKS-DONE.md")
     ap.add_argument("--dry-run", action="store_true", help="only list what would move")
     args = ap.parse_args()
 
-    kept, rows, descs = split_tasks(args.tasks.read_text().splitlines())
-    moving = sorted(set(rows) | set(descs))
-    if not moving:
+    all_rows, all_descs, remaining = {}, {}, {}
+    for path in args.tasks:
+        kept, rows, descs = split_tasks(path.read_text().splitlines())
+        moving = sorted(set(rows) | set(descs))
+        if not moving:
+            continue
+        print(f"{path.name}: moving tasks:", ", ".join(map(str, moving)))
+        if set(rows) != set(descs):
+            print(f"warning: {path.name}: table row and description do not both exist for",
+                  sorted(set(rows) ^ set(descs)), file=sys.stderr)
+        all_rows.update(rows)
+        all_descs.update(descs)
+        remaining[path] = kept
+    if not remaining:
         print("nothing to move")
         return 0
-    print("moving tasks:", ", ".join(map(str, moving)))
-    if set(rows) != set(descs):
-        print("warning: table row and description do not both exist for",
-              sorted(set(rows) ^ set(descs)), file=sys.stderr)
     if args.dry_run:
         return 0
     done_rows, done_descs = read_done(args.done)
-    done_rows.update(rows)
-    done_descs.update(descs)
+    done_rows.update(all_rows)
+    done_descs.update(all_descs)
     write_done(args.done, done_rows, done_descs)
-    args.tasks.write_text("\n".join(tidy(kept)).rstrip("\n") + "\n")
-    print(f"wrote {args.done} and {args.tasks}")
+    for path, kept in remaining.items():
+        path.write_text("\n".join(tidy(kept)).rstrip("\n") + "\n")
+    print("wrote", ", ".join(str(p) for p in [args.done, *remaining]))
     return 0
 
 

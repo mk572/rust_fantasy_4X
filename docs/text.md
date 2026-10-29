@@ -60,4 +60,4 @@ Debug output of the console and test messages are not player-facing and stay in 
   a made item) is kept as typed.
 - The console prints English from the core and from its own words; it is a developer tool, and
   so are the validation errors of `settings.ron` and `setup.rs` (they are written for the content
-  author). Decided with task 347.
+  author).

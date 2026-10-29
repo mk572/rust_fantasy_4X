@@ -9,8 +9,8 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 
 ## Table
 
-| # | Area | Summary |
-|---|---|---|
+| \# | Area | Summary |
+| --- | --- | --- |
 | 1 | Movement | Faster movement along rivers |
 | 2 | Options | Spell of Return setting: off, player only, all wizards |
 | 3 | Options | More NPC wizards (the base game has up to four opponents) |
@@ -31,7 +31,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 18 | Meta | Hot seat multiplayer |
 | 19 | Meta | Asynchronous multiplayer |
 | 20 | Rules | Early-game speed-up options |
-| 21 | Rules | Faster outpost growth |
+| 21 | Rules | (Not needed) Faster outpost growth |
 | 22 | Rules | Alternative effect for the Charismatic retort |
 | 23 | Platform | Packaging for Linux |
 | 24 | Content | Content pass and balance with AI-vs-AI soak runs |
@@ -245,7 +245,7 @@ explored at the start, extra starting units, extra mana and gold, a few starting
 capital, and a faster research start. Each as an independent option with sensible presets
 (e.g. "quick start"); recorded in the saved settings so a game remembers how it began.
 
-**21. Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
+**21. (Not needed) Faster outpost growth.** An outpost grows by chance, a few tens of people a turn
 (`grow_outpost` in `city/growth.rs`; the chance comes from the race, the land and features, task 21 of
 `TASKS.md` for the original's edge rules). **Changed 24 October 2026:** it needed 100 tens, one
 citizen, to become a city, ten times the original's 10 (and it started at 0 tens, not 3, and never
@@ -408,10 +408,10 @@ with item 24, one race at a time, so the effect of each change is measured alone
 
 **31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `city/neutral.rs`.
 
-0. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
-1. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
-2. **A dialog when a unit tries to enter the city:** Attack, Talk, Leave. The AI can use the same choice (a rule in `f4x-ai`: attack the weak, talk to the strong or the friendly). A city with free access (below) is entered without asking.
-3. **Talk: the offers** a wizard can make. The city accepts or rejects each one by how much it likes the wizard, whether the deal helps it, and the wizard's overall strength against its own (the same inputs for the human and the AI):
+1. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
+2. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
+3. **A dialog when a unit tries to enter the city:** Attack, Talk, Leave. The AI can use the same choice (a rule in `f4x-ai`: attack the weak, talk to the strong or the friendly). A city with free access (below) is entered without asking.
+4. **Talk: the offers** a wizard can make. The city accepts or rejects each one by how much it likes the wizard, whether the deal helps it, and the wizard's overall strength against its own (the same inputs for the human and the AI):
    - **Give a gift** (an item, a unit, gold): improves relations.
    - **Demand tribute** (a unit, citizens, a lump sum of gold, gold per turn, mana): the city decides by attitude and strength. (Cities cannot cast spells now; giving them spells is a separate change.)
    - **Hire mercenaries**: units of the city's race for gold paid to the city.
@@ -644,6 +644,8 @@ screen, several can be open at once, and input goes to the one on top. Sketch, t
   and drop shadows without each screen doing its own.
 Related: items 6, 10, 11 and 39 (graphics, fonts and resolution), task 289 (help pop-ups) and the full-screen scenes
 of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.
+
+Note: use macroquad window <https://docs.rs/macroquad/latest/macroquad/window/index.html>
 
 **44. Build queues in the city production screen.** The original builds one thing at a time and the screen
 (`production_screen.rs`, after `Production_Screen`) picks that one. A mod may want a queue: the player lists several
