@@ -9,6 +9,7 @@ pub mod content;
 pub mod diplomacy;
 pub mod feature;
 pub mod game;
+pub mod half_int;
 pub mod help;
 pub mod hero;
 pub mod item;
