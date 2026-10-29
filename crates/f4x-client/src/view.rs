@@ -222,8 +222,6 @@ pub struct App {
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
-    /// The site boxes waiting to be shown.
-    pub(crate) site_notices: std::collections::VecDeque<crate::site_prompt::SiteNotice>,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
     /// bought, an item made).
@@ -427,7 +425,6 @@ impl App {
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
             test_sea: false,
-            site_notices: Default::default(),
             item_pool_pending: false,
             hall: Vec::new(),
             item_ui: Default::default(),
@@ -1436,16 +1433,14 @@ impl App {
         {
             return true;
         }
+        self.queue_proposal();
         if !self.modals.is_empty()
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::Console)
         {
             return self.modal_frame(input);
         }
-        if self.proposal_waits() && self.proposal_frame(input) {
-            return true;
-        }
-        if self.site_notice_frame(input) {
+        if self.item_pool_frame(input) {
             return true;
         }
         // A spell just learned is announced over the big book, and then the next research asked.

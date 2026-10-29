@@ -468,8 +468,8 @@ impl App {
             let entry = self.audio.table.global_music.get(&entry).copied()?;
             return Some(Track::piece(u16::from(entry)));
         }
-        if self.modals.has(crate::modal::kind::MASTERY) {
-            return Some(Track::piece(music::SOM_STARTED));
+        if let Some(track) = self.modals.music() {
+            return Some(track);
         }
         if let Some(n) = self.event_notices.front() {
             return Some(Track {
@@ -484,9 +484,6 @@ impl App {
         }
         if !self.built_notices.is_empty() {
             return Some(Track::piece(music::BUILDING_FINISHED));
-        }
-        if !self.site_notices.is_empty() {
-            return Some(Track::piece(music::SITE_DISCOVERY));
         }
         if !self.big_ui.learned.is_empty() {
             return Some(Track::piece(music::NEW_SPELL));

@@ -9,7 +9,21 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen, HUMAN};
+
+/// The box that asks about the first proposal waiting in the game; the proposals themselves
+/// are the game's state, so the box holds nothing.
+pub(crate) struct ProposalAsk;
+
+impl Modal for ProposalAsk {
+    fn kind(&self) -> &'static str {
+        kind::PROPOSAL
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.proposal_frame(input).then_some(ProposalAsk))
+    }
+}
 
 /// The key of the question a proposal asks.
 pub(crate) fn question_key(kind: ProposalKind) -> &'static str {
@@ -35,21 +49,22 @@ impl App {
             .next()
     }
 
-    /// Whether a proposal waits and nothing else is in the way.
-    pub(crate) fn proposal_waits(&self) -> bool {
-        !self.game.in_battle()
+    /// Open the box for a proposal that waits, over the map.
+    pub(crate) fn queue_proposal(&mut self) {
+        if !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
+            && !self.modals.has(kind::PROPOSAL)
             && self.pending_proposal().is_some()
+        {
+            self.modals.enqueue(ProposalAsk);
+        }
     }
 
-    /// Ask the human about the first waiting proposal.
-    pub(crate) fn proposal_frame(&mut self, input: &Input) -> bool {
+    /// Ask the human about the first waiting proposal; false once none waits.
+    fn proposal_frame(&mut self, input: &Input) -> bool {
         let Some(proposal) = self.pending_proposal() else {
             return false;
         };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let lay = crate::frame::Layout::new();
         let mut args = Args::new().text("wizard", self.diplo_name(proposal.from));
         match proposal.kind {
@@ -75,6 +90,6 @@ impl App {
                 }));
             self.note(events);
         }
-        true
+        self.pending_proposal().is_some()
     }
 }

@@ -15,6 +15,7 @@
 
 use std::collections::VecDeque;
 
+use crate::audio::Track;
 use crate::input::Input;
 use crate::view::App;
 
@@ -28,6 +29,8 @@ pub(crate) mod priority {
 pub(crate) mod kind {
     pub(crate) const MASTERY: &str = "mastery";
     pub(crate) const UPKEEP: &str = "upkeep";
+    pub(crate) const PROPOSAL: &str = "proposal";
+    pub(crate) const SITE: &str = "site";
 }
 
 pub(crate) trait Modal {
@@ -42,6 +45,11 @@ pub(crate) trait Modal {
     /// Whether the turn change must wait until this is answered.
     fn blocks_turn(&self) -> bool {
         true
+    }
+
+    /// The piece that plays while this is shown, if it has one.
+    fn music(&self) -> Option<Track> {
+        None
     }
 
     /// One frame: draw the box and take the input; what is left of the modal, `None` once it is
@@ -85,6 +93,15 @@ impl ModalStack {
             .iter()
             .chain(&self.waiting)
             .any(|m| m.kind() == kind)
+    }
+
+    /// The piece of the modal that is on top, or else of the one that waits first.
+    pub(crate) fn music(&self) -> Option<Track> {
+        self.open
+            .iter()
+            .rev()
+            .chain(&self.waiting)
+            .find_map(|m| m.music())
     }
 
     pub(crate) fn is_empty(&self) -> bool {

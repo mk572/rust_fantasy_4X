@@ -462,6 +462,9 @@ impl Modal for MasteryNotice {
     fn priority(&self) -> u8 {
         priority::MASTERY
     }
+    fn music(&self) -> Option<crate::audio::Track> {
+        Some(crate::audio::Track::piece(crate::audio::music::SOM_STARTED))
+    }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         keep(app.mastery_notice_frame(*self, input))
     }

@@ -12,7 +12,9 @@ use f4x_core::map::Position;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
+use crate::audio::{music, Track};
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen};
 
 /// The sites by the id of `lairs`, in the order of the original's table `TBL_EZ_Names` (the
@@ -82,6 +84,18 @@ pub enum SiteNotice {
     Found { text: String, site: usize },
     /// What the cleared site held.
     Treasure { text: String },
+}
+
+impl Modal for SiteNotice {
+    fn kind(&self) -> &'static str {
+        kind::SITE
+    }
+    fn music(&self) -> Option<Track> {
+        Some(Track::piece(music::SITE_DISCOVERY))
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.site_notice_frame(*self, input))
+    }
 }
 
 /// The question of the box: "You have found a mysterious cave." and, for a guarded site, what the
@@ -189,7 +203,7 @@ impl App {
             site,
             first.as_ref().map(|(name, f)| (name.as_str(), *f)),
         );
-        self.site_notices.push_back(SiteNotice::Ask {
+        self.modals.enqueue(SiteNotice::Ask {
             units,
             to,
             text,
@@ -201,7 +215,7 @@ impl App {
     pub(crate) fn site_cleared(&mut self, site: &str, guarded: bool, loot: &Loot) {
         let kind = site_type(site);
         if !guarded {
-            self.site_notices.push_back(SiteNotice::Found {
+            self.modals.enqueue(SiteNotice::Found {
                 text: found_text(&self.game.content().texts, kind, None),
                 site: kind,
             });
@@ -218,7 +232,7 @@ impl App {
             &retorts,
             &kinds,
         );
-        self.site_notices.push_back(SiteNotice::Treasure { text });
+        self.modals.enqueue(SiteNotice::Treasure { text });
         if !loot.items.is_empty() {
             self.item_pool_pending = true;
         }
@@ -250,14 +264,14 @@ impl App {
                     site,
                     first.as_ref().map(|(n, f)| (n.as_str(), *f)),
                 );
-                self.site_notices.push_back(SiteNotice::Ask {
+                self.modals.enqueue(SiteNotice::Ask {
                     units: Vec::new(),
                     to,
                     text,
                     site,
                 });
             }
-            "found" => self.site_notices.push_back(SiteNotice::Found {
+            "found" => self.modals.enqueue(SiteNotice::Found {
                 text: found_text(&self.game.content().texts, site, None),
                 site,
             }),
@@ -274,33 +288,34 @@ impl App {
         }
     }
 
-    /// Show the first waiting box over the map. True while a box took the frame.
-    pub(crate) fn site_notice_frame(&mut self, input: &Input) -> bool {
-        if self.game.in_battle() || !matches!(self.screen, Screen::Map) {
+    /// The items awarded by a site wait for the boxes before them, and for the hero, if there is
+    /// one, to be dealt with first. True while this took the frame.
+    pub(crate) fn item_pool_frame(&mut self, input: &Input) -> bool {
+        if self.game.in_battle()
+            || !matches!(self.screen, Screen::Map)
+            || !self.item_pool_pending
+            || !self.event_notices.is_empty()
+            || !self.game.offers(crate::view::HUMAN).is_empty()
+        {
             return false;
         }
-        let Some(notice) = self.site_notices.front().cloned() else {
-            // The items awarded wait for the boxes before them, and for the hero, if there is
-            // one, to be dealt with first.
-            if self.item_pool_pending
-                && self.event_notices.is_empty()
-                && self.game.offers(crate::view::HUMAN).is_empty()
-            {
-                if self.item_pool_warning {
-                    if self.hero_died_warning(input) {
-                        self.item_pool_warning = false;
-                    }
-                    return true;
-                }
-                self.item_pool_pending = false;
-                self.open_item_screen();
-                return true;
+        if self.item_pool_warning {
+            if self.hero_died_warning(input) {
+                self.item_pool_warning = false;
             }
-            return false;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
+            return true;
+        }
+        self.item_pool_pending = false;
+        self.open_item_screen();
+        true
+    }
+
+    /// Show a box over the map; what is left of it while it is not answered.
+    pub(crate) fn site_notice_frame(
+        &mut self,
+        notice: SiteNotice,
+        input: &Input,
+    ) -> Option<SiteNotice> {
         let lay = Layout::new();
         let answer = match &notice {
             SiteNotice::Ask { text, site, .. } => {
@@ -312,15 +327,14 @@ impl App {
             SiteNotice::Treasure { text } => self.treasure_box(&lay, text, input),
         };
         let Some(yes) = answer else {
-            return true;
+            return Some(notice);
         };
-        self.site_notices.pop_front();
         if let SiteNotice::Ask { units, to, .. } = notice {
             if yes {
                 self.begin_battle(Command::EnterSite { units, to });
             }
         }
-        true
+        None
     }
 
     /// `Lair_Confirm`: the box with the site's picture; with buttons it returns the answer
