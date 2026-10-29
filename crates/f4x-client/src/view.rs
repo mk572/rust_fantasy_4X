@@ -795,6 +795,10 @@ impl App {
                     None
                 }
                 Event::FortressMoved { .. } => Some(self.text("log.fortress_moved")),
+                Event::UnitsLostFleeing { player, units } if player == HUMAN => {
+                    self.announce_fled_losses(units);
+                    Some(self.text_with("battle.fled_losses", &Args::new().count("n", units)))
+                }
                 Event::UnitsDrowned { units, .. } => {
                     Some(self.text_with("log.units_drowned", &Args::new().count("n", units)))
                 }

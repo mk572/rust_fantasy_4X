@@ -50,6 +50,9 @@
     "battle.counter_magic": "Counter Magic {strength} stands against spells",
     "battle.turn": "Turn {turn}",
     "battle.fled": "The army flees",
+    "battle.fled_losses": (count: "n",
+        one: "1 unit is lost on the flight",
+        other: "{n} units are lost on the flight"),
     "battle.recalled": "{unit} is recalled to the summoning circle",
 
     // The spell book and the aim bar.

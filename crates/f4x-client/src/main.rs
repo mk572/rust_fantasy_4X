@@ -29,6 +29,7 @@ mod diplomacy_text;
 mod end_scene;
 mod enemy_city_screen;
 mod event_popup;
+mod fled_notice;
 mod frame;
 mod game_over_screen;
 mod global_spell;

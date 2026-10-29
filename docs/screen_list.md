@@ -145,7 +145,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Combat spell target (`Combat_Spell_Target_Screen`) | Pick the target square or unit. | After choosing a combat spell. | **Done** (clicking a square; the extra-mana keys). |
 | Combat information (`Combat_Information_Window`) | Battle-wide info: enchantments in force and so on. | The Info button in combat. | **Done** (`battle_info.rs`). |
 | Vortex move (`Vortex_Move_Screen`) | The player moves a magic vortex on the battlefield. | Each combat round with a vortex cast by the player. | **Done:** click the vortex, then a square next to it (`battle_screen.rs`). |
-| Retreat losses (`Build_Flee_Loss_Message`) | Tells which units were lost while fleeing. | After a flight from combat. | **Missing** in the client (core: `Event::UnitsLostFleeing`). |
+| Retreat losses (`Build_Flee_Loss_Message`) | Tells which units were lost while fleeing. | After a flight from combat. | Implemented as a notice (`fled_notice.rs`) with the count of lost units; the original names them. |
 | Raze or keep (`Raze_City_Prompt`) | After taking a city: "Do you wish to completely destroy this city?" (skipped when the "raze city" option is off). | End of a combat won at a city. | **Done** (`combat_result.rs`): the question comes on the result scroll, with the Raze and No buttons. |
 | Spell cast messages (`Combat_Cast_Spell_Message`, `Combat_Spell_Counter_Message`) | Banner with the spell's name when cast or countered. | Casting in combat. | **Partial:** the spell notices of a dispel or a fizzle are boxes over the battle (`event_popup.rs`); the banner with the name of a spell cast has no box. |
 | Confirmations (`Confirmation_Box`, `Warn`) | Yes/No boxes: sell a building; turn off a spell ("Do you wish to turn off the ... spell?"); "Do you wish to flee?"; "... Do you still wish to attack?" (a wizard you have a treaty with); "Do you wish to completely destroy this city?"; and, when ending a turn, "Some units do not have enough food and will die unless you allocate more farmers in a city. Do you wish to allow them to die?" | Many places; the food warning when Next Turn is pressed. | **Partial:** the client asks twice for Flee; no common box (the sale of a building uses the original's box, `confirmation_box` in `sell_prompt.rs`). The upkeep prompt before Next Turn (`upkeep_prompt.rs`) lists what the turn costs; the food warning in the original's words is missing. |
@@ -169,11 +169,10 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 ## 8. What is still missing
 
-Every screen and window above is done except these (each is a task in `TASKS.md`: 396 to 402; the evict box is part of task 378):
+Every screen and window above is done except these (each is a task in `TASKS.md`: 396 to 402 except 398, done; the evict box is part of task 378):
 
 - the credits roll of the main menu;
 - a confirmation before Quit and an auto-save on it;
-- the message of the units lost while fleeing (the core has `Event::UnitsLostFleeing`);
 - the food warning when Next Turn is pressed, in the original's words;
 - a box of its own for the units evicted from a full city;
 - the extra-mana screen for an overland spell (combat has the Up and Down keys);

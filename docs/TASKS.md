@@ -27,7 +27,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 395 | Client | Client test seams |
 | 396 | Client | Main menu credits roll |
 | 397 | Client | Quit confirmation and auto-save on Quit |
-| 398 | Client | Message for units lost while fleeing |
 | 399 | Client | Food warning on Next Turn |
 | 400 | Client | Extra-mana screen for an overland spell |
 | 401 | Client | Portrait picker for a spell that targets a wizard |
@@ -49,8 +48,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 **396. Main menu credits roll.** The main menu has no Credits entry. Add the credits roll as a screen of its own (task 394 style: its own state struct), with its text in `content/text/en/*.ron` and the sources and licences that `PLANNED.md` asks to keep in a credits file. Listed in `screen_list.md` section 8.
 
 **397. Quit confirmation and auto-save on Quit.** Quit leaves at once. Ask first (a modal question, as the resign question) and write the auto-save before the program ends, so a quit never loses the game. Listed in `screen_list.md` section 8.
-
-**398. Message for units lost while fleeing.** The core sends `Event::UnitsLostFleeing` but the client shows nothing. Add a notice modal naming the units lost (text keys with count and plural forms) when the human flees a battle. Listed in `screen_list.md` section 8.
 
 **399. Food warning on Next Turn.** When Next Turn is pressed and a city would starve, the original warns first, in its own words. Add the question as a modal that lets the player go back, with the original's wording from `content-local` as the text key. Listed in `screen_list.md` section 8.
 
