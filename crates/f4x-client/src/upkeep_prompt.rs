@@ -146,11 +146,15 @@ impl UpkeepPrompt {
         let count = |key: &str, n: i32| texts.get(key, &Args::new().count("n", n));
         match line {
             Line::Mana(i) => {
-                let l = &self.mana.as_ref().unwrap().lines[i];
+                let Some(l) = self.mana.as_ref().and_then(|o| o.lines.get(i)) else {
+                    return (String::new(), String::new());
+                };
                 (l.label.clone(), count("upkeep.price_mana", l.mana))
             }
             Line::Troop(i) => {
-                let l = &self.troops.as_ref().unwrap().troops[i];
+                let Some(l) = self.troops.as_ref().and_then(|o| o.troops.get(i)) else {
+                    return (String::new(), String::new());
+                };
                 let mut label = l.label.clone();
                 if l.hero {
                     label.push_str(&texts.get("upkeep.hero_note", &Args::new()));
@@ -161,7 +165,9 @@ impl UpkeepPrompt {
                 (label, texts.get("upkeep.price_gold_food", &price))
             }
             Line::Item(i) => {
-                let l = &self.items.as_ref().unwrap().lines[i];
+                let Some(l) = self.items.as_ref().and_then(|o| o.lines.get(i)) else {
+                    return (String::new(), String::new());
+                };
                 (l.label.clone(), count("upkeep.price_item", l.mana))
             }
             Line::Header(key) => (texts.get(key, &Args::new()), String::new()),

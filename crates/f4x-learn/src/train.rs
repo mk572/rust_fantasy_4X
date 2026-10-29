@@ -61,12 +61,12 @@ fn mask_row(m: &[bool]) -> Vec<f32> {
 /// A categorical draw (or the best, when `greedy`) from log-probabilities, with the log-prob.
 fn draw(logp: &[f32], greedy: bool, rng: &mut Pcg64Mcg) -> (usize, f32) {
     if greedy {
-        let (i, &lp) = logp
+        // An empty slice has nothing to draw; index 0 with the lowest log-prob.
+        return logp
             .iter()
             .enumerate()
             .max_by(|a, b| a.1.total_cmp(b.1))
-            .unwrap();
-        return (i, lp);
+            .map_or((0, f32::NEG_INFINITY), |(i, &lp)| (i, lp));
     }
     let mut u: f32 = rng.gen();
     let mut last = 0;
@@ -474,13 +474,15 @@ pub fn rollout(
         }
         let pend: Vec<&Pending> = idx
             .iter()
-            .map(|&k| slots[k].pending.as_ref().unwrap())
+            .filter_map(|&k| slots[k].pending.as_ref())
             .collect();
         let on: Vec<bool> = idx.iter().map(|&k| slots[k].advice_on).collect();
         let choices = choose(net, spec, device, &pend, &on, cfg.greedy, rng);
         for (j, &k) in idx.iter().enumerate() {
             let s = &mut slots[k];
-            let p = s.pending.take().unwrap();
+            let Some(p) = s.pending.take() else {
+                continue;
+            };
             let c = choices[j];
             match &p.request {
                 Request::Unit { .. } => s.driver.answer_unit(&p, c.index)?,

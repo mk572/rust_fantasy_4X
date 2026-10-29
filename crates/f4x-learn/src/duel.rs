@@ -288,13 +288,15 @@ pub fn play_pairs(
                 }
                 let pend: Vec<&Pending> = idx
                     .iter()
-                    .map(|&k| slots[k].pending.as_ref().unwrap())
+                    .filter_map(|&k| slots[k].pending.as_ref())
                     .collect();
                 let no_advice = vec![false; idx.len()];
                 let choices = choose(net, spec, device, &pend, &no_advice, true, rng);
                 for (j, &k) in idx.iter().enumerate() {
                     let s = &mut slots[k];
-                    let p = s.pending.take().unwrap();
+                    let Some(p) = s.pending.take() else {
+                        continue;
+                    };
                     let c = choices[j];
                     match &p.request {
                         Request::Unit { .. } => s.driver.answer_unit(&p, c.index)?,

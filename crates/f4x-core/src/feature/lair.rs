@@ -64,13 +64,11 @@ fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, rules: &'a LairRules) -> 
         )
     };
     match site {
-        SiteType::Node(realm) => {
-            if rules.node_own_realms.iter().any(|r| r == realm) {
-                rules.node_own_realms.iter().find(|r| *r == realm).unwrap()
-            } else {
-                &rules.node_other
-            }
-        }
+        SiteType::Node(realm) => rules
+            .node_own_realms
+            .iter()
+            .find(|r| *r == realm)
+            .unwrap_or(&rules.node_other),
         SiteType::Tower => table(rng, &rules.tower_realms),
         SiteType::Holy => table(rng, &rules.holy_realms),
         // The original's switch falls through to nature in every case; the intended split

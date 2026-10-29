@@ -89,7 +89,9 @@ pub(crate) fn balance_planes(
             for realm in REALMS {
                 let n = u32::from(books(&builds[k], realm));
                 if r <= n {
-                    *builds[k].books.get_mut(realm).unwrap() -= 1;
+                    if let Some(b) = builds[k].books.get_mut(realm) {
+                        *b -= 1;
+                    }
                     break;
                 }
                 r -= n;
@@ -198,7 +200,9 @@ pub(crate) fn make(
                 if t <= 5 {
                     let realm = REALMS[t - 1];
                     if books(b, realm) > 1 {
-                        *b.books.get_mut(realm).unwrap() -= 1;
+                        if let Some(n) = b.books.get_mut(realm) {
+                            *n -= 1;
+                        }
                     }
                 } else {
                     b.retorts.clear();

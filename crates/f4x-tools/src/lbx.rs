@@ -62,8 +62,8 @@ impl<'a> Lbx<'a> {
             .collect();
         // The final offset is the file length; entries must not run backwards or past it.
         let sane = offsets.windows(2).all(|w| w[0] <= w[1])
-            && offsets[0] >= table_end
-            && *offsets.last().unwrap() <= data.len();
+            && offsets.first().is_some_and(|&first| first >= table_end)
+            && offsets.last().is_some_and(|&last| last <= data.len());
         if !sane {
             return Err(LbxError::BadOffsets);
         }
