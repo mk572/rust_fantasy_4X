@@ -174,7 +174,6 @@ pub struct App {
     pub(crate) item_pool_warning: bool,
     /// The buildings the human's cities finished, to be announced, oldest first.
     /// The spells that fizzled or were dispelled, to be announced.
-    pub(crate) spell_notices: std::collections::VecDeque<crate::event_popup::SpellNotice>,
     pub(crate) built_notices:
         std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
     /// The full-screen scenes waiting to be played, oldest first (`end_scene.rs`), and whether the
@@ -239,6 +238,8 @@ pub struct App {
     pub(crate) battle_site: Option<crate::combat_result::BattleSite>,
     /// The questions and notices over the screen below (`modal.rs`).
     pub(crate) modals: crate::modal::ModalStack,
+    /// The screen is being drawn under a modal: a battle only shows itself and does not go on.
+    pub(crate) under_modal: bool,
 }
 
 /// A seed for a map nobody has asked a number for: the clock, mixed.
@@ -394,7 +395,6 @@ impl App {
             build_in: None,
             end_scenes: Default::default(),
             end_scene_queued: false,
-            spell_notices: Default::default(),
             targeting: None,
             turn_pending: 0,
             units_waited: false,
@@ -424,6 +424,7 @@ impl App {
             combat_results: None,
             battle_site: None,
             modals: Default::default(),
+            under_modal: false,
         };
         app.start_game();
         Ok(app)
@@ -1430,10 +1431,7 @@ impl App {
             return true;
         }
         self.queue_proposal();
-        if !self.modals.is_empty()
-            && !self.game.in_battle()
-            && !matches!(self.screen, Screen::Console)
-        {
+        if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
             return self.modal_frame(input);
         }
         if self.item_pool_frame(input) {
@@ -1457,12 +1455,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.spell_notice_frame(input)
-        {
-            return true;
         }
         // The offers made at the turn change wait over the map until they are answered.
         if matches!(self.screen, Screen::Map)
@@ -1574,7 +1566,9 @@ impl App {
         let Some((at, modal)) = self.modals.take_top() else {
             return false;
         };
+        self.under_modal = true;
         self.screen_frame(&Input::default());
+        self.under_modal = false;
         if self.prefs.get(crate::preferences::Pref::DimBehindBoxes) {
             draw_rectangle(
                 0.0,

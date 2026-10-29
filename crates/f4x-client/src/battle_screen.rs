@@ -1102,10 +1102,9 @@ impl App {
         if self.battle_ui.names.len() != battle.units.len() {
             self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
         }
-        // A dispel's notices stand over the fight until they are clicked away.
-        if !self.spell_notices.is_empty() {
+        // A box over the fight (a dispel's notices) stops it until it is clicked away.
+        if self.under_modal {
             self.draw_battle(&battle, false, None, input);
-            self.draw_spell_notice(input);
             return;
         }
         self.battle_ui.ai_timer -= dt;

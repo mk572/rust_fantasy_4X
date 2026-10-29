@@ -81,6 +81,18 @@ impl Modal for EventBox {
     }
 }
 
+impl Modal for SpellNotice {
+    fn kind(&self) -> &'static str {
+        kind::SPELL_NOTICE
+    }
+    fn music(&self) -> Option<Track> {
+        self.fizzled().then(|| Track::piece(music::SPELL_FAILURE))
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.spell_notice_frame(*self, input))
+    }
+}
+
 impl App {
     /// For screenshots and checks: make an event happen to the human wizard (`great_meteor`,
     /// `gift`, `plague`...). The reason it cannot is printed.
@@ -205,23 +217,12 @@ impl App {
         }
     }
 
-    /// The oldest spell notice not yet shown, in its box over the map. Returns whether the box
-    /// took the frame.
-    pub(crate) fn spell_notice_frame(&mut self, input: &Input) -> bool {
-        if self.spell_notices.is_empty() {
-            return false;
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
-        self.draw_spell_notice(input)
-    }
-
-    /// The oldest spell notice in its box over whatever is drawn (the map, or a battle).
-    pub(crate) fn draw_spell_notice(&mut self, input: &Input) -> bool {
-        let Some(notice) = self.spell_notices.front().cloned() else {
-            return false;
-        };
+    /// A spell notice in its box over the screen (the map, or a battle) until it is closed.
+    pub(crate) fn spell_notice_frame(
+        &mut self,
+        notice: SpellNotice,
+        input: &Input,
+    ) -> Option<SpellNotice> {
         let lay = Layout::new();
         let closed = self.notify2_box(
             &lay,
@@ -239,10 +240,7 @@ impl App {
             },
             input,
         );
-        if closed {
-            self.spell_notices.pop_front();
-        }
-        true
+        (!closed).then_some(notice)
     }
 
     /// A spell of the human's own went to nothing (`Notify2` in `OverSpel.c`): "X has been
@@ -279,7 +277,7 @@ impl App {
             DispelSite::Unit | DispelSite::BattleUnit => (Role::DispelledUnit, 4.0),
             DispelSite::City | DispelSite::Field => (Role::DispelledCity, 0.0),
         };
-        self.spell_notices.push_back(SpellNotice {
+        self.modals.enqueue(SpellNotice {
             text,
             strip: GREEN,
             top,
@@ -306,7 +304,7 @@ impl App {
                 self.text_with("spell.conquest_two", &args)
             }
         };
-        self.spell_notices.push_back(SpellNotice {
+        self.modals.enqueue(SpellNotice {
             text,
             strip: GREEN,
             top: 40.0,
@@ -330,7 +328,7 @@ impl App {
         }
         let name = self.game.content().rules.spells.get(spell).name.clone();
         let text = self.fizzle_text(caster, counter, &name, counter_spell);
-        self.spell_notices.push_back(SpellNotice {
+        self.modals.enqueue(SpellNotice {
             text,
             strip: RED,
             top: FIZZLE_TOP,
@@ -367,7 +365,7 @@ impl App {
             .find(|&id| id != HUMAN && !self.game.is_neutral_player(id));
         if let Some(rival) = rival {
             let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "spell.suppress_magic");
-            self.spell_notices.push_back(SpellNotice {
+            self.modals.enqueue(SpellNotice {
                 text,
                 strip: RED,
                 top: FIZZLE_TOP,
