@@ -63,6 +63,7 @@ mod sell_prompt;
 mod settings_screen;
 mod site_prompt;
 mod spell_fx;
+mod spell_sight;
 mod spellbook;
 mod square_anim;
 mod summon_scene;

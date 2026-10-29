@@ -70,14 +70,14 @@ impl App {
         if !self.prefs.get(Pref::CitySpellEvents) {
             return;
         }
-        if player != HUMAN
-            && !(self.prefs.get(Pref::EnemySpells) && self.game.is_explored(HUMAN, at))
-        {
-            return;
-        }
         let Some(city) = self.game.economy().city_at(at) else {
             return;
         };
+        // A cast on the human's own city is always shown.
+        let own = self.game.economy().city_owner(city) == Some(HUMAN);
+        if player != HUMAN && !own && !self.rival_spell_seen(player, Some(at), false) {
+            return;
+        }
         if let Some(scroll) = self.city_scroll_for(player, spell, city, None) {
             self.modals.enqueue(scroll);
         }

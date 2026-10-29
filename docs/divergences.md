@@ -766,5 +766,6 @@ Ours reads all six. Enemy Moves centres the map on a rival's step and slides it 
 Spells hides a rival's global-spell mirror and spell sound, Auto Unit Information hides the battle's hover
 window (the right-click sheet stays), and Overland Spell Events turns the global-spell mirror off
 for every wizard, as its help reads. City Spell Events and Summoning Events turn off the city-spell scroll (`city_scroll.rs`) and the summon scene
-(`summon_scene.rs`). Contact and Detect Magic are not
-asked of a rival's cast yet. Decided 30 October 2026.
+(`summon_scene.rs`). A rival's summon needs Enemy Spells, Detect Magic and contact; its spell on a unit, a square or a city
+needs Enemy Spells, Detect Magic and the square explored (a cast on the human's own city is always shown),
+as in the original (`spell_sight.rs`). The global-spell mirror needs Enemy Spells only: the original tests nothing there. Decided 30 October 2026.

@@ -94,7 +94,7 @@ impl App {
         if !self.prefs.get(Pref::SummoningEvents) {
             return;
         }
-        if player != HUMAN && !self.prefs.get(Pref::EnemySpells) {
+        if player != HUMAN && !self.rival_spell_seen(player, None, true) {
             return;
         }
         if let Some(scene) = self.summon_scene_for(player, spell, None) {

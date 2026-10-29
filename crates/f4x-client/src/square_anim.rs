@@ -41,9 +41,7 @@ impl App {
         if !self.prefs.get(Pref::SpellAnimations) {
             return;
         }
-        if player != HUMAN
-            && !(self.prefs.get(Pref::EnemySpells) && self.game.is_explored(HUMAN, at))
-        {
+        if player != HUMAN && !self.rival_spell_seen(player, Some(at), false) {
             return;
         }
         if let Some(anim) = self.square_anim_for(spell, at, None) {
