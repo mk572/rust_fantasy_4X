@@ -276,22 +276,21 @@ impl App {
             .contains(mouse)
         });
 
-        self.clipped((x1, y1, width, height), |app| {
-            app.draw_pic(&lay, "resource", LEFT, 0, x1, y1);
+        // The top, the bottom and the row buttons are wider than any box: they are cut at the
+        // frame's inner edge, so nothing of them shows through the frame's own pieces.
+        let inner = (
+            x1 + SIDE_WIDTH,
+            y1,
+            width - SIDE_WIDTH - RIGHT_WIDTH,
+            height,
+        );
+        self.clipped(inner, |app| {
             app.draw_pic(&lay, "resource", TOP, 0, x1 + SIDE_WIDTH, y1);
             for i in 0..sel.rows.len() {
                 let lit = usize::from(hover == Some(i));
                 let y = y1 + TOP_HEIGHT + ROW_HEIGHT * i as f32;
                 let which = if i == sel.rows.len() - 1 { 4 } else { i % 5 };
                 app.draw_pic(&lay, "resource", BUTTONS + which, lit, x1 + SIDE_WIDTH, y);
-                app.draw_pic(
-                    &lay,
-                    "resource",
-                    BUTTON_ENDS + which,
-                    lit,
-                    x2 - RIGHT_WIDTH + 1.0,
-                    y,
-                );
             }
             app.draw_pic(
                 &lay,
@@ -301,6 +300,22 @@ impl App {
                 x1 + SIDE_WIDTH,
                 y2 - BOTTOM_HEIGHT + 1.0,
             );
+        });
+        self.clipped((x1, y1, width, height), |app| {
+            for i in 0..sel.rows.len() {
+                let lit = usize::from(hover == Some(i));
+                let y = y1 + TOP_HEIGHT + ROW_HEIGHT * i as f32;
+                let which = if i == sel.rows.len() - 1 { 4 } else { i % 5 };
+                app.draw_pic(
+                    &lay,
+                    "resource",
+                    BUTTON_ENDS + which,
+                    lit,
+                    x2 - RIGHT_WIDTH + 1.0,
+                    y,
+                );
+            }
+            app.draw_pic(&lay, "resource", LEFT, 0, x1, y1);
             app.draw_pic(&lay, "resource", BOTTOM_LEFT, 0, x1, y2 - 28.0);
             app.draw_pic(&lay, "resource", RIGHT, 0, x2 - RIGHT_WIDTH + 1.0, y1);
             app.draw_pic(
