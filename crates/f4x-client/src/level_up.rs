@@ -8,7 +8,9 @@ use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::audio::{music, Track};
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::unit_sheet::special_picture;
 use crate::view::{App, HUMAN};
 
@@ -23,6 +25,25 @@ const MOST: usize = 8;
 const ROW: f32 = 17.0;
 const HEAD: f32 = 49.0;
 
+/// A hero (or other unit) of the human's that has made a level.
+pub(crate) struct LevelUp(pub(crate) hecs::Entity);
+
+impl Modal for LevelUp {
+    fn kind(&self) -> &'static str {
+        kind::LEVEL_UP
+    }
+    fn music(&self) -> Option<Track> {
+        Some(Track {
+            entry: music::FANFARE,
+            looped: false,
+            event: true,
+        })
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.level_up_frame(*self, input))
+    }
+}
+
 impl App {
     /// Note each hero's level at a new turn, and queue a box for each that has gone up. The first
     /// look at a game only notes the levels.
@@ -36,7 +57,7 @@ impl App {
             let level = self.game.units().unit_xp_level(hero);
             let before = self.hero_levels.insert(hero, level);
             if !first && before.is_some_and(|b| level > b) {
-                self.level_ups.push_back(hero);
+                self.modals.enqueue(LevelUp(hero));
             }
         }
     }
@@ -51,7 +72,7 @@ impl App {
             .copied()
             .or_else(|| self.game.units().player_units(HUMAN).first().copied());
         if let Some(unit) = unit {
-            self.level_ups.push_back(unit);
+            self.modals.enqueue(LevelUp(unit));
         }
     }
 
@@ -85,19 +106,14 @@ impl App {
         );
     }
 
-    /// The oldest announcement not yet read. Returns whether the box took the frame.
-    pub(crate) fn level_up_frame(&mut self, input: &Input) -> bool {
-        let Some(&unit) = self.level_ups.front() else {
-            return false;
-        };
-        let Some(sheet) = self.overland_sheet(unit) else {
-            self.level_ups.pop_front();
-            return true;
-        };
+    /// The announcement over the map; what is left of it until it is read.
+    pub(crate) fn level_up_frame(
+        &mut self,
+        LevelUp(unit): LevelUp,
+        input: &Input,
+    ) -> Option<LevelUp> {
+        let sheet = self.overland_sheet(unit)?;
         let level = self.game.units().unit_xp_level(unit);
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, by) = BASE;
@@ -163,10 +179,7 @@ impl App {
             || input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::Enter)
             || input.key_pressed(KeyCode::Space);
-        if close {
-            self.level_ups.pop_front();
-        }
-        true
+        (!close).then_some(LevelUp(unit))
     }
 }
 

@@ -102,9 +102,8 @@ pub struct App {
     pub(crate) prefs: crate::preferences::Preferences,
     /// The sounds and the music (`audio.rs`).
     pub(crate) audio: crate::audio::Audio,
-    /// The levels the human's heroes had at the last turn, and heroes whose new level waits to be announced.
+    /// The levels the human's heroes had at the last turn.
     pub(crate) hero_levels: std::collections::HashMap<hecs::Entity, usize>,
-    pub(crate) level_ups: std::collections::VecDeque<hecs::Entity>,
     /// The turn the heroes' levels were last looked at (`u32::MAX`: not yet).
     pub(crate) levels_turn: u32,
     /// A list box over the map: the advisors, the tax rates (task 71).
@@ -356,7 +355,6 @@ impl App {
             prefs,
             audio: crate::audio::Audio::silent(),
             hero_levels: Default::default(),
-            level_ups: Default::default(),
             levels_turn: u32::MAX,
             chancellor: None,
             list_box: None,
@@ -1465,12 +1463,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.level_up_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()

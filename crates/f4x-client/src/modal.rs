@@ -33,6 +33,7 @@ pub(crate) mod kind {
     pub(crate) const SITE: &str = "site";
     pub(crate) const LEARNED: &str = "learned";
     pub(crate) const ATTACK: &str = "attack";
+    pub(crate) const LEVEL_UP: &str = "level_up";
 }
 
 pub(crate) trait Modal {

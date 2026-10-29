@@ -448,13 +448,6 @@ impl App {
         if self.game_over_pending() {
             return None;
         }
-        if !self.level_ups.is_empty() {
-            return Some(Track {
-                entry: music::FANFARE,
-                looped: false,
-                event: true,
-            });
-        }
         if let Some(c) = self.global_casts.front() {
             let entry = self
                 .game
