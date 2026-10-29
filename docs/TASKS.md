@@ -32,6 +32,7 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 400 | Client | Extra-mana screen for an overland spell |
 | 401 | Client | Portrait picker for a spell that targets a wizard |
 | 402 | Client | Banner with the spell's name in combat |
+| 403 | Art | Identify the unused spell effect pictures |
 
 ## Descriptions
 
@@ -58,3 +59,5 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 **401. Portrait picker for a spell that targets a wizard.** A spell aimed at a wizard (Spell of Return, Disjunction and the like where the original asks for a portrait) is aimed by clicking a city or unit. Add the picker with the wizards' portraits, as a modal question. Listed in `screen_list.md` section 8.
 
 **402. Banner with the spell's name in combat.** The original shows the name of the spell being cast over the battle. Add it as a short banner (a modal or a battle overlay that does not stop the animation clock, to be decided) with the spell's name from the rules. Listed in `screen_list.md` section 8.
+
+**403. Identify the unused spell effect pictures.** After Magic Vortex took `cmbtfx` 18 (role `Vortex`), these entries of the original's effect files are extracted but named by no row of `content/spell_art.ron`: `cmbtfx` 7 (14 frames, a purple crystal), 12 (8 frames, a green heart), 26 (8 frames, a small blue flame), 27 to 32 (single frames of 179x146, 82x36 and four of 179x136) and `specfx` 43. They sit loose in `assets-local/art/cmbtfx/` and `art/specfx/`. Find which spell or screen each belongs to (the order of the spell list in the original's effect table, the combat spells that still show a tint or a realm picture, `docs/overland_spell_animations.md`), add the rows with a role (`Role` in `f4x-data`'s `spell_art.rs`) and wire them where the picture is meant to play, or record in `docs/extract-art.md` that nothing in the game loads one. Check each with a screenshot.
