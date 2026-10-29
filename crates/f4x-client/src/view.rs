@@ -1382,9 +1382,6 @@ impl App {
     /// Handle input and draw one frame. Returns false when the player quits.
     pub fn frame(&mut self, input: &Input) -> bool {
         self.update_audio(input);
-        if self.help_popup_frame(input) {
-            return true;
-        }
         if self.turn_pending > 0 {
             self.run_pending_turn();
         }
@@ -1528,10 +1525,12 @@ impl App {
         let Some((at, modal)) = self.modals.take_top() else {
             return false;
         };
-        self.under_modal = true;
-        self.screen_frame(&Input::default());
-        self.under_modal = false;
-        if self.prefs.get(crate::preferences::Pref::DimBehindBoxes) {
+        if !modal.covers_screen() {
+            self.under_modal = true;
+            self.screen_frame(&Input::default());
+            self.under_modal = false;
+        }
+        if !modal.covers_screen() && self.prefs.get(crate::preferences::Pref::DimBehindBoxes) {
             draw_rectangle(
                 0.0,
                 0.0,

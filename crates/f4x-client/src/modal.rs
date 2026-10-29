@@ -41,6 +41,7 @@ pub(crate) mod kind {
     pub(crate) const BUILT: &str = "built";
     pub(crate) const SELECTION: &str = "selection";
     pub(crate) const VIZIER: &str = "vizier";
+    pub(crate) const HELP: &str = "help";
     pub(crate) const CHANCELLOR: &str = "chancellor";
 }
 
@@ -56,6 +57,11 @@ pub(crate) trait Modal {
     /// Whether the turn change must wait until this is answered.
     fn blocks_turn(&self) -> bool {
         true
+    }
+
+    /// Whether this fills the whole screen itself, so the screen below is not drawn and not dimmed.
+    fn covers_screen(&self) -> bool {
+        false
     }
 
     /// The piece that plays while this is shown, if it has one.

@@ -11,6 +11,7 @@ use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, Screen};
 
@@ -52,11 +53,22 @@ pub(crate) struct HelpPopup {
     frozen: Texture2D,
 }
 
-/// Both are empty without help.
+impl Modal for HelpPopup {
+    fn kind(&self) -> &'static str {
+        kind::HELP
+    }
+    fn covers_screen(&self) -> bool {
+        true
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.help_popup_frame(*self, input))
+    }
+}
+
+/// What is asked and not yet opened; empty without help.
 #[derive(Default)]
 pub(crate) struct HelpUi {
     pub request: Option<HelpRequest>,
-    pub popup: Option<HelpPopup>,
     /// For the screenshot check (`--help X,Y`): ask about this point at once, and skip the
     /// growing.
     pub probe: Option<(i32, i32)>,
@@ -233,7 +245,7 @@ impl App {
         }
         let frozen = Texture2D::from_image(&get_screen_data());
         frozen.set_filter(FilterMode::Nearest);
-        self.help_ui.popup = Some(HelpPopup {
+        self.modals.open(HelpPopup {
             title: parts[0].title.clone(),
             lines,
             width,
@@ -244,11 +256,12 @@ impl App {
         });
     }
 
-    /// The pop-up over the frozen frame. Returns whether it took the frame.
-    pub(crate) fn help_popup_frame(&mut self, input: &Input) -> bool {
-        let Some(popup) = self.help_ui.popup.as_ref() else {
-            return false;
-        };
+    /// The pop-up over the frozen frame; what is left of it until it is closed.
+    pub(crate) fn help_popup_frame(
+        &mut self,
+        mut popup: HelpPopup,
+        input: &Input,
+    ) -> Option<HelpPopup> {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(BLACK);
@@ -353,18 +366,13 @@ impl App {
         let leave = (input.any_key_pressed() && !(scrolled || back))
             || input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right);
-        if let Some(popup) = self.help_ui.popup.as_mut() {
-            let step = if paged { room } else { 3 };
-            if scrolled {
-                popup.scroll = (popup.scroll + step).min(popup.lines.len().saturating_sub(shown));
-            } else if back {
-                popup.scroll = popup.scroll.saturating_sub(step);
-            }
+        let step = if paged { room } else { 3 };
+        if scrolled {
+            popup.scroll = (popup.scroll + step).min(popup.lines.len().saturating_sub(shown));
+        } else if back {
+            popup.scroll = popup.scroll.saturating_sub(step);
         }
-        if leave {
-            self.help_ui.popup = None;
-        }
-        true
+        (!leave).then_some(popup)
     }
 }
 
