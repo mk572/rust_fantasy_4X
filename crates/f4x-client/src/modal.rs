@@ -39,6 +39,8 @@ pub(crate) mod kind {
     pub(crate) const SPELL_NOTICE: &str = "spell_notice";
     pub(crate) const OFFER: &str = "offer";
     pub(crate) const BUILT: &str = "built";
+    pub(crate) const SELECTION: &str = "selection";
+    pub(crate) const VIZIER: &str = "vizier";
     pub(crate) const CHANCELLOR: &str = "chancellor";
 }
 

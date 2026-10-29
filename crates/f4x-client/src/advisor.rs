@@ -10,6 +10,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen, HUMAN};
 
 /// What a chosen row does.
@@ -35,6 +36,27 @@ pub(crate) struct SelectionBox {
     pub title: String,
     pub rows: Vec<Row>,
     pub purpose: Purpose,
+}
+
+impl Modal for SelectionBox {
+    fn kind(&self) -> &'static str {
+        kind::SELECTION
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.selection_frame(*self, input))
+    }
+}
+
+/// The question before the Grand Vizier takes over the cities' building.
+pub(crate) struct VizierAsk;
+
+impl Modal for VizierAsk {
+    fn kind(&self) -> &'static str {
+        kind::VIZIER
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.vizier_ask_frame(input))
+    }
 }
 
 /// The pieces of the box in `resource.lbx`: left, top, right, bottom, bottom left, bottom
@@ -92,7 +114,7 @@ impl App {
                 }
             })
             .collect();
-        self.list_box = Some(SelectionBox {
+        self.modals.open(SelectionBox {
             title: self.text("advisor.select"),
             rows,
             purpose: Purpose::Advisors,
@@ -157,7 +179,7 @@ impl App {
                 }
             })
             .collect();
-        self.list_box = Some(SelectionBox {
+        self.modals.open(SelectionBox {
             title: self.text("advisor.tax_title"),
             rows,
             purpose: Purpose::Tax,
@@ -177,18 +199,12 @@ impl App {
             });
             self.log.push(self.text("advisor.vizier_off"));
         } else {
-            self.vizier_ask = true;
+            self.modals.open(VizierAsk);
         }
     }
 
-    /// The question before the Grand Vizier takes over the cities' building.
-    pub(crate) fn vizier_ask_frame(&mut self, input: &Input) -> bool {
-        if !self.vizier_ask {
-            return false;
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
+    /// Draw the question and take its answer.
+    pub(crate) fn vizier_ask_frame(&mut self, input: &Input) -> Option<VizierAsk> {
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
             w / 2.0 - 330.0,
@@ -220,27 +236,25 @@ impl App {
             crate::ui::GOLD,
         );
         if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
-            self.vizier_ask = false;
             self.game.apply(Command::SetGrandVizier {
                 player: HUMAN,
                 on: true,
             });
             self.log.push(self.text("advisor.vizier_on"));
+            None
         } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
-            self.vizier_ask = false;
+            None
+        } else {
+            Some(VizierAsk)
         }
-        true
     }
 
-    /// The list box over the map; true while it is up.
-    pub(crate) fn selection_frame(&mut self, input: &Input) -> bool {
-        let Some(sel) = self.list_box.clone() else {
-            return false;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
-
+    /// The list box over the screen; what is left of it while it is up.
+    pub(crate) fn selection_frame(
+        &mut self,
+        sel: SelectionBox,
+        input: &Input,
+    ) -> Option<SelectionBox> {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         // The box is as wide as its widest row or title, and sits in the middle of the screen.
@@ -380,16 +394,18 @@ impl App {
         }
 
         if input.key_pressed(KeyCode::Escape) || input.mouse_pressed(MouseButton::Right) {
-            self.list_box = None;
-        } else if input.mouse_pressed(MouseButton::Left) {
+            return None;
+        }
+        if input.mouse_pressed(MouseButton::Left) {
             if let Some(i) = hover {
-                self.list_box = None;
                 self.choose_row(sel.purpose, i);
-            } else if !lay.rect((x1, y1, width, height)).contains(mouse) {
-                self.list_box = None;
+                return None;
+            }
+            if !lay.rect((x1, y1, width, height)).contains(mouse) {
+                return None;
             }
         }
-        true
+        Some(sel)
     }
 
     fn choose_row(&mut self, purpose: Purpose, row: usize) {

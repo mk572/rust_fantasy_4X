@@ -104,10 +104,6 @@ pub struct App {
     pub(crate) hero_levels: std::collections::HashMap<hecs::Entity, usize>,
     /// The turn the heroes' levels were last looked at (`u32::MAX`: not yet).
     pub(crate) levels_turn: u32,
-    /// A list box over the map: the advisors, the tax rates (task 71).
-    pub(crate) list_box: Option<crate::advisor::SelectionBox>,
-    /// The question before the Grand Vizier is switched on.
-    pub(crate) vizier_ask: bool,
     /// The plane the Cartographer shows.
     pub(crate) cart_plane: Plane,
     /// The news of the last turn change, for the Chancellor to show again.
@@ -347,8 +343,6 @@ impl App {
             audio: crate::audio::Audio::silent(),
             hero_levels: Default::default(),
             levels_turn: u32::MAX,
-            list_box: None,
-            vizier_ask: false,
             cart_plane: Plane::Arcanus,
             last_news: Vec::new(),
             seed,
@@ -1448,12 +1442,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && (self.selection_frame(input) || self.vizier_ask_frame(input))
-        {
-            return true;
         }
         self.maybe_ask_for_research();
         if self.game.game_over.is_some()
