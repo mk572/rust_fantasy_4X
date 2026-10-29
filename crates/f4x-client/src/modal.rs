@@ -42,6 +42,7 @@ pub(crate) mod kind {
     pub(crate) const SELECTION: &str = "selection";
     pub(crate) const VIZIER: &str = "vizier";
     pub(crate) const HELP: &str = "help";
+    pub(crate) const COMBAT_RESULT: &str = "combat_result";
     pub(crate) const CHANCELLOR: &str = "chancellor";
 }
 

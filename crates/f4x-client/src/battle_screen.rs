@@ -58,6 +58,9 @@ pub(crate) struct BattleUi {
     names: Vec<String>,
     /// The battle as it was before the orders now being played; shown while they animate.
     shown: Option<Battle>,
+    /// The battle as it was last drawn: the picture under the result scroll once the game has
+    /// dropped the battle.
+    last_drawn: Option<Battle>,
     queue: VecDeque<Anim>,
     /// The animation under way and how many seconds it has run.
     playing: Option<(Anim, f32)>,
@@ -1090,15 +1093,21 @@ impl App {
         self.advance_animation(dt);
         // While orders animate, the battle as it was is drawn; afterwards the real one.
         let animating = self.battle_ui.animating();
+        let over = self.modals.has(crate::modal::kind::COMBAT_RESULT);
         let Some(battle) = self
             .battle_ui
             .shown
             .clone()
             .or_else(|| self.game.battle().cloned())
+            .or_else(|| over.then(|| self.battle_ui.last_drawn.clone()).flatten())
         else {
+            self.battle_ui.last_drawn = None;
             self.screen = Screen::Map;
             return;
         };
+        if !over {
+            self.battle_ui.last_drawn = Some(battle.clone());
+        }
         if self.battle_ui.names.len() != battle.units.len() {
             self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
         }

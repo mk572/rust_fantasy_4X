@@ -1405,13 +1405,10 @@ impl App {
         }
         // The result scroll waits until the last blow of the battle has been played.
         let still_playing = self.battle_ui.animating() && matches!(self.screen, Screen::Battle);
-        if self.combat_results.is_some()
-            && !self.game.in_battle()
-            && !still_playing
-            && !matches!(self.screen, Screen::Console)
-            && self.combat_results_frame(input)
-        {
-            return true;
+        if !self.game.in_battle() && !still_playing {
+            if let Some(results) = self.combat_results.take() {
+                self.modals.open(results);
+            }
         }
         self.queue_proposal();
         self.queue_offer();

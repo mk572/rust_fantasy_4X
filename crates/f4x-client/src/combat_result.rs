@@ -14,6 +14,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::sell_prompt::RAZE_OR_SPARE;
 use crate::view::{App, HUMAN};
@@ -390,14 +391,12 @@ impl App {
         self.combat_results = Some(r);
     }
 
-    /// The scroll over the map until it is rolled up; true while it took the frame.
-    pub(crate) fn combat_results_frame(&mut self, input: &Input) -> bool {
-        let Some(mut r) = self.combat_results.take() else {
-            return false;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
+    /// The scroll over the screen until it is rolled up; what is left of it while it is up.
+    pub(crate) fn combat_results_frame(
+        &mut self,
+        mut r: CombatResults,
+        input: &Input,
+    ) -> Option<CombatResults> {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (_, height) = self.results_text(&r, 0.0);
@@ -447,23 +446,27 @@ impl App {
                 }
                 None => {}
             }
-            self.combat_results = Some(r);
-            return true;
+            return Some(r);
         }
         if !waited && r.city.is_some() && input.key_pressed(KeyCode::R) {
             r.asking = true;
-            self.combat_results = Some(r);
-            return true;
+            return Some(r);
         }
         let leave = input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::Enter)
             || input.key_pressed(KeyCode::KpEnter)
             || input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right);
-        if !leave {
-            self.combat_results = Some(r);
-        }
-        true
+        (!leave).then_some(r)
+    }
+}
+
+impl Modal for CombatResults {
+    fn kind(&self) -> &'static str {
+        kind::COMBAT_RESULT
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.combat_results_frame(*self, input))
     }
 }
 
